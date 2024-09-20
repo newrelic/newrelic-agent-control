@@ -89,13 +89,10 @@ impl AuthConfig {
             url: self.token_url.clone(),
         };
 
-        Ok(TokenRetrieverWithCache::new(
-            self.client_id,
-            self.token_url,
-            jwt_signer,
-            authenticator_config.into(),
+        Ok(
+            TokenRetrieverWithCache::new(self.client_id, jwt_signer, authenticator_config.into())
+                .with_retries(self.retries),
         )
-        .with_retries(self.retries))
     }
 }
 

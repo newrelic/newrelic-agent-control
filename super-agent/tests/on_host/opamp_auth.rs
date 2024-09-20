@@ -6,6 +6,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_CONFIG_FILE;
 use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
+use nr_auth::token_retriever::DEFAULT_AUDIENCE;
 use predicates::prelude::predicate;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -211,16 +212,10 @@ fn is_authorized(when: When) -> When {
     when.matches(|req| {
         let request: Request = serde_json::from_slice(req.body.as_ref().unwrap()).unwrap();
 
-        // This closure cannot use an external variable so server url is composed here
-        let headers: HashMap<String, String> =
-            req.headers.to_owned().unwrap().into_iter().collect();
-        let mock_server_url = headers.get("host").unwrap();
-        let aud = format!("http://{}{}", mock_server_url, req.path);
-
         // Validation
         let mut validation = Validation::new(Algorithm::RS256);
         validation.sub = Some(request.client_id.to_owned());
-        validation.set_audience(&[aud]);
+        validation.set_audience(&[DEFAULT_AUDIENCE]);
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
         // Decode the signed token

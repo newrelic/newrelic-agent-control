@@ -8,16 +8,19 @@ use crate::jwt::signer::JwtSignerImpl;
 use crate::token::{Token, TokenType};
 use crate::{ClientID, TokenRetriever, TokenRetrieverError};
 use chrono::{TimeDelta, Utc};
+use std::str::FromStr;
 use std::sync::Mutex;
 use tracing::debug;
 use url::Url;
 
 /// A signed JWT should live enough for the System Identity Service to consume it.
 const DEFAULT_JWT_CLAIM_EXP: TimeDelta = TimeDelta::seconds(180);
+/// The "aud" (audience) claim identifies the recipients that the JWT is intended for.
+pub const DEFAULT_AUDIENCE: &str = "https://www.newrelic.com/";
 
 pub struct TokenRetrieverWithCache {
     client_id: ClientID,
-    token_url: Url,
+    aud: Url,
     tokens: Mutex<Option<Token>>,
     jwt_signer: JwtSignerImpl,
     authenticator: HttpAuthenticator,
@@ -70,13 +73,12 @@ impl TokenRetriever for TokenRetrieverWithCache {
 impl TokenRetrieverWithCache {
     pub fn new(
         client_id: ClientID,
-        token_url: Url,
         jwt_signer: JwtSignerImpl,
         authenticator: HttpAuthenticator,
     ) -> TokenRetrieverWithCache {
         TokenRetrieverWithCache {
             client_id,
-            token_url,
+            aud: Url::from_str(DEFAULT_AUDIENCE).expect("constant valid url value"),
             tokens: Mutex::new(None),
             jwt_signer,
             authenticator,
@@ -101,11 +103,7 @@ impl TokenRetrieverWithCache {
             TokenRetrieverError::TokenRetrieverError("converting token expiration time".into())
         })?;
 
-        let claims = Claims::new(
-            self.client_id.to_owned(),
-            self.token_url.to_owned(),
-            timestamp,
-        );
+        let claims = Claims::new(self.client_id.to_owned(), self.aud.to_owned(), timestamp);
 
         let signed_jwt = self.jwt_signer.sign(claims)?;
 
@@ -132,7 +130,6 @@ mod test {
 
     use chrono::{TimeDelta, Utc};
     use mockall::{predicate::eq, Sequence};
-    use url::Url;
 
     #[cfg_attr(test, mockall_double::double)]
     use crate::authenticator::HttpAuthenticator;
@@ -148,13 +145,12 @@ mod test {
     #[cfg_attr(test, mockall_double::double)]
     use crate::jwt::signer::JwtSignerImpl;
 
-    use super::TokenRetrieverWithCache;
+    use super::{TokenRetrieverWithCache, DEFAULT_AUDIENCE};
 
     #[test]
     // Test that a new token is retrieved when there is no cache and a cached token is
     // returned in case is not expired.
     fn retrieve_token_miss_hit_cache() {
-        let token_url = "https://fake.com/";
         let client_id = "client_id";
         let token_expires_in = 1;
 
@@ -168,7 +164,7 @@ mod test {
             .withf(move |claims| {
                 let exp = Utc::now() + DEFAULT_JWT_CLAIM_EXP;
                 claims.iss == client_id
-                    && claims.aud == token_url
+                    && claims.aud == DEFAULT_AUDIENCE
                     && claims.exp == exp.timestamp() as u64
             })
             .returning(move |_| {
@@ -197,12 +193,8 @@ mod test {
                 })
             });
 
-        let token_retriever = TokenRetrieverWithCache::new(
-            client_id.into(),
-            Url::parse(token_url).unwrap(),
-            jwt_signer,
-            authenticator,
-        );
+        let token_retriever =
+            TokenRetrieverWithCache::new(client_id.into(), jwt_signer, authenticator);
 
         let expected_token = Token::new(
             fake_token.into(),
@@ -249,12 +241,8 @@ mod test {
                 })
             });
 
-        let token_retriever = TokenRetrieverWithCache::new(
-            client_id.into(),
-            Url::parse("https://fake.com/").unwrap(),
-            jwt_signer,
-            authenticator,
-        );
+        let token_retriever =
+            TokenRetrieverWithCache::new(client_id.into(), jwt_signer, authenticator);
 
         let cache_miss_token = token_retriever.retrieve().unwrap();
 
@@ -295,13 +283,9 @@ mod test {
                 ))
             });
 
-        let token_retriever = TokenRetrieverWithCache::new(
-            client_id.into(),
-            Url::parse("https://fake.com/").unwrap(),
-            jwt_signer,
-            authenticator,
-        )
-        .with_retries(0);
+        let token_retriever =
+            TokenRetrieverWithCache::new(client_id.into(), jwt_signer, authenticator)
+                .with_retries(0);
 
         // Retries expired, error returned
         let cache_miss_token = token_retriever.retrieve();
@@ -349,13 +333,9 @@ mod test {
                 })
             });
 
-        let token_retriever = TokenRetrieverWithCache::new(
-            client_id.into(),
-            Url::parse("https://fake.com/").unwrap(),
-            jwt_signer,
-            authenticator,
-        )
-        .with_retries(2);
+        let token_retriever =
+            TokenRetrieverWithCache::new(client_id.into(), jwt_signer, authenticator)
+                .with_retries(2);
 
         let expected_token = Token::new(
             fake_token.into(),
@@ -391,13 +371,9 @@ mod test {
             ))
         });
 
-        let token_retriever = TokenRetrieverWithCache::new(
-            client_id.into(),
-            Url::parse("https://fake.com/").unwrap(),
-            jwt_signer,
-            authenticator,
-        )
-        .with_retries(2);
+        let token_retriever =
+            TokenRetrieverWithCache::new(client_id.into(), jwt_signer, authenticator)
+                .with_retries(2);
 
         // Retries expired, error returned
         let cache_miss_token = token_retriever.retrieve();
