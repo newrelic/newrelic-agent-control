@@ -988,7 +988,7 @@ dependencies = [
  "clap",
  "fs",
  "http 1.1.0",
- "mockall 0.12.1",
+ "mockall",
  "mockall_double",
  "newrelic_super_agent",
  "nix 0.28.0",
@@ -1538,7 +1538,7 @@ checksum = "6c2141d6d6c8512188a7891b4b01590a45f6dac67afb4f255c4124dbb86d4eaa"
 name = "fs"
 version = "0.1.0"
 dependencies = [
- "mockall 0.12.1",
+ "mockall",
  "regex",
  "tempfile",
  "thiserror",
@@ -2672,21 +2672,7 @@ dependencies = [
  "downcast",
  "fragile",
  "lazy_static",
- "mockall_derive 0.12.1",
- "predicates",
- "predicates-tree",
-]
-
-[[package]]
-name = "mockall"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d4c28b3fb6d753d28c20e826cd46ee611fda1cf3cde03a443a974043247c065a"
-dependencies = [
- "cfg-if",
- "downcast",
- "fragile",
- "mockall_derive 0.13.0",
+ "mockall_derive",
  "predicates",
  "predicates-tree",
 ]
@@ -2696,18 +2682,6 @@ name = "mockall_derive"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af7cbce79ec385a1d4f54baa90a76401eb15d9cab93685f62e7e9f942aa00ae2"
-dependencies = [
- "cfg-if",
- "proc-macro2",
- "quote",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "mockall_derive"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "341014e7f530314e9a1fdbc7400b244efea7122662c96bfa248c31da5bfb2020"
 dependencies = [
  "cfg-if",
  "proc-macro2",
@@ -2764,7 +2738,7 @@ dependencies = [
  "k8s-openapi",
  "konst",
  "kube",
- "mockall 0.12.1",
+ "mockall",
  "mockall_double",
  "nix 0.28.0",
  "nr-auth",
@@ -2837,14 +2811,11 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 [[package]]
 name = "nr-auth"
 version = "0.0.2"
+source = "git+ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git?tag=0.0.2#f5a22a61cd21795fed68a9c040edd63a6af4b6e1"
 dependencies = [
- "assert_matches",
  "chrono",
  "http 1.1.0",
- "httpmock",
  "jsonwebtoken",
- "mockall 0.13.0",
- "mockall_double",
  "serde",
  "serde_json",
  "thiserror",
@@ -3371,7 +3342,7 @@ dependencies = [
  "http 1.1.0",
  "httpmock",
  "konst",
- "mockall 0.12.1",
+ "mockall",
  "nix 0.28.0",
  "serde",
  "serde_json",

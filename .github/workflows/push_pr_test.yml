@@ -9,6 +9,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 name: test
+
+env:
+  # Allows to fetch multiple private repo crates with different deploy keys.
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
   release-build:
     runs-on: ubuntu-latest
@@ -20,7 +24,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Install stable
         uses: dtolnay/rust-toolchain@1.78.0
         with:
@@ -49,7 +55,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Install ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@1.78.0
@@ -68,9 +76,6 @@ jobs:
 
       - name: Run tests license
         run: cargo test --locked --package license --all-targets
-
-      - name: Run tests nr-auth
-        run: cargo test --locked --package nr-auth --all-targets
 
       - name: Run tests resource-detection
         run: cargo test --locked --package resource-detection --all-targets
@@ -104,12 +109,19 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.toolchain }}
+      - name: Apply webfactory/ssh-agent action configs to the container shh config
+        run: |
+          cat /root/.ssh/config >> /etc/ssh/ssh_config
+          ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
+
+      - name: Install 
         uses: dtolnay/rust-toolchain@1.78.0
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
 
       - name: Run onHost root-required lib tests only
         run: make -C super-agent test/onhost/root
@@ -125,7 +137,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Install Go
         uses: actions/setup-go@v5
         with:
@@ -143,7 +157,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.10.0
         with:
@@ -171,7 +187,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.10.0
         with:

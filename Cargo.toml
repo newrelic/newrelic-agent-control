@@ -7,7 +7,6 @@ members = [
   "resource-detection",
   "fs",
   "license",
-  "nr-auth",
 ]
 
 [workspace.dependencies]
