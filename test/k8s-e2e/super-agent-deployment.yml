@@ -7,8 +7,13 @@ super-agent-deployment:
   config:
     subAgents:
       open-telemetry:
+        type: newrelic/io.opentelemetry.collector:0.2.0
         content:
           chart_values:
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
             verboseLog: true
+
     opamp:
       enabled: false
