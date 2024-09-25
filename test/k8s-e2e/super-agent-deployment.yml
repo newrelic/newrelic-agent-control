@@ -10,3 +10,5 @@ super-agent-deployment:
         content:
           chart_values:
             verboseLog: true
+    opamp:
+      enabled: false
