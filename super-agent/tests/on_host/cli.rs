@@ -194,7 +194,7 @@ agents: {{}}
             "--bin",
             "newrelic-super-agent",
             "--features",
-            "onhost",
+            "onhost,multiple-instances",
             "--",
         ])
         .arg("--local-dir")

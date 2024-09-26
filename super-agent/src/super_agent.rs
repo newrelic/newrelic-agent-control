@@ -5,6 +5,7 @@ pub mod error;
 pub(super) mod event_handler;
 pub use super_agent::*;
 pub mod http_server;
+pub mod pid_cache;
 pub mod run;
 #[allow(clippy::module_inception)]
 mod super_agent;
