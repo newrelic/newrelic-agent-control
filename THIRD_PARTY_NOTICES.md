@@ -89,7 +89,7 @@ Distributed under the following license(s):
 * MIT
 
 
-## adler https://crates.io/crates/adler
+## adler2 https://crates.io/crates/adler2
 
 Distributed under the following license(s):
 * 0BSD
@@ -353,6 +353,12 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
+
+
+## cfg_aliases https://crates.io/crates/cfg_aliases
+
+Distributed under the following license(s):
+* MIT
 
 
 ## cfg_aliases https://crates.io/crates/cfg_aliases
@@ -1011,6 +1017,13 @@ Distributed under the following license(s):
 * MIT
 
 
+## impl-more https://crates.io/crates/impl-more
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## indexmap https://crates.io/crates/indexmap
 
 Distributed under the following license(s):
@@ -1288,6 +1301,12 @@ Distributed under the following license(s):
 * MIT
 
 
+## nix https://crates.io/crates/nix
+
+Distributed under the following license(s):
+* MIT
+
+
 ## nom https://crates.io/crates/nom
 
 Distributed under the following license(s):
@@ -1328,13 +1347,6 @@ Distributed under the following license(s):
 
 
 ## num-traits https://crates.io/crates/num-traits
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## num_cpus https://crates.io/crates/num_cpus
 
 Distributed under the following license(s):
 * MIT
@@ -1692,14 +1704,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## rustls https://crates.io/crates/rustls
-
-Distributed under the following license(s):
-* Apache-2.0
-* ISC
-* MIT
-
-
 ## rustls-native-certs https://crates.io/crates/rustls-native-certs
 
 Distributed under the following license(s):
@@ -1876,6 +1880,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## shlex https://crates.io/crates/shlex
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## signal-hook-registry https://crates.io/crates/signal-hook-registry
@@ -2456,20 +2467,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## windows-targets https://crates.io/crates/windows-targets
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_aarch64_gnullvm https://crates.io/crates/windows_aarch64_gnullvm
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## windows_aarch64_gnullvm https://crates.io/crates/windows_aarch64_gnullvm
 
 Distributed under the following license(s):
@@ -2478,20 +2475,6 @@ Distributed under the following license(s):
 
 
 ## windows_aarch64_msvc https://crates.io/crates/windows_aarch64_msvc
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_aarch64_msvc https://crates.io/crates/windows_aarch64_msvc
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_i686_gnu https://crates.io/crates/windows_i686_gnu
 
 Distributed under the following license(s):
 * MIT
@@ -2519,20 +2502,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## windows_i686_msvc https://crates.io/crates/windows_i686_msvc
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_x86_64_gnu https://crates.io/crates/windows_x86_64_gnu
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## windows_x86_64_gnu https://crates.io/crates/windows_x86_64_gnu
 
 Distributed under the following license(s):
@@ -2541,20 +2510,6 @@ Distributed under the following license(s):
 
 
 ## windows_x86_64_gnullvm https://crates.io/crates/windows_x86_64_gnullvm
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_x86_64_gnullvm https://crates.io/crates/windows_x86_64_gnullvm
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows_x86_64_msvc https://crates.io/crates/windows_x86_64_msvc
 
 Distributed under the following license(s):
 * MIT
@@ -2582,6 +2537,14 @@ Distributed under the following license(s):
 
 
 ## zerocopy https://crates.io/crates/zerocopy
+
+Distributed under the following license(s):
+* BSD-2-Clause
+* Apache-2.0
+* MIT
+
+
+## zerocopy-derive https://crates.io/crates/zerocopy-derive
 
 Distributed under the following license(s):
 * BSD-2-Clause

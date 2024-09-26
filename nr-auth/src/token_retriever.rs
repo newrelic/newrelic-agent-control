@@ -1,5 +1,3 @@
-#[cfg_attr(test, mockall_double::double)]
-use crate::authenticator::HttpAuthenticator;
 use crate::authenticator::{Authenticator, ClientAssertionType, GrantType, Request};
 use crate::jwt::claims::Claims;
 use crate::jwt::signer::JwtSigner;
@@ -18,16 +16,22 @@ const DEFAULT_JWT_CLAIM_EXP: TimeDelta = TimeDelta::seconds(180);
 /// The "aud" (audience) claim identifies the recipients that the JWT is intended for.
 pub const DEFAULT_AUDIENCE: &str = "https://www.newrelic.com/";
 
-pub struct TokenRetrieverWithCache {
+pub struct TokenRetrieverWithCache<A>
+where
+    A: Authenticator,
+{
     client_id: ClientID,
     aud: Url,
     tokens: Mutex<Option<Token>>,
     jwt_signer: JwtSignerImpl,
-    authenticator: HttpAuthenticator,
+    authenticator: A,
     retries: u8,
 }
 
-impl TokenRetriever for TokenRetrieverWithCache {
+impl<A> TokenRetriever for TokenRetrieverWithCache<A>
+where
+    A: Authenticator,
+{
     fn retrieve(&self) -> Result<Token, TokenRetrieverError> {
         let mut cached_token = self
             .tokens
@@ -70,12 +74,15 @@ impl TokenRetriever for TokenRetrieverWithCache {
     }
 }
 
-impl TokenRetrieverWithCache {
+impl<A> TokenRetrieverWithCache<A>
+where
+    A: Authenticator,
+{
     pub fn new(
         client_id: ClientID,
         jwt_signer: JwtSignerImpl,
-        authenticator: HttpAuthenticator,
-    ) -> TokenRetrieverWithCache {
+        authenticator: A,
+    ) -> TokenRetrieverWithCache<A> {
         TokenRetrieverWithCache {
             client_id,
             aud: Url::from_str(DEFAULT_AUDIENCE).expect("constant valid url value"),
@@ -131,9 +138,9 @@ mod test {
     use chrono::{TimeDelta, Utc};
     use mockall::{predicate::eq, Sequence};
 
+    use crate::authenticator::test::MockAuthenticatorMock;
     #[cfg_attr(test, mockall_double::double)]
-    use crate::authenticator::HttpAuthenticator;
-
+    use crate::jwt::signer::JwtSignerImpl;
     use crate::{
         authenticator::{AuthenticateError, ClientAssertionType, GrantType, Request, Response},
         jwt::signed::SignedJwt,
@@ -141,9 +148,6 @@ mod test {
         token_retriever::DEFAULT_JWT_CLAIM_EXP,
         TokenRetriever,
     };
-
-    #[cfg_attr(test, mockall_double::double)]
-    use crate::jwt::signer::JwtSignerImpl;
 
     use super::{TokenRetrieverWithCache, DEFAULT_AUDIENCE};
 
@@ -180,7 +184,7 @@ mod test {
             client_assertion: fake_client_assertion.into(),
         };
 
-        let mut authenticator = HttpAuthenticator::new();
+        let mut authenticator = MockAuthenticatorMock::default();
         authenticator
             .expect_authenticate()
             .once()
@@ -228,7 +232,7 @@ mod test {
             })
         });
 
-        let mut authenticator = HttpAuthenticator::new();
+        let mut authenticator = MockAuthenticatorMock::default();
         authenticator
             .expect_authenticate()
             .times(2)
@@ -273,7 +277,7 @@ mod test {
             })
         });
 
-        let mut authenticator = HttpAuthenticator::new();
+        let mut authenticator = MockAuthenticatorMock::default();
         authenticator
             .expect_authenticate()
             .once()
@@ -310,7 +314,7 @@ mod test {
         });
 
         let mut auth_sequence = Sequence::new();
-        let mut authenticator = HttpAuthenticator::new();
+        let mut authenticator = MockAuthenticatorMock::default();
         authenticator
             .expect_authenticate()
             .once()
@@ -364,7 +368,7 @@ mod test {
             })
         });
 
-        let mut authenticator = HttpAuthenticator::new();
+        let mut authenticator = MockAuthenticatorMock::default();
         authenticator.expect_authenticate().returning(move |_| {
             Err(AuthenticateError::DeserializeError(
                 "some_serde_error".to_owned(),
