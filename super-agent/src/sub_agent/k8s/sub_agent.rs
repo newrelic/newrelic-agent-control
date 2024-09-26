@@ -1,9 +1,14 @@
+use std::marker::PhantomData;
+use std::sync::Arc;
 use std::time::SystemTime;
 
+use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::StartedClient;
 use tracing::error;
 
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
+use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::event_processor::SubAgentEventProcessor;
 use crate::sub_agent::k8s::NotStartedSupervisor;
 use crate::sub_agent::{NotStarted, Started};
@@ -16,17 +21,24 @@ use super::supervisor::StartedSupervisor;
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On K8s
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct SubAgentK8s<S, V> {
+pub struct SubAgentK8s<S, V, C, CB> {
     agent_id: AgentID,
     agent_type: AgentTypeFQN,
     supervisor: Option<V>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    maybe_opamp_client: Arc<Option<C>>,
     state: S,
+
+    // This is needed to ensure the generic type parameter CB is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _opamp_callbacks: PhantomData<CB>,
 }
 
-impl<E> SubAgentK8s<NotStarted<E>, NotStartedSupervisor>
+impl<E, C, CB> SubAgentK8s<NotStarted<E>, NotStartedSupervisor, C, CB>
 where
     E: SubAgentEventProcessor,
+    C: StartedClient<CB>,
+    CB: Callbacks,
 {
     pub fn new(
         agent_id: AgentID,
@@ -34,22 +46,27 @@ where
         event_processor: E,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         supervisor: Option<NotStartedSupervisor>,
+        maybe_opamp_client: Arc<Option<C>>,
     ) -> Self {
         SubAgentK8s {
             agent_id,
             agent_type,
             supervisor,
             sub_agent_internal_publisher,
+            maybe_opamp_client,
             state: NotStarted { event_processor },
+            _opamp_callbacks: PhantomData,
         }
     }
 }
 
-impl<E> NotStartedSubAgent for SubAgentK8s<NotStarted<E>, NotStartedSupervisor>
+impl<E, C, CB> NotStartedSubAgent for SubAgentK8s<NotStarted<E>, NotStartedSupervisor, C, CB>
 where
     E: SubAgentEventProcessor,
+    C: StartedClient<CB>,
+    CB: Callbacks,
 {
-    type StartedSubAgent = SubAgentK8s<Started, StartedSupervisor>;
+    type StartedSubAgent = SubAgentK8s<Started, StartedSupervisor, C, CB>;
 
     // Run has two main duties:
     // - it starts the supervisor if any
@@ -77,12 +94,18 @@ where
             agent_type: self.agent_type,
             supervisor: maybe_started_supervisor,
             sub_agent_internal_publisher: self.sub_agent_internal_publisher,
+            maybe_opamp_client: self.maybe_opamp_client,
             state: Started { event_loop_handle },
+            _opamp_callbacks: PhantomData,
         }
     }
 }
 
-impl StartedSubAgent for SubAgentK8s<Started, StartedSupervisor> {
+impl<C, CB> StartedSubAgent for SubAgentK8s<Started, StartedSupervisor, C, CB>
+where
+    C: StartedClient<CB>,
+    CB: Callbacks,
+{
     fn agent_id(&self) -> AgentID {
         self.agent_id.clone()
     }
@@ -125,6 +148,13 @@ impl StartedSubAgent for SubAgentK8s<Started, StartedSupervisor> {
                     );
                 });
             });
+
+        // Stop the OpAMP client in case it wasn't previously stopped by the event handler
+        if let Some(maybe_opamp_client) = Arc::into_inner(self.maybe_opamp_client) {
+            let _ = stop_opamp_client(maybe_opamp_client, &self.agent_id).inspect_err(|err| {
+                error!(agent_id= %self.agent_id, %err, "Error stopping the OpAMP client");
+            });
+        }
     }
 }
 
@@ -135,6 +165,9 @@ pub mod test {
     use crate::event::SubAgentInternalEvent;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
+    use crate::opamp::callbacks::AgentCallbacks;
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::sub_agent::event_processor::test::MockEventProcessorMock;
     use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
     use crate::sub_agent::k8s::sub_agent::SubAgentK8s;
@@ -218,6 +251,7 @@ pub mod test {
             processor,
             sub_agent_internal_publisher.clone(),
             Some(supervisor),
+            Arc::new(none_mock_opamp_client()),
         )
         .run();
 
@@ -238,7 +272,12 @@ pub mod test {
     fn create_k8s_sub_agent_successfully(
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         k8s_client_should_fail: bool,
-    ) -> SubAgentK8s<NotStarted<MockEventProcessorMock>, NotStartedSupervisor> {
+    ) -> SubAgentK8s<
+        NotStarted<MockEventProcessorMock>,
+        NotStartedSupervisor,
+        MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>,
+        AgentCallbacks<MockEffectiveConfigLoaderMock>,
+    > {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
 
@@ -270,6 +309,12 @@ pub mod test {
             processor,
             sub_agent_internal_publisher.clone(),
             Some(supervisor),
+            Arc::new(none_mock_opamp_client()),
         )
+    }
+
+    fn none_mock_opamp_client(
+    ) -> Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>> {
+        None
     }
 }
