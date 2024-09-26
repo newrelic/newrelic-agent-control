@@ -6,6 +6,7 @@ pub mod event_processor;
 pub mod event_processor_builder;
 pub mod health;
 pub mod persister;
+pub mod supervisor;
 
 #[cfg(feature = "k8s")]
 pub mod k8s;

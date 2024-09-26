@@ -10,10 +10,13 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::effective_agents_assembler::{
+    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
+};
 use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
+use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{NotStarted, SubAgentCallbacks};
-use crate::super_agent::config::{AgentID, AgentTypeFQN, K8sConfig, SubAgentConfig};
+use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
@@ -136,23 +139,15 @@ where
 
         // A sub-agent can be started without supervisor, when running with opamp activated, in order to
         // be able to receive messages.
-        let supervisor = build_supervisor_or_default::<HR, O, _, _, _>(
-            &agent_id,
-            &self.hash_repository,
-            &maybe_opamp_client,
-            effective_agent_res,
-            |effective_agent| {
-                build_cr_supervisors(
-                    &agent_id,
-                    effective_agent,
-                    self.k8s_client.clone(),
-                    &self.k8s_config,
-                    sub_agent_config.agent_type.clone(),
-                )
-                .map(Some) // Doing this as `supervisor` is expected to be an Option<_>.
-                           // It also ensures the return type has a Default (None) so it complies with the expected signature
-            },
-        )?;
+        let supervisor_builder: SupervisorBuilderK8s<O, HR, G> = SupervisorBuilderK8s::new(
+            agent_id.clone(),
+            sub_agent_config.clone(),
+            self.hash_repository.clone(),
+            self.k8s_client.clone(),
+            self.k8s_config.clone(),
+        );
+        let supervisor =
+            supervisor_builder.build_supervisor(effective_agent_res, &maybe_opamp_client)?;
 
         let maybe_opamp_client = Arc::new(maybe_opamp_client);
 
@@ -176,48 +171,113 @@ where
     }
 }
 
-fn build_cr_supervisors(
-    agent_id: &AgentID,
-    effective_agent: EffectiveAgent,
+pub struct SupervisorBuilderK8s<O, HR, G>
+where
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    HR: HashRepository,
+{
+    agent_id: AgentID,
+    agent_cfg: SubAgentConfig,
+    hash_repository: Arc<HR>,
     k8s_client: Arc<SyncK8sClient>,
-    k8s_config: &K8sConfig,
-    agent_type_fqn: AgentTypeFQN,
-) -> Result<NotStartedSupervisor, SubAgentBuilderError> {
-    debug!("Building CR supervisors {}", agent_id);
+    k8s_config: K8sConfig,
 
-    let k8s_objects = effective_agent.get_k8s_config()?;
-
-    // Validate Kubernetes objects against the list of supported resources.
-    validate_k8s_objects(&k8s_objects.objects.clone(), &k8s_config.cr_type_meta)?;
-
-    // Clone the k8s_client on each build.
-    Ok(NotStartedSupervisor::new(
-        agent_id.clone(),
-        agent_type_fqn,
-        k8s_client,
-        k8s_objects.clone(),
-    ))
+    // This is needed to ensure the generic type parameters O and G are used.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _opamp_client_builder: PhantomData<O>,
+    _effective_config_loader: PhantomData<G>,
 }
 
-fn validate_k8s_objects(
-    objects: &HashMap<String, K8sObject>,
-    supported_types: &[TypeMeta],
-) -> Result<(), SubAgentBuilderError> {
-    let supported_set: HashSet<(&str, &str)> = supported_types
-        .iter()
-        .map(|tm| (tm.api_version.as_str(), tm.kind.as_str()))
-        .collect();
-
-    for k8s_obj in objects.values() {
-        let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
-        if !supported_set.contains(&obj_key) {
-            return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
-                "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
-                k8s_obj.api_version, k8s_obj.kind
-            )));
+impl<O, HR, G> SupervisorBuilderK8s<O, HR, G>
+where
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    HR: HashRepository,
+{
+    pub fn new(
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
+        hash_repository: Arc<HR>,
+        k8s_client: Arc<SyncK8sClient>,
+        k8s_config: K8sConfig,
+    ) -> Self {
+        Self {
+            agent_id,
+            agent_cfg,
+            hash_repository,
+            k8s_client,
+            k8s_config,
+            _opamp_client_builder: PhantomData,
+            _effective_config_loader: PhantomData,
         }
     }
-    Ok(())
+
+    pub fn build_cr_supervisors(
+        &self,
+        effective_agent: EffectiveAgent,
+    ) -> Result<NotStartedSupervisor, SubAgentBuilderError> {
+        debug!("Building CR supervisors {}", &self.agent_id);
+
+        let k8s_objects = effective_agent.get_k8s_config()?;
+
+        // Validate Kubernetes objects against the list of supported resources.
+        Self::validate_k8s_objects(&k8s_objects.objects.clone(), &self.k8s_config.cr_type_meta)?;
+
+        // Clone the k8s_client on each build.
+        Ok(NotStartedSupervisor::new(
+            self.agent_id.clone(),
+            self.agent_cfg.agent_type.clone(),
+            self.k8s_client.clone(),
+            k8s_objects.clone(),
+        ))
+    }
+
+    fn validate_k8s_objects(
+        objects: &HashMap<String, K8sObject>,
+        supported_types: &[TypeMeta],
+    ) -> Result<(), SubAgentBuilderError> {
+        let supported_set: HashSet<(&str, &str)> = supported_types
+            .iter()
+            .map(|tm| (tm.api_version.as_str(), tm.kind.as_str()))
+            .collect();
+
+        for k8s_obj in objects.values() {
+            let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
+            if !supported_set.contains(&obj_key) {
+                return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
+                    "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
+                    k8s_obj.api_version, k8s_obj.kind
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<O, HR, G> SupervisorBuilder for SupervisorBuilderK8s<O, HR, G>
+where
+    G: EffectiveConfigLoader,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    HR: HashRepository,
+{
+    type Supervisor = NotStartedSupervisor;
+
+    type OpAMPClient = O::Client;
+
+    fn build_supervisor(
+        &self,
+        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
+        maybe_opamp_client: &Option<Self::OpAMPClient>,
+    ) -> Result<Option<Self::Supervisor>, SubAgentBuilderError> {
+        build_supervisor_or_default::<HR, O, _, _, _>(
+            &self.agent_id,
+            &self.hash_repository,
+            maybe_opamp_client,
+            effective_agent_result,
+            |effective_agent| self.build_cr_supervisors(effective_agent).map(Some),
+        )
+    }
 }
 
 #[cfg(test)]
