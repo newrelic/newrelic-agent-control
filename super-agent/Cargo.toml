@@ -98,3 +98,5 @@ k8s = [
 ci = []
 # feature tokio-console allows debugging tokio tasks using tokio-console
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
+# feature multiple-instances avoids checking if more than one super-agent process is running at a time
+multiple-instances = []
