@@ -8,6 +8,9 @@ on:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
 
+env:
+  # Allows to fetch multiple private repo crates with different deploy keys.
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
   build-push:
@@ -39,7 +42,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Set the value of the release tag
         run: echo "tag=$(echo 0.100.$(date +'%d'))" >> $GITHUB_ENV

@@ -8,6 +8,9 @@ on:
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: build-packages
+env:
+  # Allows to fetch multiple private repo crates with different deploy keys.
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -23,7 +26,9 @@ jobs:
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.CAOS_RUST_CRATES }}
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - uses: actions/setup-go@v5
         with:
