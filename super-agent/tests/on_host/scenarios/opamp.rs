@@ -671,7 +671,8 @@ status_time_unix_nano: 1725444001
 }
 
 /// Given a super-agent with a sub-agent without supervised executables, it should be able
-/// to persist the remote config messages from OpAMP
+/// to persist the remote config messages from OpAMP. Furthermore, the corresponding
+/// effective config should be properly reported.
 #[cfg(unix)]
 #[test]
 fn test_config_without_supervisor() {
@@ -714,16 +715,25 @@ fn test_config_without_supervisor() {
         ConfigResponse::from(first_remote_config),
     );
 
+    let sub_agent_instance_id = get_instance_id(
+        &AgentID::new(&sub_agent_id).unwrap(),
+        base_paths_copy.clone(),
+    );
+
     retry(30, Duration::from_secs(1), || {
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id,
+            first_remote_config.to_string(),
+        )?;
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths_copy.clone(),
         )?;
         if remote_config != first_remote_config {
-            Err("not the expected content".into())
-        } else {
-            Ok(())
+            return Err("not the expected content for first config".into());
         }
+        Ok(())
     });
 
     // Send another configuration
@@ -734,15 +744,20 @@ fn test_config_without_supervisor() {
     );
 
     retry(30, Duration::from_secs(1), || {
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id,
+            second_remote_config.to_string(),
+        )?;
+
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths_copy.clone(),
         )?;
         if remote_config != second_remote_config {
-            Err("not the expected content".into())
-        } else {
-            Ok(())
+            return Err("not the expected content for second config".into());
         }
+        Ok(())
     });
 
     application_event_publisher
