@@ -854,6 +854,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## hashbrown https://crates.io/crates/hashbrown
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## hdrhistogram https://crates.io/crates/hdrhistogram
 
 Distributed under the following license(s):
