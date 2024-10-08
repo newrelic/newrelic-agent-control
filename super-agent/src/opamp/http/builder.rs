@@ -3,13 +3,13 @@ use http::{HeaderMap, HeaderValue};
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::client::HttpClientUreq;
+use crate::http::config::HttpConfig;
+use crate::http::proxy::ProxyConfig;
+use crate::http::ureq::try_build_ureq;
+use crate::super_agent::config::OpAMPClientConfig;
 use nr_auth::TokenRetriever;
 use opamp_client::http::http_client::HttpClient;
-use ureq::Agent;
-
-use crate::super_agent::config::OpAMPClientConfig;
-
-use super::client::HttpClientUreq;
 
 /// Default client timeout is 30 seconds
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -28,7 +28,8 @@ pub trait HttpClientBuilder {
 
 #[derive(Debug, Clone)]
 pub struct UreqHttpClientBuilder<T> {
-    config: OpAMPClientConfig,
+    opamp_config: OpAMPClientConfig,
+    proxy_config: ProxyConfig,
     token_retriever: Arc<T>,
 }
 
@@ -36,9 +37,14 @@ impl<T> UreqHttpClientBuilder<T>
 where
     T: TokenRetriever + Send + Sync + 'static,
 {
-    pub fn new(config: OpAMPClientConfig, token_retriever: Arc<T>) -> Self {
+    pub fn new(
+        opamp_config: OpAMPClientConfig,
+        proxy_config: ProxyConfig,
+        token_retriever: Arc<T>,
+    ) -> Self {
         Self {
-            config,
+            opamp_config,
+            proxy_config,
             token_retriever,
         }
     }
@@ -46,7 +52,7 @@ where
     /// Return the headers from the configuration + the Content-Type header
     /// necessary for OpAMP (application/x-protobuf)
     fn headers(&self) -> HeaderMap {
-        let mut headers = self.config.headers.clone();
+        let mut headers = self.opamp_config.headers.clone();
         // Add headers for protobuf wire format communication
         headers.insert(
             CONTENT_TYPE,
@@ -66,20 +72,20 @@ where
     /// post requests a Token will be retrieved from Identity System Service
     /// and injected as authorization header.
     fn build(&self) -> Result<Self::Client, HttpClientBuilderError> {
-        let client = build_ureq_client();
-        let url = self.config.endpoint.clone();
+        let http_config = HttpConfig::new(
+            DEFAULT_CLIENT_TIMEOUT,
+            DEFAULT_CLIENT_TIMEOUT,
+            self.proxy_config.clone(),
+        );
+        let client = try_build_ureq(http_config).map_err(|e| {
+            HttpClientBuilderError::BuildingError(format!("error building opamp client: {}", e))
+        })?;
+        let url = self.opamp_config.endpoint.clone();
         let headers = self.headers();
         let token_retriever = self.token_retriever.clone();
 
         Ok(HttpClientUreq::new(client, url, headers, token_retriever))
     }
-}
-
-pub(super) fn build_ureq_client() -> Agent {
-    ureq::AgentBuilder::new()
-        .timeout_connect(DEFAULT_CLIENT_TIMEOUT)
-        .timeout(DEFAULT_CLIENT_TIMEOUT)
-        .build()
 }
 
 #[cfg(test)]

@@ -119,11 +119,13 @@ impl Cli {
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;
+        let proxy = super_agent_config.proxy;
 
         let run_config = SuperAgentRunConfig {
             opamp,
             http_server,
             base_paths,
+            proxy,
             #[cfg(feature = "k8s")]
             k8s_config: super_agent_config.k8s.ok_or(CliError::K8sConfig())?,
         };

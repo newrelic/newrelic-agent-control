@@ -1,5 +1,8 @@
 use super::config::{AuthConfig, LocalConfig, ProviderConfig};
-use crate::opamp::auth::http_client::HttpClientUreq;
+use crate::http::config::HttpConfig;
+use crate::http::proxy::ProxyConfig;
+use crate::http::ureq::try_build_ureq;
+use crate::opamp::auth::http_client::AuthHttpClient;
 use crate::super_agent::run::BasePaths;
 use chrono::DateTime;
 use nr_auth::{
@@ -19,10 +22,13 @@ const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum TokenRetrieverImplError {
     #[error("building JWT signer: `{0}`")]
     JwtSignerBuildError(#[from] JwtSignerImplError),
+
+    #[error("error building http client: `{0}`")]
+    HTTPBuildingClientError(String),
 }
 
 // Just an alias to make the code more readable
-type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<HttpClientUreq>>;
+type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<AuthHttpClient>>;
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
@@ -46,13 +52,39 @@ impl TokenRetrieverImpl {
     pub fn try_build(
         auth_config: Option<AuthConfig>,
         base_paths: BasePaths,
+        proxy_config: ProxyConfig,
     ) -> Result<Self, TokenRetrieverImplError> {
         let Some(ac) = auth_config else {
             return Ok(Self::Noop(TokenRetrieverNoop));
         };
 
+        let provider = ac
+            .provider
+            .unwrap_or(ProviderConfig::Local(LocalConfig::new(
+                base_paths.local_dir.clone(),
+            )));
+
+        let jwt_signer = JwtSignerImpl::try_from(provider)?;
+
+        let http_config = HttpConfig::new(
+            DEFAULT_AUTHENTICATOR_TIMEOUT,
+            DEFAULT_AUTHENTICATOR_TIMEOUT,
+            proxy_config,
+        );
+
+        let http_client = try_build_ureq(http_config).map_err(|e| {
+            TokenRetrieverImplError::HTTPBuildingClientError(format!(
+                "error building auth http client: {}",
+                e
+            ))
+        })?;
+
+        let auth_http_client = AuthHttpClient::new(http_client);
+        let authenticator = HttpAuthenticator::new(auth_http_client, ac.token_url.clone());
+
         Ok(Self::HttpTR(
-            ac.try_into_token_retriever_with_cache(base_paths)?,
+            TokenRetrieverHttp::new(ac.client_id, jwt_signer, authenticator)
+                .with_retries(ac.retries),
         ))
     }
 }
@@ -73,29 +105,6 @@ impl TokenRetriever for TokenRetrieverNoop {
             TokenType::Bearer,
             DateTime::default(),
         ))
-    }
-}
-
-impl AuthConfig {
-    pub fn try_into_token_retriever_with_cache(
-        self,
-        paths: BasePaths,
-    ) -> Result<TokenRetrieverHttp, TokenRetrieverImplError> {
-        let provider = self
-            .provider
-            .unwrap_or(ProviderConfig::Local(LocalConfig::new(
-                paths.local_dir.clone(),
-            )));
-
-        let jwt_signer = JwtSignerImpl::try_from(provider)?;
-
-        let http_client = HttpClientUreq::new(DEFAULT_AUTHENTICATOR_TIMEOUT);
-        let authenticator = HttpAuthenticator::new(http_client, self.token_url.clone());
-
-        Ok(
-            TokenRetrieverWithCache::new(self.client_id, jwt_signer, authenticator)
-                .with_retries(self.retries),
-        )
     }
 }
 

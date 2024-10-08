@@ -1,6 +1,7 @@
 use crate::common::global_logger::init_logger;
 use newrelic_super_agent::event::channel::{pub_sub, EventPublisher};
 use newrelic_super_agent::event::ApplicationEvent;
+use newrelic_super_agent::http::tls::install_rustls_default_crypto_provider;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::run::{BasePaths, SuperAgentRunConfig, SuperAgentRunner};
@@ -10,6 +11,8 @@ use std::sync::Arc;
 /// Starts the super-agent in a separate thread. The super-agent will be stopped when the `StartedSuperAgent` is dropped.
 /// Take into account that some of the logic from main is not present here.
 pub fn start_super_agent_with_custom_config(base_paths: BasePaths) -> StartedSuperAgent {
+    install_rustls_default_crypto_provider();
+
     let (application_event_publisher, application_event_consumer) = pub_sub();
 
     let handle = std::thread::spawn(move || {
@@ -28,6 +31,7 @@ pub fn start_super_agent_with_custom_config(base_paths: BasePaths) -> StartedSup
             opamp: super_agent_config.opamp,
             http_server: super_agent_config.server,
             base_paths,
+            proxy: super_agent_config.proxy,
             #[cfg(feature = "k8s")]
             k8s_config: super_agent_config.k8s.unwrap(),
         };
