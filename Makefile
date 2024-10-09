@@ -56,8 +56,8 @@ tilt-up:
 coverage: llvm-cov
 	@echo "Generating coverage report..."
 	@cargo llvm-cov clean --workspace
-	@cargo llvm-cov --no-report --locked --features=k8s --workspace --exclude config-migrate --lib -- --skip as_root
-	@cargo llvm-cov --no-report --locked --features=onhost --lib -- --skip as_root
+	@cargo llvm-cov --no-report --locked --features=k8s --workspace --exclude config-migrate --lib
+	@cargo llvm-cov --no-report --locked --features=onhost --lib
 	@mkdir -p coverage
 	@cargo llvm-cov report --lcov --output-path coverage/lcov.info
 
