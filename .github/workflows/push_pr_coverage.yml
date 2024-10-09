@@ -2,7 +2,7 @@ permissions:
   contents: read
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
   merge_group:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
@@ -44,7 +44,7 @@ jobs:
       - name: Generate coverage info for on-host feature
         run: cargo llvm-cov --no-report --locked --features=onhost --lib -- --skip as_root
       - name: Generate coverage report without tests
-        run: cargo llvm-cov report --lcov --json --output-path jcov.info
+        run: cargo llvm-cov report --json --output-path jcov.info
       - name: Calculate and print total coverage
         run: |
           echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
