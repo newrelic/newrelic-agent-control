@@ -51,3 +51,15 @@ jobs:
           echo "Total lines coverage: $(jq '.data[].totals.lines.percent' jcov.info)"
           echo "Total regions coverage: $(jq '.data[].totals.regions.percent' jcov.info)"
           echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
+      - name: Fail if function coverage is below 75%
+        run: |
+          if [ $(jq '.data[].totals.functions.percent' jcov.info) -lt 75 ]; then
+            echo "Function coverage is below 75%"
+            exit 1
+          fi
+      - name: Fail if line coverage is below 85%
+        run: |
+          if [ $(jq '.data[].totals.lines.percent' jcov.info) -lt 85 ]; then
+            echo "Line coverage is below 85%"
+            exit 1
+          fi
