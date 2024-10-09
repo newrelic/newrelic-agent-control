@@ -53,13 +53,19 @@ jobs:
           echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
       - name: Fail if function coverage is below 75%
         run: |
-          if [ $(jq '.data[].totals.functions.percent' jcov.info) -lt 75 ]; then
-            echo "Function coverage is below 75%"
+          fn_cov=$(jq '.data[].totals.functions.percent' jcov.info)
+          expected=75
+
+          if (( $(echo "$fn_cov < $expected" | bc -l) )); then
+            echo "Function coverage is below ${expected}%"
             exit 1
           fi
       - name: Fail if line coverage is below 85%
         run: |
-          if [ $(jq '.data[].totals.lines.percent' jcov.info) -lt 85 ]; then
-            echo "Line coverage is below 85%"
+          ln_cov=$(jq '.data[].totals.lines.percent' jcov.info)
+          expected=85
+
+          if (( $(echo "$ln_cov < $expected" | bc -l) )); then
+            echo "Line coverage is below ${expected}%"
             exit 1
           fi
