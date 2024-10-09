@@ -54,14 +54,14 @@ tilt-up:
 	tilt up ; tilt down
 
 COVERAGE_OUT_FORMAT ?= lcov
-COVERAGE_OUT_FILE ?= coverage/lcov.info
+COVERAGE_OUT_FILEPATH ?= coverage/lcov.info
 coverage: llvm-cov
 	@echo "Generating coverage report..."
 	@cargo llvm-cov clean --workspace
 	@cargo llvm-cov --no-report --locked --features=k8s --workspace --exclude config-migrate --lib
 	@cargo llvm-cov --no-report --locked --features=onhost --lib
 	@mkdir -p coverage
-	@cargo llvm-cov report --$(COVERAGE_OUT_FORMAT) --output-path $(COVERAGE_OUT_FILE)
+	@cargo llvm-cov report --$(COVERAGE_OUT_FORMAT) --output-path $(COVERAGE_OUT_FILEPATH)
 
 .PHONY: llvm-cov
 llvm-cov:
