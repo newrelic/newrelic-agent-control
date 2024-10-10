@@ -1,16 +1,16 @@
-
 on:
   pull_request:
     paths:
-      - '.github/**'
-      - 'build/**'
-      - '.goreleaser.yml'
+      - ".github/**"
+      - "build/**"
+      - ".goreleaser.yml"
 
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: build-packages
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,9 +30,17 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
+      - name: Install stable
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Install cross-rs
+        run: cargo install cross --git https://github.com/cross-rs/cross
+
       - uses: actions/setup-go@v5
         with:
-          go-version: '~1.20'
+          go-version: "~1.20"
           check-latest: true
 
       - name: Build binaries with GoReleaser
@@ -45,7 +53,7 @@ jobs:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
           GOOS: linux
-  
+
   build-image:
     name: Build image
     uses: ./.github/workflows/component_image.yml

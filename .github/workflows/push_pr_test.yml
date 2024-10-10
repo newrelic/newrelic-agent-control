@@ -13,6 +13,7 @@ name: test
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 jobs:
   release-build:
     runs-on: ubuntu-latest
@@ -28,9 +29,9 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
@@ -44,7 +45,7 @@ jobs:
     name: ubuntu / ${{ matrix.toolchain }}
     strategy:
       matrix:
-        toolchain: [ stable, beta ]
+        toolchain: [stable, beta]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,7 +59,7 @@ jobs:
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@1.78.0
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
 
@@ -107,8 +108,8 @@ jobs:
           cat /root/.ssh/config >> /etc/ssh/ssh_config
           ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
 
-      - name: Install 
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: stable
 
@@ -132,7 +133,7 @@ jobs:
       - name: Install Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: 'build/embedded/go.mod'
+          go-version-file: "build/embedded/go.mod"
       - name: run tests for embedded downloader
         run: make -C build/embedded test
 
@@ -153,13 +154,15 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.10.0
         with:
           minikube version: v1.32.0
-          kubernetes version: 'v1.28.1' # Should we support a specific range of versions?
+          kubernetes version: "v1.28.1" # Should we support a specific range of versions?
           driver: docker
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Run k8s integration tests
         run: make -C super-agent/tests/k8s
 
@@ -183,13 +186,15 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.10.0
         with:
           minikube version: v1.32.0
-          kubernetes version: 'v1.28.1'
+          kubernetes version: "v1.28.1"
           driver: docker
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
       - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Run e2e-test
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
