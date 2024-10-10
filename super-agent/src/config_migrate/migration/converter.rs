@@ -1,19 +1,19 @@
-use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
-use crate::migration::agent_value_spec::{
+use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::environment::Environment;
+use crate::agent_type::variable::kind::Kind;
+use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
+use crate::config_migrate::migration::agent_value_spec::{
     from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
 };
-use crate::migration::config::{AgentTypeFieldFQN, DirInfo, FilePath, MigrationAgentConfig};
-use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
-use crate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
+use crate::config_migrate::migration::config::{
+    AgentTypeFieldFQN, DirInfo, FilePath, MigrationAgentConfig,
+};
+use crate::config_migrate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
+use crate::config_migrate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
+use crate::sub_agent::effective_agents_assembler::{build_agent_type, AgentTypeDefinitionError};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::LocalFile;
-use newrelic_super_agent::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
-use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
-use newrelic_super_agent::agent_type::environment::Environment;
-use newrelic_super_agent::agent_type::variable::kind::Kind;
-use newrelic_super_agent::sub_agent::effective_agents_assembler::{
-    build_agent_type, AgentTypeDefinitionError,
-};
 use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error};

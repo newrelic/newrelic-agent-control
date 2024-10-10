@@ -13,6 +13,9 @@ pub mod values;
 #[cfg(feature = "k8s")]
 pub mod k8s;
 
+#[cfg(feature = "onhost")]
+pub mod config_migrate;
+
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
 compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
 
