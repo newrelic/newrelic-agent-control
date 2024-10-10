@@ -31,6 +31,7 @@ pub trait NotStartedSubAgent {
 }
 
 /// The StartedSubAgent trait defines the interface for a supervisor that is already running.
+///
 /// Exposes information about the Sub Agent and a stop method that will stop the
 /// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {

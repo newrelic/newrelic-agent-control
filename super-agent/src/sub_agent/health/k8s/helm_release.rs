@@ -29,6 +29,7 @@ impl From<&str> for ConditionStatus {
 }
 
 /// Represents a health checker for a specific HelmRelease in Kubernetes.
+///
 /// This struct is designed to be used within a wrapper that manages multiple
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
