@@ -66,4 +66,4 @@ coverage: llvm-cov
 .PHONY: llvm-cov
 llvm-cov:
 	@echo "Checking if llvm-cov is installed..."
-	@cargo install cargo-llvm-cov --locked
+	@which cargo-llvm-cov || cargo install cargo-llvm-cov --locked
