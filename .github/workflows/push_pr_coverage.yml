@@ -37,14 +37,8 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: clean cargo workspace for coverage
-        run: cargo llvm-cov clean --workspace
-      - name: Generate coverage info for k8s feature
-        run: cargo llvm-cov --no-report --locked --features=k8s --workspace --exclude config-migrate --lib
-      - name: Generate coverage info for on-host feature
-        run: cargo llvm-cov --no-report --locked --features=onhost --lib
-      - name: Generate coverage report for previous tests executions
-        run: cargo llvm-cov report --json --output-path jcov.info
+      - name: Generate coverage report
+        run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
         run: |
           echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
