@@ -40,7 +40,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: build --snapshot --clean --debug --timeout 2h --single-target
+          args: build --snapshot --clean --debug --timeout 2h --single-target -p 1
         env:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"

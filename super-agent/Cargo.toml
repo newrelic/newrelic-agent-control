@@ -87,6 +87,11 @@ glob = "0.3.1"
 name = "newrelic-super-agent"
 path = "src/bin/main.rs"
 
+[[bin]]
+required-features = ["onhost"]
+name = "newrelic-config-migrate"
+path = "src/bin/config_migrate.rs"
+
 [features]
 onhost = []
 k8s = [

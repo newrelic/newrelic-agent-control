@@ -1,7 +1,5 @@
-use newrelic_super_agent::super_agent::config::{
-    AgentTypeFQN, SuperAgentConfigError, SuperAgentDynamicConfig,
-};
-use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
+use crate::super_agent::config::{AgentTypeFQN, SuperAgentConfigError, SuperAgentDynamicConfig};
+use crate::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
 use semver::{Version, VersionReq};
 use thiserror::Error;
 
@@ -70,10 +68,10 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use mockall::mock;
-    use newrelic_super_agent::super_agent::config::{
+    use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
+    use mockall::mock;
     use std::collections::HashMap;
 
     mock! {

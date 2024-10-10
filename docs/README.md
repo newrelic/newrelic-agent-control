@@ -342,11 +342,6 @@ See [diagnose issues with super agent logging](https://docs-preview.newrelic.com
 
 Running the tests
 
-All tests:
-```
-cargo test --all-features -- --skip as_root
-```
-
 Only for the feature on-host:
 ```
 cargo test --features "onhost" -- --skip as_root

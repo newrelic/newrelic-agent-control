@@ -1,5 +1,5 @@
+use crate::super_agent::defaults::SUPER_AGENT_LOCAL_DATA_DIR;
 use clap::Parser;
-use newrelic_super_agent::super_agent::defaults::SUPER_AGENT_LOCAL_DATA_DIR;
 use std::path::PathBuf;
 
 #[derive(Parser, Debug)]
