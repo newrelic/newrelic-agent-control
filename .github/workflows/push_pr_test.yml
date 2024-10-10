@@ -34,8 +34,6 @@ jobs:
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: Build config migrate in release mode
-        run: cargo build --release --package config-migrate
       - name: Build k8s in release mode
         run: cargo build --release --package newrelic_super_agent --features k8s
       - name: Build onhost in release mode
@@ -68,21 +66,12 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - name: Run tests config-migrate
-        run: cargo test --locked --package config-migrate --all-targets
-
-      - name: Run tests fs
-        run: cargo test --locked --package fs --all-targets
-
-      - name: Run tests license
-        run: cargo test --locked --package license --all-targets
-
-      - name: Run tests resource-detection
-        run: cargo test --locked --package resource-detection --all-targets
+      - name: Run tests super agent lib excluding root-required tests (on-host)
+        run: cargo test --workspace --exclude 'newrelic_super_agent' --all-targets
 
       - name: Run tests super agent lib excluding root-required tests (on-host)
         run: make -C super-agent test/onhost
-      
+
       - name: Run tests super agent integration_test excluding root-required tests (on-host)
         run: make -C super-agent test/onhost/integration
 
