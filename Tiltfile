@@ -3,7 +3,7 @@
 
 #### Config
 # This env var is automatically added by the e2e action.
-license_key = os.getenv('LICENSE_KEY')
+license_key = os.getenv('LICENSE_KEY', "")
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
