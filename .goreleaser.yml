@@ -7,6 +7,7 @@ builds:
     goarch:
       - arm64
       - amd64
+    binary: newrelic-super-agent
     hooks:
       post:
         - cmd: sh ./build/scripts/build_binary.sh
@@ -51,6 +52,7 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
       - newrelic-super-agent
+      - newrelic-config-migrate
 
 nfpms:
   - package_name: newrelic-super-agent
