@@ -14,9 +14,11 @@ fi
 
 if [ "$BUILD_MODE" = "debug" ];then
   BUILD_MODE="dev"
+  BUILD_OUT_DIR="debug"
 fi
 # compile release version if not specified
 : "${BUILD_MODE:=release}"
+: "${BUILD_OUT_DIR:=release}"
 
 echo "arch: ${ARCH}, arch_name: ${ARCH_NAME}"
 
