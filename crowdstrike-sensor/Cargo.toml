@@ -1,0 +1,23 @@
+[package]
+name = "crowdstrike-sensor"
+description = "Returns the hash identifying the installer to download the last sensor version by each distro probided"
+version = "0.0.1"
+edition = "2021"
+authors = ["The New Relic Agent Control Team"]
+publish = false
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+serde_json = { workspace = true }
+http = { workspace = true }
+bytes = "1.6.0"
+ureq = { workspace = true, features = ["http-crate", "json"] }
+url = { version = "2.5.0"}
+clap = { version = "4.5.20", features = ["derive"] }
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+mockall = { workspace = true }
+httpmock = "0.7.0"

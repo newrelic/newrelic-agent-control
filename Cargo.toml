@@ -3,6 +3,7 @@ resolver = "2"
 
 members = [
   "config-migrate",
+  "crowdstrike-sensor",
   "super-agent",
   "resource-detection",
   "fs",
