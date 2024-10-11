@@ -36,7 +36,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt
@@ -68,7 +68,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.toolchain }}
+      - name: Install Rust ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -90,7 +90,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install nightly
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -124,7 +124,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.msrv }}
+      - name: Install Rust ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.msrv }}
@@ -147,7 +147,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install Rust 1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}

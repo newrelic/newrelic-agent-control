@@ -28,7 +28,7 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -58,7 +58,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.toolchain }}
+      - name: Install Rust ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
@@ -108,10 +108,10 @@ jobs:
           cat /root/.ssh/config >> /etc/ssh/ssh_config
           ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
 
-      - name: Install
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Run onHost root-required lib tests only
         run: make -C super-agent test/onhost/root
@@ -159,7 +159,7 @@ jobs:
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
-      - name: Install stable
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
@@ -191,7 +191,7 @@ jobs:
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
-      - name: Install stable
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
