@@ -36,7 +36,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Install cross-rs
-        run: cargo install cross --git https://github.com/cross-rs/cross
+        run: cargo install cross
 
       - uses: actions/setup-go@v5
         with:

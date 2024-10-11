@@ -2,7 +2,7 @@
 set -e
 
 # Install cargo cross
-which cross || cargo install cross --git https://github.com/cross-rs/cross
+which cross || cargo install cross
 
 if [ "$ARCH" = "arm64" ];then
   ARCH_NAME="aarch64"
