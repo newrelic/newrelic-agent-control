@@ -3,6 +3,7 @@ extern crate tera;
 extern crate lazy_static;
 
 use serde_json::{Map, Value};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::io::Write;
@@ -59,8 +60,20 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn render_markdown(data: String) -> Result<String, Box<dyn Error>> {
     let serialized = serde_json::from_str::<Map<String, Value>>(data.as_str()).unwrap();
 
+    let mut seen = HashSet::new();
+    let mut unique_map = HashMap::new();
+
+    for (key, value) in &serialized {
+        if !key.is_empty() {
+            let key_split: Vec<&str> = key.split_whitespace().collect();
+            if seen.insert(key_split[0]) {
+                unique_map.insert(key, value);
+            }
+        }
+    }
+
     let mut context = Context::new();
-    context.insert("dependencies", &serialized);
+    context.insert("dependencies", &unique_map);
 
     // A one off template
     Tera::one_off("hello", &Context::new(), true).unwrap();
