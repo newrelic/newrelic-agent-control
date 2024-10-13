@@ -1,19 +1,19 @@
 use serde::Deserialize;
 
 #[derive(Deserialize)]
-pub(super) struct Token {
+pub struct Token {
     pub(super) access_token: String,
     pub(super) expires_in: u32,
     pub(super) token_type: String,
 }
 
 #[derive(Deserialize)]
-pub(super) struct Sensor {
+pub struct SensorInstallers {
     #[serde(rename = "resources")]
     pub(super) installers: Vec<Installer>
 }
-#[derive(Deserialize)]
-pub(super) struct Installer {
+#[derive(Deserialize, Clone, Debug)]
+pub struct Installer {
     pub(super) name: String,
     pub(super) description: String,
     pub(super) platform: String,

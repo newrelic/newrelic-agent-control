@@ -1,13 +1,10 @@
-use std::collections::HashMap;
-use std::time::Duration;
 use thiserror::Error;
 use crate::crowdstrike::http_client::CrowdstrikeHttpClientUreq;
-use crate::crowdstrike::response::Sensor;
+use crate::crowdstrike::response::SensorInstallers;
 use crate::http_client::{DEFAULT_CLIENT_TIMEOUT, HttpClient, HttpClientError};
 
 /// The api endpoint to retrieve the token.
 pub const CROWDSTRIKE_TOKEN_ENDPOINT: &str = "https://api.laggar.gcw.crowdstrike.com/oauth2/token";
-
 
 /// The api endpoint to retrieve the sensor installers
 pub const CROWDSTRIKE_INSTALLERS_ENDPOINT: &str = "https://api.laggar.gcw.crowdstrike.com/sensors/combined/installers/v1";
@@ -50,23 +47,12 @@ impl<C> InstallerGetter<C>
 where
     C: HttpClient,
 {
-    pub fn installers(&self) -> Result<HashMap<String, String>, InstallerGetterError> {
+    pub fn get_installers(&self) -> Result<SensorInstallers, InstallerGetterError> {
         let response = self
             .http_client
             .get()
             .map_err(InstallerGetterError::HttpError)?;
 
-        let installers_response: Sensor =
-            serde_json::from_slice(response.body()).map_err(InstallerGetterError::JsonError)?;
-
-        let installers: HashMap<String, String> = installers_response.
-            installers
-            .iter()
-            .map(|sensor_installer| {
-                (sensor_installer.os.clone(), sensor_installer.sha256.clone())
-            })
-            .collect();
-
-        Ok(installers)
+        Ok(serde_json::from_slice(response.body()).map_err(InstallerGetterError::JsonError)?)
     }
 }

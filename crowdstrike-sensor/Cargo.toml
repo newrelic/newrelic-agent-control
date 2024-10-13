@@ -10,8 +10,11 @@ publish = false
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+semver = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
 http = { workspace = true }
+regex = { workspace = true }
 bytes = "1.6.0"
 ureq = { workspace = true, features = ["http-crate", "json"] }
 url = { version = "2.5.0"}
