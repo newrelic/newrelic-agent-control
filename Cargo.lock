@@ -2835,8 +2835,8 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
 name = "nr-auth"
-version = "0.0.2"
-source = "git+ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git?tag=0.0.2#f5a22a61cd21795fed68a9c040edd63a6af4b6e1"
+version = "0.0.3"
+source = "git+ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git?tag=0.0.3#31652546cad289ea78abdb435434792d158715bf"
 dependencies = [
  "chrono",
  "http 1.1.0",
@@ -4577,8 +4577,6 @@ dependencies = [
  "once_cell",
  "rustls",
  "rustls-pki-types",
- "serde",
- "serde_json",
  "url",
  "webpki-roots",
 ]

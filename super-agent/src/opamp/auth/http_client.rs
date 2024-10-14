@@ -1,6 +1,5 @@
-use http::Response;
+use http::{Request, Response};
 use nr_auth::http_client::{HttpClient, HttpClientError};
-use std::io::Cursor;
 use std::time::Duration;
 
 /// Ureq implementation of HttpClient
@@ -20,8 +19,22 @@ impl HttpClientUreq {
 }
 
 impl HttpClient for HttpClientUreq {
-    fn post(&self, url: &str, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError> {
-        match self.agent.post(url).send(Cursor::new(body)) {
+    fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError> {
+        // Build the ureq request from the agent to get the configs set in there.
+        // The .into() method from conversion would create a new agent per request so we avoid that.
+        let mut req = self.agent.request(
+            request.method().as_str(),
+            request.uri().to_string().as_str(),
+        );
+
+        for (header_name, header_value) in request.headers() {
+            let header_val = header_value.to_str().map_err(|e| {
+                HttpClientError::EncoderError(format!("setting request header: {}", e))
+            })?;
+            req = req.set(header_name.as_str(), header_val);
+        }
+
+        match req.send_bytes(request.body()) {
             Ok(response) | Err(ureq::Error::Status(_, response)) => build_response(response),
 
             Err(ureq::Error::Transport(e)) => Err(HttpClientError::TransportError(e.to_string())),
