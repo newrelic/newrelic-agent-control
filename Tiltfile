@@ -3,7 +3,7 @@
 
 #### Config
 # This env var is automatically added by the e2e action.
-license_key = os.getenv('LICENSE_KEY')
+license_key = os.getenv('LICENSE_KEY','')
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
@@ -21,7 +21,8 @@ if build_with == 'cargo':
       'build-binary',
       cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
       deps=[
-        './super-agent',
+        './super-agent/src',
+        './super-agent/agent-type-registry',
       ]
   )
 elif build_with == 'docker': 

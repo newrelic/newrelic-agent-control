@@ -50,3 +50,12 @@ helm_resource(
     ],
   resource_deps=extra_resource_deps
 )
+
+local_resource(
+    'oci-chart',
+    # Build and push chart to minikube registry
+    cmd="helm package ./data/charts/fake-crds && helm push fake-crds-0.1.0.tgz oci://localhost:50653/crd",
+    deps=[
+    './data/charts/fake-crds',
+    ]
+)

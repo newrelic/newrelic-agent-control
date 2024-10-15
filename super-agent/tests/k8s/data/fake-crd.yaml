@@ -1,0 +1,48 @@
+namespace: dev
+name: fake-crds
+version: 0.1.0
+variables:
+  k8s: {}
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1beta2
+        kind: OCIRepository
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 30s
+          url: oci://registry.kube-system.svc.cluster.local/crd/fake-crds
+          ref:
+            tag: 0.1.0
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chartRef:
+            kind: OCIRepository
+            name: ${nr-sub:agent_id}
+          install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            disableWait: true
+            disableWaitForJobs: true
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true

@@ -322,15 +322,13 @@ We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.de
 
 #### Prerequisites
 - Install Minikube for local Kubernetes cluster emulation.
-- Install [ctlptl](https://github.com/tilt-dev/ctlptl)
 - Ensure you have Tilt installed for managing local development environments.
-- Add a super-agent-deployment values file in `local/super-agent-deployment-values.yml`
+- Add a super-agent-deployment values file in `local/super-agent-tilt.yml`
 
 Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows to use local helm charts.
 #### Steps
 ```shell
-ctlptl create registry ctlptl-registry --port=5005
-ctlptl create cluster minikube --registry=ctlptl-registry
+minikube start 
 make tilt-up
 ```
 

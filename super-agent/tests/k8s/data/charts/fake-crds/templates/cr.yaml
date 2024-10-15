@@ -1,0 +1,6 @@
+# apiVersion: example.com/v1
+# kind: MyResource
+# metadata:
+#   name: myresource-sample
+# spec:
+#   foo: "bar"
