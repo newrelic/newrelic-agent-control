@@ -41,7 +41,7 @@ impl AgentRegistry for EmbeddedRegistry {
         self.0
             .get(name)
             .cloned()
-            .ok_or_else(|| AgentRepositoryError::NotFound)
+            .ok_or(AgentRepositoryError::NotFound)
     }
 }
 

@@ -85,7 +85,7 @@ where
     }
 }
 
-impl<'a, S, V, H, A, C, CB, B> SubAgentOnHost<'a, S, V, H, A, C, CB, B>
+impl<S, V, H, A, C, CB, B> SubAgentOnHost<'_, S, V, H, A, C, CB, B>
 where
     C: StartedClient<CB>,
     CB: Callbacks,
@@ -237,8 +237,8 @@ where
     }
 }
 
-impl<'a, A, C, CB, B> StartedSubAgent
-    for SubAgentOnHost<'a, Started, command_supervisor::Started, HealthCheckerStarted, A, C, CB, B>
+impl<A, C, CB, B> StartedSubAgent
+    for SubAgentOnHost<'_, Started, command_supervisor::Started, HealthCheckerStarted, A, C, CB, B>
 where
     C: StartedClient<CB>,
     CB: Callbacks,

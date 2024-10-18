@@ -51,11 +51,11 @@ impl Labels {
 
 /// returns true if labels indicates that is managed by the superAgent
 pub fn is_managed_by_superagent(labels: &BTreeMap<String, String>) -> bool {
-    return MANAGED_BY_VAL == labels.get(MANAGED_BY_KEY).unwrap_or(&String::from(""));
+    MANAGED_BY_VAL == labels.get(MANAGED_BY_KEY).unwrap_or(&String::from(""))
 }
 
 pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {
-    return labels.get(AGENT_ID_LABEL_KEY);
+    labels.get(AGENT_ID_LABEL_KEY)
 }
 
 #[cfg(test)]

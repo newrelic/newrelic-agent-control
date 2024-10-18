@@ -29,7 +29,6 @@ pub enum Kind {
 }
 
 /// Conversions from KindValue<T> to Kind
-
 impl From<KindValue<String>> for Kind {
     fn from(kind_value: KindValue<String>) -> Self {
         Kind::String(kind_value)
