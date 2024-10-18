@@ -2,7 +2,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
-use crate::super_agent::config::{AgentID, SuperAgentConfigError};
+use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::{
     SuperAgentDynamicConfigDeleter, SuperAgentDynamicConfigLoader, SuperAgentDynamicConfigStorer,
 };
@@ -27,10 +27,6 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        let super_agent_dynamic_config = self.sa_dynamic_config_store.load()?;
-        let agent_config = super_agent_dynamic_config.agents.get(&agent_id).ok_or(
-            SuperAgentConfigError::SubAgentNotFound(agent_id.to_string()),
-        )?;
-        self.recreate_sub_agent(agent_id, agent_config, sub_agents)
+        Ok(sub_agents.apply_config_update(&agent_id)?)
     }
 }
