@@ -32,6 +32,7 @@ pub trait NotStartedSubAgent {
 }
 
 /// The StartedSubAgent trait defines the interface for a supervisor that is already running.
+///
 /// Exposes information about the Sub Agent and a stop method that will stop the
 /// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {
@@ -297,14 +298,15 @@ pub mod test {
             &Some(started_opamp_client),
             effective_agent,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 
@@ -401,14 +403,15 @@ pub mod test {
             &Some(started_opamp_client),
             effective_agent_res,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 
@@ -483,14 +486,15 @@ pub mod test {
             &None,
             effective_agent_res,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 

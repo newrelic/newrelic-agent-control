@@ -72,7 +72,7 @@ where
     }
 }
 
-impl<'a, S, C, CB, A, B> SubAgentK8s<'a, S, StartedSupervisor, C, CB, A, B>
+impl<S, C, CB, A, B> SubAgentK8s<'_, S, StartedSupervisor, C, CB, A, B>
 where
     C: StartedClient<CB>,
     CB: Callbacks,
@@ -179,7 +179,7 @@ where
     }
 }
 
-impl<'a, C, CB, A, B> StartedSubAgent for SubAgentK8s<'a, Started, StartedSupervisor, C, CB, A, B>
+impl<C, CB, A, B> StartedSubAgent for SubAgentK8s<'_, Started, StartedSupervisor, C, CB, A, B>
 where
     C: StartedClient<CB>,
     CB: Callbacks,

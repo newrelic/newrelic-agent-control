@@ -2,15 +2,15 @@
 set -e
 
 if [ "$ARCH" = "arm64" ];then
-  BINARY_PATH="./dist/${BIN}_linux_${ARCH}/${BIN}"
+  ARCH_DIRNAME="./dist/${BIN}_linux_${ARCH}"
 fi
 
 if [ "$ARCH" = "amd64" ];then
-  BINARY_PATH="./dist/${BIN}_linux_${ARCH}_v1/${BIN}"
+  ARCH_DIRNAME="./dist/${BIN}_linux_${ARCH}_v1"
 fi
 
 # move rust compiled files into goreleaser generated locations
-cp "./bin/${BIN}-${ARCH}" "${BINARY_PATH}"
+cp "./bin/${BIN}-${ARCH}" "${ARCH_DIRNAME}/${BIN}"
 
-# validate
-docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./dist/"
+# validate files are in the correct location (if tree is installed)
+which tree && tree ./dist/

@@ -34,7 +34,6 @@ ARCH ?= arm64
 BUILD_MODE ?= release
 
 .PHONY: build-super-agent 
-# Cross-compilation only works from amd64 host.
 build-super-agent:
 	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
 	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-super-agent" PKG="newrelic_super_agent" ./build/scripts/build_binary.sh
@@ -42,7 +41,7 @@ build-super-agent:
 # Cross-compilation only works from amd64 host.
 build-config-migrate:
 	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-config-migrate" PKG="config-migrate" ./build/scripts/build_binary.sh
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-config-migrate" PKG="newrelic_super_agent" BUILD_FEATURE=onhost ./build/scripts/build_binary.sh
 
 .PHONY: build-dev-image
 build-dev-image:

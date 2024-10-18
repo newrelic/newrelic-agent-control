@@ -980,36 +980,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "config-migrate"
-version = "0.0.1"
-dependencies = [
- "assert_cmd",
- "assert_fs",
- "assert_matches",
- "bollard",
- "clap",
- "fs",
- "http 1.1.0",
- "mockall",
- "mockall_double",
- "newrelic_super_agent",
- "nix 0.28.0",
- "predicates",
- "regex",
- "schemars",
- "semver",
- "serde",
- "serde_json",
- "serde_yaml",
- "tempfile",
- "thiserror",
- "tower-test",
- "tracing",
- "tracing-subscriber",
- "tracing-test",
-]
-
-[[package]]
 name = "console-api"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

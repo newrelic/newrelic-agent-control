@@ -6,7 +6,6 @@ use newrelic_super_agent::logging::config::FileLoggerGuard;
 use newrelic_super_agent::super_agent::pid_cache::PIDCache;
 use newrelic_super_agent::super_agent::run::SuperAgentRunner;
 use std::error::Error;
-use std::process;
 use std::process::exit;
 use tracing::{error, info, trace};
 
@@ -61,7 +60,7 @@ fn _main(super_agent_config: SuperAgentCliConfig) -> Result<(), Box<dyn Error>> 
     }
 
     #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
-    if let Err(err) = PIDCache::default().store(process::id()) {
+    if let Err(err) = PIDCache::default().store(std::process::id()) {
         error!(error_msg = %err, "Error saving main process id");
         exit(1);
     }

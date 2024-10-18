@@ -52,7 +52,8 @@ pub struct SuperAgentRunConfig {
     pub k8s_config: super::config::K8sConfig,
 }
 
-/// Structure with all the data required to run the super agent
+/// Structure with all the data required to run the super agent.
+///
 /// Fields are public just for testing. The object is destroyed right after is deleted,
 /// Therefore, we should be worried of any tampering after its creation.
 pub struct SuperAgentRunner {

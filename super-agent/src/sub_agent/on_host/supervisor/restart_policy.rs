@@ -59,8 +59,10 @@ pub enum BackoffStrategy {
     None,
 }
 
-/// Time Duration interval since last retry to consider a service malfunctioning so backoff strategy
-/// should keep its sequence, if duration is higher, then the backoff will reset its values to start a new sequence
+/// Time Duration interval since last retry to consider a service malfunctioning.
+///
+/// This determines if the backoff strategy should keep its sequence.
+/// If duration is higher, then the backoff will reset its values to start a new sequence
 pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
