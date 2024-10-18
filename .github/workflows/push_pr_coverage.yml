@@ -2,7 +2,7 @@ permissions:
   contents: read
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
   merge_group:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
@@ -13,6 +13,7 @@ name: coverage
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 jobs:
   coverage:
     runs-on: ubuntu-latest
@@ -27,10 +28,11 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
         with:
           components: llvm-tools-preview
+          toolchain: ${{ env.RUST_VERSION }}
       - name: cargo install cargo-llvm-cov
         uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e
         # uses: taiki-e/install-action@cargo-llvm-cov

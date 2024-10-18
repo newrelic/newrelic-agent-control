@@ -12,6 +12,7 @@ concurrency:
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 name: checks
 jobs:
   codespell:
@@ -35,10 +36,11 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Check code formatting
         run: cargo fmt --check
 
@@ -66,8 +68,8 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
@@ -88,8 +90,10 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install nightly
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Create on-host documentation
         run: cargo doc --no-deps --features=onhost --package newrelic_super_agent
         env:
@@ -120,8 +124,8 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.msrv }}
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ matrix.msrv }}
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.msrv }}
 
@@ -143,8 +147,10 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install Rust 1.78.0
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Check security and licensing
         run: cargo install --locked cargo-deny && cargo deny check
       - name: Ensure that third party notices is up to date

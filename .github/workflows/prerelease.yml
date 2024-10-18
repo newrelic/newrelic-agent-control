@@ -16,7 +16,7 @@ jobs:
     name: Build and upload / ${{ matrix.arch }}
     strategy:
       matrix:
-        arch: [ arm64, amd64 ]
+        arch: [arm64, amd64]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '~1.20'
+          go-version: "~1.20"
           check-latest: true
 
       - name: Build binaries with GoReleaser
@@ -47,7 +47,7 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: build --clean --debug --timeout 2h --single-target
+          args: build --clean --debug --timeout 2h --single-target --parallelism 1
         env:
           ARCH: "${{ matrix.arch }}"
           GOARCH: "${{ matrix.arch }}"
@@ -58,20 +58,20 @@ jobs:
         with:
           distribution: goreleaser
           version: latest
-          args: release --clean --debug --timeout 2h -f dist/config.yaml
+          args: release --clean --debug --timeout 2h -f dist/config.yaml --parallelism 1
         env:
           ARCH: "${{ matrix.arch }}"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          GPG_MAIL: "infrastructure-eng@newrelic.com"
           NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
 
       # TODO Should we check that the released version matches tag?
 
   container:
     name: Build and Push container image
-    needs: [ build ]
+    needs: [build]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -80,7 +80,7 @@ jobs:
 
   security-scan:
     name: Security scan
-    needs: [ container ]
+    needs: [container]
     uses: ./.github/workflows/component_image_security.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -89,7 +89,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3
-    needs: [ build ]
+    needs: [build]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -151,7 +151,7 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-# All current test on test/e2e depend on fleet API checks which at the moment is WIP in staging and outdated in prod.
+  # All current test on test/e2e depend on fleet API checks which at the moment is WIP in staging and outdated in prod.
   # onhost-e2e:
   #   uses: ./.github/workflows/component_onhost_e2e.yaml
   #   needs: [ upload ]
@@ -166,15 +166,15 @@ jobs:
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
-    needs: [ upload ]
+    needs: [upload]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-super-agent"
-      REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'
+      REPO_ENDPOINT: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
   canaries:
     uses: ./.github/workflows/component_canaries.yml
-    needs: [ molecule-packaging-tests ]
+    needs: [molecule-packaging-tests]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
@@ -202,7 +202,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [ canaries ]
+    needs: [canaries]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack

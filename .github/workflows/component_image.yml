@@ -38,7 +38,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Build Super Agent
+      - name: Build Super Agent for K8s
         run: |
           make build-super-agent BUILD_FEATURE=k8s ARCH=${{ matrix.arch }}
       

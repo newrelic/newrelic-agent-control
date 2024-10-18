@@ -20,6 +20,7 @@ builds:
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
+            - BUILD_FEATURE=onhost
             - BIN=newrelic-super-agent
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
@@ -156,7 +157,6 @@ nfpms:
       - src: build/examples/
         dst: /etc/newrelic-super-agent/examples
 
-
     scripts:
       postinstall: build/package/postinstall.sh
       postremove: build/package/postremove.sh
@@ -192,20 +192,23 @@ signs:
 
     # Path to the checksum command.
     cmd: ./build/scripts/generate_checksum.sh
-    args: [
-      "-f", "{{ .Env.artifact }}",
-    ]
+    args: ["-f", "{{ .Env.artifact }}"]
     artifacts: all
   - id: signing
 
     # Path to the signature command.
     cmd: ./build/scripts/signing/sign.sh
-    args: [
-      "-f", "{{ .Env.artifact }}",
-      "-m", "{{ .Env.GPG_MAIL }}",
-      "-p", "{{ .Env.GPG_PASSPHRASE }}",
-      "-k", "{{ .Env.GPG_PRIVATE_KEY_BASE64 }}"
-    ]
+    args:
+      [
+        "-f",
+        "{{ .Env.artifact }}",
+        "-m",
+        "{{ .Env.GPG_MAIL }}",
+        "-p",
+        "{{ .Env.GPG_PASSPHRASE }}",
+        "-k",
+        "{{ .Env.GPG_PRIVATE_KEY_BASE64 }}",
+      ]
     artifacts: all
 
 publishers:
@@ -216,7 +219,6 @@ publishers:
       - glob: "./dist/*.sum"
     env:
       - GITHUB_TOKEN={{ .Env.GITHUB_TOKEN }}
-
 
 release:
   disable: true

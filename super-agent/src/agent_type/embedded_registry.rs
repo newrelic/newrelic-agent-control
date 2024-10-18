@@ -16,6 +16,7 @@ include!(concat!(
 ));
 
 /// Defines an [AgentRegistry] by keeping AgentTypeDefinitions in memory.
+///
 /// Its default implementation, loads the AgentTypeDefinitions from yaml files which are embedded into the binary
 /// at compilation time. Check out the super-agent build script for details.
 #[derive(Debug)]

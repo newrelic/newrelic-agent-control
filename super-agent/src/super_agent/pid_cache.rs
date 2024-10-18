@@ -28,6 +28,7 @@ pub enum PIDCacheError {
 }
 
 /// PIDCache stores the current running pid on the file_path set, by default:
+///
 /// "/var/run/newrelic-super-agent/newrelic-super-agent.pid"
 /// We use this PIDCache to ensure only one instance of the super-agent is running.
 pub struct PIDCache<F = LocalFile, D = DirectoryManagerFs>

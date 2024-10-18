@@ -1,4 +1,5 @@
 //! This module contains the definitions of the SubAgent's Agent Type, which is the type of agent that the Super Agent will be running.
+//!
 //! The reasoning behind this is that the Super Agent will be able to run different types of agents, and each type of agent will have its own configuration. Supporting generic agent functionalities, the user can both define its own agent types and provide a config that implement this agent type, and the New Relic Super Agent will spawn a Supervisor which will be able to run it.
 //!
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
