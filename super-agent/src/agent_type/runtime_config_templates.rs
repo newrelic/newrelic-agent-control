@@ -260,13 +260,15 @@ fn template_yaml_value_string(
     let var_spec = normalized_var(var_name, variables)?;
     let var_value = var_spec
         .get_template_value()
-        .ok_or(AgentTypeError::MissingRequiredKey(var_name.to_string()))?;
-    match var_spec.kind() {
-        Kind::Yaml(y) => Ok(y
-            .get_final_value()
-            .cloned()
-            .expect("a final value must be present at this point")),
+        .ok_or(AgentTypeError::MissingValue(var_name.to_string()))?;
 
+    match var_spec.kind() {
+        Kind::Yaml(_) => var_value
+            .to_yaml_value()
+            .ok_or(AgentTypeError::UnexpectedValueForKey(
+                var_name.to_string(),
+                var_value.to_string(),
+            )),
         Kind::Bool(_) | Kind::Number(_) => {
             serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
         }
@@ -328,6 +330,7 @@ mod tests {
     use std::collections::HashMap;
 
     use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
+    use crate::agent_type::variable::kind_value::KindValue;
     use crate::agent_type::{
         definition::TemplateableValue,
         restart_policy::BackoffStrategyType,
@@ -686,98 +689,229 @@ mod tests {
     }
 
     #[test]
+    fn test_fail_template_yaml_value_string() {
+        struct TestCase {
+            name: &'static str,
+            variables: Variables,
+            input: &'static str,
+            assert_fn: fn(AgentTypeError),
+        }
+        impl TestCase {
+            fn run(self) {
+                let actual_err =
+                    template_yaml_value_string(self.input.to_string(), &self.variables)
+                        .expect_err(format!("error is expected, case: {}", self.name).as_str());
+                (self.assert_fn)(actual_err);
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "trying to replace a variable that is not defined",
+                variables: Variables::new(),
+                input: "${nr-var:not-defined}",
+                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingTemplateKey(_)),
+            },
+            TestCase {
+                name: "missing required value key",
+                variables: Variables::from([(
+                    "nr-var:yaml".to_string(),
+                    KindValue::<serde_yaml::Value>::new(true, None, None).into(),
+                )]),
+                input: "${nr-var:yaml}",
+                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
+            },
+            TestCase {
+                name: "missing non-required key",
+                variables: Variables::from([(
+                    "nr-var:yaml".to_string(),
+                    KindValue::<serde_yaml::Value>::new(false, None, None).into(),
+                )]),
+                input: "${nr-var:yaml}",
+                assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
+            },
+        ];
+        for test_case in test_cases {
+            test_case.run();
+        }
+    }
+    #[test]
     fn test_template_yaml_value_string() {
-        let variables = Variables::from([
-            (
-                "nr-var:simple.string.var".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
-            ),
-            (
-                "nr-var:string.with.yaml.var".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("[Value]".to_string())),
-            ),
-            (
-                "nr-var:bool.var".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(true)),
-            ),
-            (
-                "nr-var:number.var".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
-            ),
-            (
-                "nr-var:yaml.var".to_string(),
-                VariableDefinition::new(
-                    String::default(),
-                    true,
-                    None,
-                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
-                        [("key".into(), "value".into())],
-                    ))),
-                ),
-            ),
-        ]);
+        struct TestCase {
+            name: &'static str,
+            variables: Variables,
+            expectations: Vec<(&'static str, serde_yaml::Value)>,
+        }
+        impl TestCase {
+            fn run(self) {
+                for (input, expected_output) in self.expectations {
+                    assert_eq!(
+                        expected_output,
+                        template_yaml_value_string(input.to_string(), &self.variables)
+                            .unwrap_or_else(|_| panic!("failed templating, case: {}", self.name)),
+                        "failed, case: {}",
+                        self.name
+                    );
+                }
+            }
+        }
+        let test_cases = vec![
+            TestCase {
+                name: "simple string",
+                variables: Variables::from([(
+                    "nr-var:simple.string.var".to_string(),
+                    VariableDefinition::new(
+                        String::default(),
+                        true,
+                        None,
+                        Some("Value".to_string()),
+                    ),
+                )]),
+                expectations: vec![
+                    (
+                        "${nr-var:simple.string.var}",
+                        serde_yaml::Value::String("Value".into()),
+                    ),
+                    (
+                        "var=${nr-var:simple.string.var}",
+                        serde_yaml::Value::String("var=Value".into()),
+                    ),
+                    (
+                        "${nr-var:simple.string.var}${nr-var:simple.string.var}",
+                        serde_yaml::Value::String("ValueValue".into()),
+                    ),
+                ],
+            },
+            TestCase {
+                name: "string with yaml",
+                variables: Variables::from([(
+                    "nr-var:string.with.yaml.var".to_string(),
+                    VariableDefinition::new(
+                        String::default(),
+                        true,
+                        None,
+                        Some("[Value]".to_string()),
+                    ),
+                )]),
+                expectations: vec![(
+                    "${nr-var:string.with.yaml.var}",
+                    serde_yaml::Value::String("[Value]".into()),
+                )],
+            },
+            TestCase {
+                name: "bool",
+                variables: Variables::from([(
+                    "nr-var:bool.var".to_string(),
+                    VariableDefinition::new(String::default(), true, None, Some(true)),
+                )]),
+                expectations: vec![
+                    ("${nr-var:bool.var}", serde_yaml::Value::Bool(true)),
+                    (
+                        "${nr-var:bool.var}${nr-var:bool.var}",
+                        serde_yaml::Value::String("truetrue".into()),
+                    ),
+                ],
+            },
+            TestCase {
+                name: "number",
+                variables: Variables::from([(
+                    "nr-var:number.var".to_string(),
+                    VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
+                )]),
+                expectations: vec![(
+                    "${nr-var:number.var}",
+                    serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
+                )],
+            },
+            TestCase {
+                name: "number, bool, and string",
+                variables: Variables::from([
+                    (
+                        "nr-var:number.var".to_string(),
+                        VariableDefinition::new(
+                            String::default(),
+                            true,
+                            None,
+                            Some(Number::from(42)),
+                        ),
+                    ),
+                    (
+                        "nr-var:bool.var".to_string(),
+                        VariableDefinition::new(String::default(), true, None, Some(true)),
+                    ),
+                    (
+                        "nr-var:simple.string.var".to_string(),
+                        VariableDefinition::new(
+                            String::default(),
+                            true,
+                            None,
+                            Some("Value".to_string()),
+                        ),
+                    ),
+                ]),
+                expectations: vec![
+                    (
+                        r#"${nr-var:bool.var}${nr-var:number.var}"#,
+                        serde_yaml::Value::String("true42".into()),
+                    ),
+                    (
+                        r#"the ${nr-var:number.var} ${nr-var:simple.string.var} is ${nr-var:bool.var}"#,
+                        serde_yaml::Value::String("the 42 Value is true".into()),
+                    ),
+                ],
+            },
+            TestCase {
+                name: "yaml",
+                variables: Variables::from([(
+                    "nr-var:yaml.var".to_string(),
+                    VariableDefinition::new(
+                        String::default(),
+                        true,
+                        None,
+                        Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                            [("key".into(), "value".into())],
+                        ))),
+                    ),
+                )]),
+                expectations: vec![
+                    (
+                        "${nr-var:yaml.var}",
+                        serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+                            "key".into(),
+                            "value".into(),
+                        )])),
+                    ),
+                    (
+                        "x: ${nr-var:yaml.var}",
+                        serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
+                    ),
+                ],
+            },
+            TestCase {
+                name: "yaml from default value",
+                variables: Variables::from([(
+                    "nr-var:yaml.var".to_string(),
+                    VariableDefinition::new(
+                        String::default(),
+                        false,
+                        Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                            [("key".into(), "value".into())],
+                        ))),
+                        None,
+                    ),
+                )]),
+                expectations: vec![(
+                    "${nr-var:yaml.var}",
+                    serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter([(
+                        "key".into(),
+                        "value".into(),
+                    )])),
+                )],
+            },
+        ];
 
-        assert_eq!(
-            serde_yaml::Value::String("Value".into()),
-            template_yaml_value_string("${nr-var:simple.string.var}".into(), &variables).unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("var=Value".into()),
-            template_yaml_value_string("var=${nr-var:simple.string.var}".into(), &variables)
-                .unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("ValueValue".into()),
-            template_yaml_value_string(
-                "${nr-var:simple.string.var}${nr-var:simple.string.var}".into(),
-                &variables
-            )
-            .unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("[Value]".into()),
-            template_yaml_value_string("${nr-var:string.with.yaml.var}".into(), &variables)
-                .unwrap()
-        );
-        // yaml, bool and number values are got when the corresponding variable is "alone".
-        assert_eq!(
-            serde_yaml::Value::Bool(true),
-            template_yaml_value_string("${nr-var:bool.var}".into(), &variables).unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::Number(serde_yaml::Number::from(42i32)),
-            template_yaml_value_string("${nr-var:number.var}".into(), &variables).unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("truetrue".into()),
-            template_yaml_value_string("${nr-var:bool.var}${nr-var:bool.var}".into(), &variables)
-                .unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("true42".into()),
-            template_yaml_value_string("${nr-var:bool.var}${nr-var:number.var}".into(), &variables)
-                .unwrap()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("the 42 Value is true".into()),
-            template_yaml_value_string(
-                "the ${nr-var:number.var} ${nr-var:simple.string.var} is ${nr-var:bool.var}".into(),
-                &variables
-            )
-            .unwrap()
-        );
-        let m = assert_matches!(
-            template_yaml_value_string("${nr-var:yaml.var}".into(), &variables).unwrap(),
-            serde_yaml::Value::Mapping(m) => m
-        );
-        assert_eq!(
-            serde_yaml::Value::String("value".into()),
-            m.get("key").unwrap().clone()
-        );
-        assert_eq!(
-            serde_yaml::Value::String("x: key: value\n".into()), // FIXME? Consder if this is ok.
-            template_yaml_value_string("x: ${nr-var:yaml.var}".into(), &variables).unwrap()
-        )
+        for test_case in test_cases {
+            test_case.run();
+        }
     }
 
     #[test]
