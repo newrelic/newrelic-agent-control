@@ -86,6 +86,15 @@ mod test {
 
     use super::VariableDefinition;
 
+    impl From<KindValue<serde_yaml::Value>> for VariableDefinition {
+        fn from(kind_value: KindValue<serde_yaml::Value>) -> Self {
+            Self {
+                description: String::new(),
+                kind: Kind::Yaml(kind_value),
+            }
+        }
+    }
+
     impl VariableDefinition {
         pub(crate) fn new<T>(
             description: String,

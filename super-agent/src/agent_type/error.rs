@@ -7,10 +7,12 @@ use thiserror::Error;
 pub enum AgentTypeError {
     #[error("Error while parsing: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
-    #[error("Missing required key in agent type config values: `{0}`")]
-    MissingRequiredKey(String),
+    #[error("Missing value for key: `{0}`")]
+    MissingValue(String),
     #[error("Unexpected key in agent type config values: {0}")]
     UnexpectedValueKey(String),
+    #[error("Unexpected value for key: key({0}) val({1})")]
+    UnexpectedValueForKey(String, String),
     #[error("I/O error: `{0}`")]
     IOError(#[from] io::Error),
     #[error("Missing required template key: `{0}`")]
