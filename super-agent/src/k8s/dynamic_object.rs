@@ -1,18 +1,19 @@
 //! This module holds helpers and to perform k8s operations with resources whose type is known at runtime
 //! (DynamicObjects).
 use super::{
-    client::get_name,
+    client::{get_name, get_type_meta},
     error::K8sError,
     reflector::definition::{Reflector, ReflectorBuilder},
+    utils::display_type,
 };
 use kube::{
-    api::{ApiResource, DeleteParams, DynamicObject, PostParams, TypeMeta},
+    api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
     core::GroupVersion,
     discovery::pinned_kind,
     Api, Resource,
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
-use tracing::{debug, warn};
+use tracing::debug;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].
@@ -22,19 +23,21 @@ pub struct DynamicObjectManager {
     reflector: Reflector<DynamicObject>,
 }
 
-/// [DynamicObjectManager] collection. Each resource is accessible through the corresponding [TypeMeta].
-#[derive(Debug)]
-pub struct DynamicObjectManagers(HashMap<TypeMeta, DynamicObjectManager>);
-
 impl DynamicObjectManager {
     pub async fn try_new(
-        api_resource: &ApiResource,
+        type_meta: &TypeMeta,
         client: kube::Client,
         builder: &ReflectorBuilder,
     ) -> Result<Self, K8sError> {
+        let gvk = &GroupVersion::from_str(type_meta.api_version.as_str())?
+            .with_kind(type_meta.kind.as_str());
+        let (api_resource, _) = pinned_kind(&client, gvk)
+            .await
+            .map_err(|_| K8sError::MissingAPIResource(display_type(type_meta)))?;
+
         Ok(Self {
-            api: Api::default_namespaced_with(client, api_resource),
-            reflector: builder.try_build_with_api_resource(api_resource).await?,
+            api: Api::default_namespaced_with(client, &api_resource),
+            reflector: builder.try_build_with_api_resource(&api_resource).await?,
         })
     }
 
@@ -127,64 +130,115 @@ impl DynamicObjectManager {
     }
 }
 
-impl DynamicObjectManagers {
-    pub async fn try_new(
-        dynamic_types: impl IntoIterator<Item = TypeMeta>,
-        client: &kube::Client,
-        builder: &ReflectorBuilder,
-    ) -> Result<Self, K8sError> {
-        let mut inner = HashMap::new();
-
-        for type_meta in dynamic_types.into_iter() {
-            let gvk = &GroupVersion::from_str(type_meta.api_version.as_str())?
-                .with_kind(type_meta.kind.as_str());
-
-            let api_resource = match pinned_kind(client, gvk).await {
-                Ok((api_resource, _)) => api_resource,
-                Err(err) => {
-                    warn!(
-                        "The gvk '{:?}' was not found in the cluster and cannot be used: {}",
-                        gvk, err
-                    );
-                    continue;
-                }
-            };
-
-            inner.insert(
-                type_meta,
-                DynamicObjectManager::try_new(&api_resource, client.to_owned(), builder).await?,
-            );
-        }
-        Ok(Self(inner))
-    }
-
-    pub fn supported_dynamic_type_metas(&self) -> Vec<TypeMeta> {
-        self.0.keys().cloned().collect()
-    }
-
-    pub fn try_get(&self, type_meta: &TypeMeta) -> Result<&DynamicObjectManager, K8sError> {
-        let ds = self.0.get(type_meta).ok_or_else(|| {
-            K8sError::UnexpectedKind(format!("no reflector for type {:?}", type_meta))
-        })?;
-        Ok(ds)
-    }
+/// Holds a collection of [DynamicObjectManager] by [TypeMeta] to perform operations with objects known at runtime.
+/// [DynamicObjectManager] are initialized lazily when a method is called.
+/// [K8sError::MissingAPIResource] is returned if the manager init failure reason is that there is no such API Resource in the cluster.
+pub struct DynamicObjectManagers {
+    client: kube::Client,
+    manager_by_type: tokio::sync::Mutex<HashMap<TypeMeta, DynamicObjectManager>>,
+    reflector_builder: ReflectorBuilder,
 }
 
-#[cfg(test)]
-mod test {
+impl DynamicObjectManagers {
+    pub fn new(client: kube::Client, reflector_builder: ReflectorBuilder) -> Self {
+        Self {
+            client,
+            manager_by_type: tokio::sync::Mutex::new(HashMap::default()),
+            reflector_builder,
+        }
+    }
 
-    use assert_matches::assert_matches;
+    pub async fn get(
+        &self,
+        type_meta: &TypeMeta,
+        name: &str,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        Ok(self
+            .lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .get(name))
+    }
+    pub async fn delete(&self, type_meta: &TypeMeta, name: &str) -> Result<(), K8sError> {
+        self.lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .delete(name)
+            .await
+    }
+    pub async fn list(&self, type_meta: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        Ok(self
+            .lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .list())
+    }
 
-    use super::*;
+    pub async fn apply(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        let type_meta = &get_type_meta(obj)?;
 
-    #[test]
-    fn test_error_on_missing_resource_definition() {
-        let dynamics = DynamicObjectManagers(HashMap::default());
-        let type_meta = TypeMeta {
-            api_version: "newrelic.com/v1".to_string(),
-            kind: "Foo".to_string(),
-        };
-        let err = dynamics.try_get(&type_meta).unwrap_err();
-        assert_matches!(err, K8sError::UnexpectedKind(_))
+        self.lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .apply(obj)
+            .await
+    }
+
+    pub async fn apply_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        let type_meta = &get_type_meta(obj)?;
+
+        self.lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .apply_if_changed(obj)
+            .await
+    }
+
+    pub async fn has_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        let type_meta = &get_type_meta(obj)?;
+
+        self.lock_update_managers(type_meta)
+            .await?
+            .get(type_meta)
+            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
+            .has_changed(obj)
+    }
+
+    /// Verifies if the manager for the provided [TypeMeta], if it does not exist it creates it, and returns
+    /// the mutex guard to the locked manager_by_type.
+    async fn lock_update_managers(
+        &self,
+        type_meta: &TypeMeta,
+    ) -> Result<tokio::sync::MutexGuard<'_, HashMap<TypeMeta, DynamicObjectManager>>, K8sError>
+    {
+        // Check if the manager is already initialized.
+        let managers_guard = self.manager_by_type.lock().await;
+        if managers_guard.get(type_meta).is_some() {
+            return Ok(managers_guard);
+        }
+        drop(managers_guard);
+
+        debug!(
+            "Initializing dynamic object manager for type: {:?}",
+            type_meta
+        );
+
+        let dynamic_object_manager =
+            DynamicObjectManager::try_new(type_meta, self.client.clone(), &self.reflector_builder)
+                .await?;
+
+        let mut managers_guard = self.manager_by_type.lock().await;
+        managers_guard.insert(type_meta.clone(), dynamic_object_manager);
+
+        Ok(managers_guard)
+    }
+
+    pub async fn supported_dynamic_type_metas(&self) -> Vec<TypeMeta> {
+        self.manager_by_type.lock().await.keys().cloned().collect()
     }
 }
