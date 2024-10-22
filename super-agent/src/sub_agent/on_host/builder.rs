@@ -22,7 +22,10 @@ use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
-use crate::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
+use crate::super_agent::defaults::{
+    sub_agent_version, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_VERSION,
+};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     context::Context,
@@ -111,6 +114,17 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
+        let mut identifying_attributes = HashMap::from([(
+            OPAMP_SERVICE_VERSION.to_string(),
+            sub_agent_config.agent_type.version().into(),
+        )]);
+        if let Some(agent_version) = sub_agent_version(sub_agent_config.agent_type.name().as_str())
+        {
+            identifying_attributes.insert(
+                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                agent_version.clone(),
+            );
+        }
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
@@ -119,6 +133,7 @@ where
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
+                    identifying_attributes,
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
             })
@@ -269,7 +284,10 @@ mod test {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentTypeFQN;
-    use crate::super_agent::defaults::{default_capabilities, PARENT_AGENT_ID_ATTRIBUTE_KEY};
+    use crate::super_agent::defaults::{
+        default_capabilities, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
+        OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    };
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -310,7 +328,7 @@ mod test {
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_set_any_remote_config_status(1);
-        started_client.should_update_effective_config(1);
+        started_client.should_update_effective_config(2);
         started_client.should_stop(1);
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
@@ -469,24 +487,29 @@ mod test {
         sub_agent_instance_id: InstanceID,
         agent_config: &SubAgentConfig,
     ) -> StartSettings {
+        let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
+            (
+                OPAMP_SERVICE_NAME.to_string(),
+                agent_config.agent_type.name().into(),
+            ),
+            (
+                OPAMP_SERVICE_NAMESPACE.to_string(),
+                agent_config.agent_type.namespace().into(),
+            ),
+            (
+                OPAMP_SERVICE_VERSION.to_string(),
+                agent_config.agent_type.version().into(),
+            ),
+            (
+                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                "0.0.0".into(),
+            ),
+        ]);
         StartSettings {
             instance_id: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
             agent_description: AgentDescription {
-                identifying_attributes: HashMap::<String, DescriptionValueType>::from([
-                    (
-                        "service.name".to_string(),
-                        agent_config.agent_type.name().into(),
-                    ),
-                    (
-                        "service.namespace".to_string(),
-                        agent_config.agent_type.namespace().into(),
-                    ),
-                    (
-                        "service.version".to_string(),
-                        agent_config.agent_type.version().into(),
-                    ),
-                ]),
+                identifying_attributes,
                 non_identifying_attributes: HashMap::from([
                     (
                         HOST_NAME_ATTRIBUTE_KEY.to_string(),

@@ -1,0 +1,2 @@
+[build.env]
+passthrough = ["NEWRELIC_INFRA_AGENT_VERSION", "NR_OTEL_COLLECTOR_VERSION"]

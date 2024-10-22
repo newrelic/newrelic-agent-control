@@ -1,6 +1,13 @@
 use std::collections::HashMap;
 
-use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+use super::instance_id::InstanceID;
+use super::{
+    client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
+    instance_id::getter::InstanceIDGetter,
+};
+use crate::super_agent::defaults::{
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+};
 use crate::{
     event::{
         channel::{pub_sub, EventConsumer, EventPublisher},
@@ -18,17 +25,12 @@ use opamp_client::{
 };
 use tracing::info;
 
-use super::instance_id::InstanceID;
-use super::{
-    client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
-    instance_id::getter::InstanceIDGetter,
-};
-
 pub fn build_sub_agent_opamp<CB, OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
@@ -49,6 +51,7 @@ where
         instance_id_getter,
         agent_id.clone(),
         agent_type,
+        additional_identifying_attributes,
         non_identifying_attributes,
     )
 }
@@ -58,6 +61,7 @@ pub fn build_opamp_with_channel<CB, OB, IG>(
     instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
@@ -72,6 +76,7 @@ where
         instance_id_getter,
         agent_id,
         agent_type,
+        additional_identifying_attributes,
         non_identifying_attributes,
     )?;
     Ok((client, rx))
@@ -83,6 +88,7 @@ pub fn build_opamp_and_start_client<CB, OB, IG>(
     instance_id_getter: &IG,
     agent_id: AgentID,
     agent_type: &AgentTypeFQN,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<OB::Client, OpAMPClientBuilderError>
 where
@@ -93,6 +99,7 @@ where
     let start_settings = start_settings(
         instance_id_getter.get(&agent_id)?,
         agent_type,
+        additional_identifying_attributes,
         non_identifying_attributes,
     );
     let started_opamp_client =
@@ -105,20 +112,24 @@ where
 pub fn start_settings(
     instance_id: InstanceID,
     agent_fqn: &AgentTypeFQN,
+    additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> StartSettings {
+    let mut identifying_attributes = HashMap::from([
+        (OPAMP_SERVICE_NAME.to_string(), agent_fqn.name().into()),
+        (
+            OPAMP_SERVICE_NAMESPACE.to_string(),
+            agent_fqn.namespace().into(),
+        ),
+    ]);
+
+    identifying_attributes.extend(additional_identifying_attributes);
+
     StartSettings {
         instance_id: instance_id.into(),
         capabilities: agent_fqn.get_capabilities(),
         agent_description: AgentDescription {
-            identifying_attributes: HashMap::from([
-                ("service.name".to_string(), agent_fqn.name().into()),
-                (
-                    "service.namespace".to_string(),
-                    agent_fqn.namespace().into(),
-                ),
-                ("service.version".to_string(), agent_fqn.version().into()),
-            ]),
+            identifying_attributes,
             non_identifying_attributes,
         },
     }

@@ -63,16 +63,16 @@ func (f File) parseSrc(artifact Artifact) (string, error) {
 	return renderTemplate(tpl, artifact)
 }
 
-func configFromFile(staging bool, arch string) (Config, error) {
+func configFromFile(staging bool, arch string, versions map[string]string) (Config, error) {
 	// Read the YAML file into a byte slice
 	yamlFile, err := os.ReadFile("embedded.yaml")
 	if err != nil {
 		return Config{}, errors.Join(errLoadingConfig, err)
 	}
-	return config(staging, arch, yamlFile)
+	return config(staging, arch, versions, yamlFile)
 }
 
-func config(staging bool, arch string, content []byte) (Config, error) {
+func config(staging bool, arch string, versions map[string]string, content []byte) (Config, error) {
 	// Unmarshal YAML into Config struct
 	var cnf Config
 	err := yaml.Unmarshal(content, &cnf)
@@ -97,12 +97,12 @@ func config(staging bool, arch string, content []byte) (Config, error) {
 		return Config{}, errors.Join(errRequiredValue, errors.New("cnf.defaults.StagingURL is missing"))
 	}
 
-	expandDefaults(staging, arch, &cnf)
+	expandDefaults(staging, arch, versions, &cnf)
 
 	return cnf, nil
 }
 
-func expandDefaults(staging bool, arch string, cnf *Config) {
+func expandDefaults(staging bool, arch string, versions map[string]string, cnf *Config) {
 	// fill the non specified values with defaults
 	defaultUrl := cnf.defaults.URL
 	if staging {
@@ -110,6 +110,9 @@ func expandDefaults(staging bool, arch string, cnf *Config) {
 	}
 
 	for i := range cnf.Artifacts {
+		if version, ok := versions[cnf.Artifacts[i].Name]; ok {
+			cnf.Artifacts[i].Version = version
+		}
 		if cnf.Artifacts[i].URL == "" {
 			cnf.Artifacts[i].URL = defaultUrl
 		}

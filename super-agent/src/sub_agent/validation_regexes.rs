@@ -68,10 +68,9 @@ mod test {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::config_validator::test::VALID_ONHOST_NRDOT_CONFIG;
-    use crate::sub_agent::config_validator::{
-        ConfigValidator, ValidatorError, FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT,
-    };
+    use crate::sub_agent::config_validator::{ConfigValidator, ValidatorError};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use crate::super_agent::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 

@@ -1,3 +1,4 @@
+pub(crate) mod attributes;
 /// Includes a OpAMP mock server to test scenarios involving OpAMP.
 pub(super) mod effective_config;
 pub(super) mod global_logger;

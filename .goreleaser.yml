@@ -1,4 +1,10 @@
 project_name: newrelic-super-agent
+env:
+  # Artifacts Versions
+  # Currently the only way to update the sub-agent versions is rebuild the binary of the super-agent
+  - NEWRELIC_INFRA_AGENT_VERSION=1.57.0
+  - NR_OTEL_COLLECTOR_VERSION=0.8.0
+  #
 builds:
   - id: newrelic-super-agent
     main: ./build/dummy.go
@@ -16,6 +22,8 @@ builds:
             - BUILD_FEATURE=onhost
             - BIN=newrelic-super-agent
             - SUPER_AGENT_VERSION={{ .Version }}
+            - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
+            - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
             - PKG=newrelic_super_agent
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
@@ -25,6 +33,7 @@ builds:
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
+            - ARTIFACTS_VERSIONS={"newrelic-infra":"{{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}","nr-otel-collector":"{{ .Env.NR_OTEL_COLLECTOR_VERSION }}"}
         - cmd: sh ./build/scripts/download_collector_config.sh
   - id: newrelic-config-migrate
     main: ./build/dummy.go

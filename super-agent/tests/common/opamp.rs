@@ -15,6 +15,9 @@ pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 /// It stores the latest received health status in the format of `ComponentHealth` for each
 /// instance id.
 pub type HealthStatuses = HashMap<InstanceID, opamp::proto::ComponentHealth>;
+/// It stores the latest received attributes in the format of `AgentDescription` for each
+/// instance id.
+pub type Attributes = HashMap<InstanceID, opamp::proto::AgentDescription>;
 
 /// It stores the latest received effective configs in the format of `EffectiveConfig` for each
 /// instance id.
@@ -28,6 +31,7 @@ pub type RemoteConfigStatus = HashMap<InstanceID, opamp::proto::RemoteConfigStat
 #[derive(Default)]
 struct State {
     health_statuses: HealthStatuses,
+    attributes: Attributes,
     config_responses: ConfigResponses,
     effective_configs: EffectiveConfigs,
     config_status: RemoteConfigStatus,
@@ -133,7 +137,15 @@ impl FakeServer {
         identifier: &InstanceID,
     ) -> Option<opamp::proto::ComponentHealth> {
         let state = self.state.lock().unwrap();
+        print!("{:?}", state.attributes);
         state.health_statuses.get(identifier).cloned()
+    }
+    pub fn get_attributes(
+        &self,
+        identifier: &InstanceID,
+    ) -> Option<opamp::proto::AgentDescription> {
+        let state = self.state.lock().unwrap();
+        state.attributes.get(identifier).cloned()
     }
 
     pub fn get_effective_config(
@@ -173,6 +185,12 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
     if let Some(health) = message.clone().health {
         let mut state = state.lock().unwrap();
         state.health_statuses.insert(instance_id.clone(), health);
+    }
+
+    // Store the attributes
+    if let Some(attributes) = message.clone().agent_description {
+        let mut state = state.lock().unwrap();
+        state.attributes.insert(instance_id.clone(), attributes);
     }
 
     // Store the effective config
