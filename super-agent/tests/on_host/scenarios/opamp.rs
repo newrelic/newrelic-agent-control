@@ -2,6 +2,7 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
+use crate::common::super_agent::start_super_agent_with_custom_config;
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::{
     create_file, create_sub_agent_values, create_super_agent_config,
@@ -10,19 +11,16 @@ use crate::on_host::tools::custom_agent_type::{
     get_agent_type_custom, get_agent_type_without_executables,
 };
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::agent_type::variable::namespace::Namespace;
-use newrelic_super_agent::event::channel::pub_sub;
-use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::super_agent::config::{AgentID, SuperAgentDynamicConfig};
 use newrelic_super_agent::super_agent::defaults::{
     DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, SUPER_AGENT_CONFIG_FILE, VALUES_DIR, VALUES_FILE,
 };
 use newrelic_super_agent::super_agent::run::BasePaths;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
+use std::env;
 use std::path::Path;
 use std::time::Duration;
-use std::{env, thread};
 use tempfile::tempdir;
 
 /// OpAMP is enabled but there is no remote configuration
@@ -50,13 +48,11 @@ fn onhost_opamp_super_agent_local_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let base_paths = base_paths.clone();
 
-    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
+
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         let expected_config = "agents: {}\n";
@@ -68,10 +64,6 @@ fn onhost_opamp_super_agent_local_effective_config() {
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// Given a super-agent whose local configuration has no agents and then a valid remote configuration with an agent
@@ -110,11 +102,7 @@ fn onhost_opamp_super_agent_remote_effective_config() {
         "tests/on_host/data/trap_term_sleep_60.sh",
     );
 
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let sa_base_paths = base_paths.clone();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(sa_base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
     let super_agent_instance_id =
         get_instance_id(&AgentID::new_super_agent_id(), base_paths.clone());
@@ -171,10 +159,6 @@ agents:
         check_latest_health_status_was_healthy(&opamp_server, &super_agent_instance_id)?;
         check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// Given a super-agent whose local configuration has no agents and then a valid remote configuration with no agents
@@ -200,14 +184,10 @@ fn onhost_opamp_super_agent_remote_config_with_unknown_field() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
 
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths_copy);
+    let super_agent_instance_id = get_instance_id(&AgentID::new_super_agent_id(), base_paths);
 
     // When a new config with an agent is received from OpAMP
     opamp_server.set_config_response(
@@ -254,10 +234,6 @@ non-existing: {}
             )
         }
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// The super agent is configured with one agent whose local configuration contains an environment variable
@@ -314,13 +290,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
-
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -339,10 +310,6 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     });
 
     env::remove_var("my_env_var");
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// The super-agent is configured with on agent with local configuration and a remote configuration was also set for the
@@ -398,13 +365,9 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -418,10 +381,6 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
             )
         }
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// There is a super agent with a sub agent configured whose configuration is empty, we expect the empty configuration
@@ -463,13 +422,9 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy);
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -483,10 +438,6 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
             )
         }
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// A super agent has a sub agent configured and the sub agent has a local configuration, then a **invalid** remote
@@ -535,14 +486,9 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let sub_agent_instance_id =
-        get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths_copy.clone());
+    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     // When a new incorrect config is received from OpAMP
     opamp_server.set_config_response(
@@ -579,10 +525,6 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
             )
         }
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// There is a Sub Agent without executables
@@ -646,13 +588,9 @@ status_time_unix_nano: 1725444001
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths_copy);
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths);
 
     retry(20, Duration::from_secs(1), || {
         let expected_config = "backoff_delay: 10s\n";
@@ -664,10 +602,6 @@ status_time_unix_nano: 1725444001
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// Given a super-agent with a sub-agent without supervised executables, it should be able
@@ -700,13 +634,9 @@ fn test_config_without_supervisor() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths.clone(), application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let instance_id = get_instance_id(&sub_agent_id, base_paths_copy.clone());
+    let instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
     // Send the first remote configuration
     let first_remote_config = "some_string: some value\n";
@@ -715,10 +645,8 @@ fn test_config_without_supervisor() {
         ConfigResponse::from(first_remote_config),
     );
 
-    let sub_agent_instance_id = get_instance_id(
-        &AgentID::new(&sub_agent_id).unwrap(),
-        base_paths_copy.clone(),
-    );
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::new(&sub_agent_id).unwrap(), base_paths.clone());
 
     retry(30, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(
@@ -728,7 +656,7 @@ fn test_config_without_supervisor() {
         )?;
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
-            base_paths_copy.clone(),
+            base_paths.clone(),
         )?;
         if remote_config != first_remote_config {
             return Err("not the expected content for first config".into());
@@ -752,18 +680,13 @@ fn test_config_without_supervisor() {
 
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
-            base_paths_copy.clone(),
+            base_paths.clone(),
         )?;
         if remote_config != second_remote_config {
             return Err("not the expected content for second config".into());
         }
         Ok(())
     });
-
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 /// Given a super-agent with a sub-agent without supervised executables, it should be able
@@ -795,13 +718,9 @@ fn test_invalid_config_without_supervisor() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let base_paths_copy = base_paths.clone();
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths.clone(), application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
-    let instance_id = get_instance_id(&sub_agent_id, base_paths_copy.clone());
+    let instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
     // Send an invalid first remote configuration
     let first_remote_config = "this_does_not_exit: in the agent type\n";
@@ -810,10 +729,8 @@ fn test_invalid_config_without_supervisor() {
         ConfigResponse::from(first_remote_config),
     );
 
-    let sub_agent_instance_id = get_instance_id(
-        &AgentID::new(&sub_agent_id).unwrap(),
-        base_paths_copy.clone(),
-    );
+    let sub_agent_instance_id =
+        get_instance_id(&AgentID::new(&sub_agent_id).unwrap(), base_paths.clone());
 
     retry(30, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(
@@ -823,7 +740,7 @@ fn test_invalid_config_without_supervisor() {
         )?;
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
-            base_paths_copy.clone(),
+            base_paths.clone(),
         )?;
         if remote_config != first_remote_config {
             return Err("not the expected content".into());
@@ -846,18 +763,13 @@ fn test_invalid_config_without_supervisor() {
         )?;
         let remote_config = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
-            base_paths_copy.clone(),
+            base_paths.clone(),
         )?;
         if remote_config != second_remote_config {
             return Err("not the expected content".into());
         }
         Ok(())
     });
-
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
 
 ////////////////////////////////

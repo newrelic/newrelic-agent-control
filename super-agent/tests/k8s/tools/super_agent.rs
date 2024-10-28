@@ -1,27 +1,30 @@
 use super::k8s_api::check_config_map_exist;
-use crate::common::{retry::retry, runtime::block_on};
+use crate::common::{
+    retry::retry,
+    runtime::block_on,
+    super_agent::{start_super_agent_with_custom_config, StartedSuperAgent},
+};
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
     api::{Api, DeleteParams, PostParams},
     Client,
 };
-use newrelic_super_agent::k8s::store::{
-    K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG,
-};
 use newrelic_super_agent::super_agent::config::AgentID;
 use newrelic_super_agent::super_agent::defaults::{
     DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
 };
+use newrelic_super_agent::{
+    k8s::store::{K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG},
+    super_agent::run::BasePaths,
+};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
-use std::process::{Command, Stdio};
 use std::time::Duration;
 use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
-
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
 pub fn start_super_agent_with_testdata_config(
@@ -31,7 +34,7 @@ pub fn start_super_agent_with_testdata_config(
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
-) -> AutoDroppingChild {
+) -> StartedSuperAgent {
     // Move the custom agentType, for now there is only one for all the tests
     std::fs::copy(
         "tests/k8s/data/custom_agent_type.yml",
@@ -48,41 +51,12 @@ pub fn start_super_agent_with_testdata_config(
             file_name,
         ))
     }
-    AutoDroppingChild {
-        child: start_super_agent(local_dir),
-    }
-}
 
-pub struct AutoDroppingChild {
-    pub child: std::process::Child,
-}
-
-impl Drop for AutoDroppingChild {
-    fn drop(&mut self) {
-        println!("Killing SuperAgent Process");
-        self.child.kill().expect("Failed to kill child process");
-    }
-}
-
-/// Starts the super-agent compiled with the k8s feature and the provided configuration file.
-pub fn start_super_agent(local_path: &Path) -> std::process::Child {
-    let mut command = Command::new("cargo");
-
-    command
-        .args([
-            "run",
-            "--bin",
-            "newrelic-super-agent",
-            "--features",
-            "k8s",
-            "--",
-            "--local-dir",
-        ])
-        .arg(local_path)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
-
-    command.spawn().expect("Failed to start super agent")
+    start_super_agent_with_custom_config(BasePaths {
+        local_dir: local_dir.to_path_buf(),
+        remote_dir: local_dir.join("remote").to_path_buf(),
+        log_dir: local_dir.join("log").to_path_buf(),
+    })
 }
 
 /// Create a config map containing the configuration defined in the `{folder_name}/{name}` under the provided key.
