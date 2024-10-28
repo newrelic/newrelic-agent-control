@@ -4,8 +4,6 @@ use crate::common::super_agent::start_super_agent_with_custom_config;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use newrelic_super_agent::event::channel::pub_sub;
-use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::opamp::instance_id::IdentifiersProvider;
 use newrelic_super_agent::super_agent::defaults::{
     DYNAMIC_AGENT_TYPE_FILENAME, SUPER_AGENT_CONFIG_FILE,
@@ -13,7 +11,6 @@ use newrelic_super_agent::super_agent::defaults::{
 use newrelic_super_agent::super_agent::run::BasePaths;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::system::detector::SystemDetector;
-use std::thread;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -169,10 +166,7 @@ agents:
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let (application_event_publisher, application_event_consumer) = pub_sub();
-    let super_agent_join = thread::spawn(move || {
-        start_super_agent_with_custom_config(base_paths, application_event_consumer)
-    });
+    let _super_agent = start_super_agent_with_custom_config(base_paths);
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command
@@ -182,8 +176,4 @@ agents:
             .assert().try_success()?;
         Ok(())
     });
-    application_event_publisher
-        .publish(ApplicationEvent::StopRequested)
-        .unwrap();
-    super_agent_join.join().unwrap();
 }
