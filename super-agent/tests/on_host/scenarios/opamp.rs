@@ -2,6 +2,7 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
+use crate::common::super_agent::start_super_agent_with_custom_config;
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::{
     create_file, create_sub_agent_values, create_super_agent_config,
@@ -10,7 +11,6 @@ use crate::on_host::tools::custom_agent_type::{
     get_agent_type_custom, get_agent_type_without_executables,
 };
 use crate::on_host::tools::instance_id::get_instance_id;
-use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
 use newrelic_super_agent::agent_type::variable::namespace::Namespace;
 use newrelic_super_agent::event::channel::pub_sub;
 use newrelic_super_agent::event::ApplicationEvent;

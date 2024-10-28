@@ -1,6 +1,6 @@
 use super::tools::config::create_file;
 use crate::common::retry::retry;
-use crate::on_host::tools::super_agent::start_super_agent_with_custom_config;
+use crate::common::super_agent::start_super_agent_with_custom_config;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;

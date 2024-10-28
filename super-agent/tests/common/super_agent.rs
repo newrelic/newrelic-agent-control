@@ -1,4 +1,4 @@
-use crate::on_host::tools::global_logger::init_logger;
+use crate::common::global_logger::init_logger;
 use newrelic_super_agent::event::channel::EventConsumer;
 use newrelic_super_agent::event::ApplicationEvent;
 use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
