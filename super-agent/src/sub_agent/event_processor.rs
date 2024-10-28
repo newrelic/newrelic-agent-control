@@ -157,7 +157,7 @@ where
                             },
                             Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
-                                warn!(agent_id = %self.agent_id, "sub agent became unhealthy!");
+                                warn!(agent_id = %self.agent_id, last_error= %unhealthy.last_error(), "sub agent became unhealthy!");
                                 let _ = self.on_health(HealthWithStartTime::new(unhealthy.into(), start_time))
                                     .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
                             }
