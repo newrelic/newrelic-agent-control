@@ -1,9 +1,6 @@
 pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
-mod event_handler;
-pub mod event_processor;
-pub mod event_processor_builder;
 pub mod health;
 pub mod persister;
 pub mod supervisor;
@@ -18,3 +15,5 @@ mod config_validator;
 #[allow(clippy::module_inception)]
 mod sub_agent;
 mod validation_regexes;
+
+mod event_handler;

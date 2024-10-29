@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
 use opamp_client::Client;
 use tracing::{debug, error, warn};
@@ -15,11 +14,8 @@ use crate::opamp::remote_config_report::report_remote_config_status_error;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error;
-use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::event_processor::SubAgentEventProcessor;
-use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
-
-use super::error::SubAgentBuilderError;
+use crate::sub_agent::error::SubAgentBuilderError;
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -36,14 +32,8 @@ pub trait NotStartedSubAgent {
 /// Exposes information about the Sub Agent and a stop method that will stop the
 /// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {
-    /// Returns the AgentID of the SubAgent
-    fn agent_id(&self) -> AgentID;
-    /// Returns the AgentType of the SubAgent
-    fn agent_type(&self) -> AgentTypeFQN;
     /// Stops all internal services owned by the SubAgent
     fn stop(self);
-    /// Applies a configuration update
-    fn apply_config_update(&mut self);
 }
 
 pub trait SubAgentBuilder {
@@ -124,20 +114,6 @@ where
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// States for Started/Not Started Sub Agents
-////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted<E>
-where
-    E: SubAgentEventProcessor,
-{
-    pub(crate) event_processor: E,
-}
-
-pub struct Started {
-    pub(crate) event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
-}
-
 #[cfg(test)]
 pub mod test {
     use mockall::{mock, predicate, Sequence};
@@ -145,6 +121,7 @@ pub mod test {
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 
     use crate::opamp::hash_repository::repository::HashRepositoryError;
+    use crate::super_agent::config::AgentTypeFQN;
     use crate::{
         agent_type::runtime_config::Runtime,
         opamp::{
@@ -162,25 +139,12 @@ pub mod test {
 
         impl StartedSubAgent for StartedSubAgent {
             fn stop(self);
-            fn apply_config_update(&mut self);
-            fn agent_id(&self) -> AgentID;
-            fn agent_type(&self) -> AgentTypeFQN;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
             self.expect_stop().once().return_const(());
-        }
-
-        pub fn should_agent_id(&mut self, agent_id: AgentID) {
-            self.expect_agent_id().once().return_once(|| agent_id);
-        }
-
-        pub fn should_agent_type(&mut self, agent_type_fqn: AgentTypeFQN) {
-            self.expect_agent_type()
-                .once()
-                .return_once(|| agent_type_fqn);
         }
     }
 

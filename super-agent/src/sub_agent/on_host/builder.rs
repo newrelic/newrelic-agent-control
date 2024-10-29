@@ -1,4 +1,3 @@
-use super::health_checker::HealthCheckerNotStarted;
 use super::supervisor::command_supervisor_config::ExecutableData;
 use super::{
     sub_agent::SubAgentOnHost,
@@ -14,17 +13,17 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
+use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
-use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::SupervisorBuilder;
-use crate::sub_agent::NotStarted;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::HOST_NAME_ATTRIBUTE_KEY;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     context::Context,
     opamp::client_builder::OpAMPClientBuilder,
@@ -37,75 +36,73 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    Y: YAMLConfigRepository,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     hash_repository: Arc<HR>,
-    effective_agent_assembler: &'a A,
-    event_processor_builder: &'a E,
+    effective_agent_assembler: Arc<A>,
     logging_path: PathBuf,
+    yaml_config_repository: Arc<Y>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, E, G> OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, G, Y> OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
         hash_repository: Arc<HR>,
-        effective_agent_assembler: &'a A,
-        event_processor_builder: &'a E,
+        effective_agent_assembler: Arc<A>,
         logging_path: PathBuf,
+        yaml_config_repository: Arc<Y>,
     ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
             hash_repository,
             effective_agent_assembler,
-            event_processor_builder,
             logging_path,
+            yaml_config_repository,
 
             _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E, G> SubAgentBuilder for OnHostSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<O, I, HR, A, G, Y> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, A, G, Y>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    G: EffectiveConfigLoader + Send + Sync + 'static,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
     I: InstanceIDGetter,
-    HR: HashRepository,
-    A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    HR: HashRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent = SubAgentOnHost<
-        'a,
-        NotStarted<E::SubAgentEventProcessor>,
-        command_supervisor::NotStarted,
-        HealthCheckerNotStarted,
         A,
         O::Client,
         SubAgentCallbacks<G>,
         SupervisortBuilderOnHost<O, HR, G>,
+        HR,
+        Y,
     >;
 
     fn build(
@@ -114,8 +111,6 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
@@ -132,33 +127,26 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let agent_fqn = sub_agent_config.agent_type.clone();
-
-        let supervisor_builder: SupervisortBuilderOnHost<O, HR, G> = SupervisortBuilderOnHost::new(
+        let supervisor_builder = SupervisortBuilderOnHost::new(
             agent_id.clone(),
             self.hash_repository.clone(),
             self.logging_path.clone(),
         );
 
-        let maybe_opamp_client = Arc::new(maybe_opamp_client);
-
-        let event_processor = self.event_processor_builder.build(
-            agent_id.clone(),
-            agent_fqn,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer,
-            sub_agent_internal_consumer,
-            maybe_opamp_client.clone(),
-        );
-
         Ok(SubAgentOnHost::new(
             agent_id,
             sub_agent_config.clone(),
-            event_processor,
-            sub_agent_internal_publisher,
-            self.effective_agent_assembler,
+            self.effective_agent_assembler.clone(),
             maybe_opamp_client,
             supervisor_builder,
+            sub_agent_publisher,
+            sub_agent_opamp_consumer,
+            pub_sub(),
+            self.hash_repository.clone(),
+            self.yaml_config_repository.clone(),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
         ))
     }
 }
@@ -273,16 +261,16 @@ mod test {
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
-    use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::{default_capabilities, PARENT_AGENT_ID_ATTRIBUTE_KEY};
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
@@ -296,7 +284,9 @@ mod test {
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder: MockOpAMPClientBuilderMock<
+            SubAgentCallbacks<MockEffectiveConfigLoaderMock>,
+        > = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
@@ -350,18 +340,18 @@ mod test {
             &sub_agent_config,
             &Environment::OnHost,
             final_agent,
+            1,
         );
 
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_return_event_processor_with_consumer();
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(hash_repository_mock),
-            &effective_agent_assembler,
-            &sub_agent_event_processor_builder,
+            Arc::new(effective_agent_assembler),
             PathBuf::default(),
+            Arc::new(remote_values_repo),
         );
 
         on_host_builder
@@ -375,7 +365,9 @@ mod test {
     fn test_subagent_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         // Mocks
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder: MockOpAMPClientBuilderMock<
+            SubAgentCallbacks<MockEffectiveConfigLoaderMock>,
+        > = MockOpAMPClientBuilderMock::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
@@ -424,6 +416,7 @@ mod test {
             &sub_agent_config,
             &Environment::OnHost,
             final_agent,
+            1,
         );
 
         // return a failed hash
@@ -431,19 +424,16 @@ mod test {
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
         hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
 
-        let mut processor = MockEventProcessorMock::new();
-        processor.should_process();
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_build(processor);
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(hash_repository_mock),
-            &effective_agent_assembler,
-            &sub_agent_event_processor_builder,
+            Arc::new(effective_agent_assembler),
             PathBuf::default(),
+            Arc::new(remote_values_repo),
         );
 
         let sub_agent = on_host_builder

@@ -1,5 +1,4 @@
 use super::sub_agent::SubAgentK8s;
-use super::supervisor::StartedSupervisor;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -10,17 +9,18 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::build_supervisor_or_default;
+use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
-use crate::sub_agent::event_processor_builder::SubAgentEventProcessorBuilder;
 use crate::sub_agent::supervisor::SupervisorBuilder;
-use crate::sub_agent::{NotStarted, SubAgentCallbacks};
+use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::k8s::supervisor::NotStartedSupervisor,
+    sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 use kube::core::TypeMeta;
@@ -30,45 +30,45 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, A, G, Y>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    Y: YAMLConfigRepository,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     hash_repository: Arc<HR>,
     k8s_client: Arc<SyncK8sClient>,
-    effective_agent_assembler: &'a A,
-    event_processor_builder: &'a E,
+    effective_agent_assembler: Arc<A>,
     k8s_config: K8sConfig,
+    yaml_config_repository: Arc<Y>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, E, G> K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<'a, O, I, HR, A, G, Y> K8sSubAgentBuilder<'a, O, I, HR, A, G, Y>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
         k8s_client: Arc<SyncK8sClient>,
         hash_repository: Arc<HR>,
-        effective_agent_assembler: &'a A,
-        event_processor_builder: &'a E,
+        effective_agent_assembler: Arc<A>,
         k8s_config: K8sConfig,
+        yaml_config_repository: Arc<Y>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -76,32 +76,25 @@ where
             hash_repository,
             k8s_client,
             effective_agent_assembler,
-            event_processor_builder,
             k8s_config,
+            yaml_config_repository,
 
             _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<'a, O, I, HR, A, E, G> SubAgentBuilder for K8sSubAgentBuilder<'a, O, I, HR, A, E, G>
+impl<O, I, HR, A, G, Y> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, G, Y>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    G: EffectiveConfigLoader + Send + Sync + 'static,
+    O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
     I: InstanceIDGetter,
-    HR: HashRepository,
-    A: EffectiveAgentsAssembler,
-    E: SubAgentEventProcessorBuilder<O::Client, G>,
+    HR: HashRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    Y: YAMLConfigRepository,
 {
-    type NotStartedSubAgent = SubAgentK8s<
-        'a,
-        NotStarted<E::SubAgentEventProcessor>,
-        StartedSupervisor,
-        O::Client,
-        SubAgentCallbacks<G>,
-        A,
-        SupervisorBuilderK8s<O, HR, G>,
-    >;
+    type NotStartedSubAgent =
+        SubAgentK8s<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, HR, G>, HR, Y>;
 
     fn build(
         &self,
@@ -109,11 +102,7 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-
         debug!(agent_id = agent_id.to_string(), "building subAgent");
-
-        let agent_fqn = sub_agent_config.agent_type.clone();
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
@@ -134,8 +123,6 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let maybe_opamp_client = Arc::new(maybe_opamp_client);
-
         let supervisor_builder = SupervisorBuilderK8s::new(
             agent_id.clone(),
             sub_agent_config.clone(),
@@ -144,23 +131,20 @@ where
             self.k8s_config.clone(),
         );
 
-        let event_processor = self.event_processor_builder.build(
-            agent_id.clone(),
-            agent_fqn,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer,
-            sub_agent_internal_consumer,
-            maybe_opamp_client.clone(),
-        );
-
         Ok(SubAgentK8s::new(
             agent_id,
             sub_agent_config.clone(),
-            event_processor,
-            sub_agent_internal_publisher,
             maybe_opamp_client,
-            self.effective_agent_assembler,
+            self.effective_agent_assembler.clone(),
             supervisor_builder,
+            sub_agent_publisher,
+            sub_agent_opamp_consumer,
+            pub_sub(),
+            self.hash_repository.clone(),
+            self.yaml_config_repository.clone(),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
         ))
     }
 }
@@ -210,7 +194,7 @@ where
     pub fn build_cr_supervisors(
         &self,
         effective_agent: EffectiveAgent,
-    ) -> Result<NotStartedSupervisor, SubAgentBuilderError> {
+    ) -> Result<NotStartedSupervisorK8s, SubAgentBuilderError> {
         debug!("Building CR supervisors {}", &self.agent_id);
 
         let k8s_objects = effective_agent.get_k8s_config()?;
@@ -219,7 +203,7 @@ where
         Self::validate_k8s_objects(&k8s_objects.objects.clone(), &self.k8s_config.cr_type_meta)?;
 
         // Clone the k8s_client on each build.
-        Ok(NotStartedSupervisor::new(
+        Ok(NotStartedSupervisorK8s::new(
             self.agent_id.clone(),
             self.agent_cfg.agent_type.clone(),
             self.k8s_client.clone(),
@@ -255,7 +239,7 @@ where
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     HR: HashRepository,
 {
-    type Supervisor = NotStartedSupervisor;
+    type Supervisor = NotStartedSupervisorK8s;
 
     type OpAMPClient = O::Client;
 
@@ -288,11 +272,10 @@ pub mod test {
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::event_processor::test::MockEventProcessorMock;
-    use crate::sub_agent::event_processor_builder::test::MockSubAgentEventProcessorBuilderMock;
     use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
     };
@@ -314,10 +297,6 @@ pub mod test {
         // instance K8s client mock
         let mock_client = MockSyncK8sClient::default();
 
-        // event processor mock
-        let mut sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-        sub_agent_event_processor_builder.should_build(MockEventProcessorMock::default());
-
         let (opamp_builder, instance_id_getter, hash_repository_mock) =
             k8s_agent_get_common_mocks(sub_agent_config.clone(), agent_id.clone(), false);
 
@@ -328,15 +307,16 @@ pub mod test {
         };
 
         let assembler = MockEffectiveAgentAssemblerMock::new();
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(mock_client),
             Arc::new(hash_repository_mock),
-            &assembler,
-            &sub_agent_event_processor_builder,
+            Arc::new(assembler),
             k8s_config,
+            Arc::new(remote_values_repo),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -356,9 +336,6 @@ pub mod test {
         // instance K8s client mock
         let mock_client = MockSyncK8sClient::default();
 
-        // event processor mock
-        let sub_agent_event_processor_builder = MockSubAgentEventProcessorBuilderMock::new();
-
         let (opamp_builder, instance_id_getter, hash_repository_mock) =
             k8s_agent_get_common_mocks(sub_agent_config.clone(), agent_id.clone(), true);
 
@@ -369,15 +346,16 @@ pub mod test {
         };
 
         let assembler = MockEffectiveAgentAssemblerMock::new();
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(mock_client),
             Arc::new(hash_repository_mock),
-            &assembler,
-            &sub_agent_event_processor_builder,
+            Arc::new(assembler),
             k8s_config,
+            Arc::new(remote_values_repo),
         );
 
         let (application_event_publisher, _) = pub_sub();

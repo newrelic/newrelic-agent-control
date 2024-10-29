@@ -69,24 +69,6 @@ where
             sub_agent.stop();
         })
     }
-
-    pub(crate) fn get(&self, agent_id: &AgentID) -> Option<&S> {
-        self.0.get(agent_id)
-    }
-
-    pub(crate) fn apply_config_update(
-        &mut self,
-        agent_id: &AgentID,
-    ) -> Result<(), SubAgentCollectionError> {
-        let sub_agent =
-            self.0
-                .get_mut(agent_id)
-                .ok_or(SubAgentCollectionError::SubAgentNotFound(
-                    agent_id.to_string(),
-                ))?;
-        sub_agent.apply_config_update();
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -102,10 +84,6 @@ pub mod test {
     {
         pub(crate) fn len(&self) -> usize {
             self.0.len()
-        }
-
-        pub fn get_mut(&mut self, agent_id: &AgentID) -> Option<&mut S> {
-            self.0.get_mut(agent_id)
         }
     }
 

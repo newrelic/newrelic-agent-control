@@ -1,5 +1,6 @@
 use crate::event::channel::EventConsumer;
-use crate::event::SuperAgentEvent;
+use crate::event::{SubAgentEvent, SuperAgentEvent};
+use crossbeam::select;
 use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc::UnboundedSender;
@@ -8,86 +9,51 @@ use tracing::{debug, error};
 /// Spawn an OS thread that will act as a bridge between the Sync Events in
 /// the Super Agent and the Async Events in the Status Http Server
 pub fn run_async_sync_bridge(
-    async_publisher: UnboundedSender<SuperAgentEvent>,
+    async_sa_publisher: UnboundedSender<SuperAgentEvent>,
+    async_suba_publisher: UnboundedSender<SubAgentEvent>,
     super_agent_consumer: EventConsumer<SuperAgentEvent>,
+    sub_agent_consumer: EventConsumer<SubAgentEvent>,
 ) -> JoinHandle<()> {
     thread::spawn(move || loop {
-        match super_agent_consumer.as_ref().recv() {
-            Ok(super_agent_event) => {
-                let _ = async_publisher.send(super_agent_event).inspect_err(|err| {
-                    error!(
-                        error_msg = %err,
-                        "cannot forward super agent event"
-                    );
-                });
-            }
-            Err(err) => {
-                debug!(
-                    error_msg = %err,
-                    "status server bridge channel closed"
-                );
-                break;
-            }
+        select! {
+            recv(&super_agent_consumer.as_ref()) -> sa_event_res => {
+                match sa_event_res {
+                    Ok(super_agent_event) => {
+                        let _ = async_sa_publisher.send(super_agent_event).inspect_err(|err| {
+                            error!(
+                                error_msg = %err,
+                                "cannot forward super agent event"
+                            );
+                        });
+                    }
+                    Err(err) => {
+                        debug!(
+                            error_msg = %err,
+                            "status server bridge channel closed"
+                        );
+                        break;
+                    }
+                }
+            },
+            recv(&sub_agent_consumer.as_ref()) -> suba_event_res => {
+                    match suba_event_res {
+                        Ok(sub_agent_event) => {
+                            let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
+                                error!(
+                                    error_msg = %err,
+                                    "cannot forward super agent event"
+                                );
+                            });
+                        }
+                        Err(err) => {
+                            debug!(
+                                error_msg = %err,
+                                "status server bridge channel closed"
+                            );
+                            break;
+                        }
+                    }
+                }
         }
     })
-}
-
-#[cfg(test)]
-mod test {
-    use crate::event::channel::pub_sub;
-    use crate::event::SuperAgentEvent;
-    use crate::event::SuperAgentEvent::{SubAgentBecameHealthy, SuperAgentBecameHealthy};
-    use crate::sub_agent::health::health_checker::Healthy;
-    use crate::super_agent::config::{AgentID, AgentTypeFQN};
-    use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
-    use std::thread;
-    use std::thread::JoinHandle;
-    use std::time::SystemTime;
-    use tokio::sync::mpsc;
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn test_all_events_are_published() {
-        let (tx, mut rx) = mpsc::unbounded_channel::<SuperAgentEvent>();
-        let (super_agent_publisher, super_agent_consumer) = pub_sub::<SuperAgentEvent>();
-
-        let join_handle = run_async_sync_bridge(tx, super_agent_consumer);
-
-        let mut join_handles: Vec<JoinHandle<()>> = Vec::new();
-
-        let super_agent_publisher_clone = super_agent_publisher.clone();
-        join_handles.push(thread::spawn(move || {
-            for _ in 0..5 {
-                super_agent_publisher_clone
-                    .publish(SuperAgentBecameHealthy(Healthy::new(
-                        "super-agent status: 0".to_string(),
-                    )))
-                    .unwrap();
-            }
-        }));
-
-        join_handles.push(thread::spawn(move || {
-            for _ in 0..3 {
-                super_agent_publisher
-                    .publish(SubAgentBecameHealthy(
-                        AgentID::new("some-agent-id").unwrap(),
-                        AgentTypeFQN::try_from("namespace/whatever:0.0.1").unwrap(),
-                        Healthy::new("sub-agent status: 0".to_string()),
-                        SystemTime::now(),
-                    ))
-                    .unwrap();
-            }
-        }));
-
-        while let Some(join_handle) = join_handles.pop() {
-            join_handle.join().unwrap();
-        }
-
-        let mut total_events = 0;
-        while rx.recv().await.is_some() {
-            total_events += 1;
-        }
-
-        join_handle.join().unwrap();
-        assert_eq!(8, total_events);
-    }
 }

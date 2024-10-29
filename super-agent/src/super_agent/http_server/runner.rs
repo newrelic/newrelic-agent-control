@@ -1,5 +1,5 @@
 use crate::event::channel::EventConsumer;
-use crate::event::SuperAgentEvent;
+use crate::event::{SubAgentEvent, SuperAgentEvent};
 use crate::super_agent::config::OpAMPClientConfig;
 use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
 use crate::super_agent::http_server::config::ServerConfig;
@@ -26,6 +26,7 @@ impl Runner {
         config: ServerConfig,
         runtime: Arc<Runtime>,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> Self {
         let join_handle = if config.enabled {
@@ -33,6 +34,7 @@ impl Runner {
                 config,
                 runtime,
                 super_agent_consumer,
+                sub_agent_consumer,
                 maybe_opamp_client_config,
             )
         } else {
@@ -49,23 +51,31 @@ impl Runner {
         config: ServerConfig,
         runtime: Arc<Runtime>,
         super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> JoinHandle<()> {
         thread::spawn(move || {
-            // Create unbounded channel to send the Super Agent Sync events
+            // Create 2 unbounded channel to send the Super Agent and Sub Agent Sync events
             // to the Async Status Server
-            let (async_sa_event_publisher, async_sa_event_consumer) =
+            let (async_super_agent_event_publisher, async_super_agent_event_consumer) =
                 mpsc::unbounded_channel::<SuperAgentEvent>();
+            let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
+                mpsc::unbounded_channel::<SubAgentEvent>();
             // Run an OS Thread that listens to sync channel and forwards the events
             // to an async channel
-            let bridge_join_handle =
-                run_async_sync_bridge(async_sa_event_publisher, super_agent_consumer);
+            let bridge_join_handle = run_async_sync_bridge(
+                async_super_agent_event_publisher,
+                async_sub_agent_event_publisher,
+                super_agent_consumer,
+                sub_agent_consumer,
+            );
 
             // Run the async status server
             let _ = runtime
                 .block_on(crate::super_agent::http_server::server::run_status_server(
                     config.clone(),
-                    async_sa_event_consumer,
+                    async_super_agent_event_consumer,
+                    async_sub_agent_event_consumer,
                     maybe_opamp_client_config,
                 ))
                 .inspect_err(|err| {

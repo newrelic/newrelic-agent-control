@@ -8,7 +8,7 @@ use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::event::channel::pub_sub;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
-    ApplicationEvent, SuperAgentEvent,
+    ApplicationEvent, SubAgentEvent, SuperAgentEvent,
 };
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
@@ -61,6 +61,7 @@ pub struct SuperAgentRunner {
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
+    sub_agent_publisher: EventPublisher<SubAgentEvent>,
     base_paths: BasePaths,
     #[cfg(feature = "k8s")]
     k8s_config: super::config::K8sConfig,
@@ -105,10 +106,12 @@ impl SuperAgentRunner {
                 .enable_all()
                 .build()?,
         );
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _http_server_runner = Runner::start(
             value.http_server,
             runtime.clone(),
             super_agent_consumer,
+            sub_agent_consumer,
             value.opamp.clone(),
         );
 
@@ -124,6 +127,7 @@ impl SuperAgentRunner {
             application_event_consumer,
             opamp_http_builder,
             super_agent_publisher,
+            sub_agent_publisher,
             base_paths: value.base_paths,
         })
     }
