@@ -1,0 +1,24 @@
+namespace: newrelic
+name: com.newrelic.foo-cr-agent
+version: 0.0.1
+variables:
+  k8s:
+    data:
+      description: "foo data"
+      type: string
+      required: false
+      default: "default"
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      foo_cr:
+        # This CRD is created in the cluster when initializing the test environment.
+        apiVersion: newrelic.com/v1
+        kind: Foo
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          data: ${nr-var:data}
+

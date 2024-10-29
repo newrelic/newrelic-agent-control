@@ -25,19 +25,23 @@ use std::time::Duration;
 use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
+pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
+pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
+pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
+
 /// Starts the super-agent through [start_super_agent] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
 pub fn start_super_agent_with_testdata_config(
     folder_name: &str,
+    dynamic_agent_type_path: &str,
     client: Client,
     ns: &str,
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
 ) -> StartedSuperAgent {
-    // Move the custom agentType, for now there is only one for all the tests
     std::fs::copy(
-        "tests/k8s/data/custom_agent_type.yml",
+        dynamic_agent_type_path,
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
     )
     .unwrap();
@@ -51,7 +55,6 @@ pub fn start_super_agent_with_testdata_config(
             file_name,
         ))
     }
-
     start_super_agent_with_custom_config(BasePaths {
         local_dir: local_dir.to_path_buf(),
         remote_dir: local_dir.join("remote").to_path_buf(),

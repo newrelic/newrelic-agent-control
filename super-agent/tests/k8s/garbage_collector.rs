@@ -1,8 +1,8 @@
 use crate::common::runtime::{block_on, tokio_runtime};
 
 use super::tools::{
-    foo_crd::{create_foo_cr, foo_type_meta, Foo},
     k8s_env::K8sEnv,
+    test_crd::{create_foo_cr, foo_type_meta, Foo},
 };
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};

@@ -5,7 +5,7 @@ use crate::common::{
     retry::retry,
     runtime::block_on,
 };
-
+use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
 use crate::k8s::tools::{
     instance_id,
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
@@ -39,6 +39,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
         test_name,
+        CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),
@@ -97,6 +98,7 @@ fn k8s_opamp_subagent_configuration_change() {
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
         test_name,
+        CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),
@@ -201,6 +203,7 @@ fn k8s_opamp_add_subagent() {
     // start the super-agent
     let _sa = start_super_agent_with_testdata_config(
         test_name,
+        CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
         Some(&server.endpoint()),

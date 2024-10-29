@@ -1,6 +1,6 @@
 use crate::common::runtime::tokio_runtime;
 
-use super::foo_crd::create_foo_crd;
+use super::test_crd::create_foo_crd;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
     api::{DeleteParams, PostParams},
