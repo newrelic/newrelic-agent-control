@@ -55,16 +55,11 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
-    AgentBecameUnhealthy(Unhealthy, StartTime),
-    AgentBecameHealthy(Healthy, StartTime),
+    AgentHealthInfo(HealthWithStartTime),
 }
 
 impl From<HealthWithStartTime> for SubAgentInternalEvent {
     fn from(health: HealthWithStartTime) -> Self {
-        let start_time = health.start_time();
-        match health.into() {
-            Health::Healthy(healthy) => Self::AgentBecameHealthy(healthy, start_time),
-            Health::Unhealthy(unhealthy) => Self::AgentBecameUnhealthy(unhealthy, start_time),
-        }
+        Self::AgentHealthInfo(health)
     }
 }

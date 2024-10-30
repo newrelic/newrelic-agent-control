@@ -230,7 +230,10 @@ pub(crate) fn spawn_health_checker<H>(
             HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
-        publish_health_event(&health_publisher, health.into());
+        publish_health_event(
+            &health_publisher,
+            SubAgentInternalEvent::AgentHealthInfo(health),
+        );
     });
 }
 

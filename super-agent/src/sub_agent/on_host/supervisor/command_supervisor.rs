@@ -582,11 +582,8 @@ pub mod tests {
             .as_ref()
             .iter()
             .map(|event| match event {
-                SubAgentInternalEvent::AgentBecameHealthy(healthy, _) => {
-                    HealthWithStartTime::new(healthy.into(), start_time).into()
-                }
-                SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, _) => {
-                    HealthWithStartTime::new(unhealthy.into(), start_time).into()
+                SubAgentInternalEvent::AgentHealthInfo(health) => {
+                    HealthWithStartTime::new(health.into(), start_time).into()
                 }
                 e => e,
             })

@@ -20,14 +20,13 @@ use crate::sub_agent::effective_agents_assembler::{
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On Host
@@ -311,28 +310,15 @@ where
                                 Self::stop_supervisor(&self.agent_id, supervisor);
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
-                                debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
-                                warn!(agent_id = %self.agent_id, "sub agent became unhealthy!");
+                            Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 let _ = on_health(
-                                    HealthWithStartTime::new(unhealthy.into(), start_time),
+                                    health,
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.agent_id.clone(),
                                     self.agent_cfg.agent_type.clone(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
-                            }
-                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy, start_time))=>{
-                                debug!(select_arm = "sub_agent_internal_consumer", "HealthyAgent");
-                                let _ = on_health(
-                                    HealthWithStartTime::new(healthy.into(), start_time),
-                                    self.maybe_opamp_client.as_ref(),
-                                    self.sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_cfg.agent_type.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing healthy status"));
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health status"));
                             }
                         }
                     }
