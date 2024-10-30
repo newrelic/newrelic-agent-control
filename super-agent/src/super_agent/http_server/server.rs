@@ -1,4 +1,4 @@
-use crate::event::SuperAgentEvent;
+use crate::event::{SubAgentEvent, SuperAgentEvent};
 use crate::super_agent::config::OpAMPClientConfig;
 use crate::super_agent::http_server::config::{ServerConfig, DEFAULT_WORKERS};
 use crate::super_agent::http_server::status::Status;
@@ -15,7 +15,8 @@ use tracing::{debug, error, info};
 
 pub async fn run_status_server(
     server_config: ServerConfig,
-    sa_event_consumer: UnboundedReceiver<SuperAgentEvent>,
+    super_agent_event_consumer: UnboundedReceiver<SuperAgentEvent>,
+    sub_agent_event_consumer: UnboundedReceiver<SubAgentEvent>,
     maybe_opamp_client_config: Option<OpAMPClientConfig>,
 ) -> Result<(), StatusServerError> {
     // channel to share the Server handle between "threads". This way we can
@@ -40,7 +41,8 @@ pub async fn run_status_server(
     debug!("spawning thread for the event processor");
     let status_clone = status.clone();
     let event_join_handle = rt.spawn(on_super_agent_event_update_status(
-        sa_event_consumer,
+        super_agent_event_consumer,
+        sub_agent_event_consumer,
         status_clone,
     ));
 
