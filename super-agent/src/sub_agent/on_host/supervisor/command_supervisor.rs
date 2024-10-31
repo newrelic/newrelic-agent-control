@@ -585,7 +585,7 @@ pub mod tests {
                 SubAgentInternalEvent::AgentHealthInfo(health) => {
                     HealthWithStartTime::new(health.into(), start_time).into()
                 }
-                e => e,
+                SubAgentInternalEvent::StopRequested => SubAgentInternalEvent::StopRequested,
             })
             .collect::<Vec<_>>();
 

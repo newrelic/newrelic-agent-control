@@ -1,12 +1,9 @@
+use crate::event::{SubAgentEvent, SuperAgentEvent};
+use crate::super_agent::http_server::status::{Status, SubAgentStatus};
 use std::sync::Arc;
-
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
 use tracing::debug;
-
-use crate::event::{SubAgentEvent, SuperAgentEvent};
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::super_agent::http_server::status::{Status, SubAgentStatus};
 
 pub(super) async fn on_super_agent_event_update_status(
     mut super_agent_event_consumer: UnboundedReceiver<SuperAgentEvent>,
@@ -69,21 +66,18 @@ async fn update_super_agent_status(
 async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwLock<Status>>) {
     let mut status = status.write().await;
     match sub_agent_event {
-        SubAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy, start_time) => {
-            debug!(error_msg = unhealthy.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
+        SubAgentEvent::SubAgentHealthInfo(agent_id, agent_type, health) => {
+            if health.is_healthy() {
+                debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
+            } else {
+                debug!(error_msg = health.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
+            }
+
             status
                 .sub_agents
                 .entry(agent_id.clone())
                 .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .update_health(HealthWithStartTime::new(unhealthy.into(), start_time));
-        }
-        SubAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy, start_time) => {
-            debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
-            status
-                .sub_agents
-                .entry(agent_id.clone())
-                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .update_health(HealthWithStartTime::new(healthy.into(), start_time));
+                .update_health(health);
         }
     }
 }
@@ -106,12 +100,14 @@ mod test {
     use url::Url;
 
     use crate::event::SubAgentEvent;
+    use crate::event::SubAgentEvent::SubAgentHealthInfo;
     use crate::event::SuperAgentEvent;
     use crate::event::SuperAgentEvent::{
         OpAMPConnectFailed, SubAgentRemoved, SuperAgentBecameHealthy, SuperAgentBecameUnhealthy,
         SuperAgentStopped,
     };
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{
         OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
@@ -119,7 +115,6 @@ mod test {
     use crate::super_agent::http_server::status_updater::{
         on_super_agent_event_update_status, update_sub_agent_status, update_super_agent_status,
     };
-    use SubAgentEvent::{SubAgentBecameHealthy, SubAgentBecameUnhealthy};
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_events() {
@@ -194,11 +189,10 @@ mod test {
             Test {
                 _name: "Sub Agent first healthy event should add it to the list",
                 super_agent_event: None,
-                sub_agent_event: Some(SubAgentBecameHealthy(
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Healthy::default(),
-                    SystemTime::UNIX_EPOCH,
+                    HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -225,11 +219,15 @@ mod test {
             Test {
                 _name: "Sub Agent first unhealthy event should add it to the list",
                 super_agent_event: None,
-                sub_agent_event: Some(SubAgentBecameUnhealthy(
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy::default().with_last_error("this is an error message".to_string()),
-                    SystemTime::UNIX_EPOCH,
+                    HealthWithStartTime::new(
+                        Unhealthy::default()
+                            .with_last_error("this is an error message".to_string())
+                            .into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
@@ -256,11 +254,15 @@ mod test {
             Test {
                 _name: "Sub Agent second unhealthy event should change existing one",
                 super_agent_event: None,
-                sub_agent_event: Some(SubAgentBecameUnhealthy(
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy::default().with_last_error("this is an error message".to_string()),
-                    SystemTime::UNIX_EPOCH,
+                    HealthWithStartTime::new(
+                        Unhealthy::default()
+                            .with_last_error("this is an error message".to_string())
+                            .into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),

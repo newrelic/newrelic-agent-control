@@ -343,7 +343,7 @@ pub mod test {
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::{pub_sub, EventPublisher};
-    use crate::event::SubAgentInternalEvent;
+    use crate::event::{SubAgentEvent, SubAgentInternalEvent};
     use crate::k8s::client::MockSyncK8sClient;
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
@@ -494,9 +494,10 @@ pub mod test {
         let timeout = Duration::from_secs(3);
 
         match sub_agent_consumer.as_ref().recv_timeout(timeout).unwrap() {
-            SubAgentEvent::SubAgentBecameUnhealthy(_, _, _, _) => {}
-            _ => {
-                panic!("AgentBecameUnhealthy event expected")
+            SubAgentEvent::SubAgentHealthInfo(_, _, h) => {
+                if h.is_healthy() {
+                    panic!("unhealthy event expected")
+                }
             }
         }
     }

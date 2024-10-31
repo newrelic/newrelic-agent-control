@@ -3,8 +3,8 @@ pub mod channel;
 
 /// EVENTS
 use crate::opamp::{LastErrorCode, LastErrorMessage};
-use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::AgentTypeFQN;
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 
@@ -32,23 +32,12 @@ pub enum SuperAgentEvent {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
-    SubAgentBecameHealthy(AgentID, AgentTypeFQN, Healthy, StartTime),
-    SubAgentBecameUnhealthy(AgentID, AgentTypeFQN, Unhealthy, StartTime),
+    SubAgentHealthInfo(AgentID, AgentTypeFQN, HealthWithStartTime),
 }
 
 impl SubAgentEvent {
     pub fn new(health: HealthWithStartTime, id: AgentID, agent_type: AgentTypeFQN) -> Self {
-        // We copy the value here
-        let start_time = health.start_time();
-
-        match health.into() {
-            Health::Healthy(healthy) => {
-                SubAgentEvent::SubAgentBecameHealthy(id, agent_type, healthy, start_time)
-            }
-            Health::Unhealthy(unhealthy) => {
-                SubAgentEvent::SubAgentBecameUnhealthy(id, agent_type, unhealthy, start_time)
-            }
-        }
+        Self::SubAgentHealthInfo(id, agent_type, health)
     }
 }
 
