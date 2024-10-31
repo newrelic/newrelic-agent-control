@@ -8,7 +8,7 @@ use std::time::SystemTime;
 
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
-use tracing::{debug, error, warn};
+use tracing::{debug, error};
 
 use crate::agent_type::environment::Environment;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -22,7 +22,6 @@ use crate::sub_agent::effective_agents_assembler::{
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::k8s::NotStartedSupervisorK8s;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
@@ -266,28 +265,15 @@ where
                                 Self::stop_supervisor(&self.agent_id, supervisor);
                                 break;
                             },
-                            Ok(SubAgentInternalEvent::AgentBecameUnhealthy(unhealthy, start_time))=>{
-                                debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
-                                warn!(agent_id = %self.agent_id, "sub agent became unhealthy!");
+                            Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 let _ = on_health(
-                                    HealthWithStartTime::new(unhealthy.into(), start_time),
+                                    health,
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.agent_id.clone(),
                                     self.agent_cfg.agent_type.clone(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing unhealthy status"));
-                            }
-                            Ok(SubAgentInternalEvent::AgentBecameHealthy(healthy, start_time))=>{
-                                debug!(select_arm = "sub_agent_internal_consumer", "HealthyAgent");
-                                let _ = on_health(
-                                    HealthWithStartTime::new(healthy.into(), start_time),
-                                    self.maybe_opamp_client.as_ref(),
-                                    self.sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_cfg.agent_type.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing healthy status"));
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
                             }
                         }
                     }
@@ -357,7 +343,7 @@ pub mod test {
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::{pub_sub, EventPublisher};
-    use crate::event::SubAgentInternalEvent;
+    use crate::event::{SubAgentEvent, SubAgentInternalEvent};
     use crate::k8s::client::MockSyncK8sClient;
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
@@ -508,9 +494,10 @@ pub mod test {
         let timeout = Duration::from_secs(3);
 
         match sub_agent_consumer.as_ref().recv_timeout(timeout).unwrap() {
-            SubAgentEvent::SubAgentBecameUnhealthy(_, _, _, _) => {}
-            _ => {
-                panic!("AgentBecameUnhealthy event expected")
+            SubAgentEvent::SubAgentHealthInfo(_, _, h) => {
+                if h.is_healthy() {
+                    panic!("unhealthy event expected")
+                }
             }
         }
     }

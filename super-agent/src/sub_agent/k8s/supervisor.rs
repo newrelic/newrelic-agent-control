@@ -11,6 +11,7 @@ use crate::sub_agent::health::health_checker::{
     publish_health_event, spawn_health_checker, HealthCheckerError, Unhealthy,
 };
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -213,10 +214,10 @@ pub fn log_and_report_unhealthy(
 ) {
     let last_error = format!("{msg}: {err}");
 
-    let event = SubAgentInternalEvent::AgentBecameUnhealthy(
-        Unhealthy::new(String::default(), last_error),
+    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
+        Unhealthy::new(String::default(), last_error).into(),
         start_time,
-    );
+    ));
 
     error!(%err, msg);
     publish_health_event(sub_agent_internal_publisher, event);

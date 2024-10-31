@@ -42,9 +42,6 @@ where
     pub(crate) fn is_valid_variant(&self, value: &T) -> bool {
         self.variants.is_empty() || self.variants.iter().any(|v| v == value)
     }
-    pub(crate) fn get_final_value(&self) -> Option<&T> {
-        self.final_value.as_ref()
-    }
 }
 
 impl<T> KindValueWithPath<T>
