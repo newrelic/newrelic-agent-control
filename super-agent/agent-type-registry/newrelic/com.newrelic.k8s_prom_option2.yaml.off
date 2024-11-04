@@ -1,0 +1,60 @@
+namespace: newrelic
+name: com.newrelic.prometheus
+version: 0.1.0
+variables:
+  k8s:
+    newrelic-prometheus-agent:
+      description: "Newrelic prometheus-agent chart values"
+      type: yaml
+      required: false
+      default: {}
+    global:
+      description: "Newrelic prometheus-agent chart values"
+      type: yaml
+      required: false
+      default: {}
+    chart_version:
+      description: "prometheus-agent chart version"
+      type: string
+      required: false
+      default: "1.14.4"
+deployment:
+
+  k8s:
+    objects:
+      repository: {...} # will get newrelic nr prometheus repo
+      # currently AC is treating this as dynamic object and creating a reflector for it. we should avoid that
+      default-values:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: default-values-${nr-sub:agent_id}
+        data:
+          values.yaml: |
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+      custom-values:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: custom-values-${nr-sub:agent_id}
+        data:
+          values.yaml: |
+            ${nr-var:newrelic-prometheus-agent}
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          chart: { ... } # will install newrelic-prometheus-agent
+          valuesFrom:
+          - kind: ConfigMap
+            name: default-values-${nr-sub:agent_id}
+            valuesKey: values.yaml
+          - kind: ConfigMap
+            name: custom-values-${nr-sub:agent_id}
+            valuesKey: values.yaml
+          values:
+            global: ${nr-var:global}

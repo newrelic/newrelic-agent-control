@@ -1,0 +1,60 @@
+namespace: newrelic
+name: com.newrelic.prometheus
+version: 0.1.0
+variables:
+  k8s:
+    newrelic-prometheus-agent:
+      description: "chart values"
+      type: yaml
+      required: false
+      default: {}
+    global:
+      description: "chart values"
+      type: yaml
+      required: false
+      default: {}
+    chart_version:
+      description: "nri-bundle chart version"
+      type: string
+      required: false
+      default: "0.0.0"
+deployment:
+  k8s:
+    objects:
+      repository: {...} # will get newrelic helm charts repo
+      # currently AC is treating this as dynamic object and creating a reflector for it.
+      default-values:
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: default-values-${nr-sub:agent_id}
+        data:
+          # with this option nri-bundle values that are outside scope are "locked" and 
+          # cannot be changed
+          values.yaml: |
+            newrelic-prometheus-agent::
+              enabled: true
+            global:
+              # licenseKeySecret config takes precedence over licenseKey so user could 
+              # just set it without having to do and unset of this
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chart: { ... } # will install nri-bundle
+          valuesFrom:
+          - kind: ConfigMap
+            name: default-values-${nr-sub:agent_id}
+            valuesKey: values.yaml
+          values:
+            newrelic-prometheus-agent: ${nr-var:newrelic-prometheus-agent}
+            global: ${nr-var:global}
+
+            nri-prometheus:
+              enabled: false
+            ... # disable all other sub-charts
