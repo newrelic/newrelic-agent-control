@@ -36,6 +36,37 @@ variables:
       type: number
       required: false
       default: 18003
+  k8s:
+    chart_values:
+      newrelic-infrastructure:
+        description: "chart values"
+        type: yaml
+        required: false
+        default: {}
+      nri-metadata-injection:
+        description: "chart values"
+        type: yaml
+        required: false
+        default: {}
+      kube-state-metrics:
+        description: "chart values"
+        type: yaml
+        required: false
+        default: {}
+      nri-kube-events:
+        description: "chart values"
+        type: yaml
+        required: false
+        default: {}
+      global:
+        description: "chart values"
+        type: yaml
+        required: false
+        default: {}
+    chart_version:
+      description: "nri-bundle chart version"
+      type: string
+      required: true
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
@@ -59,3 +90,89 @@ deployment:
         backoff_strategy:
           type: fixed
           backoff_delay: ${nr-var:backoff_delay}
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1
+        kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
+          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
+          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
+          # delaying the application of important updates.
+          interval: 30m
+          provider: generic
+          url: https://helm-charts.newrelic.com
+      # currently AC is treating this as dynamic object and creating a reflector for it. we should avoid that
+      # proper support for creating a CM/Secrets on the deployment is needed.
+      # consider using a Secret instead of a ConfigMap to avoid plain text secrets.
+      default-values:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: default-values-${nr-sub:agent_id}
+        stringData:
+          # with this option nri-bundle values that are outside scope are "locked" and cannot be changed
+          values.yaml: |
+            newrelic-infrastructure:
+              enabled: true
+            nri-metadata-injection:
+              enabled: true
+            kube-state-metrics:
+              enabled: true
+            nri-kube-events:
+              enabled: true
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chart:
+            spec:
+              chart: nri-bundle
+              version: ${nr-var:chart_version}
+              reconcileStrategy: ChartVersion
+              sourceRef:
+                kind: HelmRepository
+                name: ${nr-sub:agent_id}
+              interval: 3m
+          install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            disableWait: true
+            disableWaitForJobs: true
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
+          valuesFrom:
+          - kind: Secret
+            name: default-values-${nr-sub:agent_id}
+            valuesKey: values.yaml
+          values:
+            newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
+            nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
+            kube-state-metrics: ${nr-var:chart_values.kube-state-metrics}
+            nri-kube-events: ${nr-var:chart_values.nri-kube-events}
+            global: ${nr-var:chart_values.global}
+
+            nri-prometheus:
+              enabled: false
