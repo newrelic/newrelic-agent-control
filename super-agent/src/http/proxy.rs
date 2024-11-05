@@ -12,6 +12,11 @@ const HTTPS_PROXY_ENV_NAME: &str = "HTTPS_PROXY";
 /// proxy configuration option
 /// HTTP_PROXY system environment variable
 /// HTTPS_PROXY system environment variable
+/// ```
+/// # use newrelic_super_agent::http::proxy::ProxyConfig;
+/// // The url will contain the value corresponding to the standard environment variables.
+/// let proxy_config = ProxyConfig::default().with_url_from_env();
+/// ```
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
     /// Proxy URL proxy:
@@ -55,7 +60,15 @@ impl ProxyConfig {
     /// Returns the configured url according to configuration, this includes the value from environment variables if
     /// it applies.
     pub fn url(&self) -> Option<String> {
-        self.env_aware_url(env::var)
+        self.url.clone()
+    }
+
+    /// Returns a new instance whose url is taken from the standard environment variables if needed.
+    pub fn with_url_from_env(self) -> Self {
+        Self {
+            url: self.env_aware_url(env::var),
+            ..self
+        }
     }
 
     /// Returns the configured url, fetching the environment variable through the provided `env_var` function if

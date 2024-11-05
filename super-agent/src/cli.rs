@@ -119,7 +119,7 @@ impl Cli {
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;
-        let proxy = super_agent_config.proxy;
+        let proxy = super_agent_config.proxy.with_url_from_env();
 
         let run_config = SuperAgentRunConfig {
             opamp,
