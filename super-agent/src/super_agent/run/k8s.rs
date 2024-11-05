@@ -6,7 +6,6 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::config_storer::store::SuperAgentConfigStore;
@@ -80,15 +79,13 @@ impl SuperAgentRunner {
 
         let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir);
 
-        let agents_assembler = LocalEffectiveAgentsAssembler::new(
+        let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),
             self.agent_type_registry,
             template_renderer,
-        );
+        ));
 
         let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
-        let sub_agent_event_processor_builder =
-            EventProcessorBuilder::new(hash_repository.clone(), yaml_config_repository.clone());
 
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
@@ -96,9 +93,9 @@ impl SuperAgentRunner {
             &instance_id_getter,
             k8s_client.clone(),
             hash_repository.clone(),
-            &agents_assembler,
-            &sub_agent_event_processor_builder,
+            agents_assembler,
             self.k8s_config.clone(),
+            yaml_config_repository.clone(),
         );
 
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
@@ -126,6 +123,7 @@ impl SuperAgentRunner {
             sub_agent_builder,
             config_storer,
             self.super_agent_publisher,
+            self.sub_agent_publisher,
             self.application_event_consumer,
             maybe_opamp_consumer,
         )

@@ -58,6 +58,7 @@ impl TokenRetrieverImpl {
 }
 
 /// Retrieves a default invalid token.
+///
 /// In the future the auth config an a TokenReceiver will be required
 /// since there will be no more apy-key authentication.
 /// This is a meantime solution to generate a TokenReceiver with no-operation and

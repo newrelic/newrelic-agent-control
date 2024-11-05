@@ -3,8 +3,8 @@ pub mod channel;
 
 /// EVENTS
 use crate::opamp::{LastErrorCode, LastErrorMessage};
-use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::AgentTypeFQN;
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 
@@ -24,8 +24,6 @@ pub enum ApplicationEvent {
 pub enum SuperAgentEvent {
     SuperAgentBecameUnhealthy(Unhealthy),
     SuperAgentBecameHealthy(Healthy),
-    SubAgentBecameUnhealthy(AgentID, AgentTypeFQN, Unhealthy, StartTime),
-    SubAgentBecameHealthy(AgentID, AgentTypeFQN, Healthy, StartTime),
     SubAgentRemoved(AgentID),
     SuperAgentStopped,
     OpAMPConnected,
@@ -34,40 +32,23 @@ pub enum SuperAgentEvent {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
-    ConfigUpdated(AgentID),
-    SubAgentBecameHealthy(AgentID, Healthy, StartTime),
-    SubAgentBecameUnhealthy(AgentID, Unhealthy, StartTime),
+    SubAgentHealthInfo(AgentID, AgentTypeFQN, HealthWithStartTime),
 }
 
 impl SubAgentEvent {
-    pub fn new(health: HealthWithStartTime, id: AgentID) -> Self {
-        // We copy the value here
-        let start_time = health.start_time();
-
-        match health.into() {
-            Health::Healthy(healthy) => {
-                SubAgentEvent::SubAgentBecameHealthy(id, healthy, start_time)
-            }
-            Health::Unhealthy(unhealthy) => {
-                SubAgentEvent::SubAgentBecameUnhealthy(id, unhealthy, start_time)
-            }
-        }
+    pub fn new(health: HealthWithStartTime, id: AgentID, agent_type: AgentTypeFQN) -> Self {
+        Self::SubAgentHealthInfo(id, agent_type, health)
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
-    AgentBecameUnhealthy(Unhealthy, StartTime),
-    AgentBecameHealthy(Healthy, StartTime),
+    AgentHealthInfo(HealthWithStartTime),
 }
 
 impl From<HealthWithStartTime> for SubAgentInternalEvent {
     fn from(health: HealthWithStartTime) -> Self {
-        let start_time = health.start_time();
-        match health.into() {
-            Health::Healthy(healthy) => Self::AgentBecameHealthy(healthy, start_time),
-            Health::Unhealthy(unhealthy) => Self::AgentBecameUnhealthy(unhealthy, start_time),
-        }
+        Self::AgentHealthInfo(health)
     }
 }

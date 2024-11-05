@@ -13,6 +13,7 @@ name: coverage
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 jobs:
   coverage:
     runs-on: ubuntu-latest
@@ -27,29 +28,40 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
         with:
           components: llvm-tools-preview
+          toolchain: ${{ env.RUST_VERSION }}
       - name: cargo install cargo-llvm-cov
         uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e
         # uses: taiki-e/install-action@cargo-llvm-cov
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
-      - name: cargo llvm-cov for k8s version
-        run: cargo llvm-cov --locked --package newrelic_super_agent --features=k8s --json --output-path jcov.info -- --skip as_root
+      - name: Generate coverage report
+        run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
       - name: Calculate and print total coverage
         run: |
           echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
           echo "Total lines coverage: $(jq '.data[].totals.lines.percent' jcov.info)"
           echo "Total regions coverage: $(jq '.data[].totals.regions.percent' jcov.info)"
           echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
-      - name: cargo llvm-cov for onHost version
-        run: CARGO_CMD="llvm-cov" CARGO_ARGS="--locked --features=onhost --json --output-path jcov.info -- --skip as_root" make super-agent
-      - name: Calculate and print total coverage
+      - name: Fail if function coverage is below 75%
         run: |
-          echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
-          echo "Total lines coverage: $(jq '.data[].totals.lines.percent' jcov.info)"
-          echo "Total regions coverage: $(jq '.data[].totals.regions.percent' jcov.info)"
-          echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
+          fn_cov=$(jq '.data[].totals.functions.percent' jcov.info)
+          expected=75
+
+          if (( $(echo "$fn_cov < $expected" | bc -l) )); then
+            echo "Function coverage is below ${expected}%"
+            exit 1
+          fi
+      - name: Fail if line coverage is below 85%
+        run: |
+          ln_cov=$(jq '.data[].totals.lines.percent' jcov.info)
+          expected=85
+
+          if (( $(echo "$ln_cov < $expected" | bc -l) )); then
+            echo "Line coverage is below ${expected}%"
+            exit 1
+          fi

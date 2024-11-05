@@ -225,6 +225,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## atomic-waker https://crates.io/crates/atomic-waker
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
 ## autocfg https://crates.io/crates/autocfg
 
 Distributed under the following license(s):
@@ -259,20 +266,6 @@ Distributed under the following license(s):
 
 
 ## base64 https://crates.io/crates/base64
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## base64 https://crates.io/crates/base64
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## bitflags https://crates.io/crates/bitflags
 
 Distributed under the following license(s):
 * MIT
@@ -353,12 +346,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## cfg_aliases https://crates.io/crates/cfg_aliases
-
-Distributed under the following license(s):
-* MIT
 
 
 ## cfg_aliases https://crates.io/crates/cfg_aliases
@@ -453,12 +440,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * Zlib
-
-
-## convert_case https://crates.io/crates/convert_case
-
-Distributed under the following license(s):
-* MIT
 
 
 ## convert_case https://crates.io/crates/convert_case
@@ -840,20 +821,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## hashbrown https://crates.io/crates/hashbrown
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## hashbrown https://crates.io/crates/hashbrown
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## hdrhistogram https://crates.io/crates/hdrhistogram
 
 Distributed under the following license(s):
@@ -887,19 +854,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## http https://crates.io/crates/http
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## http-body https://crates.io/crates/http-body
-
-Distributed under the following license(s):
-* MIT
 
 
 ## http-body https://crates.io/crates/http-body
@@ -948,25 +902,12 @@ Distributed under the following license(s):
 * MIT
 
 
-## hyper https://crates.io/crates/hyper
-
-Distributed under the following license(s):
-* MIT
-
-
 ## hyper-rustls https://crates.io/crates/hyper-rustls
 
 Distributed under the following license(s):
 * Apache-2.0
 * ISC
 * MIT
-
-
-## hyper-timeout https://crates.io/crates/hyper-timeout
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## hyper-timeout https://crates.io/crates/hyper-timeout
@@ -1022,13 +963,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## indexmap https://crates.io/crates/indexmap
-
-Distributed under the following license(s):
-* Apache-2.0
-* MIT
 
 
 ## indexmap https://crates.io/crates/indexmap
@@ -1293,12 +1227,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## nix https://crates.io/crates/nix
-
-Distributed under the following license(s):
-* MIT
 
 
 ## nix https://crates.io/crates/nix
@@ -1623,21 +1551,7 @@ Distributed under the following license(s):
 * MIT
 
 
-## regex-automata https://crates.io/crates/regex-automata
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## regex-lite https://crates.io/crates/regex-lite
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## regex-syntax https://crates.io/crates/regex-syntax
 
 Distributed under the following license(s):
 * MIT
@@ -1947,13 +1861,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## syn https://crates.io/crates/syn
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## sync_wrapper https://crates.io/crates/sync_wrapper
 
 Distributed under the following license(s):
@@ -2040,13 +1947,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
-
-
-## tokio-io-timeout https://crates.io/crates/tokio-io-timeout
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## tokio-macros https://crates.io/crates/tokio-macros
@@ -2440,13 +2340,6 @@ Distributed under the following license(s):
 
 
 ## windows-core https://crates.io/crates/windows-core
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## windows-sys https://crates.io/crates/windows-sys
 
 Distributed under the following license(s):
 * MIT

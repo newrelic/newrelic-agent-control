@@ -1,4 +1,4 @@
-use newrelic_super_agent::super_agent::config::AgentTypeFQN;
+use crate::super_agent::config::AgentTypeFQN;
 use regex::Regex;
 use serde::Deserialize;
 use serde_yaml::Error;
@@ -189,9 +189,9 @@ impl MigrationAgentConfig {
 
 #[cfg(test)]
 mod test {
-    use crate::migration::config::{DirInfo, FilePath, MigrationConfig};
-    use crate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
-    use newrelic_super_agent::super_agent::config::AgentTypeFQN;
+    use crate::config_migrate::migration::config::{DirInfo, FilePath, MigrationConfig};
+    use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
+    use crate::super_agent::config::AgentTypeFQN;
 
     #[test]
     fn config_parse() {

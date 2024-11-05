@@ -11,6 +11,7 @@ use crate::sub_agent::health::health_checker::{
     publish_health_event, spawn_health_checker, HealthCheckerError, Unhealthy,
 };
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
+use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -35,7 +36,7 @@ pub enum SupervisorError {
     HealthError(#[from] HealthCheckerError),
 }
 
-pub struct NotStartedSupervisor {
+pub struct NotStartedSupervisorK8s {
     agent_id: AgentID,
     agent_fqn: AgentTypeFQN,
     k8s_client: Arc<SyncK8sClient>,
@@ -43,7 +44,7 @@ pub struct NotStartedSupervisor {
     interval: Duration,
 }
 
-impl NotStartedSupervisor {
+impl NotStartedSupervisorK8s {
     pub fn new(
         agent_id: AgentID,
         agent_fqn: AgentTypeFQN,
@@ -66,7 +67,7 @@ impl NotStartedSupervisor {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         start_time: SystemTime,
-    ) -> Result<StartedSupervisor, SupervisorError> {
+    ) -> Result<StartedSupervisorK8s, SupervisorError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let (stop_objects_supervisor, objects_supervisor_handle) =
@@ -74,7 +75,7 @@ impl NotStartedSupervisor {
         let maybe_stop_health =
             self.start_health_check(sub_agent_internal_publisher, resources, start_time)?;
 
-        Ok(StartedSupervisor {
+        Ok(StartedSupervisorK8s {
             maybe_stop_health,
             stop_objects_supervisor,
             objects_supervisor_handle,
@@ -188,13 +189,13 @@ impl NotStartedSupervisor {
     }
 }
 
-pub struct StartedSupervisor {
+pub struct StartedSupervisorK8s {
     maybe_stop_health: Option<EventPublisher<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
 }
 
-impl StartedSupervisor {
+impl StartedSupervisorK8s {
     pub fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also return the health-check join handle?
@@ -213,10 +214,10 @@ pub fn log_and_report_unhealthy(
 ) {
     let last_error = format!("{msg}: {err}");
 
-    let event = SubAgentInternalEvent::AgentBecameUnhealthy(
-        Unhealthy::new(String::default(), last_error),
+    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
+        Unhealthy::new(String::default(), last_error).into(),
         start_time,
-    );
+    ));
 
     error!(%err, msg);
     publish_health_event(sub_agent_internal_publisher, event);
@@ -274,7 +275,7 @@ pub mod test {
             data: json!({}),
         };
 
-        let supervisor = NotStartedSupervisor::new(
+        let supervisor = NotStartedSupervisorK8s::new(
             agent_id,
             agent_fqn,
             Arc::new(mock_k8s_client),
@@ -312,7 +313,7 @@ pub mod test {
             .returning(|_| Err(K8sError::GetDynamic(apply_issue.to_string())))
             .in_sequence(&mut seq);
 
-        let supervisor = NotStartedSupervisor {
+        let supervisor = NotStartedSupervisorK8s {
             interval,
             agent_id,
             agent_fqn,
@@ -425,7 +426,7 @@ pub mod test {
     fn not_started_supervisor(
         config: runtime_config::K8s,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
-    ) -> NotStartedSupervisor {
+    ) -> NotStartedSupervisorK8s {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
 
@@ -440,6 +441,6 @@ pub mod test {
             f(&mut mock_client)
         }
 
-        NotStartedSupervisor::new(agent_id, agent_fqn, Arc::new(mock_client), config)
+        NotStartedSupervisorK8s::new(agent_id, agent_fqn, Arc::new(mock_client), config)
     }
 }

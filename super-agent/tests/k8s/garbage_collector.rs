@@ -9,6 +9,7 @@ use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::k8s::annotations::Annotations;
+use newrelic_super_agent::sub_agent::k8s::NotStartedSupervisorK8s;
 use newrelic_super_agent::super_agent::config::AgentTypeFQN;
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
@@ -19,7 +20,6 @@ use newrelic_super_agent::{
         getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
         Identifiers,
     },
-    sub_agent::k8s::NotStartedSupervisor,
     super_agent::{config::AgentID, defaults::SUPER_AGENT_ID},
 };
 use newrelic_super_agent::{
@@ -65,7 +65,7 @@ fn k8s_garbage_collector_cleans_removed_agent() {
 
     let resource_name = "test-different-from-agent-id";
 
-    let s = NotStartedSupervisor::new(
+    let s = NotStartedSupervisorK8s::new(
         agent_id.clone(),
         agent_fqn.clone(),
         k8s_client.clone(),

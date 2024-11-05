@@ -172,7 +172,7 @@ where
 
         let active_config = self.active_config.clone().ok_or(MissingActiveAgents())?;
 
-        return match active_config.get(&AgentID::new(agent_id.as_str())?) {
+        match active_config.get(&AgentID::new(agent_id.as_str())?) {
             None => Ok(true),
             Some(config) => {
                 let fqn = AgentTypeFQN::try_from(
@@ -182,7 +182,7 @@ where
                 )?;
                 Ok(config.agent_type != fqn)
             }
-        };
+        }
     }
 
     /// Loads the latest agents list from the conf store and returns True if differs from

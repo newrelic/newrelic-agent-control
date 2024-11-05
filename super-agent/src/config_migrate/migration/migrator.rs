@@ -1,21 +1,21 @@
+use crate::agent_type::agent_type_registry::AgentRegistry;
+use crate::agent_type::embedded_registry::EmbeddedRegistry;
 #[cfg_attr(test, mockall_double::double)]
-use crate::migration::agent_config_getter::AgentConfigGetter;
-use crate::migration::config::MigrationAgentConfig;
+use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
+use crate::config_migrate::migration::config::MigrationAgentConfig;
 #[cfg_attr(test, mockall_double::double)]
-use crate::migration::converter::ConfigConverter;
-use crate::migration::converter::ConversionError;
-use crate::migration::persister::values_persister_file::PersistError;
+use crate::config_migrate::migration::converter::ConfigConverter;
+use crate::config_migrate::migration::converter::ConversionError;
+use crate::config_migrate::migration::persister::values_persister_file::PersistError;
 #[cfg_attr(test, mockall_double::double)]
-use crate::migration::persister::values_persister_file::ValuesPersisterFile;
+use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
+use crate::super_agent::config::SuperAgentConfigError;
+use crate::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
+use crate::super_agent::config_storer::store::SuperAgentConfigStore;
+use crate::values::file::YAMLConfigRepositoryFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::LocalFile;
-use newrelic_super_agent::agent_type::agent_type_registry::AgentRegistry;
-use newrelic_super_agent::agent_type::embedded_registry::EmbeddedRegistry;
-use newrelic_super_agent::super_agent::config::SuperAgentConfigError;
-use newrelic_super_agent::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
-use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
-use newrelic_super_agent::values::file::YAMLConfigRepositoryFile;
 use thiserror::Error;
 use tracing::{debug, info, warn};
 
@@ -105,16 +105,16 @@ impl
 
 #[cfg(test)]
 mod test {
-    use crate::migration::agent_config_getter::MockAgentConfigGetter;
-    use crate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
-    use crate::migration::config::MigrationAgentConfig;
-    use crate::migration::converter::MockConfigConverter;
-    use crate::migration::migrator::ConfigMigrator;
-    use crate::migration::persister::values_persister_file::MockValuesPersisterFile;
-    use mockall::predicate;
-    use newrelic_super_agent::super_agent::config::{
+    use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
+    use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
+    use crate::config_migrate::migration::config::MigrationAgentConfig;
+    use crate::config_migrate::migration::converter::MockConfigConverter;
+    use crate::config_migrate::migration::migrator::ConfigMigrator;
+    use crate::config_migrate::migration::persister::values_persister_file::MockValuesPersisterFile;
+    use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };
+    use mockall::predicate;
     use std::collections::HashMap;
 
     #[test]

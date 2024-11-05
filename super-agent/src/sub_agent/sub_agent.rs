@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use std::thread::JoinHandle;
 
+use opamp_client::Client;
 use tracing::{debug, error, warn};
 
 use crate::event::channel::EventPublisher;
@@ -14,11 +14,8 @@ use crate::opamp::remote_config_report::report_remote_config_status_error;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error;
-use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::event_processor::SubAgentEventProcessor;
-use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
-
-use super::error::SubAgentBuilderError;
+use crate::sub_agent::error::SubAgentBuilderError;
+use crate::super_agent::config::{AgentID, SubAgentConfig};
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -31,13 +28,10 @@ pub trait NotStartedSubAgent {
 }
 
 /// The StartedSubAgent trait defines the interface for a supervisor that is already running.
+///
 /// Exposes information about the Sub Agent and a stop method that will stop the
 /// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {
-    /// Returns the AgentID of the SubAgent
-    fn agent_id(&self) -> AgentID;
-    /// Returns the AgentType of the SubAgent
-    fn agent_type(&self) -> AgentTypeFQN;
     /// Stops all internal services owned by the SubAgent
     fn stop(self);
 }
@@ -82,6 +76,9 @@ where
                     debug!(%agent_id, "applying remote config");
                     hash.apply();
                     hash_repository.save(agent_id, &hash)?;
+                    let _ = opamp_client.update_effective_config().inspect_err(|err| {
+                        error!(%agent_id, %err, "effective config update failed");
+                    });
                     report_remote_config_status_applied(opamp_client, &hash)?;
                 }
 
@@ -117,20 +114,6 @@ where
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// States for Started/Not Started Sub Agents
-////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted<E>
-where
-    E: SubAgentEventProcessor,
-{
-    pub(crate) event_processor: E,
-}
-
-pub struct Started {
-    pub(crate) event_loop_handle: JoinHandle<Result<(), SubAgentError>>,
-}
-
 #[cfg(test)]
 pub mod test {
     use mockall::{mock, predicate, Sequence};
@@ -138,6 +121,7 @@ pub mod test {
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
 
     use crate::opamp::hash_repository::repository::HashRepositoryError;
+    use crate::super_agent::config::AgentTypeFQN;
     use crate::{
         agent_type::runtime_config::Runtime,
         opamp::{
@@ -155,24 +139,12 @@ pub mod test {
 
         impl StartedSubAgent for StartedSubAgent {
             fn stop(self);
-            fn agent_id(&self) -> AgentID;
-            fn agent_type(&self) -> AgentTypeFQN;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
             self.expect_stop().once().return_const(());
-        }
-
-        pub fn should_agent_id(&mut self, agent_id: AgentID) {
-            self.expect_agent_id().once().return_once(|| agent_id);
-        }
-
-        pub fn should_agent_type(&mut self, agent_type_fqn: AgentTypeFQN) {
-            self.expect_agent_type()
-                .once()
-                .return_once(|| agent_type_fqn);
         }
     }
 
@@ -222,22 +194,6 @@ pub mod test {
                 });
                 Ok(not_started_sub_agent)
             });
-        }
-
-        pub(crate) fn should_build_not_started(
-            &mut self,
-            agent_id: &AgentID,
-            sub_agent_config: SubAgentConfig,
-            sub_agent: MockNotStartedSubAgent,
-        ) {
-            self.expect_build()
-                .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(sub_agent_config),
-                    predicate::always(),
-                )
-                .return_once(move |_, _, _| Ok(sub_agent));
         }
     }
 
@@ -291,6 +247,7 @@ pub mod test {
                 error_message: "".to_string(),
             }))
             .returning(|_| Ok(()));
+        started_opamp_client.should_update_effective_config(1);
 
         // Actual test
         let actual = build_supervisor_or_default::<
@@ -305,14 +262,15 @@ pub mod test {
             &Some(started_opamp_client),
             effective_agent,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 
@@ -409,14 +367,15 @@ pub mod test {
             &Some(started_opamp_client),
             effective_agent_res,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 
@@ -491,14 +450,15 @@ pub mod test {
             &None,
             effective_agent_res,
             |effective_agent| {
-                Ok(assert_eq!(
+                assert_eq!(
                     EffectiveAgent::new(
                         agent_id.clone(),
                         AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
                         Runtime::default()
                     ),
                     effective_agent
-                ))
+                );
+                Ok(())
             },
         );
 
@@ -573,6 +533,7 @@ pub mod test {
             last_remote_config_hash: hash.get().into_bytes(),
             error_message: Default::default(),
         });
+        started_opamp_client.should_update_effective_config(1);
 
         // test build_supervisor_or_default
         let effective_agent_res = Ok(EffectiveAgent::new(

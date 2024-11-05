@@ -33,7 +33,6 @@ use super::Error;
 /// let int_literal = 5;
 /// let IntOrPercentage::Int(int_parsed) = IntOrPercentage::try_from(int_string).unwrap() else { todo!() };
 /// assert_eq!(int_literal, int_parsed);
-
 /// ```
 #[derive(Debug, PartialEq)]
 pub enum IntOrPercentage {
@@ -85,7 +84,7 @@ impl IntOrPercentage {
     ///
     /// ```
     /// use newrelic_super_agent::k8s::utils::IntOrPercentage;
-
+    ///
     /// let int = IntOrPercentage::try_from("5").unwrap();
     /// let percent = IntOrPercentage::try_from("33%").unwrap();
     /// let total = 20;

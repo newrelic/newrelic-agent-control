@@ -246,9 +246,10 @@ pub(crate) mod tests {
             agent_cfg: &SubAgentConfig,
             environment: &Environment,
             effective_agent: EffectiveAgent,
+            times: usize,
         ) {
             self.expect_assemble_agent()
-                .once()
+                .times(times)
                 .with(
                     predicate::eq(agent_id.clone()),
                     predicate::eq(agent_cfg.clone()),

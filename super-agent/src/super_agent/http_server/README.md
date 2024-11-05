@@ -5,6 +5,10 @@
 The status endpoint is meant to expose the current status of the Super Agent and Sub Agents.
 Example of the output:
 
+```bash
+$ curl localhost:127.0.0.1/status
+```
+
 ```json
 {
   "super_agent": {

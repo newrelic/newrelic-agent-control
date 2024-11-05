@@ -50,3 +50,6 @@ local/
 !/build/examples/.gitkeep
 
 **k8s_tmp
+
+# Coverage info outputs
+coverage/

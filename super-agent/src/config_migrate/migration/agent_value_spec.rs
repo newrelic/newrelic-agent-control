@@ -1,8 +1,8 @@
-use crate::migration::agent_value_spec::AgentValueSpec::{
+use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::{
     AgentValueSpecEnd, AgentValueSpecMapping,
 };
-use crate::migration::config::AgentTypeFieldFQN;
-use crate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
+use crate::config_migrate::migration::config::AgentTypeFieldFQN;
+use crate::config_migrate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
@@ -92,13 +92,13 @@ fn merge_agent_values_recursive(
 
 #[cfg(test)]
 mod test {
-    use crate::migration::agent_value_spec::AgentValueSpec::{
+    use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::{
         AgentValueSpecEnd, AgentValueSpecMapping,
     };
-    use crate::migration::agent_value_spec::{
+    use crate::config_migrate::migration::agent_value_spec::{
         from_fqn_and_value, merge_agent_values_recursive, AgentValueSpec,
     };
-    use crate::migration::config::AgentTypeFieldFQN;
+    use crate::config_migrate::migration::config::AgentTypeFieldFQN;
     use std::collections::HashMap;
 
     #[test]

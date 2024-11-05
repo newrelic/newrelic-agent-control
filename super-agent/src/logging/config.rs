@@ -117,7 +117,7 @@ impl LoggingConfig {
         let level = self.level.as_level().to_string().to_lowercase();
 
         Ok(EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
+            .with_default_directive(LevelFilter::OFF.into())
             .parse_lossy("")
             .add_directive(
                 format!("newrelic_super_agent={}", level)
@@ -197,7 +197,7 @@ mod test {
             TestCase {
                 name: "everything default",
                 config: Default::default(),
-                expected: "newrelic_super_agent=info,info",
+                expected: "newrelic_super_agent=info,off",
             },
             TestCase {
                 name: "insecure fine grained overrides any logging",

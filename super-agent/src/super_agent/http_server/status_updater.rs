@@ -1,27 +1,35 @@
+use crate::event::{SubAgentEvent, SuperAgentEvent};
+use crate::super_agent::http_server::status::{Status, SubAgentStatus};
 use std::sync::Arc;
-
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
 use tracing::debug;
 
-use crate::event::SuperAgentEvent;
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::super_agent::http_server::status::{Status, SubAgentStatus};
-
 pub(super) async fn on_super_agent_event_update_status(
-    mut sa_event_consumer: UnboundedReceiver<SuperAgentEvent>,
+    mut super_agent_event_consumer: UnboundedReceiver<SuperAgentEvent>,
+    mut sub_agent_event_consumer: UnboundedReceiver<SubAgentEvent>,
     status: Arc<RwLock<Status>>,
 ) {
-    while let Some(super_agent_event) = sa_event_consumer.recv().await {
-        if let SuperAgentEvent::SuperAgentStopped = super_agent_event {
-            debug!("status http server super agent stopped event");
-            break;
+    loop {
+        tokio::select! {
+            Some(super_agent_event) = super_agent_event_consumer.recv() => {
+                if let SuperAgentEvent::SuperAgentStopped = super_agent_event {
+                    debug!("status http server super agent stopped event");
+                    break;
+                }
+                update_super_agent_status(super_agent_event, status.clone()).await;
+            },
+            Some(sub_agent_event) = sub_agent_event_consumer.recv() => {
+                update_sub_agent_status(sub_agent_event, status.clone()).await;
+            },
         }
-        update_status(super_agent_event, status.clone()).await;
     }
 }
 
-async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<Status>>) {
+async fn update_super_agent_status(
+    super_agent_event: SuperAgentEvent,
+    status: Arc<RwLock<Status>>,
+) {
     let mut status = status.write().await;
     match super_agent_event {
         SuperAgentEvent::SuperAgentBecameHealthy(healthy) => {
@@ -34,22 +42,6 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
                 "status_http_server event_processor super_agent_became_unhealthy"
             );
             status.super_agent.unhealthy(unhealthy);
-        }
-        SuperAgentEvent::SubAgentBecameUnhealthy(agent_id, agent_type, unhealthy, start_time) => {
-            debug!(error_msg = unhealthy.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
-            status
-                .sub_agents
-                .entry(agent_id.clone())
-                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .update_health(HealthWithStartTime::new(unhealthy.into(), start_time));
-        }
-        SuperAgentEvent::SubAgentBecameHealthy(agent_id, agent_type, healthy, start_time) => {
-            debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
-            status
-                .sub_agents
-                .entry(agent_id.clone())
-                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
-                .update_health(HealthWithStartTime::new(healthy.into(), start_time));
         }
         SuperAgentEvent::SubAgentRemoved(agent_id) => {
             status.sub_agents.remove(&agent_id);
@@ -71,6 +63,24 @@ async fn update_status(super_agent_event: SuperAgentEvent, status: Arc<RwLock<St
         }
     }
 }
+async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwLock<Status>>) {
+    let mut status = status.write().await;
+    match sub_agent_event {
+        SubAgentEvent::SubAgentHealthInfo(agent_id, agent_type, health) => {
+            if health.is_healthy() {
+                debug!(%agent_id, %agent_type, "status_http_server event_processor sub_agent_became_healthy");
+            } else {
+                debug!(error_msg = health.last_error(), %agent_id, %agent_type, "status_http_server event_processor sub_agent_became_unhealthy");
+            }
+
+            status
+                .sub_agents
+                .entry(agent_id.clone())
+                .or_insert_with(|| SubAgentStatus::with_id_and_type(agent_id, agent_type))
+                .update_health(health);
+        }
+    }
+}
 
 #[cfg(test)]
 mod test {
@@ -88,33 +98,41 @@ mod test {
     use tokio::time::sleep;
 
     use url::Url;
-    use SuperAgentEvent::{SubAgentBecameHealthy, SubAgentBecameUnhealthy};
 
+    use crate::event::SubAgentEvent;
+    use crate::event::SubAgentEvent::SubAgentHealthInfo;
     use crate::event::SuperAgentEvent;
     use crate::event::SuperAgentEvent::{
         OpAMPConnectFailed, SubAgentRemoved, SuperAgentBecameHealthy, SuperAgentBecameUnhealthy,
         SuperAgentStopped,
     };
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::http_server::status::{
         OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus, SuperAgentStatus,
     };
     use crate::super_agent::http_server::status_updater::{
-        on_super_agent_event_update_status, update_status,
+        on_super_agent_event_update_status, update_sub_agent_status, update_super_agent_status,
     };
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_events() {
         struct Test {
             _name: &'static str,
-            super_agent_event: SuperAgentEvent,
+            super_agent_event: Option<SuperAgentEvent>,
+            sub_agent_event: Option<SubAgentEvent>,
             current_status: Arc<RwLock<Status>>,
             expected_status: Status,
         }
         impl Test {
             async fn run(&self) {
-                update_status(self.super_agent_event.clone(), self.current_status.clone()).await;
+                if let Some(super_agent_event) = self.super_agent_event.clone() {
+                    update_super_agent_status(super_agent_event, self.current_status.clone()).await;
+                }
+                if let Some(sub_agent_event) = self.sub_agent_event.clone() {
+                    update_sub_agent_status(sub_agent_event, self.current_status.clone()).await;
+                }
                 let st = self.current_status.read().await;
                 assert_eq!(self.expected_status, *st);
             }
@@ -129,7 +147,10 @@ mod test {
         let tests = vec![
             Test {
                 _name: "Unhealthy Super Agent becomes healthy",
-                super_agent_event: SuperAgentBecameHealthy(Healthy::new("some status".to_string())),
+                super_agent_event: Some(SuperAgentBecameHealthy(Healthy::new(
+                    "some status".to_string(),
+                ))),
+                sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_unhealthy(
                         String::from("some status"),
@@ -146,10 +167,11 @@ mod test {
             },
             Test {
                 _name: "Healthy Super Agent becomes unhealthy",
-                super_agent_event: SuperAgentBecameUnhealthy(Unhealthy::new(
+                super_agent_event: Some(SuperAgentBecameUnhealthy(Unhealthy::new(
                     "some status".to_string(),
                     "some error message for super agent unhealthy".to_string(),
-                )),
+                ))),
+                sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: SuperAgentStatus::new_healthy(String::from("some status")),
                     opamp: opamp_status_random.clone(),
@@ -166,12 +188,12 @@ mod test {
             },
             Test {
                 _name: "Sub Agent first healthy event should add it to the list",
-                super_agent_event: SubAgentBecameHealthy(
+                super_agent_event: None,
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Healthy::default(),
-                    SystemTime::UNIX_EPOCH,
-                ),
+                    HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
+                )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: opamp_status_random.clone(),
@@ -196,12 +218,17 @@ mod test {
             },
             Test {
                 _name: "Sub Agent first unhealthy event should add it to the list",
-                super_agent_event: SubAgentBecameUnhealthy(
+                super_agent_event: None,
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy::default().with_last_error("this is an error message".to_string()),
-                    SystemTime::UNIX_EPOCH,
-                ),
+                    HealthWithStartTime::new(
+                        Unhealthy::default()
+                            .with_last_error("this is an error message".to_string())
+                            .into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
+                )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: opamp_status_random.clone(),
@@ -226,12 +253,17 @@ mod test {
             },
             Test {
                 _name: "Sub Agent second unhealthy event should change existing one",
-                super_agent_event: SubAgentBecameUnhealthy(
+                super_agent_event: None,
+                sub_agent_event: Some(SubAgentHealthInfo(
                     AgentID::new("some-agent-id").unwrap(),
                     AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    Unhealthy::default().with_last_error("this is an error message".to_string()),
-                    SystemTime::UNIX_EPOCH,
-                ),
+                    HealthWithStartTime::new(
+                        Unhealthy::default()
+                            .with_last_error("this is an error message".to_string())
+                            .into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
+                )),
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: opamp_status_random.clone(),
@@ -295,7 +327,8 @@ mod test {
             },
             Test {
                 _name: "Sub Agent gets removed",
-                super_agent_event: SubAgentRemoved(AgentID::new("some-agent-id").unwrap()),
+                super_agent_event: Some(SubAgentRemoved(AgentID::new("some-agent-id").unwrap())),
+                sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: opamp_status_random.clone(),
@@ -345,7 +378,11 @@ mod test {
             },
             Test {
                 _name: "OpAMP Agent gets unhealthy",
-                super_agent_event: OpAMPConnectFailed(Some(404), String::from("some error msg")),
+                super_agent_event: Some(OpAMPConnectFailed(
+                    Some(404),
+                    String::from("some error msg"),
+                )),
+                sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     super_agent: super_agent_status_random.clone(),
                     opamp: OpAMPStatus::enabled_and_reachable(Some(
@@ -436,13 +473,15 @@ mod test {
     #[tokio::test(flavor = "multi_thread")]
     #[should_panic(expected = "SuperAgentStopped is controlled outside")]
     async fn test_super_agent_stop() {
-        update_status(SuperAgentStopped, Arc::new(RwLock::new(Status::default()))).await;
+        update_super_agent_status(SuperAgentStopped, Arc::new(RwLock::new(Status::default())))
+            .await;
     }
 
     #[tokio::test]
     async fn test_event_process_end() {
         let rt = Handle::current();
         let (sa_event_publisher, sa_event_consumer) = unbounded_channel::<SuperAgentEvent>();
+        let (_suba_event_publisher, suba_event_consumer) = unbounded_channel::<SubAgentEvent>();
 
         let publisher_handle = rt.spawn(async move {
             sleep(Duration::from_millis(10)).await;
@@ -452,6 +491,7 @@ mod test {
         // Then the event will be consumed
         on_super_agent_event_update_status(
             sa_event_consumer,
+            suba_event_consumer,
             Arc::new(RwLock::new(Status::default())),
         )
         .await;

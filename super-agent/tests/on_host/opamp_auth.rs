@@ -1,5 +1,5 @@
 use assert_cmd::Command;
-use http::header::AUTHORIZATION;
+use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
@@ -61,7 +61,7 @@ agents: {{}}
     let mut cmd = cmd_super_agent(config_path);
     // cmd_assert is not made for long running programs, so we kill it.
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(1));
+    cmd.timeout(Duration::from_secs(10));
 
     let output = cmd
         .assert()
@@ -195,7 +195,10 @@ fn auth_server(token: String) -> MockServer {
     let mock_server = MockServer::start();
 
     let _ = mock_server.mock(|when, then| {
-        when.method(POST).path(TOKEN_PATH).and(is_authorized);
+        when.method(POST)
+            .path(TOKEN_PATH)
+            .header(CONTENT_TYPE.as_str(), "application/json")
+            .and(is_authorized);
         then.json_body(
             serde_json::to_value(Response {
                 access_token: token,

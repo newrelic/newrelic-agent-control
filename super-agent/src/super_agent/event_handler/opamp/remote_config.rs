@@ -149,6 +149,7 @@ mod tests {
         started_client.should_set_unhealthy();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new(
@@ -157,6 +158,7 @@ mod tests {
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
             super_agent_publisher,
+            sub_agent_publisher,
             pub_sub().1,
             Some(opamp_consumer),
         );
@@ -235,6 +237,7 @@ mod tests {
         started_client.should_set_healthy();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (super_agent_publisher, _super_agent_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // Create the Super Agent and rub Sub Agents
         let super_agent = SuperAgent::new(
@@ -243,6 +246,7 @@ mod tests {
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
             super_agent_publisher,
+            sub_agent_publisher,
             pub_sub().1,
             Some(opamp_consumer),
         );

@@ -1,11 +1,9 @@
 use crate::agent_type::variable::definition::VariableDefinition;
-use crate::event::channel::pub_sub;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::event_processor_builder::EventProcessorBuilder;
 use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::config_storer::store::SuperAgentConfigStore;
@@ -92,24 +90,19 @@ impl SuperAgentRunner {
             .with_config_persister(ConfigurationPersisterFile::new(&self.base_paths.remote_dir))
             .with_super_agent_variables(super_agent_variables.into_iter());
 
-        let agents_assembler = LocalEffectiveAgentsAssembler::new(
+        let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),
             self.agent_type_registry,
             template_renderer,
-        );
-
-        let sub_agent_event_processor_builder = EventProcessorBuilder::new(
-            sub_agent_hash_repository.clone(),
-            yaml_config_repository.clone(),
-        );
+        ));
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             sub_agent_hash_repository,
-            &agents_assembler,
-            &sub_agent_event_processor_builder,
+            agents_assembler,
             self.base_paths.log_dir.join(SUB_AGENT_DIR),
+            yaml_config_repository.clone(),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
@@ -133,6 +126,7 @@ impl SuperAgentRunner {
             sub_agent_builder,
             config_storer,
             self.super_agent_publisher,
+            self.sub_agent_publisher,
             self.application_event_consumer,
             maybe_sa_opamp_consumer,
         )

@@ -267,7 +267,7 @@ mod test {
         assert!(expected.unwrap().is_none());
     }
 
-    /// HELPERS
+    // HELPERS
 
     const HOSTNAME: &str = "test-hostname";
     const MICHINE_ID: &str = "test-machine-id";

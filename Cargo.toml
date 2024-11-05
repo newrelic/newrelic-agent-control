@@ -2,7 +2,6 @@
 resolver = "2"
 
 members = [
-  "config-migrate",
   "super-agent",
   "resource-detection",
   "fs",

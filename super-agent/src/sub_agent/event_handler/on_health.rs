@@ -1,26 +1,32 @@
+use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
-use crate::opamp::hash_repository::HashRepository;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::event_processor::EventProcessor;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::SubAgentCallbacks;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::super_agent::config::{AgentID, AgentTypeFQN};
+use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
+use tracing::{debug, warn};
 
-impl<C, H, Y, G> EventProcessor<C, H, Y, G>
+pub fn on_health<C, CB>(
+    health: HealthWithStartTime,
+    maybe_opamp_client: Option<&C>,
+    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    agent_id: AgentID,
+    agent_type: AgentTypeFQN,
+) -> Result<(), SubAgentError>
 where
-    G: EffectiveConfigLoader,
-    C: StartedClient<SubAgentCallbacks<G>> + 'static,
-    H: HashRepository,
-    Y: YAMLConfigRepository,
+    C: StartedClient<CB>,
+    CB: Callbacks,
 {
-    pub(crate) fn on_health(&self, health: HealthWithStartTime) -> Result<(), SubAgentError> {
-        if let Some(client) = self.maybe_opamp_client.as_ref() {
-            client.set_health(health.clone().into())?;
-        }
-        Ok(self
-            .sub_agent_publisher
-            .publish(SubAgentEvent::new(health, self.agent_id()))?)
+    if health.is_healthy() {
+        debug!(select_arm = "sub_agent_internal_consumer", "HealthyAgent");
+    } else {
+        debug!(select_arm = "sub_agent_internal_consumer", "UnhealthyAgent");
+        warn!(%agent_id, "sub agent became unhealthy!");
     }
+
+    if let Some(client) = maybe_opamp_client.as_ref() {
+        client.set_health(health.clone().into())?;
+    }
+    Ok(sub_agent_publisher.publish(SubAgentEvent::new(health, agent_id, agent_type))?)
 }

@@ -1,11 +1,11 @@
-use config_migrate::cli::Cli;
-use config_migrate::migration::agent_config_getter::AgentConfigGetter;
-use config_migrate::migration::config::MigrationConfig;
-use config_migrate::migration::converter::ConfigConverter;
-use config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
-use config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
-use config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
-use config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
+use newrelic_super_agent::config_migrate::cli::Cli;
+use newrelic_super_agent::config_migrate::migration::agent_config_getter::AgentConfigGetter;
+use newrelic_super_agent::config_migrate::migration::config::MigrationConfig;
+use newrelic_super_agent::config_migrate::migration::converter::ConfigConverter;
+use newrelic_super_agent::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
+use newrelic_super_agent::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
+use newrelic_super_agent::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
+use newrelic_super_agent::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_super_agent::logging::config::LoggingConfig;
 use newrelic_super_agent::super_agent::config_storer::store::SuperAgentConfigStore;
 use newrelic_super_agent::super_agent::defaults::{

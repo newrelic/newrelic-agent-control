@@ -12,6 +12,7 @@ concurrency:
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.78.0
 name: checks
 jobs:
   codespell:
@@ -35,16 +36,17 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install stable
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
         with:
           components: rustfmt
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Check code formatting
         run: cargo fmt --check
 
-  clippy_packages:
+  clippy:
     runs-on: ubuntu-latest
-    name: ${{ matrix.toolchain }} / ${{ matrix.package }} / clippy
+    name: ${{ matrix.toolchain }} / ${{ matrix.flag }} / clippy
     permissions:
       contents: read
       checks: write
@@ -52,7 +54,8 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ stable, beta ]
-        package: [ config-migrate, fs, license, resource-detection ]
+        # newrelic_super_agent needs either onhost or k8s feature, the rest of packages can be checked also without features
+        flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_super_agent'" ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,46 +68,14 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ matrix.toolchain }}
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
           components: clippy
 
-      - name: cargo clippy ${{ matrix.package }}
-        run: cargo clippy --package ${{ matrix.package }} --tests -- -D clippy::all
-
-  clippy_super_agent:
-    runs-on: ubuntu-latest
-    name: ${{ matrix.toolchain }} / ${{ matrix.feature }} / clippy
-    permissions:
-      contents: read
-      checks: write
-    strategy:
-      fail-fast: false
-      matrix:
-        toolchain: [ stable, beta ]
-        feature: [ onhost, k8s ]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Install ${{ matrix.toolchain }}
-        uses: dtolnay/rust-toolchain@1.78.0
-        with:
-          toolchain: ${{ matrix.toolchain }}
-          components: clippy
-
-      - name: cargo clippy super agent (${{ matrix.feature }})
-        run: cargo clippy --package newrelic_super_agent --features=${{ matrix.feature }} --tests -- -D clippy::all
+      - name: cargo clippy (${{ matrix.flag }})
+        run: cargo clippy --workspace ${{ matrix.flag }} --tests -- -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
@@ -119,8 +90,10 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install nightly
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Create on-host documentation
         run: cargo doc --no-deps --features=onhost --package newrelic_super_agent
         env:
@@ -131,13 +104,14 @@ jobs:
           RUSTDOCFLAGS: --cfg docsrs
 
   # msrv = Minimum Supported Rust Version
-  msrv_super_agent:
+  msrv:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         msrv: [ 1.78.0 ]
-        feature: [ onhost, k8s ]
-    name: ubuntu / ${{ matrix.msrv }} / ${{ matrix.feature }}
+        # newrelic_super_agent needs either onhost or k8s feature, the rest of packages can be checked also without features
+        flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_super_agent'" ]
+    name: ${{ matrix.msrv }} / ${{ matrix.flag }} / cargo check
     steps:
       - uses: actions/checkout@v4
         with:
@@ -150,43 +124,15 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Install ${{ matrix.msrv }}
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ matrix.msrv }}
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.msrv }}
 
-      - name: cargo +${{ matrix.msrv }} check ${{ matrix.feature }}
-        run: cargo check --package newrelic_super_agent --features=${{ matrix.feature }}
+      - name: cargo +${{ matrix.msrv }} check ${{ matrix.flag }}
+        run: cargo check --workspace ${{ matrix.flag }}
 
   # msrv = Minimum Supported Rust Version
-  msrv_packages:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        msrv: [ 1.78.0 ]
-        package: [ config-migrate, fs, license, resource-detection ]
-
-    name: ubuntu / ${{ matrix.msrv }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Install ${{ matrix.msrv }}
-        uses: dtolnay/rust-toolchain@1.78.0
-        with:
-          toolchain: ${{ matrix.msrv }}
-
-      - name: cargo +${{ matrix.msrv }} check ${{ matrix.package }}
-        run: cargo check --package ${{ matrix.package }}
-
   licenses:
     name: Validate third party libraries
     runs-on: ubuntu-latest
@@ -201,8 +147,10 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-      - name: Install Rust 1.78.0
-        uses: dtolnay/rust-toolchain@1.78.0
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
       - name: Check security and licensing
         run: cargo install --locked cargo-deny && cargo deny check
       - name: Ensure that third party notices is up to date

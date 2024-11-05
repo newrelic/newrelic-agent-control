@@ -342,11 +342,6 @@ See [diagnose issues with super agent logging](https://docs-preview.newrelic.com
 
 Running the tests
 
-All tests:
-```
-cargo test --all-features -- --skip as_root
-```
-
 Only for the feature on-host:
 ```
 cargo test --features "onhost" -- --skip as_root
@@ -360,3 +355,17 @@ cargo test --features "k8s"
 Passing the flag --features "onhost, k8s" will throw a compilation error, there is a special feature "ci", that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
 
 [def]: #agent-overview
+
+## Coverage
+
+Generate coverage information easily by running the following `make` recipe from the root directory (will install `cargo-llvm-cov` if it's not installed already):
+
+```console
+make coverage
+```
+
+By default, this will generate a report in `lcov` format on `coverage/lcov.info` that IDEs such as VSCode can read via [certain extensions](https://marketplace.visualstudio.com/items?itemName=ryanluker.vscode-coverage-gutters). To modify the output format and the output location, use the variables `COVERAGE_OUT_FORMAT` and `COVERAGE_OUT_FILEPATH`:
+
+```console
+COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov-info.json make coverage
+```

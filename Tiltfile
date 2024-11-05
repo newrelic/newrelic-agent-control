@@ -3,15 +3,15 @@
 
 #### Config
 # This env var is automatically added by the e2e action.
-license_key = os.getenv('LICENSE_KEY')
+license_key = os.getenv('LICENSE_KEY', "")
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/super-agent-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
 
 # build_with options:
-# cargo: No crosscompilation, faster than docker
-# docker: Supports crosscompilaton
-build_with = os.getenv('BUILD_WITH','docker')
+# cargo: No crosscompilation, faster than cross
+# cross: Supports crosscompilaton
+build_with = os.getenv('BUILD_WITH','cross')
 arch = os.getenv('ARCH','arm64')
 
 #### Build SA binary
@@ -24,7 +24,7 @@ if build_with == 'cargo':
         './super-agent',
       ]
   )
-elif build_with == 'docker': 
+elif build_with == 'cross': 
   local_resource(
       'build-binary',
       cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s ARCH=%s build-super-agent" % arch,
