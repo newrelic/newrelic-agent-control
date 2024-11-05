@@ -26,11 +26,11 @@ echo "arch: ${ARCH}, arch_name: ${ARCH_NAME}"
 export GIT_COMMIT=$( git rev-parse HEAD )
 export SUPER_AGENT_VERSION=${SUPER_AGENT_VERSION:-development}
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-export RUSTFLAGS="-C target-feature=+crt-static" 
+export RUSTFLAGS="-C target-feature=+crt-static"
 
-cross build --target "${ARCH_NAME}-unknown-linux-musl" "--${BUILD_MODE}" --features "${BUILD_FEATURE}" --package "${PKG}" --bin "${BIN}"
+cross build --target "${ARCH_NAME}-unknown-linux-musl" --profile "${BUILD_MODE}" --features "${BUILD_FEATURE}" --package "${PKG}" --bin "${BIN}"
 
 mkdir -p "bin"
 
 # Copy the generated binaries to the bin directory
-cp "./target/${ARCH_NAME}-unknown-linux-musl/${BUILD_MODE}/${BIN}" "./bin/${BIN}-${ARCH}"
+cp "./target/${ARCH_NAME}-unknown-linux-musl/${BUILD_OUT_DIR}/${BIN}" "./bin/${BIN}-${ARCH}"
