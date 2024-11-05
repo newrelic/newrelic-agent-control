@@ -80,7 +80,6 @@ if license_key != '':
   
 if cluster != '':
   flags_helm.append('--set=global.cluster='+cluster)
-  flags_helm.append('--set=super-agent-deployment.config.subAgents.open-telemetry.content.chart_values.cluster='+cluster)
 
 #### Installs charts
 helm_resource(

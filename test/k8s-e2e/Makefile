@@ -7,11 +7,11 @@ local-e2e-test:
 	$(NEWRELIC_E2E) \
 		--commit_sha=local \
 		--retry_attempts=5 \
-		--retry_seconds=60 \
 		--account_id=${ACCOUNT_ID} \
 		--api_key=${API_REST_KEY} \
 		--license_key=${LICENSE_KEY} \
-		--spec_path=e2e-spec.yml \
+		--spec_path=${SPEC_PATH} \
 		--verbose_mode=true \
-		--region=Staging \
 		--agent_enabled="false"
+# 		\
+# 		--region=Staging

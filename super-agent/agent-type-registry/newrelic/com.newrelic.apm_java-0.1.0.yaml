@@ -1,0 +1,45 @@
+namespace: newrelic
+name: com.newrelic.apm_java
+version: 0.1.0
+variables:
+  k8s:
+    version:
+      description: "Java Agent init container version"
+      type: string
+      default: "latest"
+      required: false
+    pod_label_selector:
+      description: "Pod label selector"
+      type: yaml
+      default: { }
+      required: false
+    namespace_label_selector:
+      description: "Namespace label selector"
+      type: yaml
+      default: { }
+      required: false
+    env:
+      description: "environment variables to pass to java agent"
+      type: yaml
+      default: [ ]
+      required: false
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      instrumentation:
+        apiVersion: newrelic.com/v1alpha2
+        kind: Instrumentation
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          agent:
+            language: java
+            image: newrelic/newrelic-java-init:${nr-var:version}
+            env: ${nr-var:env}
+          podLabelSelector: ${nr-var:pod_label_selector}
+          namespaceLabelSelector: ${nr-var:namespace_label_selector}
+
+
+
