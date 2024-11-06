@@ -35,6 +35,8 @@ pub enum CliError {
     K8sConfig(),
     #[error("Could not read Super Agent config from `{0}`: `{1}`")]
     LoaderError(String, String),
+    #[error("Invalid configuration: `{0}`")]
+    InvalidConfig(String),
 }
 
 /// What action was requested from the CLI?
@@ -119,7 +121,10 @@ impl Cli {
 
         let opamp = super_agent_config.opamp;
         let http_server = super_agent_config.server;
-        let proxy = super_agent_config.proxy.with_url_from_env();
+        let proxy = super_agent_config
+            .proxy
+            .try_with_url_from_env()
+            .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
 
         let run_config = SuperAgentRunConfig {
             opamp,

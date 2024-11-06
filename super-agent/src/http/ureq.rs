@@ -25,7 +25,7 @@ pub fn try_build_ureq(config: HttpConfig) -> Result<Agent, UreqClientBuilderErro
         .timeout(config.timeout());
 
     let proxy_conf = config.proxy_config();
-    let proxy_url = proxy_conf.url();
+    let proxy_url = proxy_conf.url_as_string();
     if !proxy_url.is_empty() {
         let proxy = Proxy::new(proxy_url)
             .map_err(|x| BuildingError(format!(" invalid proxy url: {}", x)))?;

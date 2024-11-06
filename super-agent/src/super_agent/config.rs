@@ -715,6 +715,9 @@ agents: {}
     #[test]
     fn test_proxy_config() {
         let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_PROXY).unwrap();
-        assert_eq!(config.proxy.url(), "http://localhost:8080".to_string())
+        assert_eq!(
+            config.proxy.url_as_string(),
+            "http://localhost:8080/".to_string()
+        )
     }
 }
