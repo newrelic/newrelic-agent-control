@@ -85,7 +85,7 @@ impl ProxyUrl {
 /// ```
 /// # use newrelic_super_agent::http::proxy::ProxyConfig;
 /// // The url will contain the value corresponding to the standard environment variables.
-/// let proxy_config = ProxyConfig::default().with_url_from_env();
+/// let proxy_config = ProxyConfig::default().try_with_url_from_env().unwrap();
 /// ```
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
@@ -203,23 +203,14 @@ pub(crate) mod test {
             TestCase {
                 _name: "nothing",
                 content: r#""#,
-                expected: ProxyConfig {
-                    url: ProxyUrl::default(),
-                    ca_bundle_dir: PathBuf::default(),
-                    ca_bundle_file: PathBuf::default(),
-                    proxy_validate_certificates: false,
-                    ignore_system_proxy: false,
-                },
+                expected: ProxyConfig::default(),
             },
             TestCase {
                 _name: "just url",
                 content: r#"url: "http://localhost:8888""#,
                 expected: ProxyConfig {
                     url: "http://localhost:8888".try_into().unwrap(),
-                    ca_bundle_dir: PathBuf::default(),
-                    ca_bundle_file: PathBuf::default(),
-                    proxy_validate_certificates: false,
-                    ignore_system_proxy: false,
+                    ..Default::default()
                 },
             },
             TestCase {
@@ -231,9 +222,7 @@ pub(crate) mod test {
                 expected: ProxyConfig {
                     url: "http://localhost:8888".try_into().unwrap(),
                     ca_bundle_dir: PathBuf::from("/path/to/ca_bundle"),
-                    ca_bundle_file: PathBuf::default(),
-                    proxy_validate_certificates: false,
-                    ignore_system_proxy: false,
+                    ..Default::default()
                 },
             },
             TestCase {
@@ -246,8 +235,7 @@ pub(crate) mod test {
                     url: "http://localhost:8888".try_into().unwrap(),
                     ca_bundle_dir: PathBuf::default(),
                     ca_bundle_file: PathBuf::from("/path/to/ca_bundle.pem"),
-                    proxy_validate_certificates: false,
-                    ignore_system_proxy: false,
+                    ..Default::default()
                 },
             },
             TestCase {
@@ -258,10 +246,8 @@ pub(crate) mod test {
                 "#,
                 expected: ProxyConfig {
                     url: "http://localhost:8888".try_into().unwrap(),
-                    ca_bundle_dir: PathBuf::default(),
-                    ca_bundle_file: PathBuf::default(),
                     proxy_validate_certificates: true,
-                    ignore_system_proxy: false,
+                    ..Default::default()
                 },
             },
             TestCase {
@@ -272,10 +258,8 @@ pub(crate) mod test {
                 "#,
                 expected: ProxyConfig {
                     url: "http://localhost:8888".try_into().unwrap(),
-                    ca_bundle_dir: PathBuf::default(),
-                    ca_bundle_file: PathBuf::default(),
-                    proxy_validate_certificates: false,
                     ignore_system_proxy: true,
+                    ..Default::default()
                 },
             },
             TestCase {
