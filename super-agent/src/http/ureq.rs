@@ -25,9 +25,10 @@ pub fn try_build_ureq(config: HttpConfig) -> Result<Agent, UreqClientBuilderErro
         .timeout(config.timeout());
 
     let proxy_conf = config.proxy_config();
-    if let Some(url) = proxy_conf.url() {
-        let proxy =
-            Proxy::new(url).map_err(|x| BuildingError(format!(" invalid proxy url: {}", x)))?;
+    let proxy_url = proxy_conf.url();
+    if !proxy_url.is_empty() {
+        let proxy = Proxy::new(proxy_url)
+            .map_err(|x| BuildingError(format!(" invalid proxy url: {}", x)))?;
 
         let tls_config = build_tls_config(proxy_conf.ca_bundle_file(), proxy_conf.ca_bundle_dir())
             .map_err(|e| BuildingError(format!("error building tls: {}", e)))?;

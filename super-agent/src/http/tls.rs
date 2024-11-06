@@ -1,3 +1,4 @@
+use nix::NixPath;
 use rustls::{ClientConfig, RootCertStore};
 use rustls_native_certs::load_native_certs;
 use std::path::Path;
@@ -21,9 +22,12 @@ pub fn install_rustls_default_crypto_provider() {
     })
 }
 
+/// It builds rustls client configuration including the system native certificates and the certificates in the file
+/// and dir provided as arguments if any of the paths is empty, it is ignored.
+/// It return an error if there are issues reading the provided paths or if invalid certificates are found.
 pub fn build_tls_config(
-    maybe_pem_file: Option<&Path>,
-    maybe_pem_files_dir: Option<&Path>,
+    pem_file: &Path,
+    pem_files_dir: &Path,
 ) -> Result<ClientConfig, TLSConfigBuildingError> {
     let mut root_store = rustls::RootCertStore::empty();
 
@@ -35,12 +39,12 @@ pub fn build_tls_config(
     })?;
 
     // Add custom certificates from file
-    if let Some(pem_path) = maybe_pem_file {
-        add_certs_from_file(&mut root_store, pem_path)?;
+    if !pem_file.is_empty() {
+        add_certs_from_file(&mut root_store, pem_file)?;
     }
 
     // Add custom certificates from dir
-    if let Some(pem_files_dir) = maybe_pem_files_dir {
+    if !pem_files_dir.is_empty() {
         let dir_entries = std::fs::read_dir(pem_files_dir).map_err(|e| {
             TLSConfigBuildingError::BuildingError(format!(
                 "cannot read directory {}: {}",
@@ -123,6 +127,7 @@ mod test {
     use assert_matches::assert_matches;
     use std::fs::File;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::tempdir;
 
     const VALID_TESTING_CERT: &str = r#"-----BEGIN CERTIFICATE-----
@@ -149,15 +154,18 @@ PmmEIikVmq+diZVAViKF7+4aXMFHYuCsx+MgazO6d2StrFHrw19TTDPr
     fn test_build_tls_config_with_no_certificates() {
         install_rustls_default_crypto_provider();
 
-        let config = build_tls_config(None, None);
+        let pem_file = PathBuf::default();
+        let pem_dir = PathBuf::default();
+        let config = build_tls_config(pem_file.as_path(), pem_dir.as_path());
         assert!(config.is_ok(), "Expected Ok config got {:?}", config);
     }
 
     #[test]
     fn test_build_tls_config_with_not_existing_certificate_file() {
         install_rustls_default_crypto_provider();
-        let path = Path::new("non-existing.pem");
-        let config = build_tls_config(Some(path), None);
+        let pem_file = Path::new("non-existing.pem");
+        let pem_dir = PathBuf::default();
+        let config = build_tls_config(pem_file, pem_dir.as_path());
         assert_matches!(
             config.unwrap_err(),
             TLSConfigBuildingError::BuildingError(s) => {
@@ -175,7 +183,8 @@ PmmEIikVmq+diZVAViKF7+4aXMFHYuCsx+MgazO6d2StrFHrw19TTDPr
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
 
-        let config = build_tls_config(Some(&file_path), None);
+        let pem_dir = PathBuf::default();
+        let config = build_tls_config(file_path.as_path(), pem_dir.as_path());
         assert_matches!(
             config.unwrap_err(),
             TLSConfigBuildingError::BuildingError(s) => {
@@ -193,7 +202,8 @@ PmmEIikVmq+diZVAViKF7+4aXMFHYuCsx+MgazO6d2StrFHrw19TTDPr
         let mut file = File::create(&file_path).unwrap();
         writeln!(file, "{VALID_TESTING_CERT}").unwrap();
 
-        let config = build_tls_config(Some(&file_path), None);
+        let pem_dir = PathBuf::default();
+        let config = build_tls_config(file_path.as_path(), pem_dir.as_path());
         assert!(config.is_ok(), "{:?}", config);
     }
 
@@ -201,8 +211,9 @@ PmmEIikVmq+diZVAViKF7+4aXMFHYuCsx+MgazO6d2StrFHrw19TTDPr
     fn test_build_tls_config_with_invalid_directory() {
         install_rustls_default_crypto_provider();
 
-        let path = Path::new("non-existing-dir");
-        let config = build_tls_config(None, Some(path));
+        let pem_file = PathBuf::default();
+        let pem_dir = Path::new("non-existing-dir");
+        let config = build_tls_config(pem_file.as_path(), pem_dir);
         assert_matches!(
             config.unwrap_err(),
             TLSConfigBuildingError::BuildingError(s) => {
@@ -228,7 +239,8 @@ PmmEIikVmq+diZVAViKF7+4aXMFHYuCsx+MgazO6d2StrFHrw19TTDPr
         let mut file = File::create(file_path).unwrap();
         writeln!(file, "{INVALID_TESTING_CERT}").unwrap();
 
-        let config = build_tls_config(None, Some(dir.path()));
+        let file_path = PathBuf::default();
+        let config = build_tls_config(file_path.as_path(), dir.path());
         assert!(config.is_ok());
     }
 
