@@ -135,7 +135,7 @@ impl NotStartedSupervisorK8s {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
-                error!(%err, "k8s resources apply failed");
+                error!(%agent_id, %err, "k8s resources apply failed");
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {

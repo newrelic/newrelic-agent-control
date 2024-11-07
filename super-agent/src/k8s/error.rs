@@ -31,9 +31,6 @@ pub enum K8sError {
     #[error("error parsing GroupVersion: `{0}`")]
     ParseGroupVersion(#[from] ParseGroupVersionError),
 
-    #[error("the kind of the cr is unexpected: {0}")]
-    UnexpectedKind(String),
-
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
 
@@ -45,6 +42,12 @@ pub enum K8sError {
 
     #[error("reflector timeout: {0}")]
     ReflectorTimeout(String),
+
+    #[error("initialized dynamic object manager is missing for type: {0}")]
+    MissingInitializedManager(String),
+
+    #[error("api resource kind not present in the cluster: {0}")]
+    MissingAPIResource(String),
 }
 
 #[derive(thiserror::Error, Debug)]

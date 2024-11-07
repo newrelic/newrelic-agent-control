@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use k8s_openapi::{
     apimachinery::pkg::util::intstr::IntOrString, Metadata, NamespaceResourceScope, Resource,
 };
-use kube::api::ObjectMeta;
+use kube::api::{ObjectMeta, TypeMeta};
 
 use super::Error;
 
@@ -142,6 +142,13 @@ where
         .name
         .clone()
         .ok_or_else(|| Error::MissingName(K::KIND.to_string()))
+}
+
+pub fn display_type(type_meta: &TypeMeta) -> String {
+    format!(
+        "apiVersion: {} kind: {}",
+        type_meta.api_version, type_meta.kind
+    )
 }
 
 #[cfg(test)]

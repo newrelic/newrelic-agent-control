@@ -4,13 +4,12 @@ use super::tools::{
     foo_crd::{create_foo_cr, foo_type_meta, Foo},
     k8s_env::K8sEnv,
 };
-use k8s_openapi::{api::core::v1::ConfigMap, Resource};
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::k8s::annotations::Annotations;
 use newrelic_super_agent::sub_agent::k8s::NotStartedSupervisorK8s;
-use newrelic_super_agent::super_agent::config::AgentTypeFQN;
+use newrelic_super_agent::super_agent::config::{default_group_version_kinds, AgentTypeFQN};
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -58,10 +57,8 @@ fn k8s_garbage_collector_cleans_removed_agent() {
     let agent_id = &AgentID::new("sub-agent").unwrap();
     let agent_fqn = AgentTypeFQN::try_from("ns/test:1.2.3").unwrap();
 
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
-            .unwrap(),
-    );
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
 
     let resource_name = "test-different-from-agent-id";
 
@@ -139,7 +136,11 @@ agents:
         })
         .in_sequence(&mut seq);
 
-    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+    let mut gc = NotStartedK8sGarbageCollector::new(
+        Arc::new(config_loader),
+        k8s_client,
+        vec![foo_type_meta()],
+    );
 
     // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
     // are missing in the cluster.
@@ -191,21 +192,10 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         kind: "Missing".to_string(),
     };
 
-    let existing_kind = TypeMeta {
-        api_version: ConfigMap::API_VERSION.to_string(),
-        kind: ConfigMap::KIND.to_string(),
-    };
-
     let mut gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
-        Arc::new(
-            SyncK8sClient::try_new(
-                tokio_runtime(),
-                test_ns.to_string(),
-                vec![foo_type_meta(), existing_kind, missing_kind],
-            )
-            .unwrap(),
-        ),
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
+        vec![missing_kind, foo_type_meta()],
     );
 
     // Expects the GC to clean the "removed" agent CR.
@@ -229,10 +219,8 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         None,
     ));
 
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
-            .unwrap(),
-    );
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
@@ -248,7 +236,11 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>("agents: {}").unwrap())
     });
 
-    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+    let mut gc = NotStartedK8sGarbageCollector::new(
+        Arc::new(config_loader),
+        k8s_client,
+        default_group_version_kinds(),
+    );
 
     // Expects the GC do not clean any resource related to the SA.
     gc.collect().unwrap();
@@ -311,10 +303,8 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         Some(Annotations::new_agent_fqn_annotation(fqn).get()),
     ));
 
-    let k8s_client = Arc::new(
-        SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string(), vec![foo_type_meta()])
-            .unwrap(),
-    );
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
 
     let mut config_loader = MockSuperAgentDynamicConfigLoaderMock::new();
     let config = format!(
@@ -328,7 +318,11 @@ agents:
         Ok(serde_yaml::from_str::<SuperAgentDynamicConfig>(config.as_str()).unwrap())
     });
 
-    let mut gc = NotStartedK8sGarbageCollector::new(Arc::new(config_loader), k8s_client);
+    let mut gc = NotStartedK8sGarbageCollector::new(
+        Arc::new(config_loader),
+        k8s_client,
+        vec![foo_type_meta()],
+    );
 
     // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.
     gc.collect().unwrap();

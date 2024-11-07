@@ -34,12 +34,8 @@ impl SuperAgentRunner {
     pub fn run(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
-            SyncK8sClient::try_new(
-                self.runtime,
-                self.k8s_config.namespace.clone(),
-                self.k8s_config.cr_type_meta.clone(),
-            )
-            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+            SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())
+                .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
         let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
@@ -114,7 +110,11 @@ impl SuperAgentRunner {
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
+        let gcc = NotStartedK8sGarbageCollector::new(
+            config_storer.clone(),
+            k8s_client,
+            self.k8s_config.cr_type_meta,
+        );
         let _started_gcc = gcc.start();
 
         SuperAgent::new(

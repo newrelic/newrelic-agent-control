@@ -42,8 +42,7 @@ fn k8s_instance_id_store() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
@@ -84,8 +83,7 @@ fn k8s_hash_repository_config_map() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
@@ -118,8 +116,7 @@ fn k8s_value_repository_config_map() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client));
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
@@ -179,8 +176,7 @@ fn k8s_sa_config_map() {
 
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     // This is the cached local config
@@ -242,8 +238,7 @@ fn k8s_multiple_store_entries() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone(), Vec::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
     let agent_id = AgentID::new(AGENT_ID_1).unwrap();
 

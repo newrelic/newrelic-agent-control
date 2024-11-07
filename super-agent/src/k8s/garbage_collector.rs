@@ -3,16 +3,17 @@ use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{pub_sub, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::error::GarbageCollectorK8sError;
 use crate::k8s::error::GarbageCollectorK8sError::{
     MissingActiveAgents, MissingAnnotations, MissingLabels,
 };
+use crate::k8s::error::{GarbageCollectorK8sError, K8sError};
 use crate::k8s::Error::MissingName;
 use crate::k8s::{annotations, labels};
 use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentsMap};
 use crate::super_agent::config_storer::loader_storer::SuperAgentDynamicConfigLoader;
 use crate::super_agent::defaults::SUPER_AGENT_ID;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use kube::api::TypeMeta;
 use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, trace, warn};
 
@@ -29,6 +30,8 @@ where
     interval: Duration,
     // None active_config is representing the initial state before the first load.
     active_config: Option<SubAgentsMap>,
+    // List of known custom resources to be collected
+    cr_type_meta: Vec<TypeMeta>,
 }
 
 pub struct K8sGarbageCollectorStarted {
@@ -58,12 +61,17 @@ impl<S> NotStartedK8sGarbageCollector<S>
 where
     S: SuperAgentDynamicConfigLoader + Sync + Send,
 {
-    pub fn new(config_store: Arc<S>, k8s_client: Arc<SyncK8sClient>) -> Self {
+    pub fn new(
+        config_store: Arc<S>,
+        k8s_client: Arc<SyncK8sClient>,
+        cr_type_meta: Vec<TypeMeta>,
+    ) -> Self {
         NotStartedK8sGarbageCollector {
             config_store,
             k8s_client,
             interval: Duration::from_secs(DEFAULT_INTERVAL_SEC),
             active_config: None,
+            cr_type_meta,
         }
     }
 
@@ -124,28 +132,36 @@ where
         Ok(())
     }
 
+    // collect_dynamic_resources iterates through the populated list of possible crs to be deleted.
+    // The call to list_dynamic_objects will return the list of objects of a cr_type,
+    // but initially it will try to create the dynamic_object_manager if it isn't present.
+    // The loop will be broken if an error is returned except if it is a MissingAPIResource error,
+    // then it will just continue the collection for the next cr_type_meta since this scenario
+    // happens if an agent with unique cr_type_metas is removed and no resources of that type remain.
     fn collect_dynamic_resources(&self) -> Result<(), GarbageCollectorK8sError> {
-        self.k8s_client
-            .supported_type_meta_collection()
-            .iter()
-            .try_for_each(|tm| {
-                self.k8s_client
-                    .list_dynamic_objects(tm)?
-                    .into_iter()
-                    .try_for_each(|d| {
-                        if self.should_delete_dynamic_object(d.metadata.clone())? {
-                            let name = d
-                                .metadata
-                                .name
-                                .as_ref()
-                                .ok_or(MissingName(d.types.clone().unwrap_or_default().kind))?;
-                            debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
-                            self.k8s_client.delete_dynamic_object(tm, name.as_str())?;
-                        }
-                        let ok: Result<(), GarbageCollectorK8sError> = Ok(());
-                        ok
-                    })
-            })?;
+        self.cr_type_meta.iter().try_for_each(|tm| {
+            match self.k8s_client.list_dynamic_objects(tm) {
+                Ok(objects) => objects.into_iter().try_for_each(|d| {
+                    if self.should_delete_dynamic_object(d.metadata.clone())? {
+                        let name = d
+                            .metadata
+                            .name
+                            .as_ref()
+                            .ok_or(MissingName(d.types.clone().unwrap_or_default().kind))?;
+                        debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
+                        self.k8s_client.delete_dynamic_object(tm, name.as_str())?;
+                    }
+                    Ok::<(), GarbageCollectorK8sError>(())
+                }),
+                Err(e) => match e {
+                    K8sError::MissingAPIResource(_) => {
+                        debug!(error = %e, "GC skipping collect for TypeMeta");
+                        Ok(())
+                    }
+                    _ => Err(e.into()),
+                },
+            }
+        })?;
 
         Ok(())
     }
@@ -228,7 +244,8 @@ pub(crate) mod test {
     };
     use crate::k8s::labels::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
     use crate::super_agent::config::{
-        AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap, SuperAgentDynamicConfig,
+        default_group_version_kinds, AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap,
+        SuperAgentDynamicConfig,
     };
     use crate::super_agent::config_storer::loader_storer::MockSuperAgentDynamicConfigLoader;
     use crate::super_agent::defaults::SUPER_AGENT_ID;
@@ -257,14 +274,11 @@ pub(crate) mod test {
             .expect_delete_configmap_collection()
             .times(2)
             .returning(|_| Ok(()));
-        k8s_client
-            .expect_supported_type_meta_collection()
-            .times(2)
-            .returning(Vec::new);
 
-        let started_gc = NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(k8s_client))
-            .with_interval(Duration::from_millis(1))
-            .start();
+        let started_gc =
+            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(k8s_client), Vec::default())
+                .with_interval(Duration::from_millis(1))
+                .start();
         std::thread::sleep(Duration::from_millis(100));
 
         // Expect the gc is correctly stopped
@@ -369,6 +383,7 @@ pub(crate) mod test {
                 k8s_client: Arc::new(MockSyncK8sClient::new()),
                 interval: Default::default(),
                 active_config: Some(config),
+                cr_type_meta: default_group_version_kinds(),
             };
 
             assert_eq!(
@@ -418,6 +433,7 @@ pub(crate) mod test {
             k8s_client: Arc::new(MockSyncK8sClient::new()),
             interval: Default::default(),
             active_config: None,
+            cr_type_meta: default_group_version_kinds(),
         };
 
         assert_matches!(
