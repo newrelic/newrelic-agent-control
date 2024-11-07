@@ -104,6 +104,8 @@ pub struct ProxyConfig {
     /// socks5://john:smith@socks.google.com
     /// john:smith@socks.google.com:8000
     /// localhost
+    ///
+    /// Note: HTTPS scheme is not supported (since it is not supported by ureq).
     #[serde(default)]
     url: ProxyUrl,
     /// System path with the CA certificates in PEM format. All `.pem` files in the directory are read.
@@ -112,12 +114,6 @@ pub struct ProxyConfig {
     /// System path with the CA certificate in PEM format.
     #[serde(default)]
     ca_bundle_file: PathBuf,
-    // TODO : This is c&p from the Infra Agent. It might not be needed here?
-    // If set to true, when the proxy is configured to use an HTTPS connection, it will only work:
-    // * If the HTTPS proxy has certificates from a valid Certificate Authority.
-    // * If the ca_bundle_file or ca_bundle_dir configuration properties contain the HTTPS proxy certificates.
-    #[serde(default)]
-    proxy_validate_certificates: bool,
     /// When set to true, the HTTPS_PROXY and HTTP_PROXY environment variables are ignored, defaults to false.
     #[serde(default)]
     ignore_system_proxy: bool,
@@ -239,18 +235,6 @@ pub(crate) mod test {
                 },
             },
             TestCase {
-                _name: "url with proxy_validate_certificates",
-                content: r#"
-                    url: "http://localhost:8888"
-                    proxy_validate_certificates: true
-                "#,
-                expected: ProxyConfig {
-                    url: "http://localhost:8888".try_into().unwrap(),
-                    proxy_validate_certificates: true,
-                    ..Default::default()
-                },
-            },
-            TestCase {
                 _name: "url with ignore_system_proxy",
                 content: r#"
                     url: "http://localhost:8888"
@@ -268,14 +252,12 @@ pub(crate) mod test {
                     url: "http://localhost:8888"
                     ca_bundle_dir: "/path/to/ca_bundle"
                     ca_bundle_file: "/path/to/ca_bundle.pem"
-                    proxy_validate_certificates: true
                     ignore_system_proxy: true
                 "#,
                 expected: ProxyConfig {
                     url: "http://localhost:8888".try_into().unwrap(),
                     ca_bundle_dir: PathBuf::from("/path/to/ca_bundle"),
                     ca_bundle_file: PathBuf::from("/path/to/ca_bundle.pem"),
-                    proxy_validate_certificates: true,
                     ignore_system_proxy: true,
                 },
             },
