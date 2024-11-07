@@ -237,8 +237,4 @@ impl DynamicObjectManagers {
 
         Ok(managers_guard)
     }
-
-    pub async fn supported_dynamic_type_metas(&self) -> Vec<TypeMeta> {
-        self.manager_by_type.lock().await.keys().cloned().collect()
-    }
 }

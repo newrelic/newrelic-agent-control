@@ -125,14 +125,6 @@ impl SyncK8sClient {
             .block_on(self.async_client.delete_configmap_key(configmap_name, key))
     }
 
-    pub fn supported_type_meta_collection(&self) -> Vec<TypeMeta> {
-        self.runtime.block_on(
-            self.async_client
-                .dynamic_object_managers()
-                .supported_dynamic_type_metas(),
-        )
-    }
-
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
     }
