@@ -135,7 +135,7 @@ impl DynamicObjectManager {
 /// [K8sError::MissingAPIResource] is returned if the manager init failure reason is that there is no such API Resource in the cluster.
 pub struct DynamicObjectManagers {
     client: kube::Client,
-    manager_by_type: tokio::sync::Mutex<HashMap<TypeMeta, DynamicObjectManager>>,
+    manager_by_type: tokio::sync::Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
     reflector_builder: ReflectorBuilder,
 }
 
@@ -153,37 +153,23 @@ impl DynamicObjectManagers {
         type_meta: &TypeMeta,
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        Ok(self
-            .lock_update_managers(type_meta)
-            .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
-            .get(name))
+        Ok(self.get_or_create_manager(type_meta).await?.get(name))
     }
     pub async fn delete(&self, type_meta: &TypeMeta, name: &str) -> Result<(), K8sError> {
-        self.lock_update_managers(type_meta)
+        self.get_or_create_manager(type_meta)
             .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
             .delete(name)
             .await
     }
     pub async fn list(&self, type_meta: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
-        Ok(self
-            .lock_update_managers(type_meta)
-            .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
-            .list())
+        Ok(self.get_or_create_manager(type_meta).await?.list())
     }
 
     pub async fn apply(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let type_meta = &get_type_meta(obj)?;
 
-        self.lock_update_managers(type_meta)
+        self.get_or_create_manager(type_meta)
             .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
             .apply(obj)
             .await
     }
@@ -191,10 +177,8 @@ impl DynamicObjectManagers {
     pub async fn apply_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let type_meta = &get_type_meta(obj)?;
 
-        self.lock_update_managers(type_meta)
+        self.get_or_create_manager(type_meta)
             .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
             .apply_if_changed(obj)
             .await
     }
@@ -202,27 +186,24 @@ impl DynamicObjectManagers {
     pub async fn has_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let type_meta = &get_type_meta(obj)?;
 
-        self.lock_update_managers(type_meta)
+        self.get_or_create_manager(type_meta)
             .await?
-            .get(type_meta)
-            .ok_or(K8sError::MissingInitializedManager(display_type(type_meta)))?
             .has_changed(obj)
     }
 
-    /// Verifies if the manager for the provided [TypeMeta], if it does not exist it creates it, and returns
-    /// the mutex guard to the locked manager_by_type.
-    async fn lock_update_managers(
+    /// Obtains the manager for the provided [TypeMeta]. If it does not exist it creates it and stores it.
+    async fn get_or_create_manager(
         &self,
         type_meta: &TypeMeta,
-    ) -> Result<tokio::sync::MutexGuard<'_, HashMap<TypeMeta, DynamicObjectManager>>, K8sError>
-    {
-        // Check if the manager is already initialized.
+    ) -> Result<Arc<DynamicObjectManager>, K8sError> {
+        // Return the manager if it is already initialized
         let managers_guard = self.manager_by_type.lock().await;
-        if managers_guard.get(type_meta).is_some() {
-            return Ok(managers_guard);
+        if let Some(manager) = managers_guard.get(type_meta) {
+            return Ok(manager.clone());
         }
         drop(managers_guard);
 
+        // Create and store it otherwise
         debug!(
             "Initializing dynamic object manager for type: {:?}",
             type_meta
@@ -233,8 +214,9 @@ impl DynamicObjectManagers {
                 .await?;
 
         let mut managers_guard = self.manager_by_type.lock().await;
-        managers_guard.insert(type_meta.clone(), dynamic_object_manager);
+        let manager = Arc::new(dynamic_object_manager);
+        managers_guard.insert(type_meta.clone(), manager.clone());
 
-        Ok(managers_guard)
+        Ok(manager)
     }
 }

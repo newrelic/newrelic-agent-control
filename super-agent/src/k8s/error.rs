@@ -43,9 +43,6 @@ pub enum K8sError {
     #[error("reflector timeout: {0}")]
     ReflectorTimeout(String),
 
-    #[error("initialized dynamic object manager is missing for type: {0}")]
-    MissingInitializedManager(String),
-
     #[error("api resource kind not present in the cluster: {0}")]
     MissingAPIResource(String),
 }
