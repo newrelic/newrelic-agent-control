@@ -153,13 +153,11 @@ where
                     }
                     Ok::<(), GarbageCollectorK8sError>(())
                 }),
-                Err(e) => match e {
-                    K8sError::MissingAPIResource(_) => {
-                        debug!(error = %e, "GC skipping collect for TypeMeta");
-                        Ok(())
-                    }
-                    _ => Err(e.into()),
-                },
+                Err(K8sError::MissingAPIResource(e)) => {
+                    debug!(error = %e, "GC skipping collect for TypeMeta");
+                    Ok(())
+                }
+                Err(e) => Err(e.into()),
             }
         })?;
 
