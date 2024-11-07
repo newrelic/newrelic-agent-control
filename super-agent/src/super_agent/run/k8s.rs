@@ -110,7 +110,11 @@ impl SuperAgentRunner {
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let gcc = NotStartedK8sGarbageCollector::new(config_storer.clone(), k8s_client);
+        let gcc = NotStartedK8sGarbageCollector::new(
+            config_storer.clone(),
+            k8s_client,
+            self.k8s_config.cr_type_meta,
+        );
         let _started_gcc = gcc.start();
 
         SuperAgent::new(

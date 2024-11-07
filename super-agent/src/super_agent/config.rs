@@ -337,7 +337,7 @@ pub fn helm_release_type_meta() -> TypeMeta {
 }
 
 #[cfg(feature = "k8s")]
-fn default_group_version_kinds() -> Vec<TypeMeta> {
+pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
     vec![helm_repository_type_meta(), helm_release_type_meta()]
@@ -465,6 +465,18 @@ agents: {}
     const SUPERAGENT_FLEET_ID: &str = r#"
 fleet_id: 123
 agents: {}
+"#;
+
+    const EXAMPLE_K8S_EXTRA_CR_CONFIG: &str = r#"
+agents:
+  agent-1:
+    agent_type: namespace/agent_type:0.0.1
+k8s:
+  namespace: default
+  cluster_name: some-cluster
+  cr_type_meta:
+    - apiVersion: "custom.io/v1"
+      kind: "CustomKind"
 "#;
 
     impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
@@ -669,5 +681,22 @@ agents: {}
     fn fleet_id_config() {
         let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FLEET_ID).unwrap();
         assert_eq!(config.fleet_id, "123");
+    }
+
+    #[cfg(feature = "k8s")]
+    #[test]
+    fn k8s_cr_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_K8S_EXTRA_CR_CONFIG).unwrap();
+        let custom_type_meta = TypeMeta {
+            api_version: "custom.io/v1".to_string(),
+            kind: "CustomKind".to_string(),
+        };
+        assert_eq!(config.k8s.unwrap().cr_type_meta, vec![custom_type_meta]);
+
+        let config = serde_yaml::from_str::<SuperAgentConfig>(EXAMPLE_K8S_CONFIG).unwrap();
+        assert_eq!(
+            config.k8s.unwrap().cr_type_meta,
+            default_group_version_kinds()
+        );
     }
 }
