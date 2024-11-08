@@ -90,7 +90,7 @@ impl ProxyUrl {
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
     /// Proxy URL proxy:
-    /// <protocol>://<user>:<password>@<host>:port
+    /// <protocol>://<user>:<password>@<host>:<port>
     /// (All parts except host are optional)
     ///
     /// Protocols supported:

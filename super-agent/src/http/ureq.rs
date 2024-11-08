@@ -21,17 +21,18 @@ pub enum UreqResponseError {
 
 pub fn try_build_ureq(config: HttpConfig) -> Result<Agent, UreqClientBuilderError> {
     let mut builder = ureq::AgentBuilder::new()
-        .timeout_connect(config.conn_timeout())
-        .timeout(config.timeout());
+        .timeout_connect(config.conn_timeout)
+        .timeout(config.timeout);
 
-    let proxy_conf = config.proxy_config();
-    let proxy_url = proxy_conf.url_as_string();
+    let proxy_config = config.proxy;
+    let proxy_url = proxy_config.url_as_string();
     if !proxy_url.is_empty() {
         let proxy = Proxy::new(proxy_url)
             .map_err(|x| BuildingError(format!(" invalid proxy url: {}", x)))?;
 
-        let tls_config = build_tls_config(proxy_conf.ca_bundle_file(), proxy_conf.ca_bundle_dir())
-            .map_err(|e| BuildingError(format!("error building tls: {}", e)))?;
+        let tls_config =
+            build_tls_config(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())
+                .map_err(|e| BuildingError(format!("error building tls: {}", e)))?;
 
         builder = builder.proxy(proxy).tls_config(Arc::new(tls_config));
     }
