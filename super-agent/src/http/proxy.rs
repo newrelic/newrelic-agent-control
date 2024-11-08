@@ -135,30 +135,27 @@ impl ProxyConfig {
 
     /// Returns a new instance whose url is taken from the standard environment variables if needed.
     pub fn try_with_url_from_env(self) -> Result<Self, ProxyError> {
-        Ok(Self {
-            url: self.env_aware_url(env::var)?,
-            ..self
-        })
+        self.with_env_aware_url(env::var)
     }
 
-    /// Returns the configured url, fetching the environment variable through the provided `env_var` function if
-    /// required
-    fn env_aware_url<F>(&self, env_var: F) -> Result<ProxyUrl, ProxyError>
+    /// Returns a new instance setting up the using the provided `env_var` function to get it from the
+    /// environment if required. It fails if the url from the environment is not valid.
+    fn with_env_aware_url<F>(self, env_var: F) -> Result<Self, ProxyError>
     where
         F: Fn(&'static str) -> Result<String, VarError>,
     {
         if !self.url.is_empty() {
-            return Ok(self.url.clone());
+            return Ok(self);
         }
         if self.ignore_system_proxy {
-            return Ok(Default::default());
+            return Ok(self);
         }
         let url = env_var(HTTPS_PROXY_ENV_NAME)
             .or_else(|_| env_var(HTTP_PROXY_ENV_NAME))
             .unwrap_or_default()
             .as_str()
             .try_into()?;
-        Ok(url)
+        Ok(ProxyConfig { url, ..self })
     }
 }
 
@@ -279,13 +276,18 @@ pub(crate) mod test {
 
         impl TestCase {
             fn run(&self) {
-                let url = self.config.env_aware_url(|k| {
+                let config = self.config.clone().with_env_aware_url(|k| {
                     self.env_values
                         .get(k)
                         .map(|v| v.to_string())
                         .ok_or(VarError::NotPresent)
                 });
-                assert_eq!(url.unwrap(), self.expected, "Test name {}", self.name)
+                assert_eq!(
+                    config.unwrap().url,
+                    self.expected,
+                    "Test name {}",
+                    self.name
+                )
             }
         }
         let test_cases = [
@@ -350,7 +352,7 @@ pub(crate) mod test {
     #[test]
     fn invalid_system_proxy() {
         let config = ProxyConfig::default();
-        let result = config.env_aware_url(|_| Ok("http://".to_string()));
+        let result = config.with_env_aware_url(|_| Ok("http://".to_string()));
         assert_matches!(result.unwrap_err(), ProxyError::InvalidUrl(s, _) => {
             assert_eq!(s, "http://".to_string())
         });
