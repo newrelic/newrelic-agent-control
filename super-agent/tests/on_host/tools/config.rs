@@ -19,16 +19,30 @@ pub fn create_super_agent_config(
     agents: String,
     local_dir: PathBuf,
 ) {
+    create_super_agent_config_with_proxy(opamp_server_endpoint, agents, local_dir, None);
+}
+
+/// Extends [create_super_agent_config] with a proxy configuration parameter.
+pub fn create_super_agent_config_with_proxy(
+    opamp_server_endpoint: String,
+    agents: String,
+    local_dir: PathBuf,
+    proxy: Option<String>,
+) {
+    let proxy_config = proxy
+        .map(|config| format!("proxy: {config}"))
+        .unwrap_or_default();
+
     let super_agent_config = format!(
         r#"
 host_id: integration-test
 opamp:
   endpoint: {}
 agents: {}
+{}
 "#,
-        opamp_server_endpoint, agents
+        opamp_server_endpoint, agents, proxy_config,
     );
-
     create_file(super_agent_config, local_dir.join(SUPER_AGENT_CONFIG_FILE));
 }
 

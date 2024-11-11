@@ -10,6 +10,7 @@ use crate::event::{
     channel::{EventConsumer, EventPublisher},
     ApplicationEvent, SubAgentEvent, SuperAgentEvent,
 };
+use crate::http::proxy::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
 use crate::super_agent::http_server::runner::Runner;
@@ -48,6 +49,7 @@ pub struct SuperAgentRunConfig {
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
+    pub proxy: ProxyConfig,
     #[cfg(feature = "k8s")]
     pub k8s_config: super::config::K8sConfig,
 }
@@ -76,25 +78,26 @@ pub struct SuperAgentRunner {
 
 impl SuperAgentRunner {
     pub fn new(
-        value: SuperAgentRunConfig,
+        config: SuperAgentRunConfig,
         application_event_consumer: EventConsumer<ApplicationEvent>,
     ) -> Result<Self, Box<dyn Error>> {
         debug!("initializing and starting the super agent");
 
-        let opamp_http_builder = match value.opamp.as_ref() {
+        let opamp_http_builder = match config.opamp.as_ref() {
             Some(opamp_config) => {
                 debug!("OpAMP configuration found, creating an OpAMP client builder");
 
                 let token_retriever = Arc::new(
                     TokenRetrieverImpl::try_build(
                         opamp_config.clone().auth_config,
-                        value.base_paths.clone(),
+                        config.base_paths.clone(),
+                        config.proxy.clone(),
                     )
                     .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
                 );
 
                 let http_builder =
-                    UreqHttpClientBuilder::new(opamp_config.clone(), token_retriever);
+                    UreqHttpClientBuilder::new(opamp_config.clone(), config.proxy, token_retriever);
 
                 Some(http_builder)
             }
@@ -108,27 +111,31 @@ impl SuperAgentRunner {
         );
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let _http_server_runner = Runner::start(
-            value.http_server,
+            config.http_server,
             runtime.clone(),
             super_agent_consumer,
             sub_agent_consumer,
-            value.opamp.clone(),
+            config.opamp.clone(),
         );
 
-        let agent_type_registry =
-            EmbeddedRegistry::new(value.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME));
+        let agent_type_registry = EmbeddedRegistry::new(
+            config
+                .base_paths
+                .local_dir
+                .join(DYNAMIC_AGENT_TYPE_FILENAME),
+        );
 
         Ok(SuperAgentRunner {
             _http_server_runner,
             runtime,
             #[cfg(feature = "k8s")]
-            k8s_config: value.k8s_config,
+            k8s_config: config.k8s_config,
             agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
             super_agent_publisher,
             sub_agent_publisher,
-            base_paths: value.base_paths,
+            base_paths: config.base_paths,
         })
     }
 }

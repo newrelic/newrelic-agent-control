@@ -6,9 +6,12 @@ use kube::{
     api::{DeleteParams, PostParams},
     Api, Client,
 };
-use std::env;
+use newrelic_super_agent::http::tls::install_rustls_default_crypto_provider;
+use std::{env, sync::Once};
 
 const KUBECONFIG_PATH: &str = "tests/k8s/.kubeconfig-dev";
+
+static INIT_RUSTLS: Once = Once::new();
 
 /// This struct represents a running k8s cluster and it provides utilities to handle multiple namespaces, and
 /// resources are cleaned-up when the object is dropped.
@@ -20,6 +23,10 @@ pub struct K8sEnv {
 
 impl K8sEnv {
     pub async fn new() -> Self {
+        INIT_RUSTLS.call_once(|| {
+            install_rustls_default_crypto_provider();
+        });
+
         // Forces the client to use the dev kubeconfig file.
         env::set_var("KUBECONFIG", KUBECONFIG_PATH);
 

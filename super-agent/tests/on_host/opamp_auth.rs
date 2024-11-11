@@ -8,7 +8,6 @@ use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
 use nr_auth::token_retriever::DEFAULT_AUDIENCE;
 use predicates::prelude::predicate;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -72,7 +71,7 @@ agents: {{}}
 
     println!("stdout:\n {}", String::from_utf8(output.stdout).unwrap(),);
 
-    assert!(opamp_server_mock.hits() >= 1)
+    assert!(opamp_server_mock.calls() >= 1)
 }
 
 // This test verifies that empty Auth config doesn't inject any token.
@@ -86,9 +85,8 @@ fn test_empty_auth_config_as_root() {
 
     let opamp_server = MockServer::start();
     let opamp_server_mock = opamp_server.mock(|when, then| {
-        when.method(POST).path("/").matches(|req| {
-            let headers: HashMap<String, String> =
-                req.headers.to_owned().unwrap().into_iter().collect();
+        when.method(POST).path("/").is_true(|req| {
+            let headers = req.headers();
             !headers.contains_key(AUTHORIZATION.as_str()) && headers.contains_key("api-key")
         });
         then.status(200);
@@ -126,7 +124,7 @@ agents: {{}}
 
     println!("stdout:\n {}", String::from_utf8(output.stdout).unwrap(),);
 
-    assert!(opamp_server_mock.hits() >= 1)
+    assert!(opamp_server_mock.calls() >= 1)
 }
 
 #[cfg(unix)]
@@ -212,8 +210,8 @@ fn auth_server(token: String) -> MockServer {
     mock_server
 }
 fn is_authorized(when: When) -> When {
-    when.matches(|req| {
-        let request: Request = serde_json::from_slice(req.body.as_ref().unwrap()).unwrap();
+    when.is_true(|req| {
+        let request: Request = serde_json::from_slice(req.body_ref()).unwrap();
 
         // Validation
         let mut validation = Validation::new(Algorithm::RS256);

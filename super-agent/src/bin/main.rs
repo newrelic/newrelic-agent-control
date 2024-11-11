@@ -1,6 +1,7 @@
 use newrelic_super_agent::cli::{Cli, CliCommand, SuperAgentCliConfig};
 use newrelic_super_agent::event::channel::{pub_sub, EventPublisher};
 use newrelic_super_agent::event::ApplicationEvent;
+use newrelic_super_agent::http::tls::install_rustls_default_crypto_provider;
 use newrelic_super_agent::logging::config::FileLoggerGuard;
 #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
 use newrelic_super_agent::super_agent::pid_cache::PIDCache;
@@ -64,6 +65,8 @@ fn _main(super_agent_config: SuperAgentCliConfig) -> Result<(), Box<dyn Error>> 
         error!(error_msg = %err, "Error saving main process id");
         exit(1);
     }
+
+    install_rustls_default_crypto_provider();
 
     trace!("creating the global context");
     let (application_event_publisher, application_event_consumer) = pub_sub();

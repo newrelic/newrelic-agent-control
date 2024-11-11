@@ -2,6 +2,7 @@ pub mod agent_type;
 pub mod cli;
 pub mod context;
 pub mod event;
+pub mod http;
 pub mod logging;
 pub mod opamp;
 pub mod sub_agent;

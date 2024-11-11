@@ -1,4 +1,5 @@
 use super::http_server::config::ServerConfig;
+use crate::http::proxy::ProxyConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::RemoteConfigError;
@@ -187,6 +188,9 @@ pub struct SuperAgentConfig {
 
     #[serde(default)]
     pub server: ServerConfig,
+
+    #[serde(default)]
+    pub proxy: ProxyConfig,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
@@ -389,6 +393,8 @@ log:
 agents:
   agent-1:
     agent_type: namespace/agent_type:0.0.1
+proxy:
+  url: http://localhost:8080
 "#;
 
     const EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS: &str = r#"
@@ -477,6 +483,12 @@ k8s:
   cr_type_meta:
     - apiVersion: "custom.io/v1"
       kind: "CustomKind"
+"#;
+
+    const SUPERAGENT_PROXY: &str = r#"
+proxy:
+  url: http://localhost:8080
+agents: {}
 "#;
 
     impl From<HashMap<AgentID, SubAgentConfig>> for SuperAgentDynamicConfig {
@@ -698,5 +710,14 @@ k8s:
             config.k8s.unwrap().cr_type_meta,
             default_group_version_kinds()
         );
+    }
+
+    #[test]
+    fn test_proxy_config() {
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_PROXY).unwrap();
+        assert_eq!(
+            config.proxy.url_as_string(),
+            "http://localhost:8080/".to_string()
+        )
     }
 }

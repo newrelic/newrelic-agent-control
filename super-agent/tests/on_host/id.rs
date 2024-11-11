@@ -54,8 +54,8 @@ fn test_aws_cloud_id() {
 
     assert_eq!(id.cloud_instance_id, instance_id);
 
-    mock.assert_hits(1);
-    token_mock.assert_hits(1);
+    mock.assert_calls(1);
+    token_mock.assert_calls(1);
 }
 #[test]
 #[cfg(target_family = "unix")]
@@ -87,7 +87,7 @@ fn test_azure_cloud_id() {
 
     assert_eq!(id.cloud_instance_id, instance_id);
 
-    mock.assert_hits(1);
+    mock.assert_calls(1);
 }
 
 #[test]
@@ -120,7 +120,7 @@ fn test_gcp_cloud_id() {
 
     assert_eq!(id.cloud_instance_id, instance_id);
 
-    mock.assert_hits(1);
+    mock.assert_calls(1);
 }
 
 /// tests that nr-sa:host_id and nr-sub:agent_id are correctly replaced in the agent type.
