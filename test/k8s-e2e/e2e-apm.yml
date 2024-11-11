@@ -5,9 +5,25 @@ custom_test_key: appName
 scenarios:
   - description: Deploy SA with APM operator and Java agent
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm-java.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       - sleep 60
-      - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label  app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label  app=javaapp -f - --local -o yaml | kubectl create -f -
+    after:
+      - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
+      - kubectl get all -o wide
+      - cd ../../ && tilt down
+    tests:
+      nrqls:
+        # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
+        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.throughput'"
+        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.errorRate'"
+
+  - description: Deploy SA with APM operator and Python agent
+    before:
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm-python.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - sleep 60
+      - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label  app=pythonapp -f - --local -o yaml | kubectl create -f -
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
