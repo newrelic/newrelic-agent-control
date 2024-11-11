@@ -20,13 +20,17 @@ jobs:
     steps:
       - name: Run Trivy in table mode
         # Table output is only useful when running on a pull request or push.
-        uses: aquasecurity/trivy-action@0.19.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
           format: table
           exit-code: 1
           ignore-unfixed: true
           severity: ${{ env.SEVERITY }}
+        env:
+          # dbs are downloaded async in download_trivy_db.yml
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
   scan-scheduled:
     name: Scan image
@@ -34,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run Trivy in report mode
-        uses: aquasecurity/trivy-action@0.19.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.DOCKER_IMAGE }}:${{ inputs.image-tag }}
           format: 'template'
@@ -42,6 +46,10 @@ jobs:
           output: 'trivy-results.sarif'
           ignore-unfixed: false  # Get full report when running nightly.
           severity: ${{ env.SEVERITY }}
+        env:
+          # dbs are downloaded async in download_trivy_db.yml
+          TRIVY_SKIP_DB_UPDATE: true
+          TRIVY_SKIP_JAVA_DB_UPDATE: true
 
       # TODO Upload Trivy scan results to GitHub Security tab when the repo gets public state.
       # more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
