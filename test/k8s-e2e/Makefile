@@ -12,6 +12,5 @@ local-e2e-test:
 		--license_key=${LICENSE_KEY} \
 		--spec_path=${SPEC_PATH} \
 		--verbose_mode=true \
+		--region=Staging \
 		--agent_enabled="false"
-# 		\
-# 		--region=Staging

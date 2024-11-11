@@ -40,6 +40,3 @@ deployment:
             env: ${nr-var:env}
           podLabelSelector: ${nr-var:pod_label_selector}
           namespaceLabelSelector: ${nr-var:namespace_label_selector}
-
-
-
