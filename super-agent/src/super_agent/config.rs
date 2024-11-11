@@ -336,6 +336,7 @@ pub fn helm_release_type_meta() -> TypeMeta {
     }
 }
 
+#[cfg(feature = "k8s")]
 pub fn instrumentation_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "newrelic.com/v1alpha2".to_string(),

@@ -6,7 +6,6 @@ use super::{
     reflector::definition::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
-use kube::api::entry::CommitError;
 use kube::{
     api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
     core::GroupVersion,
@@ -15,7 +14,6 @@ use kube::{
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tracing::debug;
-use tracing::log::error;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].

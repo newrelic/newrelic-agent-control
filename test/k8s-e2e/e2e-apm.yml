@@ -5,7 +5,7 @@ custom_test_key: appName
 scenarios:
   - description: Deploy SA with APM operator and Java agent
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-deployment-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       - sleep 60
       - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label  app=javaapp -f - --local -o yaml | kubectl create -f -
     after:
