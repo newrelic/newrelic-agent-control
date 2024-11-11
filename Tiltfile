@@ -19,7 +19,7 @@ arch = os.getenv('ARCH','arm64')
 if build_with == 'cargo':
   local_resource(
       'build-binary',
-      cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && rm bin/newrelic-super-agent-"+arch+" && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
+      cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && rm -f bin/newrelic-super-agent-"+arch+" && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
       deps=[
         './super-agent',
       ]
