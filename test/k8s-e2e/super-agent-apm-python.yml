@@ -17,7 +17,7 @@ super-agent-deployment:
               licenseKey: ${nr-env:NR_LICENSE_KEY}
               cluster: ${nr-env:NR_CLUSTER_NAME}
           chart_version: 0.16.1
-      java-agent:
+      python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
           pod_label_selector:
