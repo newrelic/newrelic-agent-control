@@ -2,10 +2,19 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
 };
+
+use crate::k8s::tools::test_crd::{create_crd, delete_crd};
 use assert_matches::assert_matches;
-use kube::api::{Api, DeleteParams, TypeMeta};
 use kube::core::DynamicObject;
+use kube::{
+    api::{Api, DeleteParams, TypeMeta},
+    CustomResource,
+};
+use kube::{CustomResourceExt, ResourceExt};
+use newrelic_super_agent::k8s::Error::MissingAPIResource;
 use newrelic_super_agent::k8s::{client::AsyncK8sClient, Error};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -375,4 +384,126 @@ async fn k8s_dynamic_resource_missing_kind() {
         dynamic_object_managers.list(&type_meta).await.unwrap_err(),
         Error::MissingAPIResource(_)
     );
+}
+
+// Test that the reflectors of dynamic objects are consistent when the CRD is removed.
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs k8s cluster"]
+async fn k8s_remove_crd_after_dynamic_resource_initialized() {
+    let mut k8s = K8sEnv::new().await;
+    let test_ns = k8s.test_namespace().await;
+    // custom CRD defined for this test only.
+    #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+    #[kube(
+        group = "newrelic.com",
+        version = "v1",
+        kind = "ClientTest",
+        namespaced
+    )]
+    pub struct ClientTestSpec {
+        pub data: String,
+    }
+    delete_crd(k8s.client.clone(), ClientTest::crd())
+        .await
+        .expect_err("CRD deleted, testing environment was not clean, re-run the test");
+
+    create_crd(k8s.client.clone(), ClientTest::crd())
+        .await
+        .expect("Error creating the Bar CRD");
+
+    let k8s_client = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+
+    let cr = ClientTest::new(
+        "test-cr",
+        ClientTestSpec {
+            data: "on_create".to_string(),
+        },
+    );
+
+    let dinamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
+
+    k8s_client
+        .dynamic_object_managers()
+        .apply(&dinamic_object)
+        .await
+        .unwrap();
+
+    delete_crd(k8s.client.clone(), ClientTest::crd())
+        .await
+        .unwrap();
+
+    //wait for the reflector to be updated
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    assert_matches!(
+        k8s_client
+            .dynamic_object_managers()
+            .get(
+                &dinamic_object.types.clone().unwrap(),
+                &dinamic_object.name_unchecked(),
+            )
+            .await,
+        Err(MissingAPIResource(_)),
+        "CR was removed client should not find it"
+    );
+
+    assert_matches!(
+        k8s_client
+            .dynamic_object_managers()
+            .apply(&dinamic_object)
+            .await,
+        Err(MissingAPIResource(_)),
+        "CRD was removed, client should not be able to create a new object"
+    );
+
+    // re-create the CRD
+    create_crd(k8s.client.clone(), ClientTest::crd())
+        .await
+        .expect("Error creating the Bar CRD");
+
+    // wait for the CRD to be created
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    let new_cr = ClientTest::new(
+        "other",
+        ClientTestSpec {
+            data: "on_create".to_string(),
+        },
+    );
+    let new_dyn_object = serde_yaml::from_value(serde_yaml::to_value(new_cr).unwrap()).unwrap();
+
+    k8s_client
+        .dynamic_object_managers()
+        .apply(&new_dyn_object)
+        .await
+        .expect("CRD was re-created, client should be able to create a new object");
+
+    // wait for the reflector to be updated
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // Old removed CR should not be found
+    assert!(k8s_client
+        .dynamic_object_managers()
+        .get(
+            &dinamic_object.types.clone().unwrap(),
+            &dinamic_object.name_unchecked(),
+        )
+        .await
+        .unwrap()
+        .is_none());
+    // New CR should be found
+    assert!(k8s_client
+        .dynamic_object_managers()
+        .get(
+            &new_dyn_object.types.clone().unwrap(),
+            &new_dyn_object.name_unchecked(),
+        )
+        .await
+        .unwrap()
+        .is_some());
+
+    // clean up
+    delete_crd(k8s.client.clone(), ClientTest::crd())
+        .await
+        .unwrap();
 }

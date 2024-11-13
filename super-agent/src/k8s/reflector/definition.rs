@@ -1,24 +1,18 @@
 use futures::StreamExt;
-use kube::runtime::reflector::Store;
-use std::{
-    fmt::Debug,
-    future::{self, Future},
-    time::Duration,
-};
-
 use kube::{
     core::DynamicObject,
     discovery::ApiResource,
     runtime::{
-        reflector::{self, store::Writer},
+        reflector::{self, store::Writer, Store},
         watcher, WatchStreamExt,
     },
     Api, Client,
 };
+use std::{fmt::Debug, future::Future, time::Duration};
 
 use serde::de::DeserializeOwned;
 use tokio::task::{AbortHandle, JoinHandle};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, trace, warn};
 
 use super::{super::error::K8sError, resources::ResourceWithReflector};
 
@@ -63,6 +57,7 @@ impl ReflectorBuilder {
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
+                false,
             )
             .await
         })
@@ -88,6 +83,7 @@ impl ReflectorBuilder {
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 reflector::store::Writer::default,
+                true,
             )
             .await
         })
@@ -133,10 +129,12 @@ where
         watcher_config: watcher::Config,
         start_timeout: Duration,
         writer_builder_fn: impl Fn() -> Writer<K>,
+        recoverable: bool,
     ) -> Result<Self, K8sError> {
         let writer = writer_builder_fn();
         let reader = writer.as_reader();
-        let writer_close_handle = Self::start_reflector(api, watcher_config, writer).abort_handle();
+        let writer_close_handle =
+            Self::start_reflector(api, watcher_config, writer, recoverable).abort_handle();
 
         Self::wait_until_reader_is_ready(&reader, start_timeout).await?;
         Ok(Reflector {
@@ -178,24 +176,46 @@ where
         self.reader.clone()
     }
 
+    pub fn is_running(&self) -> bool {
+        !self.writer_close_handle.is_finished()
+    }
+
     /// Spawns a tokio task waiting for events and updating the provided writer.
     /// Returns the task [JoinHandle<()>].
-    fn start_reflector(api: Api<K>, wc: watcher::Config, writer: Writer<K>) -> JoinHandle<()> {
+    fn start_reflector(
+        api: Api<K>,
+        wc: watcher::Config,
+        writer: Writer<K>,
+        recoverable: bool,
+    ) -> JoinHandle<()> {
         tokio::spawn(async move {
-            watcher(api, wc)
+            let mut stream = watcher(api, wc)
                 // The watcher recovers automatically from api errors, the backoff could be customized.
                 .default_backoff()
                 // All changes are reflected into the writer.
                 .reflect(writer)
                 // We need to query the events to start the watcher.
                 .touched_objects()
-                .for_each(|o| {
-                    if let Some(e) = o.err() {
+                .boxed();
+
+            loop {
+                match stream.next().await {
+                    Some(Err(watcher::Error::WatchFailed(e))) => {
+                        if !recoverable {
+                            warn!(
+                                "Watched failed on unrecoverable reflector, stopping reflector: {}",
+                                e
+                            );
+                            break;
+                        }
+                        debug!("Watched failed on recoverable reflector: {}", e);
+                    }
+                    Some(Err(e)) => {
                         debug!("Recoverable error watching k8s events: {}", e)
                     }
-                    future::ready(())
-                })
-                .await // The watcher runs indefinitely.
+                    _ => {}
+                }
+            }
         })
     }
 
