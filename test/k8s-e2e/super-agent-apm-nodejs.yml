@@ -1,0 +1,27 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+
+super-agent-deployment:
+  config:
+    opamp:
+      enabled: false
+    superAgent:
+      content:
+        log:
+          level: trace
+    subAgents:
+      operator:
+        type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
+        content:
+          chart_values:
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+          chart_version: 0.16.1
+      python-agent:
+        type: newrelic/com.newrelic.apm_nodejs:0.1.0
+        content:
+          pod_label_selector:
+            matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: [ "nodejsapp" ]

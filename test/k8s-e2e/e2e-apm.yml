@@ -38,3 +38,23 @@ scenarios:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "SELECT * from Metric where usage.agent.language = 'python'"
         - query: "SELECT * from Metric where usage.agent.language = 'python'"
+
+  - description: Deploy SA with APM operator and Node.js agent
+    before:
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm-nodejs.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - sleep 60
+      - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label  app=nodejsapp -f - --local -o yaml | kubectl create -f -
+      # Give time to the app to start
+      - until kubectl exec ${SCENARIO_TAG} -c ${SCENARIO_TAG} -- wget -qO- 127.0.0.1:3000; do sleep 5; done
+      # Repeat the same query a couple times more just in case, to ensure metrics are generated
+      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG} -c ${SCENARIO_TAG} -- wget -qO- 127.0.0.1:3000
+    after:
+      - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
+      - kubectl get all -o wide
+      - cd ../../ && tilt down
+    tests:
+      nrqls:
+        # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
+        - query: "SELECT * from Metric where usage.agent.language = 'nodejs'"
+        - query: "SELECT * from Metric where usage.agent.language = 'nodejs'"
