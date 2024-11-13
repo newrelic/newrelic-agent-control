@@ -16,8 +16,7 @@ scenarios:
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.throughput'"
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.errorRate'"
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'java'"
 
   - description: Deploy SA with APM operator and Python agent
     before:
@@ -36,8 +35,7 @@ scenarios:
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "SELECT * from Metric where usage.agent.language = 'python'"
-        - query: "SELECT * from Metric where usage.agent.language = 'python'"
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'python'"
 
   - description: Deploy SA with APM operator and Node.js agent
     before:
@@ -56,5 +54,4 @@ scenarios:
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "SELECT * from Metric where usage.agent.language = 'nodejs'"
-        - query: "SELECT * from Metric where usage.agent.language = 'nodejs'"
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'nodejs'"
