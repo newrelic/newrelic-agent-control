@@ -42,12 +42,7 @@ pub async fn check_helmrelease_spec_values(
     expected_valus_as_yaml: &str,
 ) -> Result<(), Box<dyn Error>> {
     let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_valus_as_yaml).unwrap();
-    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2")
-        .unwrap()
-        .with_kind("HelmRelease");
-    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk).await?;
-    let api: Api<DynamicObject> =
-        Api::namespaced_with(k8s_client.clone(), namespace, &api_resource);
+    let api = create_k8s_api(k8s_client, namespace).await;
 
     let obj = api.get(name).await?;
     let found_values = &obj.data["spec"]["values"];
@@ -59,4 +54,27 @@ pub async fn check_helmrelease_spec_values(
         .into());
     }
     Ok(())
+}
+
+/// Delete the helm release with "name" and from "namespace"
+pub async fn delete_helm_release(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api = create_k8s_api(k8s_client, namespace).await;
+    api.delete(name, &Default::default()).await?;
+    Ok(())
+}
+
+/// Create the k8s api to be used by other functions
+async fn create_k8s_api(k8s_client: Client, namespace: &str) -> Api<DynamicObject> {
+    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2")
+        .unwrap()
+        .with_kind("HelmRelease");
+    let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk)
+        .await
+        .unwrap();
+
+    Api::namespaced_with(k8s_client.clone(), namespace, &api_resource)
 }

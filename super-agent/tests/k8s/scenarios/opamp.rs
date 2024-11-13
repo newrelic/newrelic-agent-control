@@ -6,6 +6,8 @@ use crate::common::{
     runtime::block_on,
 };
 use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
+
+use crate::k8s::tools::k8s_api::delete_helm_release;
 use crate::k8s::tools::{
     instance_id,
     k8s_api::{check_deployments_exist, check_helmrelease_spec_values},
@@ -24,6 +26,8 @@ use tempfile::tempdir;
 /// - The corresponding k8s resources are created
 /// - Effective configuration is reported
 /// - Healthy status is reported
+/// - HelmRelease is deleted
+/// - HelmRelease is recreated and healthy
 #[test]
 #[ignore = "needs k8s cluster"]
 #[serial]
@@ -55,6 +59,8 @@ licenseKey: test
     "#;
 
     let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id());
+    let sub_agent_instance_id =
+        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
 
     retry(60, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
@@ -76,6 +82,20 @@ licenseKey: test
         )?;
 
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
+    });
+
+    // Delete the helm release to check if super agent recreate it correctly
+    retry(30, Duration::from_secs(5), || {
+        block_on(delete_helm_release(
+            k8s.client.clone(),
+            namespace.as_str(),
+            "hello-world",
+        ))?;
+        Ok(())
+    });
+
+    retry(60, Duration::from_secs(5), || {
+        check_latest_health_status_was_healthy(&server, &sub_agent_instance_id.clone())
     });
 }
 
