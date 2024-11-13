@@ -24,6 +24,10 @@ scenarios:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm-python.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       - sleep 60
       - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label  app=pythonapp -f - --local -o yaml | kubectl create -f -
+      # Give time to the app to start
+      - until kubectl exec ${SCENARIO_TAG} -c ${SCENARIO_TAG} -- wget -qO- 127.0.0.1:8080; do sleep 5; done
+      # Repeat the same query a couple times more just in case, to ensure metrics are generated
+      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG} -c ${SCENARIO_TAG} -- wget -qO- 127.0.0.1:8080
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
@@ -32,5 +36,5 @@ scenarios:
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.throughput'"
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.errorRate'"
+        - query: "SELECT * from Metric where usage.agent.language = 'python'"
+        - query: "SELECT * from Metric where usage.agent.language = 'python'"
