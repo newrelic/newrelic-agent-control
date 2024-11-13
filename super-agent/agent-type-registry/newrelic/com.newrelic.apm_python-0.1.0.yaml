@@ -11,17 +11,17 @@ variables:
     pod_label_selector:
       description: "Pod label selector"
       type: yaml
-      default: { }
+      default: {}
       required: false
     namespace_label_selector:
       description: "Namespace label selector"
       type: yaml
-      default: { }
+      default: {}
       required: false
     env:
       description: "environment variables to pass to Python agent"
       type: yaml
-      default: [ ]
+      default: []
       required: false
 deployment:
   k8s:
