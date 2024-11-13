@@ -5,7 +5,7 @@ custom_test_key: k8s.cluster.name
 scenarios:
   - description: Deploy SA with single k8s otel-collector
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-deployment.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-collector.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/name=nr-k8s-otel-collector --all-containers --prefix=true

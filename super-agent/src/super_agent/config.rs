@@ -341,10 +341,22 @@ pub fn helm_release_type_meta() -> TypeMeta {
 }
 
 #[cfg(feature = "k8s")]
+pub fn instrumentation_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "newrelic.com/v1alpha2".to_string(),
+        kind: "Instrumentation".to_string(),
+    }
+}
+
+#[cfg(feature = "k8s")]
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
-    vec![helm_repository_type_meta(), helm_release_type_meta()]
+    vec![
+        instrumentation_type_meta(),
+        helm_repository_type_meta(),
+        helm_release_type_meta(),
+    ]
 }
 
 impl AgentTypeFQN {

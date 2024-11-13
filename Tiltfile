@@ -19,7 +19,7 @@ arch = os.getenv('ARCH','arm64')
 if build_with == 'cargo':
   local_resource(
       'build-binary',
-      cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
+      cmd="cargo build --package newrelic_super_agent --features=k8s && mkdir -p bin && rm -f bin/newrelic-super-agent-"+arch+" && mv target/debug/newrelic-super-agent bin/newrelic-super-agent-"+arch,
       deps=[
         './super-agent',
       ]
@@ -80,7 +80,6 @@ if license_key != '':
   
 if cluster != '':
   flags_helm.append('--set=global.cluster='+cluster)
-  flags_helm.append('--set=super-agent-deployment.config.subAgents.open-telemetry.content.chart_values.cluster='+cluster)
 
 #### Installs charts
 helm_resource(

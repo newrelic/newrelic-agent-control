@@ -11,7 +11,6 @@ variables:
       description: "New Relic Agents K8s Operator chart version"
       type: string
       required: true
-      default: "0.13.0"
 deployment:
   k8s:
     health:

@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
 use thiserror::Error;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 
@@ -181,7 +181,7 @@ impl NotStartedSupervisorK8s {
     ) -> Result<(), SupervisorError> {
         debug!(%agent_id, "applying k8s objects if changed");
         for res in resources {
-            trace!("K8s object: {:?}", res);
+            debug!("K8s object: {:?}", res);
             k8s_client.apply_dynamic_object_if_changed(res)?;
         }
         debug!(%agent_id, "K8s objects applied");
