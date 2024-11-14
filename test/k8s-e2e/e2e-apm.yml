@@ -6,7 +6,7 @@ scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
-      - sleep 30
+      - sleep 60
       - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-nodejs --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label app=nodejsapp -f - --local -o yaml | kubectl create -f -
