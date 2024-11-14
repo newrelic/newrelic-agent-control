@@ -3,11 +3,19 @@ description: E2E Test
 custom_test_key: appName
 
 scenarios:
-  - description: Deploy SA with APM operator and Java agent
+  - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       - sleep 60
-      - kubectl  run ${SCENARIO_TAG} --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label  app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-nodejs --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label app=nodejsapp -f - --local -o yaml | kubectl create -f -
+      # Give time to the apps to start, query python and nodejs apps to trigger instrumentation
+      - until kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO- 127.0.0.1:8080; do sleep 5; done
+      - until kubectl exec ${SCENARIO_TAG}-nodejs -c ${SCENARIO_TAG}-nodejs -- wget -qO- 127.0.0.1:3000; do sleep 5; done
+      # Repeat the same queries a couple times more just in case, to ensure metrics are generated
+      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO- 127.0.0.1:8080
+      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG}-nodejs -c ${SCENARIO_TAG}-nodejs -- wget -qO- 127.0.0.1:3000
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
@@ -16,5 +24,7 @@ scenarios:
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.throughput'"
-        - query: "SELECT * from Metric where metricName = 'newrelic.goldenmetrics.apm.application.errorRate'"
+        # Due to that, the queries end with a comment. We want to override the automatic `testKey` with our own that includes the language.
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'java' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'python' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE usage.agent.language = 'nodejs' AND appName = '${SCENARIO_TAG}-nodejs' -- comment disabling the appended testKey: "
