@@ -17,6 +17,15 @@ super-agent-deployment:
               licenseKey: ${nr-env:NR_LICENSE_KEY}
               cluster: ${nr-env:NR_CLUSTER_NAME}
           chart_version: 0.16.1
+      # One agent per language
+      java-agent:
+        type: newrelic/com.newrelic.apm_java:0.1.0
+        content:
+          pod_label_selector:
+            matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: ["javaapp"]
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -24,4 +33,12 @@ super-agent-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "pythonapp" ]
+                values: ["pythonapp"]
+      nodejs-agent:
+        type: newrelic/com.newrelic.apm_nodejs:0.1.0
+        content:
+          pod_label_selector:
+            matchExpressions:
+              - key: "app"
+                operator: "In"
+                values: ["nodejsapp"]
