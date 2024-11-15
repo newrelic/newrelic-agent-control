@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        msrv: [ 1.78.0 ]
+        msrv: [ 1.82.0 ]
         # newrelic_super_agent needs either onhost or k8s feature, the rest of packages can be checked also without features
         flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_super_agent'" ]
     name: ${{ matrix.msrv }} / ${{ matrix.flag }} / cargo check
