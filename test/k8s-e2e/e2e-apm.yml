@@ -25,6 +25,10 @@ scenarios:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.
         # Due to that, the queries end with a comment. We want to override the automatic `testKey` with our own that includes the language.
-        - query: "SELECT * from Metric WHERE usage.agent.language = 'java' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE usage.agent.language = 'python' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE usage.agent.language = 'nodejs' AND appName = '${SCENARIO_TAG}-nodejs' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-nodejs' -- comment disabling the appended testKey: "
+
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-nodejs' -- comment disabling the appended testKey: "
