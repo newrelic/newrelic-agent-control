@@ -243,7 +243,7 @@ where
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     HR: HashRepository,
 {
-    type Supervisor = NotStartedSupervisorK8s;
+    type SupervisorStarter = NotStartedSupervisorK8s;
 
     type OpAMPClient = O::Client;
 
@@ -251,7 +251,7 @@ where
         &self,
         effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
         maybe_opamp_client: &Option<Self::OpAMPClient>,
-    ) -> Result<Option<Self::Supervisor>, SubAgentBuilderError> {
+    ) -> Result<Option<Self::SupervisorStarter>, SubAgentBuilderError> {
         build_supervisor_or_default::<HR, O, _, _, _>(
             &self.agent_id,
             &self.hash_repository,

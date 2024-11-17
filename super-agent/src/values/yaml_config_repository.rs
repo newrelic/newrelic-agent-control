@@ -118,6 +118,7 @@ pub mod test {
                 });
         }
 
+        #[cfg(feature = "onhost")]
         pub fn should_store_remote(&mut self, agent_id: &AgentID, yaml_config: &YAMLConfig) {
             self.expect_store_remote()
                 .once()

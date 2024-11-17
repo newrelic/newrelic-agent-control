@@ -1,10 +1,3 @@
-use crossbeam::channel::never;
-use crossbeam::select;
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
-
 use super::health_checker::{HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted};
 use super::supervisor::command_supervisor;
 use super::supervisor::command_supervisor::SupervisorOnHost;
@@ -20,14 +13,21 @@ use crate::sub_agent::effective_agents_assembler::{
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
+use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crossbeam::channel::never;
+use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
+use std::time::SystemTime;
 use tracing::{debug, error};
-
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On Host
 ////////////////////////////////////////////////////////////////////////////////////
@@ -75,7 +75,7 @@ where
     CB: Callbacks,
     A: EffectiveAgentsAssembler,
     B: SupervisorBuilder<
-        Supervisor = SupervisorOnHost<command_supervisor::NotStarted>,
+        SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
         OpAMPClient = C,
     >,
     HS: HashRepository,
@@ -123,7 +123,7 @@ where
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     B: SupervisorBuilder<
-            Supervisor = SupervisorOnHost<command_supervisor::NotStarted>,
+            SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
             OpAMPClient = C,
         > + Send
         + Sync
@@ -155,10 +155,21 @@ where
         &self,
         maybe_not_started_supervisor: Option<SupervisorOnHost<command_supervisor::NotStarted>>,
     ) -> Option<SupervisorOnHost<command_supervisor::Started>> {
-        maybe_not_started_supervisor.map(|s| {
-            debug!("Running supervisor {} for {}", s.id(), self.agent_id);
-            s.run(self.sub_agent_internal_publisher.clone())
-        })
+        maybe_not_started_supervisor
+            .map(|s| {
+                debug!("Running supervisor {} for {}", s.id(), self.agent_id);
+                s.start(self.sub_agent_internal_publisher.clone())
+            })
+            .transpose()
+            .inspect_err(|err| {
+                log_and_report_unhealthy(
+                    &self.sub_agent_internal_publisher,
+                    err,
+                    "starting the onhost resources supervisor failed",
+                    SystemTime::now(),
+                )
+            })
+            .unwrap_or(None)
     }
 
     fn stop_supervisor(
@@ -166,13 +177,25 @@ where
         maybe_started_supervisor: Option<SupervisorOnHost<command_supervisor::Started>>,
     ) {
         if let Some(s) = maybe_started_supervisor {
-            let _ = s.stop().join().inspect_err(|_| {
-                error!(
-                    agent_id = %agent_id,
-                    "Error stopping supervisor thread"
-                );
-            });
-        };
+            let _ = s
+                .stop()
+                .map(|join_handle| {
+                    let _ = join_handle.join().inspect_err(|_| {
+                        error!(
+                            agent_id = %agent_id,
+                            "Error stopping k8s supervisor thread"
+                        );
+                    });
+                })
+                .inspect_err(|err| {
+                    error!(
+
+                            agent_id = %agent_id,
+                            %err,
+                            "Error stopping k8s supervisor"
+                    );
+                });
+        }
     }
 
     fn build_health_checker(
@@ -336,7 +359,7 @@ where
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     B: SupervisorBuilder<
-            Supervisor = SupervisorOnHost<command_supervisor::NotStarted>,
+            SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
             OpAMPClient = C,
         > + Send
         + Sync
@@ -417,7 +440,7 @@ pub(crate) mod test {
         pub SupervisorBuilderOnhost {}
 
         impl SupervisorBuilder for SupervisorBuilderOnhost {
-            type Supervisor = SupervisorOnHost<command_supervisor::NotStarted>;
+            type SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>;
             type OpAMPClient = MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>;
 
             fn build_supervisor(

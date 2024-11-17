@@ -1,15 +1,5 @@
-use crossbeam::channel::never;
-use crossbeam::select;
-use std::marker::PhantomData;
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
-use std::time::SystemTime;
-
-use opamp_client::operation::callbacks::Callbacks;
-use opamp_client::StartedClient;
-use tracing::{debug, error};
-
+use super::supervisor::NotStartedSupervisorK8s;
+use super::supervisor::StartedSupervisorK8s;
 use crate::agent_type::environment::Environment;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
@@ -22,15 +12,21 @@ use crate::sub_agent::effective_agents_assembler::{
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::k8s::NotStartedSupervisorK8s;
-use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
+use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
-
-use super::supervisor::log_and_report_unhealthy;
-use super::supervisor::StartedSupervisorK8s;
-
+use crossbeam::channel::never;
+use crossbeam::select;
+use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::StartedClient;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
+use std::time::SystemTime;
+use tracing::{debug, error};
 ////////////////////////////////////////////////////////////////////////////////////
 // SubAgent On K8s
 ////////////////////////////////////////////////////////////////////////////////////
@@ -77,7 +73,7 @@ where
     C: StartedClient<CB>,
     CB: Callbacks,
     A: EffectiveAgentsAssembler,
-    B: SupervisorBuilder<Supervisor = NotStartedSupervisorK8s, OpAMPClient = C>,
+    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>,
     HS: HashRepository,
     Y: YAMLConfigRepository,
 {
@@ -122,7 +118,7 @@ where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<Supervisor = NotStartedSupervisorK8s, OpAMPClient = C>
+    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>
         + Send
         + Sync
         + 'static,
@@ -158,16 +154,15 @@ where
         &self,
         maybe_not_started_supervisor: Option<NotStartedSupervisorK8s>,
     ) -> Option<StartedSupervisorK8s> {
-        let start_time = SystemTime::now();
         maybe_not_started_supervisor
-            .map(|s| s.start(self.sub_agent_internal_publisher.clone(), start_time))
+            .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
             .transpose()
             .inspect_err(|err| {
                 log_and_report_unhealthy(
                     &self.sub_agent_internal_publisher,
                     err,
                     "starting the k8s resources supervisor failed",
-                    start_time,
+                    SystemTime::now(),
                 )
             })
             .unwrap_or(None)
@@ -290,7 +285,7 @@ where
     C: opamp_client::StartedClient<CB> + Send + Sync + 'static,
     CB: opamp_client::operation::callbacks::Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<Supervisor = NotStartedSupervisorK8s, OpAMPClient = C>
+    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>
         + Send
         + Sync
         + 'static,
@@ -351,7 +346,6 @@ pub mod test {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
-    use crate::sub_agent::k8s::NotStartedSupervisorK8s;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::{helm_release_type_meta, AgentID, AgentTypeFQN};
     use kube::api::DynamicObject;
@@ -373,7 +367,7 @@ pub mod test {
         pub SupervisorBuilderK8s {}
 
         impl SupervisorBuilder for SupervisorBuilderK8s {
-            type Supervisor = NotStartedSupervisorK8s;
+            type SupervisorStarter = NotStartedSupervisorK8s;
             type OpAMPClient = MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>;
 
             fn build_supervisor(

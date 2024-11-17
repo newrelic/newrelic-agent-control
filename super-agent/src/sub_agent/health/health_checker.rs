@@ -6,6 +6,7 @@ use crate::event::SubAgentInternalEvent;
 #[cfg(feature = "k8s")]
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::supervisor::SupervisorError;
 use crate::super_agent::config::AgentID;
 use std::thread;
 use std::time::{SystemTime, SystemTimeError};
@@ -249,6 +250,24 @@ pub(crate) fn publish_health_event(
             "could not publish sub agent event"
         )
     });
+}
+
+/// Logs the provided error and publishes the corresponding unhealthy event.
+pub fn log_and_report_unhealthy(
+    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
+    err: &SupervisorError,
+    msg: &str,
+    start_time: SystemTime,
+) {
+    let last_error = format!("{msg}: {err}");
+
+    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
+        Unhealthy::new(String::default(), last_error).into(),
+        start_time,
+    ));
+
+    error!(%err, msg);
+    publish_health_event(sub_agent_internal_publisher, event);
 }
 
 #[cfg(test)]

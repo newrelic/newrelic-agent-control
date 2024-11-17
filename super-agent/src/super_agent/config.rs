@@ -485,6 +485,7 @@ fleet_id: 123
 agents: {}
 "#;
 
+    #[cfg(feature = "k8s")]
     const EXAMPLE_K8S_EXTRA_CR_CONFIG: &str = r#"
 agents:
   agent-1:
