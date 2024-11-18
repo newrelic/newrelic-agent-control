@@ -1,4 +1,3 @@
 pub mod command_supervisor;
-pub mod command_supervisor_config;
-pub mod error;
+pub mod executable_data;
 pub mod restart_policy;

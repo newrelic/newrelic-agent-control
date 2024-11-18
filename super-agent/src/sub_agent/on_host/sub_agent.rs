@@ -15,8 +15,7 @@ pub(crate) mod test {
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
     use crate::sub_agent::error::SubAgentBuilderError;
-    use crate::sub_agent::on_host::supervisor::command_supervisor;
-    use crate::sub_agent::on_host::supervisor::command_supervisor::SupervisorOnHost;
+    use crate::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
     use crate::sub_agent::supervisor::SupervisorBuilder;
     use crate::sub_agent::SubAgent;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
@@ -38,14 +37,14 @@ pub(crate) mod test {
         pub SupervisorBuilderOnhost {}
 
         impl SupervisorBuilder for SupervisorBuilderOnhost {
-            type SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>;
+            type SupervisorStarter = NotStartedSupervisorOnHost;
             type OpAMPClient = MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>;
 
             fn build_supervisor(
                 &self,
                 effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
                 maybe_opamp_client: &Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>>,
-            ) -> Result<Option<SupervisorOnHost<command_supervisor::NotStarted>>, SubAgentBuilderError>;
+            ) -> Result<Option<NotStartedSupervisorOnHost>, SubAgentBuilderError>;
         }
     }
 

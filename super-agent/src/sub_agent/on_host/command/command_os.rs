@@ -1,12 +1,12 @@
+use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
+use crate::super_agent::{
+    config::AgentID,
+    defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
+};
 use std::{
     ffi::OsStr,
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
-};
-
-use crate::super_agent::{
-    config::AgentID,
-    defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
 };
 
 use super::{
@@ -47,23 +47,15 @@ pub struct CommandOS<S> {
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 impl CommandOS<NotStarted> {
-    pub fn new<I, E, K, S>(
+    pub fn new(
         agent_id: AgentID,
-        binary_path: S,
-        args: I,
-        envs: E,
+        executable_data: &ExecutableData,
         logs_to_file: bool,
         logging_path: PathBuf,
-    ) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        E: IntoIterator<Item = (K, S)>,
-        K: AsRef<OsStr>,
-        S: AsRef<OsStr>,
-    {
-        let mut cmd = Command::new(binary_path);
-        cmd.args(args)
-            .envs(envs)
+    ) -> Self {
+        let mut cmd = Command::new(&executable_data.bin);
+        cmd.args(&executable_data.args)
+            .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 

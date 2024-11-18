@@ -5,6 +5,8 @@ use newrelic_super_agent::sub_agent::on_host::command::command::{
 };
 use newrelic_super_agent::sub_agent::on_host::command::command_os::{CommandOS, NotStarted};
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
+use newrelic_super_agent::sub_agent::on_host::supervisor::executable_data::ExecutableData;
+use newrelic_super_agent::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -26,9 +28,12 @@ fn non_blocking_runner() {
     let agent = NonSupervisor {
         cmd: CommandOS::<NotStarted>::new(
             agent_id,
-            "sleep",
-            ["5"],
-            HashMap::from([("TEST", "TEST")]),
+            &ExecutableData {
+                bin: "sleep".to_string(),
+                args: vec!["5".to_string()],
+                env: HashMap::from([("TEST".to_string(), "TEST".to_string())]),
+                restart_policy: RestartPolicy::default(),
+            },
             false,
             PathBuf::default(),
         ),

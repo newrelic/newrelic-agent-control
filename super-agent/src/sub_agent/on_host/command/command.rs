@@ -1,18 +1,8 @@
 use std::{fmt::Debug, process::ExitStatus};
-
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum CommandError {
-    #[error("process exited with error: `{0}`")]
-    ProcessError(ExitStatus),
-
-    #[error("process not started")]
-    ProcessNotStarted,
-
-    #[error("command not found")]
-    CommandNotFound,
-
     #[error("`{0}` not piped")]
     StreamPipeError(String),
 
@@ -23,6 +13,8 @@ pub enum CommandError {
     #[error("`{0}`")]
     NixError(#[from] nix::Error),
 }
+
+//TODO All these interfaces are implemented just once, should we get rid of them?
 
 /// Trait that specifies the interface for a background task execution
 pub trait NotStartedCommand {
@@ -53,34 +45,4 @@ pub trait CommandTerminator {
     fn shutdown<F>(self, func: F) -> Result<(), CommandError>
     where
         F: FnOnce() -> bool;
-}
-
-#[cfg(test)]
-pub(crate) mod test {
-    use super::*;
-    use mockall::mock;
-    #[cfg(target_family = "windows")]
-    use std::os::windows::process::ExitStatusExt;
-
-    mock! {
-            pub StartedCommandMock {}
-
-            impl StartedCommand for StartedCommandMock {
-                type StartedCommand = MockStartedCommandMock;
-
-                fn wait(self) -> Result<ExitStatus, CommandError>;
-                fn get_pid(&self) -> u32;
-                fn stream(self) -> Result<MockStartedCommandMock, CommandError>;
-        }
-    }
-
-    mock! {
-        pub NotStartedCommandRunnerMock {}
-
-        impl NotStartedCommand for NotStartedCommandRunnerMock {
-            type StartedCommand = MockStartedCommandMock;
-
-            fn start(self) -> Result<MockStartedCommandMock, CommandError>;
-        }
-    }
 }
