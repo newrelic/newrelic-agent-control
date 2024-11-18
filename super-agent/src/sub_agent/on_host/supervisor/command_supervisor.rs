@@ -12,6 +12,9 @@ use crate::sub_agent::on_host::command::command_os::CommandOS;
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
+use crate::sub_agent::on_host::health_checker::{
+    HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted,
+};
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
@@ -35,6 +38,7 @@ pub struct NotStarted {
 pub struct Started {
     handle: JoinHandle<()>,
     ctx: Context<bool>,
+    maybe_stop_health: Option<HealthChecker<HealthCheckerStarted>>,
 }
 
 #[derive(Debug)]
@@ -50,9 +54,15 @@ impl SupervisorStarter for SupervisorOnHost<NotStarted> {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorError> {
         let ctx = self.state.config.ctx.clone();
+        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
+
         let handle = self.start_process_thread(sub_agent_internal_publisher);
         Ok(SupervisorOnHost {
-            state: Started { handle, ctx },
+            state: Started {
+                handle,
+                ctx,
+                maybe_stop_health,
+            },
         })
     }
 }
@@ -61,6 +71,10 @@ impl SupervisorStopper for SupervisorOnHost<Started> {
     fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
         // TODO: refact SupervisorOnHost so it contains agent_id to join thread inside here
         // and print logs accordingly.
+        // Stop the current supervisor and health checker
+        if let Some(h) = self.state.maybe_stop_health {
+            h.stop();
+        }
         self.state.ctx.cancel_all(true).unwrap();
         Ok(self.state.handle)
     }
@@ -79,6 +93,33 @@ impl SupervisorOnHost<NotStarted> {
 
     pub fn bin(&self) -> String {
         self.state.config.bin.clone()
+    }
+
+    fn start_health_check(
+        &self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<Option<HealthChecker<HealthCheckerStarted>>, SupervisorError> {
+        let maybe_helth_checker: Option<HealthChecker<HealthCheckerNotStarted>> = self
+            .state
+            .config
+            .health_config
+            .as_ref()
+            .and_then(|health_config| {
+                HealthChecker::try_new(
+                    self.id().clone(),
+                    sub_agent_internal_publisher,
+                    health_config.clone(),
+                )
+                .inspect_err(|err| {
+                    error!(
+                        agent_id = self.id().to_string(),
+                        %err,
+                        "could not launch health checker, using default",
+                    )
+                })
+                .ok()
+            });
+        Ok(maybe_helth_checker.map(|h| h.start()))
     }
 
     fn start_process_thread(
@@ -353,6 +394,7 @@ pub mod tests {
                     self.executable,
                     Context::new(),
                     RestartPolicy::new(BackoffStrategy::Fixed(backoff), any_exit_code),
+                    None,
                 );
                 let supervisor = SupervisorOnHost::new(config);
 
@@ -450,6 +492,7 @@ pub mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            None,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -478,6 +521,7 @@ pub mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            None,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -512,6 +556,7 @@ pub mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            None,
         );
         let agent = SupervisorOnHost::new(config);
 
@@ -553,6 +598,7 @@ pub mod tests {
             exec,
             Context::new(),
             RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
+            None,
         );
         let agent = SupervisorOnHost::new(config);
 

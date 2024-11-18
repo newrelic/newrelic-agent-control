@@ -1,3 +1,4 @@
+use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::context::Context;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::super_agent::config::AgentID;
@@ -14,6 +15,7 @@ pub struct SupervisorConfigOnHost {
     pub(super) restart_policy: RestartPolicy,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
+    pub(super) health_config: Option<OnHostHealthConfig>,
 }
 
 impl SupervisorConfigOnHost {
@@ -22,6 +24,7 @@ impl SupervisorConfigOnHost {
         exec: ExecutableData,
         ctx: Context<bool>,
         restart_policy: RestartPolicy,
+        health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         let ExecutableData { bin, args, env } = exec;
         SupervisorConfigOnHost {
@@ -33,6 +36,7 @@ impl SupervisorConfigOnHost {
             restart_policy,
             log_to_file: false,
             logging_path: PathBuf::default(),
+            health_config,
         }
     }
 

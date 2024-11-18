@@ -214,7 +214,7 @@ pub(crate) fn spawn_health_checker<H>(
     agent_id: AgentID,
     health_checker: H,
     cancel_signal: EventConsumer<CancellationMessage>,
-    health_publisher: EventPublisher<SubAgentInternalEvent>,
+    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
 ) where
@@ -232,24 +232,26 @@ pub(crate) fn spawn_health_checker<H>(
         });
 
         publish_health_event(
-            &health_publisher,
+            &sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentHealthInfo(health),
         );
     });
 }
 
 pub(crate) fn publish_health_event(
-    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
     event: SubAgentInternalEvent,
 ) {
     let event_type_str = format!("{:?}", event);
-    _ = internal_event_publisher.publish(event).inspect_err(|e| {
-        error!(
-            err = e.to_string(),
-            event_type = event_type_str,
-            "could not publish sub agent event"
-        )
-    });
+    _ = sub_agent_internal_publisher
+        .publish(event)
+        .inspect_err(|e| {
+            error!(
+                err = e.to_string(),
+                event_type = event_type_str,
+                "could not publish sub agent event"
+            )
+        });
 }
 
 /// Logs the provided error and publishes the corresponding unhealthy event.

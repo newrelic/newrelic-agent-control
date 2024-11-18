@@ -3,7 +3,7 @@ use super::supervisor::{
     command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
 };
 use crate::agent_type::environment::Environment;
-use crate::agent_type::runtime_config::Executable;
+use crate::agent_type::runtime_config::{Executable, OnHost};
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
@@ -207,10 +207,10 @@ where
         let agent_id = effective_agent.get_agent_id();
         let on_host = effective_agent.get_onhost_config()?.clone();
 
-        let enable_file_logging = on_host.enable_file_logging.get();
-        let supervisor = on_host
-            .executable
-            .map(|e| self.create_executable_supervisor(agent_id.clone(), enable_file_logging, e));
+        let enable_file_logging = on_host.clone().enable_file_logging.get();
+        let supervisor = on_host.clone().executable.map(|e| {
+            self.create_executable_supervisor(agent_id.clone(), enable_file_logging, e, on_host)
+        });
 
         Ok(supervisor)
     }
@@ -220,6 +220,7 @@ where
         agent_id: AgentID,
         enable_file_logging: bool,
         executable: Executable,
+        on_host_config: OnHost,
     ) -> SupervisorOnHost<command_supervisor::NotStarted> {
         let restart_policy: RestartPolicy = executable.restart_policy.into();
         let env = executable.env.get();
@@ -228,11 +229,16 @@ where
             .with_args(executable.args.get().into_vector())
             .with_env(env);
 
-        let config =
-            SupervisorConfigOnHost::new(agent_id, exec_data, Context::new(), restart_policy)
-                .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+        let supervisor_config = SupervisorConfigOnHost::new(
+            agent_id,
+            exec_data,
+            Context::new(),
+            restart_policy,
+            on_host_config.health,
+        )
+        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 
-        SupervisorOnHost::new(config)
+        SupervisorOnHost::new(supervisor_config)
     }
 }
 
