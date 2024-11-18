@@ -1,16 +1,15 @@
-use std::{
-    ffi::OsStr,
-    path::PathBuf,
-    process::{Child, Command, ExitStatus, Stdio},
-};
-
+use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
 use crate::super_agent::{
     config::AgentID,
     defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
 };
+use std::{
+    path::PathBuf,
+    process::{Child, Command, ExitStatus, Stdio},
+};
 
 use super::{
-    command::{CommandError, NotStartedCommand, StartedCommand, SyncCommandRunner},
+    command::CommandError,
     logging::{
         self,
         file_logger::{FileAppender, FileLogger, FileSystemLoggers},
@@ -21,83 +20,54 @@ use super::{
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
 ////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted {
+pub struct CommandOSNotStarted {
     cmd: Command,
+    agent_id: AgentID,
     logs_to_file: bool,
     logging_path: PathBuf,
 }
-pub struct Started {
+pub struct CommandOSStarted {
+    agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
-}
-
-pub struct Sync {
-    cmd: Command,
-}
-
-////////////////////////////////////////////////////////////////////////////////////
-// Command OS
-////////////////////////////////////////////////////////////////////////////////////
-pub struct CommandOS<S> {
-    agent_id: AgentID,
-    state: S,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // Not Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
-impl CommandOS<NotStarted> {
-    pub fn new<I, E, K, S>(
+impl CommandOSNotStarted {
+    pub fn new(
         agent_id: AgentID,
-        binary_path: S,
-        args: I,
-        envs: E,
+        executable_data: &ExecutableData,
         logs_to_file: bool,
         logging_path: PathBuf,
-    ) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        E: IntoIterator<Item = (K, S)>,
-        K: AsRef<OsStr>,
-        S: AsRef<OsStr>,
-    {
-        let mut cmd = Command::new(binary_path);
-        cmd.args(args)
-            .envs(envs)
+    ) -> Self {
+        let mut cmd = Command::new(&executable_data.bin);
+        cmd.args(&executable_data.args)
+            .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
         Self {
             agent_id,
-            state: NotStarted {
-                cmd,
-                logs_to_file,
-                logging_path,
-            },
+            cmd,
+            logs_to_file,
+            logging_path,
         }
     }
-}
 
-impl NotStartedCommand for CommandOS<NotStarted> {
-    type StartedCommand = CommandOS<Started>;
-    fn start(mut self) -> Result<CommandOS<Started>, CommandError> {
+    pub fn start(mut self) -> Result<CommandOSStarted, CommandError> {
         let agent_id = self.agent_id;
-        let loggers = self.state.logs_to_file.then(|| {
+        let loggers = self.logs_to_file.then(|| {
             FileSystemLoggers::new(
-                file_logger(
-                    &agent_id,
-                    self.state.logging_path.clone(),
-                    STDOUT_LOG_PREFIX,
-                ),
-                file_logger(&agent_id, self.state.logging_path, STDERR_LOG_PREFIX),
+                file_logger(&agent_id, self.logging_path.clone(), STDOUT_LOG_PREFIX),
+                file_logger(&agent_id, self.logging_path, STDERR_LOG_PREFIX),
             )
         });
-        Ok(CommandOS {
+        Ok(CommandOSStarted {
             agent_id,
-            state: Started {
-                process: self.state.cmd.spawn()?,
-                loggers,
-            },
+            process: self.cmd.spawn()?,
+            loggers,
         })
     }
 }
@@ -106,27 +76,23 @@ impl NotStartedCommand for CommandOS<NotStarted> {
 // Started Command OS
 ////////////////////////////////////////////////////////////////////////////////////
 
-impl StartedCommand for CommandOS<Started> {
-    type StartedCommand = CommandOS<Started>;
-
-    fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.state.process.wait().map_err(CommandError::from)
+impl CommandOSStarted {
+    pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
+        self.process.wait().map_err(CommandError::from)
     }
 
-    fn get_pid(&self) -> u32 {
-        self.state.process.id()
+    pub fn get_pid(&self) -> u32 {
+        self.process.id()
     }
 
-    fn stream(mut self) -> Result<Self, CommandError> {
+    pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
         let stdout = self
-            .state
             .process
             .stdout
             .take()
             .ok_or(CommandError::StreamPipeError("stdout".to_string()))?;
 
         let stderr = self
-            .state
             .process
             .stderr
             .take()
@@ -135,7 +101,7 @@ impl StartedCommand for CommandOS<Started> {
         let mut stdout_loggers = vec![Logger::Stdout(self.agent_id.clone())];
         let mut stderr_loggers = vec![Logger::Stderr(self.agent_id.clone())];
 
-        if let Some(l) = self.state.loggers.take() {
+        if let Some(l) = self.loggers.take() {
             let (out, err) = l.into_loggers();
             stdout_loggers.push(Logger::File(out, self.agent_id.clone()));
             stderr_loggers.push(Logger::File(err, self.agent_id.clone()));
@@ -154,34 +120,4 @@ impl StartedCommand for CommandOS<Started> {
 /// Creates a new file logger for this agent id and file prefix
 fn file_logger(agent_id: &AgentID, path: PathBuf, prefix: &str) -> FileLogger {
     FileAppender::new(agent_id, path, prefix).into()
-}
-
-////////////////////////////////////////////////////////////////////////////////////
-// Sync/Blocking Command OS
-////////////////////////////////////////////////////////////////////////////////////
-impl SyncCommandRunner for CommandOS<Sync> {
-    fn run(mut self) -> Result<ExitStatus, CommandError> {
-        Ok(self.state.cmd.spawn()?.wait()?)
-    }
-}
-
-impl CommandOS<Sync> {
-    pub fn new<I, E, K, S>(agent_id: AgentID, binary_path: S, args: I, envs: E) -> Self
-    where
-        I: IntoIterator<Item = S>,
-        E: IntoIterator<Item = (K, S)>,
-        K: AsRef<OsStr>,
-        S: AsRef<OsStr>,
-    {
-        let mut cmd = Command::new(binary_path);
-        cmd.args(args)
-            .envs(envs)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-
-        Self {
-            agent_id,
-            state: Sync { cmd },
-        }
-    }
 }

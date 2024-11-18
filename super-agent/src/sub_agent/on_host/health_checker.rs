@@ -1,5 +1,3 @@
-use tracing::error;
-
 use crate::agent_type::health_config::{HealthCheckInterval, OnHostHealthConfig};
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
@@ -7,21 +5,20 @@ use crate::sub_agent::health::health_checker::{spawn_health_checker, HealthCheck
 use crate::sub_agent::health::on_host::health_checker::HealthCheckerType;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::super_agent::config::AgentID;
+use tracing::error;
 
-pub struct HealthChecker<S> {
-    agent_id: AgentID,
-    state: S,
-}
 pub struct HealthCheckerNotStarted {
+    agent_id: AgentID,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     health_checker: HealthCheckerType,
     start_time: StartTime,
     interval: HealthCheckInterval,
 }
 pub struct HealthCheckerStarted {
+    agent_id: AgentID,
     cancel_publisher: EventPublisher<()>,
 }
-impl HealthChecker<HealthCheckerNotStarted> {
+impl HealthCheckerNotStarted {
     pub fn try_new(
         agent_id: AgentID,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -31,40 +28,36 @@ impl HealthChecker<HealthCheckerNotStarted> {
         let interval = health_config.interval;
         let health_checker = HealthCheckerType::try_new(health_config, start_time)?;
 
-        Ok(HealthChecker {
+        Ok(HealthCheckerNotStarted {
             agent_id,
-            state: HealthCheckerNotStarted {
-                sub_agent_internal_publisher,
-                health_checker,
-                start_time,
-                interval,
-            },
+            sub_agent_internal_publisher,
+            health_checker,
+            start_time,
+            interval,
         })
     }
-    pub fn start(self) -> HealthChecker<HealthCheckerStarted> {
+    pub fn start(self) -> HealthCheckerStarted {
         let (health_check_cancel_publisher, health_check_cancel_consumer) = pub_sub();
 
         spawn_health_checker(
             self.agent_id.clone(),
-            self.state.health_checker,
+            self.health_checker,
             health_check_cancel_consumer,
-            self.state.sub_agent_internal_publisher,
-            self.state.interval,
-            self.state.start_time,
+            self.sub_agent_internal_publisher,
+            self.interval,
+            self.start_time,
         );
 
-        HealthChecker {
+        HealthCheckerStarted {
             agent_id: self.agent_id,
-            state: HealthCheckerStarted {
-                cancel_publisher: health_check_cancel_publisher,
-            },
+            cancel_publisher: health_check_cancel_publisher,
         }
     }
 }
 
-impl HealthChecker<HealthCheckerStarted> {
+impl HealthCheckerStarted {
     pub fn stop(self) {
-        let _ = self.state.cancel_publisher.publish(()).inspect_err(|err| {
+        let _ = self.cancel_publisher.publish(()).inspect_err(|err| {
             error!(
                 agent_id = %self.agent_id,
                 %err ,

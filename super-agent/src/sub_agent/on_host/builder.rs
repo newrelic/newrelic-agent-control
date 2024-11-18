@@ -12,7 +12,7 @@ use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
-use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
+use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::sub_agent::{build_supervisor_or_default, SubAgent};

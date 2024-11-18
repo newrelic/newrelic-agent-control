@@ -2,7 +2,7 @@
 use nix::{sys::signal, unistd::Pid};
 use std::time::Duration;
 
-use super::command::{CommandError, CommandTerminator};
+use super::command::CommandError;
 use crate::context::Context;
 use tracing::error;
 
@@ -20,13 +20,11 @@ impl ProcessTerminator {
     pub fn new(pid: u32) -> Self {
         Self { pid }
     }
-}
 
-impl CommandTerminator for ProcessTerminator {
     #[cfg(target_family = "unix")]
     /// shutdown will attempt to kill a process with a SIGTERM if it succeeds the function F is
     /// executed to wait for the process to exit on time or the process is killed with a SIGKILL
-    fn shutdown<F>(self, func: F) -> Result<(), CommandError>
+    pub fn shutdown<F>(self, func: F) -> Result<(), CommandError>
     where
         F: FnOnce() -> bool,
     {
