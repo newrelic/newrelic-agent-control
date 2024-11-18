@@ -420,11 +420,11 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
         },
     );
 
-    let dinamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
+    let dynamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
 
     k8s_client
         .dynamic_object_managers()
-        .apply(&dinamic_object)
+        .apply(&dynamic_object)
         .await
         .unwrap();
 
@@ -439,8 +439,8 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
         k8s_client
             .dynamic_object_managers()
             .get(
-                &dinamic_object.types.clone().unwrap(),
-                &dinamic_object.name_unchecked(),
+                &dynamic_object.types.clone().unwrap(),
+                &dynamic_object.name_unchecked(),
             )
             .await,
         Err(MissingAPIResource(_)),
@@ -450,7 +450,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     assert_matches!(
         k8s_client
             .dynamic_object_managers()
-            .apply(&dinamic_object)
+            .apply(&dynamic_object)
             .await,
         Err(MissingAPIResource(_)),
         "CRD was removed, client should not be able to create a new object"
@@ -485,8 +485,8 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     assert!(k8s_client
         .dynamic_object_managers()
         .get(
-            &dinamic_object.types.clone().unwrap(),
-            &dinamic_object.name_unchecked(),
+            &dynamic_object.types.clone().unwrap(),
+            &dynamic_object.name_unchecked(),
         )
         .await
         .unwrap()

@@ -57,7 +57,7 @@ impl ReflectorBuilder {
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
-                false,
+                false, // To stop the reflector when the watch fails. For example due to a removed resource.
             )
             .await
         })
@@ -129,12 +129,13 @@ where
         watcher_config: watcher::Config,
         start_timeout: Duration,
         writer_builder_fn: impl Fn() -> Writer<K>,
-        recoverable: bool,
+        watchfailed_errors_recoverable: bool,
     ) -> Result<Self, K8sError> {
         let writer = writer_builder_fn();
         let reader = writer.as_reader();
         let writer_close_handle =
-            Self::start_reflector(api, watcher_config, writer, recoverable).abort_handle();
+            Self::start_reflector(api, watcher_config, writer, watchfailed_errors_recoverable)
+                .abort_handle();
 
         Self::wait_until_reader_is_ready(&reader, start_timeout).await?;
         Ok(Reflector {
@@ -186,7 +187,7 @@ where
         api: Api<K>,
         wc: watcher::Config,
         writer: Writer<K>,
-        recoverable: bool,
+        watchfailed_errors_recoverable: bool,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut stream = watcher(api, wc)
@@ -200,8 +201,10 @@ where
 
             loop {
                 match stream.next().await {
+                    // On some cases like after removing the CRD watched by the reflector, the watcher will fail.
+                    // In those particular cases, we should stop the reflector, to avoid serving outdated stored data.
                     Some(Err(watcher::Error::WatchFailed(e))) => {
-                        if !recoverable {
+                        if !watchfailed_errors_recoverable {
                             warn!(
                                 "Watched failed on unrecoverable reflector, stopping reflector: {}",
                                 e
