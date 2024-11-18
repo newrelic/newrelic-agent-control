@@ -1,9 +1,6 @@
 use super::supervisor::command_supervisor_config::ExecutableData;
-use super::{
-    sub_agent::SubAgentOnHost,
-    supervisor::{
-        command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
-    },
+use super::supervisor::{
+    command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
 };
 use crate::agent_type::runtime_config::Executable;
 use crate::event::channel::{pub_sub, EventPublisher};
@@ -12,7 +9,6 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
@@ -21,6 +17,7 @@ use crate::sub_agent::on_host::supervisor::command_supervisor;
 use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::sub_agent::{build_supervisor_or_default, SubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{
     sub_agent_version, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -99,14 +96,8 @@ where
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {
-    type NotStartedSubAgent = SubAgentOnHost<
-        A,
-        O::Client,
-        SubAgentCallbacks<G>,
-        SupervisortBuilderOnHost<O, HR, G>,
-        HR,
-        Y,
-    >;
+    type NotStartedSubAgent =
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, HR, G>, HR, Y>;
 
     fn build(
         &self,
@@ -148,7 +139,7 @@ where
             self.logging_path.clone(),
         );
 
-        Ok(SubAgentOnHost::new(
+        Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
             self.effective_agent_assembler.clone(),
