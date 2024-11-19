@@ -43,9 +43,10 @@ docker_build(
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = 'helm-repo' # local|branch|helm-repo
-feature_branch = ''
-local_chart_repo = ''
+chart_source = os.getenv('CHART_SOURCE', 'branch') # local|branch|helm-repo
+feature_branch = 'gsanchez/feat/normalize-nrdot-agent-type'
+# relative path to the NR Helm Charts repo on your local machine
+local_chart_repo = os.getenv('LOCAL_CHARTS_PATH','')
 
 #### Set-up charts
 load('ext://helm_resource', 'helm_repo','helm_resource')
@@ -58,7 +59,7 @@ extra_resource_deps=[]
 if chart_source == 'local':
   chart = local_chart_repo
   update_dependencies = True
-  deps=[chart+'super-agent-deployment/templates']
+  deps=[chart+'super-agent/charts/super-agent-deployment/templates']
 elif chart_source == 'branch':
   git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=False)
   chart = 'local/helm-charts/charts/'

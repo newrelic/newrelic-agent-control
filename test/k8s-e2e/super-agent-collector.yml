@@ -10,11 +10,11 @@ super-agent-deployment:
       open-telemetry:
         type: newrelic/io.opentelemetry.collector:0.2.0
         content:
+          # Testing the latest released version of the chart
+          chart_version: "*"
           chart_values:
-            global:
-              licenseKey: ${nr-env:NR_LICENSE_KEY}
-              cluster: ${nr-env:NR_CLUSTER_NAME}
-            verboseLog: true
+            nr-k8s-otel-collector:  
+              verboseLog: true
 
     opamp:
       enabled: false

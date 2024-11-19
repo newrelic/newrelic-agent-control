@@ -325,14 +325,6 @@ impl Default for K8sConfig {
 }
 
 #[cfg(feature = "k8s")]
-pub fn helm_repository_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-        kind: "HelmRepository".to_string(),
-    }
-}
-
-#[cfg(feature = "k8s")]
 pub fn helm_release_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
@@ -341,30 +333,27 @@ pub fn helm_release_type_meta() -> TypeMeta {
 }
 
 #[cfg(feature = "k8s")]
-pub fn instrumentation_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "newrelic.com/v1alpha2".to_string(),
-        kind: "Instrumentation".to_string(),
-    }
-}
-
-#[cfg(feature = "k8s")]
-pub fn secret_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "v1".to_string(),
-        kind: "Secret".to_string(),
-    }
-}
-
-#[cfg(feature = "k8s")]
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
+    // A dynamic object reflector will be created for each of these types, since the GC lists them.
     vec![
-        instrumentation_type_meta(),
-        helm_repository_type_meta(),
+        // Agent Operator CRD
+        TypeMeta {
+            api_version: "newrelic.com/v1alpha2".to_string(),
+            kind: "Instrumentation".to_string(),
+        },
+        // This allows Secrets created as dynamic objects to be cleaned up by the GC
+        // This should not be needed anymore whenever the GC detection logic doesn't rely on this list.
+        TypeMeta {
+            api_version: "v1".to_string(),
+            kind: "Secret".to_string(),
+        },
+        TypeMeta {
+            api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+            kind: "HelmRepository".to_string(),
+        },
         helm_release_type_meta(),
-        secret_type_meta(),
     ]
 }
 

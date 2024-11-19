@@ -30,14 +30,20 @@ variables:
         default: 13133
   k8s:
     chart_values:
-      description: "Newrelic otel collector chart values"
-      type: yaml
-      required: true
+      nr-k8s-otel-collector:
+        description: "Newrelic otel collector chart values"
+        type: yaml
+        required: false
+        default: {}
+      global:
+        description: "Global values for the chart"
+        type: yaml
+        required: false
+        default: {}
     chart_version:
       description: "Newrelic otel collector chart version"
       type: string
       required: true
-      default: "0.7.2"
 deployment:
   on_host:
     health:
@@ -76,6 +82,26 @@ deployment:
           interval: 30m
           provider: generic
           url: https://helm-charts.newrelic.com
+      default-values:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: default-values-${nr-sub:agent_id}
+        stringData:
+          # These env variables are attached to the AC pod on the Helm Chart.
+          values.yaml: |
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+      values:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: values-${nr-sub:agent_id}
+        stringData:
+          # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
+          values.yaml: |
+            ${nr-var:chart_values.nr-k8s-otel-collector}
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -110,5 +136,12 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
+          valuesFrom:
+          - kind: Secret
+            name: default-values-${nr-sub:agent_id}
+            valuesKey: values.yaml
+          - kind: Secret
+            name: values-${nr-sub:agent_id}
+            valuesKey: values.yaml
           values:
-            ${nr-var:chart_values}
+            global: ${nr-var:chart_values.global}

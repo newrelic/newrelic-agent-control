@@ -10,9 +10,7 @@ use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::k8s::annotations::Annotations;
 use newrelic_super_agent::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
-use newrelic_super_agent::super_agent::config::{
-    default_group_version_kinds, secret_type_meta, AgentTypeFQN,
-};
+use newrelic_super_agent::super_agent::config::{default_group_version_kinds, AgentTypeFQN};
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -164,7 +162,13 @@ agents:
     let mut gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         k8s_client,
-        vec![foo_type_meta(), secret_type_meta()],
+        vec![
+            foo_type_meta(),
+            TypeMeta {
+                api_version: "v1".to_string(),
+                kind: "Secret".to_string(),
+            },
+        ],
     );
 
     // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
