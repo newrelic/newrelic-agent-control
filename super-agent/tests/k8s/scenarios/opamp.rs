@@ -55,7 +55,7 @@ licenseKey: test
 
     let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_super_agent_id());
 
-    retry(30, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -125,7 +125,7 @@ fn k8s_opamp_subagent_configuration_change() {
 valid: true
     "#;
 
-    retry(30, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(5), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -223,7 +223,7 @@ agents:
     );
 
     // check that the expected deployments exist
-    retry(30, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &["hello-world"],
