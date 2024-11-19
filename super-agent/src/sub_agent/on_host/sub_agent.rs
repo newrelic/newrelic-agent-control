@@ -1,203 +1,34 @@
 use super::health_checker::{HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted};
-use super::supervisor::command_supervisor;
-use super::supervisor::command_supervisor::SupervisorOnHost;
-use crate::agent_type::environment::Environment;
-use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::event::channel::EventConsumer;
+use crate::event::{OpAMPEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
-use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
-use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter};
+use crate::sub_agent::{stop_supervisor, SubAgent};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
 use tracing::{debug, error};
-////////////////////////////////////////////////////////////////////////////////////
-// SubAgent On Host
-////////////////////////////////////////////////////////////////////////////////////
 
-/// SubAgentOnHostStopper is implementing the StartedSubAgent trait.
-///
-/// It stores the runtime JoinHandle and a SubAgentInternalEvent publisher.
-/// It's stored in the super-agent's NotStartedSubAgents collection to be able to call
-/// the exposed method Stop that will publish a StopRequested event to the runtime
-/// and wait on the JoinHandle for the runtime to finish.
-pub struct SubAgentOnHostStopper {
-    agent_id: AgentID,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    runtime: JoinHandle<Result<(), SubAgentError>>,
-}
-
-/// SubAgentOnHost is implementing the NotStartedSubAgent trait so only the method run
-/// can be called from the SuperAgent to start the runtime and receive a StartedSubAgent
-/// that can be stopped
-///
-/// All its methods are internal and only called from the runtime method that spawns
-/// a thread listening to events and acting on them.
-pub struct SubAgentOnHost<A, C, CB, B, HS, Y> {
-    pub(super) agent_id: AgentID,
-    pub(super) agent_cfg: SubAgentConfig,
-    effective_agent_assembler: Arc<A>,
-    pub(super) maybe_opamp_client: Option<C>,
-    supervisor_builder: B,
-    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-    pub(super) sub_agent_remote_config_hash_repository: Arc<HS>,
-    pub(super) remote_values_repo: Arc<Y>,
-    pub(super) config_validator: Arc<ConfigValidator>,
-
-    // This is needed to ensure the generic type parameter CB is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _opamp_callbacks: PhantomData<CB>,
-}
-
-impl<A, C, CB, B, HS, Y> SubAgentOnHost<A, C, CB, B, HS, Y>
-where
-    C: StartedClient<CB>,
-    CB: Callbacks,
-    A: EffectiveAgentsAssembler,
-    B: SupervisorBuilder<
-        SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
-        OpAMPClient = C,
-    >,
-    HS: HashRepository,
-    Y: YAMLConfigRepository,
-{
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
-        effective_agent_assembler: Arc<A>,
-        maybe_opamp_client: Option<C>,
-        supervisor_builder: B,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
-        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-        internal_pub_sub: (
-            EventPublisher<SubAgentInternalEvent>,
-            EventConsumer<SubAgentInternalEvent>,
-        ),
-        sub_agent_remote_config_hash_repository: Arc<HS>,
-        remote_values_repo: Arc<Y>,
-        config_validator: Arc<ConfigValidator>,
-    ) -> Self {
-        Self {
-            agent_id,
-            agent_cfg,
-            effective_agent_assembler,
-            maybe_opamp_client,
-            supervisor_builder,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer,
-            sub_agent_internal_publisher: internal_pub_sub.0,
-            sub_agent_internal_consumer: internal_pub_sub.1,
-            sub_agent_remote_config_hash_repository,
-            remote_values_repo,
-            config_validator,
-
-            _opamp_callbacks: PhantomData,
-        }
-    }
-}
-
-impl<A, C, CB, B, HS, Y> SubAgentOnHost<A, C, CB, B, HS, Y>
+impl<C, CB, A, B, HS, Y> SubAgent<C, CB, A, B, HS, Y>
 where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<
-            SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
-            OpAMPClient = C,
-        > + Send
-        + Sync
-        + 'static,
+    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {
-    fn assemble_agent(&self) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        self.effective_agent_assembler.assemble_agent(
-            &self.agent_id,
-            &self.agent_cfg,
-            &Environment::OnHost,
-        )
-    }
-
-    fn build_supervisor(
-        &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-    ) -> Option<SupervisorOnHost<command_supervisor::NotStarted>> {
-        self.supervisor_builder
-            .build_supervisor(effective_agent_result, &self.maybe_opamp_client)
-            .inspect_err(
-                |err| error!(agent_id=%self.agent_id, %err, "Error building the onhost supervisor"),
-            )
-            .unwrap_or_default()
-    }
-
-    fn start_supervisor(
-        &self,
-        maybe_not_started_supervisor: Option<SupervisorOnHost<command_supervisor::NotStarted>>,
-    ) -> Option<SupervisorOnHost<command_supervisor::Started>> {
-        maybe_not_started_supervisor
-            .map(|s| {
-                debug!("Running supervisor {} for {}", s.id(), self.agent_id);
-                s.start(self.sub_agent_internal_publisher.clone())
-            })
-            .transpose()
-            .inspect_err(|err| {
-                log_and_report_unhealthy(
-                    &self.sub_agent_internal_publisher,
-                    err,
-                    "starting the onhost resources supervisor failed",
-                    SystemTime::now(),
-                )
-            })
-            .unwrap_or(None)
-    }
-
-    fn stop_supervisor(
-        agent_id: &AgentID,
-        maybe_started_supervisor: Option<SupervisorOnHost<command_supervisor::Started>>,
-    ) {
-        if let Some(s) = maybe_started_supervisor {
-            let _ = s
-                .stop()
-                .map(|join_handle| {
-                    let _ = join_handle.join().inspect_err(|_| {
-                        error!(
-                            agent_id = %agent_id,
-                            "Error stopping k8s supervisor thread"
-                        );
-                    });
-                })
-                .inspect_err(|err| {
-                    error!(
-
-                            agent_id = %agent_id,
-                            %err,
-                            "Error stopping k8s supervisor"
-                    );
-                });
-        }
-    }
-
     fn build_health_checker(
         &self,
         effective_agent_result: &Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
@@ -232,23 +63,10 @@ where
                 .ok()
             })
     }
-
-    fn start_health_checker(
-        maybe_health_checker: Option<HealthChecker<HealthCheckerNotStarted>>,
-    ) -> Option<HealthChecker<HealthCheckerStarted>> {
-        maybe_health_checker.map(|h| h.start())
-    }
-
-    fn stop_health_checker(maybe_health_checker: Option<HealthChecker<HealthCheckerStarted>>) {
-        if let Some(health_checker) = maybe_health_checker {
-            health_checker.stop();
-        }
-    }
-
     fn build_health_checker_and_supervisor_from_config(
         &self,
     ) -> (
-        Option<SupervisorOnHost<command_supervisor::Started>>,
+        Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper>,
         Option<HealthChecker<HealthCheckerStarted>>,
     ) {
         // Build new supervisor and health checker from persisted values
@@ -259,11 +77,11 @@ where
         // Start the new supervisor and health checker if any
         (
             self.start_supervisor(maybe_not_started_supervisor),
-            Self::start_health_checker(maybe_not_started_health_checker),
+            maybe_not_started_health_checker.map(|h| h.start()),
         )
     }
 
-    fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
+    pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
             let (mut supervisor, mut health_checker) =
                 self.build_health_checker_and_supervisor_from_config();
@@ -313,8 +131,10 @@ where
                                 }
 
                                 // Stop the current supervisor and health checker
-                                Self::stop_health_checker(health_checker);
-                                Self::stop_supervisor(&self.agent_id, supervisor);
+                                if let Some(h) = health_checker {
+                                    h.stop();
+                                }
+                                stop_supervisor(&self.agent_id, supervisor);
 
                                 // Build and start the supervisor and health checker from the new persisted config
                                 (supervisor, health_checker) = self.build_health_checker_and_supervisor_from_config();
@@ -329,8 +149,10 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                Self::stop_health_checker(health_checker);
-                                Self::stop_supervisor(&self.agent_id, supervisor);
+                                if let Some(h) = health_checker {
+                                    h.stop();
+                                }
+                                stop_supervisor(&self.agent_id, supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
@@ -353,63 +175,10 @@ where
     }
 }
 
-impl<A, C, CB, B, HS, Y> NotStartedSubAgent for SubAgentOnHost<A, C, CB, B, HS, Y>
-where
-    C: StartedClient<CB> + Send + Sync + 'static,
-    CB: Callbacks + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<
-            SupervisorStarter = SupervisorOnHost<command_supervisor::NotStarted>,
-            OpAMPClient = C,
-        > + Send
-        + Sync
-        + 'static,
-    HS: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository,
-{
-    type StartedSubAgent = SubAgentOnHostStopper;
-
-    fn run(self) -> Self::StartedSubAgent {
-        let agent_id = self.agent_id.clone();
-        let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
-        let runtime_handle = self.runtime();
-
-        SubAgentOnHostStopper {
-            agent_id,
-            sub_agent_internal_publisher,
-            runtime: runtime_handle,
-        }
-    }
-}
-
-impl StartedSubAgent for SubAgentOnHostStopper {
-    fn stop(self) {
-        let _ = self
-            .sub_agent_internal_publisher
-            .publish(SubAgentInternalEvent::StopRequested)
-            .inspect_err(|err| {
-                error!(
-                    agent_id = %self.agent_id,
-                    %err,
-                    "Error stopping runtime loop"
-                )
-            })
-            .inspect(|_| {
-                let _ = self.runtime.join().inspect_err(|_| {
-                    error!(
-                        agent_id = %self.agent_id,
-                        "Error stopping runtime thread"
-                    );
-                });
-            });
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod test {
-    use mockall::{mock, predicate};
-    use std::collections::HashMap;
-
+    use super::*;
+    use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::callbacks::AgentCallbacks;
@@ -418,22 +187,25 @@ pub(crate) mod test {
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::error::SubAgentBuilderError;
-    use crate::sub_agent::on_host::sub_agent::SubAgentOnHost;
+    use crate::sub_agent::on_host::supervisor::command_supervisor;
     use crate::sub_agent::on_host::supervisor::command_supervisor::SupervisorOnHost;
     use crate::sub_agent::supervisor::SupervisorBuilder;
-    use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
+    use std::collections::HashMap;
+    use std::sync::Arc;
     use std::thread::sleep;
     use std::time::Duration;
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
-
-    use super::*;
 
     // Mock for the OnHost supervisor builder (the associated type needs to be set, therefore we cannot define a generic mock).
     mock! {
@@ -485,7 +257,7 @@ pub(crate) mod test {
             )
             .returning(|_, _| Ok(None));
 
-        let sub_agent = SubAgentOnHost::new(
+        let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
             Arc::new(assembler),
@@ -499,6 +271,7 @@ pub(crate) mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::OnHost,
         );
 
         //start the runtime
@@ -580,7 +353,7 @@ pub(crate) mod test {
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
 
-        let sub_agent = SubAgentOnHost::new(
+        let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
             Arc::new(assembler),
@@ -594,6 +367,7 @@ pub(crate) mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::OnHost,
         );
 
         //start the runtime

@@ -1,4 +1,4 @@
-use super::sub_agent::SubAgentK8s;
+use crate::agent_type::environment::Environment;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -8,13 +8,13 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::sub_agent::build_supervisor_or_default;
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{
     EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
 };
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgentCallbacks;
+use crate::sub_agent::{build_supervisor_or_default, SubAgent};
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
@@ -94,7 +94,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgentK8s<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, HR, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, HR, G>, HR, Y>;
 
     fn build(
         &self,
@@ -135,11 +135,11 @@ where
             self.k8s_config.clone(),
         );
 
-        Ok(SubAgentK8s::new(
+        Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
-            maybe_opamp_client,
             self.effective_agent_assembler.clone(),
+            maybe_opamp_client,
             supervisor_builder,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
@@ -149,6 +149,7 @@ where
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::K8s,
         ))
     }
 }

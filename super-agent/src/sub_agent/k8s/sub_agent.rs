@@ -1,199 +1,35 @@
-use super::supervisor::NotStartedSupervisorK8s;
-use super::supervisor::StartedSupervisorK8s;
-use crate::agent_type::environment::Environment;
-use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::event::channel::EventConsumer;
+use crate::event::{OpAMPEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
-use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
-use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
-use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::{stop_supervisor, SubAgent};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
 use tracing::{debug, error};
-////////////////////////////////////////////////////////////////////////////////////
-// SubAgent On K8s
-////////////////////////////////////////////////////////////////////////////////////
 
-/// SubAgentK8sStopper is implementing the StartedSubAgent trait.
-///
-/// It stores the runtime JoinHandle and a SubAgentInternalEvent publisher.
-/// It's stored in the super-agent's NotStartedSubAgents collection to be able to call
-/// the exposed method Stop that will publish a StopRequested event to the runtime
-/// and wait on the JoinHandle for the runtime to finish.
-pub struct SubAgentK8sStopper {
-    agent_id: AgentID,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    runtime: JoinHandle<Result<(), SubAgentError>>,
-}
-
-/// SubAgentK8s is implementing the NotStartedSubAgent trait so only the method run
-/// can be called from the SuperAgent to start the runtime and receive a StartedSubAgent
-/// that can be stopped
-///
-/// All its methods are internal and only called from the runtime method that spawns
-/// a thread listening to events and acting on them.
-pub struct SubAgentK8s<C, CB, A, B, HS, Y> {
-    pub(super) agent_id: AgentID,
-    pub(super) agent_cfg: SubAgentConfig,
-    pub(super) maybe_opamp_client: Option<C>,
-    effective_agent_assembler: Arc<A>,
-    supervisor_builder: B,
-    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-    sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    pub(super) sub_agent_remote_config_hash_repository: Arc<HS>,
-    pub(super) remote_values_repo: Arc<Y>,
-    pub(super) config_validator: Arc<ConfigValidator>,
-
-    // This is needed to ensure the generic type parameter CB is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _opamp_callbacks: PhantomData<CB>,
-}
-
-impl<C, CB, A, B, HS, Y> SubAgentK8s<C, CB, A, B, HS, Y>
-where
-    C: StartedClient<CB>,
-    CB: Callbacks,
-    A: EffectiveAgentsAssembler,
-    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>,
-    HS: HashRepository,
-    Y: YAMLConfigRepository,
-{
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
-        maybe_opamp_client: Option<C>,
-        effective_agent_assembler: Arc<A>,
-        supervisor_builder: B,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
-        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-        internal_pub_sub: (
-            EventPublisher<SubAgentInternalEvent>,
-            EventConsumer<SubAgentInternalEvent>,
-        ),
-        sub_agent_remote_config_hash_repository: Arc<HS>,
-        remote_values_repo: Arc<Y>,
-        config_validator: Arc<ConfigValidator>,
-    ) -> Self {
-        SubAgentK8s {
-            agent_id,
-            agent_cfg,
-            maybe_opamp_client,
-            effective_agent_assembler,
-            supervisor_builder,
-            sub_agent_publisher,
-            sub_agent_opamp_consumer,
-            sub_agent_internal_publisher: internal_pub_sub.0,
-            sub_agent_internal_consumer: internal_pub_sub.1,
-            sub_agent_remote_config_hash_repository,
-            remote_values_repo,
-            config_validator,
-
-            _opamp_callbacks: PhantomData,
-        }
-    }
-}
-
-impl<C, CB, A, B, HS, Y> SubAgentK8s<C, CB, A, B, HS, Y>
+impl<C, CB, A, B, HS, Y> SubAgent<C, CB, A, B, HS, Y>
 where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>
-        + Send
-        + Sync
-        + 'static,
+    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {
-    fn assemble_agent(&self) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        self.effective_agent_assembler.assemble_agent(
-            &self.agent_id,
-            &self.agent_cfg,
-            &Environment::K8s,
-        )
-    }
-
-    fn build_supervisor(
-        &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-    ) -> Option<NotStartedSupervisorK8s> {
-        self.supervisor_builder
-            .build_supervisor(effective_agent_result, &self.maybe_opamp_client)
-            .inspect_err(
-                |err| error!(agent_id=%self.agent_id, %err, "Error building the k8s supervisor"),
-            )
-            .unwrap_or_default()
-    }
-
-    fn build_supervisor_from_persisted_values(&self) -> Option<NotStartedSupervisorK8s> {
-        let effective_agent_result = self.assemble_agent();
-        self.build_supervisor(effective_agent_result)
-    }
-
-    fn start_supervisor(
-        &self,
-        maybe_not_started_supervisor: Option<NotStartedSupervisorK8s>,
-    ) -> Option<StartedSupervisorK8s> {
-        maybe_not_started_supervisor
-            .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
-            .transpose()
-            .inspect_err(|err| {
-                log_and_report_unhealthy(
-                    &self.sub_agent_internal_publisher,
-                    err,
-                    "starting the k8s resources supervisor failed",
-                    SystemTime::now(),
-                )
-            })
-            .unwrap_or(None)
-    }
-
-    fn stop_supervisor(agent_id: &AgentID, maybe_started_supervisor: Option<StartedSupervisorK8s>) {
-        if let Some(s) = maybe_started_supervisor {
-            let _ = s
-                .stop()
-                .map(|join_handle| {
-                    let _ = join_handle.join().inspect_err(|_| {
-                        error!(
-                            agent_id = %agent_id,
-                            "Error stopping k8s supervisor thread"
-                        );
-                    });
-                })
-                .inspect_err(|err| {
-                    error!(
-
-                            agent_id = %agent_id,
-                            %err,
-                            "Error stopping k8s supervisor"
-                    );
-                });
-        }
-    }
-
-    fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
+    pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
-            let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
+            let effective_agent_result = self.assemble_agent();
+            let maybe_not_started_supervisor = self.build_supervisor(effective_agent_result);
             let mut supervisor = self.start_supervisor(maybe_not_started_supervisor);
 
             debug!(
@@ -241,7 +77,7 @@ where
                                 }
 
                                 // Stop the current supervisor if any
-                                Self::stop_supervisor(&self.agent_id, supervisor);
+                                stop_supervisor(&self.agent_id, supervisor);
                                 // Build a new supervisor from the persisted values
                                 let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
                                 // Start the new supervisor if any
@@ -257,7 +93,7 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                Self::stop_supervisor(&self.agent_id, supervisor);
+                                stop_supervisor(&self.agent_id, supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
@@ -280,61 +116,10 @@ where
     }
 }
 
-impl<C, CB, A, B, HS, Y> NotStartedSubAgent for SubAgentK8s<C, CB, A, B, HS, Y>
-where
-    C: opamp_client::StartedClient<CB> + Send + Sync + 'static,
-    CB: opamp_client::operation::callbacks::Callbacks + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<SupervisorStarter = NotStartedSupervisorK8s, OpAMPClient = C>
-        + Send
-        + Sync
-        + 'static,
-    HS: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository,
-{
-    type StartedSubAgent = SubAgentK8sStopper;
-
-    /// Builds and starts the supervisor (if any) and starts the event processor.
-    fn run(self) -> Self::StartedSubAgent {
-        let agent_id = self.agent_id.clone();
-        let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
-        let runtime_handle = self.runtime();
-
-        SubAgentK8sStopper {
-            agent_id,
-            sub_agent_internal_publisher,
-            runtime: runtime_handle,
-        }
-    }
-}
-
-impl StartedSubAgent for SubAgentK8sStopper {
-    // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
-    fn stop(self) {
-        // Stop processing events
-        let _ = self
-            .sub_agent_internal_publisher
-            .publish(SubAgentInternalEvent::StopRequested)
-            .inspect_err(|err| {
-                error!(
-                    agent_id = %self.agent_id,
-                    %err,
-                    "Error stopping event loop"
-                )
-            })
-            .inspect(|_| {
-                let _ = self.runtime.join().inspect_err(|_| {
-                    error!(
-                        agent_id = %self.agent_id,
-                        "Error stopping event thread"
-                    );
-                });
-            });
-    }
-}
-
 #[cfg(test)]
 pub mod test {
+    use super::*;
+    use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::{pub_sub, EventPublisher};
@@ -343,12 +128,21 @@ pub mod test {
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
+    use crate::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::super_agent::config::{helm_release_type_meta, AgentID, AgentTypeFQN};
+    use crate::super_agent::config::{
+        helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
+    };
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use kube::api::DynamicObject;
+    use mockall::{mock, predicate};
     use std::sync::Arc;
     use std::thread::sleep;
     use std::time::Duration;
@@ -356,11 +150,6 @@ pub mod test {
 
     pub const TEST_AGENT_ID: &str = "k8s-test";
     pub const TEST_GENT_FQN: &str = "ns/test:0.1.2";
-
-    use super::*;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
-    use mockall::{mock, predicate};
 
     // Mock for the k8s supervisor builder (the associated type needs to be set, therefore we cannot define a generic mock).
     mock! {
@@ -379,7 +168,7 @@ pub mod test {
     }
 
     // Testing type to make usage more readable
-    type SubAgentK8sForTesting = SubAgentK8s<
+    type SubAgentK8sForTesting = SubAgent<
         MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>,
         AgentCallbacks<MockEffectiveConfigLoaderMock>,
         MockEffectiveAgentAssemblerMock,
@@ -537,11 +326,11 @@ pub mod test {
         let sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
-        SubAgentK8s::new(
+        SubAgent::new(
             agent_id.clone(),
             agent_cfg.clone(),
-            none_mock_opamp_client(),
             Arc::new(assembler),
+            none_mock_opamp_client(),
             supervisor_builder,
             sub_agent_publisher,
             None,
@@ -554,6 +343,7 @@ pub mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::K8s,
         )
     }
 

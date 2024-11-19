@@ -1,21 +1,27 @@
-use std::sync::Arc;
-
-use opamp_client::Client;
-use tracing::{debug, error, warn};
-
-use crate::event::channel::EventPublisher;
-use crate::event::SubAgentEvent;
+use crate::agent_type::environment::Environment;
+use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
-use crate::sub_agent::error;
-use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
+use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
+use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
+use crate::values::yaml_config_repository::YAMLConfigRepository;
+use opamp_client::operation::callbacks::Callbacks;
+use opamp_client::{Client, StartedClient};
+use std::marker::PhantomData;
+use std::sync::Arc;
+use std::thread::JoinHandle;
+use std::time::SystemTime;
+use tracing::{debug, error, warn};
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -43,7 +49,143 @@ pub trait SubAgentBuilder {
         agent_id: AgentID,
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
-    ) -> Result<Self::NotStartedSubAgent, error::SubAgentBuilderError>;
+    ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
+}
+
+/// SubAgentStopper is implementing the StartedSubAgent trait.
+///
+/// It stores the runtime JoinHandle and a SubAgentInternalEvent publisher.
+/// It's stored in the super-agent's NotStartedSubAgents collection to be able to call
+/// the exposed method Stop that will publish a StopRequested event to the runtime
+/// and wait on the JoinHandle for the runtime to finish.
+pub struct SubAgentStopper {
+    agent_id: AgentID,
+    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    runtime: JoinHandle<Result<(), SubAgentError>>,
+}
+
+/// SubAgent is implementing the NotStartedSubAgent trait so only the method run
+/// can be called from the SuperAgent to start the runtime and receive a StartedSubAgent
+/// that can be stopped
+///
+/// All its methods are internal and only called from the runtime method that spawns
+/// a thread listening to events and acting on them.
+pub struct SubAgent<C, CB, A, B, HS, Y>
+where
+    C: StartedClient<CB> + Send + Sync + 'static,
+    CB: Callbacks + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    HS: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository,
+{
+    pub(super) agent_id: AgentID,
+    pub(super) agent_cfg: SubAgentConfig,
+    pub(super) maybe_opamp_client: Option<C>,
+    pub(super) effective_agent_assembler: Arc<A>,
+    pub(super) supervisor_builder: B,
+    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+    pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
+    pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    pub(super) sub_agent_remote_config_hash_repository: Arc<HS>,
+    pub(super) remote_values_repo: Arc<Y>,
+    pub(super) config_validator: Arc<ConfigValidator>,
+    pub(super) environment: Environment,
+
+    // This is needed to ensure the generic type parameter CB is used in the struct.
+    // Else Rust will reject this, complaining that the type parameter is not used.
+    _opamp_callbacks: PhantomData<CB>,
+}
+
+impl<C, CB, A, B, HS, Y> SubAgent<C, CB, A, B, HS, Y>
+where
+    C: StartedClient<CB> + Send + Sync + 'static,
+    CB: Callbacks + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    HS: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository,
+{
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
+        effective_agent_assembler: Arc<A>,
+        maybe_opamp_client: Option<C>,
+        supervisor_builder: B,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+        internal_pub_sub: (
+            EventPublisher<SubAgentInternalEvent>,
+            EventConsumer<SubAgentInternalEvent>,
+        ),
+        sub_agent_remote_config_hash_repository: Arc<HS>,
+        remote_values_repo: Arc<Y>,
+        config_validator: Arc<ConfigValidator>,
+        environment: Environment,
+    ) -> Self {
+        Self {
+            agent_id,
+            agent_cfg,
+            effective_agent_assembler,
+            maybe_opamp_client,
+            supervisor_builder,
+            sub_agent_publisher,
+            sub_agent_opamp_consumer,
+            sub_agent_internal_publisher: internal_pub_sub.0,
+            sub_agent_internal_consumer: internal_pub_sub.1,
+            sub_agent_remote_config_hash_repository,
+            remote_values_repo,
+            config_validator,
+            environment,
+
+            _opamp_callbacks: PhantomData,
+        }
+    }
+
+    pub fn assemble_agent(&self) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
+        self.effective_agent_assembler.assemble_agent(
+            &self.agent_id,
+            &self.agent_cfg,
+            &self.environment,
+        )
+    }
+
+    pub(crate) fn build_supervisor(
+        &self,
+        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
+    ) -> Option<B::SupervisorStarter> {
+        self.supervisor_builder
+            .build_supervisor(effective_agent_result, &self.maybe_opamp_client)
+            .inspect_err(
+                |err| error!(agent_id=%self.agent_id, %err, "Error building the supervisor"),
+            )
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn start_supervisor(
+        &self,
+        maybe_not_started_supervisor: Option<B::SupervisorStarter>,
+    ) -> Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
+        maybe_not_started_supervisor
+            .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
+            .transpose()
+            .inspect_err(|err| {
+                log_and_report_unhealthy(
+                    &self.sub_agent_internal_publisher,
+                    err,
+                    "starting the resources supervisor failed",
+                    SystemTime::now(),
+                )
+            })
+            .unwrap_or(None)
+    }
+
+    pub fn build_supervisor_from_persisted_values(&self) -> Option<B::SupervisorStarter> {
+        let effective_agent_result = self.assemble_agent();
+        self.build_supervisor(effective_agent_result)
+    }
 }
 
 pub(crate) fn build_supervisor_or_default<HR, O, T, F, C>(
@@ -114,6 +256,80 @@ where
     }
 }
 
+impl StartedSubAgent for SubAgentStopper {
+    fn stop(self) {
+        // Stop processing events
+        let _ = self
+            .sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::StopRequested)
+            .inspect_err(|err| {
+                error!(
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping event loop"
+                )
+            })
+            .inspect(|_| {
+                let _ = self.runtime.join().inspect_err(|_| {
+                    error!(
+                        agent_id = %self.agent_id,
+                        "Error stopping event thread"
+                    );
+                });
+            });
+    }
+}
+
+pub fn stop_supervisor<S>(agent_id: &AgentID, maybe_started_supervisor: Option<S>)
+where
+    S: SupervisorStopper,
+{
+    if let Some(s) = maybe_started_supervisor {
+        let _ = s
+            .stop()
+            .map(|join_handle| {
+                let _ = join_handle.join().inspect_err(|_| {
+                    error!(
+                        agent_id = %agent_id,
+                        "Error stopping k8s supervisor thread"
+                    );
+                });
+            })
+            .inspect_err(|err| {
+                error!(
+
+                        agent_id = %agent_id,
+                        %err,
+                        "Error stopping k8s supervisor"
+                );
+            });
+    }
+}
+
+impl<C, CB, A, B, HS, Y> NotStartedSubAgent for SubAgent<C, CB, A, B, HS, Y>
+where
+    C: StartedClient<CB> + Send + Sync + 'static,
+    CB: Callbacks + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    HS: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository,
+{
+    type StartedSubAgent = SubAgentStopper;
+
+    fn run(self) -> Self::StartedSubAgent {
+        let agent_id = self.agent_id.clone();
+        let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
+        let runtime_handle = self.runtime();
+
+        SubAgentStopper {
+            agent_id,
+            sub_agent_internal_publisher,
+            runtime: runtime_handle,
+        }
+    }
+}
+
 #[cfg(test)]
 pub mod test {
     use mockall::{mock, predicate, Sequence};
@@ -177,7 +393,7 @@ pub mod test {
                 agent_id: AgentID,
                 sub_agent_config: &SubAgentConfig,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
-            ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent, error::SubAgentBuilderError>;
+            ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
     }
 
