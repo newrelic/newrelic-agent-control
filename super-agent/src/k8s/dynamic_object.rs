@@ -13,6 +13,7 @@ use kube::{
     Api, Resource,
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
+use tokio::sync::Mutex;
 use tracing::debug;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
@@ -135,7 +136,7 @@ impl DynamicObjectManager {
 /// [K8sError::MissingAPIResource] is returned if the manager init failure reason is that there is no such API Resource in the cluster.
 pub struct DynamicObjectManagers {
     client: kube::Client,
-    manager_by_type: tokio::sync::Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
+    manager_by_type: Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
     reflector_builder: ReflectorBuilder,
 }
 
@@ -143,7 +144,7 @@ impl DynamicObjectManagers {
     pub fn new(client: kube::Client, reflector_builder: ReflectorBuilder) -> Self {
         Self {
             client,
-            manager_by_type: tokio::sync::Mutex::new(HashMap::default()),
+            manager_by_type: Mutex::new(HashMap::default()),
             reflector_builder,
         }
     }
@@ -197,9 +198,13 @@ impl DynamicObjectManagers {
         type_meta: &TypeMeta,
     ) -> Result<Arc<DynamicObjectManager>, K8sError> {
         // Return the manager if it is already initialized
-        let managers_guard = self.manager_by_type.lock().await;
+        let mut managers_guard = self.manager_by_type.lock().await;
         if let Some(manager) = managers_guard.get(type_meta) {
-            return Ok(manager.clone());
+            if manager.reflector.is_running() {
+                return Ok(manager.clone());
+            }
+            // Remove the manager and reinitialized.
+            managers_guard.remove(type_meta);
         }
         drop(managers_guard);
 
