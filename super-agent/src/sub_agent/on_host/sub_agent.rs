@@ -271,6 +271,7 @@ pub(crate) mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::OnHost,
         );
 
         //start the runtime
@@ -366,6 +367,7 @@ pub(crate) mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::OnHost,
         );
 
         //start the runtime

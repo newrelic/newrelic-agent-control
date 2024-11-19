@@ -2,6 +2,7 @@ use super::supervisor::command_supervisor_config::ExecutableData;
 use super::supervisor::{
     command_supervisor::SupervisorOnHost, command_supervisor_config::SupervisorConfigOnHost,
 };
+use crate::agent_type::environment::Environment;
 use crate::agent_type::runtime_config::Executable;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -153,6 +154,7 @@ where
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::OnHost,
         ))
     }
 }

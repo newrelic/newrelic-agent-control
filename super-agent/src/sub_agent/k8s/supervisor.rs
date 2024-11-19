@@ -184,6 +184,8 @@ pub struct StartedSupervisorK8s {
 
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
+        // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
+
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also return the health-check join handle?
         }

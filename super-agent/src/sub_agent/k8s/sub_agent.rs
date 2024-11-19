@@ -343,6 +343,7 @@ pub mod test {
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::K8s,
         )
     }
 

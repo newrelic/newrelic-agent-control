@@ -1,3 +1,4 @@
+use crate::agent_type::environment::Environment;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -148,6 +149,7 @@ where
             Arc::new(
                 ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             ),
+            Environment::K8s,
         ))
     }
 }

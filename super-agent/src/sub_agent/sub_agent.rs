@@ -91,6 +91,7 @@ where
     pub(super) sub_agent_remote_config_hash_repository: Arc<HS>,
     pub(super) remote_values_repo: Arc<Y>,
     pub(super) config_validator: Arc<ConfigValidator>,
+    pub(super) environment: Environment,
 
     // This is needed to ensure the generic type parameter CB is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -122,6 +123,7 @@ where
         sub_agent_remote_config_hash_repository: Arc<HS>,
         remote_values_repo: Arc<Y>,
         config_validator: Arc<ConfigValidator>,
+        environment: Environment,
     ) -> Self {
         Self {
             agent_id,
@@ -136,23 +138,17 @@ where
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
             config_validator,
+            environment,
 
             _opamp_callbacks: PhantomData,
         }
     }
 
     pub fn assemble_agent(&self) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        #[cfg(feature = "onhost")]
-        return self.effective_agent_assembler.assemble_agent(
-            &self.agent_id,
-            &self.agent_cfg,
-            &Environment::OnHost,
-        );
-        #[cfg(feature = "k8s")]
         self.effective_agent_assembler.assemble_agent(
             &self.agent_id,
             &self.agent_cfg,
-            &Environment::K8s,
+            &self.environment,
         )
     }
 
@@ -261,7 +257,6 @@ where
 }
 
 impl StartedSubAgent for SubAgentStopper {
-    // Stop does not delete directly the CR. It will be the garbage collector doing so if needed.
     fn stop(self) {
         // Stop processing events
         let _ = self
