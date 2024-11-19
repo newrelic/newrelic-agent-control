@@ -121,11 +121,10 @@ mod tests {
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::RemoteConfigError;
-    use crate::sub_agent::config_validator::{
-        ConfigValidator, ValidatorError, FQN_NAME_INFRA_AGENT,
-    };
+    use crate::sub_agent::config_validator::{ConfigValidator, ValidatorError};
     use crate::sub_agent::error::SubAgentError;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
+    use crate::super_agent::defaults::FQN_NAME_INFRA_AGENT;
     use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
     use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
     use crate::{

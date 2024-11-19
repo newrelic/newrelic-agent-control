@@ -16,7 +16,7 @@ use crate::sub_agent::effective_agents_assembler::{
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgentCallbacks;
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
-use crate::super_agent::defaults::CLUSTER_NAME_ATTRIBUTE_KEY;
+use crate::super_agent::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
@@ -112,6 +112,10 @@ where
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
+                    HashMap::from([(
+                        OPAMP_SERVICE_VERSION.to_string(),
+                        sub_agent_config.agent_type.version().into(),
+                    )]),
                     HashMap::from([(
                         CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
@@ -462,6 +466,10 @@ pub mod test {
         let start_settings = start_settings(
             instance_id.clone(),
             &sub_agent_config.agent_type,
+            HashMap::from([(
+                OPAMP_SERVICE_VERSION.to_string(),
+                sub_agent_config.agent_type.version().into(),
+            )]),
             HashMap::from([
                 (
                     CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),

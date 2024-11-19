@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -19,8 +20,18 @@ func main() {
 	arch := flag.String("arch", "amd64", "architecture")
 	flag.Parse()
 
+	var versionMap map[string]string
+	err := json.Unmarshal([]byte(os.Getenv("ARTIFACTS_VERSIONS")), &versionMap)
+	if err != nil {
+		log.Fatalf("cannot parse ARTIFACTS_VERSIONS env var: %v", err)
+	}
+
 	// Config
-	cnf, err := configFromFile(*staging, *arch)
+	cnf, err := configFromFile(
+		*staging,
+		*arch,
+		versionMap,
+	)
 	if err != nil {
 		log.Fatalf("cannot parse config: %v", err)
 	}

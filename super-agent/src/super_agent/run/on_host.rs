@@ -8,7 +8,8 @@ use crate::super_agent::config::AgentID;
 use crate::super_agent::config_storer::loader_storer::SuperAgentConfigLoader;
 use crate::super_agent::config_storer::store::SuperAgentConfigStore;
 use crate::super_agent::defaults::{
-    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY, SUB_AGENT_DIR,
+    FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR, SUPER_AGENT_VERSION,
 };
 use crate::super_agent::run::SuperAgentRunner;
 use crate::super_agent::{super_agent_fqn, SuperAgent};
@@ -113,6 +114,10 @@ impl SuperAgentRunner {
                     &instance_id_getter,
                     AgentID::new_super_agent_id(),
                     &super_agent_fqn(),
+                    HashMap::from([(
+                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(SUPER_AGENT_VERSION.to_string()),
+                    )]),
                     non_identifying_attributes,
                 )
             })

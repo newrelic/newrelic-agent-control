@@ -1,11 +1,22 @@
 use opamp_client::capabilities;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
+use opamp_client::operation::settings::DescriptionValueType;
 
 pub static SUPER_AGENT_ID: &str = "super-agent";
 pub static SUPER_AGENT_TYPE: &str = "com.newrelic.super_agent";
 pub static SUPER_AGENT_NAMESPACE: &str = "newrelic";
 pub static SUPER_AGENT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub static NEWRELIC_INFRA_AGENT_VERSION: &str =
+    konst::option::unwrap_or!(option_env!("NEWRELIC_INFRA_AGENT_VERSION"), "0.0.0");
+pub static NR_OTEL_COLLECTOR_VERSION: &str =
+    konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
+
+// Keys identifying attributes
+pub static OPAMP_SERVICE_NAME: &str = "service.name";
+pub static OPAMP_SERVICE_VERSION: &str = "service.version";
+pub static OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";
+pub static OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
 // Auth
 pub static AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";
@@ -52,4 +63,19 @@ pub fn default_capabilities() -> Capabilities {
         AgentCapabilities::ReportsRemoteConfig,
         AgentCapabilities::ReportsStatus
     )
+}
+
+pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure_agent";
+pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
+
+pub fn sub_agent_version(agent_type: &str) -> Option<DescriptionValueType> {
+    match agent_type {
+        FQN_NAME_INFRA_AGENT => Some(DescriptionValueType::String(
+            NEWRELIC_INFRA_AGENT_VERSION.to_string(),
+        )),
+        FQN_NAME_NRDOT => Some(DescriptionValueType::String(
+            NR_OTEL_COLLECTOR_VERSION.to_string(),
+        )),
+        _ => None,
+    }
 }

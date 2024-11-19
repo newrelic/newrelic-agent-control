@@ -27,13 +27,11 @@ destination: "./artifacts/{{.Arch}}"
 # artifacts
 artifacts:
   - name: newrelic-infra
-    version: 1.42.2
     files:
       - name: newrelic-infra binary
         src: newrelic-infra/usr/bin/newrelic-infra
 
   - name: nr-otel-collector
-    version: 0.1.0
     files:
       - name: nr-otel-collector-binary
         src: nr-otel-collector/usr/bin/nr-otel-collector
@@ -94,13 +92,11 @@ destination: "./artifacts/{{.Arch}}"
 # artifacts
 artifacts:
   - name: newrelic-infra
-    version: 1.42.2
     files:
       - name: newrelic-infra binary
         src: newrelic-infra/usr/bin/newrelic-infra
 
   - name: nr-otel-collector
-    version: 0.1.0
     files:
       - name: nr-otel-collector-binary
         src: nr-otel-collector/usr/bin/nr-otel-collector
@@ -161,13 +157,11 @@ destination: "./artifacts/{{.Arch}}"
 # artifacts
 artifacts:
   - name: newrelic-infra
-    version: 1.42.2
     files:
       - name: newrelic-infra binary
         src: newrelic-infra/usr/bin/newrelic-infra
 
   - name: nr-otel-collector
-    version: 0.1.0
     url: "http://www.some.url/and/path"
     files:
       - name: nr-otel-collector-binary
@@ -257,7 +251,12 @@ destination: ""
 	for i := range testCases {
 		testCase := testCases[i]
 		t.Run(testCase.name, func(t *testing.T) {
-			conf, err := config(testCase.staging, testCase.arch, []byte(testCase.content))
+			conf, err := config(
+				testCase.staging,
+				testCase.arch,
+				map[string]string{"newrelic-infra": "1.42.2", "nr-otel-collector": "0.1.0"},
+				[]byte(testCase.content),
+			)
 			if testCase.expectedErr == nil {
 				assert.NoError(t, err)
 				assert.Equal(t, testCase.expectedConf, conf)

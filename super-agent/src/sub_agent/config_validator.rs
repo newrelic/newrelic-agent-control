@@ -9,9 +9,7 @@ use crate::sub_agent::validation_regexes::{
     REGEX_NRI_FLEX, REGEX_OTEL_ENDPOINT, REGEX_VALID_OTEL_ENDPOINT,
 };
 use crate::super_agent::config::AgentTypeFQN;
-
-pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure_agent";
-pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
+use crate::super_agent::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
 
 #[derive(Error, Debug)]
 pub enum ValidatorError {

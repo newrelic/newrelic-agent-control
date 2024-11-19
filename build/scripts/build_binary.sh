@@ -27,6 +27,7 @@ export GIT_COMMIT=$( git rev-parse HEAD )
 export SUPER_AGENT_VERSION=${SUPER_AGENT_VERSION:-development}
 export BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 export RUSTFLAGS="-C target-feature=+crt-static"
+export CROSS_CONFIG=${CROSS_CONFIG:-"./Cross.toml"}
 
 cross build --target "${ARCH_NAME}-unknown-linux-musl" --profile "${BUILD_MODE}" --features "${BUILD_FEATURE}" --package "${PKG}" --bin "${BIN}"
 
