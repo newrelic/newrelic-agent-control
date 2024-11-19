@@ -1,0 +1,11 @@
+opamp:
+  endpoint: <opamp-endpoint>
+  headers:
+    api-key: test-api-key
+k8s:
+  namespace: <ns>
+  cluster_name: <cluster-name>
+  cr_type_meta:
+  - apiVersion: newrelic.com/v1
+    kind: Foo
+agents: {}

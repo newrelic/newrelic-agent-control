@@ -1,6 +1,6 @@
 use super::tools::{
-    foo_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
     k8s_env::K8sEnv,
+    test_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
 };
 use assert_matches::assert_matches;
 use kube::api::{Api, DeleteParams, TypeMeta};

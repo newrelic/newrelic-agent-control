@@ -1,15 +1,16 @@
-use std::{collections::BTreeMap, str::FromStr, time::Duration};
-
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
     api::{DynamicObject, Patch, PatchParams, PostParams, TypeMeta},
     core::GroupVersion,
+    runtime::reflector::Lookup,
     Api, Client, CustomResource, CustomResourceExt,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, str::FromStr, time::Duration};
 use tokio::sync::OnceCell;
 
+// foo CRD is installed in the cluster by the k8s envrioment setup helper
 #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
 #[kube(group = "newrelic.com", version = "v1", kind = "Foo", namespaced)]
 pub struct FooSpec {
@@ -38,7 +39,7 @@ pub async fn get_dynamic_api_foo(client: kube::Client, test_ns: String) -> Api<D
 /// can assume this CRD exists.
 pub async fn create_foo_crd(client: Client) {
     static ONCE: OnceCell<()> = OnceCell::const_new();
-    ONCE.get_or_try_init(|| async { perform_crd_patch(client).await })
+    ONCE.get_or_try_init(|| async { create_crd(client, Foo::crd()).await })
         .await
         .expect("Error creating the Foo CRD");
 
@@ -46,14 +47,18 @@ pub async fn create_foo_crd(client: Client) {
     tokio::time::sleep(Duration::from_secs(1)).await;
 }
 
-async fn perform_crd_patch(client: Client) -> Result<(), kube::Error> {
+pub async fn create_crd(client: Client, crd: CustomResourceDefinition) -> Result<(), kube::Error> {
     let crds: Api<CustomResourceDefinition> = Api::all(client);
-    crds.patch(
-        "foos.newrelic.com",
-        &PatchParams::apply("foo"),
-        &Patch::Apply(Foo::crd()),
-    )
-    .await?;
+    let ssapply = PatchParams::apply("crd_apply_example").force();
+    crds.patch(&crd.name().unwrap(), &ssapply, &Patch::Apply(crd.clone()))
+        .await?;
+    Ok(())
+}
+
+pub async fn delete_crd(client: Client, crd: CustomResourceDefinition) -> Result<(), kube::Error> {
+    let crds: Api<CustomResourceDefinition> = Api::all(client);
+    crds.delete(&crd.name().unwrap(), &Default::default())
+        .await?;
     Ok(())
 }
 

@@ -1,4 +1,5 @@
 use crate::common::{retry::retry, runtime::block_on};
+use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
 use crate::k8s::tools::{
     k8s_api::check_deployments_exist, k8s_env::K8sEnv,
     super_agent::start_super_agent_with_testdata_config,
@@ -21,6 +22,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
 
     let _child = start_super_agent_with_testdata_config(
         test_name,
+        CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
         None,
