@@ -6,6 +6,7 @@ members = [
   "resource-detection",
   "fs",
   "license",
+  "opamp-rs/opamp-client",
 ]
 
 [workspace.dependencies]

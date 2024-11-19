@@ -1,0 +1,27 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "language": "rust",
+  "labels": ["dependencies"],
+  "schedule": [""],
+  "timezone": "UTC",
+  "enabledManagers": ["cargo"],
+  "packageRules": [
+    {
+      "managers":["cargo"],
+      "updateTypes":["minor","patch"],
+      "groupName": "minor and patch updates",
+    },
+    {
+      "fileMatch": [
+        "build/embed/integrations.version$"
+      ],
+      "depNameTemplate": "newrelic/{{{integrationName}}}",
+      "datasourceTemplate": "github-releases",
+      "matchStrings": [
+        "(?<integrationName>.+),(?<currentValue>v.+)"
+      ]
+    }
+  ]
+}
