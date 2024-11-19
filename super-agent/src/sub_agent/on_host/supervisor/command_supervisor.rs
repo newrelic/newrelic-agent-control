@@ -1,5 +1,5 @@
 use crate::context::Context;
-use crate::event::channel::EventPublisher;
+use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::publish_health_event;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
@@ -14,9 +14,9 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
+use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::SystemTime;
 use std::{
@@ -42,6 +42,30 @@ pub struct SupervisorOnHost<S> {
     state: S,
 }
 
+impl SupervisorStarter for SupervisorOnHost<NotStarted> {
+    type SupervisorStopper = SupervisorOnHost<Started>;
+
+    fn start(
+        self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<Self::SupervisorStopper, SupervisorError> {
+        let ctx = self.state.config.ctx.clone();
+        let handle = self.start_process_thread(sub_agent_internal_publisher);
+        Ok(SupervisorOnHost {
+            state: Started { handle, ctx },
+        })
+    }
+}
+
+impl SupervisorStopper for SupervisorOnHost<Started> {
+    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
+        // TODO: refact SupervisorOnHost so it contains agent_id to join thread inside here
+        // and print logs accordingly.
+        self.state.ctx.cancel_all(true).unwrap();
+        Ok(self.state.handle)
+    }
+}
+
 impl SupervisorOnHost<NotStarted> {
     pub fn new(config: SupervisorConfigOnHost) -> Self {
         SupervisorOnHost {
@@ -55,24 +79,6 @@ impl SupervisorOnHost<NotStarted> {
 
     pub fn bin(&self) -> String {
         self.state.config.bin.clone()
-    }
-
-    pub fn logs_to_file(&self) -> bool {
-        self.state.config.log_to_file
-    }
-    pub fn logging_path(&self) -> PathBuf {
-        self.state.config.logging_path.clone()
-    }
-
-    pub fn run(
-        self,
-        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> SupervisorOnHost<Started> {
-        let ctx = self.state.config.ctx.clone();
-        let handle = self.start_process_thread(internal_event_publisher);
-        SupervisorOnHost {
-            state: Started { handle, ctx },
-        }
     }
 
     fn start_process_thread(
@@ -203,8 +209,8 @@ impl SupervisorOnHost<NotStarted> {
             &self.state.config.bin,
             &self.state.config.args,
             &self.state.config.env,
-            self.logs_to_file(),
-            self.logging_path(),
+            self.state.config.log_to_file,
+            self.state.config.logging_path.clone(),
         )
     }
 }
@@ -213,15 +219,6 @@ impl Deref for SupervisorOnHost<NotStarted> {
     type Target = SupervisorConfigOnHost;
     fn deref(&self) -> &Self::Target {
         &self.state.config
-    }
-}
-
-impl SupervisorOnHost<Started> {
-    pub fn stop(self) -> JoinHandle<()> {
-        // TODO: refact SupervisorOnHost so it contains agent_id to join thread inside here
-        // and print logs accordingly.
-        self.state.ctx.cancel_all(true).unwrap();
-        self.state.handle
     }
 }
 
@@ -361,7 +358,7 @@ pub mod tests {
 
                 let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
-                let started_supervisor = supervisor.run(sub_agent_internal_publisher);
+                let started_supervisor = supervisor.start(sub_agent_internal_publisher);
 
                 if let Some(duration) = self.run_warmup_time {
                     thread::sleep(duration)
@@ -372,7 +369,12 @@ pub mod tests {
                 let max_duration = Duration::from_millis(100);
                 let start = Instant::now();
 
-                started_supervisor.stop().join().unwrap();
+                started_supervisor
+                    .expect("no error")
+                    .stop()
+                    .expect("no error")
+                    .join()
+                    .unwrap();
 
                 let duration = start.elapsed();
 
@@ -452,7 +454,7 @@ pub mod tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher);
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -481,10 +483,15 @@ pub mod tests {
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher);
+        let agent = agent.start(sub_agent_internal_publisher);
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
-        assert!(agent.stop().join().is_ok());
+        assert!(agent
+            .expect("no error")
+            .stop()
+            .expect("no error")
+            .join()
+            .is_ok());
 
         assert!(timer.elapsed() < Duration::from_secs(10));
     }
@@ -509,7 +516,7 @@ pub mod tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher);
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));
@@ -550,7 +557,7 @@ pub mod tests {
         let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.run(sub_agent_internal_publisher);
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         while !agent.state.handle.is_finished() {
             thread::sleep(Duration::from_millis(15));

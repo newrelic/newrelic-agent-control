@@ -5,13 +5,10 @@ use crate::event::SubAgentInternalEvent;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::error::K8sError;
 use crate::k8s::labels::Labels;
-use crate::sub_agent::health::health_checker::{
-    publish_health_event, spawn_health_checker, HealthCheckerError, Unhealthy,
-};
+use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -19,22 +16,9 @@ use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime};
-use thiserror::Error;
 use tracing::{debug, error, info};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
-
-#[derive(Debug, Error)]
-pub enum SupervisorError {
-    #[error("the kube client returned an error: `{0}`")]
-    Generic(#[from] K8sError),
-
-    #[error("building k8s resources: `{0}`")]
-    ConfigError(String),
-
-    #[error("building health checkers: `{0}`")]
-    HealthError(#[from] HealthCheckerError),
-}
 
 pub struct NotStartedSupervisorK8s {
     agent_id: AgentID,
@@ -42,6 +26,30 @@ pub struct NotStartedSupervisorK8s {
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: runtime_config::K8s,
     interval: Duration,
+}
+
+impl SupervisorStarter for NotStartedSupervisorK8s {
+    type SupervisorStopper = StartedSupervisorK8s;
+
+    /// Starts the supervisor, it will periodically:
+    /// * Check and update the corresponding k8s resources
+    /// * Check health
+    fn start(
+        self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<StartedSupervisorK8s, SupervisorError> {
+        let resources = Arc::new(self.build_dynamic_objects()?);
+
+        let (stop_objects_supervisor, objects_supervisor_handle) =
+            self.start_k8s_objects_supervisor(resources.clone());
+        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher, resources)?;
+
+        Ok(StartedSupervisorK8s {
+            maybe_stop_health,
+            stop_objects_supervisor,
+            objects_supervisor_handle,
+        })
+    }
 }
 
 impl NotStartedSupervisorK8s {
@@ -58,28 +66,6 @@ impl NotStartedSupervisorK8s {
             agent_fqn,
             interval: Duration::from_secs(OBJECTS_SUPERVISOR_INTERVAL_SECONDS),
         }
-    }
-
-    /// Starts the supervisor, it will periodically:
-    /// * Check and update the corresponding k8s resources
-    /// * Check health
-    pub fn start(
-        self,
-        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-        start_time: SystemTime,
-    ) -> Result<StartedSupervisorK8s, SupervisorError> {
-        let resources = Arc::new(self.build_dynamic_objects()?);
-
-        let (stop_objects_supervisor, objects_supervisor_handle) =
-            self.start_k8s_objects_supervisor(resources.clone());
-        let maybe_stop_health =
-            self.start_health_check(sub_agent_internal_publisher, resources, start_time)?;
-
-        Ok(StartedSupervisorK8s {
-            maybe_stop_health,
-            stop_objects_supervisor,
-            objects_supervisor_handle,
-        })
     }
 
     pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
@@ -151,8 +137,9 @@ impl NotStartedSupervisorK8s {
         &self,
         health_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-        start_time: SystemTime,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+        let start_time = SystemTime::now();
+
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
             let k8s_health_checker =
@@ -195,8 +182,8 @@ pub struct StartedSupervisorK8s {
     objects_supervisor_handle: JoinHandle<()>,
 }
 
-impl StartedSupervisorK8s {
-    pub fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
+impl SupervisorStopper for StartedSupervisorK8s {
+    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also return the health-check join handle?
         }
@@ -205,29 +192,12 @@ impl StartedSupervisorK8s {
     }
 }
 
-/// Logs the provided error and publishes the corresponding unhealthy event.
-pub fn log_and_report_unhealthy(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    err: &SupervisorError,
-    msg: &str,
-    start_time: SystemTime,
-) {
-    let last_error = format!("{msg}: {err}");
-
-    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
-        Unhealthy::new(String::default(), last_error).into(),
-        start_time,
-    ));
-
-    error!(%err, msg);
-    publish_health_event(sub_agent_internal_publisher, event);
-}
-
 #[cfg(test)]
 pub mod test {
     use super::*;
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::K8sObject;
+    use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::super_agent::config::helm_release_type_meta;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
@@ -347,7 +317,6 @@ pub mod test {
                     metadata: Default::default(), // missing name
                     data: Default::default(),
                 }]),
-                SystemTime::UNIX_EPOCH,
             )
             .err()
             .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
@@ -365,7 +334,7 @@ pub mod test {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher, SystemTime::UNIX_EPOCH)
+            .start(sub_agent_internal_publisher)
             .expect("supervisor started");
         started
             .stop()
@@ -385,7 +354,7 @@ pub mod test {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher, SystemTime::UNIX_EPOCH)
+            .start(sub_agent_internal_publisher)
             .expect("supervisor started");
         assert!(started.maybe_stop_health.is_none());
     }
