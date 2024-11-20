@@ -170,8 +170,11 @@ jobs:
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained
   # in the test/k8s-e2e/Readme.md
   k8s-e2-tests:
-    name: K8s e2e tests
+    name: K8s e2e tests ${{ matrix.group }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        group: [ collector, apm, infra ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -195,7 +198,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
-      - name: Run e2e-test collector
+      - name: Run k8s e2e-test ${{ matrix.group }}
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
           # Tilt configs
@@ -204,20 +207,7 @@ jobs:
         with:
           retry_attempts: 10
           agent_enabled: false
-          spec_path: test/k8s-e2e/e2e-collector.yml
-          account_id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
-          api_key: ${{ secrets.COREINT_E2E_API_KEY }}
-          license_key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
-      - name: Run e2e-test apm
-        uses: newrelic/newrelic-integration-e2e-action@v1
-        env:
-          # Tilt configs
-          ARCH: amd64
-          BUILD_WITH: cargo
-        with:
-          retry_attempts: 10
-          agent_enabled: false
-          spec_path: test/k8s-e2e/e2e-apm.yml
+          spec_path: test/k8s-e2e/e2e-${{ matrix.group }}.yml
           account_id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
           api_key: ${{ secrets.COREINT_E2E_API_KEY }}
           license_key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}

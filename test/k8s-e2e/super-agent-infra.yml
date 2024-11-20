@@ -1,0 +1,27 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+
+super-agent-deployment:
+  config:
+    opamp:
+      enabled: false
+    superAgent:
+      content:
+        log:
+          level: debug
+    subAgents:
+      infra:
+        type: newrelic/com.newrelic.infrastructure_agent:0.1.3
+        content:
+          chart_version: 5.0.102
+          chart_values:
+            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName')
+              customAttributes:
+                cluster_name: ${nr-env:NR_CLUSTER_NAME}
+      prometheus:
+        type: newrelic/com.newrelic.prometheus:0.1.0
+        content:
+          chart_version: 1.15.2
+      logs:
+        type: newrelic/com.newrelic.logs:0.1.0
+        content:
+          chart_version: 1.23.5
