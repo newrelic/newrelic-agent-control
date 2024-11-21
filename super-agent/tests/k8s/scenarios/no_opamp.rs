@@ -1,5 +1,6 @@
 use crate::common::{retry::retry, runtime::block_on};
 use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
+use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_SECRET_PATH;
 use crate::k8s::tools::{
     k8s_api::check_deployments_exist, k8s_env::K8sEnv,
     super_agent::start_super_agent_with_testdata_config,
@@ -8,8 +9,8 @@ use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// This scenario checks that the super-agent is executed and creates the k8s resources corresponding to the
-/// local configuration when OpAMP is not enabled.
+/// This scenario checks that the super-agent is executed and creates the k8s resources,
+/// including the secret that is honored to modify the Deployment Name, when OpAMP is not enabled.
 #[test]
 #[ignore = "needs a k8s cluster"]
 #[serial]
@@ -22,7 +23,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
 
     let _child = start_super_agent_with_testdata_config(
         test_name,
-        CUSTOM_AGENT_TYPE_PATH,
+        CUSTOM_AGENT_TYPE_SECRET_PATH,
         k8s.client.clone(),
         &namespace,
         None,
@@ -30,11 +31,13 @@ fn k8s_sub_agent_started_with_no_opamp() {
         tmp_dir.path(),
     );
 
-    // Check deployment for first Agent is created with retry.
+    // Check deployment for first Agent is created with retry, the name has the key
+    // 'override-by-secret' concatenated to the name because the secret created adds that
+    // NameOverride to the values.
     retry(30, Duration::from_secs(5), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
-            &["hello-world"],
+            &["hello-world-override-by-secret"],
             namespace.as_str(),
         ))
     });
