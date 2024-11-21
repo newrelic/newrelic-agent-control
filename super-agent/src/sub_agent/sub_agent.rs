@@ -5,20 +5,26 @@ use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::client_builder::OpAMPClientBuilder;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
+use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
+use crate::sub_agent::event_handler::on_health::on_health;
+use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
 use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crossbeam::channel::never;
+use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::{Client, StartedClient};
 use std::marker::PhantomData;
 use std::sync::Arc;
+use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, warn};
@@ -150,6 +156,96 @@ where
             &self.agent_cfg,
             &self.environment,
         )
+    }
+
+    pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
+        thread::spawn(move || {
+            // Build a new supervisor from the persisted values
+            let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
+            // Start the new supervisor if any
+            let mut supervisor = self.start_supervisor(maybe_not_started_supervisor);
+
+            debug!(
+                agent_id = %self.agent_id,
+                "runtime started"
+            );
+
+            Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
+
+            // The below two lines are used to create a channel that never receives any message
+            // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
+            // publisher for OpAMP events and we attempt to receive them, as erroring while reading
+            // from this channel will break the loop and prevent the reception of sub-agent
+            // internal events if OpAMP is globally disabled in the super-agent config.
+            let never_receive = EventConsumer::from(never());
+            let opamp_receiver = self
+                .sub_agent_opamp_consumer
+                .as_ref()
+                .unwrap_or(&never_receive);
+            // TODO: We should separate the loop for OpAMP events and internal events into two
+            // different loops, which currently is not straight forward due to sharing structures
+            // that need to be moved into thread closures.
+            loop {
+                select! {
+                    recv(opamp_receiver.as_ref()) -> opamp_event_res => {
+                        match opamp_event_res {
+                            Err(e) => {
+                                debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "channel closed");
+                                break;
+                            }
+
+                            Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
+                                debug!(agent_id = self.agent_id.to_string(),
+                                select_arm = "sub_agent_opamp_consumer",
+                "remote config received");
+                                if let Err(e) = remote_config(
+                                    config,
+                                    self.maybe_opamp_client.as_ref(),
+                                    self.config_validator.as_ref(),
+                                    self.remote_values_repo.as_ref(),
+                                    self.sub_agent_remote_config_hash_repository.as_ref(),
+                                    self.agent_cfg.agent_type.clone(),
+                                ){
+                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error processing remote config")
+                                }
+
+                                // Stop the current supervisor if any
+                                stop_supervisor(&self.agent_id, supervisor);
+                                // Build a new supervisor from the persisted values
+                                let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
+                                // Start the new supervisor if any
+                                supervisor = self.start_supervisor(maybe_not_started_supervisor);
+                            }
+                            _ => {}}
+                    },
+                    recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
+                        match sub_agent_internal_event_res {
+                            Err(e) => {
+                                debug!(error = %e, select_arm = "sub_agent_internal_consumer", "channel closed");
+                                break;
+                            }
+                            Ok(SubAgentInternalEvent::StopRequested) => {
+                                debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
+                                stop_supervisor(&self.agent_id, supervisor);
+                                break;
+                            },
+                            Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
+                                let _ = on_health(
+                                    health,
+                                    self.maybe_opamp_client.as_ref(),
+                                    self.sub_agent_publisher.clone(),
+                                    self.agent_id.clone(),
+                                    self.agent_cfg.agent_type.clone(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                            }
+                        }
+                    }
+                }
+            }
+
+            stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
+        })
     }
 
     pub(crate) fn build_supervisor(
@@ -285,24 +381,13 @@ where
     S: SupervisorStopper,
 {
     if let Some(s) = maybe_started_supervisor {
-        let _ = s
-            .stop()
-            .map(|join_handle| {
-                let _ = join_handle.join().inspect_err(|_| {
-                    error!(
-                        agent_id = %agent_id,
-                        "Error stopping k8s supervisor thread"
-                    );
-                });
-            })
-            .inspect_err(|err| {
-                error!(
-
-                        agent_id = %agent_id,
-                        %err,
-                        "Error stopping k8s supervisor"
-                );
-            });
+        let _ = s.stop().inspect_err(|err| {
+            error!(
+                    agent_id = %agent_id,
+                    %err,
+                    "Error stopping k8s supervisor"
+            );
+        });
     }
 }
 

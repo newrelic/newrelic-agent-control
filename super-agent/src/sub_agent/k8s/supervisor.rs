@@ -45,6 +45,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher, resources)?;
 
         Ok(StartedSupervisorK8s {
+            agent_id: self.agent_id,
             maybe_stop_health,
             stop_objects_supervisor,
             objects_supervisor_handle,
@@ -135,7 +136,7 @@ impl NotStartedSupervisorK8s {
 
     pub fn start_health_check(
         &self,
-        health_publisher: EventPublisher<SubAgentInternalEvent>,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
         let start_time = SystemTime::now();
@@ -149,7 +150,7 @@ impl NotStartedSupervisorK8s {
                 self.agent_id.clone(),
                 k8s_health_checker,
                 stop_health_consumer,
-                health_publisher,
+                sub_agent_internal_publisher,
                 health_config.interval,
                 start_time,
             );
@@ -177,20 +178,27 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
+    agent_id: AgentID,
     maybe_stop_health: Option<EventPublisher<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
-    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
+    fn stop(self) -> Result<(), EventPublisherError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
 
         if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?; // TODO: should we also return the health-check join handle?
+            stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
         }
         self.stop_objects_supervisor.publish(())?;
-        Ok(self.objects_supervisor_handle)
+        let _ = self.objects_supervisor_handle.join().inspect_err(|_| {
+            error!(
+                agent_id = self.agent_id.to_string(),
+                "Error stopping k8s supervisor thread"
+            );
+        });
+        Ok(())
     }
 }
 
@@ -338,11 +346,7 @@ pub mod test {
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
-        started
-            .stop()
-            .expect("supervisor stopped")
-            .join()
-            .expect("supervisor thread joined");
+        started.stop().expect("supervisor thread joined");
     }
 
     #[test]

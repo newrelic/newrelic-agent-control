@@ -4,7 +4,7 @@ use super::{
 };
 use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
-use std::thread::JoinHandle;
+use crate::sub_agent::health::health_checker::HealthCheckerError;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -17,9 +17,8 @@ pub enum SupervisorError {
     #[error("building k8s resources: `{0}`")]
     ConfigError(String),
 
-    #[cfg(feature = "k8s")]
     #[error("building health checkers: `{0}`")]
-    HealthError(#[from] crate::sub_agent::health::health_checker::HealthCheckerError),
+    HealthError(#[from] HealthCheckerError),
 }
 
 pub trait SupervisorBuilder {
@@ -43,5 +42,5 @@ pub trait SupervisorStarter {
 }
 
 pub trait SupervisorStopper {
-    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError>;
+    fn stop(self) -> Result<(), EventPublisherError>;
 }
