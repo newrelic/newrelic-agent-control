@@ -1,3 +1,4 @@
+use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::context::Context;
 use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
@@ -15,104 +16,121 @@ use crate::sub_agent::on_host::command::shutdown::{
 use crate::sub_agent::on_host::health_checker::{
     HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted,
 };
-use crate::sub_agent::on_host::supervisor::command_supervisor_config::SupervisorConfigOnHost;
+use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
+use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::SystemTime;
 use std::{
-    ops::Deref,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 use tracing::{debug, error, info, warn};
 
-////////////////////////////////////////////////////////////////////////////////////
-// States for Started/Not Started supervisor
-////////////////////////////////////////////////////////////////////////////////////
-pub struct NotStarted {
-    config: SupervisorConfigOnHost,
-}
-pub struct Started {
-    handle: JoinHandle<()>,
+pub struct StartedSupervisorOnHost {
+    id: AgentID,
+    handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
     maybe_stop_health: Option<HealthChecker<HealthCheckerStarted>>,
 }
 
-#[derive(Debug)]
-pub struct SupervisorOnHost<S> {
-    state: S,
+pub struct NotStartedSupervisorOnHost {
+    pub(super) id: AgentID,
+    pub(super) ctx: Context<bool>,
+    pub(crate) exec: Option<ExecutableData>,
+    pub(super) log_to_file: bool,
+    pub(super) logging_path: PathBuf,
+    pub(super) health_config: Option<OnHostHealthConfig>,
 }
 
-impl SupervisorStarter for SupervisorOnHost<NotStarted> {
-    type SupervisorStopper = SupervisorOnHost<Started>;
+impl SupervisorStarter for NotStartedSupervisorOnHost {
+    type SupervisorStopper = StartedSupervisorOnHost;
 
     fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorError> {
-        let ctx = self.state.config.ctx.clone();
+        let ctx = self.ctx.clone();
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
+        let id = self.id.clone();
 
-        let handle = self.start_process_thread(sub_agent_internal_publisher);
-        Ok(SupervisorOnHost {
-            state: Started {
-                handle,
-                ctx,
-                maybe_stop_health,
-            },
+        // the process thread is created if exec is Some
+        let handle = self
+            .exec
+            .clone()
+            .map(|e| self.start_process_thread(sub_agent_internal_publisher, e));
+
+        Ok(StartedSupervisorOnHost {
+            id,
+            handle,
+            ctx,
+            maybe_stop_health,
         })
     }
 }
 
-impl SupervisorStopper for SupervisorOnHost<Started> {
-    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError> {
-        // TODO: refact SupervisorOnHost so it contains agent_id to join thread inside here
-        // and print logs accordingly.
-        // Stop the current supervisor and health checker
-        if let Some(h) = self.state.maybe_stop_health {
+impl SupervisorStopper for StartedSupervisorOnHost {
+    fn stop(self) -> Result<(), EventPublisherError> {
+        if let Some(h) = self.maybe_stop_health {
             h.stop();
         }
-        self.state.ctx.cancel_all(true).unwrap();
-        Ok(self.state.handle)
+        self.ctx.cancel_all(true).unwrap();
+
+        let _ = self.handle.map(|h| {
+            h.join().inspect_err(|_| {
+                error!(
+                    agent_id = self.id.to_string(),
+                    "Error stopping k8s supervisor thread"
+                );
+            })
+        });
+
+        Ok(())
     }
 }
 
-impl SupervisorOnHost<NotStarted> {
-    pub fn new(config: SupervisorConfigOnHost) -> Self {
-        SupervisorOnHost {
-            state: NotStarted { config },
+impl NotStartedSupervisorOnHost {
+    pub fn new(
+        id: AgentID,
+        exec: Option<ExecutableData>,
+        ctx: Context<bool>,
+        health_config: Option<OnHostHealthConfig>,
+    ) -> Self {
+        NotStartedSupervisorOnHost {
+            id,
+            ctx,
+            exec,
+            log_to_file: false,
+            logging_path: PathBuf::default(),
+            health_config,
         }
     }
 
-    pub fn id(&self) -> AgentID {
-        self.state.config.id.clone()
-    }
-
-    pub fn bin(&self) -> String {
-        self.state.config.bin.clone()
+    pub fn with_file_logging(self, log_to_file: bool, logging_path: PathBuf) -> Self {
+        Self {
+            log_to_file,
+            logging_path,
+            ..self
+        }
     }
 
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Option<HealthChecker<HealthCheckerStarted>>, SupervisorError> {
-        let maybe_helth_checker: Option<HealthChecker<HealthCheckerNotStarted>> = self
-            .state
-            .config
-            .health_config
-            .as_ref()
-            .and_then(|health_config| {
+        let maybe_helth_checker: Option<HealthChecker<HealthCheckerNotStarted>> =
+            self.health_config.as_ref().and_then(|health_config| {
                 HealthChecker::try_new(
-                    self.id().clone(),
+                    self.id.clone(),
                     sub_agent_internal_publisher,
                     health_config.clone(),
                 )
                 .inspect_err(|err| {
                     error!(
-                        agent_id = self.id().to_string(),
+                        agent_id = self.id.to_string(),
                         %err,
                         "could not launch health checker, using default",
                     )
@@ -125,15 +143,16 @@ impl SupervisorOnHost<NotStarted> {
     fn start_process_thread(
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+        executable_data: ExecutableData,
     ) -> JoinHandle<()> {
-        let mut restart_policy = self.restart_policy.clone();
+        let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
         _ = wait_for_termination(
             current_pid.clone(),
             self.ctx.clone(),
             shutdown_ctx.clone(),
-            self.id(),
+            self.id.clone(),
         );
         thread::spawn({
             move || loop {
@@ -147,25 +166,25 @@ impl SupervisorOnHost<NotStarted> {
                 // before the process was started.
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                     debug!(
-                        agent_id = self.id().to_string(),
-                        supervisor = self.bin(),
+                        agent_id = self.id.to_string(),
+                        supervisor = executable_data.bin.clone(),
                         msg = "supervisor stopped before starting the process"
                     );
                     break;
                 }
 
                 info!(
-                    agent_id = self.id().to_string(),
-                    supervisor = self.bin(),
+                    agent_id = self.id.to_string(),
+                    supervisor = executable_data.bin.clone(),
                     msg = "starting supervisor process"
                 );
 
                 shutdown_ctx.reset().unwrap();
                 // Signals return exit_code 0, if in the future we need to act on them we can import
                 // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-                let not_started_command = self.not_started_command();
-                let bin = self.bin();
-                let id = self.id();
+                let not_started_command = self.not_started_command(&executable_data);
+                let bin = executable_data.bin.clone();
+                let id = self.id.clone();
 
                 let supervisor_start_time = SystemTime::now();
 
@@ -199,8 +218,8 @@ impl SupervisorOnHost<NotStarted> {
                 // most probably reason why process has been exited.
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                     info!(
-                        agent_id = self.id().to_string(),
-                        supervisor = self.bin(),
+                        agent_id = self.id.to_string(),
+                        supervisor = executable_data.bin,
                         msg = "supervisor has been stopped and process terminated"
                     );
                     break;
@@ -243,23 +262,19 @@ impl SupervisorOnHost<NotStarted> {
         })
     }
 
-    pub fn not_started_command(&self) -> CommandOS<command_os::NotStarted> {
+    pub fn not_started_command(
+        &self,
+        executable_data: &ExecutableData,
+    ) -> CommandOS<command_os::NotStarted> {
         //TODO extract to to a builder so we can mock it
         CommandOS::<command_os::NotStarted>::new(
-            self.state.config.id.clone(),
-            &self.state.config.bin,
-            &self.state.config.args,
-            &self.state.config.env,
-            self.state.config.log_to_file,
-            self.state.config.logging_path.clone(),
+            self.id.clone(),
+            executable_data.bin.clone(),
+            executable_data.args.clone(),
+            executable_data.env.clone(),
+            self.log_to_file,
+            self.logging_path.clone(),
         )
-    }
-}
-
-impl Deref for SupervisorOnHost<NotStarted> {
-    type Target = SupervisorConfigOnHost;
-    fn deref(&self) -> &Self::Target {
-        &self.state.config
     }
 }
 
@@ -364,7 +379,6 @@ pub mod tests {
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
-    use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
     use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
@@ -389,14 +403,16 @@ pub mod tests {
                     .with_max_retries(1);
 
                 let any_exit_code = vec![];
-                let config = SupervisorConfigOnHost::new(
+
+                let supervisor = NotStartedSupervisorOnHost::new(
                     self.agent_id.to_owned().try_into().unwrap(),
-                    self.executable,
+                    Some(self.executable.with_restart_policy(RestartPolicy::new(
+                        BackoffStrategy::Fixed(backoff),
+                        any_exit_code,
+                    ))),
                     Context::new(),
-                    RestartPolicy::new(BackoffStrategy::Fixed(backoff), any_exit_code),
                     None,
                 );
-                let supervisor = SupervisorOnHost::new(config);
 
                 let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
@@ -411,12 +427,7 @@ pub mod tests {
                 let max_duration = Duration::from_millis(100);
                 let start = Instant::now();
 
-                started_supervisor
-                    .expect("no error")
-                    .stop()
-                    .expect("no error")
-                    .join()
-                    .unwrap();
+                started_supervisor.expect("no error").stop().unwrap();
 
                 let duration = start.elapsed();
 
@@ -485,21 +496,21 @@ pub mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+        let exec = ExecutableData::new("wrong-command".to_owned())
+            .with_args(vec!["x".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
+        let agent = NotStartedSupervisorOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
-            exec,
+            Some(exec),
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
             None,
         );
-        let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.state.handle.is_finished() {
+        while !agent.handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
     }
@@ -514,28 +525,23 @@ pub mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("wrong-command".to_owned()).with_args(vec!["x".to_owned()]);
+        let exec = ExecutableData::new("wrong-command".to_owned())
+            .with_args(vec!["x".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
+        let agent = NotStartedSupervisorOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
-            exec,
+            Some(exec),
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
             None,
         );
-        let agent = SupervisorOnHost::new(config);
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher);
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
-        assert!(agent
-            .expect("no error")
-            .stop()
-            .expect("no error")
-            .join()
-            .is_ok());
+        agent.expect("no error").stop().expect("no error");
 
         assert!(timer.elapsed() < Duration::from_secs(10));
     }
@@ -549,21 +555,21 @@ pub mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["hello!".to_owned()]);
+        let exec = ExecutableData::new("echo".to_owned())
+            .with_args(vec!["hello!".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
+        let agent = NotStartedSupervisorOnHost::new(
             "echo".to_owned().try_into().unwrap(),
-            exec,
+            Some(exec),
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
             None,
         );
-        let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.state.handle.is_finished() {
+        while !agent.handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 
@@ -591,21 +597,21 @@ pub mod tests {
 
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
-        let exec = ExecutableData::new("echo".to_owned()).with_args(vec!["".to_owned()]);
+        let exec = ExecutableData::new("echo".to_owned())
+            .with_args(vec!["".to_owned()])
+            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let config = SupervisorConfigOnHost::new(
+        let agent = NotStartedSupervisorOnHost::new(
             "echo".to_owned().try_into().unwrap(),
-            exec,
+            Some(exec),
             Context::new(),
-            RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]),
             None,
         );
-        let agent = SupervisorOnHost::new(config);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.state.handle.is_finished() {
+        while !agent.handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 

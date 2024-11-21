@@ -5,7 +5,6 @@ use super::{
 use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::HealthCheckerError;
-use std::thread::JoinHandle;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -43,5 +42,5 @@ pub trait SupervisorStarter {
 }
 
 pub trait SupervisorStopper {
-    fn stop(self) -> Result<JoinHandle<()>, EventPublisherError>;
+    fn stop(self) -> Result<(), EventPublisherError>;
 }

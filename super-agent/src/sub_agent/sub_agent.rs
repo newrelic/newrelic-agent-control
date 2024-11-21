@@ -381,24 +381,13 @@ where
     S: SupervisorStopper,
 {
     if let Some(s) = maybe_started_supervisor {
-        let _ = s
-            .stop()
-            .map(|join_handle| {
-                let _ = join_handle.join().inspect_err(|_| {
-                    error!(
-                        agent_id = %agent_id,
-                        "Error stopping k8s supervisor thread"
-                    );
-                });
-            })
-            .inspect_err(|err| {
-                error!(
-
-                        agent_id = %agent_id,
-                        %err,
-                        "Error stopping k8s supervisor"
-                );
-            });
+        let _ = s.stop().inspect_err(|err| {
+            error!(
+                    agent_id = %agent_id,
+                    %err,
+                    "Error stopping k8s supervisor"
+            );
+        });
     }
 }
 
