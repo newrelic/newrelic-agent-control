@@ -243,7 +243,7 @@ where
                         Ok(opamp_event) => {
                             match opamp_event {
                                 OpAMPEvent::RemoteConfigReceived(remote_config) => {
-                                    let _ = self.remote_config(remote_config, &mut sub_agents )
+                                    let _ = self.remote_config(remote_config, &mut sub_agents)
                                     .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
                                 }
                                 OpAMPEvent::Connected => {
