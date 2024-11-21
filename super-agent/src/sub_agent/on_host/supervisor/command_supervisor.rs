@@ -32,7 +32,7 @@ use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
     id: AgentID,
-    handle: Option<JoinHandle<()>>,
+    maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
     maybe_stop_health: Option<HealthChecker<HealthCheckerStarted>>,
 }
@@ -40,7 +40,7 @@ pub struct StartedSupervisorOnHost {
 pub struct NotStartedSupervisorOnHost {
     pub(super) id: AgentID,
     pub(super) ctx: Context<bool>,
-    pub(crate) exec: Option<ExecutableData>,
+    pub(crate) maybe_exec: Option<ExecutableData>,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
@@ -58,14 +58,14 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let id = self.id.clone();
 
         // the process thread is created if exec is Some
-        let handle = self
-            .exec
+        let maybe_handle = self
+            .maybe_exec
             .clone()
             .map(|e| self.start_process_thread(sub_agent_internal_publisher, e));
 
         Ok(StartedSupervisorOnHost {
             id,
-            handle,
+            maybe_handle,
             ctx,
             maybe_stop_health,
         })
@@ -79,7 +79,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
         }
         self.ctx.cancel_all(true).unwrap();
 
-        let _ = self.handle.map(|h| {
+        let _ = self.maybe_handle.map(|h| {
             h.join().inspect_err(|_| {
                 error!(
                     agent_id = self.id.to_string(),
@@ -95,14 +95,14 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 impl NotStartedSupervisorOnHost {
     pub fn new(
         id: AgentID,
-        exec: Option<ExecutableData>,
+        maybe_exec: Option<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             id,
             ctx,
-            exec,
+            maybe_exec,
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
@@ -510,7 +510,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.handle.as_ref().unwrap().is_finished() {
+        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
     }
@@ -569,7 +569,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.handle.as_ref().unwrap().is_finished() {
+        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 
@@ -611,7 +611,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.handle.as_ref().unwrap().is_finished() {
+        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
             thread::sleep(Duration::from_millis(15));
         }
 

@@ -213,14 +213,14 @@ where
         enable_file_logging: bool,
         on_host_config: OnHost,
     ) -> NotStartedSupervisorOnHost {
-        let exec_data = on_host_config.executable.map(|e| {
+        let maybe_exec = on_host_config.executable.map(|e| {
             ExecutableData::new(e.path.get())
                 .with_args(e.args.get().into_vector())
                 .with_env(e.env.get())
                 .with_restart_policy(e.restart_policy.into())
         });
 
-        NotStartedSupervisorOnHost::new(agent_id, exec_data, Context::new(), on_host_config.health)
+        NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host_config.health)
             .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
     }
 }
