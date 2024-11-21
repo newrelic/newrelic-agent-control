@@ -21,12 +21,12 @@ const ERROR_REMOTE_CONFIG: &str = "Error applying Sub Agent remote config";
 /// When the configuration is empty, the values are deleted instead (an empty configuration means that the remote
 /// configuration should not apply anymore).
 pub fn remote_config<C, CB, HR, Y>(
-    remote_config: RemoteConfig,
+    remote_config: &mut RemoteConfig,
     maybe_opamp_client: Option<&C>,
     config_validator: &ConfigValidator,
     remote_values_repo: &Y,
     sub_agent_remote_config_hash_repository: &HR,
-    agent_type: AgentTypeFQN,
+    agent_type: &AgentTypeFQN,
 ) -> Result<(), SubAgentError>
 where
     C: StartedClient<CB>,
@@ -38,7 +38,7 @@ where
         unreachable!("got remote config without OpAMP being enabled")
     };
 
-    if let Err(err) = config_validator.validate(&agent_type, &remote_config) {
+    if let Err(err) = config_validator.validate(agent_type, remote_config) {
         let err = err.into();
         report_remote_config_status_error(
             opamp_client,
@@ -50,9 +50,8 @@ where
 
     report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
 
-    let mut remote_config = remote_config;
     if let Err(err) = store_remote_config_hash_and_values(
-        &mut remote_config,
+        remote_config,
         sub_agent_remote_config_hash_repository,
         remote_values_repo,
     ) {
@@ -67,7 +66,7 @@ where
     Ok(())
 }
 
-fn store_remote_config_hash_and_values<HS, Y>(
+pub fn store_remote_config_hash_and_values<HS, Y>(
     remote_config: &mut RemoteConfig,
     sub_agent_remote_config_hash_repository: &HS,
     remote_values_repo: &Y,
@@ -152,7 +151,7 @@ mod tests {
 
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigurationMap::new(HashMap::from([("".to_string(), "".to_string())]));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let mut hash_repository = MockHashRepositoryMock::default();
         hash_repository.should_save_hash(&agent_id, &hash);
@@ -170,12 +169,12 @@ mod tests {
         });
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert!(remote_config_result.is_ok())
@@ -193,7 +192,7 @@ mod tests {
             "".to_string(),
             "this is not valid yaml".to_string(),
         )]));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let expected_error = SubAgentError::ValuesUnserializeError(YAMLConfigError::FormatError(
             serde_yaml::Error::custom(
@@ -221,12 +220,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -244,7 +243,7 @@ mod tests {
 
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigurationMap::new(HashMap::new());
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let expected_error = SubAgentError::RemoteConfigError(RemoteConfigError::InvalidConfig(
             hash.get(),
@@ -271,12 +270,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -294,7 +293,7 @@ mod tests {
 
         let mut hash = Hash::new(String::from("some-hash"));
         hash.fail("error_message".into());
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
 
         let expected_error = SubAgentError::RemoteConfigError(RemoteConfigError::InvalidConfig(
             hash.get(),
@@ -316,12 +315,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -338,7 +337,7 @@ mod tests {
                 .unwrap();
 
         let hash = Hash::new(String::from("some-hash"));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), None);
 
         let expected_error =
             SubAgentError::from(HashRepositoryError::LoadError("test".to_string()));
@@ -362,12 +361,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -388,7 +387,7 @@ mod tests {
             "".to_string(),
             "some_item: some_value".to_string(),
         )]));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let expected_error =
             SubAgentError::from(YAMLConfigRepositoryError::StoreError("store".to_string()));
@@ -418,12 +417,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -441,7 +440,7 @@ mod tests {
 
         let hash = Hash::new(String::from("some-hash"));
         let config_map = ConfigurationMap::new(HashMap::from([("".to_string(), "".to_string())]));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let expected_error =
             SubAgentError::from(YAMLConfigRepositoryError::DeleteError("delete".to_string()));
@@ -465,12 +464,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(
@@ -491,7 +490,7 @@ mod tests {
             "".to_string(),
             "exec: /bin/echo".to_string(),
         )]));
-        let config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let mut config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
         let expected_error = SubAgentError::from(ValidatorError::InvalidConfig);
 
@@ -506,12 +505,12 @@ mod tests {
         opamp_client.should_set_remote_config_status(failing_status(&hash, &expected_error));
 
         let remote_config_result = remote_config(
-            config,
+            &mut config,
             Some(&opamp_client),
             &ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
             &yaml_config_repository,
             &hash_repository,
-            agent_type,
+            &agent_type,
         );
 
         assert_eq!(

@@ -495,14 +495,14 @@ pub mod test {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
-            .with(predicate::always(), predicate::always())
-            .returning(move |_, _| {
-                Ok(Some(NotStartedSupervisorK8s::new(
+            .with(predicate::always())
+            .returning(move |_| {
+                Ok(NotStartedSupervisorK8s::new(
                     agent_id.clone(),
                     agent_fqn.clone(),
                     mocked_client.clone(),
                     k8s_obj.clone(),
-                )))
+                ))
             });
 
         let sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();

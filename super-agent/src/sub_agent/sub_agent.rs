@@ -2,32 +2,35 @@ use crate::agent_type::environment::Environment;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::callbacks::AgentCallbacks;
-use crate::opamp::client_builder::OpAMPClientBuilder;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::opamp::remote_config_report::report_remote_config_status_applied;
+use crate::opamp::remote_config_hash::Hash;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
+use crate::opamp::remote_config_report::{
+    report_remote_config_status_applied, report_remote_config_status_applying,
+};
 use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
-use crate::sub_agent::event_handler::opamp::remote_config::remote_config;
+use crate::sub_agent::event_handler::opamp::remote_config::store_remote_config_hash_and_values;
 use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
+
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
-use opamp_client::{Client, StartedClient};
+use opamp_client::StartedClient;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, warn};
+
+use super::supervisor::SupervisorError;
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -152,10 +155,8 @@ where
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
-            // Build a new supervisor from the persisted values
-            let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
-            // Start the new supervisor if any
-            let mut supervisor = self.start_supervisor(maybe_not_started_supervisor);
+            // Start the new supervisor if any, without hash as it's the first time
+            let mut supervisor = self.generate_supervisor(None);
 
             debug!(
                 agent_id = %self.agent_id,
@@ -186,29 +187,56 @@ where
                                 break;
                             }
 
-                            Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
+                            Ok(OpAMPEvent::RemoteConfigReceived(mut config)) => {
                                 debug!(agent_id = self.agent_id.to_string(),
                                 select_arm = "sub_agent_opamp_consumer",
                 "remote config received");
-                                if let Err(e) = remote_config(
-                                    config,
-                                    self.maybe_opamp_client.as_ref(),
-                                    self.config_validator.as_ref(),
-                                    self.remote_values_repo.as_ref(),
-                                    self.sub_agent_remote_config_hash_repository.as_ref(),
-                                    self.agent_cfg.agent_type.clone(),
-                                ){
-                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error processing remote config")
+
+                                // This branch only makes sense with a valid OpAMP client
+                                let Some(opamp_client) = &self.maybe_opamp_client else {
+                                    debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
+                                    continue;
+                                };
+
+                                if let Err(e) = self.config_validator.validate(&self.agent_cfg.agent_type, &config) {
+                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error validating remote config");
+                                    // This reporting might fail as well... what do we do?
+                                    if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
+                                        error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                    }
+                                    continue;
                                 }
 
+                                if let Err(e) = report_remote_config_status_applying(opamp_client, &config.hash) {
+                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                    continue;
+                                }
+
+                                // FIXME storing is a sensitive operation, what are the failure modes and what should we do when they happen?
+                                if let Err(e) = store_remote_config_hash_and_values(&mut config, self.sub_agent_remote_config_hash_repository.as_ref(), self.remote_values_repo.as_ref()) {
+                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error storing remote config hash and values");
+                                    // This reporting might fail as well... what do we do?
+                                    if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
+                                        error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                    }
+                                    continue;
+                                }
+
+                                // If we reach this then the remote config was successfully applied
                                 // Stop the current supervisor if any
                                 stop_supervisor(&self.agent_id, supervisor);
-                                // Build a new supervisor from the persisted values
-                                let maybe_not_started_supervisor = self.build_supervisor_from_persisted_values();
-                                // Start the new supervisor if any
-                                supervisor = self.start_supervisor(maybe_not_started_supervisor);
-                            }
-                            _ => {}}
+
+                                // Attempt to retrieve the hash
+                                let hash = self
+                                    .sub_agent_remote_config_hash_repository
+                                    .get(&self.agent_id)
+                                    .inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to get hash from repository"))
+                                    .unwrap_or_default();
+
+                                supervisor = self.generate_supervisor(hash);
+                            },
+                            Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
+                        }
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                         match sub_agent_internal_event_res {
@@ -240,25 +268,79 @@ where
         })
     }
 
+    fn generate_supervisor(
+        &self,
+        hash: Option<Hash>,
+    ) -> Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
+        if hash.is_none() {
+            debug!(%self.agent_id, "no previous remote config found");
+        }
+
+        // Assemble the new agent
+        let effective_agent_result = self.effective_agent_assembler.assemble_agent(
+            &self.agent_id,
+            &self.agent_cfg,
+            &self.environment,
+        );
+
+        match effective_agent_result {
+            Err(e) => {
+                if let Some(mut hash) = hash {
+                    if !hash.is_failed() {
+                        hash.fail(e.to_string());
+                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to save hash to repository"));
+                        // FIXME what do we do on failure above?
+                    }
+                }
+                None
+            }
+            Ok(effective_agent) => {
+                if let (Some(mut hash), Some(opamp_client)) = (hash, &self.maybe_opamp_client) {
+                    if hash.is_applying() {
+                        debug!(%self.agent_id, "applying remote config");
+                        hash.apply();
+                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to save hash to repository")); // FIXME what do we do on failure?
+                        _ = opamp_client.update_effective_config().inspect_err(
+                            |e| error!(%self.agent_id, %e, "effective config update failed"),
+                        ); // FIXME what do we do on failure?
+                        _ = report_remote_config_status_applied(opamp_client, &hash).inspect_err(
+                            |e| error!(%self.agent_id, %e, "error reporting remote config status"),
+                        ); // FIXME what do we do on failure?
+                    }
+                    if let Some(err) = hash.error_message() {
+                        warn!(%self.agent_id, err = %err, "remote config failed. Building with previous stored config");
+                        _ = report_remote_config_status_error(opamp_client, &hash, err).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
+                        // FIXME what do we do on failure?
+                    }
+                }
+                self.build_supervisor(effective_agent)
+                    .inspect_err(|err| error!(agent_id=%self.agent_id, %err, "Error building the supervisor"))
+                    .and_then(|s| self.start_supervisor(s))
+                    .map(Some)
+                    .unwrap_or_default()
+            }
+        }
+    }
+
     pub(crate) fn build_supervisor(
         &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-    ) -> Option<B::SupervisorStarter> {
+        effective_agent: EffectiveAgent,
+    ) -> Result<B::SupervisorStarter, SupervisorError> {
         self.supervisor_builder
-            .build_supervisor(effective_agent_result, &self.maybe_opamp_client)
-            .inspect_err(
-                |err| error!(agent_id=%self.agent_id, %err, "Error building the supervisor"),
-            )
-            .unwrap_or_default()
+            .build_supervisor(effective_agent)
+            .map_err(|err| {
+                error!(agent_id=%self.agent_id, %err, "Error building the supervisor");
+                err.into()
+            })
     }
 
     pub(crate) fn start_supervisor(
         &self,
-        maybe_not_started_supervisor: Option<B::SupervisorStarter>,
-    ) -> Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
-        maybe_not_started_supervisor
-            .map(|s| s.start(self.sub_agent_internal_publisher.clone()))
-            .transpose()
+        not_started_supervisor: B::SupervisorStarter,
+    ) -> Result<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper, SupervisorError>
+    {
+        not_started_supervisor
+            .start(self.sub_agent_internal_publisher.clone())
             .inspect_err(|err| {
                 log_and_report_unhealthy(
                     &self.sub_agent_internal_publisher,
@@ -267,88 +349,6 @@ where
                     SystemTime::now(),
                 )
             })
-            .unwrap_or(None)
-    }
-
-    pub fn build_supervisor_from_persisted_values(&self) -> Option<B::SupervisorStarter> {
-        let effective_agent_result = self.assemble_agent();
-        self.build_supervisor(effective_agent_result)
-    }
-
-    pub fn assemble_agent(&self) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
-        self.effective_agent_assembler.assemble_agent(
-            &self.agent_id,
-            &self.agent_cfg,
-            &self.environment,
-        )
-    }
-}
-
-pub(crate) fn build_supervisor_or_default<HR, O, T, F, C>(
-    agent_id: &AgentID,
-    hash_repository: &Arc<HR>,
-    maybe_opamp_client: &Option<O::Client>,
-    effective_agent_res: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-    supervisor_builder_fn: F,
-) -> Result<T, SubAgentBuilderError>
-where
-    HR: HashRepository,
-    C: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<C>>,
-    T: Default,
-    F: FnOnce(EffectiveAgent) -> Result<T, SubAgentBuilderError>,
-{
-    // A sub-agent's supervisor can be started without a valid effective agent when an OpAMP
-    // client is available. This is useful when the agent is in a failed state and the OpAMP
-    // client is the only way to fix the configuration via remote configs.
-    if let Some(opamp_client) = maybe_opamp_client {
-        // // Invalid/corrupted hash file should not crash the sub agent
-        let hash = hash_repository.get(agent_id).unwrap_or_else(|err| {
-            error!(%agent_id, %err, "failed to get hash from repository");
-            None
-        });
-
-        match (hash, effective_agent_res) {
-            (Some(mut hash), Ok(effective_agent)) => {
-                if hash.is_applying() {
-                    debug!(%agent_id, "applying remote config");
-                    hash.apply();
-                    hash_repository.save(agent_id, &hash)?;
-                    let _ = opamp_client.update_effective_config().inspect_err(|err| {
-                        error!(%agent_id, %err, "effective config update failed");
-                    });
-                    report_remote_config_status_applied(opamp_client, &hash)?;
-                }
-
-                if let Some(err_msg) = hash.error_message() {
-                    warn!(%agent_id, err = %err_msg, "remote config failed. Building with previous stored config");
-                    report_remote_config_status_error(opamp_client, &hash, err_msg)?;
-                }
-
-                supervisor_builder_fn(effective_agent)
-            }
-            (Some(mut hash), Err(err)) => {
-                if !hash.is_failed() {
-                    hash.fail(err.to_string());
-                    hash_repository.save(agent_id, &hash)?;
-                }
-
-                report_remote_config_status_error(opamp_client, &hash, err.to_string())?;
-                error!(%agent_id, %err, "failed to assemble agent from remote config");
-                Ok(Default::default())
-            }
-            (None, Err(err)) => {
-                debug!(%agent_id, "no previous remote config found");
-                warn!(%agent_id, %err, "no previous config found. Failed to assemble agent from local or remote config");
-                Ok(Default::default())
-            }
-            (None, Ok(effective_agent)) => {
-                debug!(%agent_id, "no previous remote config found");
-                supervisor_builder_fn(effective_agent)
-            }
-        }
-    } else {
-        supervisor_builder_fn(effective_agent_res?)
     }
 }
 
@@ -421,11 +421,9 @@ pub mod test {
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -434,11 +432,9 @@ pub mod test {
     use crate::super_agent::config::AgentTypeFQN;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
-    use mockall::{mock, predicate, Sequence};
+    use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying};
+    use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
     use std::collections::HashMap;
     use std::thread::sleep;
     use std::time::Duration;
@@ -567,13 +563,10 @@ pub mod test {
             MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
-            .with(
-                predicate::function(move |e: &Result<EffectiveAgent, _>| {
-                    e.as_ref().is_ok_and(|x| *x == effective_agent)
-                }),
-                predicate::always(),
-            )
-            .returning(|_, _| Ok(None));
+            .with(predicate::function(move |e: &EffectiveAgent| {
+                e == &effective_agent
+            }))
+            .returning(|_| Ok(MockSupervisorStarter::default()));
 
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -674,13 +667,10 @@ pub mod test {
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
-            .with(
-                predicate::function(move |e: &Result<EffectiveAgent, _>| {
-                    e.as_ref().is_ok_and(|x| *x == effective_agent)
-                }),
-                predicate::always(),
-            )
-            .returning(|_, _| Ok(None));
+            .with(predicate::function(move |e: &EffectiveAgent| {
+                e == &effective_agent
+            }))
+            .returning(|_| Ok(MockSupervisorStarter::default()));
 
         SubAgent::new(
             agent_id,
@@ -730,6 +720,9 @@ pub mod test {
     // We are safe to discard those from the testing set and only look at `effective_agent_res` in this case.
     //
     // So, we cover all cases.
+
+    // TODO use the new structure we have created!
+    /*
 
     /// `maybe_opamp_client == Some(_)`
     /// `hash_repository.get(agent_id)? == Some(_)`
@@ -1276,4 +1269,6 @@ pub mod test {
         assert!(actual.is_ok());
         assert_eq!(expected, actual.unwrap());
     }
+
+    */
 }

@@ -9,12 +9,10 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::SubAgent;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::sub_agent::{build_supervisor_or_default, SubAgent};
 use crate::super_agent::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::super_agent::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
@@ -250,16 +248,9 @@ where
 
     fn build_supervisor(
         &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-        maybe_opamp_client: &Option<Self::OpAMPClient>,
-    ) -> Result<Option<Self::SupervisorStarter>, SubAgentBuilderError> {
-        build_supervisor_or_default::<HR, O, _, _, _>(
-            &self.agent_id,
-            &self.hash_repository,
-            maybe_opamp_client,
-            effective_agent_result,
-            |effective_agent| self.build_cr_supervisors(effective_agent).map(Some),
-        )
+        effective_agent: EffectiveAgent,
+    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
+        self.build_cr_supervisors(effective_agent)
     }
 }
 
@@ -394,9 +385,9 @@ pub mod test {
         let supervisor_builder =
             testing_supervisor_builder(agent_id.clone(), sub_agent_config.clone());
 
-        let result = supervisor_builder.build_supervisor(Ok(effective_agent), &None);
+        let result = supervisor_builder.build_supervisor(effective_agent);
         assert!(
-            result.unwrap().is_some(),
+            result.is_ok(),
             "It should not error and it should return a supervisor"
         );
     }
@@ -423,7 +414,7 @@ pub mod test {
         let supervisor_builder =
             testing_supervisor_builder(agent_id.clone(), sub_agent_config.clone());
 
-        let result = supervisor_builder.build_supervisor(Ok(effective_agent), &None);
+        let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::UnsupportedK8sObject(_)

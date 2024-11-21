@@ -8,14 +8,12 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
 use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::SubAgent;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::sub_agent::{build_supervisor_or_default, SubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{
     sub_agent_version, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -237,16 +235,9 @@ where
 
     fn build_supervisor(
         &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-        maybe_opamp_client: &Option<Self::OpAMPClient>,
-    ) -> Result<Option<Self::SupervisorStarter>, SubAgentBuilderError> {
-        build_supervisor_or_default::<HR, O, _, _, _>(
-            &self.agent_id,
-            &self.hash_repository,
-            maybe_opamp_client,
-            effective_agent_result,
-            |effective_agent| self.build_onhost_supervisor(effective_agent).map(Some),
-        )
+        effective_agent: EffectiveAgent,
+    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
+        self.build_onhost_supervisor(effective_agent)
     }
 }
 
