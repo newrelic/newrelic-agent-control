@@ -10,18 +10,18 @@ super-agent-deployment:
           level: debug
     subAgents:
       infra:
-        type: newrelic/com.newrelic.infrastructure_agent:0.1.3
+        type: newrelic/com.newrelic.infrastructure:0.1.0
         content:
-          chart_version: 5.0.102
+          chart_version: "*" # Use latest
           chart_values:
-            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName')
+            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
               customAttributes:
                 cluster_name: ${nr-env:NR_CLUSTER_NAME}
       prometheus:
         type: newrelic/com.newrelic.prometheus:0.1.0
         content:
-          chart_version: 1.15.2
+          chart_version: "*" # Use latest
       logs:
-        type: newrelic/com.newrelic.logs:0.1.0
+        type: newrelic/io.fluentbit:0.1.0
         content:
-          chart_version: 1.23.5
+          chart_version: "*" # Use latest

@@ -169,7 +169,7 @@ jobs:
   # These tests are using (by default) the released charts
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained
   # in the test/k8s-e2e/Readme.md
-  k8s-e2-tests:
+  k8s-e2e-tests:
     name: K8s e2e tests ${{ matrix.group }}
     runs-on: ubuntu-latest
     strategy:
