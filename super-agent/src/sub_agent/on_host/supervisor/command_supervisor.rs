@@ -5,18 +5,13 @@ use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::publish_health_event;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::on_host::command::command::{
-    CommandError, CommandTerminator, NotStartedCommand, StartedCommand,
-};
-use crate::sub_agent::on_host::command::command_os;
-use crate::sub_agent::on_host::command::command_os::CommandOS;
+use crate::sub_agent::on_host::command::command::CommandError;
+use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
-use crate::sub_agent::on_host::health_checker::{
-    HealthChecker, HealthCheckerNotStarted, HealthCheckerStarted,
-};
-use crate::sub_agent::on_host::supervisor::command_supervisor_config::ExecutableData;
+use crate::sub_agent::on_host::health_checker::{HealthCheckerNotStarted, HealthCheckerStarted};
+use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::AgentID;
@@ -34,7 +29,7 @@ pub struct StartedSupervisorOnHost {
     id: AgentID,
     maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
-    maybe_stop_health: Option<HealthChecker<HealthCheckerStarted>>,
+    maybe_stop_health: Option<HealthCheckerStarted>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -120,10 +115,10 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<HealthChecker<HealthCheckerStarted>>, SupervisorError> {
-        let maybe_helth_checker: Option<HealthChecker<HealthCheckerNotStarted>> =
+    ) -> Result<Option<HealthCheckerStarted>, SupervisorError> {
+        let maybe_helth_checker: Option<HealthCheckerNotStarted> =
             self.health_config.as_ref().and_then(|health_config| {
-                HealthChecker::try_new(
+                HealthCheckerNotStarted::try_new(
                     self.id.clone(),
                     sub_agent_internal_publisher,
                     health_config.clone(),
@@ -262,16 +257,11 @@ impl NotStartedSupervisorOnHost {
         })
     }
 
-    pub fn not_started_command(
-        &self,
-        executable_data: &ExecutableData,
-    ) -> CommandOS<command_os::NotStarted> {
+    pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
         //TODO extract to to a builder so we can mock it
-        CommandOS::<command_os::NotStarted>::new(
+        CommandOSNotStarted::new(
             self.id.clone(),
-            executable_data.bin.clone(),
-            executable_data.args.clone(),
-            executable_data.env.clone(),
+            executable_data,
             self.log_to_file,
             self.logging_path.clone(),
         )
@@ -323,13 +313,10 @@ fn handle_termination(
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
 /// into the provided variable. It waits until the process exits.
-fn start_command<R>(
-    not_started_command: R,
+fn start_command(
+    not_started_command: CommandOSNotStarted,
     mut pid: std::sync::MutexGuard<Option<u32>>,
-) -> Result<ExitStatus, CommandError>
-where
-    R: NotStartedCommand,
-{
+) -> Result<ExitStatus, CommandError> {
     // run and stream the process
     let started = not_started_command.start()?;
 
@@ -379,6 +366,7 @@ pub mod tests {
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
+    use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
     use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
