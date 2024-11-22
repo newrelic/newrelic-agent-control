@@ -4,12 +4,15 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{create_foo_cr, foo_type_meta, Foo},
 };
+use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::k8s::annotations::Annotations;
 use newrelic_super_agent::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
-use newrelic_super_agent::super_agent::config::{default_group_version_kinds, AgentTypeFQN};
+use newrelic_super_agent::super_agent::config::{
+    default_group_version_kinds, secret_type_meta, AgentTypeFQN,
+};
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,
     k8s::{
@@ -50,7 +53,7 @@ mock! {
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_garbage_collector_cleans_removed_agent() {
+fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
@@ -61,32 +64,54 @@ fn k8s_garbage_collector_cleans_removed_agent() {
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
 
     let resource_name = "test-different-from-agent-id";
+    let secret_name = "test-secret-name";
 
     let s = NotStartedSupervisorK8s::new(
         agent_id.clone(),
         agent_fqn.clone(),
         k8s_client.clone(),
         runtime_config::K8s {
-            objects: HashMap::from([(
-                "fooCR".to_string(),
-                serde_yaml::from_str::<K8sObject>(
-                    format!(
-                        r#"
-apiVersion: {}
-kind: {}
-spec:
-    data: test
-metadata:
-  name: {}
-        "#,
-                        foo_type_meta().api_version,
-                        foo_type_meta().kind,
-                        resource_name,
+            objects: HashMap::from([
+                (
+                    "fooCR".to_string(),
+                    serde_yaml::from_str::<K8sObject>(
+                        format!(
+                            r#"
+    apiVersion: {}
+    kind: {}
+    spec:
+        data: test
+    metadata:
+      name: {}
+            "#,
+                            foo_type_meta().api_version,
+                            foo_type_meta().kind,
+                            resource_name,
+                        )
+                        .as_str(),
                     )
-                    .as_str(),
-                )
-                .unwrap(),
-            )]),
+                    .unwrap(),
+                ),
+                (
+                    "fooSecret".to_string(),
+                    serde_yaml::from_str::<K8sObject>(
+                        format!(
+                            r#"
+    apiVersion: {}
+    kind: {}
+    stringData:
+      values.yaml: |
+        nameOverride: "override-by-secret"
+    metadata:
+      name: {}
+            "#,
+                            "v1", "Secret", secret_name,
+                        )
+                        .as_str(),
+                    )
+                    .unwrap(),
+                ),
+            ]),
             health: None,
         },
     );
@@ -139,23 +164,26 @@ agents:
     let mut gc = NotStartedK8sGarbageCollector::new(
         Arc::new(config_loader),
         k8s_client,
-        vec![foo_type_meta()],
+        vec![foo_type_meta(), secret_type_meta()],
     );
 
-    // Expects the GC to keep the agent cr which is in the config, event if looking for multiple kinds or that
+    // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
     // are missing in the cluster.
     gc.collect().unwrap();
-    let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
-    block_on(api.get(resource_name)).expect("CR should exist");
+    let api_foo: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
+    block_on(api_foo.get(resource_name)).expect("CR should exist");
+    let api_secret: Api<Secret> = Api::namespaced(test.client.clone(), &test_ns);
+    block_on(api_secret.get(secret_name)).expect("Secret should exist");
     assert_eq!(
         agent_instance_id,
         instance_id_getter.get(agent_id).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 
-    // Expect that the current_agent is removed on the second call.
+    // Expect that the current_agent and secret to be removed on the second call.
     gc.collect().unwrap();
-    block_on(api.get(resource_name)).expect_err("CR should be removed");
+    block_on(api_foo.get(resource_name)).expect_err("CR should be removed");
+    block_on(api_secret.get(secret_name)).expect_err("Secret should be removed");
     assert_ne!(
         agent_instance_id,
         instance_id_getter.get(agent_id).unwrap(),

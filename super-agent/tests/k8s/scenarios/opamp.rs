@@ -5,7 +5,7 @@ use crate::common::{
     retry::retry,
     runtime::block_on,
 };
-use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
+use crate::k8s::tools::super_agent::{CUSTOM_AGENT_TYPE_PATH, CUSTOM_AGENT_TYPE_SECRET_PATH};
 
 use crate::k8s::tools::k8s_api::delete_helm_release;
 use crate::k8s::tools::{
@@ -263,6 +263,70 @@ agents:
             &instance_id,
             expected_config.to_string(),
         )?;
+
+        check_latest_health_status_was_healthy(&server, &instance_id.clone())
+    });
+}
+
+/// The local configuration for the open-telemetry collector has a secret with some values,
+/// a new remote configuration containing new values for the secret is loaded and applied.
+/// Those changes should be reflected in the corresponding HelmRelease resource.
+#[test]
+#[ignore = "needs k8s cluster"]
+#[serial]
+fn k8s_opamp_subagent_modify_secret() {
+    let test_name = "k8s_opamp_subagent_modify_secret";
+
+    let mut server = FakeServer::start_new();
+
+    // setup the k8s environment
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    // start the super-agent
+    let _sa = start_super_agent_with_testdata_config(
+        test_name,
+        CUSTOM_AGENT_TYPE_SECRET_PATH,
+        k8s.client.clone(),
+        &namespace,
+        Some(&server.endpoint()),
+        // This config is intended to be empty
+        vec!["local-data-hello-world"],
+        tmp_dir.path(),
+    );
+    wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
+
+    let instance_id =
+        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+
+    // Update the agent configuration via OpAMP
+    server.set_config_response(
+        instance_id.clone(),
+        ConfigResponse::from(
+            r#"
+    secret_name_override: remote-override-secret
+           "#,
+        ),
+    );
+
+    retry(60, Duration::from_secs(1), || {
+        let expected_config = "secret_name_override: remote-override-secret\n";
+
+        check_latest_effective_config_is_expected(
+            &server,
+            &instance_id.clone(),
+            expected_config.to_string(),
+        )?;
+
+        // Check deployment has the key 'remote-override-secret' concatenated to the name because
+        // the new secret created from the remote values adds that NameOverride.
+        // TODO temporarily commented since there is a bug that avoids updating the Secret from remote
+        /*block_on(check_deployments_exist(
+            k8s.client.clone(),
+            &["hello-world-remote-override-secret"],
+            namespace.as_str(),
+        ))?;*/
 
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });

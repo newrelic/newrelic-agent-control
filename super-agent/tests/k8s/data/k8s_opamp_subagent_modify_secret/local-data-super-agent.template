@@ -1,0 +1,10 @@
+opamp:
+  endpoint: <opamp-endpoint>
+  headers:
+    api-key: test-api-key
+k8s:
+  namespace: <ns>
+  cluster_name: <cluster-name>
+agents:
+  hello-world:
+    agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
