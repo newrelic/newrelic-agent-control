@@ -264,7 +264,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub(crate) mod test {
     use super::*;
     use crate::agent_type::runtime_config::{self, Deployment, Runtime};
     use crate::event::channel::pub_sub;
@@ -277,7 +277,6 @@ pub mod test {
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::k8s::sub_agent::test::TEST_AGENT_ID;
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
@@ -291,6 +290,8 @@ pub mod test {
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
     const TEST_NAMESPACE: &str = "test-namespace";
+    const TEST_AGENT_ID: &str = "k8s-test";
+
     #[test]
     fn k8s_agent_build_success() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
