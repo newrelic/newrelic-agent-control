@@ -192,6 +192,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## arraydeque https://crates.io/crates/arraydeque
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## arrayvec https://crates.io/crates/arrayvec
 
 Distributed under the following license(s):
@@ -605,13 +612,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## derivative https://crates.io/crates/derivative
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## derive_more https://crates.io/crates/derive_more
 
 Distributed under the following license(s):
@@ -658,6 +658,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## educe https://crates.io/crates/educe
+
+Distributed under the following license(s):
+* MIT
+
+
 ## either https://crates.io/crates/either
 
 Distributed under the following license(s):
@@ -671,6 +677,18 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 * BSD-3-Clause
+
+
+## enum-ordinalize https://crates.io/crates/enum-ordinalize
+
+Distributed under the following license(s):
+* MIT
+
+
+## enum-ordinalize-derive https://crates.io/crates/enum-ordinalize-derive
+
+Distributed under the following license(s):
+* MIT
 
 
 ## equivalent https://crates.io/crates/equivalent
@@ -719,6 +737,12 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
+
+
+## foldhash https://crates.io/crates/foldhash
+
+Distributed under the following license(s):
+* Zlib
 
 
 ## form_urlencoded https://crates.io/crates/form_urlencoded
@@ -844,6 +868,13 @@ Distributed under the following license(s):
 
 
 ## hashbrown https://crates.io/crates/hashbrown
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## hashlink https://crates.io/crates/hashlink
 
 Distributed under the following license(s):
 * MIT
@@ -1172,13 +1203,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * ISC
-
-
-## linked-hash-map https://crates.io/crates/linked-hash-map
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## linux-raw-sys https://crates.io/crates/linux-raw-sys
@@ -2470,7 +2494,7 @@ Distributed under the following license(s):
 * MIT
 
 
-## yaml-rust https://crates.io/crates/yaml-rust
+## yaml-rust2 https://crates.io/crates/yaml-rust2
 
 Distributed under the following license(s):
 * MIT
