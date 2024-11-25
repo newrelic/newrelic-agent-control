@@ -9,7 +9,7 @@ scenarios:
       - sleep 60
       - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-node:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
       # Give time to the apps to start, query python and node apps to trigger instrumentation
       - until kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO- 127.0.0.1:8080; do sleep 5; done
       - until kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO- 127.0.0.1:3000; do sleep 5; done
