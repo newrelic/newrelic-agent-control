@@ -17,7 +17,7 @@ use crate::super_agent::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VER
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::k8s::supervisors::NotStartedSupervisorK8s,
+    sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 use opamp_client::operation::settings::DescriptionValueType;

@@ -9,7 +9,7 @@ use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
 use newrelic_super_agent::agent_type::runtime_config;
 use newrelic_super_agent::k8s::annotations::Annotations;
-use newrelic_super_agent::sub_agent::k8s::supervisors::NotStartedSupervisorK8s;
+use newrelic_super_agent::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_super_agent::super_agent::config::{default_group_version_kinds, AgentTypeFQN};
 use newrelic_super_agent::{
     agent_type::runtime_config::K8sObject,

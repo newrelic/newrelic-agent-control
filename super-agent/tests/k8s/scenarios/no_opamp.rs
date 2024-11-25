@@ -1,5 +1,4 @@
 use crate::common::{retry::retry, runtime::block_on};
-use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_PATH;
 use crate::k8s::tools::super_agent::CUSTOM_AGENT_TYPE_SECRET_PATH;
 use crate::k8s::tools::{
     k8s_api::check_deployments_exist, k8s_env::K8sEnv,

@@ -429,10 +429,15 @@ pub mod tests {
                 );
 
                 for log in self.contain_logs {
-                    assert!(logs_with_scope_contain(
-                        "newrelic_super_agent::sub_agent::on_host::supervisor::command_supervisor",
+                    assert!(
+                        logs_with_scope_contain(
+                            "newrelic_super_agent::sub_agent::on_host::supervisor",
+                            log,
+                        ),
+                        "log: {} test case: {}",
                         log,
-                    ),"log: {} test case: {}", log, self.name);
+                        self.name
+                    );
                 }
             }
         }

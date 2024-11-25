@@ -2,7 +2,6 @@ pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
 pub mod health;
-pub mod health_checker;
 #[cfg(feature = "k8s")]
 pub mod k8s;
 #[cfg(feature = "onhost")]
