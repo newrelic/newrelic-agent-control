@@ -1,4 +1,4 @@
-use crate::utils::binary_metadata::{binary_metadata, sub_agent_versions};
+use crate::utils::binary_metadata::binary_metadata;
 
 use super::Cli;
 
@@ -14,7 +14,7 @@ impl OneShotCommand {
             OneShotCommand::PrintVersion => {
                 println!("{}", binary_metadata());
                 #[cfg(feature = "onhost")]
-                println!("{}", sub_agent_versions());
+                println!("{}", crate::utils::binary_metadata::sub_agent_versions());
             }
             OneShotCommand::PrintDebugInfo(cli) => {
                 println!("Printing debug info");
