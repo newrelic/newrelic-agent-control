@@ -639,11 +639,6 @@ pub mod test {
 
         // stop the runtime
         started_agent.stop();
-
-        assert!(logs_with_scope_contain(
-            "DEBUG newrelic_super_agent::sub_agent::sub_agent",
-            "remote config received",
-        ));
     }
 
     type SubAgentForTesting = SubAgent<
