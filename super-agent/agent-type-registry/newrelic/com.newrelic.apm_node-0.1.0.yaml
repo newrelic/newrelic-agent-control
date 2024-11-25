@@ -1,5 +1,5 @@
 namespace: newrelic
-name: com.newrelic.apm_nodejs
+name: com.newrelic.apm_node
 version: 0.1.0
 variables:
   k8s:

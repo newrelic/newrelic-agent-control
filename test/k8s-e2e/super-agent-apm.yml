@@ -21,7 +21,7 @@ super-agent-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: ["javaapp"]
+                values: [ "javaapp" ]
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -29,12 +29,12 @@ super-agent-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: ["pythonapp"]
-      nodejs-agent:
-        type: newrelic/com.newrelic.apm_nodejs:0.1.0
+                values: [ "pythonapp" ]
+      node-agent:
+        type: newrelic/com.newrelic.apm_node:0.1.0
         content:
           pod_label_selector:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: ["nodejsapp"]
+                values: [ "nodeapp" ]
