@@ -178,8 +178,6 @@ where
             // different loops, which currently is not straight forward due to sharing structures
             // that need to be moved into thread closures.
             loop {
-                //TODO we are not actually testing that on a particular event we are calling the correct functions
-                //TODO AgentHealthInfo and RemoteConfigReceived are not tested
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {

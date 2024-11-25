@@ -264,7 +264,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub mod test {
     use super::*;
     use crate::agent_type::runtime_config::{self, Deployment, Runtime};
     use crate::event::channel::pub_sub;
