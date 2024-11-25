@@ -1,4 +1,4 @@
-use crate::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
+use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
 use std::collections::HashMap;
 
 #[derive(Clone)]

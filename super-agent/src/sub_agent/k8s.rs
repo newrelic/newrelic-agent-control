@@ -1,2 +1,2 @@
 pub mod builder;
-pub mod supervisor;
+pub mod supervisors;

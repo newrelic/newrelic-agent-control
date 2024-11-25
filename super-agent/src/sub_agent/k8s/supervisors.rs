@@ -139,7 +139,7 @@ impl NotStartedSupervisorK8s {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
-        let start_time = SystemTime::now();
+        let start_time = StartTime::now();
 
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();

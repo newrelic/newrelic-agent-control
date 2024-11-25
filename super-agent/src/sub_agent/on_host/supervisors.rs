@@ -1,18 +1,18 @@
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::context::Context;
-use crate::event::channel::{EventPublisher, EventPublisherError};
+use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::publish_health_event;
+use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
+use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
+use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
-use crate::sub_agent::on_host::health_checker::{HealthCheckerNotStarted, HealthCheckerStarted};
-use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
-use crate::sub_agent::on_host::supervisor::restart_policy::BackoffStrategy;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
@@ -26,14 +26,14 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
-    id: AgentID,
+    agent_id: AgentID,
     maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
-    maybe_stop_health: Option<HealthCheckerStarted>,
+    maybe_stop_health: Option<EventPublisher<()>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
-    pub(super) id: AgentID,
+    pub(super) agent_id: AgentID,
     pub(super) ctx: Context<bool>,
     pub(crate) maybe_exec: Option<ExecutableData>,
     pub(super) log_to_file: bool,
@@ -50,7 +50,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorError> {
         let ctx = self.ctx.clone();
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
-        let id = self.id.clone();
+        let id = self.agent_id.clone();
 
         // the process thread is created if exec is Some
         let maybe_handle = self
@@ -59,7 +59,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .map(|e| self.start_process_thread(sub_agent_internal_publisher, e));
 
         Ok(StartedSupervisorOnHost {
-            id,
+            agent_id: id,
             maybe_handle,
             ctx,
             maybe_stop_health,
@@ -69,15 +69,15 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
 
 impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), EventPublisherError> {
-        if let Some(h) = self.maybe_stop_health {
-            h.stop();
+        if let Some(stop_health) = self.maybe_stop_health {
+            stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
         }
         self.ctx.cancel_all(true).unwrap();
 
         let _ = self.maybe_handle.map(|h| {
             h.join().inspect_err(|_| {
                 error!(
-                    agent_id = self.id.to_string(),
+                    agent_id = self.agent_id.to_string(),
                     "Error stopping k8s supervisor thread"
                 );
             })
@@ -95,7 +95,7 @@ impl NotStartedSupervisorOnHost {
         health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
-            id,
+            agent_id: id,
             ctx,
             maybe_exec,
             log_to_file: false,
@@ -115,24 +115,23 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<HealthCheckerStarted>, SupervisorError> {
-        let maybe_helth_checker: Option<HealthCheckerNotStarted> =
-            self.health_config.as_ref().and_then(|health_config| {
-                HealthCheckerNotStarted::try_new(
-                    self.id.clone(),
-                    sub_agent_internal_publisher,
-                    health_config.clone(),
-                )
-                .inspect_err(|err| {
-                    error!(
-                        agent_id = self.id.to_string(),
-                        %err,
-                        "could not launch health checker, using default",
-                    )
-                })
-                .ok()
-            });
-        Ok(maybe_helth_checker.map(|h| h.start()))
+    ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+        let start_time = StartTime::now();
+        if let Some(health_config) = self.health_config.clone() {
+            let (stop_health_publisher, stop_health_consumer) = pub_sub();
+            let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
+            spawn_health_checker(
+                self.agent_id.clone(),
+                health_checker,
+                stop_health_consumer,
+                sub_agent_internal_publisher,
+                health_config.interval,
+                start_time,
+            );
+            return Ok(Some(stop_health_publisher));
+        }
+        debug!(%self.agent_id, "health checks are disabled for this agent");
+        Ok(None)
     }
 
     fn start_process_thread(
@@ -147,7 +146,7 @@ impl NotStartedSupervisorOnHost {
             current_pid.clone(),
             self.ctx.clone(),
             shutdown_ctx.clone(),
-            self.id.clone(),
+            self.agent_id.clone(),
         );
         thread::spawn({
             move || loop {
@@ -161,7 +160,7 @@ impl NotStartedSupervisorOnHost {
                 // before the process was started.
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                     debug!(
-                        agent_id = self.id.to_string(),
+                        agent_id = self.agent_id.to_string(),
                         supervisor = executable_data.bin.clone(),
                         msg = "supervisor stopped before starting the process"
                     );
@@ -169,7 +168,7 @@ impl NotStartedSupervisorOnHost {
                 }
 
                 info!(
-                    agent_id = self.id.to_string(),
+                    agent_id = self.agent_id.to_string(),
                     supervisor = executable_data.bin.clone(),
                     msg = "starting supervisor process"
                 );
@@ -179,7 +178,7 @@ impl NotStartedSupervisorOnHost {
                 // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
                 let not_started_command = self.not_started_command(&executable_data);
                 let bin = executable_data.bin.clone();
-                let id = self.id.clone();
+                let id = self.agent_id.clone();
 
                 let supervisor_start_time = SystemTime::now();
 
@@ -213,7 +212,7 @@ impl NotStartedSupervisorOnHost {
                 // most probably reason why process has been exited.
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                     info!(
-                        agent_id = self.id.to_string(),
+                        agent_id = self.agent_id.to_string(),
                         supervisor = executable_data.bin,
                         msg = "supervisor has been stopped and process terminated"
                     );
@@ -260,7 +259,7 @@ impl NotStartedSupervisorOnHost {
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
         //TODO extract to to a builder so we can mock it
         CommandOSNotStarted::new(
-            self.id.clone(),
+            self.agent_id.clone(),
             executable_data,
             self.log_to_file,
             self.logging_path.clone(),
@@ -366,8 +365,8 @@ pub mod tests {
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
-    use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
-    use crate::sub_agent::on_host::supervisor::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+    use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 

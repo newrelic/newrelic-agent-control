@@ -1,7 +1,7 @@
 use newrelic_super_agent::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use newrelic_super_agent::sub_agent::on_host::command::shutdown::ProcessTerminator;
-use newrelic_super_agent::sub_agent::on_host::supervisor::executable_data::ExecutableData;
-use newrelic_super_agent::sub_agent::on_host::supervisor::restart_policy::RestartPolicy;
+use newrelic_super_agent::sub_agent::on_host::supervisors::executable_data::ExecutableData;
+use newrelic_super_agent::sub_agent::on_host::supervisors::restart_policy::RestartPolicy;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
