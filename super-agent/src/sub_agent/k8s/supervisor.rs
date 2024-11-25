@@ -205,18 +205,39 @@ impl SupervisorStopper for StartedSupervisorK8s {
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
-    use crate::agent_type::runtime_config::K8sObject;
+    use crate::agent_type::runtime_config::{Deployment, K8sObject, Runtime};
+    use crate::event::channel::pub_sub;
+    use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
-    use crate::super_agent::config::helm_release_type_meta;
+    use crate::opamp::callbacks::AgentCallbacks;
+    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::sub_agent::config_validator::ConfigValidator;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
+    use crate::sub_agent::supervisor::test::MockSupervisorBuilder;
+    use crate::sub_agent::{NotStartedSubAgent, SubAgent};
+    use crate::super_agent::config::{
+        helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
+    };
+    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
+    use kube::api::DynamicObject;
     use kube::core::TypeMeta;
+    use predicates::prelude::predicate;
     use serde_json::json;
     use std::collections::{BTreeMap, HashMap};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tracing_test::traced_test;
 
     const TEST_API_VERSION: &str = "test/v1";
     const TEST_KIND: &str = "test";
@@ -417,5 +438,110 @@ pub mod test {
         }
 
         NotStartedSupervisorK8s::new(agent_id, agent_fqn, Arc::new(mock_client), config)
+    }
+
+    #[traced_test]
+    #[test]
+    fn k8s_sub_agent_start_and_monitor_health() {
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+
+        let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
+        let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
+
+        let mut k8s_obj = k8s_sample_runtime_config(true);
+        k8s_obj.health = Some(K8sHealthConfig {
+            interval: Duration::from_millis(500).into(),
+        });
+
+        // instance K8s client mock
+        let mut mock_client = MockSyncK8sClient::default();
+        mock_client
+            .expect_apply_dynamic_object_if_changed()
+            .returning(|_| Ok(()));
+        mock_client
+            .expect_default_namespace()
+            .return_const("default".to_string());
+        mock_client.expect_get_helm_release().returning(|_| {
+            Ok(Some(Arc::new(DynamicObject {
+                types: Some(helm_release_type_meta()),
+                metadata: Default::default(),
+                data: Default::default(),
+            })))
+        });
+        let mocked_client = Arc::new(mock_client);
+
+        let agent_cfg = SubAgentConfig {
+            agent_type: agent_fqn.clone(),
+        };
+        let k8s_config = k8s_sample_runtime_config(true);
+        let runtime_config = Runtime {
+            deployment: Deployment {
+                k8s: Some(k8s_config),
+                ..Default::default()
+            },
+        };
+        let effective_agent =
+            EffectiveAgent::new(agent_id.clone(), agent_fqn.clone(), runtime_config.clone());
+
+        let mut assembler = MockEffectiveAgentAssemblerMock::new();
+        assembler.should_assemble_agent(
+            &agent_id,
+            &agent_cfg,
+            &Environment::K8s,
+            effective_agent,
+            1,
+        );
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder
+            .expect_build_supervisor()
+            .with(predicate::always(), predicate::always())
+            .returning(move |_, _| {
+                Ok(Some(NotStartedSupervisorK8s::new(
+                    agent_id.clone(),
+                    agent_fqn.clone(),
+                    mocked_client.clone(),
+                    k8s_obj.clone(),
+                )))
+            });
+
+        let sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
+
+        SubAgent::new(
+            AgentID::new(TEST_AGENT_ID).unwrap(),
+            agent_cfg.clone(),
+            Arc::new(assembler),
+            none_mock_opamp_client(),
+            supervisor_builder,
+            sub_agent_publisher,
+            None,
+            (
+                sub_agent_internal_publisher.clone(),
+                sub_agent_internal_consumer,
+            ),
+            Arc::new(sub_agent_remote_config_hash_repository),
+            Arc::new(remote_values_repo),
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            Environment::K8s,
+        )
+        .run();
+
+        let timeout = Duration::from_secs(3);
+
+        match sub_agent_consumer.as_ref().recv_timeout(timeout).unwrap() {
+            SubAgentEvent::SubAgentHealthInfo(_, _, h) => {
+                if h.is_healthy() {
+                    panic!("unhealthy event expected")
+                }
+            }
+        }
+    }
+
+    fn none_mock_opamp_client(
+    ) -> Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>> {
+        None
     }
 }
