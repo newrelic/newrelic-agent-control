@@ -62,7 +62,7 @@ impl DynamicObjectManager {
             None => Ok(true), // It does not exist
             Some(obj_old) => {
                 // TODO this is a workaround to always apply objects of type secrets
-                if let Some(t) = obj_old.types.clone() {
+                if let Some(t) = obj.types.clone() {
                     if t.kind == "Secret" {
                         return Ok(true);
                     }
