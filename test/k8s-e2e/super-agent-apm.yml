@@ -12,11 +12,7 @@ super-agent-deployment:
       operator:
         type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
         content:
-          chart_values:
-            global:
-              licenseKey: ${nr-env:NR_LICENSE_KEY}
-              cluster: ${nr-env:NR_CLUSTER_NAME}
-          chart_version: 0.16.1
+          chart_version: "*"
       # One agent per language
       java-agent:
         type: newrelic/com.newrelic.apm_java:0.1.0
