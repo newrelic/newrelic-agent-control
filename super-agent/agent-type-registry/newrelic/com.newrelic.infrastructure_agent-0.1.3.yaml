@@ -1,3 +1,5 @@
+# This agent type is kept for now for backwards compatibility reasons and won't be updated anymore.
+# It has been replaced by newrelic/com.newrelic.infrastructure
 namespace: newrelic
 name: com.newrelic.infrastructure_agent
 version: 0.1.3
