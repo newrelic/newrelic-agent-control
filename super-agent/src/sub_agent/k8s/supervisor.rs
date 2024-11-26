@@ -492,6 +492,14 @@ pub mod test {
             effective_agent,
             1,
         );
+
+        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        sub_agent_remote_config_hash_repository
+            .expect_get()
+            .with(predicate::eq(agent_id.clone()))
+            .return_const(Ok(None));
+        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
+
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
@@ -504,13 +512,6 @@ pub mod test {
                     k8s_obj.clone(),
                 ))
             });
-
-        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
-        sub_agent_remote_config_hash_repository
-            .expect_get()
-            .with(predicate::eq(agent_id.clone()))
-            .return_const(Ok(None));
-        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         SubAgent::new(
             AgentID::new(TEST_AGENT_ID).unwrap(),
