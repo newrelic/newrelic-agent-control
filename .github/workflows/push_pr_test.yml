@@ -67,7 +67,7 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - name: Run tests super agent lib excluding root-required tests (on-host)
+      - name: Run workspace tests excluding the super agent package
         run: cargo test --workspace --exclude 'newrelic_super_agent' --all-targets
 
       - name: Run tests super agent lib excluding root-required tests (on-host)
