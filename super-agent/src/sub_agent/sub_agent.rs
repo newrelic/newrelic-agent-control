@@ -156,7 +156,7 @@ where
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
             // Start the new supervisor if any, without hash as it's the first time
-            let mut supervisor = self.generate_supervisor(None);
+            let mut supervisor = self.generate_supervisor( /* None */ );
 
             debug!(
                 agent_id = %self.agent_id,
@@ -226,14 +226,7 @@ where
                                 // Stop the current supervisor if any
                                 stop_supervisor(&self.agent_id, supervisor);
 
-                                // Attempt to retrieve the hash
-                                let hash = self
-                                    .sub_agent_remote_config_hash_repository
-                                    .get(&self.agent_id)
-                                    .inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to get hash from repository"))
-                                    .unwrap_or_default();
-
-                                supervisor = self.generate_supervisor(hash);
+                                supervisor = self.generate_supervisor(/* Some(config.hash) */);
                             },
                             Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
                         }
@@ -270,8 +263,15 @@ where
 
     fn generate_supervisor(
         &self,
-        hash: Option<Hash>,
+        // hash: Option<Hash>,
     ) -> Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
+        // Attempt to retrieve the hash
+        let hash = self
+            .sub_agent_remote_config_hash_repository
+            .get(&self.agent_id)
+            .inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to get hash from repository"))
+            .unwrap_or_default();
+
         if hash.is_none() {
             debug!(%self.agent_id, "no previous remote config found");
         }
@@ -427,7 +427,9 @@ pub mod test {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::supervisor::test::{MockSupervisorBuilder, MockSupervisorStarter};
+    use crate::sub_agent::supervisor::test::{
+        MockSupervisorBuilder, MockSupervisorStarter, MockSupervisorStopper,
+    };
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentTypeFQN;
     use crate::values::yaml_config::YAMLConfig;
@@ -559,6 +561,19 @@ pub mod test {
             2,
         );
 
+        let mut supervisor_stopper = MockSupervisorStopper::new();
+        supervisor_stopper
+            .expect_stop()
+            .once()
+            .return_once(|| Ok(()));
+
+        let mut supervisor_starter = MockSupervisorStarter::new();
+        supervisor_starter
+            .expect_start()
+            .once()
+            .with(predicate::always())
+            .return_once(|_| Ok(supervisor_stopper));
+
         let mut supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter> =
             MockSupervisorBuilder::new();
         supervisor_builder
@@ -566,7 +581,7 @@ pub mod test {
             .with(predicate::function(move |e: &EffectiveAgent| {
                 e == &effective_agent
             }))
-            .returning(|_| Ok(MockSupervisorStarter::default()));
+            .return_once(|_| Ok(supervisor_starter));
 
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -651,7 +666,8 @@ pub mod test {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
-        let sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        sub_agent_remote_config_hash_repository.expect_get().with(predicate::eq(agent_id.clone())).return_const(Ok(None));
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let effective_agent = final_agent(agent_id.clone(), agent_cfg.agent_type.clone());
@@ -664,13 +680,26 @@ pub mod test {
             1,
         );
 
+        let mut supervisor_stopper = MockSupervisorStopper::new();
+        supervisor_stopper
+            .expect_stop()
+            .once()
+            .return_once(|| Ok(()));
+
+        let mut supervisor_starter = MockSupervisorStarter::new();
+        supervisor_starter
+            .expect_start()
+            .once()
+            .with(predicate::always())
+            .return_once(|_| Ok(supervisor_stopper));
+
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
             .with(predicate::function(move |e: &EffectiveAgent| {
                 e == &effective_agent
             }))
-            .returning(|_| Ok(MockSupervisorStarter::default()));
+            .return_once(|_| Ok(supervisor_starter));
 
         SubAgent::new(
             agent_id,
