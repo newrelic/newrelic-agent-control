@@ -4,7 +4,6 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::opamp::remote_config_hash::Hash;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
 use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_applying,
@@ -156,7 +155,7 @@ where
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         thread::spawn(move || {
             // Start the new supervisor if any, without hash as it's the first time
-            let mut supervisor = self.generate_supervisor( /* None */ );
+            let mut supervisor = self.generate_supervisor();
 
             debug!(
                 agent_id = %self.agent_id,
@@ -226,7 +225,7 @@ where
                                 // Stop the current supervisor if any
                                 stop_supervisor(&self.agent_id, supervisor);
 
-                                supervisor = self.generate_supervisor(/* Some(config.hash) */);
+                                supervisor = self.generate_supervisor();
                             },
                             Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
                         }
@@ -263,7 +262,6 @@ where
 
     fn generate_supervisor(
         &self,
-        // hash: Option<Hash>,
     ) -> Option<<B::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
         // Attempt to retrieve the hash
         let hash = self
