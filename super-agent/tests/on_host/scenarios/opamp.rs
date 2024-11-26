@@ -446,7 +446,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 /// - That latest effective configuration reported is the local one (which is valid).
 #[cfg(unix)]
 #[test]
-fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
+fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
     // Given a super-agent with a custom-agent running a sleep command with opamp configured.
     let mut opamp_server = FakeServer::start_new();
 
@@ -486,6 +486,7 @@ fn onhost_opamp_sub_gent_wrong_remote_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
+
     let _super_agent = start_super_agent_with_custom_config(base_paths.clone());
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
