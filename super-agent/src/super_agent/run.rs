@@ -27,7 +27,7 @@ pub mod k8s;
 pub mod on_host;
 
 /// Structure with all base paths required to run the super agent
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BasePaths {
     pub local_dir: PathBuf,
     pub remote_dir: PathBuf,
