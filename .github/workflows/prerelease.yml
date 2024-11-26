@@ -11,67 +11,16 @@ env:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 name: pre-release
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    name: Build and upload / ${{ matrix.arch }}
-    strategy:
-      matrix:
-        arch: [arm64, amd64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Verify version matches tag
-        run: |
-          NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' super-agent/Cargo.toml)
-          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
-            echo "Package version specified in Cargo.toml (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
-            exit 1
-          fi
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "~1.20"
-          check-latest: true
-
-      - name: Build binaries with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: build --clean --debug --timeout 2h --single-target --parallelism 1
-        env:
-          ARCH: "${{ matrix.arch }}"
-          GOARCH: "${{ matrix.arch }}"
-          GOOS: linux
-
-      - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean --debug --timeout 2h -f dist/config.yaml --parallelism 1
-        env:
-          ARCH: "${{ matrix.arch }}"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          GPG_MAIL: "infrastructure-eng@newrelic.com"
-          NR_RELEASE_TAG: ${{ github.event.release.tag_name }}
-
-      # TODO Should we check that the released version matches tag?
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: true
+    secrets: inherit
 
   container:
     name: Build and Push container image
-    needs: [build]
+    needs: [ build ]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -80,7 +29,7 @@ jobs:
 
   security-scan:
     name: Security scan
-    needs: [container]
+    needs: [ container ]
     uses: ./.github/workflows/component_image_security.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -89,7 +38,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3
-    needs: [build]
+    needs: [ build ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -166,7 +115,7 @@ jobs:
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
-    needs: [upload]
+    needs: [ upload ]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-super-agent"
@@ -174,7 +123,7 @@ jobs:
 
   canaries:
     uses: ./.github/workflows/component_canaries.yml
-    needs: [molecule-packaging-tests]
+    needs: [ molecule-packaging-tests ]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
@@ -202,7 +151,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [canaries]
+    needs: [ canaries ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
