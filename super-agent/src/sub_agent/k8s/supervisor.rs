@@ -505,7 +505,11 @@ pub mod test {
                 ))
             });
 
-        let sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        sub_agent_remote_config_hash_repository
+            .expect_get()
+            .with(predicate::eq(agent_id.clone()))
+            .return_const(Ok(None));
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         SubAgent::new(
