@@ -1,0 +1,72 @@
+name: 📞 Build binaries and create packages
+
+on:
+  workflow_call:
+    inputs:
+      pre-release:
+        description: 'set to true if running a real pre-release'
+        type: boolean
+        required: true
+env:
+  # Allows to fetch multiple private repo crates with different deploy keys.
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build and upload
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
+
+      - name: Set tag and skip_upload=false for pre-release
+        if: ${{ inputs.pre-release}}
+        run: |
+          NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' super-agent/Cargo.toml)
+          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ github.ref_name }}" ]; then
+            echo "Package version specified in Cargo.toml (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ github.event.release.tag_name }}), exiting"
+            exit 1
+          fi
+          echo TAG_NAME=${{ github.event.release.tag_name }} >> $GITHUB_ENV 
+          echo SKIP_UPLOAD=false >> $GITHUB_ENV 
+
+
+      - name: Set tag and skip_upload=true for testing
+        if: ${{ ! inputs.pre-release }}
+        run: |
+          git tag 0.100.0
+          echo TAG_NAME=0.100.0 >> $GITHUB_ENV 
+          echo SKIP_UPLOAD=true >> $GITHUB_ENV 
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "~1.20"
+          check-latest: true
+
+      - name: Release packages with GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --snapshot=${{ env.SKIP_UPLOAD }} --clean --debug --timeout 2h --parallelism 1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
+          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
+          GPG_MAIL: 'infrastructure-eng@newrelic.com'
+          NR_RELEASE_TAG: ${{ env.TAG_NAME }}
+
+      - name: Upload assets to pipeline
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-binaries
+          path: |
+            ./bin/*
+            ./dist/*
