@@ -283,12 +283,16 @@ where
 
         match effective_agent_result {
             Err(e) => {
-                if let Some(mut hash) = hash {
+                if let (Some(mut hash), Some(opamp_client)) = (hash, &self.maybe_opamp_client) {
                     if !hash.is_failed() {
                         hash.fail(e.to_string());
                         _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to save hash to repository"));
                         // FIXME what do we do on failure above?
                     }
+                    _ = report_remote_config_status_error(opamp_client, &hash, e.to_string())
+                        .inspect_err(
+                            |e| error!(%self.agent_id, %e, "error reporting remote config status"),
+                        );
                 }
                 None
             }
