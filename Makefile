@@ -43,11 +43,6 @@ build-config-migrate:
 	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
 	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-config-migrate" PKG="newrelic_super_agent" BUILD_FEATURE=onhost ./build/scripts/build_binary.sh
 
-.PHONY: build-dev-image
-build-dev-image:
-	make build-super-agent BUILD_FEATURE=k8s
-	docker build . -t newrelic-super-agent:dev
-
 .PHONY: tilt-up
 tilt-up:
 	tilt up ; tilt down
