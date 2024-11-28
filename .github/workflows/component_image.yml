@@ -20,39 +20,9 @@ env:
   CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
-  build-binaries:
-    runs-on: ubuntu-latest
-    name: Build Binaries
-    strategy:
-      matrix:
-        arch: [arm64, amd64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Build Super Agent for K8s
-        run: |
-          make build-super-agent BUILD_FEATURE=k8s ARCH=${{ matrix.arch }}
-      
-      - name: Upload artifact for Docker build step
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: newrelic-super-agent-${{ matrix.arch }}
-          path: bin/newrelic-super-agent-${{ matrix.arch }}
-
   build-image:
     runs-on: ubuntu-latest
     name: Build/Push images
-    needs: [ build-binaries ]
     env:
       DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"

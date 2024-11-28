@@ -7,6 +7,9 @@ on:
   schedule:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
+  push:
+    branches:
+      - fix/pipelines3
 
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
@@ -14,8 +17,17 @@ env:
   RUST_VERSION: 1.82.0
 
 jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      tag_name: nightly
+    secrets: inherit
+
   build-push:
     name: Build and Push nightly image
+    needs: [ build-packages ]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: nightly
@@ -24,7 +36,7 @@ jobs:
 
   security-scan:
     name: Security scan
-    needs: [build-push]
+    needs: [ build-push ]
     uses: ./.github/workflows/component_image_security.yml
     with:
       image-tag: nightly
@@ -32,60 +44,16 @@ jobs:
 
   build-nightly:
     runs-on: ubuntu-latest
-    name: Build and upload packages to testing bucket
-    outputs:
-      tag: ${{ steps.generate-tag.outputs.tag }}
+    needs: [ build-packages ]
+    name: Upload packages to testing bucket
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Set the value of the release tag
-        run: echo "tag=$(echo 0.100.$(date +'%d'))" >> $GITHUB_ENV
-
-      - id: generate-tag
-        run: echo "tag=${{ env.tag }}" >> "$GITHUB_OUTPUT"
-
-      - name: Tag current codebase
-        run: git tag "${{ env.tag }}"
-
-      - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Install cross-rs
-        run: cargo install cross
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "~1.20"
-          check-latest: true
-
-      - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --skip=publish --clean --debug --timeout 2h --parallelism 1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          GPG_MAIL: "infrastructure-eng@newrelic.com"
-          NR_RELEASE_TAG: ${{ env.tag }}
-
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: "${{ env.tag }}"
+          tag: nightly
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
@@ -109,7 +77,7 @@ jobs:
 
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [build-nightly]
+    needs: [ build-nightly ]
     with:
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu22.04\"]'
@@ -120,7 +88,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [onhost-e2e]
+    needs: [ onhost-e2e ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
