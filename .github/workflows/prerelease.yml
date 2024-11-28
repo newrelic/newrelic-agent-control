@@ -20,7 +20,7 @@ jobs:
 
   container:
     name: Build and Push container image
-    needs: [ build ]
+    needs: [ build-packages ]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -38,7 +38,7 @@ jobs:
   upload:
     runs-on: ubuntu-latest
     name: Upload to S3
-    needs: [ build ]
+    needs: [ build-packages ]
     steps:
       - uses: actions/checkout@v4
         with:
