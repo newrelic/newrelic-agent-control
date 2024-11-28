@@ -442,7 +442,6 @@ pub mod test {
     use std::collections::HashMap;
     use std::thread::sleep;
     use std::time::Duration;
-    use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     mock! {

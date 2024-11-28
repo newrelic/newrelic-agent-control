@@ -128,7 +128,7 @@ pub fn contains_label_with_value(
     labels
         .as_ref()
         .and_then(|labels| labels.get(key))
-        .map_or(false, |v| v.as_str() == value)
+        .is_some_and(|v| v.as_str() == value)
 }
 
 /// Return the value of `.metadata.name` of the object that is passed.
