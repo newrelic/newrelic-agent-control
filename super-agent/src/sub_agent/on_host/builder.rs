@@ -92,7 +92,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, HR, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, G>, HR, Y>;
 
     fn build(
         &self,
@@ -128,11 +128,7 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let supervisor_builder = SupervisortBuilderOnHost::new(
-            agent_id.clone(),
-            self.hash_repository.clone(),
-            self.logging_path.clone(),
-        );
+        let supervisor_builder = SupervisortBuilderOnHost::new(self.logging_path.clone());
 
         Ok(SubAgent::new(
             agent_id,
@@ -161,14 +157,11 @@ fn get_hostname() -> String {
     return unimplemented!();
 }
 
-pub struct SupervisortBuilderOnHost<O, HR, G>
+pub struct SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
-    agent_id: AgentID,
-    hash_repository: Arc<HR>,
     logging_path: PathBuf,
 
     // This is needed to ensure the generic type parameters O and G are used.
@@ -177,16 +170,13 @@ where
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<O, HR, G> SupervisortBuilderOnHost<O, HR, G>
+impl<O, G> SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
-    pub fn new(agent_id: AgentID, hash_repository: Arc<HR>, logging_path: PathBuf) -> Self {
+    pub fn new(logging_path: PathBuf) -> Self {
         Self {
-            agent_id,
-            hash_repository,
             logging_path,
             _opamp_client_builder: PhantomData,
             _effective_config_loader: PhantomData,
@@ -223,11 +213,10 @@ where
     }
 }
 
-impl<O, HR, G> SupervisorBuilder for SupervisortBuilderOnHost<O, HR, G>
+impl<O, G> SupervisorBuilder for SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
     type SupervisorStarter = NotStartedSupervisorOnHost;
 

@@ -92,7 +92,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, HR, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, G>, HR, Y>;
 
     fn build(
         &self,
@@ -128,7 +128,6 @@ where
         let supervisor_builder = SupervisorBuilderK8s::new(
             agent_id.clone(),
             sub_agent_config.clone(),
-            self.hash_repository.clone(),
             self.k8s_client.clone(),
             self.k8s_config.clone(),
         );
@@ -152,15 +151,13 @@ where
     }
 }
 
-pub struct SupervisorBuilderK8s<O, HR, G>
+pub struct SupervisorBuilderK8s<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
-    hash_repository: Arc<HR>,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8sConfig,
 
@@ -170,23 +167,20 @@ where
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<O, HR, G> SupervisorBuilderK8s<O, HR, G>
+impl<O, G> SupervisorBuilderK8s<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
     pub fn new(
         agent_id: AgentID,
         agent_cfg: SubAgentConfig,
-        hash_repository: Arc<HR>,
         k8s_client: Arc<SyncK8sClient>,
         k8s_config: K8sConfig,
     ) -> Self {
         Self {
             agent_id,
             agent_cfg,
-            hash_repository,
             k8s_client,
             k8s_config,
             _opamp_client_builder: PhantomData,
@@ -236,11 +230,10 @@ where
     }
 }
 
-impl<O, HR, G> SupervisorBuilder for SupervisorBuilderK8s<O, HR, G>
+impl<O, G> SupervisorBuilder for SupervisorBuilderK8s<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
     type SupervisorStarter = NotStartedSupervisorK8s;
 
@@ -508,11 +501,8 @@ pub mod test {
         sub_agent_config: SubAgentConfig,
     ) -> SupervisorBuilderK8s<
         MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
-        MockHashRepositoryMock,
         MockEffectiveConfigLoaderMock,
     > {
-        let hash_repository = MockHashRepositoryMock::new();
-
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
             .expect_default_namespace()
@@ -526,7 +516,6 @@ pub mod test {
         SupervisorBuilderK8s::new(
             agent_id,
             sub_agent_config,
-            Arc::new(hash_repository),
             Arc::new(mock_client),
             k8s_config,
         )
