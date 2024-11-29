@@ -190,15 +190,15 @@ where
                             }
 
                             Ok(OpAMPEvent::RemoteConfigReceived(mut config)) => {
-                                debug!(agent_id = self.agent_id.to_string(),
-                                select_arm = "sub_agent_opamp_consumer",
-                "remote config received");
-
                                 // This branch only makes sense with a valid OpAMP client
                                 let Some(opamp_client) = &self.maybe_opamp_client else {
                                     debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
                                     continue;
                                 };
+
+                                debug!(agent_id = self.agent_id.to_string(),
+                                select_arm = "sub_agent_opamp_consumer",
+                "remote config received");
 
                                 if let Err(e) = self.config_validator.validate(&self.agent_cfg.agent_type, &config) {
                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error validating remote config");
