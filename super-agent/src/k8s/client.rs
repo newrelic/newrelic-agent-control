@@ -120,6 +120,11 @@ impl SyncK8sClient {
         self.get_dynamic_object(&tm, name)
     }
 
+    pub fn get_instrumentation(&self, name: &str) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        let tm = helm_release_type_meta();
+        self.get_dynamic_object(&tm, name)
+    }
+
     pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
         self.runtime
             .block_on(self.async_client.delete_configmap_key(configmap_name, key))

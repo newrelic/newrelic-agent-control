@@ -4,6 +4,7 @@ use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError
 use crate::sub_agent::health::k8s::daemon_set::K8sHealthDaemonSet;
 use crate::sub_agent::health::k8s::deployment::K8sHealthDeployment;
 use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
+use crate::sub_agent::health::k8s::instrumentation::K8sHealthNRInstrumentation;
 use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::super_agent::config::helm_release_type_meta;
@@ -17,6 +18,7 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 /// K8sHealthChecker exists to wrap all the k8s health checks to have a unique array and a single loop
 pub enum K8sHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
+    NewRelic(K8sHealthNRInstrumentation),
     StatefulSet(K8sHealthStatefulSet),
     DaemonSet(K8sHealthDaemonSet),
     Deployment(K8sHealthDeployment),
@@ -26,6 +28,7 @@ impl HealthChecker for K8sHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
             K8sHealthChecker::Flux(flux) => flux.check_health(),
+            K8sHealthChecker::NewRelic(nr_instrumentation) => nr_instrumentation.check_health(),
             K8sHealthChecker::StatefulSet(stateful_set) => stateful_set.check_health(),
             K8sHealthChecker::DaemonSet(daemon_set) => daemon_set.check_health(),
             K8sHealthChecker::Deployment(deployment) => deployment.check_health(),
@@ -65,6 +68,13 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 ))?;
 
             health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+                k8s_client.clone(),
+                name.clone(),
+                resource.clone(),
+                start_time,
+            )));
+
+            health_checkers.push(K8sHealthChecker::NewRelic(K8sHealthNRInstrumentation::new(
                 k8s_client.clone(),
                 name.clone(),
                 resource.clone(),
