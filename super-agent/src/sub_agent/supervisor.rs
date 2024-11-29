@@ -17,8 +17,8 @@ pub enum SupervisorError {
     #[error("building health checkers: `{0}`")]
     HealthError(#[from] HealthCheckerError),
 
-    #[error("supervisor builder error: `{0}`")]
-    StartError(#[from] SubAgentBuilderError),
+    #[error("supervisor could not be built: `{0}`")]
+    BuildError(#[from] SubAgentBuilderError),
 }
 
 pub trait SupervisorBuilder {
