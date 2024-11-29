@@ -438,7 +438,7 @@ pub mod test {
     use crate::super_agent::config::AgentTypeFQN;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
-    use mockall::{mock, predicate, Sequence};
+    use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
     use std::collections::HashMap;
@@ -765,31 +765,23 @@ pub mod test {
 
         // Modify expectations for this test
         // Expected calls on the hash repository
+        let hash = Hash::new("some_hash".to_string());
+        let mut applied_hash = hash.clone();
+        applied_hash.apply();
         let mut hash_repository = MockHashRepositoryMock::new();
-        let mut seq = Sequence::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(|_| Ok(Some(Hash::new("some_hash".to_string()))));
-        hash_repository
-            .expect_save()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(|_, _| Ok(()));
+        hash_repository.should_get_hash(&sub_agent.agent_id, hash);
+        hash_repository.should_save_hash(&sub_agent.agent_id, &applied_hash);
+
         sub_agent.sub_agent_remote_config_hash_repository = Arc::new(hash_repository);
 
         // Expected calls on the opamp client
         let mut started_opamp_client = MockStartedOpAMPClientMock::new();
-        started_opamp_client
-            .expect_set_remote_config_status()
-            .once()
-            .with(predicate::eq(RemoteConfigStatus {
-                last_remote_config_hash: "some_hash".as_bytes().to_vec(),
-                status: Applied as i32,
-                error_message: "".to_string(),
-            }))
-            .returning(|_| Ok(()));
+        started_opamp_client.should_set_remote_config_status(RemoteConfigStatus {
+            last_remote_config_hash: "some_hash".as_bytes().to_vec(),
+            status: Applied as i32,
+            error_message: "".to_string(),
+        });
+
         started_opamp_client.should_update_effective_config(1);
         sub_agent.maybe_opamp_client = Some(started_opamp_client);
 
@@ -807,16 +799,10 @@ pub mod test {
         // Modify expectations for this test
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
-        let mut seq = Sequence::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .in_sequence(&mut seq)
-            .returning(|_| {
-                Err(HashRepositoryError::LoadError(String::from(
-                    "random error loading",
-                )))
-            });
+        hash_repository.should_return_error_on_get(
+            &sub_agent.agent_id,
+            HashRepositoryError::LoadError(String::from("random error loading")),
+        );
 
         sub_agent.sub_agent_remote_config_hash_repository = Arc::new(hash_repository);
 
@@ -849,10 +835,7 @@ pub mod test {
         };
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(Some(hash)));
+        hash_repository.should_get_hash(&agent_id, hash);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -879,11 +862,7 @@ pub mod test {
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
         let mut opamp_client = MockStartedOpAMPClientMock::new();
-        opamp_client
-            .expect_set_remote_config_status()
-            .once()
-            .with(predicate::eq(expected_remote_config_status))
-            .return_once(|_| Ok(()));
+        opamp_client.should_set_remote_config_status(expected_remote_config_status);
 
         let sub_agent = SubAgent::new(
             agent_id,
@@ -919,10 +898,7 @@ pub mod test {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(None));
+        hash_repository.should_not_get_hash(&agent_id);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -979,10 +955,7 @@ pub mod test {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(None));
+        hash_repository.should_not_get_hash(&agent_id);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -1045,10 +1018,7 @@ pub mod test {
 
         let hash = Hash::new("some_hash".to_string());
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(Some(hash)));
+        hash_repository.should_get_hash(&agent_id, hash);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -1103,10 +1073,7 @@ pub mod test {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(None));
+        hash_repository.should_not_get_hash(&agent_id);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -1162,10 +1129,7 @@ pub mod test {
 
         let hash = Hash::new("some_hash".to_string());
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(Some(hash)));
+        hash_repository.should_get_hash(&agent_id, hash);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
@@ -1225,10 +1189,7 @@ pub mod test {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository
-            .expect_get()
-            .once()
-            .return_once(|_| Ok(None));
+        hash_repository.should_not_get_hash(&agent_id);
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
