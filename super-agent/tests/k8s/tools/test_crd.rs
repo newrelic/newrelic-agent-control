@@ -1,6 +1,6 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
-    api::{DynamicObject, Patch, PatchParams, PostParams, TypeMeta},
+    api::{DynamicObject, ObjectMeta, Patch, PatchParams, PostParams, TypeMeta},
     core::GroupVersion,
     runtime::reflector::Lookup,
     Api, Client, CustomResource, CustomResourceExt,
@@ -89,4 +89,20 @@ pub async fn create_foo_cr(
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     foo_cr
+}
+
+/// Build a dynamic_object object from the provided values
+pub fn build_dynamic_object(
+    type_meta: TypeMeta,
+    name: String,
+    content: serde_json::Value,
+) -> DynamicObject {
+    DynamicObject {
+        types: Some(type_meta),
+        metadata: ObjectMeta {
+            name: Some(name),
+            ..Default::default()
+        },
+        data: content,
+    }
 }

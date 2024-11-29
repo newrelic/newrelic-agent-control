@@ -3,7 +3,7 @@ use super::tools::{
     test_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
 };
 
-use crate::k8s::tools::test_crd::{create_crd, delete_crd};
+use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
 use assert_matches::assert_matches;
 use kube::core::DynamicObject;
 use kube::{
@@ -210,6 +210,77 @@ async fn k8s_dynamic_resource_has_changed() {
             .await
             .unwrap(),
         "The object found has changed after changing the specs"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs k8s cluster"]
+async fn k8s_dynamic_resource_has_changed_secret() {
+    let mut test = K8sEnv::new().await;
+    let test_ns = test.test_namespace().await;
+
+    let secret_name = "secret-name";
+
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+
+    let secret_type_meta = TypeMeta {
+        api_version: "v1".into(),
+        kind: "Secret".into(),
+    };
+
+    let secret = build_dynamic_object(
+        secret_type_meta.clone(),
+        secret_name.to_string(),
+        serde_json::json!({"stringData": {"some-key": "some value"}}),
+    );
+
+    // Create the secret in the cluster and wait some time to be sure it is already and the reflector gets it.
+    k8s_client
+        .dynamic_object_managers()
+        .apply(&secret)
+        .await
+        .unwrap();
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // Get the secret from the cluster (the content of `string_data` is encoded into `data`)
+    let stored_secret = k8s_client
+        .dynamic_object_managers()
+        .get(&secret_type_meta, secret_name)
+        .await
+        .unwrap()
+        .expect("The secret should exist");
+
+    assert!(
+        !k8s_client
+            .dynamic_object_managers()
+            .has_changed(&secret)
+            .await
+            .unwrap(),
+        "No changes are expected when comparing to the secret from manifest"
+    );
+
+    assert!(
+        !k8s_client
+            .dynamic_object_managers()
+            .has_changed(&stored_secret)
+            .await
+            .unwrap(),
+        "No changes are expected when comparing to the secret already stored"
+    );
+
+    let new_content_secret = build_dynamic_object(
+        secret_type_meta.clone(),
+        secret_name.to_string(),
+        serde_json::json!({"stringData": {"some-key": "a different value"}}),
+    );
+
+    assert!(
+        k8s_client
+            .dynamic_object_managers()
+            .has_changed(&new_content_secret)
+            .await
+            .unwrap(),
+        "Changes are expected when comparing new values"
     );
 }
 
