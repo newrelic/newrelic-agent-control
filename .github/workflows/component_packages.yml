@@ -80,17 +80,3 @@ jobs:
           path: |
             ./bin/*
             ./dist/*
-
-      - name: Upload artifact for Docker build step amd
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: newrelic-super-agent-amd64
-          path: bin/newrelic-super-agent-amd64
-
-      - name: Upload artifact for Docker build step arm
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: newrelic-super-agent-arm64
-          path: bin/newrelic-super-agent-arm64

@@ -31,16 +31,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Binaries are added to the expected path in the Dockerfile
       - uses: actions/download-artifact@v4
         with:
-          name: newrelic-super-agent-amd64
-          path: ./bin
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: newrelic-super-agent-arm64
-          path: ./bin
+          name: built-binaries
+          path: ./
 
       - uses: docker/setup-qemu-action@v3
 

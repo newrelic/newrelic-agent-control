@@ -50,6 +50,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-binaries
+          path: ./
+
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
