@@ -1,5 +1,4 @@
 use crate::agent_type::environment::Environment;
-use crate::agent_type::runtime_config::OnHost;
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -182,35 +181,6 @@ where
             _effective_config_loader: PhantomData,
         }
     }
-
-    fn build_onhost_supervisor(
-        &self,
-        effective_agent: EffectiveAgent,
-    ) -> Result<NotStartedSupervisorOnHost, SubAgentBuilderError> {
-        let agent_id = effective_agent.get_agent_id();
-        let on_host = effective_agent.get_onhost_config()?.clone();
-
-        let enable_file_logging = on_host.clone().enable_file_logging.get();
-
-        Ok(self.create_executable_supervisor(agent_id.clone(), enable_file_logging, on_host))
-    }
-
-    fn create_executable_supervisor(
-        &self,
-        agent_id: AgentID,
-        enable_file_logging: bool,
-        on_host_config: OnHost,
-    ) -> NotStartedSupervisorOnHost {
-        let maybe_exec = on_host_config.executable.map(|e| {
-            ExecutableData::new(e.path.get())
-                .with_args(e.args.get().into_vector())
-                .with_env(e.env.get())
-                .with_restart_policy(e.restart_policy.into())
-        });
-
-        NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host_config.health)
-            .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
-    }
 }
 
 impl<O, G> SupervisorBuilder for SupervisortBuilderOnHost<O, G>
@@ -226,7 +196,23 @@ where
         &self,
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
-        self.build_onhost_supervisor(effective_agent)
+        let agent_id = effective_agent.get_agent_id().clone();
+        let on_host = effective_agent.get_onhost_config()?.clone();
+
+        let enable_file_logging = on_host.enable_file_logging.get();
+
+        let maybe_exec = on_host.executable.map(|e| {
+            ExecutableData::new(e.path.get())
+                .with_args(e.args.get().into_vector())
+                .with_env(e.env.get())
+                .with_restart_policy(e.restart_policy.into())
+        });
+
+        let executable_supervisors =
+            NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host.health)
+                .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+
+        Ok(executable_supervisors)
     }
 }
 

@@ -9,7 +9,7 @@ use crate::opamp::remote_config_report::{
     report_remote_config_status_applied, report_remote_config_status_applying,
 };
 use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::opamp::remote_config::store_remote_config_hash_and_values;
@@ -317,21 +317,10 @@ where
                         _ = report_remote_config_status_error(opamp_client, &hash, err).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
                     }
                 }
-                self.build_supervisor(effective_agent)
+                let supervisor = self.supervisor_builder.build_supervisor(effective_agent)?;
+                Ok(supervisor)
             }
         }
-    }
-
-    pub(crate) fn build_supervisor(
-        &self,
-        effective_agent: EffectiveAgent,
-    ) -> Result<B::SupervisorStarter, SupervisorError> {
-        self.supervisor_builder
-            .build_supervisor(effective_agent)
-            .map_err(|err| {
-                error!(agent_id=%self.agent_id, %err, "Error building the supervisor");
-                err.into()
-            })
     }
 
     pub(crate) fn start_supervisor(
@@ -428,7 +417,9 @@ pub mod test {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
+    use crate::sub_agent::effective_agents_assembler::{
+        EffectiveAgent, EffectiveAgentsAssemblerError,
+    };
     use crate::sub_agent::supervisor::test::{
         MockSupervisorBuilder, MockSupervisorStarter, MockSupervisorStopper,
     };

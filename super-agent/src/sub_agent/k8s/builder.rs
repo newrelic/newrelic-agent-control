@@ -1,5 +1,4 @@
 use crate::agent_type::environment::Environment;
-use crate::agent_type::runtime_config::K8sObject;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
@@ -21,7 +20,6 @@ use crate::{
     sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
-use kube::core::TypeMeta;
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
@@ -187,47 +185,6 @@ where
             _effective_config_loader: PhantomData,
         }
     }
-
-    pub fn build_cr_supervisors(
-        &self,
-        effective_agent: EffectiveAgent,
-    ) -> Result<NotStartedSupervisorK8s, SubAgentBuilderError> {
-        debug!("Building CR supervisors {}", &self.agent_id);
-
-        let k8s_objects = effective_agent.get_k8s_config()?;
-
-        // Validate Kubernetes objects against the list of supported resources.
-        Self::validate_k8s_objects(&k8s_objects.objects.clone(), &self.k8s_config.cr_type_meta)?;
-
-        // Clone the k8s_client on each build.
-        Ok(NotStartedSupervisorK8s::new(
-            self.agent_id.clone(),
-            self.agent_cfg.agent_type.clone(),
-            self.k8s_client.clone(),
-            k8s_objects.clone(),
-        ))
-    }
-
-    fn validate_k8s_objects(
-        objects: &HashMap<String, K8sObject>,
-        supported_types: &[TypeMeta],
-    ) -> Result<(), SubAgentBuilderError> {
-        let supported_set: HashSet<(&str, &str)> = supported_types
-            .iter()
-            .map(|tm| (tm.api_version.as_str(), tm.kind.as_str()))
-            .collect();
-
-        for k8s_obj in objects.values() {
-            let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
-            if !supported_set.contains(&obj_key) {
-                return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
-                    "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
-                    k8s_obj.api_version, k8s_obj.kind
-                )));
-            }
-        }
-        Ok(())
-    }
 }
 
 impl<O, G> SupervisorBuilder for SupervisorBuilderK8s<O, G>
@@ -243,14 +200,42 @@ where
         &self,
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
-        self.build_cr_supervisors(effective_agent)
+        debug!("Building CR supervisors {}", &self.agent_id);
+
+        let k8s_objects = effective_agent.get_k8s_config()?;
+
+        // Validate Kubernetes objects against the list of supported resources.
+        let supported_set: HashSet<(&str, &str)> = self
+            .k8s_config
+            .cr_type_meta
+            .iter()
+            .map(|tm| (tm.api_version.as_str(), tm.kind.as_str()))
+            .collect();
+
+        for k8s_obj in k8s_objects.objects.values() {
+            let obj_key = (k8s_obj.api_version.as_str(), k8s_obj.kind.as_str());
+            if !supported_set.contains(&obj_key) {
+                return Err(SubAgentBuilderError::UnsupportedK8sObject(format!(
+                    "Unsupported Kubernetes object with api_version '{}' and kind '{}'",
+                    k8s_obj.api_version, k8s_obj.kind
+                )));
+            }
+        }
+
+        // Clone the k8s_client on each build.
+        Ok(NotStartedSupervisorK8s::new(
+            self.agent_id.clone(),
+            self.agent_cfg.agent_type.clone(),
+            self.k8s_client.clone(),
+            k8s_objects.clone(),
+        ))
     }
 }
 
 #[cfg(test)]
 pub mod test {
     use super::*;
-    use crate::agent_type::runtime_config::{self, Deployment, Runtime};
+    use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
