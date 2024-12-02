@@ -204,13 +204,13 @@ where
                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error validating remote config");
                                     // This reporting might fail as well... what do we do?
                                     if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
-                                        error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                        error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
                                     }
                                     continue;
                                 }
 
                                 if let Err(e) = report_remote_config_status_applying(opamp_client, &config.hash) {
-                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                    error!(error = %e, status = "applying", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
                                     continue;
                                 }
 
@@ -219,7 +219,7 @@ where
                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error storing remote config hash and values");
                                     // This reporting might fail as well... what do we do?
                                     if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
-                                        error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                        error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
                                     }
                                     continue;
                                 }
