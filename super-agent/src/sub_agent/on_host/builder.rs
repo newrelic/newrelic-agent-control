@@ -1,5 +1,4 @@
 use crate::agent_type::environment::Environment;
-use crate::agent_type::runtime_config::OnHost;
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -8,14 +7,12 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::config_validator::ConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{
-    EffectiveAgent, EffectiveAgentsAssembler, EffectiveAgentsAssemblerError,
-};
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::on_host::supervisor::command_supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
 use crate::sub_agent::supervisor::SupervisorBuilder;
+use crate::sub_agent::SubAgent;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::sub_agent::{build_supervisor_or_default, SubAgent};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::super_agent::defaults::{
     sub_agent_version, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -94,7 +91,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, HR, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, G>, HR, Y>;
 
     fn build(
         &self,
@@ -130,11 +127,7 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let supervisor_builder = SupervisortBuilderOnHost::new(
-            agent_id.clone(),
-            self.hash_repository.clone(),
-            self.logging_path.clone(),
-        );
+        let supervisor_builder = SupervisortBuilderOnHost::new(self.logging_path.clone());
 
         Ok(SubAgent::new(
             agent_id,
@@ -163,14 +156,11 @@ fn get_hostname() -> String {
     return unimplemented!();
 }
 
-pub struct SupervisortBuilderOnHost<O, HR, G>
+pub struct SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
-    agent_id: AgentID,
-    hash_repository: Arc<HR>,
     logging_path: PathBuf,
 
     // This is needed to ensure the generic type parameters O and G are used.
@@ -179,57 +169,24 @@ where
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<O, HR, G> SupervisortBuilderOnHost<O, HR, G>
+impl<O, G> SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
-    pub fn new(agent_id: AgentID, hash_repository: Arc<HR>, logging_path: PathBuf) -> Self {
+    pub fn new(logging_path: PathBuf) -> Self {
         Self {
-            agent_id,
-            hash_repository,
             logging_path,
             _opamp_client_builder: PhantomData,
             _effective_config_loader: PhantomData,
         }
     }
-
-    fn build_onhost_supervisor(
-        &self,
-        effective_agent: EffectiveAgent,
-    ) -> Result<NotStartedSupervisorOnHost, SubAgentBuilderError> {
-        let agent_id = effective_agent.get_agent_id();
-        let on_host = effective_agent.get_onhost_config()?.clone();
-
-        let enable_file_logging = on_host.clone().enable_file_logging.get();
-
-        Ok(self.create_executable_supervisor(agent_id.clone(), enable_file_logging, on_host))
-    }
-
-    fn create_executable_supervisor(
-        &self,
-        agent_id: AgentID,
-        enable_file_logging: bool,
-        on_host_config: OnHost,
-    ) -> NotStartedSupervisorOnHost {
-        let maybe_exec = on_host_config.executable.map(|e| {
-            ExecutableData::new(e.path.get())
-                .with_args(e.args.get().into_vector())
-                .with_env(e.env.get())
-                .with_restart_policy(e.restart_policy.into())
-        });
-
-        NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host_config.health)
-            .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
-    }
 }
 
-impl<O, HR, G> SupervisorBuilder for SupervisortBuilderOnHost<O, HR, G>
+impl<O, G> SupervisorBuilder for SupervisortBuilderOnHost<O, G>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-    HR: HashRepository,
 {
     type SupervisorStarter = NotStartedSupervisorOnHost;
 
@@ -237,16 +194,25 @@ where
 
     fn build_supervisor(
         &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-        maybe_opamp_client: &Option<Self::OpAMPClient>,
-    ) -> Result<Option<Self::SupervisorStarter>, SubAgentBuilderError> {
-        build_supervisor_or_default::<HR, O, _, _, _>(
-            &self.agent_id,
-            &self.hash_repository,
-            maybe_opamp_client,
-            effective_agent_result,
-            |effective_agent| self.build_onhost_supervisor(effective_agent).map(Some),
-        )
+        effective_agent: EffectiveAgent,
+    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
+        let agent_id = effective_agent.get_agent_id().clone();
+        let on_host = effective_agent.get_onhost_config()?.clone();
+
+        let enable_file_logging = on_host.enable_file_logging.get();
+
+        let maybe_exec = on_host.executable.map(|e| {
+            ExecutableData::new(e.path.get())
+                .with_args(e.args.get().into_vector())
+                .with_env(e.env.get())
+                .with_restart_policy(e.restart_policy.into())
+        });
+
+        let executable_supervisors =
+            NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host.health)
+                .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+
+        Ok(executable_supervisors)
     }
 }
 

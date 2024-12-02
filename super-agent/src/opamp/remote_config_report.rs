@@ -11,12 +11,11 @@ where
     C: Callbacks,
     O: StartedClient<C>,
 {
-    let err = "".to_string();
     report_remote_config_status(
         opamp_client,
         hash,
         RemoteConfigStatuses::Applying as i32,
-        err,
+        String::default(),
     )
 }
 
@@ -45,12 +44,11 @@ where
     C: Callbacks,
     O: StartedClient<C>,
 {
-    let err = "".to_string();
     report_remote_config_status(
         opamp_client,
         hash,
         RemoteConfigStatuses::Applied as i32,
-        err,
+        String::default(),
     )
 }
 

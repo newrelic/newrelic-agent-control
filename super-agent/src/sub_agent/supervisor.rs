@@ -1,7 +1,4 @@
-use super::{
-    effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssemblerError},
-    error::SubAgentBuilderError,
-};
+use super::{effective_agents_assembler::EffectiveAgent, error::SubAgentBuilderError};
 use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::HealthCheckerError;
@@ -19,6 +16,9 @@ pub enum SupervisorError {
 
     #[error("building health checkers: `{0}`")]
     HealthError(#[from] HealthCheckerError),
+
+    #[error("supervisor could not be built: `{0}`")]
+    BuildError(#[from] SubAgentBuilderError),
 }
 
 pub trait SupervisorBuilder {
@@ -27,9 +27,8 @@ pub trait SupervisorBuilder {
 
     fn build_supervisor(
         &self,
-        effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-        maybe_opamp_client: &Option<Self::OpAMPClient>,
-    ) -> Result<Option<Self::SupervisorStarter>, SubAgentBuilderError>;
+        effective_agent: EffectiveAgent,
+    ) -> Result<Self::SupervisorStarter, SubAgentBuilderError>;
 }
 
 pub trait SupervisorStarter {
@@ -52,9 +51,7 @@ pub(crate) mod test {
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::sub_agent::effective_agents_assembler::{
-        EffectiveAgent, EffectiveAgentsAssemblerError,
-    };
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStopper};
     use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter};
@@ -86,9 +83,8 @@ pub(crate) mod test {
 
             fn build_supervisor(
                 &self,
-                effective_agent_result: Result<EffectiveAgent, EffectiveAgentsAssemblerError>,
-                maybe_opamp_client: &Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>>,
-            ) -> Result<Option<A>, SubAgentBuilderError>;
+                effective_agent: EffectiveAgent,
+            ) -> Result<A, SubAgentBuilderError>;
         }
     }
 }
