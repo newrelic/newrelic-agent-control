@@ -289,8 +289,7 @@ where
                 if let (Some(mut hash), Some(opamp_client)) = (hash, &self.maybe_opamp_client) {
                     if !hash.is_failed() {
                         hash.fail(e.to_string());
-                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to save hash to repository"));
-                        // FIXME what do we do on failure above?
+                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| error!(%self.agent_id, err = %e, "failed to save hash to repository"));
                     }
                     _ = report_remote_config_status_error(opamp_client, &hash, e.to_string())
                         .inspect_err(
@@ -305,18 +304,17 @@ where
                     if hash.is_applying() {
                         debug!(%self.agent_id, "applying remote config");
                         hash.apply();
-                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to save hash to repository")); // FIXME what do we do on failure?
+                        _ = self.sub_agent_remote_config_hash_repository.save(&self.agent_id, &hash).inspect_err(|e| error!(%self.agent_id, err = %e, "failed to save hash to repository"));
                         _ = opamp_client.update_effective_config().inspect_err(
                             |e| error!(%self.agent_id, %e, "effective config update failed"),
-                        ); // FIXME what do we do on failure?
+                        );
                         _ = report_remote_config_status_applied(opamp_client, &hash).inspect_err(
                             |e| error!(%self.agent_id, %e, "error reporting remote config status"),
-                        ); // FIXME what do we do on failure?
+                        );
                     }
                     if let Some(err) = hash.error_message() {
                         warn!(%self.agent_id, err = %err, "remote config failed. Building with previous stored config");
                         _ = report_remote_config_status_error(opamp_client, &hash, err).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
-                        // FIXME what do we do on failure?
                     }
                 }
                 self.build_supervisor(effective_agent)
