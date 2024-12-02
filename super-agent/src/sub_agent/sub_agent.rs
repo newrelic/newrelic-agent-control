@@ -200,9 +200,11 @@ where
                                 select_arm = "sub_agent_opamp_consumer",
                 "remote config received");
 
+                                // Errors here will cause the sub-agent to continue running with the previous configuration.
+                                // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
+                                // "Applied" was never reported.
                                 if let Err(e) = self.config_validator.validate(&self.agent_cfg.agent_type, &config) {
                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error validating remote config");
-                                    // This reporting might fail as well... what do we do?
                                     if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
                                         error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
                                     }
@@ -214,10 +216,8 @@ where
                                     continue;
                                 }
 
-                                // FIXME storing is a sensitive operation, what are the failure modes and what should we do when they happen?
                                 if let Err(e) = store_remote_config_hash_and_values(&mut config, self.sub_agent_remote_config_hash_repository.as_ref(), self.remote_values_repo.as_ref()) {
                                     error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error storing remote config hash and values");
-                                    // This reporting might fail as well... what do we do?
                                     if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
                                         error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
                                     }
