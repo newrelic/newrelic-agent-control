@@ -96,5 +96,5 @@ helm_resource(
   resource_deps=['build-binary']+extra_resource_deps
 )
 
-# We had flaky e2e test faling due to timeout applying the chart on 30s
+# We had flaky e2e test failing due to timeout applying the chart on 30s
 update_settings(k8s_upsert_timeout_secs=150)

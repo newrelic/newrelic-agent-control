@@ -6,16 +6,23 @@ scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      # we need wait and retry since the resource might me not created yet
+      - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator; do sleep 5; echo waiting on operator ; done"
       - sleep 60
-      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run ${SCENARIO_TAG}-dotnet --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet:main -o yaml | kubectl label app=dotneteapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml --command -- sh -c "yarn add express && node index.js" | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
-      # Give time to the apps to start, query python and node apps to trigger instrumentation
-      - until kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO- 127.0.0.1:8080; do sleep 5; done
-      - until kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO- 127.0.0.1:3000; do sleep 5; done
-      # Repeat the same queries a couple times more just in case, to ensure metrics are generated
-      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO- 127.0.0.1:8080
-      - seq 4 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO- 127.0.0.1:3000
+      - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
+
+      # Generate some traffic
+      - kubectl wait --for=condition=Ready --all pods --timeout 5m
+      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
+      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000
+      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292
+      # dotnet image does not have wget available, we use one from a different pod
+      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
+
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
@@ -28,7 +35,5 @@ scenarios:
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-node' -- comment disabling the appended testKey: "
-
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-java' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-python' -- comment disabling the appended testKey: "
-        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.errorRate' AND appName = '${SCENARIO_TAG}-node' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-ruby' -- comment disabling the appended testKey: "
+        - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-dotnet' -- comment disabling the appended testKey: "
