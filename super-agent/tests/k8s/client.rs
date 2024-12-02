@@ -24,7 +24,7 @@ const TEST_LABEL_VALUE: &str = "value";
 // tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
-async fn k8s_client_creation_fail() {
+async fn k8s_missing_namespace_creation_fail() {
     let test_ns = "test-not-existing-namespace";
     assert!(AsyncK8sClient::try_new(test_ns.to_string()).await.is_err());
 }

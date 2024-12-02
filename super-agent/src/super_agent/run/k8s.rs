@@ -73,6 +73,7 @@ impl SuperAgentRunner {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                self.opamp_poll_interval,
             )
         });
 
@@ -121,6 +122,7 @@ impl SuperAgentRunner {
             config_storer.clone(),
             k8s_client,
             self.k8s_config.cr_type_meta,
+            self.garbage_collector_interval,
         );
         let _started_gcc = gcc.start();
 

@@ -11,7 +11,7 @@ variables:
 deployment:
   k8s:
     health:
-      interval: 30s
+      interval: 5s
     objects:
       bar_cr:
         # This CRD is created in the cluster when initializing the test environment.

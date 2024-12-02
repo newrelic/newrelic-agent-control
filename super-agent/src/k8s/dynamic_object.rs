@@ -110,8 +110,8 @@ impl DynamicObjectManager {
             return Ok(());
         }
         debug!(
-            "applying k8s object since it has changed: '{:?}'",
-            obj.metadata
+            "applying k8s object since it has changed: '{:?}' '{:?}'",
+            obj.types, obj.metadata,
         );
         self.apply(obj).await
     }

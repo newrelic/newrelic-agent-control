@@ -33,7 +33,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
     // Check deployment for first Agent is created with retry, the name has the key
     // 'override-by-secret' concatenated to the name because the secret created adds that
     // NameOverride to the values.
-    retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(1), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &["hello-world-override-by-secret"],

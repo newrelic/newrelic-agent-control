@@ -28,7 +28,7 @@ duration-str = "0.11.2"
 konst = { workspace = true }
 http = { workspace = true }
 ureq = { workspace = true, features = ["http-crate", "socks-proxy"] }
-url = { version = "2.5.2", features = ["serde"] }
+url = { version = "2.5.4", features = ["serde"] }
 actix-web = "4"
 serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
@@ -36,7 +36,7 @@ chrono = { workspace = true }
 # New Relic dependencies (private external repos)
 # IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
 nr-auth = { git = "ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git", tag = "0.0.3" }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.21", default-features = false }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.22", default-features = false }
 # local dependencies
 fs = { path = "../fs" }
 

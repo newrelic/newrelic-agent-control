@@ -62,7 +62,7 @@ licenseKey: test
     let sub_agent_instance_id =
         instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
 
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -83,9 +83,8 @@ licenseKey: test
 
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
-
     // Delete the helm release to check if super agent recreate it correctly
-    retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(1), || {
         block_on(delete_helm_release(
             k8s.client.clone(),
             namespace.as_str(),
@@ -94,7 +93,14 @@ licenseKey: test
         Ok(())
     });
 
-    retry(60, Duration::from_secs(5), || {
+    // Wait for the helm release to be recreated
+    retry(60, Duration::from_secs(1), || {
+        block_on(check_helmrelease_spec_values(
+            k8s.client.clone(),
+            namespace.as_str(),
+            "hello-world",
+            expected_spec_values,
+        ))?;
         check_latest_health_status_was_healthy(&server, &sub_agent_instance_id.clone())
     });
 }
@@ -147,7 +153,7 @@ fn k8s_opamp_subagent_configuration_change() {
 valid: true
     "#;
 
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -183,7 +189,7 @@ chart_values:
 valid: super-true
     "#;
 
-    retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -246,7 +252,7 @@ agents:
     );
 
     // check that the expected deployments exist
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_deployments_exist(
             k8s.client.clone(),
             &["hello-world"],

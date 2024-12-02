@@ -135,7 +135,7 @@ pub fn create_local_super_agent_config(
 /// If it is present we assume that the SuperAgent was started and was able to connect to the cluster.
 pub fn wait_until_super_agent_with_opamp_is_started(k8s_client: Client, namespace: &str) {
     // check that the expected cm exist, meaning that the SA started
-    retry(30, Duration::from_secs(5), || {
+    retry(30, Duration::from_secs(1), || {
         block_on(check_config_map_exist(
             k8s_client.clone(),
             "opamp-data-super-agent",

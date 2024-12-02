@@ -98,7 +98,9 @@ pub(crate) mod test {
     use crate::{
         event::channel::pub_sub,
         opamp::{
-            client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
+            client_builder::{
+                DefaultOpAMPClientBuilder, OpAMPClientBuilder, DEFAULT_POLL_INTERVAL,
+            },
             effective_config::loader::tests::{
                 MockEffectiveConfigLoaderBuilderMock, MockEffectiveConfigLoaderMock,
             },
@@ -149,7 +151,11 @@ pub(crate) mod test {
             .times(1)
             .return_once(|| Ok(http_client));
 
-        let builder = DefaultOpAMPClientBuilder::new(http_builder, effective_config_loader_builder);
+        let builder = DefaultOpAMPClientBuilder::new(
+            http_builder,
+            effective_config_loader_builder,
+            DEFAULT_POLL_INTERVAL,
+        );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_ok());
@@ -172,7 +178,11 @@ pub(crate) mod test {
             )))
         });
 
-        let builder = DefaultOpAMPClientBuilder::new(http_builder, effective_config_loader_builder);
+        let builder = DefaultOpAMPClientBuilder::new(
+            http_builder,
+            effective_config_loader_builder,
+            DEFAULT_POLL_INTERVAL,
+        );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
         assert!(actual_client.is_err());

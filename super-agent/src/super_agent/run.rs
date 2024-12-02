@@ -17,6 +17,7 @@ use crate::super_agent::http_server::runner::Runner;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::runtime::Runtime;
 use tracing::{debug, error};
 
@@ -47,11 +48,14 @@ impl Default for BasePaths {
 /// Structures for running the super-agent provided by CLI inputs
 pub struct SuperAgentRunConfig {
     pub opamp: Option<OpAMPClientConfig>,
+    pub opamp_poll_interval: Duration,
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
     pub proxy: ProxyConfig,
     #[cfg(feature = "k8s")]
     pub k8s_config: super::config::K8sConfig,
+    #[cfg(feature = "k8s")]
+    pub garbage_collector_interval: Duration,
 }
 
 /// Structure with all the data required to run the super agent.
@@ -62,11 +66,14 @@ pub struct SuperAgentRunner {
     agent_type_registry: EmbeddedRegistry,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
+    opamp_poll_interval: Duration,
     super_agent_publisher: EventPublisher<SuperAgentEvent>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
     base_paths: BasePaths,
     #[cfg(feature = "k8s")]
     k8s_config: super::config::K8sConfig,
+    #[cfg(feature = "k8s")]
+    garbage_collector_interval: Duration,
 
     #[allow(dead_code)]
     runtime: Arc<Runtime>,
@@ -130,9 +137,12 @@ impl SuperAgentRunner {
             runtime,
             #[cfg(feature = "k8s")]
             k8s_config: config.k8s_config,
+            #[cfg(feature = "k8s")]
+            garbage_collector_interval: config.garbage_collector_interval,
             agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
+            opamp_poll_interval: config.opamp_poll_interval,
             super_agent_publisher,
             sub_agent_publisher,
             base_paths: config.base_paths,

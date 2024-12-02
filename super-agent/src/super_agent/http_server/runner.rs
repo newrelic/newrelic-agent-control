@@ -3,6 +3,7 @@ use crate::event::{SubAgentEvent, SuperAgentEvent};
 use crate::super_agent::config::OpAMPClientConfig;
 use crate::super_agent::http_server::async_bridge::run_async_sync_bridge;
 use crate::super_agent::http_server::config::ServerConfig;
+use crossbeam::select;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
@@ -40,7 +41,7 @@ impl Runner {
         } else {
             // Spawn a thread with a no-action consumer to drain the channel and
             // avoid memory leaks
-            Self::spawn_noop_consumer(super_agent_consumer)
+            Self::spawn_noop_consumer(super_agent_consumer, sub_agent_consumer)
         };
         Runner {
             join_handle: Some(join_handle),
@@ -87,18 +88,35 @@ impl Runner {
         })
     }
 
-    fn spawn_noop_consumer(super_agent_consumer: EventConsumer<SuperAgentEvent>) -> JoinHandle<()> {
+    fn spawn_noop_consumer(
+        super_agent_consumer: EventConsumer<SuperAgentEvent>,
+        sub_agent_consumer: EventConsumer<SubAgentEvent>,
+    ) -> JoinHandle<()> {
         thread::spawn(move || loop {
-            match super_agent_consumer.as_ref().recv() {
-                Ok(_) => {
-                    //do nothing
-                }
-                Err(err) => {
-                    debug!(
-                        error_msg = %err,
-                        "http server event drain processor closed"
-                    );
-                    break;
+            select! {
+                recv(super_agent_consumer.as_ref()) -> super_agent_consumer_res => {
+                    match super_agent_consumer_res {
+                        Ok(_) => {}
+                        Err(err) => {
+                            debug!(
+                                error_msg = %err,
+                                "http server event drain processor closed"
+                            );
+                            break;
+                        }
+                    }
+                },
+                recv(sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
+                    match sub_agent_consumer_res {
+                        Ok(_) => {}
+                        Err(err) => {
+                            debug!(
+                                error_msg = %err,
+                                "http server event drain processor closed"
+                            );
+                            break;
+                        }
+                    }
                 }
             }
         })

@@ -2,6 +2,7 @@ use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
+use std::time::Duration;
 use thiserror::Error;
 use tracing::{error, info};
 
@@ -13,6 +14,9 @@ use crate::super_agent::config::AgentID;
 use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
+
+/// Default poll interval for the OpAMP http managed client
+pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -44,6 +48,7 @@ where
 {
     effective_config_loader_builder: B,
     http_client_builder: C,
+    poll_interval: Duration,
 }
 
 impl<C, B> DefaultOpAMPClientBuilder<C, B>
@@ -51,10 +56,15 @@ where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
-    pub fn new(http_client_builder: C, effective_config_loader_builder: B) -> Self {
+    pub fn new(
+        http_client_builder: C,
+        effective_config_loader_builder: B,
+        poll_interval: Duration,
+    ) -> Self {
         Self {
             effective_config_loader_builder,
             http_client_builder,
+            poll_interval,
         }
     }
 }
@@ -75,7 +85,8 @@ where
         let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
         let callbacks =
             AgentCallbacks::new(agent_id.clone(), opamp_publisher, effective_config_loader);
-        let not_started_client = NotStartedHttpClient::new(http_client);
+        let not_started_client =
+            NotStartedHttpClient::new(http_client).with_interval(self.poll_interval);
         let started_client = not_started_client.start(callbacks, start_settings)?;
         info!(%agent_id,"OpAMP client started");
         Ok(started_client)
