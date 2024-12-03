@@ -25,8 +25,10 @@ const STATUS_ENTRIES: [&str; 6] = [
     NUM_PODS_UNHEALTHY,
 ];
 
-/// Key for an array of unhealthy pods in the status of an Instrumentation
-const UNHEALTHY_PODS: &str = "unhealthyPods";
+/// Key for the last errors of the unhealthy pods in the status of an Instrumentation
+const UNHEALTHY_PODS_ERRORS: &str = "unhealthyPodsErrors";
+const LAST_ERROR_LABEL: &str = "lastError";
+const POD_LABEL: &str = "pod";
 
 /// Represents a health checker for a specific Instrumentation in Kubernetes.
 ///
@@ -76,11 +78,7 @@ impl K8sHealthNRInstrumentation {
             })
             .collect();
 
-        let status_msg = status_entries
-            .iter()
-            .map(|(status_entry, entry_val)| format!("{}:{}", status_entry, entry_val))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let status_msg = Self::get_status_msg(&status_entries);
 
         let pods_matching = status_entries
             .get(NUM_PODS_MATCHING)
@@ -111,12 +109,60 @@ impl K8sHealthNRInstrumentation {
 
         if is_unhealthy {
             // Get last errors of the unhealthy pods, if any
-            let last_errors = Self::get_last_errors(status);
+            // Should we log if the array length does not match the number reported by `podsUnhealthy`?
+            let last_errors = status
+                .get(UNHEALTHY_PODS_ERRORS)
+                .and_then(Value::as_array)
+                .map(|arr| Self::get_last_errors(arr))
+                .unwrap_or_default();
+
             Health::Unhealthy(Unhealthy::new(status_msg, last_errors))
         } else {
             Health::Healthy(Healthy::new(status_msg))
         }
     }
+
+    /// Iterates over the status entries of an Instrumentation and returns a comma-separated string
+    /// with the status of the Instrumentation.
+    fn get_status_msg(status_entries: &HashMap<&str, i64>) -> String {
+        let status_msg = status_entries
+            .iter()
+            .map(|(status_entry, entry_val)| format!("{}:{}", status_entry, entry_val));
+        comma_separated_msg(status_msg)
+    }
+
+    /// Iterates over the `unhealthyPodsErrors` array in the status of an Instrumentation and
+    /// returns a comma-separated string with the last errors of the unhealthy pods, if any.
+    ///
+    /// This does not check if the length of the `unhealthyPodsErrors` array is the same as the
+    /// number reported in the `podsUnhealthy` field. We work under the assumption that
+    /// the information is consistent.
+    fn get_last_errors(unhealthy_pods_errors: &[Value]) -> String {
+        // let Some(unhealthy_pods_errors) =
+        //     status.get(UNHEALTHY_PODS_ERRORS).and_then(Value::as_array)
+        // else {
+        //     return String::default();
+        // };
+
+        let last_errors = unhealthy_pods_errors.iter().map(|unhealthy| {
+            let pod_id = unhealthy
+                .get(POD_LABEL)
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let last_error = unhealthy
+                .get(LAST_ERROR_LABEL)
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            format!("pod {}:{}", pod_id, last_error)
+        });
+
+        comma_separated_msg(last_errors)
+    }
+}
+
+/// Creates a comma-separated string from an iterator of strings
+fn comma_separated_msg(msg_arr: impl Iterator<Item = String>) -> String {
+    msg_arr.collect::<Vec<_>>().join(", ")
 }
 
 impl HealthChecker for K8sHealthNRInstrumentation {
@@ -160,5 +206,175 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             Self::get_healthiness(instrumentation_data),
             self.start_time,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::sub_agent::health::k8s::instrumentation::comma_separated_msg;
+
+    #[test]
+    fn comma_separated() {
+        let msg_arr = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "a, b, c");
+    }
+
+    #[test]
+    fn comma_separated_one_item() {
+        let msg_arr = vec!["a".to_string()];
+        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "a");
+    }
+
+    #[test]
+    fn comma_separated_empty() {
+        let msg_arr = Vec::<String>::default();
+        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "");
+    }
+
+    #[test]
+    fn comma_separated_empty_string() {
+        let msg_arr = vec!["".to_string()];
+        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "");
+    }
+
+    #[test]
+    fn comma_separated_empty_strings() {
+        let msg_arr = vec!["".to_string(), "".to_string(), "".to_string()];
+        assert_eq!(comma_separated_msg(msg_arr.into_iter()), ", , ");
+    }
+
+    #[test] // FIXME continue from here
+    fn get_healthiness_basic() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 1,
+            "podsNotReady": 0,
+            "podsOutdated": 0,
+            "podsUnhealthy": 0,
+        });
+
+        let status = status_json.as_object().unwrap();
+        assert!(matches!(
+            K8sHealthNRInstrumentation::get_healthiness(status),
+            Health::Healthy(_)
+        ));
+    }
+
+    #[test]
+    fn get_healthiness_status_msg() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 1,
+            "podsNotReady": 0,
+            "podsOutdated": 0,
+            "podsUnhealthy": 0,
+        });
+
+        let status = status_json.as_object().unwrap();
+        let health = K8sHealthNRInstrumentation::get_healthiness(status);
+        let status = health.status();
+        // Ordering might differ.
+        // TODO do we want to sort?
+        assert!(status.contains("podsMatching:1"));
+        assert!(status.contains("podsHealthy:1"));
+        assert!(status.contains("podsInjected:1"));
+        assert!(status.contains("podsNotReady:0"));
+        assert!(status.contains("podsOutdated:0"));
+        assert!(status.contains("podsUnhealthy:0"));
+    }
+
+    // not_ready > 0 --> Unhealthy
+    #[test]
+    fn get_healthiness_not_ready() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 1,
+            "podsNotReady": 1,
+            "podsOutdated": 0,
+            "podsUnhealthy": 0,
+        });
+
+        let status = status_json.as_object().unwrap();
+        assert!(matches!(
+            K8sHealthNRInstrumentation::get_healthiness(status),
+            Health::Unhealthy(_)
+        ));
+    }
+
+    // Matching != Injected --> Unhealthy
+    #[test]
+    fn get_healthiness_injected() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 0,
+            "podsNotReady": 0,
+            "podsOutdated": 0,
+            "podsUnhealthy": 0,
+        });
+
+        let status = status_json.as_object().unwrap();
+        assert!(matches!(
+            K8sHealthNRInstrumentation::get_healthiness(status),
+            Health::Unhealthy(_)
+        ));
+    }
+
+    // Unhealthy > 0 ---> Unhealthy with lastErrors
+    #[test]
+    fn get_healthiness_unhealthy() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 1,
+            "podsNotReady": 0,
+            "podsOutdated": 0,
+            "podsUnhealthy": 1,
+        });
+
+        let status = status_json.as_object().unwrap();
+        assert!(matches!(
+            K8sHealthNRInstrumentation::get_healthiness(status),
+            Health::Unhealthy(_)
+        ));
+    }
+
+    // Unhealthy > 0 ---> Unhealthy with lastErrors
+    #[test]
+    fn get_healthiness_unhealthy_with_errors() {
+        let status_json = serde_json::json!({
+            "podsMatching": 1,
+            "podsHealthy": 1,
+            "podsInjected": 1,
+            "podsNotReady": 0,
+            "podsOutdated": 0,
+            "podsUnhealthy": 1, // Note this number is different from the number of errors below!!
+            "unhealthyPodsErrors": [
+                {
+                    "pod": "pod1",
+                    "lastError": "error1"
+                },
+                {
+                    "pod": "pod2",
+                    "lastError": "error2"
+                }
+            ]
+        });
+
+        let status = status_json.as_object().unwrap();
+        let health = K8sHealthNRInstrumentation::get_healthiness(status);
+        let last_error = health.last_error().unwrap();
+
+        assert!(matches!(health, Health::Unhealthy(_)));
+
+        // Ordering might differ.
+        // TODO do we want to sort?
+        assert!(last_error.contains("pod pod1:error1"));
+        assert!(last_error.contains("pod pod2:error2"));
     }
 }
