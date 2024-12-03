@@ -3,21 +3,30 @@ use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use k8s_openapi::merge_strategies::list::map;
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::DynamicObject;
 use std::collections::HashMap;
 use std::sync::Arc;
-use semver::Op;
 
-const PODS_MATCHING: &str = "podsMatching";
-const PODS_HEALTHY: &str = "podsHealthy";
-const PODS_INJECTED: &str = "podsInjected";
-const PODS_NOT_READY: &str = "podsNotReady";
-const PODS_OUTDATED: &str = "podsOutdated";
-const PODS_UNHEALTHY: &str = "podsUnhealthy";
+// CONSTANTS THAT ARE KEYS TO NUMERIC VALUES
+const NUM_PODS_MATCHING: &str = "podsMatching";
+const NUM_PODS_HEALTHY: &str = "podsHealthy";
+const NUM_PODS_INJECTED: &str = "podsInjected";
+const NUM_PODS_NOT_READY: &str = "podsNotReady";
+const NUM_PODS_OUTDATED: &str = "podsOutdated";
+const NUM_PODS_UNHEALTHY: &str = "podsUnhealthy";
+const STATUS_ENTRIES: [&str; 6] = [
+    NUM_PODS_MATCHING,
+    NUM_PODS_HEALTHY,
+    NUM_PODS_INJECTED,
+    NUM_PODS_NOT_READY,
+    NUM_PODS_OUTDATED,
+    NUM_PODS_UNHEALTHY,
+];
+
+/// Key for an array of unhealthy pods in the status of an Instrumentation
+const UNHEALTHY_PODS: &str = "unhealthyPods";
 
 /// Represents a health checker for a specific Instrumentation in Kubernetes.
 ///
@@ -51,82 +60,62 @@ impl K8sHealthNRInstrumentation {
     /// It returns a Healthy or Unhealthy type depending on the conditions:
     /// not_ready > 0 --> Unhealthy
     /// Matching != Injected --> Unhealthy
-    /// Unhealthy > 0 ---> Unhealthy whit lastErrors
+    /// Unhealthy > 0 ---> Unhealthy with lastErrors
     /// We can't rely on the number of healthy pods lower than matching because there can be uninstrumented
     /// or outdated pods so the matching will be higher, so we just consider healthy
     /// any case not being one of the previous cases.
-    fn get_healthiness(&self, status: Map<String, Value>) -> Health {
-        let mut status_msg: String = String::default();
-        let mut status_entries: HashMap<&str, i64> = HashMap::default();
-        for status_entry in [
-            PODS_MATCHING,
-            PODS_HEALTHY,
-            PODS_INJECTED,
-            PODS_NOT_READY,
-            PODS_OUTDATED,
-            PODS_UNHEALTHY,
-        ] {
-            let entry_val = status
-                .get(status_entry)
-                .and_then(|ph| ph.as_i64())
-                .unwrap_or(0);
-            status_entries.insert(status_entry, entry_val);
-            if !status_msg.is_empty() {
-                status_msg.push_str(", ");
-            }
-            status_msg.push_str(format!("{}:{}", status_entry, entry_val).as_str());
+    fn get_healthiness(status: &Map<String, Value>) -> Health {
+        let status_entries: HashMap<_, _> = STATUS_ENTRIES
+            .into_iter()
+            .map(|status_entry| {
+                let entry_val = status
+                    .get(status_entry)
+                    .and_then(Value::as_i64)
+                    .unwrap_or_default();
+                (status_entry, entry_val)
+            })
+            .collect();
+
+        let status_msg = status_entries
+            .iter()
+            .map(|(status_entry, entry_val)| format!("{}:{}", status_entry, entry_val))
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        let pods_matching = status_entries
+            .get(NUM_PODS_MATCHING)
+            .copied()
+            .unwrap_or_default();
+
+        if pods_matching <= 0 {
+            return Health::Healthy(Healthy::new(status_msg));
         }
 
-        let health = status_entries
-            .get(PODS_MATCHING)
-            .map(|pods_matching| {
-                let matching = *pods_matching;
-                if matching > 0 {
-                    let mut is_healthy = true;
-                    let mut last_errors = String::default();
+        let pods_not_ready = status_entries
+            .get(NUM_PODS_NOT_READY)
+            .copied()
+            .unwrap_or_default();
 
-                    let not_ready = status_entries.get(PODS_NOT_READY).unwrap_or(&0);
-                    if *not_ready > 0 {
-                        is_healthy = false;
-                    }
+        let pods_injected = status_entries
+            .get(NUM_PODS_INJECTED)
+            .copied()
+            .unwrap_or_default();
 
-                    let injected = status_entries.get(PODS_INJECTED).unwrap_or(&0);
-                    if *injected != matching {
-                        is_healthy = false;
-                    }
+        let pods_unhealthy = status_entries
+            .get(NUM_PODS_UNHEALTHY)
+            .copied()
+            .unwrap_or_default();
 
-                    let unhealthy = status_entries.get(PODS_HEALTHY).unwrap_or(&0);
-                    if *unhealthy > 0 {
-                        is_healthy = false;
-                        let unhealthy_pods = status
-                            .get("unhealthyPods")
-                            .and_then(|up| up.as_array().cloned())
-                            .unwrap_or_default();
-                        for unhealthy in unhealthy_pods {
-                            let pod_id = unhealthy
-                                .get("pod")
-                                .and_then(|up| up.as_str())
-                                .unwrap_or("");
-                            let last_error = unhealthy
-                                .get("lastError")
-                                .and_then(|up| up.as_str())
-                                .unwrap_or("");
-                            if !last_errors.is_empty() {
-                                last_errors.push_str(", ");
-                            }
-                            last_errors.push_str(format!("pod {}:{}", pod_id, last_error).as_str());
-                        }
-                    }
+        let is_unhealthy =
+            pods_not_ready > 0 || pods_injected != pods_matching || pods_unhealthy > 0;
 
-                    if !is_healthy {
-                        return Health::Unhealthy(Unhealthy::new(status_msg, last_errors));
-                    }
-                }
-                Health::Healthy(Healthy::new(status_msg))
-            })
-            .expect("podsMatching should be defined at least with default 0");
-
-        health
+        if is_unhealthy {
+            // Get last errors of the unhealthy pods, if any
+            let last_errors = Self::get_last_errors(status);
+            Health::Unhealthy(Unhealthy::new(status_msg, last_errors))
+        } else {
+            Health::Healthy(Healthy::new(status_msg))
+        }
     }
 }
 
@@ -168,7 +157,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         }
 
         Ok(HealthWithStartTime::new(
-            self.get_healthiness(instrumentation_data.clone()),
+            Self::get_healthiness(instrumentation_data),
             self.start_time,
         ))
     }
