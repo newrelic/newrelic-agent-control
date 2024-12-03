@@ -74,6 +74,11 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
       - name: Install Rust ${{ matrix.toolchain }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -96,6 +101,12 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
+  
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -130,6 +141,11 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
       - name: Install Rust ${{ matrix.msrv }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -153,6 +169,12 @@ jobs:
           ssh-private-key: |
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
