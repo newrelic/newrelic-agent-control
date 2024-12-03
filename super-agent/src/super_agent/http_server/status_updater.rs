@@ -83,7 +83,7 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};

@@ -111,7 +111,7 @@ impl K8sStore {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::{K8sStore, StoreKey};
     use super::{CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX};
     use crate::k8s::client::MockSyncK8sClient;

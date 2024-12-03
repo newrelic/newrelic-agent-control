@@ -89,7 +89,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use http::Response;
     use mockall::mock;
     use opamp_client::http::HttpClientError;

@@ -64,10 +64,10 @@ pub static REGEX_NRI_FLEX: &str = "nri-flex";
 pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
-    use crate::sub_agent::config_validator::test::VALID_ONHOST_NRDOT_CONFIG;
+    use crate::sub_agent::config_validator::tests::VALID_ONHOST_NRDOT_CONFIG;
     use crate::sub_agent::config_validator::{ConfigValidator, ValidatorError};
     use crate::super_agent::config::{AgentID, AgentTypeFQN};
     use crate::super_agent::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};

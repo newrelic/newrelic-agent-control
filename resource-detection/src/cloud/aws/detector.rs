@@ -82,9 +82,9 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
-    use crate::cloud::http_client::test::MockHttpClientMock;
+    use crate::cloud::http_client::tests::MockHttpClientMock;
     use assert_matches::assert_matches;
 
     #[test]

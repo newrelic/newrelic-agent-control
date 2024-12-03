@@ -84,14 +84,14 @@ mod tests {
     use crate::{
         event::channel::pub_sub,
         opamp::{
-            client_builder::test::MockStartedOpAMPClientMock,
-            hash_repository::repository::test::MockHashRepositoryMock,
+            client_builder::tests::MockStartedOpAMPClientMock,
+            hash_repository::repository::tests::MockHashRepositoryMock,
             remote_config::{ConfigurationMap, RemoteConfig},
             remote_config_hash::Hash,
         },
         sub_agent::{
             collection::StartedSubAgents,
-            test::{MockStartedSubAgent, MockSubAgentBuilderMock},
+            tests::{MockStartedSubAgent, MockSubAgentBuilderMock},
         },
         super_agent::{
             config::{AgentID, SubAgentConfig, SuperAgentDynamicConfig},

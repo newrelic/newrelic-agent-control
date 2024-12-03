@@ -59,7 +59,7 @@ pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
     use crate::super_agent::config::AgentID;
     use std::collections::BTreeMap;

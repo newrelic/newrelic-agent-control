@@ -202,7 +202,7 @@ impl K8sHealthDaemonSet {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::{
         k8s::client::MockSyncK8sClient,

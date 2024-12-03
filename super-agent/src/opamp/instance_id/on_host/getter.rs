@@ -167,7 +167,7 @@ pub enum GetterError {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::opamp::instance_id::Identifiers;
     use crate::opamp::instance_id::{
         on_host::getter::IdentifiersProvider, IdentifiersProviderError,

@@ -204,7 +204,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
@@ -214,19 +214,19 @@ pub mod test {
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::callbacks::AgentCallbacks;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-    use crate::sub_agent::k8s::builder::test::k8s_sample_runtime_config;
-    use crate::sub_agent::supervisor::test::MockSupervisorBuilder;
+    use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
+    use crate::sub_agent::supervisor::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::super_agent::config::{
         helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
     };
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;

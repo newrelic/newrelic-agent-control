@@ -16,7 +16,7 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::super_agent::config::{AgentID, AgentTypeFQN};

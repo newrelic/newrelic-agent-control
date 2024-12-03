@@ -77,7 +77,7 @@ impl LogBroadcaster {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
     use crate::super_agent::config::AgentID;

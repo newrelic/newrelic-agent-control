@@ -230,7 +230,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::NotStartedK8sGarbageCollector;
     use crate::k8s::annotations::Annotations;
     use crate::k8s::client::MockSyncK8sClient;

@@ -51,7 +51,7 @@ impl Display for Host {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::super_agent::http_server::config::{
         Host, Port, ServerConfig, DEFAULT_HOST, DEFAULT_PORT,
     };

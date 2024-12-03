@@ -221,7 +221,7 @@ pub(crate) mod tests {
     use crate::agent_type::runtime_config;
     use crate::super_agent::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use semver::Version;

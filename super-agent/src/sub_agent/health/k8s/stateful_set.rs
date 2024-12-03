@@ -145,7 +145,7 @@ impl K8sHealthStatefulSet {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::{

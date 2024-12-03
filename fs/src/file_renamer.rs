@@ -54,7 +54,7 @@ pub mod mock {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
 
     use super::*;
 

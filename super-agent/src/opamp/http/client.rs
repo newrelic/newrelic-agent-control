@@ -115,7 +115,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use assert_matches::assert_matches;
     use http::{HeaderName, HeaderValue};
 

@@ -175,7 +175,7 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::agent_type::definition::AgentType;
     use crate::agent_type::environment::Environment;
     use crate::sub_agent::persister::config_persister::ConfigurationPersister;

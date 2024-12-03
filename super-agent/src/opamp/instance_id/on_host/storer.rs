@@ -131,7 +131,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};

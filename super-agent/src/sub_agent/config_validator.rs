@@ -118,7 +118,7 @@ impl ConfigValidator {
 }
 
 #[cfg(test)]
-pub(super) mod test {
+pub(super) mod tests {
     use std::collections::HashMap;
 
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};

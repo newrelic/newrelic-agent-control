@@ -115,7 +115,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};

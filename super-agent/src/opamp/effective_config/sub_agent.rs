@@ -75,14 +75,14 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::super_agent::config::AgentID;
     use crate::super_agent::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use std::collections::HashMap;
     use std::sync::Arc;
 

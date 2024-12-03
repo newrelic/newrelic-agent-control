@@ -303,7 +303,7 @@ fn remove_hash_label_from_template(pod_template_spec: &PodTemplateSpec) -> PodTe
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::collections::BTreeMap;
     use std::str::FromStr;
 

@@ -130,7 +130,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use http::Response;
     use mockall::mock;

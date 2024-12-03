@@ -104,7 +104,7 @@ impl
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
     use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
     use crate::config_migrate::migration::config::MigrationAgentConfig;

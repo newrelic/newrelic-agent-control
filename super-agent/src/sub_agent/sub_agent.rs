@@ -405,14 +405,14 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
@@ -420,13 +420,13 @@ pub mod test {
     use crate::sub_agent::effective_agents_assembler::{
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
-    use crate::sub_agent::supervisor::test::{
+    use crate::sub_agent::supervisor::tests::{
         MockSupervisorBuilder, MockSupervisorStarter, MockSupervisorStopper,
     };
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::super_agent::config::AgentTypeFQN;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};

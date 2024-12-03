@@ -36,7 +36,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::context::Context;
     use std::sync::Arc;
     use std::sync::Mutex;

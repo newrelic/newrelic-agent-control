@@ -152,7 +152,7 @@ pub fn display_type(type_meta: &TypeMeta) -> String {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
 

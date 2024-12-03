@@ -189,7 +189,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::k8s::{client::MockSyncK8sClient, Error};
     use crate::sub_agent::health::health_checker::Health;

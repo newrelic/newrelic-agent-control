@@ -62,7 +62,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::sub_agent::health::health_checker::Unhealthy;
     use assert_matches::assert_matches;

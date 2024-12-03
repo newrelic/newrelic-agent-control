@@ -88,7 +88,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::path::PathBuf;
 
     use super::{KindValue, KindValueWithPath};
