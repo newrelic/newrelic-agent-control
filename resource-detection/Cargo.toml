@@ -2,10 +2,10 @@
 name = "resource-detection"
 description = "The resource detection can be used to detect resource information from the host"
 version = "0.0.1"
-edition.workspace = true
 authors.workspace = true
-publish.workspace = true
+edition.workspace = true
 rust-version.workspace = true
+publish.workspace = true
 
 [dependencies]
 nix = { workspace = true, features = ["hostname"] }
@@ -18,7 +18,7 @@ bytes = "1.6.0"
 ureq = { workspace = true, features = ["http-crate"] }
 fs = { path = "../fs" }
 konst = { workspace = true }
-url = { version = "2.5.0"}
+url = { version = "2.5.0" }
 
 [dev-dependencies]
 assert_matches = { workspace = true }

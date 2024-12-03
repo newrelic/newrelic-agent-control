@@ -4,9 +4,7 @@ resolver = "2"
 members = ["super-agent", "resource-detection", "fs", "license"]
 
 [workspace.package]
-description = "New Relic Super Agent Limited Preview"
 authors = ["The New Relic Agent Control Team"]
-version = "0.25.0"
 edition = "2021"
 publish = false
 rust-version = "1.83.0"
