@@ -18,18 +18,24 @@ on:
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
+  RUST_VERSION: 1.82.0
 
 jobs:
-  build-binaries:
+  build-image:
     runs-on: ubuntu-latest
-    name: Build Binaries
-    strategy:
-      matrix:
-        arch: [arm64, amd64]
+    name: Build/Push images
+    env:
+      DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
+      DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
 
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
@@ -39,38 +45,11 @@ jobs:
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Build Super Agent for K8s
+        env:
+          SUPER_AGENT_VERSION: ${{ inputs.image-tag }}
         run: |
-          make build-super-agent BUILD_FEATURE=k8s ARCH=${{ matrix.arch }}
-      
-      - name: Upload artifact for Docker build step
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 1
-          name: newrelic-super-agent-${{ matrix.arch }}
-          path: bin/newrelic-super-agent-${{ matrix.arch }}
-
-  build-image:
-    runs-on: ubuntu-latest
-    name: Build/Push images
-    needs: [ build-binaries ]
-    env:
-      DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
-      DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # Binaries are added to the expected path in the Dockerfile
-      - uses: actions/download-artifact@v4
-        with:
-          name: newrelic-super-agent-amd64
-          path: ./bin
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: newrelic-super-agent-arm64
-          path: ./bin
+          make build-super-agent BUILD_FEATURE=k8s ARCH=arm64
+          make build-super-agent BUILD_FEATURE=k8s ARCH=amd64
 
       - uses: docker/setup-qemu-action@v3
 

@@ -14,78 +14,50 @@ env:
   RUST_VERSION: 1.82.0
 
 jobs:
-  build-push:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      tag_name: 0.100.${{ github.run_id }}
+    secrets: inherit
+
+  build-image:
     name: Build and Push nightly image
     uses: ./.github/workflows/component_image.yml
     with:
+      # the packages are created with 0.100.run_id, however we still push the image with nightly
       image-tag: nightly
       push: true
     secrets: inherit
 
   security-scan:
     name: Security scan
-    needs: [build-push]
+    needs: [ build-image ]
     uses: ./.github/workflows/component_image_security.yml
     with:
+      # the packages are created with 0.100.run_id, however we still push the image with nightly
       image-tag: nightly
     secrets: inherit
 
   build-nightly:
     runs-on: ubuntu-latest
-    name: Build and upload packages to testing bucket
-    outputs:
-      tag: ${{ steps.generate-tag.outputs.tag }}
+    needs: [ build-packages ]
+    name: Upload packages to testing bucket
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
+      - uses: actions/download-artifact@v4
         with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
-
-      - name: Set the value of the release tag
-        run: echo "tag=$(echo 0.100.$(date +'%d'))" >> $GITHUB_ENV
-
-      - id: generate-tag
-        run: echo "tag=${{ env.tag }}" >> "$GITHUB_OUTPUT"
-
-      - name: Tag current codebase
-        run: git tag "${{ env.tag }}"
-
-      - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - name: Install cross-rs
-        run: cargo install cross
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "~1.20"
-          check-latest: true
-
-      - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --skip=publish --clean --debug --timeout 2h --parallelism 1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}
-          GPG_PRIVATE_KEY_BASE64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
-          GPG_MAIL: "infrastructure-eng@newrelic.com"
-          NR_RELEASE_TAG: ${{ env.tag }}
+          name: built-binaries
+          path: ./
 
       - name: Publish rpm to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
-          tag: "${{ env.tag }}"
+          tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-super-agent"
           repo_name: "newrelic/newrelic-super-agent"
           schema: "custom-local"
@@ -109,7 +81,7 @@ jobs:
 
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [build-nightly]
+    needs: [ build-nightly ]
     with:
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu22.04\"]'
@@ -120,7 +92,7 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [onhost-e2e]
+    needs: [ onhost-e2e , build-image ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack

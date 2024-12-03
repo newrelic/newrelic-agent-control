@@ -16,11 +16,11 @@ jobs:
     uses: ./.github/workflows/component_packages.yml
     with:
       pre-release: true
+      tag_name: ${{ github.event.release.tag_name }}
     secrets: inherit
 
-  container:
+  build-image:
     name: Build and Push container image
-    needs: [ build-packages ]
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
@@ -29,7 +29,7 @@ jobs:
 
   security-scan:
     name: Security scan
-    needs: [ container ]
+    needs: [ build-image ]
     uses: ./.github/workflows/component_image_security.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc

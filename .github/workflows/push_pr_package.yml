@@ -13,19 +13,19 @@ name: build-packages and image
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
-  RUST_VERSION: 1.82.0
 jobs:
   build-packages:
     name: Build packages
     uses: ./.github/workflows/component_packages.yml
     with:
       pre-release: false
+      tag_name: 0.100.0
     secrets: inherit
 
   build-image:
     name: Build image
     uses: ./.github/workflows/component_image.yml
     with:
-      image-tag: ci
+      image-tag: 0.100.0
       push: false
     secrets: inherit

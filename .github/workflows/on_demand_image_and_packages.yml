@@ -13,12 +13,13 @@ jobs:
     uses: ./.github/workflows/component_packages.yml
     with:
       pre-release: false
+      tag_name: 0.100.0
     secrets: inherit
 
   build-image:
     name: Build image
     uses: ./.github/workflows/component_image.yml
     with:
-      image-tag: ci
+      image-tag: 0.100.0
       push: false
     secrets: inherit
