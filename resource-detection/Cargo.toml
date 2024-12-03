@@ -2,9 +2,10 @@
 name = "resource-detection"
 description = "The resource detection can be used to detect resource information from the host"
 version = "0.0.1"
-edition = "2021"
-authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
-publish = false
+edition.workspace = true
+authors.workspace = true
+publish.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 nix = { workspace = true, features = ["hostname"] }

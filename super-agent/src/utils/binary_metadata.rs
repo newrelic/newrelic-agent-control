@@ -5,7 +5,7 @@ use crate::super_agent::defaults::{
 pub(crate) const VERSION: &str =
     konst::option::unwrap_or!(option_env!("SUPER_AGENT_VERSION"), "development");
 pub(crate) const RUST_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("RUST_VERSION"), "development");
+    konst::option::unwrap_or!(option_env!("RUST_VERSION"), "unknown");
 pub(crate) const GIT_COMMIT: &str =
     konst::option::unwrap_or!(option_env!("GIT_COMMIT"), "development");
 pub(crate) const BUILD_DATE: &str =
