@@ -8,6 +8,7 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
+use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -15,7 +16,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use tracing::{debug, error, info};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
@@ -139,7 +140,7 @@ impl NotStartedSupervisorK8s {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
-        let start_time = SystemTime::now();
+        let start_time = StartTime::now();
 
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();

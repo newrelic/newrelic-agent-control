@@ -1,9 +1,8 @@
+use super::command::CommandError;
+use crate::context::Context;
 #[cfg(target_family = "unix")]
 use nix::{sys::signal, unistd::Pid};
 use std::time::Duration;
-
-use super::command::CommandError;
-use crate::context::Context;
 use tracing::error;
 
 /// DEFAULT_EXIT_TIMEOUT of 2 seconds

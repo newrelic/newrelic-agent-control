@@ -7,12 +7,12 @@ use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
 
-pub enum HealthCheckerType {
+pub enum OnHostHealthChecker {
     Http(HttpHealthChecker),
     File(FileHealthChecker),
 }
 
-impl HealthCheckerType {
+impl OnHostHealthChecker {
     pub fn try_new(
         health_config: OnHostHealthConfig,
         start_time: StartTime,
@@ -20,21 +20,21 @@ impl HealthCheckerType {
         let timeout = health_config.timeout;
 
         match health_config.check {
-            OnHostHealthCheck::HttpHealth(http_config) => Ok(HealthCheckerType::Http(
+            OnHostHealthCheck::HttpHealth(http_config) => Ok(OnHostHealthChecker::Http(
                 HttpHealthChecker::new(timeout, http_config, start_time)?,
             )),
-            OnHostHealthCheck::FileHealth(file_config) => Ok(HealthCheckerType::File(
+            OnHostHealthCheck::FileHealth(file_config) => Ok(OnHostHealthChecker::File(
                 FileHealthChecker::new(PathBuf::from(file_config.path)),
             )),
         }
     }
 }
 
-impl HealthChecker for HealthCheckerType {
+impl HealthChecker for OnHostHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
-            HealthCheckerType::Http(http_checker) => http_checker.check_health(),
-            HealthCheckerType::File(file_checker) => file_checker.check_health(),
+            OnHostHealthChecker::Http(http_checker) => http_checker.check_health(),
+            OnHostHealthChecker::File(file_checker) => file_checker.check_health(),
         }
     }
 }

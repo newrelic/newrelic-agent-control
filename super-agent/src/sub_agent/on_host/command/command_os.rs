@@ -1,4 +1,4 @@
-use crate::sub_agent::on_host::supervisor::executable_data::ExecutableData;
+use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::super_agent::{
     config::AgentID,
     defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
