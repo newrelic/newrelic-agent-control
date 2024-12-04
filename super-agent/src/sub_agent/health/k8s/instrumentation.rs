@@ -138,12 +138,6 @@ impl K8sHealthNRInstrumentation {
     /// number reported in the `podsUnhealthy` field. We work under the assumption that
     /// the information is consistent.
     fn get_last_errors(unhealthy_pods_errors: &[Value]) -> String {
-        // let Some(unhealthy_pods_errors) =
-        //     status.get(UNHEALTHY_PODS_ERRORS).and_then(Value::as_array)
-        // else {
-        //     return String::default();
-        // };
-
         let last_errors = unhealthy_pods_errors.iter().map(|unhealthy| {
             let pod_id = unhealthy
                 .get(POD_LABEL)
@@ -245,7 +239,7 @@ mod tests {
         assert_eq!(comma_separated_msg(msg_arr.into_iter()), ", , ");
     }
 
-    #[test] // FIXME continue from here
+    #[test]
     fn get_healthiness_basic() {
         let status_json = serde_json::json!({
             "podsMatching": 1,
