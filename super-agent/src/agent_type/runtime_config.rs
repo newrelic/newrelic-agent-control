@@ -3,6 +3,7 @@ use super::{
     restart_policy::RestartPolicyConfig,
 };
 use crate::agent_type::health_config::K8sHealthConfig;
+use crate::agent_type::version_config::K8sVersionCheckerConfig;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -79,6 +80,7 @@ impl Env {
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
     pub health: Option<K8sHealthConfig>,
+    pub version: Option<K8sVersionCheckerConfig>,
 }
 
 /// A K8s object, usually a CR, to be managed by the super-agent.

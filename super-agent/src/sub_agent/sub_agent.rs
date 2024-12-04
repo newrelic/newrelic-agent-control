@@ -18,6 +18,7 @@ use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, Supervi
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 
+use crate::sub_agent::event_handler::on_version::on_version;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
@@ -255,6 +256,13 @@ where
                                     self.agent_cfg.agent_type.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                            }
+                            Ok(SubAgentInternalEvent::AgentVersionInfo(version_info)) => {
+                                 let _ = on_version(
+                                    version_info,
+                                    self.maybe_opamp_client.as_ref(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
                             }
                         }
                     }

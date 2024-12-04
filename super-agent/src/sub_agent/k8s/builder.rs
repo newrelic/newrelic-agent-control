@@ -417,6 +417,7 @@ pub mod test {
         runtime_config::K8s {
             objects,
             health: None,
+            version: None,
         }
     }
 

@@ -8,6 +8,7 @@ pub mod k8s;
 pub mod on_host;
 pub mod persister;
 pub mod supervisor;
+pub mod version;
 
 pub use sub_agent::*;
 mod config_validator;

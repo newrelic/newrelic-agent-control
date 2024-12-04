@@ -10,6 +10,8 @@ use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
+use crate::sub_agent::version::k8s::k8s_version_checker::K8sVersionChecker;
+use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -162,6 +164,28 @@ impl NotStartedSupervisorK8s {
         Ok(None)
     }
 
+    pub fn start_version_checker(
+        &self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+        if let Some(version_config) = self.k8s_config.version.clone() {
+            let (stop_version_publisher, stop_version_consumer) = pub_sub();
+            let k8s_version_checker =
+                K8sVersionChecker::new(self.k8s_client.clone(), self.agent_id.to_string());
+
+            spawn_version_checker(
+                self.agent_id.clone(),
+                k8s_version_checker,
+                stop_version_consumer,
+                sub_agent_internal_publisher,
+                version_config.interval,
+            );
+            return Ok(Some(stop_version_publisher));
+        }
+        debug!(%self.agent_id, "version checks are disabled for this agent");
+        Ok(None)
+    }
+
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     fn apply_resources<'a>(
         agent_id: &AgentID,
@@ -209,6 +233,7 @@ pub mod test {
     use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::{Deployment, K8sObject, Runtime};
+    use crate::agent_type::version_config::K8sVersionCheckerConfig;
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
@@ -287,6 +312,7 @@ pub mod test {
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
                 health: None,
+                version: None,
             },
         );
 
@@ -338,6 +364,9 @@ pub mod test {
             health: Some(K8sHealthConfig {
                 ..Default::default()
             }),
+            version: Some(K8sVersionCheckerConfig {
+                ..Default::default()
+            }),
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -362,6 +391,7 @@ pub mod test {
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
+            version: Some(Default::default()),
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -378,6 +408,7 @@ pub mod test {
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: None,
+            version: None,
         };
 
         let not_started = not_started_supervisor(config, None);

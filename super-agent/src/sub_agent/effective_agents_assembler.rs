@@ -284,6 +284,7 @@ pub(crate) mod tests {
                         .into_iter()
                         .collect(),
                     health: Some(Default::default()),
+                    version: Some(Default::default()),
                 }),
             },
         }

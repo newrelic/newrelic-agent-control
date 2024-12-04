@@ -5,6 +5,7 @@ pub mod channel;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::version::version_checker::AgentVersion;
 use crate::super_agent::config::AgentTypeFQN;
 use crate::{opamp::remote_config::RemoteConfig, super_agent::config::AgentID};
 
@@ -45,6 +46,7 @@ impl SubAgentEvent {
 pub enum SubAgentInternalEvent {
     StopRequested,
     AgentHealthInfo(HealthWithStartTime),
+    AgentVersionInfo(AgentVersion),
 }
 
 impl From<HealthWithStartTime> for SubAgentInternalEvent {

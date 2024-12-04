@@ -367,6 +367,7 @@ pub mod tests {
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::version::version_checker::AgentVersion;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 
@@ -637,6 +638,11 @@ pub mod tests {
                     HealthWithStartTime::new(health.into(), start_time).into()
                 }
                 SubAgentInternalEvent::StopRequested => SubAgentInternalEvent::StopRequested,
+                SubAgentInternalEvent::AgentVersionInfo(agent_id) => {
+                    SubAgentInternalEvent::AgentVersionInfo(AgentVersion::new(
+                        agent_id.version().to_string(),
+                    ))
+                }
             })
             .collect::<Vec<_>>();
 
