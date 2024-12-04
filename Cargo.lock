@@ -3211,8 +3211,8 @@ checksum = "1261fe7e33c73b354eab43b1273a57c8f967d0391e80353e51f764ac02cf6775"
 
 [[package]]
 name = "opamp-client"
-version = "0.0.22"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.22#495d743f9b2779d5c94a09b7fc63c78b11f900ed"
+version = "0.0.23"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.23#186c1937c87685407acad370230b62c6fa2de174"
 dependencies = [
  "crossbeam",
  "http 1.1.0",

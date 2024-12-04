@@ -128,6 +128,10 @@ pub(crate) mod tests {
         where
         C: Callbacks + Send + Sync + 'static {
 
+            fn get_agent_description(
+                &self,
+            ) -> ClientResult<AgentDescription>;
+
              fn set_agent_description(
                 &self,
                 description: AgentDescription,

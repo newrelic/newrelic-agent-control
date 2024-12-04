@@ -13,6 +13,7 @@ pub const NR_OTEL_COLLECTOR_VERSION: &str =
     konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
 
 // Keys identifying attributes
+pub const OPAMP_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
 pub const OPAMP_SERVICE_NAME: &str = "service.name";
 pub const OPAMP_SERVICE_VERSION: &str = "service.version";
 pub const OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";

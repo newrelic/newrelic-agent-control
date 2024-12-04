@@ -10,6 +10,7 @@ use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 
+use crate::sub_agent::event_handler::on_version::on_version;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
@@ -212,6 +213,13 @@ where
                                     self.agent_cfg.agent_type.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                            }
+                            Ok(SubAgentInternalEvent::AgentVersionInfo(agenta_data)) => {
+                                 let _ = on_version(
+                                    agenta_data,
+                                    self.maybe_opamp_client.as_ref(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
                             }
                         }
                     }

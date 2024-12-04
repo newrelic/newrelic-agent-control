@@ -1,7 +1,6 @@
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
-    check_latest_non_identifying_attributes_match_expected, get_expected_identifying_attributes,
-    get_expected_non_identifying_attributes,
+    check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
 };
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
@@ -9,8 +8,15 @@ use crate::common::super_agent::start_super_agent_with_custom_config;
 use crate::on_host::tools::config::create_super_agent_config;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_super_agent::super_agent::config::AgentID;
-use newrelic_super_agent::super_agent::defaults::FQN_NAME_INFRA_AGENT;
+use newrelic_super_agent::super_agent::defaults::{
+    FQN_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+};
 use newrelic_super_agent::super_agent::run::BasePaths;
+use nix::unistd::gethostname;
+use opamp_client::opamp::proto::any_value::Value;
+use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -55,15 +61,31 @@ fn test_attributes_from_non_existing_agent_type() {
     let super_agent_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths.clone());
 
-    let expected_identifying_attributes = get_expected_identifying_attributes(
-        DEFAULT_NAMESPACE.to_string(),
-        DEFAULT_NAME.to_string(),
-        DEFAULT_VERSION.to_string(),
-        None,
-    );
+    let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OPAMP_SERVICE_NAMESPACE,
+            Value::StringValue(DEFAULT_NAMESPACE.to_string()),
+        ),
+        (
+            OPAMP_SERVICE_NAME,
+            Value::StringValue(DEFAULT_NAME.to_string()),
+        ),
+        (
+            OPAMP_SERVICE_VERSION,
+            Value::StringValue(DEFAULT_VERSION.to_string()),
+        ),
+    ]));
 
-    let expected_non_identifying_attributes =
-        get_expected_non_identifying_attributes(super_agent_instance_id_ac);
+    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            HOST_NAME_ATTRIBUTE_KEY,
+            Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
+        ),
+        (
+            PARENT_AGENT_ID_ATTRIBUTE_KEY,
+            BytesValue(super_agent_instance_id_ac.clone().into()),
+        ),
+    ]));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(
@@ -115,15 +137,36 @@ fn test_attributes_from_an_existing_agent_type() {
         get_instance_id(&AgentID::new_super_agent_id(), base_paths.clone());
     let super_agent_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths.clone());
-    let expected_identifying_attributes = get_expected_identifying_attributes(
-        DEFAULT_NAMESPACE.to_string(),
-        FQN_NAME_INFRA_AGENT.to_string(),
-        DEFAULT_VERSION.to_string(),
-        Some("0.0.0".to_string()),
-    );
 
-    let expected_non_identifying_attributes =
-        get_expected_non_identifying_attributes(super_agent_instance_id_ac);
+    let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            OPAMP_SERVICE_NAMESPACE,
+            Value::StringValue(DEFAULT_NAMESPACE.to_string()),
+        ),
+        (
+            OPAMP_SERVICE_NAME,
+            Value::StringValue(FQN_NAME_INFRA_AGENT.to_string()),
+        ),
+        (
+            OPAMP_SERVICE_VERSION,
+            Value::StringValue(DEFAULT_VERSION.to_string()),
+        ),
+        (
+            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+            Value::StringValue("0.0.0".to_string()),
+        ),
+    ]));
+
+    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+        (
+            HOST_NAME_ATTRIBUTE_KEY,
+            Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
+        ),
+        (
+            PARENT_AGENT_ID_ATTRIBUTE_KEY,
+            BytesValue(super_agent_instance_id_ac.into()),
+        ),
+    ]));
 
     retry(30, Duration::from_secs(1), || {
         check_latest_identifying_attributes_match_expected(
