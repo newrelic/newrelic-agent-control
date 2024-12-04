@@ -8,6 +8,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::supervisor::SupervisorBuilder;
@@ -129,6 +130,16 @@ where
 
         let supervisor_builder = SupervisortBuilderOnHost::new(self.logging_path.clone());
 
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            sub_agent_config.clone(),
+            self.hash_repository.clone(),
+            self.yaml_config_repository.clone(),
+        );
+
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
@@ -139,10 +150,7 @@ where
             sub_agent_opamp_consumer,
             pub_sub(),
             self.hash_repository.clone(),
-            self.yaml_config_repository.clone(),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            remote_config_handler,
             Environment::OnHost,
         ))
     }

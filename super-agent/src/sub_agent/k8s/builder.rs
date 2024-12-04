@@ -9,6 +9,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::supervisor::SupervisorBuilder;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::SubAgentCallbacks;
@@ -130,6 +131,16 @@ where
             self.k8s_config.clone(),
         );
 
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            sub_agent_config.clone(),
+            self.hash_repository.clone(),
+            self.yaml_config_repository.clone(),
+        );
+
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
@@ -140,10 +151,7 @@ where
             sub_agent_opamp_consumer,
             pub_sub(),
             self.hash_repository.clone(),
-            self.yaml_config_repository.clone(),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            remote_config_handler,
             Environment::K8s,
         ))
     }

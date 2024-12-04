@@ -220,6 +220,7 @@ pub mod tests {
     use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
@@ -501,18 +502,31 @@ pub mod tests {
             .return_const(Ok(None));
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
+        let agent_id_clone = agent_id.clone();
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
             .with(predicate::always())
             .returning(move |_| {
                 Ok(NotStartedSupervisorK8s::new(
-                    agent_id.clone(),
+                    agent_id_clone.clone(),
                     agent_fqn.clone(),
                     mocked_client.clone(),
                     k8s_obj.clone(),
                 ))
             });
+
+        let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
 
         SubAgent::new(
             AgentID::new(TEST_AGENT_ID).unwrap(),
@@ -526,11 +540,8 @@ pub mod tests {
                 sub_agent_internal_publisher.clone(),
                 sub_agent_internal_consumer,
             ),
-            Arc::new(sub_agent_remote_config_hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref.clone(),
+            remote_config_handler,
             Environment::K8s,
         )
         .run();
