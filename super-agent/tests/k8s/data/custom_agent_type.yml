@@ -10,7 +10,7 @@ variables:
 deployment:
   k8s:
     health:
-      interval: 30s
+      interval: 5s
     objects:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1

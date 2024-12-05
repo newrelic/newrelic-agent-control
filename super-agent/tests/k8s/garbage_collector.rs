@@ -29,7 +29,7 @@ use newrelic_super_agent::{
         config_storer::loader_storer::{SuperAgentConfigLoader, SuperAgentDynamicConfigLoader},
     },
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 // Setup SuperAgentConfigLoader mock
 mock! {
@@ -48,6 +48,8 @@ mock! {
         fn load(&self) -> Result<SuperAgentDynamicConfig, SuperAgentConfigError>;
     }
 }
+
+const GC_TEST_INTERVAL: Duration = Duration::from_secs(1);
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -169,6 +171,7 @@ agents:
                 kind: "Secret".to_string(),
             },
         ],
+        GC_TEST_INTERVAL,
     );
 
     // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
@@ -228,6 +231,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         Arc::new(config_loader),
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
         vec![missing_kind, foo_type_meta()],
+        GC_TEST_INTERVAL,
     );
 
     // Expects the GC to clean the "removed" agent CR.
@@ -272,6 +276,7 @@ fn k8s_garbage_collector_does_not_remove_super_agent() {
         Arc::new(config_loader),
         k8s_client,
         default_group_version_kinds(),
+        GC_TEST_INTERVAL,
     );
 
     // Expects the GC do not clean any resource related to the SA.
@@ -354,6 +359,7 @@ agents:
         Arc::new(config_loader),
         k8s_client,
         vec![foo_type_meta()],
+        GC_TEST_INTERVAL,
     );
 
     // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.

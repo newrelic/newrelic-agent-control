@@ -84,6 +84,7 @@ impl SuperAgentRunner {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
                 DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                self.opamp_poll_interval,
             )
         });
 

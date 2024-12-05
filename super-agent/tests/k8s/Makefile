@@ -5,4 +5,5 @@ all: test-integration-minikube
 test-integration-minikube:
 	KUBECONFIG='./.kubeconfig-dev' minikube update-context
 	tilt ci
-	LOG_LEVEL=newrelic_super_agent=debug cargo test --features k8s k8s_ -- --nocapture --ignored
+	# reducing the number of threads to 1 forces the tests to run sequentially
+	LOG_LEVEL=newrelic_super_agent=debug cargo test --features k8s k8s_ -- --nocapture --ignored  --test-threads=1

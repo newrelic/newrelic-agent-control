@@ -17,8 +17,7 @@ use kube::api::TypeMeta;
 use std::{sync::Arc, thread, time::Duration};
 use tracing::{debug, info, trace, warn};
 
-const DEFAULT_INTERVAL_SEC: u64 = 30;
-const GRACEFUL_STOP_RETRY_INTERVAL_MS: u64 = 10;
+const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(10);
 
 /// Responsible for cleaning resources created by the super agent that are not longer used.
 pub struct NotStartedK8sGarbageCollector<S>
@@ -46,7 +45,7 @@ impl K8sGarbageCollectorStarted {
     fn stop(&self) {
         let _ = self.stop_tx.publish(());
         while !self.handle.is_finished() {
-            thread::sleep(Duration::from_millis(GRACEFUL_STOP_RETRY_INTERVAL_MS))
+            thread::sleep(GRACEFUL_STOP_RETRY_INTERVAL)
         }
     }
 }
@@ -65,19 +64,15 @@ where
         config_store: Arc<S>,
         k8s_client: Arc<SyncK8sClient>,
         cr_type_meta: Vec<TypeMeta>,
+        interval: Duration,
     ) -> Self {
         NotStartedK8sGarbageCollector {
             config_store,
             k8s_client,
-            interval: Duration::from_secs(DEFAULT_INTERVAL_SEC),
+            interval,
             active_config: None,
             cr_type_meta,
         }
-    }
-
-    pub fn with_interval(mut self, interval: Duration) -> Self {
-        self.interval = interval;
-        self
     }
 
     /// Spawns a thread in charge of performing the garbage collection periodically. The thread will be
@@ -273,10 +268,13 @@ pub(crate) mod test {
             .times(2)
             .returning(|_| Ok(()));
 
-        let started_gc =
-            NotStartedK8sGarbageCollector::new(Arc::new(cs), Arc::new(k8s_client), Vec::default())
-                .with_interval(Duration::from_millis(1))
-                .start();
+        let started_gc = NotStartedK8sGarbageCollector::new(
+            Arc::new(cs),
+            Arc::new(k8s_client),
+            Vec::default(),
+            Duration::from_millis(1),
+        )
+        .start();
         std::thread::sleep(Duration::from_millis(100));
 
         // Expect the gc is correctly stopped

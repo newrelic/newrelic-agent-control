@@ -3,9 +3,11 @@ mod one_shot_operation;
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
 use std::sync::Arc;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::info;
 
+use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 #[cfg(debug_assertions)]
 use crate::super_agent::run::set_debug_dirs;
 use crate::values::file::YAMLConfigRepositoryFile;
@@ -128,11 +130,18 @@ impl Cli {
 
         let run_config = SuperAgentRunConfig {
             opamp,
+            opamp_poll_interval: DEFAULT_POLL_INTERVAL,
             http_server,
             base_paths,
             proxy,
             #[cfg(feature = "k8s")]
             k8s_config: super_agent_config.k8s.ok_or(CliError::K8sConfig())?,
+
+            // TODO - Temporal solution until https://new-relic.atlassian.net/browse/NR-343594 is done.
+            // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
+            // before the GC process it, the resources will never be collected.
+            #[cfg(feature = "k8s")]
+            garbage_collector_interval: DEFAULT_POLL_INTERVAL - Duration::from_secs(5),
         };
 
         let cli_config = SuperAgentCliConfig {

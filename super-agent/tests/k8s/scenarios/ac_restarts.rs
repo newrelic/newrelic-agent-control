@@ -66,7 +66,7 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
 valid: true
     "#;
 
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -102,7 +102,7 @@ chart_values:
 valid: super-true
     "#;
 
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -139,7 +139,7 @@ valid: super-true
     wait_until_super_agent_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     // Check if the HelmRelease is still with the correct config
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),
@@ -175,7 +175,7 @@ chart_values:
 valid: super-super-true
     "#;
 
-    retry(60, Duration::from_secs(5), || {
+    retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
             k8s.client.clone(),
             namespace.as_str(),

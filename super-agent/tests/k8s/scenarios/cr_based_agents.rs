@@ -76,10 +76,6 @@ agents:
 
     // Asserts the agent resources are garbage collected
 
-    // Due to an identified bug (NR-334506) in the GC, This waits for at least one execution (each 30s)
-    // of the GC to ensure that the sub-agent is added to the internal list of agents before it gets removed.
-    std::thread::sleep(Duration::from_secs(35));
-
     server.set_config_response(
         instance_id.clone(),
         ConfigResponse::from(

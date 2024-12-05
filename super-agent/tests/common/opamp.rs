@@ -137,7 +137,6 @@ impl FakeServer {
         identifier: &InstanceID,
     ) -> Option<opamp::proto::ComponentHealth> {
         let state = self.state.lock().unwrap();
-        print!("{:?}", state.attributes);
         state.health_statuses.get(identifier).cloned()
     }
     pub fn get_attributes(

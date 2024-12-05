@@ -1,7 +1,9 @@
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{api::DynamicObject, core::GroupVersion, Api, Client};
+use std::time::Duration;
 use std::{error::Error, str::FromStr};
+use tokio::time::sleep;
 
 /// Checks for the existence of specified deployments within a namespace.
 pub async fn check_deployments_exist(
@@ -63,7 +65,10 @@ pub async fn delete_helm_release(
     name: &str,
 ) -> Result<(), Box<dyn Error>> {
     let api = create_k8s_api(k8s_client, namespace).await;
-    api.delete(name, &Default::default()).await?;
+    if api.delete(name, &Default::default()).await?.is_left() {
+        // left signals that object is being deleted, waiting some time to ensure it is deleted.
+        sleep(Duration::from_secs(2)).await;
+    }
     Ok(())
 }
 
