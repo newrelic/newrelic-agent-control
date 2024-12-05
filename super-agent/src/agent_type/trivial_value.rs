@@ -157,7 +157,7 @@ impl From<FilePathWithContent> for String {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::FilePathWithContent;
 
     #[test]

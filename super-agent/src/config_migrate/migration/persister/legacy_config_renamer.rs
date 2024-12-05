@@ -36,7 +36,7 @@ impl<F: FileRenamer> LegacyConfigRenamer<F> {
 ////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-mod test {
+mod tests {
     use fs::mock::MockLocalFile;
 
     use super::*;

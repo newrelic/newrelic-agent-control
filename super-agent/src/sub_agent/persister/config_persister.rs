@@ -33,7 +33,7 @@ pub trait ConfigurationPersister {
 ////////////////////////////////////////////////////////////////////////////////////
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::agent_type::variable::definition::VariableDefinition;
     use crate::super_agent::config::AgentID;
     use fs::directory_manager::DirectoryManagementError::{

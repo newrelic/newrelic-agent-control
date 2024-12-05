@@ -247,7 +247,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::Deployment;

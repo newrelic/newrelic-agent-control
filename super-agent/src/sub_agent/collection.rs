@@ -72,7 +72,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::StartedSubAgent;
     use crate::super_agent::config::AgentID;

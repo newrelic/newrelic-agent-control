@@ -425,15 +425,15 @@ mod tests {
     use super::SuperAgentCallbacks;
     use crate::event::channel::pub_sub;
     use crate::event::{ApplicationEvent, OpAMPEvent, SuperAgentEvent};
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::test::MockStartedSubAgent;
-    use crate::sub_agent::test::MockSubAgentBuilderMock;
+    use crate::sub_agent::tests::MockStartedSubAgent;
+    use crate::sub_agent::tests::MockSubAgentBuilderMock;
     use crate::super_agent::config::{
         AgentID, AgentTypeFQN, SubAgentConfig, SuperAgentDynamicConfig,
     };

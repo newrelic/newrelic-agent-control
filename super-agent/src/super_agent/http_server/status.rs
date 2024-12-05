@@ -213,7 +213,7 @@ impl Status {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use url::Url;
 
     use crate::opamp::{LastErrorCode, LastErrorMessage};

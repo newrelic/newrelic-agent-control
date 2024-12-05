@@ -91,7 +91,7 @@ fn merge_agent_values_recursive(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::{
         AgentValueSpecEnd, AgentValueSpecMapping,
     };

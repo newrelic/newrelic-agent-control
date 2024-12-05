@@ -102,7 +102,7 @@ pub struct K8sObjectMeta {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"

@@ -341,7 +341,7 @@ pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
 
     use crate::k8s::reflector::resources::ResourceWithReflector;

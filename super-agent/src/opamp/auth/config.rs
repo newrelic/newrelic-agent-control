@@ -48,7 +48,7 @@ impl LocalConfig {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::{path::PathBuf, str::FromStr};
 
     use url::Url;

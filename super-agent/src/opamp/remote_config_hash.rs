@@ -62,7 +62,7 @@ impl Hash {
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::{ConfigState, Hash};
 
     impl Hash {

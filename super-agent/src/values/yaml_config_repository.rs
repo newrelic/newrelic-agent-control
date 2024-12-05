@@ -61,7 +61,7 @@ pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
     Ok(YAMLConfig::default())
 }
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use crate::super_agent::config::AgentID;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};

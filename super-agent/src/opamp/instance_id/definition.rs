@@ -107,7 +107,7 @@ impl Display for InstanceID {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::InstanceID;
     use super::InstanceIDError;
 

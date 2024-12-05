@@ -79,7 +79,7 @@ impl From<ureq::Error> for HttpClientError {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use http::Response;
     use mockall::mock;

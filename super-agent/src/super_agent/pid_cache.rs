@@ -114,7 +114,7 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::mock::MockLocalFile;

@@ -88,7 +88,7 @@ where
 pub mod tests {
     use mockall::mock;
 
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
 
     use super::*;
 

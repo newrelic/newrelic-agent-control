@@ -114,7 +114,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::cloud::aws::detector::AWSDetectorError;
     use crate::cloud::azure::detector::AzureDetectorError;

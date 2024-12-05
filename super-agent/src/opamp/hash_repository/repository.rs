@@ -15,7 +15,7 @@ pub trait HashRepository {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::{AgentID, Hash, HashRepository, HashRepositoryError};
     use mockall::{mock, predicate};
 

@@ -156,7 +156,7 @@ pub mod mock {
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use std::fs;
     use std::fs::Permissions;
     #[cfg(target_family = "unix")]

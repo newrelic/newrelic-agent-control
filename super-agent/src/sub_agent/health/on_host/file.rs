@@ -71,7 +71,7 @@ impl From<FileHealthContent> for HealthWithStartTime {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::fs::File;
     use std::io::Write;
     use std::time::{Duration, UNIX_EPOCH};

@@ -160,7 +160,7 @@ impl ProxyConfig {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::ProxyError;
     use assert_matches::assert_matches;
 

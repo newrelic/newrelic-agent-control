@@ -174,7 +174,7 @@ pub(crate) mod tests {
             runtime_config::Args,
         },
         sub_agent::persister::{
-            config_persister::{test::MockConfigurationPersisterMock, PersistError},
+            config_persister::{tests::MockConfigurationPersisterMock, PersistError},
             config_persister_file::ConfigurationPersisterFile,
         },
     };

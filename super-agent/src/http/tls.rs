@@ -122,7 +122,7 @@ fn add_certs_from_file(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use std::fs::File;

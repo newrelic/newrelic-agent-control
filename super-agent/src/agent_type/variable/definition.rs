@@ -76,7 +76,7 @@ impl VariableDefinition {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::path::PathBuf;
 
     use crate::agent_type::variable::{

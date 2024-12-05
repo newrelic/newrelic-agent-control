@@ -7,7 +7,7 @@ pub trait InstanceIDStorer {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use mockall::mock;
 

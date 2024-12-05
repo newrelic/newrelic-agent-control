@@ -217,16 +217,16 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockOpAMPClientBuilderMock;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockOpAMPClientBuilderMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
-    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -236,7 +236,7 @@ mod test {
         default_capabilities, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
         OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
     };
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;

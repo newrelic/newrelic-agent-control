@@ -94,7 +94,7 @@ where
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{

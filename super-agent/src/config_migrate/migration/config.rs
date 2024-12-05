@@ -188,7 +188,7 @@ impl MigrationAgentConfig {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::config_migrate::migration::config::{DirInfo, FilePath, MigrationConfig};
     use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
     use crate::super_agent::config::AgentTypeFQN;

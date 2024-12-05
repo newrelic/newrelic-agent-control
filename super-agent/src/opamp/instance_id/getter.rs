@@ -70,10 +70,10 @@ pub struct DataStored {
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
-    use crate::opamp::instance_id::storer::test::MockInstanceIDStorerMock;
+    use crate::opamp::instance_id::storer::tests::MockInstanceIDStorerMock;
     use crate::opamp::instance_id::StorerError;
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;

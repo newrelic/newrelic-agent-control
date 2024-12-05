@@ -233,24 +233,24 @@ where
 }
 
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::http::builder::HttpClientBuilderError;
-    use crate::opamp::instance_id::getter::test::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::super_agent::config::AgentTypeFQN;
     use crate::super_agent::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
-    use crate::values::yaml_config_repository::test::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{
-        k8s::client::MockSyncK8sClient, opamp::client_builder::test::MockOpAMPClientBuilderMock,
+        k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilderMock,
     };
     use assert_matches::assert_matches;
     use mockall::predicate;

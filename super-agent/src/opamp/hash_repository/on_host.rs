@@ -145,7 +145,7 @@ where
 // TESTS
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
     use crate::super_agent::config::AgentID;
     use crate::values::file::FILE_PERMISSIONS;

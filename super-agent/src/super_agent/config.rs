@@ -365,7 +365,7 @@ impl AgentTypeFQN {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
 
     use std::path::PathBuf;
 
