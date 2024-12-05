@@ -49,8 +49,6 @@ jobs:
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Build Super Agent for K8s
-        env:
-          SUPER_AGENT_VERSION: ${{ inputs.image-tag }}
         run: |
           make build-super-agent BUILD_FEATURE=k8s ARCH=arm64
           make build-super-agent BUILD_FEATURE=k8s ARCH=amd64
