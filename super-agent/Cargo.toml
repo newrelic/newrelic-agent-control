@@ -2,9 +2,10 @@
 name = "newrelic_super_agent"
 description = "New Relic Super Agent Limited Preview"
 version = "0.25.0"
-edition = "2021"
-authors = ["The New Relic Core Agent & Open Standards (CAOS) Team"]
-publish = false
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
 default-run = "newrelic-super-agent"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

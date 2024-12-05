@@ -6,7 +6,6 @@ name: build-packages and image
 env:
   # Allows to fetch multiple private repo crates with different deploy keys.
   CARGO_NET_GIT_FETCH_WITH_CLI: true
-  RUST_VERSION: 1.82.0
 jobs:
   build-packages:
     name: Build packages
