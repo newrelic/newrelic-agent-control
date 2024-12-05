@@ -1,0 +1,103 @@
+namespace: newrelic
+name: com.newrelic.pipeline_control_gateway
+version: 0.1.0
+variables:
+  k8s:
+    chart_values:
+      # TODO once available in the newrelic repository review the chart name
+      gateway:
+        description: "Gateway chart values"
+        type: yaml
+        required: false
+        default: { }
+      global:
+        description: "Global values for the chart"
+        type: yaml
+        required: false
+        default: { }
+    chart_version:
+      description: "gateway chart version"
+      type: string
+      required: true
+deployment:
+  k8s:
+    health:
+      interval: 30s
+    objects:
+      repository:
+        apiVersion: source.toolkit.fluxcd.io/v1
+        kind: HelmRepository
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
+          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
+          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
+          # delaying the application of important updates.
+          interval: 30m
+          provider: generic
+          # TODO point to the newrelic repository once available
+          url: https://rnoothi.github.io/gateway
+      default-values:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: default-values-${nr-sub:agent_id}
+        stringData:
+          # These env variables are attached to the AC pod on the Helm Chart.
+          values.yaml: |
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+      values:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: values-${nr-sub:agent_id}
+        stringData:
+          # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
+          values.yaml: |
+            ${nr-var:chart_values.gateway}
+      release:
+        apiVersion: helm.toolkit.fluxcd.io/v2
+        kind: HelmRelease
+        metadata:
+          name: ${nr-sub:agent_id}
+        spec:
+          interval: 3m
+          chart:
+            spec:
+              chart: gateway
+              version: ${nr-var:chart_version}
+              reconcileStrategy: ChartVersion
+              sourceRef:
+                kind: HelmRepository
+                name: ${nr-sub:agent_id}
+              interval: 3m
+          install:
+            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            disableWait: true
+            disableWaitForJobs: true
+            remediation:
+              retries: 3
+            replace: true
+          upgrade:
+            disableWait: true
+            disableWaitForJobs: true
+            cleanupOnFail: true
+            force: true
+            remediation:
+              retries: 3
+              strategy: rollback
+          rollback:
+            disableWait: true
+            disableWaitForJobs: true
+          valuesFrom:
+            - kind: Secret
+              name: default-values-${nr-sub:agent_id}
+              valuesKey: values.yaml
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
+              valuesKey: values.yaml
+          values:
+            global: ${nr-var:chart_values.global}

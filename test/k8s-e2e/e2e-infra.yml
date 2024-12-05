@@ -6,13 +6,14 @@ scenarios:
   - description: Deploy all infra agents
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-infra.yml" CLUSTER=${SCENARIO_TAG} tilt ci
-      - sleep 60
     after:
       - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=infra --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/name=newrelic-logging --all-containers --prefix=true
+      - kubectl get secrets --show-labels
       - kubectl get all -o wide
+      - helm list -a -A
       - cd ../../ && tilt down
     tests:
       nrqls:
@@ -22,3 +23,5 @@ scenarios:
         - query: "From Log SELECT *"
         # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "FROM K8sClusterSample SELECT *"
+        # Check that gateway is up and running, an extra where testKey=$SCENARIO_TAG is always added.
+        - query: "FROM K8sDeploymentSample SELECT * where deploymentName = 'gateway-deployment'"
