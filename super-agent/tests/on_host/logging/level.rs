@@ -22,14 +22,13 @@ fn default_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
+                TIME_FORMAT.to_owned()
+                    + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
             )
-                .unwrap(),
+            .unwrap(),
         )
         .stdout(
-            predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "ERROR.*Program must run as root",
-            )
+            predicate::str::is_match(TIME_FORMAT.to_owned() + "ERROR.*Program must run as root")
                 .unwrap(),
         );
 }
@@ -44,21 +43,22 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
+                TIME_FORMAT.to_owned()
+                    + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
             )
-                .unwrap(),
+            .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
-                .unwrap(),
+            .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )
-                .unwrap(),
+            .unwrap(),
         );
 }
 

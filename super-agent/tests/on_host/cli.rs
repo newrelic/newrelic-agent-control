@@ -90,15 +90,16 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
+                TIME_FORMAT.to_owned()
+                    + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
             )
-                .unwrap(),
+            .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting NewRelic Super Agent",
             )
-                .unwrap(),
+            .unwrap(),
         );
     // No supervisor group so we don't check for it.
     Ok(())
