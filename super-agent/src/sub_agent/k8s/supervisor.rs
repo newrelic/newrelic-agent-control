@@ -9,7 +9,8 @@ use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
-use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
+use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
+use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::super_agent::config::{AgentID, AgentTypeFQN};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -38,7 +39,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<StartedSupervisorK8s, SupervisorError> {
+    ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let (stop_objects_supervisor, objects_supervisor_handle) =
@@ -70,7 +71,7 @@ impl NotStartedSupervisorK8s {
         }
     }
 
-    pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorError> {
+    pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorStarterError> {
         self.k8s_config
             .objects
             .clone()
@@ -79,7 +80,10 @@ impl NotStartedSupervisorK8s {
             .collect()
     }
 
-    fn create_dynamic_object(&self, k8s_obj: &K8sObject) -> Result<DynamicObject, SupervisorError> {
+    fn create_dynamic_object(
+        &self,
+        k8s_obj: &K8sObject,
+    ) -> Result<DynamicObject, SupervisorStarterError> {
         let types = TypeMeta {
             api_version: k8s_obj.api_version.clone(),
             kind: k8s_obj.kind.clone(),
@@ -100,7 +104,7 @@ impl NotStartedSupervisorK8s {
         };
 
         let data = serde_json::to_value(&k8s_obj.fields).map_err(|e| {
-            SupervisorError::ConfigError(format!("Error serializing fields: {}", e))
+            SupervisorStarterError::ConfigError(format!("Error serializing fields: {}", e))
         })?;
 
         Ok(DynamicObject {
@@ -139,7 +143,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+    ) -> Result<Option<EventPublisher<()>>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
         if let Some(health_config) = self.k8s_config.health.clone() {
@@ -167,7 +171,7 @@ impl NotStartedSupervisorK8s {
         agent_id: &AgentID,
         resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
-    ) -> Result<(), SupervisorError> {
+    ) -> Result<(), SupervisorStarterError> {
         debug!(%agent_id, "applying k8s objects if changed");
         for res in resources {
             debug!("K8s object: {:?}", res);
@@ -222,7 +226,8 @@ pub mod tests {
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
-    use crate::sub_agent::supervisor::tests::MockSupervisorBuilder;
+    use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
+    use crate::sub_agent::supervisor::builder::test::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::super_agent::config::{
         helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
@@ -353,7 +358,7 @@ pub mod tests {
             )
             .err()
             .unwrap(); // cannot use unwrap_err because the  underlying EventPublisher doesn't implement Debug
-        assert_matches!(err, SupervisorError::HealthError(_))
+        assert_matches!(err, SupervisorStarterError::HealthError(_))
     }
 
     #[test]
@@ -486,8 +491,8 @@ pub mod tests {
         let effective_agent =
             EffectiveAgent::new(agent_id.clone(), agent_fqn.clone(), runtime_config.clone());
 
-        let mut assembler = MockEffectiveAgentAssemblerMock::new();
-        assembler.should_assemble_agent(
+        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        effective_agent_assembler.should_assemble_agent(
             &agent_id,
             &agent_cfg,
             &Environment::K8s,
@@ -528,21 +533,27 @@ pub mod tests {
             Arc::new(remote_values_repo),
         );
 
+        let supervisor_assembler = SupervisorAssembler::new(
+            hash_repository_ref,
+            supervisor_builder,
+            agent_id.clone(),
+            agent_cfg.clone(),
+            Arc::new(effective_agent_assembler),
+            Environment::K8s,
+        );
+
         SubAgent::new(
             AgentID::new(TEST_AGENT_ID).unwrap(),
             agent_cfg.clone(),
-            Arc::new(assembler),
             none_mock_opamp_client(),
-            supervisor_builder,
+            supervisor_assembler,
             sub_agent_publisher,
             None,
             (
                 sub_agent_internal_publisher.clone(),
                 sub_agent_internal_consumer,
             ),
-            hash_repository_ref.clone(),
             remote_config_handler,
-            Environment::K8s,
         )
         .run();
 
