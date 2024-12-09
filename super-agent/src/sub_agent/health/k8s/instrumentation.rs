@@ -241,6 +241,16 @@ mod tests {
 
     #[test]
     fn get_healthiness_basic() {
+        let status = Map::default();
+
+        assert!(matches!(
+            K8sHealthNRInstrumentation::get_healthiness(&status),
+            Health::Healthy(_)
+        ));
+    }
+
+    #[test]
+    fn get_healthiness_basic_healthy() {
         let status_json = serde_json::json!({
             "podsMatching": 1,
             "podsHealthy": 1,
