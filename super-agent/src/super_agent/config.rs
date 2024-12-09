@@ -75,6 +75,7 @@ impl TryFrom<String> for AgentID {
 
 impl AgentID {
     pub fn new(str: &str) -> Result<Self, AgentTypeError> {
+        println!("NEW: {:?}",str);
         Self::try_from(str.to_string())
     }
     // For super agent ID we need to skip validation
@@ -82,9 +83,11 @@ impl AgentID {
         Self(SUPER_AGENT_ID.to_string())
     }
     pub fn get(&self) -> String {
+        println!("GET: {:?}",&self.0);
         String::from(&self.0)
     }
     pub fn is_super_agent_id(&self) -> bool {
+        println!("is: {:?}",&self.0);
         self.0.eq(SUPER_AGENT_ID)
     }
     /// Checks if a string reference has valid format to build an [AgentID].

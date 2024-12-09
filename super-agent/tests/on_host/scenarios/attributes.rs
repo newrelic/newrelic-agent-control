@@ -60,6 +60,7 @@ fn test_attributes_from_non_existing_agent_type() {
         DEFAULT_NAME.to_string(),
         DEFAULT_VERSION.to_string(),
         None,
+        None,
     );
 
     let expected_non_identifying_attributes =
@@ -120,6 +121,7 @@ fn test_attributes_from_an_existing_agent_type() {
         FQN_NAME_INFRA_AGENT.to_string(),
         DEFAULT_VERSION.to_string(),
         Some("0.0.0".to_string()),
+        None,
     );
 
     let expected_non_identifying_attributes =

@@ -203,7 +203,6 @@ where
         debug!("Building CR supervisors {}", &self.agent_id);
 
         let k8s_objects = effective_agent.get_k8s_config()?;
-
         // Validate Kubernetes objects against the list of supported resources.
         let supported_set: HashSet<(&str, &str)> = self
             .k8s_config
@@ -221,7 +220,8 @@ where
                 )));
             }
         }
-
+        println!("ID AGENT: {:?}", self.agent_id);
+        println!("AGENT CFG: {:?}", self.agent_cfg.agent_type);
         // Clone the k8s_client on each build.
         Ok(NotStartedSupervisorK8s::new(
             self.agent_id.clone(),
@@ -417,7 +417,6 @@ pub mod test {
         runtime_config::K8s {
             objects,
             health: None,
-            version: None,
         }
     }
 

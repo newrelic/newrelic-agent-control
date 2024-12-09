@@ -17,6 +17,7 @@ pub static OPAMP_SERVICE_NAME: &str = "service.name";
 pub static OPAMP_SERVICE_VERSION: &str = "service.version";
 pub static OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";
 pub static OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
+pub static OPAMP_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
 
 // Auth
 pub static AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";

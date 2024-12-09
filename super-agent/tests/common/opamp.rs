@@ -180,7 +180,8 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
     let instance_id = InstanceID::try_from(message.clone().instance_uid).unwrap();
-
+    println!("Received message from instance {instance_id}");
+    println!("MESSAGE IS {message:?}");
     // Store the health status
     if let Some(health) = message.clone().health {
         let mut state = state.lock().unwrap();
@@ -189,6 +190,8 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
 
     // Store the attributes
     if let Some(attributes) = message.clone().agent_description {
+        println!("INSTANCE FROM ATTRIBUTES: {:?}",instance_id);
+        println!("ATTRIBUTES FROM MESSAGE: {:?}",attributes);
         let mut state = state.lock().unwrap();
         state.attributes.insert(instance_id.clone(), attributes);
     }

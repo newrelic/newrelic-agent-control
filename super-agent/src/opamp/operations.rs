@@ -24,6 +24,7 @@ use opamp_client::{
     StartedClient,
 };
 use tracing::info;
+use crate::agent_type::definition::AgentType;
 
 pub fn build_sub_agent_opamp<CB, OB, IG>(
     opamp_builder: &OB,
@@ -38,6 +39,8 @@ where
     OB: OpAMPClientBuilder<CB>,
     IG: InstanceIDGetter,
 {
+    println!("AGENT ID OPAMP: {:?}",agent_id);
+    println!("AGENT TYPE: {:?}",agent_type);
     let super_agent_id = AgentID::new_super_agent_id();
     let parent_instance_id = instance_id_getter.get(&super_agent_id)?;
 

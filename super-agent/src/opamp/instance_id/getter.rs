@@ -57,6 +57,8 @@ where
         };
 
         debug!("persisting instance id {}", new_data.instance_id);
+        println!("INSTANCE ID {:?}", agent_id);
+        println!("DATA :O ID {:?}", new_data.identifiers);
         self.storer.set(agent_id, &new_data)?;
 
         Ok(new_data.instance_id)

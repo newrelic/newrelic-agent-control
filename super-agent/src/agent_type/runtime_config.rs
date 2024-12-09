@@ -80,7 +80,6 @@ impl Env {
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
     pub health: Option<K8sHealthConfig>,
-    pub version: Option<K8sVersionCheckerConfig>,
 }
 
 /// A K8s object, usually a CR, to be managed by the super-agent.

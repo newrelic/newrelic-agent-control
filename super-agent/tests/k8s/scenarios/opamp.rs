@@ -266,6 +266,20 @@ agents:
 
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
+    println!(
+        "{:?}",
+        server
+            .get_attributes(&instance_id)
+            .unwrap()
+            .identifying_attributes
+    );
+    println!(
+        "{:?}",
+        server
+            .get_attributes(&instance_id)
+            .unwrap()
+            .non_identifying_attributes
+    );
 }
 
 /// The local configuration for the open-telemetry collector has a secret with some values,

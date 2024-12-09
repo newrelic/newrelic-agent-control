@@ -1,5 +1,6 @@
 use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
+use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::k8s::annotations::Annotations;
@@ -45,11 +46,14 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 
         let (stop_objects_supervisor, objects_supervisor_handle) =
             self.start_k8s_objects_supervisor(resources.clone());
-        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher, resources)?;
+        let maybe_stop_health =
+            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
+        let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher)?;
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,
             maybe_stop_health,
+            maybe_stop_version,
             stop_objects_supervisor,
             objects_supervisor_handle,
         })
@@ -168,20 +172,19 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
-        if let Some(version_config) = self.k8s_config.version.clone() {
-            let (stop_version_publisher, stop_version_consumer) = pub_sub();
-            let k8s_version_checker =
-                K8sVersionChecker::new(self.k8s_client.clone(), self.agent_id.to_string());
+        let (stop_version_publisher, stop_version_consumer) = pub_sub();
+        let k8s_version_checker =
+            K8sVersionChecker::new(self.k8s_client.clone(), self.agent_id.to_string());
 
-            spawn_version_checker(
-                self.agent_id.clone(),
-                k8s_version_checker,
-                stop_version_consumer,
-                sub_agent_internal_publisher,
-                version_config.interval,
-            );
-            return Ok(Some(stop_version_publisher));
-        }
+        spawn_version_checker(
+            self.agent_id.clone(),
+            k8s_version_checker,
+            stop_version_consumer,
+            sub_agent_internal_publisher,
+            VersionCheckerInterval::default(),
+        );
+        return Ok(Some(stop_version_publisher));
+
         debug!(%self.agent_id, "version checks are disabled for this agent");
         Ok(None)
     }
@@ -205,6 +208,7 @@ impl NotStartedSupervisorK8s {
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
     maybe_stop_health: Option<EventPublisher<()>>,
+    maybe_stop_version: Option<EventPublisher<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
 }
@@ -312,7 +316,6 @@ pub mod test {
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
                 health: None,
-                version: None,
             },
         );
 
@@ -364,9 +367,6 @@ pub mod test {
             health: Some(K8sHealthConfig {
                 ..Default::default()
             }),
-            version: Some(K8sVersionCheckerConfig {
-                ..Default::default()
-            }),
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -391,7 +391,6 @@ pub mod test {
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
-            version: Some(Default::default()),
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -408,7 +407,6 @@ pub mod test {
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: None,
-            version: None,
         };
 
         let not_started = not_started_supervisor(config, None);

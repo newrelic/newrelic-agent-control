@@ -20,6 +20,7 @@ impl K8sVersionChecker {
         &self,
         data: &serde_json::Map<String, Value>,
     ) -> Result<AgentVersion, VersionCheckError> {
+        println!("NAME TO CHECK {:?}",self.name);
         let extractors = [
             extract_revision,
             extract_last_deployed_revision,
@@ -42,6 +43,7 @@ impl K8sVersionChecker {
 
 impl VersionChecker for K8sVersionChecker {
     fn check_version(&self) -> Result<AgentVersion, VersionCheckError> {
+        println!("NAME TO CHECK 1: {:?}",self.name);
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
@@ -59,7 +61,6 @@ impl VersionChecker for K8sVersionChecker {
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
             VersionCheckError::Generic("HelmRelease data is not an object".to_string())
         })?;
-
         if let Ok(version) = extract_revision(helm_release_data) {
             if !version.is_empty() {
                 return Ok(AgentVersion::new(version));
