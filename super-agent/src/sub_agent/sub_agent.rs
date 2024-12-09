@@ -196,6 +196,8 @@ where
                                         )
                                     },
                                     Ok(())  =>{
+                                        // We need to restart the supervisor after we receive a new config
+                                        // as we don't have hot-reloading handling implemented yet
                                         stop_supervisor(&self.agent_id, supervisor);
 
                                         supervisor = self.generate_supervisor()

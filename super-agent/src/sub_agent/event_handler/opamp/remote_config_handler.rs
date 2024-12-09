@@ -20,12 +20,12 @@ type ErrorMessage = String;
 
 #[derive(Debug, Error)]
 pub enum RemoteConfigHandlerError {
-    #[error("error validating remote config: `{0}`")]
-    ConfigValidating(String),
-    #[error("error reporting status {0} for hash {1}: {2}")]
+    #[error("validating remote config: `{0}`")]
+    ConfigValidating(ErrorMessage),
+    #[error("reporting status {0} for hash {1}: {2}")]
     StatusReporting(Status, Hash, ErrorMessage),
-    #[error("error storing hash and values: `{0}`")]
-    HashAndValuesStore(String),
+    #[error("storing hash and values: `{0}`")]
+    HashAndValuesStore(ErrorMessage),
 }
 
 pub struct RemoteConfigHandler<R, Y> {
@@ -57,6 +57,10 @@ where
         }
     }
 
+    /// remote_config_handler handles the remote config received by the omamp client
+    /// It will
+    /// * validate and persist the configuration
+    /// * communicate to FM config status (applying first, applied if correct, error if failed)
     pub fn handle<CB, C>(
         &self,
         opamp_client: &C,
