@@ -74,15 +74,16 @@ fn default_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*, BuildDate: .*",
+                TIME_FORMAT.to_owned()
+                    + "INFO.*New Relic Super Agent Version: .*, Rust Version: .*, GitCommit: .*",
             )
-                .unwrap(),
+            .unwrap(),
         )
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned() + "INFO.*Starting the agents supervisor runtime",
             )
-                .unwrap(),
+            .unwrap(),
         );
 
     // The behavior of the appender functionality is already unit tested as part of the sub-agent
