@@ -93,7 +93,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost<O, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost, HR, Y>;
 
     fn build(
         &self,
@@ -169,41 +169,18 @@ fn get_hostname() -> String {
     return unimplemented!();
 }
 
-pub struct SupervisortBuilderOnHost<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+pub struct SupervisortBuilderOnHost {
     logging_path: PathBuf,
-
-    // This is needed to ensure the generic type parameters O and G are used.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _opamp_client_builder: PhantomData<O>,
-    _effective_config_loader: PhantomData<G>,
 }
 
-impl<O, G> SupervisortBuilderOnHost<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+impl SupervisortBuilderOnHost {
     pub fn new(logging_path: PathBuf) -> Self {
-        Self {
-            logging_path,
-            _opamp_client_builder: PhantomData,
-            _effective_config_loader: PhantomData,
-        }
+        Self { logging_path }
     }
 }
 
-impl<O, G> SupervisorBuilder for SupervisortBuilderOnHost<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+impl SupervisorBuilder for SupervisortBuilderOnHost {
     type SupervisorStarter = NotStartedSupervisorOnHost;
-
-    type OpAMPClient = O::Client;
 
     fn build_supervisor(
         &self,
