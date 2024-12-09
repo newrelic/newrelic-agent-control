@@ -13,7 +13,8 @@ use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
-use crate::sub_agent::supervisor::{SupervisorError, SupervisorStarter, SupervisorStopper};
+use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
+use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::super_agent::config::AgentID;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -47,7 +48,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     fn start(
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Self::SupervisorStopper, SupervisorError> {
+    ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
         let id = self.agent_id.clone();
@@ -115,7 +116,7 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<EventPublisher<()>>, SupervisorError> {
+    ) -> Result<Option<EventPublisher<()>>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = self.health_config.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
