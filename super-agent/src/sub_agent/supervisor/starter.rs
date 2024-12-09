@@ -32,18 +32,18 @@ pub trait SupervisorStarter {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use crate::event::channel::EventPublisher;
     use crate::event::SubAgentInternalEvent;
     use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-    use crate::sub_agent::supervisor::stopper::test::MockSupervisorStopper;
+    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use mockall::mock;
 
     mock! {
         pub SupervisorStarter {}
 
          impl SupervisorStarter for SupervisorStarter{
-             type SupervisorStopper= MockSupervisorStopper;
+             type SupervisorStopper = MockSupervisorStopper;
               fn start(self,sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<MockSupervisorStopper, SupervisorStarterError>;
         }
     }

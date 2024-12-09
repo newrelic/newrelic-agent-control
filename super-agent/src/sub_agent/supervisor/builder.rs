@@ -13,9 +13,9 @@ pub trait SupervisorBuilder {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use crate::opamp::callbacks::AgentCallbacks;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::error::SubAgentBuilderError;

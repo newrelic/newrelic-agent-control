@@ -227,7 +227,7 @@ pub mod tests {
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
-    use crate::sub_agent::supervisor::builder::test::MockSupervisorBuilder;
+    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::super_agent::config::{
         helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,

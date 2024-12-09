@@ -5,7 +5,7 @@ pub trait SupervisorStopper {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use crate::event::channel::EventPublisherError;
     use crate::sub_agent::supervisor::stopper::SupervisorStopper;
     use mockall::mock;

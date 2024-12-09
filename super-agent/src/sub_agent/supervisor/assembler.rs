@@ -21,6 +21,11 @@ pub enum SupervisorAssemblerError {
     SupervisorBuildError(String),
 }
 
+/// SupervisorAssembler is an orchestrator to generate a Supervisor
+/// It will use the EffectiveAgentAssembler and the HashRepository
+/// to ensure that the Supervisor for the Sub Agent can be built.
+/// If it succeeds, it will use the environment specific SupervisorBuilder
+/// to actually build and return the Supervisor.
 pub struct SupervisorAssembler<HR, B, A> {
     hash_repository: Arc<HR>,
     supervisor_builder: B,
@@ -125,13 +130,13 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::callbacks::AgentCallbacks;
-    use crate::opamp::client_builder::test::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::test::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -139,9 +144,9 @@ mod test {
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
     use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
-    use crate::sub_agent::supervisor::builder::test::MockSupervisorBuilder;
-    use crate::sub_agent::supervisor::starter::test::MockSupervisorStarter;
-    use crate::sub_agent::supervisor::stopper::test::MockSupervisorStopper;
+    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
+    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::super_agent::config::{AgentID, AgentTypeFQN, SubAgentConfig};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
@@ -215,7 +220,7 @@ mod test {
         }
     }
 
-    // Tests for `generate_supervisor` function
+    // Tests for `assemble_supervisor` function
     // Essentially, the function defines the behavior for a certain combination
     // of the following parameters:
     //
@@ -232,7 +237,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == Some(_)`
     /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_some_hash_ok_eff_agent() {
+    fn test_assemble_supervisor_from_some_hash_ok_eff_agent() {
         //  create a default assembler
         let mut assembler = AssemblerForTesting::default();
 
@@ -266,7 +271,7 @@ mod test {
     /// `hash_repository.get(agent_id) fails` must not be different from the `None` cases, but we test it anyway to detect if this invariant changes
     /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_err_hash_ok_eff_agent() {
+    fn test_assemble_supervisor_from_err_hash_ok_eff_agent() {
         //  create a default assembler
         let mut assembler = AssemblerForTesting::default();
 
@@ -290,7 +295,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == Some(_)`
     /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_some_hash_err_eff_agent() {
+    fn test_assemble_supervisor_from_some_hash_err_eff_agent() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -355,7 +360,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == None`
     /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_none_hash_ok_eff_agent() {
+    fn test_assemble_supervisor_from_none_hash_ok_eff_agent() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -405,7 +410,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == None`
     /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_none_hash_err_eff_agent() {
+    fn test_assemble_supervisor_from_none_hash_err_eff_agent() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -460,7 +465,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == Some(_)
     /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_ok_eff_agent_no_opamp() {
+    fn test_assemble_supervisor_from_ok_eff_agent_no_opamp() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -509,7 +514,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == None
     /// `effective_agent_res == Ok(_)`
     #[test]
-    fn test_build_supervisor_from_ok_eff_agent_no_opamp_no_hash() {
+    fn test_assemble_supervisor_from_ok_eff_agent_no_opamp_no_hash() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -557,7 +562,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == Some(_)
     /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_err_eff_agent_no_opamp() {
+    fn test_assemble_supervisor_from_err_eff_agent_no_opamp() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -611,7 +616,7 @@ mod test {
     /// `hash_repository.get(agent_id)? == None
     /// `effective_agent_res == Err(_)`
     #[test]
-    fn test_build_supervisor_from_err_eff_agent_no_opamp_no_hash() {
+    fn test_assemble_supervisor_from_err_eff_agent_no_opamp_no_hash() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_cfg = SubAgentConfig {
             agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
