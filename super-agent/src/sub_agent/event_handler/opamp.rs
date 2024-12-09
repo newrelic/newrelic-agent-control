@@ -1,1 +1,1 @@
-pub mod remote_config;
+pub mod remote_config_handler;

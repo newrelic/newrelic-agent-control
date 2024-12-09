@@ -4,20 +4,18 @@ use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
+use crate::opamp::remote_config_report::report_remote_config_status_applied;
 use crate::opamp::remote_config_report::report_remote_config_status_error;
-use crate::opamp::remote_config_report::{
-    report_remote_config_status_applied, report_remote_config_status_applying,
-};
-use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
-use crate::sub_agent::event_handler::opamp::remote_config::store_remote_config_hash_and_values;
 use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::supervisor::{SupervisorBuilder, SupervisorStarter, SupervisorStopper};
 use crate::super_agent::config::{AgentID, SubAgentConfig};
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 
+use super::supervisor::SupervisorError;
+use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
@@ -28,8 +26,6 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, warn};
-
-use super::supervisor::SupervisorError;
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -97,9 +93,8 @@ where
     pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     pub(super) sub_agent_remote_config_hash_repository: Arc<HS>,
-    pub(super) remote_values_repo: Arc<Y>,
-    pub(super) config_validator: Arc<ConfigValidator>,
     pub(super) environment: Environment,
+    remote_config_handler: RemoteConfigHandler<HS, Y>,
 
     // This is needed to ensure the generic type parameter CB is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -129,8 +124,7 @@ where
             EventConsumer<SubAgentInternalEvent>,
         ),
         sub_agent_remote_config_hash_repository: Arc<HS>,
-        remote_values_repo: Arc<Y>,
-        config_validator: Arc<ConfigValidator>,
+        remote_config_handler: RemoteConfigHandler<HS, Y>,
         environment: Environment,
     ) -> Self {
         Self {
@@ -144,10 +138,8 @@ where
             sub_agent_internal_publisher: internal_pub_sub.0,
             sub_agent_internal_consumer: internal_pub_sub.1,
             sub_agent_remote_config_hash_repository,
-            remote_values_repo,
-            config_validator,
+            remote_config_handler,
             environment,
-
             _opamp_callbacks: PhantomData,
         }
     }
@@ -196,41 +188,23 @@ where
                                     continue;
                                 };
 
-                                debug!(agent_id = self.agent_id.to_string(),
-                                select_arm = "sub_agent_opamp_consumer",
-                "remote config received");
+                                match self.remote_config_handler.handle(opamp_client, &mut config){
+                                    Err(error) =>{
+                                        error!(%error,
+                                            agent_id = %self.agent_id,
+                                            "error handling remote config"
+                                        )
+                                    },
+                                    Ok(())  =>{
+                                        // We need to restart the supervisor after we receive a new config
+                                        // as we don't have hot-reloading handling implemented yet
+                                        stop_supervisor(&self.agent_id, supervisor);
 
-                                // Errors here will cause the sub-agent to continue running with the previous configuration.
-                                // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
-                                // "Applied" was never reported.
-                                if let Err(e) = self.config_validator.validate(&self.agent_cfg.agent_type, &config) {
-                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error validating remote config");
-                                    if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
-                                        error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
+                                        supervisor = self.generate_supervisor()
+                                            .and_then(|s| self.start_supervisor(s))
+                                            .ok();
                                     }
-                                    continue;
                                 }
-
-                                if let Err(e) = report_remote_config_status_applying(opamp_client, &config.hash) {
-                                    error!(error = %e, status = "applying", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
-                                    continue;
-                                }
-
-                                if let Err(e) = store_remote_config_hash_and_values(&mut config, self.sub_agent_remote_config_hash_repository.as_ref(), self.remote_values_repo.as_ref()) {
-                                    error!(error = %e, select_arm = "sub_agent_opamp_consumer", "error storing remote config hash and values");
-                                    if let Err(e) = report_remote_config_status_error(opamp_client, &config.hash, e.to_string()) {
-                                        error!(error = %e, status = "error", select_arm = "sub_agent_opamp_consumer", "error reporting remote config status");
-                                    }
-                                    continue;
-                                }
-
-                                // If we reach this then the remote config was successfully applied
-                                // Stop the current supervisor if any
-                                stop_supervisor(&self.agent_id, supervisor);
-
-                                supervisor = self.generate_supervisor()
-                                    .and_then(|s| self.start_supervisor(s))
-                                    .ok();
                             },
                             Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
                         }
@@ -416,6 +390,7 @@ pub mod tests {
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::opamp::remote_config_hash::Hash;
+    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::{
         EffectiveAgent, EffectiveAgentsAssemblerError,
@@ -517,8 +492,8 @@ pub mod tests {
             let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
             let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
-            let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
-            sub_agent_remote_config_hash_repository
+            let mut hash_repository = MockHashRepositoryMock::default();
+            hash_repository
                 .expect_get()
                 .with(predicate::eq(agent_id.clone()))
                 .return_const(Ok(None));
@@ -555,6 +530,19 @@ pub mod tests {
                 }))
                 .return_once(|_| Ok(supervisor_starter));
 
+            let hash_repository_ref = Arc::new(hash_repository);
+
+            let remote_config_handler = RemoteConfigHandler::new(
+                Arc::new(
+                    ConfigValidator::try_new()
+                        .expect("Failed to compile config validation regexes"),
+                ),
+                agent_id.clone(),
+                agent_cfg.clone(),
+                hash_repository_ref.clone(),
+                Arc::new(remote_values_repo),
+            );
+
             SubAgent::new(
                 agent_id,
                 agent_cfg,
@@ -564,12 +552,8 @@ pub mod tests {
                 sub_agent_publisher,
                 None,
                 (sub_agent_internal_publisher, sub_agent_internal_consumer),
-                Arc::new(sub_agent_remote_config_hash_repository),
-                Arc::new(remote_values_repo),
-                Arc::new(
-                    ConfigValidator::try_new()
-                        .expect("Failed to compile config validation regexes"),
-                ),
+                hash_repository_ref,
+                remote_config_handler,
                 Environment::OnHost,
             )
         }
@@ -631,7 +615,7 @@ pub mod tests {
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
-        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        let mut hash_repository = MockHashRepositoryMock::default();
         let mut remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let effective_agent = final_agent(agent_id.clone(), agent_cfg.agent_type.clone());
@@ -674,7 +658,7 @@ pub mod tests {
             "some_item: some_value".to_string(),
         )]));
 
-        sub_agent_remote_config_hash_repository.should_save_hash(&agent_id, &hash);
+        hash_repository.should_save_hash(&agent_id, &hash);
         remote_values_repo.should_store_remote(
             &agent_id,
             &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
@@ -701,6 +685,17 @@ pub mod tests {
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -710,11 +705,8 @@ pub mod tests {
             sub_agent_publisher,
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(sub_agent_remote_config_hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -853,6 +845,18 @@ pub mod tests {
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         opamp_client.should_set_remote_config_status(expected_remote_config_status);
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
+
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -862,11 +866,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -910,6 +911,18 @@ pub mod tests {
 
         let opamp_client = MockStartedOpAMPClientMock::new();
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
+
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -919,11 +932,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -972,6 +982,18 @@ pub mod tests {
 
         let opamp_client = MockStartedOpAMPClientMock::new();
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
+
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -981,11 +1003,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -1028,6 +1047,18 @@ pub mod tests {
             }))
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
+
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -1037,11 +1068,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -1083,6 +1111,17 @@ pub mod tests {
             }))
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -1092,11 +1131,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -1144,6 +1180,18 @@ pub mod tests {
             }))
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
+
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -1153,11 +1201,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
@@ -1204,6 +1249,17 @@ pub mod tests {
             }))
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let remote_config_handler = RemoteConfigHandler::new(
+            Arc::new(
+                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
+            ),
+            agent_id.clone(),
+            agent_cfg.clone(),
+            hash_repository_ref.clone(),
+            Arc::new(remote_values_repo),
+        );
         let sub_agent = SubAgent::new(
             agent_id,
             agent_cfg,
@@ -1213,11 +1269,8 @@ pub mod tests {
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
-            Arc::new(hash_repository),
-            Arc::new(remote_values_repo),
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
+            hash_repository_ref,
+            remote_config_handler,
             Environment::OnHost,
         );
 
