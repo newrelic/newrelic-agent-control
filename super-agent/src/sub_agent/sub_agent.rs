@@ -77,7 +77,7 @@ where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {
@@ -101,7 +101,7 @@ where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {
@@ -302,7 +302,7 @@ where
     C: StartedClient<CB> + Send + Sync + 'static,
     CB: Callbacks + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    B: SupervisorBuilder<OpAMPClient = C> + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository,
 {

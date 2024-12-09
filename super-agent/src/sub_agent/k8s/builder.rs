@@ -92,7 +92,7 @@ where
     Y: YAMLConfigRepository,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s<O, G>, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s, HR, Y>;
 
     fn build(
         &self,
@@ -164,27 +164,14 @@ where
     }
 }
 
-pub struct SupervisorBuilderK8s<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+pub struct SupervisorBuilderK8s {
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8sConfig,
-
-    // This is needed to ensure the generic type parameters O and G are used.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _opamp_client_builder: PhantomData<O>,
-    _effective_config_loader: PhantomData<G>,
 }
 
-impl<O, G> SupervisorBuilderK8s<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+impl SupervisorBuilderK8s {
     pub fn new(
         agent_id: AgentID,
         agent_cfg: SubAgentConfig,
@@ -196,20 +183,12 @@ where
             agent_cfg,
             k8s_client,
             k8s_config,
-            _opamp_client_builder: PhantomData,
-            _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<O, G> SupervisorBuilder for SupervisorBuilderK8s<O, G>
-where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
-{
+impl SupervisorBuilder for SupervisorBuilderK8s {
     type SupervisorStarter = NotStartedSupervisorK8s;
-
-    type OpAMPClient = O::Client;
 
     fn build_supervisor(
         &self,
@@ -499,10 +478,7 @@ pub mod tests {
     fn testing_supervisor_builder(
         agent_id: AgentID,
         sub_agent_config: SubAgentConfig,
-    ) -> SupervisorBuilderK8s<
-        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
-        MockEffectiveConfigLoaderMock,
-    > {
+    ) -> SupervisorBuilderK8s {
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
             .expect_default_namespace()
