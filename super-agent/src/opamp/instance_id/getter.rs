@@ -13,9 +13,8 @@ pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
 {
-    storer: S,
+    storer: Mutex<S>,
     identifiers: Identifiers,
-    lock: Mutex<()>,
 }
 
 impl<S> InstanceIDWithIdentifiersGetter<S>
@@ -24,14 +23,16 @@ where
 {
     pub fn new(storer: S, identifiers: Identifiers) -> Self {
         Self {
-            storer,
+            storer: Mutex::new(storer),
             identifiers,
-            lock: Mutex::new(()),
         }
     }
 
     pub fn with_identifiers(self, identifiers: Identifiers) -> Self {
-        Self::new(self.storer, identifiers)
+        Self {
+            identifiers,
+            ..self
+        }
     }
 }
 
@@ -40,9 +41,9 @@ where
     S: InstanceIDStorer,
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
-        let _mutex_guard = self.lock.lock().expect("failed to acquire the lock");
+        let storer = self.storer.lock().expect("failed to acquire the lock");
         debug!(%agent_id, "retrieving instance id");
-        let data = self.storer.get(agent_id)?;
+        let data = storer.get(agent_id)?;
 
         match data {
             None => {
@@ -62,7 +63,7 @@ where
         };
 
         debug!(%agent_id, "persisting instance id {}", new_data.instance_id);
-        self.storer.set(agent_id, &new_data)?;
+        storer.set(agent_id, &new_data)?;
 
         Ok(new_data.instance_id)
     }
