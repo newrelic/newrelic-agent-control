@@ -1,6 +1,7 @@
 use super::{GetterError, Identifiers, InstanceID};
 use crate::{opamp::instance_id::storer::InstanceIDStorer, super_agent::config::AgentID};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use tracing::debug;
 
 // IDGetter returns an InstanceID for a specific agentID.
@@ -12,7 +13,7 @@ pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
 {
-    storer: S,
+    storer: Mutex<S>,
     identifiers: Identifiers,
 }
 
@@ -22,13 +23,16 @@ where
 {
     pub fn new(storer: S, identifiers: Identifiers) -> Self {
         Self {
-            storer,
+            storer: Mutex::new(storer),
             identifiers,
         }
     }
 
     pub fn with_identifiers(self, identifiers: Identifiers) -> Self {
-        Self::new(self.storer, identifiers)
+        Self {
+            identifiers,
+            ..self
+        }
     }
 }
 
@@ -37,15 +41,17 @@ where
     S: InstanceIDStorer,
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
-        debug!("retrieving instance id");
-        let data = self.storer.get(agent_id)?;
+        let storer = self.storer.lock().expect("failed to acquire the lock");
+        debug!(%agent_id, "retrieving instance id");
+        let data = storer.get(agent_id)?;
 
         match data {
             None => {
-                debug!("storer returned no data");
+                debug!(%agent_id, "storer returned no data");
             }
             Some(d) if d.identifiers == self.identifiers => return Ok(d.instance_id),
             Some(d) => debug!(
+                %agent_id,
                 "stored data had different identifiers {:?}!={:?}",
                 d.identifiers, self.identifiers
             ),
@@ -56,8 +62,8 @@ where
             identifiers: self.identifiers.clone(),
         };
 
-        debug!("persisting instance id {}", new_data.instance_id);
-        self.storer.set(agent_id, &new_data)?;
+        debug!(%agent_id, "persisting instance id {}", new_data.instance_id);
+        storer.set(agent_id, &new_data)?;
 
         Ok(new_data.instance_id)
     }
@@ -71,6 +77,10 @@ pub struct DataStored {
 
 #[cfg(test)]
 pub mod tests {
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
     use super::*;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
     use crate::opamp::instance_id::storer::tests::MockInstanceIDStorerMock;
@@ -199,6 +209,50 @@ pub mod tests {
 
         assert!(res.is_ok());
         assert_ne!(instance_id, res.unwrap());
+    }
+
+    #[test]
+    fn test_thread_safety() {
+        let mut mock = MockInstanceIDStorerMock::new();
+
+        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        // Data is read twice: first time it returns nothing, second time it returns data
+        mock.expect_get()
+            .once()
+            .with(predicate::eq(agent_id.clone()))
+            .returning(|_| Ok(None));
+        mock.expect_get()
+            .once()
+            .with(predicate::eq(agent_id.clone()))
+            .return_once(move |_| {
+                Ok(Some(DataStored {
+                    instance_id: InstanceID::create(),
+                    identifiers: Default::default(),
+                }))
+            });
+        // Data is written just once
+        mock.expect_set()
+            .once()
+            .with(predicate::eq(agent_id.clone()), predicate::always())
+            .returning(|_, _| {
+                thread::sleep(Duration::from_millis(500)); // Make write slow to assure issues if resources are not protected
+                Ok(())
+            });
+
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter1 = Arc::new(getter);
+        let getter2 = getter1.clone();
+
+        let t1 = thread::spawn(move || {
+            let res = getter1.get(&AgentID::new(AGENT_NAME).unwrap());
+            assert!(res.is_ok());
+        });
+        let t2 = thread::spawn(move || {
+            let res = getter2.get(&AgentID::new(AGENT_NAME).unwrap());
+            assert!(res.is_ok());
+        });
+        t1.join().unwrap();
+        t2.join().unwrap();
     }
 
     #[test]
