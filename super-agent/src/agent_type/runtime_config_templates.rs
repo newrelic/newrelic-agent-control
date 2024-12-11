@@ -100,7 +100,7 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
     re.find_iter(&s)
         .try_fold(s.clone(), |r, variable_to_substitute| {
             let var_name = template_trim(variable_to_substitute.as_str());
-            let normalized_var = normalized_var(&var_name, variables)?;
+            let normalized_var = normalized_var(var_name, variables)?;
             replace(variable_to_substitute.as_str(), &r, normalized_var)
         })
 }

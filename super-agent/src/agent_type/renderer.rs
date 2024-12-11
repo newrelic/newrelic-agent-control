@@ -43,6 +43,9 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         values: YAMLConfig,
         attributes: AgentAttributes,
     ) -> Result<Runtime, AgentTypeError> {
+        // Get empty variables and runtime_config from the agent-type
+        let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
+
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
@@ -51,10 +54,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         // Fill agent variables
         // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
         // needs to be expanded, checkout out the TODO below for details.
-        let mut filled_variables = agent_type
-            .variables
-            .fill_with_values(values_expanded)?
-            .flatten();
+        let mut filled_variables = variables.fill_with_values(values_expanded)?.flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
 
@@ -73,7 +73,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         let ns_variables =
             self.build_namespaced_variables(filled_variables, environment_variables, &attributes);
         // Render runtime config
-        let rendered_runtime_config = agent_type.runtime_config.template_with(&ns_variables)?;
+        let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
         Ok(rendered_runtime_config)
     }
