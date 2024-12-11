@@ -43,9 +43,6 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         values: YAMLConfig,
         attributes: AgentAttributes,
     ) -> Result<Runtime, AgentTypeError> {
-        // Get empty variables and runtime_config from the agent-type
-        let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
-
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
@@ -54,7 +51,11 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         // Fill agent variables
         // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
         // needs to be expanded, checkout out the TODO below for details.
-        let mut filled_variables = variables.fill_with_values(values_expanded)?.flatten();
+        let mut filled_variables = agent_type
+            .variables
+            .fill_with_values(values_expanded)?
+            .flatten();
+
         Self::check_all_vars_are_populated(&filled_variables)?;
 
         // TODO: the persister performs specific actions for file and `File` and `MapStringFile` variables kind only.
@@ -72,7 +73,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         let ns_variables =
             self.build_namespaced_variables(filled_variables, environment_variables, &attributes);
         // Render runtime config
-        let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
+        let rendered_runtime_config = agent_type.runtime_config.template_with(&ns_variables)?;
 
         Ok(rendered_runtime_config)
     }
@@ -513,16 +514,16 @@ pub(crate) mod tests {
 
         let expected_spec_yaml = r#"
 values:
-  key: value
   another_key:
-    nested: nested_value
+    nested: nested_value ${UNTOUCHED}
     nested_list:
       - item1
       - item2
       - item3_nested: value
   empty_key:
 from_sub_agent: some-agent-id
-collision_avoided: ${config.values}-${env:agent_id}
+text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
+collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
         let expected_spec_value: serde_yaml::Value =
             serde_yaml::from_str(expected_spec_yaml).unwrap();
@@ -558,9 +559,8 @@ collision_avoided: ${config.values}-${env:agent_id}
 
         let expected_spec_yaml = r#"
 values:
-  key: value
   another_key:
-    nested: nested_value
+    nested: nested_value ${UNTOUCHED}
     nested_list:
       - item1
       - item2
@@ -568,7 +568,7 @@ values:
   empty_key:
 from_sub_agent: some-agent-id
 substituted: my-value
-collision_avoided: ${config.values}-${env:agent_id}
+collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 substituted_2: my-value-2
 "#;
 
@@ -600,6 +600,9 @@ substituted_2: my-value-2
         let values = testing_values(
             r#"
 config:
+  text_values:
+    key: value
+    key2: ${UNTOUCHED}
   values:
     key: ${nr-env:DOUBLE_EXPANSION}
     key-2: ${nr-env:DOUBLE_EXPANSION_2}
@@ -615,7 +618,8 @@ values:
   key: test
   key-2: test-2
 from_sub_agent: some-agent-id
-collision_avoided: ${config.values}-${env:agent_id}
+text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
+collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
 
         let expected_spec_value: serde_yaml::Value =
@@ -668,6 +672,10 @@ variables:
         description: "yaml values"
         type: yaml
         required: true
+      text_values:
+        description: "yaml values"
+        type: yaml
+        required: true
 deployment:
   k8s:
     objects:
@@ -676,7 +684,6 @@ deployment:
         kind: ObjectKind
         metadata:
           name: test
-        
         substituted: ${nr-env:MY_VARIABLE}
 "#,
             &Environment::K8s,
@@ -902,6 +909,10 @@ variables:
         description: "yaml values"
         type: yaml
         required: true
+      text_values:
+        description: "text values"
+        type: yaml
+        required: true
 deployment:
   k8s:
     objects:
@@ -913,7 +924,9 @@ deployment:
         spec:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
-          collision_avoided: ${config.values}-${env:agent_id}
+          text_values: |
+            ${nr-var:config.text_values}
+          collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 "#;
 
     const K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES: &str = r#"
@@ -925,6 +938,10 @@ variables:
     config:
       values:
         description: "yaml values"
+        type: yaml
+        required: true
+      text_values:
+        description: "text values"
         type: yaml
         required: true
 deployment:
@@ -939,20 +956,21 @@ deployment:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
           substituted: ${nr-env:MY_VARIABLE}
-          collision_avoided: ${config.values}-${env:agent_id}
+          collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
           substituted_2: ${nr-env:MY_VARIABLE_2}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"
 config:
-  values:
+  text_values:
     key: value
+    key2: ${UNTOUCHED}
+  values:
     another_key:
-      nested: nested_value
+      nested: nested_value ${UNTOUCHED}
       nested_list:
         - item1
         - item2
         - item3_nested: value
-    empty_key:
-"#;
+    empty_key:"#;
 }
