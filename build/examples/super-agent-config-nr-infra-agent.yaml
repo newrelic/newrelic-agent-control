@@ -1,0 +1,18 @@
+# opamp:
+#   endpoint: https://opamp.service.newrelic.com/v1/opamp
+#   headers:
+#     api-key: API_KEY_HERE
+#   auth_config:
+#     token_url: PLACEHOLDER
+#     client_id: PLACEHOLDER
+#     provider: PLACEHOLDER
+#     private_key_path: PLACEHOLDER
+
+# fleet_id: FLEET_ID_HERE
+
+server:
+  enabled: true
+
+agents:
+  nr-infra-agent:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
