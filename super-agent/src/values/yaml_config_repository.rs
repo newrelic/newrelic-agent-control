@@ -34,7 +34,7 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError>;
 }
 
-/// Looks for store remote configs first, if unavailable checks the local ones.
+/// Looks for remote configs first, if unavailable checks the local ones.
 /// If none is found, it fallbacks to the empty default values.
 pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
     config_repository: &R,
@@ -126,13 +126,6 @@ pub mod tests {
                     predicate::eq(yaml_config.clone()),
                 )
                 .returning(|_, _| Ok(()));
-        }
-
-        pub fn should_delete_remote(&mut self, agent_id: &AgentID) {
-            self.expect_delete_remote()
-                .once()
-                .with(predicate::eq(agent_id.clone()))
-                .returning(|_| Ok(()));
         }
     }
 }

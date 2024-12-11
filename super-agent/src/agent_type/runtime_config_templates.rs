@@ -1,9 +1,3 @@
-use std::collections::{BTreeMap, HashMap};
-use std::sync::OnceLock;
-
-use regex::Regex;
-use tracing::warn;
-
 use super::definition::Variables;
 use super::runtime_config::Env;
 use super::variable::definition::VariableDefinition;
@@ -13,6 +7,10 @@ use super::{
     restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
     runtime_config::{Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, Runtime},
 };
+use regex::Regex;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::OnceLock;
+use tracing::warn;
 
 /// Regex that extracts the template values from a string.
 ///
@@ -59,20 +57,18 @@ fn normalized_var<'a>(
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
 }
 
-/// Returns a string with the first match of a variable replaced with the corresponding value
-/// (according to the provided normalized variable).
+/// Returns a string with the variable replaced with the corresponding value .
 fn replace(
-    re: &Regex,
+    variable: &str,
     s: &str,
-    var_name: &str,
     normalized_var: &VariableDefinition,
 ) -> Result<String, AgentTypeError> {
     let value = normalized_var
         .get_template_value()
-        .ok_or(AgentTypeError::MissingTemplateKey(var_name.to_string()))?
+        .ok_or(AgentTypeError::MissingTemplateKey(variable.to_string()))?
         .to_string();
 
-    Ok(re.replace(s, value).to_string())
+    Ok(s.replace(variable, value.as_str()))
 }
 
 pub trait Templateable {
@@ -102,10 +98,10 @@ impl Templateable for String {
 fn template_string(s: String, variables: &Variables) -> Result<String, AgentTypeError> {
     let re = template_re();
     re.find_iter(&s)
-        .map(|i| i.as_str())
-        .try_fold(s.clone(), |r, i| {
-            let var_name = template_trim(i);
-            replace(re, &r, var_name, normalized_var(var_name, variables)?)
+        .try_fold(s.clone(), |r, variable_to_substitute| {
+            let var_name = template_trim(variable_to_substitute.as_str());
+            let normalized_var = normalized_var(var_name, variables)?;
+            replace(variable_to_substitute.as_str(), &r, normalized_var)
         })
 }
 
@@ -345,7 +341,12 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:name".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("Alice".to_string())),
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some("Alice ${UNTOUCHED}".to_string()),
+                ),
             ),
             (
                 "nr-var:age".to_string(),
@@ -353,8 +354,10 @@ mod tests {
             ),
         ]);
 
-        let input = "Hello ${nr-var:name}! You are ${nr-var:age} years old.".to_string();
-        let expected_output = "Hello Alice! You are 30 years old.".to_string();
+        let input =
+            "Hello ${nr-var:name}! You are ${nr-var:age} years old. ${UNTOUCHED}".to_string();
+        let expected_output =
+            "Hello Alice ${UNTOUCHED}! You are 30 years old. ${UNTOUCHED}".to_string();
         let actual_output = template_string(input, &variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
@@ -499,7 +502,7 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some("CHANGED-STRING".to_string()),
+                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
                 ),
             ),
             (
@@ -519,17 +522,19 @@ mod tests {
         ${nr-var:change.me.string}: "Do not scape me"
         ${nr-var:change.me.bool}: "Do not scape me"
         ${nr-var:change.me.number}: "Do not scape me"
+        test: ${UNTOUCHED}
         "#,
         )
         .unwrap();
         let expected_output: serde_yaml::Mapping = serde_yaml::from_str(
             r#"
-        a_string: "CHANGED-STRING"
+        a_string: "CHANGED-STRING ${UNTOUCHED}"
         a_boolean: true
         a_number: 42
         ${nr-var:change.me.string}: "Do not scape me"
         ${nr-var:change.me.bool}: "Do not scape me"
         ${nr-var:change.me.number}: "Do not scape me"
+        test: ${UNTOUCHED}
         "#,
         )
         .unwrap();
@@ -547,7 +552,7 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some("CHANGED-STRING".to_string()),
+                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
                 ),
             ),
             (
@@ -564,15 +569,17 @@ mod tests {
         - ${nr-var:change.me.string}
         - ${nr-var:change.me.bool}
         - ${nr-var:change.me.number}
+        - ${UNTOUCHED}
         - Do not scape me
         "#,
         )
         .unwrap();
         let expected_output: serde_yaml::Sequence = serde_yaml::from_str(
             r#"
-        - CHANGED-STRING
+        - CHANGED-STRING ${UNTOUCHED}
         - true
         - 42
+        - ${UNTOUCHED}
         - Do not scape me
         "#,
         )
@@ -591,7 +598,7 @@ mod tests {
                     String::default(),
                     true,
                     None,
-                    Some("CHANGED-STRING".to_string()),
+                    Some("CHANGED-STRING ${UNTOUCHED}".to_string()),
                 ),
             ),
             (
@@ -651,28 +658,29 @@ mod tests {
         a_yaml: ${nr-var:change.me.yaml}
         another_yaml: ${nr-var:yaml.with.var.placeholder} # A variable inside another variable value is not expanded
         string_key: "here, the value ${nr-var:change.me.yaml} is encoded as string because it is not alone"
+        last_one: ${UNTOUCHED}
         "#,
         )
         .unwrap();
         let expected_output: serde_yaml::Value = serde_yaml::from_str(
             r#"
         an_object:
-            a_string: "CHANGED-STRING"
+            a_string: "CHANGED-STRING ${UNTOUCHED}"
             a_boolean: true
             a_number: 42
         a_sequence:
-            - "CHANGED-STRING"
+            - "CHANGED-STRING ${UNTOUCHED}"
             - true
             - 42
         a_nested_object:
             with_nested_sequence:
-                - a_string: "CHANGED-STRING"
+                - a_string: "CHANGED-STRING ${UNTOUCHED}"
                 - a_boolean: true
                 - a_number: 42
                 - a_yaml:
                     key:
                       value
-        a_string: "CHANGED-STRING"
+        a_string: "CHANGED-STRING ${UNTOUCHED}"
         a_boolean: true
         a_number: 42
         a_yaml:
@@ -680,6 +688,7 @@ mod tests {
         another_yaml:
           "this.will.not.be.expanded": "${nr-var:change.me.string}" # A variable inside another other variable value is not expanded
         string_key: "here, the value key: value\n is encoded as string because it is not alone"
+        last_one: ${UNTOUCHED}
         "#, // FIXME? Note line above, the "key: value\n" part was replaced!!
         )
         .unwrap();
@@ -943,19 +952,23 @@ mod tests {
         let neither_value_nor_default =
             VariableDefinition::new(String::default(), true, None::<String>, None::<String>);
 
-        let re = template_re();
         assert_eq!(
             "Value-${nr-var:other}".to_string(),
-            replace(re, "${nr-var:any}-${nr-var:other}", "any", &value_var).unwrap()
+            replace("${nr-var:any}", "${nr-var:any}-${nr-var:other}", &value_var).unwrap()
         );
         assert_eq!(
             "Default-${nr-var:other}".to_string(),
-            replace(re, "${nr-var:any}-${nr-var:other}", "any", &default_var).unwrap()
+            replace(
+                "${nr-var:any}",
+                "${nr-var:any}-${nr-var:other}",
+                &default_var
+            )
+            .unwrap()
         );
         let key = assert_matches!(
-            replace(re, "${nr-var:any}-x", "any", &neither_value_nor_default).unwrap_err(),
+            replace("${nr-var:any}", "${nr-var:any}-x", &neither_value_nor_default).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
-        assert_eq!("any".to_string(), key);
+        assert_eq!("${nr-var:any}".to_string(), key);
     }
 
     #[test]

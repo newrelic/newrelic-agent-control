@@ -1,12 +1,4 @@
 mod one_shot_operation;
-
-use clap::Parser;
-use one_shot_operation::OneShotCommand;
-use std::sync::Arc;
-use std::time::Duration;
-use thiserror::Error;
-use tracing::info;
-
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 #[cfg(debug_assertions)]
 use crate::super_agent::run::set_debug_dirs;
@@ -20,6 +12,11 @@ use crate::{
     },
     utils::binary_metadata::binary_metadata,
 };
+use clap::Parser;
+use one_shot_operation::OneShotCommand;
+use std::sync::Arc;
+use thiserror::Error;
+use tracing::info;
 
 /// Represents all the data structures that can be created from the CLI
 pub struct SuperAgentCliConfig {
@@ -141,7 +138,7 @@ impl Cli {
             // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
             // before the GC process it, the resources will never be collected.
             #[cfg(feature = "k8s")]
-            garbage_collector_interval: DEFAULT_POLL_INTERVAL - Duration::from_secs(5),
+            garbage_collector_interval: DEFAULT_POLL_INTERVAL - std::time::Duration::from_secs(5),
         };
 
         let cli_config = SuperAgentCliConfig {
