@@ -54,7 +54,7 @@ nr_api_key: "xxxxxxxxxxxxxxxx"
         account_id: "{{ nr_account_id | int }}"
         config_id: "{{ created_config_id }}"
         # multiline config breaks graphql request
-        content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.0.1\"\n'
+        content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure:0.0.1\"\n'
         config_revision_fact: "created_config_revision"
 ```
 

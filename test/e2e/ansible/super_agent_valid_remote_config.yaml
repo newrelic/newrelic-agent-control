@@ -87,7 +87,7 @@
           account_id: "{{ nr_account_id | int }}"
           config_id: "{{ created_config_id }}"
           # multiline config breaks graphql request
-          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agent:0.1.2\"\n'
+          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure:0.1.2\"\n'
           config_revision_fact: "created_config_revision"
 
     - name: register array of configurations to deploy
@@ -133,7 +133,7 @@
       include_tasks: ./tasks/assert_full_file_content.yaml
       vars:
         file_path: "{{ super_agent_remote_config_file }}"
-        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure_agent:0.1.2"
+        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure:0.1.2"
 
     - name: Get Local NR Super Agent Hash
       include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml

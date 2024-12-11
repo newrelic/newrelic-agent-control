@@ -263,7 +263,7 @@ There is a service that ultimately exposes the /status endpoint for the Super Ag
     },
     "nr-infra-agent": {
       "agent_id": "nr-infra-agent",
-      "agent_type": "newrelic/com.newrelic.infrastructure_agent:0.1.1",
+      "agent_type": "newrelic/com.newrelic.infrastructure:0.1.1",
       "healthy": false,
       "last_error": "process exited with code: exit status: 1"
     }

@@ -130,7 +130,7 @@
         create_remote_configuration_revision:
           account_id: "{{ nr_account_id | int }}"
           config_id: "{{ created_config_id }}"
-          content: 'agents:\n  nr-infra-agento:\n    agent_type: \"newrelic/com.newrelic.infrastructure_agentoo:0.1.2\"\n'
+          content: 'agents:\n  nr-infra-agento:\n    agent_type: \"newrelic/com.newrelic.infrastructureoo:0.1.2\"\n'
           config_revision_fact: "created_config_revision_invalid"
 
     - name: register array of configurations with invalid Agent Type to deploy

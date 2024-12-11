@@ -706,7 +706,7 @@ mod tests {
 
     const AGENT_TYPE_SINGLE_FILE: &str = r#"
 namespace: newrelic
-name: com.newrelic.infrastructure_agent
+name: com.newrelic.infrastructure
 version: 0.0.1
 variables:
   on_host:
@@ -736,7 +736,7 @@ config_file: |
     const AGENT_TYPE_MULTIPLE_FILES: &str = r#"
 
 namespace: newrelic
-name: com.newrelic.infrastructure_agent
+name: com.newrelic.infrastructure
 version: 0.0.1
 variables:
   common:
@@ -785,7 +785,7 @@ config_file2: |
 
     const AGENT_TYPE_SINGLE_MAP_FILE: &str = r#"
 namespace: newrelic
-name: com.newrelic.infrastructure_agent
+name: com.newrelic.infrastructure
 version: 0.0.1
 variables:
   common:
@@ -823,7 +823,7 @@ integrations:
 
     const AGENT_TYPE_MULTIPLE_MAP_FILE: &str = r#"
 namespace: newrelic
-name: com.newrelic.infrastructure_agent
+name: com.newrelic.infrastructure
 version: 0.0.1
 variables:
   on_host:
