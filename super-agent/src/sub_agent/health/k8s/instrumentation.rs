@@ -4,31 +4,103 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use k8s_openapi::serde_json::{Map, Value};
+use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
-use std::collections::HashMap;
+use serde::Deserialize;
+use std::fmt::Display;
 use std::sync::Arc;
 
-// CONSTANTS THAT ARE KEYS TO NUMERIC VALUES
-const NUM_PODS_MATCHING: &str = "podsMatching";
-const NUM_PODS_HEALTHY: &str = "podsHealthy";
-const NUM_PODS_INJECTED: &str = "podsInjected";
-const NUM_PODS_NOT_READY: &str = "podsNotReady";
-const NUM_PODS_OUTDATED: &str = "podsOutdated";
-const NUM_PODS_UNHEALTHY: &str = "podsUnhealthy";
-const STATUS_ENTRIES: [&str; 6] = [
-    NUM_PODS_MATCHING,
-    NUM_PODS_HEALTHY,
-    NUM_PODS_INJECTED,
-    NUM_PODS_NOT_READY,
-    NUM_PODS_OUTDATED,
-    NUM_PODS_UNHEALTHY,
-];
+/// Represents the status of an Instrumentation CRD in Kubernetes.
+///
+/// To be deserialized correctly, the JSON should have the following fields:
+/// - `podsMatching` (int): The number of pods that match the Instrumentation.
+/// - `podsHealthy` (int): The number of healthy pods.
+/// - `podsInjected` (int): The number of pods that have been injected.
+/// - `podsNotReady` (int): The number of pods that are not ready.
+/// - `podsOutdated` (int): The number of outdated pods.
+/// - `podsUnhealthy` (int): The number of unhealthy pods.
+///
+/// The following fields are optional:
+/// - `unhealthyPodsErrors` (array): An array of objects with the following fields:
+///   - `pod` (string): The name of the pod.
+///   - `lastError` (string): The last error message.
+#[derive(Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct InstrumentationStatus {
+    pods_matching: i64,
+    pods_healthy: i64,
+    pods_injected: i64,
+    pods_not_ready: i64,
+    pods_outdated: i64,
+    pods_unhealthy: i64,
+    #[serde(default)]
+    unhealthy_pods_errors: Vec<UnhealthyPodError>,
+}
 
-/// Key for the last errors of the unhealthy pods in the status of an Instrumentation
-const UNHEALTHY_PODS_ERRORS: &str = "unhealthyPodsErrors";
-const LAST_ERROR_LABEL: &str = "lastError";
-const POD_LABEL: &str = "pod";
+impl Display for InstrumentationStatus {
+    /// Formats the status as a string with the following format:
+    /// "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "podsMatching:{}, podsHealthy:{}, podsInjected:{}, podsNotReady:{}, podsOutdated:{}, podsUnhealthy:{}",
+            self.pods_matching,
+            self.pods_healthy,
+            self.pods_injected,
+            self.pods_not_ready,
+            self.pods_outdated,
+            self.pods_unhealthy,
+        )
+    }
+}
+
+impl InstrumentationStatus {
+    /// Evaluates the healthiness from an Instrumentation, it returns a status with the following:
+    /// "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
+    /// It returns a Healthy or Unhealthy type depending on the conditions:
+    /// not_ready > 0 --> Unhealthy
+    /// Matching != Injected --> Unhealthy
+    /// Unhealthy > 0 ---> Unhealthy with lastErrors
+    /// We can't rely on the number of healthy pods lower than matching because there can be uninstrumented
+    /// or outdated pods so the matching will be higher, so we just consider healthy
+    /// any case not being one of the previous cases.
+    pub(crate) fn get_health(&self) -> Health {
+        if self.pods_matching <= 0 || self.is_healthy() {
+            Health::Healthy(Healthy::new(self.to_string()))
+        } else {
+            // Should we log if the array length does not match the number reported by `podsUnhealthy`?
+            Health::Unhealthy(Unhealthy::new(self.to_string(), self.last_error()))
+        }
+    }
+
+    fn is_healthy(&self) -> bool {
+        self.pods_not_ready <= 0
+            && self.pods_injected == self.pods_matching
+            && self.pods_unhealthy <= 0
+    }
+
+    fn last_error(&self) -> String {
+        self.unhealthy_pods_errors
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+/// Represents the last errors of the unhealthy pods in the status of an Instrumentation CRD.
+#[derive(Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct UnhealthyPodError {
+    pod: String,
+    last_error: String,
+}
+
+impl Display for UnhealthyPodError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "pod {}:{}", self.pod, self.last_error)
+    }
+}
 
 /// Represents a health checker for a specific Instrumentation in Kubernetes.
 ///
@@ -56,107 +128,6 @@ impl K8sHealthNRInstrumentation {
             start_time,
         }
     }
-
-    /// Evaluates the healthiness from an Instrumentation, it returns a status with the following:
-    /// "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
-    /// It returns a Healthy or Unhealthy type depending on the conditions:
-    /// not_ready > 0 --> Unhealthy
-    /// Matching != Injected --> Unhealthy
-    /// Unhealthy > 0 ---> Unhealthy with lastErrors
-    /// We can't rely on the number of healthy pods lower than matching because there can be uninstrumented
-    /// or outdated pods so the matching will be higher, so we just consider healthy
-    /// any case not being one of the previous cases.
-    fn get_healthiness(status: &Map<String, Value>) -> Health {
-        let status_entries: HashMap<_, _> = STATUS_ENTRIES
-            .into_iter()
-            .map(|status_entry| {
-                let entry_val = status
-                    .get(status_entry)
-                    .and_then(Value::as_i64)
-                    .unwrap_or_default();
-                (status_entry, entry_val)
-            })
-            .collect();
-
-        let status_msg = Self::get_status_msg(&status_entries);
-
-        let pods_matching = status_entries
-            .get(NUM_PODS_MATCHING)
-            .copied()
-            .unwrap_or_default();
-
-        if pods_matching <= 0 {
-            return Health::Healthy(Healthy::new(status_msg));
-        }
-
-        let pods_not_ready = status_entries
-            .get(NUM_PODS_NOT_READY)
-            .copied()
-            .unwrap_or_default();
-
-        let pods_injected = status_entries
-            .get(NUM_PODS_INJECTED)
-            .copied()
-            .unwrap_or_default();
-
-        let pods_unhealthy = status_entries
-            .get(NUM_PODS_UNHEALTHY)
-            .copied()
-            .unwrap_or_default();
-
-        let is_unhealthy =
-            pods_not_ready > 0 || pods_injected != pods_matching || pods_unhealthy > 0;
-
-        if is_unhealthy {
-            // Get last errors of the unhealthy pods, if any
-            // Should we log if the array length does not match the number reported by `podsUnhealthy`?
-            let last_errors = status
-                .get(UNHEALTHY_PODS_ERRORS)
-                .and_then(Value::as_array)
-                .map(|arr| Self::get_last_errors(arr))
-                .unwrap_or_default();
-
-            Health::Unhealthy(Unhealthy::new(status_msg, last_errors))
-        } else {
-            Health::Healthy(Healthy::new(status_msg))
-        }
-    }
-
-    /// Iterates over the status entries of an Instrumentation and returns a comma-separated string
-    /// with the status of the Instrumentation.
-    fn get_status_msg(status_entries: &HashMap<&str, i64>) -> String {
-        let status_msg = status_entries
-            .iter()
-            .map(|(status_entry, entry_val)| format!("{}:{}", status_entry, entry_val));
-        comma_separated_msg(status_msg)
-    }
-
-    /// Iterates over the `unhealthyPodsErrors` array in the status of an Instrumentation and
-    /// returns a comma-separated string with the last errors of the unhealthy pods, if any.
-    ///
-    /// This does not check if the length of the `unhealthyPodsErrors` array is the same as the
-    /// number reported in the `podsUnhealthy` field. We work under the assumption that
-    /// the information is consistent.
-    fn get_last_errors(unhealthy_pods_errors: &[Value]) -> String {
-        let last_errors = unhealthy_pods_errors.iter().map(|unhealthy| {
-            let pod_id = unhealthy
-                .get(POD_LABEL)
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            let last_error = unhealthy
-                .get(LAST_ERROR_LABEL)
-                .and_then(Value::as_str)
-                .unwrap_or_default();
-            format!("pod {}:{}", pod_id, last_error)
-        });
-
-        comma_separated_msg(last_errors)
-    }
-}
-
-/// Creates a comma-separated string from an iterator of strings
-fn comma_separated_msg(msg_arr: impl Iterator<Item = String>) -> String {
-    msg_arr.collect::<Vec<_>>().join(", ")
 }
 
 impl HealthChecker for K8sHealthNRInstrumentation {
@@ -164,7 +135,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self
             .k8s_client
-            .get_instrumentation(&self.name)
+            .get_dynamic_object(&helm_release_type_meta(), &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching Instrumentation '{}': {}",
@@ -196,8 +167,16 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             ));
         }
 
+        let status = instrumentation_data.get("status").cloned().ok_or_else(|| {
+            HealthCheckerError::Generic("Instrumentation status could not be retrieved".to_string())
+        })?;
+
+        let status: InstrumentationStatus = serde_json::from_value(status).map_err(|e| {
+            HealthCheckerError::Generic(format!("Error deserializing status: {}", e))
+        })?;
+
         Ok(HealthWithStartTime::new(
-            Self::get_healthiness(instrumentation_data),
+            status.get_health(),
             self.start_time,
         ))
     }
