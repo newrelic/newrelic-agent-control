@@ -62,7 +62,7 @@ duration: "1000000"
 log:
   level: debug
   file:
-    enable: true
+    enabled: true
 agents:
   test-agent:
     agent_type: newrelic/com.newrelic.test-agent:0.0.1

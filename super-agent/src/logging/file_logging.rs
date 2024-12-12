@@ -6,7 +6,7 @@ use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
-    pub(crate) enable: bool,
+    pub(crate) enabled: bool,
     // Default value is being set by `ConfigPatcher` right after deserialization.
     pub(crate) path: Option<LogFilePath>,
 }
@@ -16,7 +16,7 @@ impl FileLoggingConfig {
         self,
         default_dir: PathBuf,
     ) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingError> {
-        if !self.enable {
+        if !self.enabled {
             return Ok(None);
         }
 
