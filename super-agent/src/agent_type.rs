@@ -13,3 +13,4 @@ pub mod runtime_config;
 pub mod runtime_config_templates;
 pub mod trivial_value;
 pub mod variable;
+pub mod version_config;
