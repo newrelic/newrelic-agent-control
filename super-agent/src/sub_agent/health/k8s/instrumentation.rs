@@ -184,180 +184,188 @@ impl HealthChecker for K8sHealthNRInstrumentation {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::*;
-
-    use crate::sub_agent::health::k8s::instrumentation::comma_separated_msg;
-
-    #[test]
-    fn comma_separated() {
-        let msg_arr = vec!["a".to_string(), "b".to_string(), "c".to_string()];
-        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "a, b, c");
-    }
-
-    #[test]
-    fn comma_separated_one_item() {
-        let msg_arr = vec!["a".to_string()];
-        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "a");
-    }
-
-    #[test]
-    fn comma_separated_empty() {
-        let msg_arr = Vec::<String>::default();
-        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "");
-    }
-
-    #[test]
-    fn comma_separated_empty_string() {
-        let msg_arr = vec!["".to_string()];
-        assert_eq!(comma_separated_msg(msg_arr.into_iter()), "");
-    }
-
-    #[test]
-    fn comma_separated_empty_strings() {
-        let msg_arr = vec!["".to_string(), "".to_string(), "".to_string()];
-        assert_eq!(comma_separated_msg(msg_arr.into_iter()), ", , ");
-    }
 
     #[test]
     fn get_healthiness_basic() {
-        let status = Map::default();
+        let status = InstrumentationStatus::default();
 
-        assert!(matches!(
-            K8sHealthNRInstrumentation::get_healthiness(&status),
-            Health::Healthy(_)
-        ));
+        assert!(matches!(status.get_health(), Health::Healthy(_)));
     }
 
     #[test]
-    fn get_healthiness_basic_healthy() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 1,
-            "podsNotReady": 0,
-            "podsOutdated": 0,
-            "podsUnhealthy": 0,
-        });
+    fn json_failing_serde() {
+        let status_jsons = [
+            serde_json::json!({}),
+            serde_json::json!([]),
+            serde_json::json!(null),
+            serde_json::json!(1),
+            serde_json::json!(true),
+        ];
 
-        let status = status_json.as_object().unwrap();
-        assert!(matches!(
-            K8sHealthNRInstrumentation::get_healthiness(status),
-            Health::Healthy(_)
-        ));
+        for status_json in status_jsons.iter() {
+            let status: Result<InstrumentationStatus, _> =
+                serde_json::from_value(status_json.clone());
+            assert!(status.is_err());
+        }
     }
 
     #[test]
-    fn get_healthiness_status_msg() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 1,
-            "podsNotReady": 0,
-            "podsOutdated": 0,
-            "podsUnhealthy": 0,
-        });
+    fn json_serde() {
+        struct TestData {
+            case: &'static str,
+            json: Value,
+            expected: InstrumentationStatus,
+        }
 
-        let status = status_json.as_object().unwrap();
-        let health = K8sHealthNRInstrumentation::get_healthiness(status);
-        let status = health.status();
-        // Ordering might differ.
-        // TODO do we want to sort?
-        assert!(status.contains("podsMatching:1"));
-        assert!(status.contains("podsHealthy:1"));
-        assert!(status.contains("podsInjected:1"));
-        assert!(status.contains("podsNotReady:0"));
-        assert!(status.contains("podsOutdated:0"));
-        assert!(status.contains("podsUnhealthy:0"));
-    }
-
-    // not_ready > 0 --> Unhealthy
-    #[test]
-    fn get_healthiness_not_ready() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 1,
-            "podsNotReady": 1,
-            "podsOutdated": 0,
-            "podsUnhealthy": 0,
-        });
-
-        let status = status_json.as_object().unwrap();
-        assert!(matches!(
-            K8sHealthNRInstrumentation::get_healthiness(status),
-            Health::Unhealthy(_)
-        ));
-    }
-
-    // Matching != Injected --> Unhealthy
-    #[test]
-    fn get_healthiness_injected() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 0,
-            "podsNotReady": 0,
-            "podsOutdated": 0,
-            "podsUnhealthy": 0,
-        });
-
-        let status = status_json.as_object().unwrap();
-        assert!(matches!(
-            K8sHealthNRInstrumentation::get_healthiness(status),
-            Health::Unhealthy(_)
-        ));
-    }
-
-    // Unhealthy > 0 ---> Unhealthy with lastErrors
-    #[test]
-    fn get_healthiness_unhealthy() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 1,
-            "podsNotReady": 0,
-            "podsOutdated": 0,
-            "podsUnhealthy": 1,
-        });
-
-        let status = status_json.as_object().unwrap();
-        assert!(matches!(
-            K8sHealthNRInstrumentation::get_healthiness(status),
-            Health::Unhealthy(_)
-        ));
-    }
-
-    // Unhealthy > 0 ---> Unhealthy with lastErrors
-    #[test]
-    fn get_healthiness_unhealthy_with_errors() {
-        let status_json = serde_json::json!({
-            "podsMatching": 1,
-            "podsHealthy": 1,
-            "podsInjected": 1,
-            "podsNotReady": 0,
-            "podsOutdated": 0,
-            "podsUnhealthy": 1, // Note this number is different from the number of errors below!!
-            "unhealthyPodsErrors": [
-                {
-                    "pod": "pod1",
-                    "lastError": "error1"
+        let data_table = [
+            TestData {
+                case: "basic",
+                json: serde_json::json!({
+                    "podsMatching": 1,
+                    "podsHealthy": 1,
+                    "podsInjected": 1,
+                    "podsNotReady": 0,
+                    "podsOutdated": 0,
+                    "podsUnhealthy": 0,
+                }),
+                expected: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 1,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 0,
+                    unhealthy_pods_errors: vec![],
                 },
-                {
-                    "pod": "pod2",
-                    "lastError": "error2"
-                }
-            ]
-        });
+            },
+            TestData {
+                case: "with errors",
+                json: serde_json::json!({
+                    "podsMatching": 1,
+                    "podsHealthy": 1,
+                    "podsInjected": 1,
+                    "podsNotReady": 0,
+                    "podsOutdated": 0,
+                    "podsUnhealthy": 1,
+                    "unhealthyPodsErrors": [
+                        {
+                            "pod": "pod1",
+                            "lastError": "error1"
+                        },
+                        {
+                            "pod": "pod2",
+                            "lastError": "error2"
+                        }
+                    ]
+                }),
+                expected: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 1,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 1,
+                    unhealthy_pods_errors: vec![
+                        UnhealthyPodError {
+                            pod: "pod1".to_string(),
+                            last_error: "error1".to_string(),
+                        },
+                        UnhealthyPodError {
+                            pod: "pod2".to_string(),
+                            last_error: "error2".to_string(),
+                        },
+                    ],
+                },
+            },
+        ];
 
-        let status = status_json.as_object().unwrap();
-        let health = K8sHealthNRInstrumentation::get_healthiness(status);
-        let last_error = health.last_error().unwrap();
+        for data in data_table.iter() {
+            let status: InstrumentationStatus = serde_json::from_value(data.json.clone()).unwrap();
+            assert_eq!(status, data.expected, "failed case '{}'", data.case);
+        }
+    }
 
-        assert!(matches!(health, Health::Unhealthy(_)));
+    #[test]
+    fn status_health_checks() {
+        struct TestData {
+            case: &'static str,
+            status: InstrumentationStatus,
+            expected: Health,
+        }
+        let data_table = [
+            TestData {
+                case: "default case",
+                status: InstrumentationStatus::default(),
+                expected: Health::Healthy(Healthy::new(
+                    "podsMatching:0, podsHealthy:0, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
+                        .to_string(),
+                )),
+            },
+            TestData {
+                case: "healthy case",
+                status: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 1,
+                    pods_not_ready: 1,
+                    pods_outdated: 0,
+                    pods_unhealthy: 0,
+                    unhealthy_pods_errors: vec![],
+                },
+                expected: Health::Unhealthy(Unhealthy::new(
+                    "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:0, podsUnhealthy:0"
+                        .to_string(),
+                    "".to_string(),
+                )),
+            },
+            TestData {
+                case: "unhealthy case",
+                status: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 0,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 0,
+                    unhealthy_pods_errors: vec![],
+                },
+                expected: Health::Unhealthy(Unhealthy::new(
+                    "podsMatching:1, podsHealthy:1, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
+                        .to_string(),
+                    "".to_string(),
+                )),
+            },
+            TestData {
+                case: "unhealthy case with errors",
+                status: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 1,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 1,
+                    unhealthy_pods_errors: vec![UnhealthyPodError {
+                        pod: "pod1".to_string(),
+                        last_error: "error1".to_string(),
+                    }],
+                },
+                expected: Health::Unhealthy(Unhealthy::new(
+                    "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:1"
+                        .to_string(),
+                    "pod pod1:error1".to_string(),
+                )),},
+        ];
 
-        // Ordering might differ.
-        // TODO do we want to sort?
-        assert!(last_error.contains("pod pod1:error1"));
-        assert!(last_error.contains("pod pod2:error2"));
+        for data in data_table.iter() {
+            assert_eq!(
+                data.status.get_health(),
+                data.expected,
+                "failed case '{}'",
+                data.case
+            );
+        }
     }
 }
