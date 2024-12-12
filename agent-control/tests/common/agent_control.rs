@@ -37,7 +37,7 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
         // before the GC process it, the resources will never be collected.
         assert!(opamp_poll_interval > garbage_collector_interval);
 
-        let run_config = SuperAgentRunConfig {
+        let run_config = AgentControlRunConfig {
             opamp: agent_control_config.fleet_control,
             opamp_poll_interval,
             http_server: agent_control_config.server,

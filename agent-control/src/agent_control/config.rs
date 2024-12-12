@@ -397,7 +397,7 @@ pub(crate) mod tests {
         }
     }
 
-    const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
+    const EXAMPLE_AGENTCONTROL_CONFIG: &str = r#"
 fleet_control:
   enabled: true
   endpoint: http://localhost:8080/some/path
@@ -419,7 +419,7 @@ proxy:
   url: http://localhost:8080
 "#;
 
-    const EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS: &str = r#"
+    const EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS: &str = r#"
 fleet_control:
   enabled: false
   endpoint: http://localhost:8080/some/path
@@ -427,7 +427,7 @@ fleet_control:
     some-key: some-value
 "#;
 
-    const EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS: &str = r#"
+    const EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS: &str = r#"
 fleet_control:
   enabled: true
   endpoint: http://localhost:8080/some/path
@@ -492,7 +492,7 @@ host_id: 123
 agents: {}
 "#;
 
-    const SUPERAGENT_FLEET_ID: &str = r#"
+    const AGENTCONTROL_FLEET_ID: &str = r#"
 fleet_control:
   enabled: true
   fleet_id: 123
