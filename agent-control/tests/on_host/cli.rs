@@ -172,7 +172,8 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
         AGENT_CONTROL_CONFIG_FILE,
         format!(
             r#"
-opamp:
+fleet_control:
+  enabled: true
   endpoint: "{}"
 log:
   level: info

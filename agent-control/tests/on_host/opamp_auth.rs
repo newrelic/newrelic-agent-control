@@ -38,7 +38,8 @@ fn test_auth_local_provider_as_root() {
         AGENT_CONTROL_CONFIG_FILE,
         format!(
             r#"
-opamp:
+fleet_control:
+  enabled: true
   endpoint: "{}"
   auth_config:
     token_url: "{}"
@@ -97,7 +98,8 @@ fn test_empty_auth_config_as_root() {
         AGENT_CONTROL_CONFIG_FILE,
         format!(
             r#"
-opamp:
+fleet_control:
+  enabled: true
   endpoint: "{}"
   headers:
     api-key: "fakeKey"
@@ -147,7 +149,8 @@ fn test_unauthorized_token_retrieve_as_root() {
         AGENT_CONTROL_CONFIG_FILE,
         format!(
             r#"
-opamp:
+fleet_control:
+  enabled: true
   endpoint: "https://localhost"
   auth_config:
     token_url: "{}"

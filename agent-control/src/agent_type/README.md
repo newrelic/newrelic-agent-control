@@ -385,7 +385,7 @@ deployment:
 
 3. Use the new type in the `agents` config for the agent control:
 ```yaml
-#opamp:
+# fleet_control:
 # ...
 
 agents:
