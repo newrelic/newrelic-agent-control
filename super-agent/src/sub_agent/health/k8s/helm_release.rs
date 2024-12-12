@@ -4,6 +4,7 @@ use crate::sub_agent::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::DynamicObject;
 use std::sync::Arc;
@@ -138,7 +139,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_helm_release(&self.name)
+            .get_dynamic_object(&helm_release_type_meta(), &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -210,8 +211,8 @@ pub mod tests {
                 "Helm release unhealthy when the helm-release object should change",
                 Ok(Unhealthy::new(String::default(),"HelmRelease 'example-release' does not match the latest agent configuration".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
-                    mock.expect_get_helm_release()
-                        .returning(|_| Ok(Some(Arc::new(dynamic_object()))));
+                    mock.expect_get_dynamic_object()
+                        .returning(|_,_| Ok(Some(Arc::new(dynamic_object()))));
                     mock.expect_has_dynamic_object_changed().times(1).returning(|_| Ok(true));
                 },
             ),
@@ -278,8 +279,8 @@ pub mod tests {
                     "Error fetching HelmRelease 'example-release': while getting dynamic resource: Error".to_string(),
                 )),
                 |mock: &mut MockSyncK8sClient| {
-                    mock.expect_get_helm_release()
-                        .returning(|_| Err(Error::GetDynamic("Error".to_string())));
+                    mock.expect_get_dynamic_object()
+                        .returning(|_,_| Err(Error::GetDynamic("Error".to_string())));
                 },
             ),
         ];
@@ -324,10 +325,10 @@ pub mod tests {
         mock: &mut MockSyncK8sClient,
         status_conditions: serde_json::Value,
     ) {
-        mock.expect_get_helm_release()
-            .withf(|name| name == "example-release")
+        mock.expect_get_dynamic_object()
+            .withf(|_, name| name == "example-release")
             .times(1)
-            .returning(move |_| {
+            .returning(move |_, _| {
                 Ok(Some(Arc::new(DynamicObject {
                     types: Some(helm_release_type_meta()),
                     metadata: ObjectMeta::default(),
