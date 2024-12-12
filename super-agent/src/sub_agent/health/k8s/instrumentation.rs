@@ -4,7 +4,7 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::super_agent::config::helm_release_type_meta;
+use crate::super_agent::config::instrumentation_type_meta;
 use kube::api::DynamicObject;
 use serde::Deserialize;
 use std::fmt::Display;
@@ -135,7 +135,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self
             .k8s_client
-            .get_dynamic_object(&helm_release_type_meta(), &self.name)
+            .get_dynamic_object(&instrumentation_type_meta(), &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching Instrumentation '{}': {}",
