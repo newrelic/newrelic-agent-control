@@ -7,9 +7,12 @@ use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
 use crate::sub_agent::health::k8s::instrumentation::K8sHealthNRInstrumentation;
 use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::super_agent::config::helm_release_type_meta;
 use kube::api::DynamicObject;
+use resource_type::ResourceType;
 use std::sync::Arc;
+use tracing::trace;
+
+mod resource_type;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
@@ -56,9 +59,12 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
             let type_meta = resource.types.clone().ok_or(HealthCheckerError::Generic(
                 "not able to build flux health checker: type not found".to_string(),
             ))?;
-            if type_meta != helm_release_type_meta() {
+
+            let Ok(resource_type) = (&type_meta).try_into() else {
+                trace!("Unsupported resource type: {:?}. skipping.", type_meta);
                 continue;
-            }
+            };
+
             let name = resource
                 .metadata
                 .clone()
@@ -67,37 +73,44 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                     "not able to build flux health checker: name not found".to_string(),
                 ))?;
 
-            health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
-                k8s_client.clone(),
-                name.clone(),
-                resource.clone(),
-                start_time,
-            )));
+            match resource_type {
+                ResourceType::HelmRelease => {
+                    health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+                        k8s_client.clone(),
+                        name.clone(),
+                        resource.clone(),
+                        start_time,
+                    )));
 
-            health_checkers.push(K8sHealthChecker::NewRelic(K8sHealthNRInstrumentation::new(
-                k8s_client.clone(),
-                name.clone(),
-                resource.clone(),
-                start_time,
-            )));
+                    health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
+                        k8s_client.clone(),
+                        name.clone(),
+                        start_time,
+                    )));
 
-            health_checkers.push(K8sHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
-                k8s_client.clone(),
-                name.clone(),
-                start_time,
-            )));
+                    health_checkers.push(K8sHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
+                        k8s_client.clone(),
+                        name.clone(),
+                        start_time,
+                    )));
 
-            health_checkers.push(K8sHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
-                k8s_client.clone(),
-                name.clone(),
-                start_time,
-            )));
-
-            health_checkers.push(K8sHealthChecker::Deployment(K8sHealthDeployment::new(
-                k8s_client.clone(),
-                name,
-                start_time,
-            )));
+                    health_checkers.push(K8sHealthChecker::Deployment(K8sHealthDeployment::new(
+                        k8s_client.clone(),
+                        name,
+                        start_time,
+                    )));
+                }
+                ResourceType::InstrumentationCRD => {
+                    health_checkers.push(K8sHealthChecker::NewRelic(
+                        K8sHealthNRInstrumentation::new(
+                            k8s_client.clone(),
+                            name.clone(),
+                            resource.clone(),
+                            start_time,
+                        ),
+                    ));
+                }
+            }
         }
         Ok(Self {
             health_checkers,
