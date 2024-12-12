@@ -10,7 +10,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use std::sync::Arc;
 
-/// Represents the status of an Instrumentation CRD in Kubernetes.
+/// Represents the status of an Instrumentation CRD in K8s, as of apiVersion: newrelic.com/v1alpha2.
 ///
 /// To be deserialized correctly, the JSON should have the following fields:
 /// - `podsMatching` (int): The number of pods that match the Instrumentation.
