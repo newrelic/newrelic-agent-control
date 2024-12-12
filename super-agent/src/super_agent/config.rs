@@ -677,7 +677,7 @@ agents: {}
         assert!(config.is_err());
         assert_eq!(
             config.unwrap_err().to_string(),
-            "log.file: missing field `enable` at line 4 column 5"
+            "log.file: missing field `enabled` at line 4 column 5"
         );
     }
 
