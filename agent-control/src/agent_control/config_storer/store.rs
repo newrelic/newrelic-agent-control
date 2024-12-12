@@ -183,6 +183,7 @@ fleet_control:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -230,6 +231,7 @@ fleet_control:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -279,6 +281,7 @@ agents:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
+                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),

@@ -495,6 +495,7 @@ agents: {}
     const AGENTCONTROL_FLEET_ID: &str = r#"
 fleet_control:
   enabled: true
+  endpoint: http://localhost:8080/some/path
   fleet_id: 123
 agents: {}
 "#;
