@@ -299,7 +299,7 @@ Compile and run locally:
 
 ```yaml
 fleet_control:
-  enable: true
+  enabled: true
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY
