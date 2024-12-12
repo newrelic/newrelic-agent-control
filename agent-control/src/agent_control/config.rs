@@ -169,16 +169,12 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub host_id: String,
 
-    /// Unique identifier for the fleet in which the agent control will join upon initialization.
-    #[serde(default)]
-    pub fleet_id: String,
-
     /// this is the only part of the config that can be changed with opamp.
     #[serde(flatten)]
     pub dynamic: AgentControlDynamicConfig,
 
     /// opamp contains the OpAMP client configuration
-    pub opamp: Option<OpAMPClientConfig>,
+    pub fleet_control: Option<OpAMPClientConfig>,
 
     // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
     // the struct definition and usage. Making it optional should work no matter what features are enabled.
@@ -256,10 +252,13 @@ pub struct SubAgentConfig {
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct OpAMPClientConfig {
+    pub enable: bool,
     pub endpoint: Url,
     #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
     pub auth_config: Option<AuthConfig>,
+    /// Unique identifier for the fleet in which the super agent will join upon initialization.
+    pub fleet_id: String,
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
@@ -270,10 +269,13 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateOpAMPClientConfig {
-            pub endpoint: Url,
+            enable: bool,
+            #[serde(default)]
+            fleet_id: String,
+            endpoint: Url,
             #[serde(default, with = "http_serde::header_map")]
-            pub headers: HeaderMap,
-            pub auth_config: Option<AuthConfig>,
+            headers: HeaderMap,
+            auth_config: Option<AuthConfig>,
         }
 
         let mut intermediate_spec = IntermediateOpAMPClientConfig::deserialize(deserializer)?;
@@ -292,6 +294,8 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             .collect::<HeaderMap>();
 
         Ok(OpAMPClientConfig {
+            enable: intermediate_spec.enable,
+            fleet_id: intermediate_spec.fleet_id,
             endpoint: intermediate_spec.endpoint,
             headers: censored_headers,
             auth_config: intermediate_spec.auth_config,
@@ -384,6 +388,8 @@ pub(crate) mod tests {
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
             OpAMPClientConfig {
+                enable: false,
+                fleet_id: String::default(),
                 endpoint: "http://localhost".try_into().unwrap(),
                 headers: HeaderMap::default(),
                 auth_config: None,
@@ -391,8 +397,9 @@ pub(crate) mod tests {
         }
     }
 
-    const EXAMPLE_AGENTCONTROL_CONFIG: &str = r#"
-opamp:
+    const EXAMPLE_SUPERAGENT_CONFIG: &str = r#"
+fleet_control:
+  enable: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -412,15 +419,17 @@ proxy:
   url: http://localhost:8080
 "#;
 
-    const EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS: &str = r#"
-opamp:
+    const EXAMPLE_SUPERAGENT_CONFIG_NO_AGENTS: &str = r#"
+fleet_control:
+  enable: false
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
 "#;
 
-    const EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS: &str = r#"
-opamp:
+    const EXAMPLE_SUPERAGENT_CONFIG_EMPTY_AGENTS: &str = r#"
+fleet_control:
+  enable: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -483,8 +492,10 @@ host_id: 123
 agents: {}
 "#;
 
-    const AGENTCONTROL_FLEET_ID: &str = r#"
-fleet_id: 123
+    const SUPERAGENT_FLEET_ID: &str = r#"
+fleet_control:
+  enable: true
+  fleet_id: 123
 agents: {}
 "#;
 
@@ -715,8 +726,8 @@ agents: {}
 
     #[test]
     fn fleet_id_config() {
-        let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
-        assert_eq!(config.fleet_id, "123");
+        let config = serde_yaml::from_str::<SuperAgentConfig>(SUPERAGENT_FLEET_ID).unwrap();
+        assert_eq!(config.fleet_control.unwrap().fleet_id, "123");
     }
 
     #[cfg(feature = "k8s")]
