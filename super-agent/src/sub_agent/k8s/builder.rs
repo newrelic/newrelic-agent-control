@@ -259,7 +259,7 @@ pub mod tests {
     fn k8s_agent_build_success() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
 
@@ -298,7 +298,7 @@ pub mod tests {
     fn k8s_agent_error_building_opamp() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
 
@@ -339,7 +339,7 @@ pub mod tests {
     fn supervisor_build_ok() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
 
@@ -368,7 +368,7 @@ pub mod tests {
     fn supervisor_build_fails_for_invalid_k8s_object_kind() {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
 

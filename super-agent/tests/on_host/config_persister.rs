@@ -57,7 +57,7 @@ fn test_configuration_persister_single_file() {
 
 const AGENT_TYPE_SINGLE_FILE: &str = r#"
 namespace: newrelic
-name: com.newrelic.infrastructure_agent
+name: com.newrelic.infrastructure
 version: 0.0.1
 variables:
   on_host:

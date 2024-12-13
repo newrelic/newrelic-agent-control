@@ -245,7 +245,7 @@ mod tests {
         > = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
 
@@ -331,7 +331,7 @@ mod tests {
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:0.0.2")
+            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
                 .unwrap(),
         };
         let sub_agent_instance_id = InstanceID::create();

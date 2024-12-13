@@ -198,7 +198,7 @@ mod tests {
         pub const DISORDERED_AGENT_TYPES: &str = r#"
 configs:
   -
-    agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.0.2
+    agent_type_fqn: newrelic/com.newrelic.infrastructure:0.0.2
     files_map:
       config_agent: /etc/newrelic-infra.yml
     dirs_map:
@@ -216,7 +216,7 @@ configs:
       config_another: /etc/another.yml
     dirs_map:
   -
-    agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:1.0.1
+    agent_type_fqn: newrelic/com.newrelic.infrastructure:1.0.1
     files_map:
       config_agent: /etc/newrelic-infra.yml
     dirs_map:
@@ -236,7 +236,7 @@ configs:
       config_another: /etc/another.yml
     dirs_map:
   -
-    agent_type_fqn: newrelic/com.newrelic.infrastructure_agent:0.1.2
+    agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.2
     files_map:
       config_agent: /etc/newrelic-infra.yml
     dirs_map:
@@ -263,13 +263,13 @@ configs:
                 .unwrap(),
             "newrelic/com.newrelic.another:0.0.1".try_into().unwrap(),
             "newrelic/com.newrelic.another:1.0.0".try_into().unwrap(),
-            "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+            "newrelic/com.newrelic.infrastructure:0.0.2"
                 .try_into()
                 .unwrap(),
-            "newrelic/com.newrelic.infrastructure_agent:0.1.2"
+            "newrelic/com.newrelic.infrastructure:0.1.2"
                 .try_into()
                 .unwrap(),
-            "newrelic/com.newrelic.infrastructure_agent:1.0.1"
+            "newrelic/com.newrelic.infrastructure:1.0.1"
                 .try_into()
                 .unwrap(),
         ];
@@ -278,12 +278,12 @@ configs:
             Some("newrelic/com.newrelic.another:1.0.0".try_into().unwrap()),
             None,
             Some(
-                "newrelic/com.newrelic.infrastructure_agent:0.1.2"
+                "newrelic/com.newrelic.infrastructure:0.1.2"
                     .try_into()
                     .unwrap(),
             ),
             Some(
-                "newrelic/com.newrelic.infrastructure_agent:1.0.1"
+                "newrelic/com.newrelic.infrastructure:1.0.1"
                     .try_into()
                     .unwrap(),
             ),

@@ -44,10 +44,6 @@ local/
 
 # temp folder to store building temporary files
 /build-tmp
-# ignore all examples in this folder...
-/build/examples/**
-# ...except for the gitkeep file
-!/build/examples/.gitkeep
 
 **k8s_tmp
 

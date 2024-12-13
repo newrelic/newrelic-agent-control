@@ -109,21 +109,20 @@ pub(crate) mod tests {
             TestCase {
                 name: "get only two matching between versions",
                 agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                    "newrelic/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
                 next: Some(
-                    AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure_agent:1.0.0")
-                        .unwrap(),
+                    AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
                 ),
                 agents_cfg: r#"
 agents:
   infra-agent-a:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.3"
   infra-agent-c:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:1.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 "#,
@@ -133,7 +132,7 @@ agents:
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeFQN::try_from(
-                                    "newrelic/com.newrelic.infrastructure_agent:0.0.2",
+                                    "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
                             },
@@ -142,7 +141,7 @@ agents:
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeFQN::try_from(
-                                    "newrelic/com.newrelic.infrastructure_agent:0.0.3",
+                                    "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
                             },
@@ -153,18 +152,18 @@ agents:
             TestCase {
                 name: "get all three matching since version",
                 agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                    "newrelic/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
   infra-agent-a:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.3"
   infra-agent-c:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:1.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 "#,
@@ -174,7 +173,7 @@ agents:
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeFQN::try_from(
-                                    "newrelic/com.newrelic.infrastructure_agent:0.0.2",
+                                    "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
                             },
@@ -183,7 +182,7 @@ agents:
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeFQN::try_from(
-                                    "newrelic/com.newrelic.infrastructure_agent:0.0.3",
+                                    "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
                             },
@@ -192,7 +191,7 @@ agents:
                             AgentID::new("infra-agent-c").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeFQN::try_from(
-                                    "newrelic/com.newrelic.infrastructure_agent:1.0.3",
+                                    "newrelic/com.newrelic.infrastructure:1.0.3",
                                 )
                                 .unwrap(),
                             },
@@ -233,16 +232,16 @@ agents:
             TestCase {
                 name: "error no agents higher or equal to version",
                 agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure_agent:0.1.0",
+                    "newrelic/com.newrelic.infrastructure:0.1.0",
                 )
                 .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
   infra-agent-a:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 "#,
@@ -250,18 +249,18 @@ agents:
             TestCase {
                 name: "error no agents of namespace",
                 agent_type_fqn: AgentTypeFQN::try_from(
-                    "francisco-partners/com.newrelic.infrastructure_agent:0.0.1",
+                    "francisco-partners/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
   infra-agent-a:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.3"
   infra-agent-c:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:1.0.3"
+    agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
 "#,

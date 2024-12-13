@@ -627,7 +627,7 @@ mod tests {
                 r#"
 agents:
   infra-agent:
-    agent_type: "newrelic/com.newrelic.infrastructure_agent:0.0.1"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.1"
 "#
                 .to_string(),
             )]))),
@@ -859,7 +859,7 @@ agents:
                 r#"
 agents:
   infra-agent:
-    agent_type: newrelic/com.newrelic.infrastructure_agent:0.0.1
+    agent_type: newrelic/com.newrelic.infrastructure:0.0.1
 "#
                 .to_string(),
             )]))),
@@ -1223,7 +1223,7 @@ agents:
                 AgentID::new("infra-agent").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
-                        "newrelic/com.newrelic.infrastructure_agent:0.0.1",
+                        "newrelic/com.newrelic.infrastructure:0.0.1",
                     )
                     .unwrap(),
                 },

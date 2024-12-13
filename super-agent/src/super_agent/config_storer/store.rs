@@ -161,7 +161,7 @@ opamp:
         let remote_config = r#"
         agents:
           rolldice:
-            agent_type: "namespace/com.newrelic.infrastructure_agent:0.0.2"
+            agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
         "#;
         std::fs::write(remote_file.as_path(), remote_config).unwrap();
 
@@ -174,7 +174,7 @@ opamp:
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
-                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                        "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),
                 },
@@ -209,10 +209,7 @@ opamp:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_SA_AGENTS__ROLLDICE1__AGENT_TYPE";
-        env::set_var(
-            env_var_name,
-            "namespace/com.newrelic.infrastructure_agent:0.0.2",
-        );
+        env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = SuperAgentConfigStore::new(Arc::new(vr));
@@ -223,7 +220,7 @@ opamp:
                 AgentID::new("rolldice1").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
-                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                        "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),
                 },
@@ -260,10 +257,7 @@ agents:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_SA_AGENTS__ROLLDICE2__AGENT_TYPE";
-        env::set_var(
-            env_var_name,
-            "namespace/com.newrelic.infrastructure_agent:0.0.2",
-        );
+        env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = SuperAgentConfigStore::new(Arc::new(vr));
@@ -274,7 +268,7 @@ agents:
                 AgentID::new("rolldice2").unwrap(),
                 SubAgentConfig {
                     agent_type: AgentTypeFQN::try_from(
-                        "namespace/com.newrelic.infrastructure_agent:0.0.2",
+                        "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),
                 },

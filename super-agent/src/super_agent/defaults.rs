@@ -66,7 +66,7 @@ pub fn default_capabilities() -> Capabilities {
     )
 }
 
-pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure_agent";
+pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
 pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
 
 pub fn sub_agent_version(agent_type: &str) -> Option<DescriptionValueType> {
