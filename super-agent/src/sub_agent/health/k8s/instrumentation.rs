@@ -68,7 +68,6 @@ impl InstrumentationStatus {
         if self.pods_matching <= 0 || self.is_healthy() {
             Health::Healthy(Healthy::new(self.to_string()))
         } else {
-            // Should we log if the array length does not match the number reported by `podsUnhealthy`?
             Health::Unhealthy(Unhealthy::new(self.to_string(), self.last_error()))
         }
     }
@@ -138,7 +137,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             .get_dynamic_object(&instrumentation_type_meta(), &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
-                    "Error fetching Instrumentation '{}': {}",
+                    "instrumentation CR could not be fetched'{}': {}",
                     &self.name, e
                 ))
             })?
@@ -147,7 +146,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             })?;
 
         let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
-            HealthCheckerError::Generic("Instrumentation data is not an object".to_string())
+            HealthCheckerError::Generic("instrumentation CR data is not an object".to_string())
         })?;
 
         // Check if the instrumentation is properly updated: it should reflect the agent's configuration
@@ -159,7 +158,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
                 Unhealthy::new(
                     String::default(),
                     format!(
-                        "Instrumentation '{}' does not match the latest agent configuration",
+                        "instrumentation CR '{}' does not match the latest agent configuration",
                         &self.name,
                     ),
                 ),
@@ -168,11 +167,11 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         }
 
         let status = instrumentation_data.get("status").cloned().ok_or_else(|| {
-            HealthCheckerError::Generic("Instrumentation status could not be retrieved".to_string())
+            HealthCheckerError::Generic("instrumentation status could not be retrieved".to_string())
         })?;
 
         let status: InstrumentationStatus = serde_json::from_value(status).map_err(|e| {
-            HealthCheckerError::Generic(format!("Error deserializing status: {}", e))
+            HealthCheckerError::Generic(format!("could not deserialize a valid instrumentation status: {}", e))
         })?;
 
         Ok(HealthWithStartTime::new(
