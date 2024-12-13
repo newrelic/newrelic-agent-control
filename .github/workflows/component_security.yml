@@ -46,7 +46,7 @@ jobs:
         with:
           payload: |
             {
-              "text": ":rotating_light: Hi CAOS (@hero), critical or high vulnerabilities found in the super agent, see scheduled security action. :rotating_light:"
+              "text": ":rotating_light: Hi CAOS (@hero), critical or high vulnerabilities found in the agent control, see scheduled security action. :rotating_light:"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}

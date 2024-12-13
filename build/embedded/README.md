@@ -1,7 +1,7 @@
 ## Summary
 
 
-For limited preview, the Super Agent will be shipped with the necessary dependencies including:
+For limited preview, the Agent Control will be shipped with the necessary dependencies including:
 
 * newrelic-infra
 * nr-otel-collector

@@ -1,6 +1,6 @@
 name: 📞 Build container images
 
-# This workflow compiles the super agent binary in all supported architectures
+# This workflow compiles the agent control binary in all supported architectures
 # build the multi-arch image and push it to the repo packages registry.  
 
 on:
@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Build/Push images
     env:
-      DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
+      DOCKER_IMAGE_NAME: newrelic/newrelic-agent-control
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
       - uses: actions/checkout@v4
@@ -48,12 +48,12 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
-      - name: Build Super Agent for K8s
+      - name: Build Agent Control for K8s
         env:
-          SUPER_AGENT_VERSION: ${{ inputs.image-tag }}
+          AGENT_CONTROL_VERSION: ${{ inputs.image-tag }}
         run: |
-          make build-super-agent BUILD_FEATURE=k8s ARCH=arm64
-          make build-super-agent BUILD_FEATURE=k8s ARCH=amd64
+          make build-agent-control BUILD_FEATURE=k8s ARCH=arm64
+          make build-agent-control BUILD_FEATURE=k8s ARCH=amd64
 
       - uses: docker/setup-qemu-action@v3
 

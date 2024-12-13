@@ -20,38 +20,38 @@
           NEW_RELIC_REGION: "STAGING"
           NEW_RELIC_DOWNLOAD_URL: "https://nr-downloads-ohai-staging.s3.amazonaws.com/"
 
-    - name: Install super-agent through guided install (which will run migration)
-      include_tasks: ./tasks/super_agent_guided_installation.yaml
+    - name: Install agent-control through guided install (which will run migration)
+      include_tasks: ./tasks/agent_control_guided_installation.yaml
 
     - name: Check infra-agent values file exists
       stat:
-        path: "/etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
+        path: "/etc/newrelic-agent-control/fleet/agents.d/nr-infra-agent/values/values.yaml"
       register: infra_agent_values
       failed_when: not infra_agent_values.stat.exists
 
     - name: Assert nr-infra-agent auto-generated file is the same as migrated
       include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
       vars:
-        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/newrelic-infra.yml"
+        generated_file_path: "/var/lib/newrelic-agent-control/auto-generated/nr-infra-agent/newrelic-infra.yml"
         migrated_file_path: "/etc/newrelic-infra.yml.bck"
 
     - name: Assert nr-infra-agent auto-generated file is the same as migrated
       include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
       vars:
-        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/integrations.d/docker-config.yml"
+        generated_file_path: "/var/lib/newrelic-agent-control/auto-generated/nr-infra-agent/integrations.d/docker-config.yml"
         migrated_file_path: "/etc/newrelic-infra/integrations.d.bck/docker-config.yml"
 
     - name: Assert nr-infra-agent auto-generated file is the same as migrated
       include_tasks: ./tasks/assert_generated_file_same_as_migrated.yaml
       vars:
-        generated_file_path: "/var/lib/newrelic-super-agent/auto-generated/nr-infra-agent/logging.d/logging.yml"
+        generated_file_path: "/var/lib/newrelic-agent-control/auto-generated/nr-infra-agent/logging.d/logging.yml"
         migrated_file_path: "/etc/newrelic-infra/logging.d.bck/logging.yml"
 
-    - name: Assert Super Agent and Agents are running
+    - name: Assert Agent Control and Agents are running
       include_role:
         name: caos.ansible_roles.assert_process_running
       vars:
         processes_running:
-          - "^/usr/bin/newrelic-super-agent"
+          - "^/usr/bin/newrelic-agent-control"
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"

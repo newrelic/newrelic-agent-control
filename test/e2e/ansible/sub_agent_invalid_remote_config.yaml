@@ -7,7 +7,7 @@
 
   tasks:
 
-    - name: Fresh Super Agent installation with InfraAgent and NRDOT and Host monitoring NR
+    - name: Fresh Agent Control installation with InfraAgent and NRDOT and Host monitoring NR
       include_tasks: ./tasks/fresh_sa_install_host_monitor_nr_{{ ansible_system }}.yaml
 
     # Create Fleet
@@ -86,8 +86,8 @@
       assert:
         that: not result.stat.exists
 
-    - name: get latest logs from the Super Agent
-      shell: journalctl -u newrelic-super-agent --since "1min ago" | grep "error processing remote config"
+    - name: get latest logs from the Agent Control
+      shell: journalctl -u newrelic-agent-control --since "1min ago" | grep "error processing remote config"
       register: journalctl_log
 
     - name: assert the incorrect config was logged

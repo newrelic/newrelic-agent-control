@@ -6,7 +6,7 @@ Run packaging tests:
 # Default values
 make test/packaging \
   NR_LICENSE_KEY=**************** \
-  NR_SUPER_AGENT_VERSION=0.0.4 \
+  NR_AGENT_CONTROL_VERSION=0.0.4 \
   NR_OTEL_COLLECTOR_MEMORY_LIMIT=100 \
   NR_OTEL_COLLECTOR_OTLP_ENDPOINT=staging-otlp.nr-data.net:4317
 
@@ -14,7 +14,7 @@ make test/packaging \
 make test/packaging \
   LIMIT=testing_hosts_linux \
   NR_LICENSE_KEY=**************** \
-  NR_SUPER_AGENT_VERSION=0.0.4 \
+  NR_AGENT_CONTROL_VERSION=0.0.4 \
   NR_OTEL_COLLECTOR_MEMORY_LIMIT=100 \
   NR_OTEL_COLLECTOR_OTLP_ENDPOINT=staging-otlp.nr-data.net:4317
 ```
@@ -22,7 +22,7 @@ make test/packaging \
 ## Required parameters
 
 * `NR_LICENSE_KEY`: New Relic license key.
-* `NR_SUPER_AGENT_VERSION`: The Super Agent version to be installed.
+* `NR_AGENT_CONTROL_VERSION`: The Agent Control version to be installed.
 * `NR_OTEL_COLLECTOR_MEMORY_LIMIT`: Memory limit for the NR Otel Collector.
 * `NR_OTEL_COLLECTOR_OTLP_ENDPOINT`: OTLP Endpoint for the NR Otel Collector.
 

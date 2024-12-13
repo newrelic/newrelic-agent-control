@@ -1,0 +1,20 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+
+agent-control-deployment:
+  config:
+    agentControl:
+      content:
+        log:
+          level: trace
+    subAgents:
+      open-telemetry:
+        type: newrelic/io.opentelemetry.collector:0.2.0
+        content:
+          # Testing the latest released version of the chart
+          chart_version: "*"
+          chart_values:
+            nr-k8s-otel-collector:  
+              verboseLog: true
+
+    opamp:
+      enabled: false

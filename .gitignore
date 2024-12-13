@@ -29,7 +29,7 @@ test/**/collections
 test/**/roles
 
 # kubernetes integration test.
-super-agent/tests/k8s/.kubeconfig-dev
+agent-control/tests/k8s/.kubeconfig-dev
 
 # local build
 .cargo

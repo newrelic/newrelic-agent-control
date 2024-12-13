@@ -13,11 +13,11 @@ if [ -e "$oldPid" ]; then
 fi
 
 ######################################################################################
-# Newrelic Super Agent
+# Newrelic Agent Control
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
-    systemctl enable newrelic-super-agent.service
-    if [ -f /etc/newrelic-super-agent/config.yaml ]; then
-        systemctl start newrelic-super-agent.service
+    systemctl enable newrelic-agent-control.service
+    if [ -f /etc/newrelic-agent-control/config.yaml ]; then
+        systemctl start newrelic-agent-control.service
     fi
 fi

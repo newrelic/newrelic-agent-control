@@ -1,11 +1,11 @@
-# Docker file use for the released version of the Super Agent.
+# Docker file use for the released version of the Agent Control.
 
-# Using debian image until the super agent is statically compiled, and move to Alpine.
+# Using debian image until the agent control is statically compiled, and move to Alpine.
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
 
-COPY --chmod=755 bin/newrelic-super-agent-${TARGETARCH} /bin/newrelic-super-agent
+COPY --chmod=755 bin/newrelic-agent-control-${TARGETARCH} /bin/newrelic-agent-control
 
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
@@ -13,4 +13,4 @@ RUN apt-get update && \
 
 USER nobody
 
-ENTRYPOINT ["/bin/newrelic-super-agent"]
+ENTRYPOINT ["/bin/newrelic-agent-control"]

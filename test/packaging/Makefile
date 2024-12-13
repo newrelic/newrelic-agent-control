@@ -35,8 +35,8 @@ ifndef NR_OTEL_COLLECTOR_OTLP_ENDPOINT
 	@echo "NR_OTEL_COLLECTOR_OTLP_ENDPOINT variable must be provided for test/packaging"
 	exit 1
 endif
-ifndef NR_SUPER_AGENT_VERSION
-	@echo "NR_SUPER_AGENT_VERSION variable must be provided for test/packaging"
+ifndef NR_AGENT_CONTROL_VERSION
+	@echo "NR_AGENT_CONTROL_VERSION variable must be provided for test/packaging"
 	exit 1
 endif
 
@@ -47,7 +47,7 @@ endif
  		-e nr_license_key=$(NR_LICENSE_KEY) \
  		-e nr_api_key=$(NEW_RELIC_API_KEY) \
  		-e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
- 		-e nr_super_agent_version=$(NR_SUPER_AGENT_VERSION) \
+ 		-e nr_agent_control_version=$(NR_AGENT_CONTROL_VERSION) \
  		-e nr_otel_collector_license_key=$(NR_LICENSE_KEY) \
  		-e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \
  		-e nr_otel_collector_memory_limit=$(NR_OTEL_COLLECTOR_MEMORY_LIMIT) \

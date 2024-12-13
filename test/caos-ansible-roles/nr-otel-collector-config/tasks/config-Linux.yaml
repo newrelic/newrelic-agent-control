@@ -7,13 +7,13 @@
 
 - name: Copy NR Otel Collector example values config
   file:
-    src: "{{ super_agent_examples_path }}/{{ nr_otel_collector_example_conf }}"
+    src: "{{ agent_control_examples_path }}/{{ nr_otel_collector_example_conf }}"
     path: "{{ nr_otel_collector_values_file }}"
     state: hard
 
-- name: Ensure the necessary env variables are present in the Super Agent Systemd config file
+- name: Ensure the necessary env variables are present in the Agent Control Systemd config file
   ansible.builtin.lineinfile:
-    path: "{{ super_agent_service_config_path }}"
+    path: "{{ agent_control_service_config_path }}"
     regexp: '^{{ item.name }}='
     line: "{{ item.name }}={{ item.val }}"
   loop: "{{ nr_otel_collector_config_vars }}"

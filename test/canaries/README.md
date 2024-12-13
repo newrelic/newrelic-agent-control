@@ -1,6 +1,6 @@
-# Newrelic Super Agent canaries
+# Newrelic Agent Control canaries
 This directory contains an Ansible playbook and its dependencies to deploy
-Newrelic Super Agent collector containers into a host.
+Newrelic Agent Control collector containers into a host.
 
 ## Usage
 

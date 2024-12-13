@@ -8,7 +8,7 @@ on:
         required: true
 
 env:
-  DOCKER_IMAGE: newrelic/newrelic-super-agent
+  DOCKER_IMAGE: newrelic/newrelic-agent-control
   SEVERITY: 'CRITICAL,HIGH'
 
 jobs:
@@ -59,7 +59,7 @@ jobs:
         with:
           payload: |
             {
-              "text": ":rotating_light: Critical or high vulnerabilities found in the super agent, see scheduled security action. :rotating_light:"
+              "text": ":rotating_light: Critical or high vulnerabilities found in the agent control, see scheduled security action. :rotating_light:"
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.COREINT_SLACK_WEBHOOK_URL }}

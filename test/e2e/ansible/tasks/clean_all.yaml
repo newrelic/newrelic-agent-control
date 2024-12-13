@@ -4,14 +4,14 @@
     name: caos.ansible_roles.cleanup
   vars:
     files_to_cleanup:
-      - /etc/newrelic-super-agent/
-      - /var/lib/newrelic-super-agent/
+      - /etc/newrelic-agent-control/
+      - /var/lib/newrelic-agent-control/
       - /etc/newrelic-infra/
       - /var/db/newrelic-infra/
       - /var/log/newrelic-infra
       - /var/run/newrelic-infra
       - /etc/nr-otel-collector
     packages_to_cleanup:
-      - newrelic-super-agent
+      - newrelic-agent-control
     services_to_stop:
-      - newrelic-super-agent
+      - newrelic-agent-control

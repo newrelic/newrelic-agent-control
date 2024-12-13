@@ -60,8 +60,8 @@ jobs:
       fail-fast: false
       matrix:
         toolchain: [ stable, beta ]
-        # newrelic_super_agent needs either onhost or k8s feature, the rest of packages can be checked also without features
-        flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_super_agent'" ]
+        # newrelic_agent_control needs either onhost or k8s feature, the rest of packages can be checked also without features
+        flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_agent_control'" ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,11 +112,11 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - name: Create on-host documentation
-        run: cargo doc --no-deps --features=onhost --package newrelic_super_agent
+        run: cargo doc --no-deps --features=onhost --package newrelic_agent_control
         env:
           RUSTDOCFLAGS: --cfg docsrs
       - name: Create K8s documentation
-        run: cargo doc --no-deps --features=k8s --package newrelic_super_agent
+        run: cargo doc --no-deps --features=k8s --package newrelic_agent_control
         env:
           RUSTDOCFLAGS: --cfg docsrs
 

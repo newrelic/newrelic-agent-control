@@ -3,7 +3,7 @@ Edit YAML config
 Variables for all actions
 ```yaml
 # Path of the yaml config file
-config_path: "/etc/newrelic-super-agent/config.yaml"
+config_path: "/etc/newrelic-agent-control/config.yaml"
 # in update_config all the existing keys added will be updated and the new ones will be added
 update_config:
   # this will change the host_id
@@ -16,11 +16,11 @@ update_config:
 
 ## Example usage
 ```yaml
-    - name: Setup NR Super Agent config add host id
+    - name: Setup NR Agent Control config add host id
       include_role:
         name: edit_yaml_config
       vars:
-        config_path: "/etc/newrelic-super-agent/config.yaml"
+        config_path: "/etc/newrelic-agent-control/config.yaml"
         update_config:
           host_id: "my-host-id"
 

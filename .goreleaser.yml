@@ -1,35 +1,35 @@
-project_name: newrelic-super-agent
+project_name: newrelic-agent-control
 env:
   # Artifacts Versions
-  # Currently the only way to update the sub-agent versions is rebuild the binary of the super-agent
+  # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
   - NEWRELIC_INFRA_AGENT_VERSION=1.57.0
   - NR_OTEL_COLLECTOR_VERSION=0.8.0
   #
 builds:
-  - id: newrelic-super-agent
+  - id: newrelic-agent-control
     main: ./build/dummy.go
     goos:
       - linux
     goarch:
       - arm64
       - amd64
-    binary: newrelic-super-agent
+    binary: newrelic-agent-control
     hooks:
       post:
         - cmd: sh ./build/scripts/build_binary.sh
           env:
             - ARCH={{ .Arch }}
             - BUILD_FEATURE=onhost
-            - BIN=newrelic-super-agent
-            - SUPER_AGENT_VERSION={{ .Version }}
+            - BIN=newrelic-agent-control
+            - AGENT_CONTROL_VERSION={{ .Version }}
             - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
-            - PKG=newrelic_super_agent
+            - PKG=newrelic_agent_control
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
             - BUILD_FEATURE=onhost
-            - BIN=newrelic-super-agent
+            - BIN=newrelic-agent-control
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
@@ -49,8 +49,8 @@ builds:
           env:
             - ARCH={{ .Arch }}
             - BIN=newrelic-config-migrate
-            - PKG=newrelic_super_agent
-            - SUPER_AGENT_VERSION={{ .Version }}
+            - PKG=newrelic_agent_control
+            - AGENT_CONTROL_VERSION={{ .Version }}
             - BUILD_FEATURE=onhost
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
@@ -60,11 +60,11 @@ archives:
   - format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     builds:
-      - newrelic-super-agent
+      - newrelic-agent-control
       - newrelic-config-migrate
 
 nfpms:
-  - package_name: newrelic-super-agent
+  - package_name: newrelic-agent-control
 
     # Replace arch for rpm from amd64 to x86_64 to be consistent with our rpm repo.
     file_name_template: >-
@@ -79,38 +79,38 @@ nfpms:
       {{- if not (eq .Amd64 "v1") }}{{ .Amd64 }}{{- end }}
 
     contents:
-      # Newrelic Super Agent
-      - dst: /etc/newrelic-super-agent
+      # Newrelic Agent Control
+      - dst: /etc/newrelic-agent-control
         type: dir
         file_info:
           mode: 0700
       - src: build/package/config.yaml
-        dst: /etc/newrelic-super-agent/config.yaml
+        dst: /etc/newrelic-agent-control/config.yaml
         type: config
         file_info:
           mode: 0600
-      - src: build/package/newrelic-super-agent.service
-        dst: /lib/systemd/system/newrelic-super-agent.service
-      - src: build/package/newrelic-super-agent.conf
-        dst: /etc/newrelic-super-agent/newrelic-super-agent.conf
+      - src: build/package/newrelic-agent-control.service
+        dst: /lib/systemd/system/newrelic-agent-control.service
+      - src: build/package/newrelic-agent-control.conf
+        dst: /etc/newrelic-agent-control/newrelic-agent-control.conf
         type: config|noreplace
         file_info:
           mode: 0600
-      - dst: /etc/newrelic-super-agent/fleet/agents.d
+      - dst: /etc/newrelic-agent-control/fleet/agents.d
         type: dir
         file_info:
           mode: 0700
       - src: LICENSE.md
-        dst: /usr/share/doc/newrelic/newrelic-super-agent/LICENSE.md
-      - dst: /var/lib/newrelic-super-agent
+        dst: /usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
+      - dst: /var/lib/newrelic-agent-control
         type: dir
         file_info:
           mode: 0700
-      - dst: /var/lib/newrelic-super-agent/fleet/agents.d
+      - dst: /var/lib/newrelic-agent-control/fleet/agents.d
         type: dir
         file_info:
           mode: 0700
-      - dst: /var/lib/newrelic-super-agent/auto-generated
+      - dst: /var/lib/newrelic-agent-control/auto-generated
         type: dir
         file_info:
           mode: 0700
@@ -164,7 +164,7 @@ nfpms:
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
         dst: /usr/bin/nr-otel-collector
       - src: build/examples/
-        dst: /etc/newrelic-super-agent/examples
+        dst: /etc/newrelic-agent-control/examples
 
     scripts:
       postinstall: build/package/postinstall.sh
@@ -185,15 +185,15 @@ nfpms:
       - td-agent-bit #To be removed on removal of the ff fluent_bit_19
       - fluent-bit
 
-    id: newrelic-super-agent
+    id: newrelic-agent-control
     builds:
-      - newrelic-super-agent
+      - newrelic-agent-control
       - newrelic-config-migrate
     formats:
       - deb
       - rpm
     maintainer: New Relic <caos-team@newrelic.com>
-    description: New Relic Super Agent - newrelic-super-agent
+    description: New Relic Agent Control - newrelic-agent-control
     license: Apache 2.0
 
 signs:

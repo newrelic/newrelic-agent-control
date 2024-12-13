@@ -12,18 +12,18 @@
   ansible.builtin.debug:
     msg: "Current run name {{ e2e_run_name }}"
 
-- name: Install super-agent through guided install (which will run migration)
-  include_tasks: ./tasks/super_agent_guided_installation.yaml
+- name: Install agent-control through guided install (which will run migration)
+  include_tasks: ./tasks/agent_control_guided_installation.yaml
 
-# We are setting the value of super-agent's host.id and infra-agent's display_name to 'e2e_run_name' to ensure uniqueness,
-# the managed_entity relation between host entity and host.id (for super-agent) will be created on FM
+# We are setting the value of agent-control's host.id and infra-agent's display_name to 'e2e_run_name' to ensure uniqueness,
+# the managed_entity relation between host entity and host.id (for agent-control) will be created on FM
 # allowing the addition of this host-entity to the deployment.
 # The infra-agent display_name will also allow to retrieve the Host Entity GUID by querying an entity with that name.
-- name: Setup NR Super Agent config add host id
+- name: Setup NR Agent Control config add host id
   include_role:
     name: edit_yaml_config
   vars:
-    config_path: "/etc/newrelic-super-agent/config.yaml"
+    config_path: "/etc/newrelic-agent-control/config.yaml"
     update_config:
       host_id: "{{ e2e_run_name }}"
 
@@ -33,9 +33,9 @@
   vars:
     display_name: "{{ e2e_run_name }}"
 
-- name: Restart New Relic Super Agent
+- name: Restart New Relic Agent Control
   ansible.builtin.service:
-    name: newrelic-super-agent
+    name: newrelic-agent-control
     state: restarted
 
 - name: Assert service status
@@ -43,33 +43,33 @@
     name: caos.ansible_roles.assert_service_status
   vars:
     services_running:
-      - "newrelic-super-agent.service"
+      - "newrelic-agent-control.service"
 
 - name: Get Hostname
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml
   vars:
-    agent_identifier_path: "{{ super_agent_identifiers_file }}"
+    agent_identifier_path: "{{ agent_control_identifiers_file }}"
     identifier_field: "hostname"
     identifier_field_fact: "hostname"
 
-- name: Get NR Super Agent InstanceID
+- name: Get NR Agent Control InstanceID
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml
   vars:
-    agent_identifier_path: "{{ super_agent_identifiers_file }}"
+    agent_identifier_path: "{{ agent_control_identifiers_file }}"
     identifier_field: "instance_id"
-    identifier_field_fact: "super_agent_instance_id"
+    identifier_field_fact: "agent_control_instance_id"
 
 - name: Get Infra agent InstanceID
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml
   vars:
-    agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/identifiers.yaml"
+    agent_identifier_path: "/var/lib/newrelic-agent-control/fleet/agents.d/nr-infra-agent/identifiers.yaml"
     identifier_field: "instance_id"
     identifier_field_fact: "infra_agent_instance_id"
 
 - name: Get NR Otel Collector InstanceID
   include_tasks: ./get_identifier_field_{{ ansible_system }}.yaml
   vars:
-    agent_identifier_path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/identifiers.yaml"
+    agent_identifier_path: "/var/lib/newrelic-agent-control/fleet/agents.d/nr-otel-collector/identifiers.yaml"
     identifier_field: "instance_id"
     identifier_field_fact: "otel_agent_instance_id"
 
@@ -77,12 +77,12 @@
   pause:
     seconds: 60
 
-- name: Assert Super Agent and Agents are running
+- name: Assert Agent Control and Agents are running
   include_role:
     name: caos.ansible_roles.assert_process_running
   vars:
     processes_running:
-      - "^/usr/bin/newrelic-super-agent"
+      - "^/usr/bin/newrelic-agent-control"
       - "^/usr/bin/newrelic-infra"
       - "^/usr/bin/nr-otel-collector"
 
@@ -90,12 +90,12 @@
   pause:
     seconds: 60
 
-- name: Assert Super Agent and Agents are running
+- name: Assert Agent Control and Agents are running
   include_role:
     name: caos.ansible_roles.assert_process_running
   vars:
     processes_running:
-      - "^/usr/bin/newrelic-super-agent"
+      - "^/usr/bin/newrelic-agent-control"
       - "^/usr/bin/newrelic-infra"
       - "^/usr/bin/nr-otel-collector"
 
@@ -104,28 +104,28 @@
     name: fleet_api_request
   vars:
     assert_agents_health:
-      instance_ids: [ "{{ infra_agent_instance_id }}", "{{ otel_agent_instance_id }}", "{{ super_agent_instance_id }}" ]
+      instance_ids: [ "{{ infra_agent_instance_id }}", "{{ otel_agent_instance_id }}", "{{ agent_control_instance_id }}" ]
       host: "{{ hostname }}"
       healthy: true
 
 - name: Check remote infra-agent values file doesn't exist
   stat:
-    path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
+    path: "/var/lib/newrelic-agent-control/fleet/agents.d/nr-infra-agent/values/values.yaml"
   register: infra_agent_values
 
 - name: Check remote otel-collector values file doesn't exist
   stat:
-    path: "/var/lib/newrelic-super-agent/fleet/agents.d/nr-otel-collector/values/values.yaml"
+    path: "/var/lib/newrelic-agent-control/fleet/agents.d/nr-otel-collector/values/values.yaml"
   register: otel_collector_values
 
-- name: Check remote super-agent values file doesn't exist
+- name: Check remote agent-control values file doesn't exist
   stat:
-    path: "/var/lib/newrelic-super-agent/fleet/values/values.yaml"
-  register: super_agent_values
+    path: "/var/lib/newrelic-agent-control/fleet/values/values.yaml"
+  register: agent_control_values
 
 - name: ensure remote values files don't exist
   assert:
-    that: "not super_agent_values.stat.exists and not otel_collector_values.stat.exists and not infra_agent_values.stat.exists"
+    that: "not agent_control_values.stat.exists and not otel_collector_values.stat.exists and not infra_agent_values.stat.exists"
 
 # TODO: When caos.ansible_roles task has "retries", "delay" and "until" use that one instead
 - name: nrql request to get Entity GUID
@@ -147,8 +147,8 @@
 #
 # - e2e_run_name : the name of the current run to use it as identifier in the format (sa-caos-e2e-22HEX)
 # - host_entity_guid : the host entity guid
-# - hostname : the hostname as computed by the super-agent
-# - super_agent_instance_id : super_agent instance_id
+# - hostname : the hostname as computed by the agent-control
+# - agent_control_instance_id : agent_control instance_id
 # - infra_agent_instance_id : infra_agent instance_id
 # - otel_agent_instance_id : otel_agent instance_id
 

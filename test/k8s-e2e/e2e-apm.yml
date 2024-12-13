@@ -5,7 +5,7 @@ custom_test_key: appName
 scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/super-agent-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       # we need wait and retry since the resource might me not created yet
       - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator; do sleep 5; echo waiting on operator ; done"
       - sleep 60
@@ -24,7 +24,7 @@ scenarios:
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
 
     after:
-      - kubectl logs -l app.kubernetes.io/name=super-agent-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/name=agent-control-deployment --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
       - kubectl get all -o wide
       - cd ../../ && tilt down

@@ -2,7 +2,7 @@ Temporary folder with custom roles for the limited preview
 
 * infra-agent-config: Setup configuration for the Infra Agent
 * nr-otel-collector-config: Setup configuration for the NR Otel Collector  
-* newrelic-super-agent: Install and configure Newrelic Super Agent
+* newrelic-agent-control: Install and configure Newrelic Agent Control
 
 ## TODO
 

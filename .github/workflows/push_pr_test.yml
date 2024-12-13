@@ -41,9 +41,9 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
       - name: Build k8s in release mode
-        run: cargo build --release --package newrelic_super_agent --features k8s
+        run: cargo build --release --package newrelic_agent_control --features k8s
       - name: Build onhost in release mode
-        run: cargo build --release --package newrelic_super_agent --features onhost
+        run: cargo build --release --package newrelic_agent_control --features onhost
 
   required:
     runs-on: ubuntu-latest
@@ -77,23 +77,23 @@ jobs:
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
 
-      - name: Run workspace tests excluding the super agent package
-        run: cargo test --workspace --exclude 'newrelic_super_agent' --all-targets
+      - name: Run workspace tests excluding the agent control package
+        run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
 
-      - name: Run tests super agent lib excluding root-required tests (on-host)
-        run: make -C super-agent test/onhost
+      - name: Run tests agent control lib excluding root-required tests (on-host)
+        run: make -C agent-control test/onhost
 
-      - name: Run tests super agent integration_test excluding root-required tests (on-host)
-        run: make -C super-agent test/onhost/integration
+      - name: Run tests agent control integration_test excluding root-required tests (on-host)
+        run: make -C agent-control test/onhost/integration
 
-      - name: Run tests super agent (k8s)
-        run: make -C super-agent test/k8s
+      - name: Run tests agent control (k8s)
+        run: make -C agent-control test/k8s
 
       - name: Run documentation tests onhost
-        run: cargo test --locked --package newrelic_super_agent --features=onhost --doc
+        run: cargo test --locked --package newrelic_agent_control --features=onhost --doc
 
       - name: Run documentation tests k8st
-        run: cargo test --locked --package newrelic_super_agent --features=k8s --doc
+        run: cargo test --locked --package newrelic_agent_control --features=k8s --doc
 
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
@@ -129,10 +129,10 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
 
       - name: Run onHost root-required lib tests only
-        run: make -C super-agent test/onhost/root
+        run: make -C agent-control test/onhost/root
 
       - name: Run onHost root-required integration-tests only
-        run: make -C super-agent test/onhost/root/integration
+        run: make -C agent-control test/onhost/root/integration
 
   embedded:
     name: Unit test for embedded downloader
@@ -185,7 +185,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - name: Run k8s integration tests
-        run: make -C super-agent/tests/k8s
+        run: make -C agent-control/tests/k8s
 
   # These tests are using (by default) the released charts
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained

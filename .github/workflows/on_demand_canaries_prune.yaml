@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version of the super-agent canaries to prune'
+        description: 'Version of the agent-control canaries to prune'
         required: true
 
 permissions:

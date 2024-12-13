@@ -11,5 +11,5 @@ jobs:
     uses: ./.github/workflows/component_molecule_packaging.yml
     with:
       TAG: ${{ inputs.tag }}
-      PACKAGE_NAME: "newrelic-super-agent"
+      PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'
