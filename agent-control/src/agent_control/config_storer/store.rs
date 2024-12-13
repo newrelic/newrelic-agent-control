@@ -212,7 +212,7 @@ opamp:
         let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
         env::set_var(
             env_var_name,
-            "namespace/com.newrelic.infrastructure_agent:0.0.2",
+            "namespace/com.newrelic.infrastructure:0.0.2",
         );
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
@@ -263,7 +263,7 @@ agents:
         let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
         env::set_var(
             env_var_name,
-            "namespace/com.newrelic.infrastructure_agent:0.0.2",
+            "namespace/com.newrelic.infrastructure:0.0.2",
         );
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
