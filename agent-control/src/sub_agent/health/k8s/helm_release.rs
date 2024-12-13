@@ -191,15 +191,6 @@ pub mod tests {
         );
         let test_cases : Vec<TestCase> = vec![
             (
-                "Helm release unhealthy when the helm-release object should change",
-                Ok(Unhealthy::new(String::default(),"HelmRelease 'example-release' does not match the latest agent configuration".to_string()).into()),
-                |mock: &mut MockSyncK8sClient| {
-                    mock.expect_get_dynamic_object()
-                        .returning(|_,_| Ok(Some(Arc::new(dynamic_object()))));
-                    mock.expect_has_dynamic_object_changed().times(1).returning(|_| Ok(true));
-                },
-            ),
-            (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::default().into()),
                 |mock: &mut MockSyncK8sClient| {
@@ -320,7 +311,5 @@ pub mod tests {
                     }),
                 })))
             });
-        mock.expect_has_dynamic_object_changed()
-            .returning(|_| Ok(false));
     }
 }
