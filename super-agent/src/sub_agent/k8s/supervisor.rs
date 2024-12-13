@@ -497,7 +497,7 @@ pub mod tests {
         mock_client
             .expect_default_namespace()
             .return_const("default".to_string());
-        mock_client.expect_get_helm_release().returning(|_| {
+        mock_client.expect_get_dynamic_object().returning(|_, _| {
             Ok(Some(Arc::new(DynamicObject {
                 types: Some(helm_release_type_meta()),
                 metadata: Default::default(),

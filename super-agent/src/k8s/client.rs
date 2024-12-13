@@ -3,7 +3,6 @@ use super::{
     error::K8sError,
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
-use crate::super_agent::config::helm_release_type_meta;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -113,11 +112,6 @@ impl SyncK8sClient {
             key,
             value,
         ))
-    }
-
-    pub fn get_helm_release(&self, name: &str) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        let tm = helm_release_type_meta();
-        self.get_dynamic_object(&tm, name)
     }
 
     pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {

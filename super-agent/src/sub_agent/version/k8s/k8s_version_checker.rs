@@ -1,6 +1,7 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::super_agent::config::helm_release_type_meta;
 use crate::super_agent::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 use chrono::NaiveDateTime;
 use serde_json::Value;
@@ -52,7 +53,7 @@ impl VersionChecker for K8sVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_helm_release(&self.agent_id)
+            .get_dynamic_object(&helm_release_type_meta(), &self.agent_id)
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -249,9 +250,11 @@ pub mod test {
     }
 
     fn setup_default_mock(mock: &mut MockSyncK8sClient, json_data: String) {
-        mock.expect_get_helm_release()
-            .withf(|name| name == "default-test")
+        mock.expect_get_dynamic_object()
+            .withf(|type_meta, name| {
+                type_meta == &helm_release_type_meta() && name == "default-test"
+            })
             .times(1)
-            .returning(move |_| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
+            .returning(move |_, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
     }
 }
