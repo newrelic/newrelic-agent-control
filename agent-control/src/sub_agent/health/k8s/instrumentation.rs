@@ -149,23 +149,6 @@ impl HealthChecker for K8sHealthNRInstrumentation {
             HealthCheckerError::Generic("instrumentation CR data is not an object".to_string())
         })?;
 
-        // Check if the instrumentation is properly updated: it should reflect the agent's configuration
-        if self
-            .k8s_client
-            .has_dynamic_object_changed(&self.k8s_object)?
-        {
-            return Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(
-                    String::default(),
-                    format!(
-                        "instrumentation CR '{}' does not match the latest agent configuration",
-                        &self.name,
-                    ),
-                ),
-                self.start_time,
-            ));
-        }
-
         let status = instrumentation_data.get("status").cloned().ok_or_else(|| {
             HealthCheckerError::Generic("instrumentation status could not be retrieved".to_string())
         })?;

@@ -154,23 +154,6 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
             HealthCheckerError::Generic("HelmRelease data is not an object".to_string())
         })?;
 
-        // Check if the HelmRelease is properly updated: it should reflect the agent's configuration
-        if self
-            .k8s_client
-            .has_dynamic_object_changed(&self.k8s_object)?
-        {
-            return Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(
-                    String::default(),
-                    format!(
-                        "HelmRelease '{}' does not match the latest agent configuration",
-                        &self.name,
-                    ),
-                ),
-                self.start_time,
-            ));
-        }
-
         let status = self.get_status(helm_release_data)?;
         let conditions = self.get_status_conditions(&status)?;
 
