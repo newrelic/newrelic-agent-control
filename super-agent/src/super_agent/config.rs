@@ -468,7 +468,7 @@ agents: {}
     const SUPERAGENT_FILE_LOGGING_CONFIG: &str = r#"
 log:
   file:
-    enable: true
+    enabled: true
     path: /some/path
 agents: {}
 "#;
@@ -677,7 +677,7 @@ agents: {}
         assert!(config.is_err());
         assert_eq!(
             config.unwrap_err().to_string(),
-            "log.file: missing field `enable` at line 4 column 5"
+            "log.file: missing field `enabled` at line 4 column 5"
         );
     }
 
@@ -688,7 +688,7 @@ agents: {}
         assert_eq!(
             config.unwrap().log.file,
             FileLoggingConfig {
-                enable: true,
+                enabled: true,
                 path: Some(LogFilePath::try_from(PathBuf::from("/some/path")).unwrap()),
             }
         );

@@ -12,7 +12,7 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
         agents: {{}}
         log:
             file: 
-              enable: true
+              enabled: true
               path: {}
         "#,
         log_path.to_string_lossy()

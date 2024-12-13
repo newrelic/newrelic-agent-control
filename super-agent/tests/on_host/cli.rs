@@ -177,7 +177,7 @@ opamp:
 log:
   level: info
   file:
-    enable: true
+    enabled: true
 agents: {{}}
     "#,
             opamp_server.url("/"),
