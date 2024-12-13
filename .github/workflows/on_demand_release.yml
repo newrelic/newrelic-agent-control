@@ -26,8 +26,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.inputs.tag }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
@@ -51,8 +51,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.inputs.tag }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
@@ -77,5 +77,5 @@ jobs:
     needs: [upload]
     with:
       TAG: ${{ github.event.inputs.tag }}
-      PACKAGE_NAME: "newrelic-super-agent"
+      PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'

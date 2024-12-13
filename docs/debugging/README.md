@@ -19,7 +19,7 @@ $ cargo install --locked tokio-console
 Example:
 
 ```bash
-$ RUSTFLAGS="--cfg tokio_unstable" LOG_LEVEL="newrelic_super_agent=debug" cargo run --bin newrelic-super-agent --features k8s,tokio-console # ...
+$ RUSTFLAGS="--cfg tokio_unstable" LOG_LEVEL="newrelic_agent_control=debug" cargo run --bin newrelic-agent-control --features k8s,tokio-console # ...
 ```
 
 3. Execute tokio console

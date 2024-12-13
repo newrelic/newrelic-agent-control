@@ -57,8 +57,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: 0.100.${{ github.run_id }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "./build/upload-schema-linux-rpm-nightly.yml"
           aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
@@ -74,7 +74,7 @@ jobs:
           gpg_passphrase: ${{ secrets.OHAI_GPG_PASSPHRASE }}
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
-          dest_prefix: "super-agent-nightlies/"
+          dest_prefix: "agent-control-nightlies/"
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
@@ -84,7 +84,7 @@ jobs:
     with:
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu22.04\"]'
-      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/super-agent-nightlies"
+      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/agent-control-nightlies"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
@@ -99,4 +99,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `newrelic/newrelic-super-agent`: [Nightly release failed](${{ github.server_url }}/newrelic/newrelic-super-agent/actions/runs/${{ github.run_id }})."
+          slack-text: "❌ `newrelic/newrelic-agent-control`: [Nightly release failed](${{ github.server_url }}/newrelic/newrelic-agent-control/actions/runs/${{ github.run_id }})."

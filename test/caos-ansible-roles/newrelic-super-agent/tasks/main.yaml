@@ -1,4 +1,0 @@
----
-- name: Install New Relic Super Agent in a host
-  ansible.builtin.include_tasks: host-install.yaml
-  when: not uninstall

@@ -1,0 +1,45 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+
+agent-control-deployment:
+  config:
+    opamp:
+      enabled: false
+    agentControl:
+      content:
+        log:
+          level: debug
+    subAgents:
+      infra:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "*" # Use latest
+          chart_values:
+            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+              customAttributes:
+                cluster_name: ${nr-env:NR_CLUSTER_NAME}
+            nri-metadata-injection:
+              # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
+              # together with the gateway
+              enabled: false
+      prometheus:
+        type: newrelic/com.newrelic.prometheus:0.1.0
+        content:
+          chart_version: "*" # Use latest
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          chart_version: "*" # Use latest
+      gateway:
+        type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+        content:
+          chart_version: "*" # Use latest
+          chart_values:
+            # we override resources since to fit in the small ci/cd minikube
+            gateway:
+              # TODO we are currently not testing the gateway behaviour, only that the chart is deployed
+              # For this reason we are blocking the creation of pods
+              customSecretName: "not-existing"
+              customSecretLicenseKey: "not-existing"
+              nodeSelector:
+                not-existing/os: "not-existing"
+

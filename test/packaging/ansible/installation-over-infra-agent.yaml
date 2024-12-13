@@ -33,7 +33,7 @@
             nria_log_forward: true
             nria_log_level: debug
             #TODO : not sending to file is not currently working as the Infra Agent configures FB to get logs
-            # from newrleic-infra systemd service and this doesn't exist with the super agent
+            # from newrleic-infra systemd service and this doesn't exist with the agent control
             nria_log_file: /tmp/nr.log
 
         - name: install the infra agent
@@ -79,15 +79,15 @@
         - name:
           include_tasks: ./custom_tasks/assert-fluent-bit-sending-data.yml
 
-        - name: install Newrelic Super Agent
+        - name: install Newrelic Agent Control
           include_role:
-            name: newrelic-super-agent
+            name: newrelic-agent-control
             apply:
               environment:
                 NRDOT_MODE: "{{ 'ROOT' if (install_mode is defined and install_mode == 'ROOT') | default(omit) }}"
           vars:
             repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
-            target_version: "{{ nr_super_agent_version }}"
+            target_version: "{{ nr_agent_control_version }}"
 
         - name: assert no service
           include_role:
@@ -100,8 +100,8 @@
             name: caos.ansible_roles.assert_version
           vars:
             target_versions:
-              - exec: "newrelic-super-agent --version"
-                version: "{{ nr_super_agent_version }}"
+              - exec: "newrelic-agent-control --version"
+                version: "{{ nr_agent_control_version }}"
               - exec: "newrelic-infra --version"
                 version: "{{ nr_infra_agent_version }}"
               - exec: "nr-otel-collector --version"
@@ -113,7 +113,7 @@
           vars:
             processes_running:
               - "^/usr/bin/newrelic-infra "
-              - "^/usr/bin/newrelic-super-agent "
+              - "^/usr/bin/newrelic-agent-control "
               - "^/opt/fluent-bit/bin/fluent-bit "
 
         - name: wait for 2 minute to give nri-mysql and fluent-bit time to send metrics again

@@ -1,6 +1,6 @@
 ---
 # config path
-infra_agent_config_path_linux: "/etc/newrelic-super-agent/fleet/agents.d/nr-infra-agent/values/values.yaml"
+infra_agent_config_path_linux: "/etc/newrelic-agent-control/fleet/agents.d/nr-infra-agent/values/values.yaml"
 
 # agent config:
 display_name: "{{ inventory_hostname }}"
@@ -16,7 +16,7 @@ nr_environment: 'development'
 department: 'product'
 product: 'integrations'
 owning_team: 'caos'
-project: 'newrelic-super-agent'
+project: 'newrelic-agent-control'
 enable_process_metrics: 'true'
 self_instrumentation: false
 

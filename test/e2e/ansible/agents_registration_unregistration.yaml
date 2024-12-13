@@ -5,20 +5,20 @@
   gather_facts: yes
 
   tasks:
-    - name: Fresh Super Agent installation with InfraAgent and NRDOT and Host monitoring NR
+    - name: Fresh Agent Control installation with InfraAgent and NRDOT and Host monitoring NR
       include_tasks: ./tasks/fresh_sa_install_host_monitor_nr_{{ ansible_system }}.yaml
 
-    - name: Setup NR Super Agent config without any agent
+    - name: Setup NR Agent Control config without any agent
       include_role:
         name: edit_yaml_config
       vars:
-        config_path: "/etc/newrelic-super-agent/config.yaml"
+        config_path: "/etc/newrelic-agent-control/config.yaml"
         update_config:
           agents: {}
 
-    - name: Restart New Relic Super Agent
+    - name: Restart New Relic Agent Control
       ansible.builtin.service:
-        name: newrelic-super-agent
+        name: newrelic-agent-control
         state: restarted
 
     - name: Wait for 60 seconds so the agents are unregistered on the Fleet
@@ -33,11 +33,11 @@
           - "^/usr/bin/newrelic-infra"
           - "^/usr/bin/nr-otel-collector"
 
-    - name: Assert super-agent is healthy
+    - name: Assert agent-control is healthy
       include_role:
         name: fleet_api_request
       vars:
         assert_agents_health:
-          instance_ids: [ "{{ super_agent_instance_id }}" ]
+          instance_ids: [ "{{ agent_control_instance_id }}" ]
           host: "{{ hostname }}"
           healthy: true

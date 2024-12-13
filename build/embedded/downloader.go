@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const downloaderTempFolderPrefix = "super-agent-downloader-"
+const downloaderTempFolderPrefix = "agent-control-downloader-"
 
 var errDownloadingFile = errors.New("error downloading file")
 var errCreatingDestinationFile = errors.New("error creating destination file")

@@ -26,8 +26,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
@@ -51,8 +51,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
@@ -76,7 +76,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Push container release tags
     env:
-      DOCKER_IMAGE_NAME: newrelic/newrelic-super-agent
+      DOCKER_IMAGE_NAME: newrelic/newrelic-agent-control
     steps:
       - uses: docker/setup-qemu-action@v3
 
@@ -101,7 +101,7 @@ jobs:
     needs: [ upload ]
     with:
       TAG: ${{ github.event.inputs.tag_name || github.event.release.tag_name }}
-      PACKAGE_NAME: "newrelic-super-agent"
+      PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
 
   notify-failure:
@@ -114,4 +114,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `newrelic/newrelic-super-agent`: [release failed](${{ github.server_url }}/newrelic/newrelic-super-agent/actions/runs/${{ github.run_id }})."
+          slack-text: "❌ `newrelic/newrelic-agent-control`: [release failed](${{ github.server_url }}/newrelic/newrelic-agent-control/actions/runs/${{ github.run_id }})."

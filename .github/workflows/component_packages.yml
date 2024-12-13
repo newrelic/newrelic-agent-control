@@ -49,9 +49,9 @@ jobs:
       - name: Set tag and skip_upload=false for pre-release
         if: ${{ inputs.pre-release}}
         run: |
-          NEWRELIC_SUPER_AGENT_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' super-agent/Cargo.toml)
-          if [ "${NEWRELIC_SUPER_AGENT_VERSION}" != "${{ inputs.tag_name }}" ]; then
-            echo "Package version specified in Cargo.toml (${NEWRELIC_SUPER_AGENT_VERSION}) differs from tag (${{ inputs.tag_name }}), exiting"
+          NEWRELIC_AGENT_CONTROL_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' agent-control/Cargo.toml)
+          if [ "${NEWRELIC_AGENT_CONTROL_VERSION}" != "${{ inputs.tag_name }}" ]; then
+            echo "Package version specified in Cargo.toml (${NEWRELIC_AGENT_CONTROL_VERSION}) differs from tag (${{ inputs.tag_name }}), exiting"
             exit 1
           fi
 

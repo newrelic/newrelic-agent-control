@@ -1,0 +1,11 @@
+---
+
+agent_control_package_name: newrelic-agent-control
+agent_control_service_name: newrelic-agent-control
+
+uninstall: false
+
+repo_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+
+...
+

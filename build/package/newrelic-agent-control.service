@@ -1,0 +1,13 @@
+[Unit]
+Description=New Relic Agent Control
+After=network.target
+
+[Service]
+EnvironmentFile=/etc/newrelic-agent-control/newrelic-agent-control.conf
+ExecStart=/usr/bin/newrelic-agent-control
+KillMode=mixed
+Restart=on-failure
+Type=simple
+
+[Install]
+WantedBy=multi-user.target

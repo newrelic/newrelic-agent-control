@@ -1,0 +1,288 @@
+---
+- name: Agent Control Valid Remote Config
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+
+    - name: Fresh Agent Control installation with InfraAgent and NRDOT and Host monitoring NR
+      include_tasks: ./tasks/fresh_sa_install_host_monitor_nr_{{ ansible_system }}.yaml
+
+    # Ensure Restarting doesn't create new instance_ids
+    - name: Restart New Relic Agent Control to check InstanceIDs keep the same
+      ansible.builtin.service:
+        name: newrelic-agent-control
+        state: restarted
+
+    - name: Wait for a few seconds to ensure InstanceID recreation process skipped
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Get NR Agent Control InstanceID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "{{ agent_control_identifiers_file }}"
+        identifier_field: "instance_id"
+        identifier_field_fact: "agent_control_instance_id_restart"
+
+    - name: Get Infra agent InstanceID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-infra-agent') }}"
+        identifier_field: "instance_id"
+        identifier_field_fact: "infra_agent_instance_id_restart"
+
+    - name: Get NR Otel Collector InstanceID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "{{ sub_agent_identifiers_file_tpl | replace('AGENT_ID','nr-otel-collector') }}"
+        identifier_field: "instance_id"
+        identifier_field_fact: "otel_agent_instance_id_restart"
+
+    - name: assert the persisted Agent Control InstanceID is the same
+      assert:
+        that: "{{ agent_control_instance_id_restart == agent_control_instance_id }}"
+
+    - name: assert the persisted Infra agent InstanceID is the same
+      assert:
+        that: "{{ infra_agent_instance_id_restart == infra_agent_instance_id }}"
+
+    - name: assert the persisted NR Otel Collector InstanceID is the same
+      assert:
+        that: "{{ otel_agent_instance_id_restart == otel_agent_instance_id }}"
+    # End Ensure
+
+    # Create Fleet
+    - name: create fleet
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          name: "{{ e2e_run_name }}"
+          entity_type: "HOST"
+          fleet_guid_fact: "fleet_guid"
+
+    - name: set remote config name
+      set_fact:
+        remote_config_name: "caos-automated-test-agent-control-config-{{ ansible_date_time.iso8601_micro | to_uuid }}"
+
+    - name: create remote configuration for agent-control
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration:
+          account_id: "{{ nr_account_id | int }}"
+          config_name: "{{ remote_config_name }}"
+          agent_type: "NR_AgentControl"
+          config_type: "NR_AgentControlPrimary"
+          config_id_fact: "created_config_id"
+
+    - name: create remote configuration revision (only infra agent)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          # multiline config breaks graphql request
+          content: 'agents:\n  nr-infra-agent:\n    agent_type: \"newrelic/com.newrelic.infrastructure:0.1.2\"\n'
+          config_revision_fact: "created_config_revision"
+
+    - name: register array of configurations to deploy
+      ansible.builtin.set_fact: {"configurations": [{"revision_number":"{{ created_config_revision | int }}", "configuration_id":"{{ created_config_id | int }}" }]}
+
+    - name: deploy fleet add entity and configurations
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations }}"
+          add_entity_guid: "{{ host_entity_guid }}"
+
+    - name: Get NR Agent Control InstanceID
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "{{ agent_control_identifiers_file }}"
+        identifier_field: "instance_id"
+        identifier_field_fact: "agent_control_instance_id"
+
+    - name: Wait for a few seconds for the config to be present
+      stat:
+        path: "{{ agent_control_remote_config_file }}"
+      register: result
+      until: result.stat.exists
+      retries: 10
+      delay: 5
+
+    - name: Assert Agent Control and Infra Agent are running and Collector is not
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-agent-control"
+          - "^/usr/bin/newrelic-infra"
+        processes_not_running:
+          - "^/usr/bin/nr-otel-collector"
+
+    - name: assert on config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ agent_control_remote_config_file }}"
+        expected_content: "agents:\n  nr-infra-agent:\n    agent_type: newrelic/com.newrelic.infrastructure:0.1.2"
+
+    - name: Get Local NR Agent Control Hash
+      include_tasks: ./tasks/get_identifier_field_{{ ansible_system }}.yaml
+      vars:
+        agent_identifier_path: "{{ agent_control_hash_file_tpl }}"
+        identifier_field: "hash"
+        identifier_field_fact: "agent_control_hash"
+
+    - name: Get Agent Control remote hash
+      include_tasks: ./tasks/get_agent_remote_hash.yaml
+      vars:
+        agent_instance_id: "{{ agent_control_instance_id }}"
+        agent_hash_fact: "agent_control_remote_hash"
+
+    - name: assert that Agent Control config hash is correct
+      assert:
+        that: agent_control_remote_hash == agent_control_hash
+        msg: Agent Control local hash {{ agent_control_hash }} does not match remote {{  agent_control_remote_hash }}
+
+    # Now we will stop the Agent Control and push a new remote config
+    # The Agent Control should get the new config and apply it
+    - name: Stop Agent Control
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-agent-control"
+        action: "stop"
+
+    - name: create remote configuration revision (remove remote config)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          content: 'agents:\n  nr-otel-collector:\n    agent_type: \"newrelic/io.opentelemetry.collector:0.1.0\"\n'
+          config_revision_fact: "config_just_nrdot"
+
+    - name: register array of configurations with nr_dot revision to deploy
+      ansible.builtin.set_fact: {"configurations_nr_dot": [{"revision_number":"{{ config_just_nrdot | int }}", "configuration_id":"{{ created_config_id | int }}" }]}
+
+    - name: deploy fleet add new configuration
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations_nr_dot }}"
+
+    - name: Start Agent Control
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-agent-control"
+        action: "start"
+
+    - name: Wait for 30 seconds so new config is applied
+      pause:
+        seconds: 30
+
+    - name: Assert Agent Control and Collector are running and Infra Agent is not 1
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-agent-control"
+          - "^/usr/bin/nr-otel-collector"
+        processes_not_running:
+          - "^/usr/bin/newrelic-infra"
+
+    - name: assert on config content
+      include_tasks: ./tasks/assert_full_file_content.yaml
+      vars:
+        file_path: "{{ agent_control_remote_config_file }}"
+        expected_content: "agents:\n  nr-otel-collector:\n    agent_type: newrelic/io.opentelemetry.collector:0.1.0"
+
+    # Let's restart the Agent Control and ensure it uses the remote config
+    - name: Restart Agent Control
+      include_role:
+        name: caos.ansible_roles.service_status
+      vars:
+        service_name: "newrelic-agent-control"
+        action: "restart"
+
+    - name: Wait for 30 seconds so new config is applied
+      pause:
+        seconds: 30
+
+    - name: Assert Agent Control and Collector are running and Infra Agent is not 2
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-agent-control"
+          - "^/usr/bin/nr-otel-collector"
+        processes_not_running:
+          - "^/usr/bin/newrelic-infra"
+
+    # Delete remote config to assert on falling back to local one
+    - name: create remote configuration revision (remove remote config)
+      include_role:
+        name: fleet_api_request
+      vars:
+        create_remote_configuration_revision:
+          account_id: "{{ nr_account_id | int }}"
+          config_id: "{{ created_config_id }}"
+          content: ''
+          config_revision_fact: "no_remote_config"
+
+    - name: register array of configurations with empty content revision to deploy
+      ansible.builtin.set_fact: {"configurations_empty": [{"revision_number":"{{ no_remote_config | int }}", "configuration_id":"{{ created_config_id | int }}" }]}
+
+    - name: deploy fleet add new empty configuration
+      include_role:
+        name: fleet_api_request
+      vars:
+        deploy_fleet:
+          account_id: "{{ nr_account_id | int }}"
+          fleet_guid: "{{ fleet_guid }}"
+          name: "{{ e2e_run_name }}"
+          configurations: "{{ configurations_empty }}"
+
+    - name: Wait for a few seconds for the remote config to be removed
+      stat:
+        path: "{{ agent_control_remote_config_file }}"
+      register: result
+      until: not result.stat.exists
+      retries: 5
+      delay: 5
+
+    - name: Wait for 10 seconds for all agents to be running
+      pause:
+        seconds: 10
+
+    - name: Assert Agent Control and Agents are running back from local config
+      include_role:
+        name: caos.ansible_roles.assert_process_running
+      vars:
+        processes_running:
+          - "^/usr/bin/newrelic-agent-control"
+          - "^/usr/bin/newrelic-infra"
+          - "^/usr/bin/nr-otel-collector"
+
+    - name: delete the fleet
+      include_tasks: ./tasks/clean_fleet.yaml
+      vars:
+        clean_account_id: "{{ nr_account_id | int }}"
+        clean_fleet_guid: "{{ fleet_guid }}"
+        clean_name: "{{ e2e_run_name }}"
+        clean_entity_guid: "{{ host_entity_guid }}"

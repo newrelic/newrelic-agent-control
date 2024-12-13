@@ -1,8 +1,8 @@
-super_agent_config_file: /etc/newrelic-super-agent/config.yaml
-super_agent_remote_config_file: /var/lib/newrelic-super-agent/config.yaml
-super_agent_hash_file_tpl: /var/lib/newrelic-super-agent/hash.yaml
-super_agent_identifiers_file: /var/lib/newrelic-super-agent/identifiers.yaml
-sub_agent_remote_config_folder: /var/lib/newrelic-super-agent/fleet/agents.d
-sub_agent_generated_config_folder: /var/lib/newrelic-super-agent/auto-generated
-sub_agent_remote_config_file_tpl: /var/lib/newrelic-super-agent/fleet/agents.d/AGENT_ID/values/values.yaml
-sub_agent_identifiers_file_tpl: /var/lib/newrelic-super-agent/fleet/agents.d/AGENT_ID/identifiers.yaml
+agent_control_config_file: /etc/newrelic-agent-control/config.yaml
+agent_control_remote_config_file: /var/lib/newrelic-agent-control/config.yaml
+agent_control_hash_file_tpl: /var/lib/newrelic-agent-control/hash.yaml
+agent_control_identifiers_file: /var/lib/newrelic-agent-control/identifiers.yaml
+sub_agent_remote_config_folder: /var/lib/newrelic-agent-control/fleet/agents.d
+sub_agent_generated_config_folder: /var/lib/newrelic-agent-control/auto-generated
+sub_agent_remote_config_file_tpl: /var/lib/newrelic-agent-control/fleet/agents.d/AGENT_ID/values/values.yaml
+sub_agent_identifiers_file_tpl: /var/lib/newrelic-agent-control/fleet/agents.d/AGENT_ID/identifiers.yaml

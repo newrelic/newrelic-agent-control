@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version of the super-agent for the canaries'
+        description: 'Version of the agent-control for the canaries'
         required: true
 
 permissions:

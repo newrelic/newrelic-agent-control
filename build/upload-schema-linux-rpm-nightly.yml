@@ -3,7 +3,7 @@
 #######################
 
 ---
-- src: "newrelic-super-agent_{version}_linux_{arch}.rpm"
+- src: "newrelic-agent-control_{version}_linux_{arch}.rpm"
   arch:
     - x86_64
     - arm64
@@ -17,7 +17,7 @@
   # UPLOAD CHECKSUMS #
 #########################
 
-- src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
+- src: "newrelic-agent-control_{version}_linux_{arch}.rpm.sum"
   arch:
     - x86_64
   uploads:
@@ -26,7 +26,7 @@
       os_version:
         - 2023
 
-- src: "newrelic-super-agent_{version}_linux_{arch}.rpm.sum"
+- src: "newrelic-agent-control_{version}_linux_{arch}.rpm.sum"
   arch:
     - arm64
   uploads:

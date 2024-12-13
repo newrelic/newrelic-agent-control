@@ -1,6 +1,6 @@
 # Agent overview
 
-New Relic super agent is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet control to help customers deploy, monitor and manage agents at scale. 
+New Relic agent control is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet control to help customers deploy, monitor and manage agents at scale. 
 
 ## Table of contents
 - [Agent overview](#agent-overview)
@@ -9,13 +9,13 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
     - [OpAMP](#opamp)
     - [Agent Types](#agent-types)
   - [Configuration](#configuration)
-    - [Super Agent Configuration](#super-agent-configuration)
+    - [Agent Control Configuration](#agent-control-configuration)
     - [Agent Values File](#agent-values-file)
     - [Configuration Persistence](#configuration-persistence)
     - [OpAMP Capabilities](#opamp-capabilities)
   - [Health](#health)
     - [Agents Health Reporting](#agents-health-reporting)
-    - [Super Agent Health](#super-agent-health)
+    - [Agent Control Health](#agent-control-health)
   - [Packages Download and Upgrade](#packages-download-and-upgrade)
   - [Running the agent](#running-the-agent)
     - [Running on-host](#running-on-host)
@@ -26,9 +26,9 @@ New Relic super agent is a generic supervisor that can be configured to orchestr
   - [Testing](#testing)
 
 ## High-level architecture
-![Super Agent Diagram](super-agent-diagram.png)
+![Agent Control Diagram](agent-control-diagram.png)
 
-The Super Agent (SA) itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. 
+The Agent Control (SA) itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. 
 
 The SA has a modular architecture:
 - The SA orchestrates observability **Agents** that need to be explicitly configured. We will see that agents are configured using an agent ID, **Agent Type** and agent type version. 
@@ -40,13 +40,13 @@ The SA has a modular architecture:
 The **Open Agent Management Protocol** is "_...a network protocol for remote management of large fleets of data collection agents_" (from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md)). 
 
 In a nutshell, OpAMP is the protocol handling the communication with the Fleet Management backend:
-  - Super Agent registers itself as an agent.
+  - Agent Control registers itself as an agent.
   - Supervisors register agents.
   - Both receive remote configurations.
   - Both report health and status (metadata, effective configuration, …).
   - Both will receive package availability messages (not implemented).
 
-Agents (including the super agent itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management. 
+Agents (including the agent control itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management. 
 
 ### Agent Types
 
@@ -85,7 +85,7 @@ variables:
 deployment:
   on_host:
     executable:
-      path: /opt/newrelic-super-agent/bin/newrelic-infra
+      path: /opt/newrelic-agent-control/bin/newrelic-infra
       args: "--config=${nr-var:config_agent}"
       env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
       restart_policy:
@@ -102,16 +102,16 @@ deployment:
 
 Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.
 
-Current Agent Types can be found [here](../super-agent/agent-type-registry).
+Current Agent Types can be found [here](../agent-control/agent-type-registry).
 
-ℹ️ Refer to the [agent type](../super-agent/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment` as well as a development guideline.
+ℹ️ Refer to the [agent type](../agent-control/src/agent_type/README.md) implementation for the full definition of `variables` and `deployment` as well as a development guideline.
 
 ## Configuration
 
-### Super Agent Configuration
-Super Agent configuration defines which Agents need to be supervised.
+### Agent Control Configuration
+Agent Control configuration defines which Agents need to be supervised.
 
-The following Super Agent configuration example shows how to integrate the Infra Agent:
+The following Agent Control configuration example shows how to integrate the Infra Agent:
 
 ```yaml
 # integrate with fleet control by defining the opamp backend settings
@@ -159,7 +159,7 @@ config_integrations:
 ```
 
 - `backoff_delay` is a Supervisor setting that customers can tweak.
-- `config_agent` and `config_integrations` are the actual agent configuration YAML files that the Super Agent stores for the Infra Agent to read.
+- `config_agent` and `config_integrations` are the actual agent configuration YAML files that the Agent Control stores for the Infra Agent to read.
 
 ### Configuration Persistence
 
@@ -167,7 +167,7 @@ This is the file structure:
 
 ```
 ├── etc
-│   └── newrelic-super-agent
+│   └── newrelic-agent-control
 │       ├── agents.d
 │       │   └── newrelic_infra
 │       │       └── values
@@ -175,7 +175,7 @@ This is the file structure:
 │       └── config.yaml
 └── var
     └── lib
-        └── newrelic-super-agent
+        └── newrelic-agent-control
            │── fleet
            │   ├── agents.d
            │   │   └── newrelic_infra
@@ -191,16 +191,16 @@ This is the file structure:
                             └── newrelic-infra.yaml
 ```
 
-The Super Agent parses both its own configuration and agents values files to replace placeholders, and then SA then persists all these auto-generated files.
+The Agent Control parses both its own configuration and agents values files to replace placeholders, and then SA then persists all these auto-generated files.
 
-* Files under `/etc/newrelic-super-agent`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
-* Files under `/var/lib/newrelic-super-agent/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
+* Files under `/etc/newrelic-agent-control`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
+* Files under `/var/lib/newrelic-agent-control/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
 
-The Super Agent generates actual agent configuration files and places these under `/var/lib/newrelic-super-agent/auto-generated` after processing Agent Type + Agent Values. 
+The Agent Control generates actual agent configuration files and places these under `/var/lib/newrelic-agent-control/auto-generated` after processing Agent Type + Agent Values. 
 
 ### OpAMP Capabilities
 
-Users can disable remote management just by commenting the `opamp` section in the  [Super Agent Configuration](#super-agent-configuration) file.
+Users can disable remote management just by commenting the `opamp` section in the  [Agent Control Configuration](#agent-control-configuration) file.
 
 ## Health
 
@@ -210,7 +210,7 @@ Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet M
 
 The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc. 
 
-On an unhealthy check, the Super Agent:
+On an unhealthy check, the Agent Control:
 * Logs an error.
 * Creates an internal data structure for health that follows the Opamp specs including:
   * A boolean is set to `true` if the agent is up and healthy.
@@ -231,23 +231,23 @@ health:
     port: 8003
 ```
 
-The Super Agent currently only supports a HTTP interface (just because this is how the Infra Agent and the OpenTelemetry Collector expose their status). More interfaces will be added as new agents with newer needs are integrated.
+The Agent Control currently only supports a HTTP interface (just because this is how the Infra Agent and the OpenTelemetry Collector expose their status). More interfaces will be added as new agents with newer needs are integrated.
 
 If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached. 
 
 In **Kubernetes**, we are leveraging health checks to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is obtained from the k8s objects related to each agent type. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
 
-ℹ️ Again, refer to the [agent type](../super-agent/src/agent_type/README.md) development guide to know more. 
+ℹ️ Again, refer to the [agent type](../agent-control/src/agent_type/README.md) development guide to know more. 
 
-### Super Agent Health
+### Agent Control Health
 
-There is a service that ultimately exposes the /status endpoint for the Super Agent itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
+There is a service that ultimately exposes the /status endpoint for the Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
 * Reachability of OpAMP endpoint (if OpAMP is enabled at all).
 * Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned in the section above.
 
 ```json
 {
-  "super_agent": {
+  "agent_control": {
     "healthy": true
   },
   "opamp": {
@@ -271,7 +271,7 @@ There is a service that ultimately exposes the /status endpoint for the Super Ag
 }
 ```
 
-Users need to enable the local server by adding the following setting in the  [Super Agent Configuration](#super-agent-configuration) file:
+Users need to enable the local server by adding the following setting in the  [Agent Control Configuration](#agent-control-configuration) file:
 
 ```yaml
 server:
@@ -293,8 +293,8 @@ The agent can be executed on-host (on-prem server, cloud compute instance, virtu
 Compile and run locally:
 1. Install [RUST](https://www.rust-lang.org/tools/install)
 2. Run `cargo build --features onhost`
-3. `newrelic-super-agent` binary will be generated at `./target/debug/newrelic-super-agent`
-4. Prepare a `config.yaml` file in /etc/newrelic-super-agent/, example: 
+3. `newrelic-agent-control` binary will be generated at `./target/debug/newrelic-agent-control`
+4. Prepare a `config.yaml` file in /etc/newrelic-agent-control/, example: 
 
 ```yaml
 opamp:
@@ -305,7 +305,7 @@ agents:
   nr-otel-collector:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 ```
-5. Place values files in the folder `/etc/newrelic-super-agent/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the `agents:` list. Example:
+5. Place values files in the folder `/etc/newrelic-agent-control/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the `agents:` list. Example:
 ```yaml
 config: |
     # the OTel collector config here
@@ -314,17 +314,17 @@ config: |
     # pipelines:
 ```
 6. Execute the binary with the config file:  
-    * `sudo ./target/debug/newrelic-super-agent`
+    * `sudo ./target/debug/newrelic-agent-control`
 
 ### Running in Kubernetes
 
-We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.dev/) to launch a local cluster and deploy the Super Agent [charts](https://github.com/newrelic/helm-charts/tree/master/charts/super-agent).
+We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.dev/) to launch a local cluster and deploy the Agent Control [charts](https://github.com/newrelic/helm-charts/tree/master/charts/agent-control).
 
 #### Prerequisites
 - Install Minikube for local Kubernetes cluster emulation.
 - Install [ctlptl](https://github.com/tilt-dev/ctlptl)
 - Ensure you have Tilt installed for managing local development environments.
-- Add a super-agent-deployment values file in `local/super-agent-deployment-values.yml`
+- Add a agent-control-deployment values file in `local/agent-control-deployment-values.yml`
 
 Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows to use local helm charts.
 #### Steps
@@ -336,7 +336,7 @@ make tilt-up
 
 ## Troubleshooting
 
-See [diagnose issues with super agent logging](https://docs-preview.newrelic.com/docs/new-relic-super-agent#debug).
+See [diagnose issues with agent control logging](https://docs-preview.newrelic.com/docs/new-relic-agent-control#debug).
 
 ## Testing
 

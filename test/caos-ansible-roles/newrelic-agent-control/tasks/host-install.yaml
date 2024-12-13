@@ -1,0 +1,20 @@
+---
+
+- name: setup Newrelic repository
+  include_role:
+    name: caos.ansible_roles.nr_repo_setup # TODO : remove `caos.ansible_roles.` prefix when moved to caos_ansible_roles repo
+
+- name: install package
+  include_role:
+    name: caos.ansible_roles.package_install
+  vars:
+    package: "{{ agent_control_package_name }}"
+
+- name: assert service status
+  include_role:
+    name: caos.ansible_roles.assert_service_status
+  vars:
+    services_running:
+      - "{{ agent_control_service_name }}.service"
+
+...

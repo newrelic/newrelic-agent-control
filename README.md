@@ -1,11 +1,11 @@
 <a href="https://opensource.newrelic.com/oss-category/#community-plus"><picture><source media="(prefers-color-scheme: dark)" srcset="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/dark/Community_Plus.png"><source media="(prefers-color-scheme: light)" srcset="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Community_Plus.png"><img alt="New Relic Open Source community plus project banner." src="https://github.com/newrelic/opensource-website/raw/main/src/images/categories/Community_Plus.png"></picture></a>
 
-| ⚠️ | New Relic super agent is in preview and licensed under the New Relic Pre-Release Software Notice. |
+| ⚠️ | New Relic agent control is in preview and licensed under the New Relic Pre-Release Software Notice. |
 |---------------|:------------------------|
 
-# New Relic super agent
+# New Relic agent control
 
-Our agent combines the power of existing New Relic capabilities with open standards technologies. The super agent is designed to be lightweight and efficient, and it can be configured to collect a wide range of data, including metrics, traces, logs, and events. 
+Our agent combines the power of existing New Relic capabilities with open standards technologies. The agent control is designed to be lightweight and efficient, and it can be configured to collect a wide range of data, including metrics, traces, logs, and events. 
 The agent has a modular architecture, with a generic supervisor that is responsible for orchestrating the configured agents. It also integrates with New Relic fleet manager. 
 
 - [Getting started](#getting-started)
@@ -17,13 +17,13 @@ The agent has a modular architecture, with a generic supervisor that is responsi
 
 ## Getting started
 
-Follow the [installation steps](https://docs-preview.newrelic.com/docs/new-relic-super-agent#quickstart) to get started on Linux hosts and [running in Kubernetes](/docs/README.md#running-in-kubernetes) to run it in your cluster.
+Follow the [installation steps](https://docs-preview.newrelic.com/docs/new-relic-agent-control#quickstart) to get started on Linux hosts and [running in Kubernetes](/docs/README.md#running-in-kubernetes) to run it in your cluster.
 
-For troubleshooting, see [Diagnose issues with agent logging](https://docs-preview.newrelic.com/docs/new-relic-super-agent#troubleshooting).
+For troubleshooting, see [Diagnose issues with agent logging](https://docs-preview.newrelic.com/docs/new-relic-agent-control#troubleshooting).
 
 ## Documentation
 
-Learn more from the [technical documentation in this repository](/docs/README.md) and the [Limited Preview Documentation](https://docs-preview.newrelic.com/docs/new-relic-super-agent).
+Learn more from the [technical documentation in this repository](/docs/README.md) and the [Limited Preview Documentation](https://docs-preview.newrelic.com/docs/new-relic-agent-control).
 
 ## Support
 
@@ -60,6 +60,6 @@ If you would like to contribute to this project, review [these guidelines](./CON
 
 ## License
 
-New Relic super agent is licensed under the New Relic Pre-Release Software Notice.
+New Relic agent control is licensed under the New Relic Pre-Release Software Notice.
 
 It also uses source code from third-party libraries. You can find full details on which libraries are used and the terms under which they are licensed in the third-party notices document.

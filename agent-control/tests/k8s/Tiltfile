@@ -1,0 +1,52 @@
+# -*- mode: Python -*-
+# This Tiltfile is used by the integration tests to setup the environment.
+
+update_settings ( k8s_upsert_timeout_secs = 150)
+
+######## Feature Branch Workaround ########
+# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
+chart_source = 'helm-repo' # local|branch|helm-repo
+feature_branch = ''
+local_chart_repo = ''
+
+#### Set-up charts
+load('ext://helm_resource', 'helm_repo','helm_resource')
+load('ext://git_resource', 'git_checkout')
+update_dependencies = False
+deps=[]
+chart = ''
+extra_resource_deps=[]
+
+if chart_source == 'local':
+  chart = local_chart_repo
+  update_dependencies = True
+  deps=[chart+'agent-control-deployment/templates']
+elif chart_source == 'branch':
+  git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=False)
+  chart = 'local/helm-charts/charts/'
+  update_dependencies = True
+  deps=[chart+'agent-control-deployment/templates']
+elif chart_source == 'helm-repo':
+  chart = 'newrelic/'
+  helm_repo(
+    'newrelic',
+    'https://helm-charts.newrelic.com',
+    resource_name='newrelic-helm-repo',
+    )
+  extra_resource_deps=['newrelic-helm-repo']
+
+helm_resource(
+  'flux',
+  chart+'agent-control',
+  deps=deps, # re-deploy chart if modified locally
+  namespace='default',
+  release_name='flux',
+  update_dependencies=update_dependencies,
+  flags=[
+    '--create-namespace',
+    '--version=>=0.0.0-beta',
+    '--set=flux2.watchAllNamespaces=true',
+    '--set=agent-control-deployment.enabled=false',
+    ],
+  resource_deps=extra_resource_deps
+)

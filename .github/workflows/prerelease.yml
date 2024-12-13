@@ -54,8 +54,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
@@ -79,8 +79,8 @@ jobs:
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: ${{ github.event.release.tag_name }}
-          app_name: "newrelic-super-agent"
-          repo_name: "newrelic/newrelic-super-agent"
+          app_name: "newrelic-agent-control"
+          repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_STAGING }}
@@ -118,7 +118,7 @@ jobs:
     needs: [ upload ]
     with:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-      PACKAGE_NAME: "newrelic-super-agent"
+      PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
   canaries:
@@ -159,4 +159,4 @@ jobs:
         with:
           slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
           slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `newrelic/newrelic-super-agent`: [pre-release failed](${{ github.server_url }}/newrelic/newrelic-super-agent/actions/runs/${{ github.run_id }})."
+          slack-text: "❌ `newrelic/newrelic-agent-control`: [pre-release failed](${{ github.server_url }}/newrelic/newrelic-agent-control/actions/runs/${{ github.run_id }})."
