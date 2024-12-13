@@ -171,7 +171,10 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         })?;
 
         let status: InstrumentationStatus = serde_json::from_value(status).map_err(|e| {
-            HealthCheckerError::Generic(format!("could not deserialize a valid instrumentation status: {}", e))
+            HealthCheckerError::Generic(format!(
+                "could not deserialize a valid instrumentation status: {}",
+                e
+            ))
         })?;
 
         Ok(HealthWithStartTime::new(
