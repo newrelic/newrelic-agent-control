@@ -13,7 +13,7 @@ use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::version::k8s::k8s_version_checker::K8sVersionChecker;
+use crate::sub_agent::version::k8s::version_checker::AgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
@@ -49,7 +49,8 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             self.start_k8s_objects_supervisor(resources.clone());
         let maybe_stop_health =
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
-        let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher);
+        let maybe_stop_version =
+            self.start_version_checker(sub_agent_internal_publisher, resources.clone());
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,
@@ -175,10 +176,15 @@ impl NotStartedSupervisorK8s {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> EventPublisher<()> {
+        resources: Arc<Vec<DynamicObject>>,
+    ) -> Option<EventPublisher<()>> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
-        let k8s_version_checker =
-            K8sVersionChecker::new(self.k8s_client.clone(), self.agent_id.to_string());
+
+        let k8s_version_checker = AgentVersionChecker::build(
+            self.k8s_client.clone(),
+            self.agent_id.to_string(),
+            resources,
+        )?;
 
         spawn_version_checker(
             self.agent_id.clone(),
@@ -187,7 +193,7 @@ impl NotStartedSupervisorK8s {
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        stop_version_publisher
+        Some(stop_version_publisher)
     }
 
     /// It applies each of the provided k8s resources to the cluster if it has changed.
@@ -209,7 +215,7 @@ impl NotStartedSupervisorK8s {
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
     maybe_stop_health: Option<EventPublisher<()>>,
-    maybe_stop_version: EventPublisher<()>,
+    maybe_stop_version: Option<EventPublisher<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
 }
@@ -221,8 +227,9 @@ impl SupervisorStopper for StartedSupervisorK8s {
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
         }
-        let stop_version = self.maybe_stop_version;
-        stop_version.publish(())?;
+        if let Some(stop_version) = self.maybe_stop_version {
+            stop_version.publish(())?;
+        }
 
         self.stop_objects_supervisor.publish(())?;
         let _ = self.objects_supervisor_handle.join().inspect_err(|_| {
