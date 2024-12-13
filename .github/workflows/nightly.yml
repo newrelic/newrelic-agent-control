@@ -78,20 +78,21 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-  onhost-e2e:
-    uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ build-nightly ]
-    with:
-      UNIQUE_NAME: "nightly:e2e"
-      EC2_FILTERS: '[\"ubuntu22.04\"]'
-      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/agent-control-nightlies"
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+  # e2e test were not actually testing the new packages! This will be addressed in https://new-relic.atlassian.net/browse/NR-346876
+  #  onhost-e2e:
+  #    uses: ./.github/workflows/component_onhost_e2e.yaml
+  #    needs: [ build-nightly ]
+  #    with:
+  #      UNIQUE_NAME: "nightly:e2e"
+  #      EC2_FILTERS: '[\"ubuntu22.04\"]'
+  #      REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/agent-control-nightlies"
+  #    secrets:
+  #      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
+  #      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [ onhost-e2e , build-image ]
+    needs: [ build-image ]
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
