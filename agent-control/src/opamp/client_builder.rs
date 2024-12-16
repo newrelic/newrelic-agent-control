@@ -98,7 +98,7 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
-        opamp::proto::{AgentDescription, ComponentHealth, RemoteConfigStatus},
+        opamp::proto::{AgentDescription, ComponentHealth, CustomCapabilities, RemoteConfigStatus},
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
@@ -142,6 +142,8 @@ pub(crate) mod tests {
              fn update_effective_config(&self) -> ClientResult<()>;
 
              fn set_remote_config_status(&self, status: RemoteConfigStatus) -> ClientResult<()>;
+
+             fn set_custom_capabilities(&self, capabilities: CustomCapabilities) -> ClientResult<()>;
         }
     }
 

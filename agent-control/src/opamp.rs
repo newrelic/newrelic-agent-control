@@ -7,6 +7,5 @@ pub mod http;
 pub mod instance_id;
 pub mod operations;
 pub mod remote_config;
-
 pub type LastErrorCode = u16;
 pub type LastErrorMessage = String;
