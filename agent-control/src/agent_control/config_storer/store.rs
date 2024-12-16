@@ -152,7 +152,6 @@ pub(crate) mod tests {
         let local_config = r#"
 agents: {}
 fleet_control:
-  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -183,7 +182,6 @@ fleet_control:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
-                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -205,7 +203,6 @@ fleet_control:
         let local_config = r#"
 agents: {}
 fleet_control:
-  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -231,7 +228,6 @@ fleet_control:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
-                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -252,7 +248,6 @@ fleet_control:
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
         let local_config = r#"
 fleet_control:
-  enabled: true
   endpoint: http://127.0.0.1/v1/opamp
 agents:
   rolldice2:
@@ -281,7 +276,6 @@ agents:
             )])
             .into(),
             fleet_control: Some(OpAMPClientConfig {
-                enabled: true,
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),

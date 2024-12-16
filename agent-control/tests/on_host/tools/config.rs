@@ -37,7 +37,6 @@ pub fn create_agent_control_config_with_proxy(
         r#"
 host_id: integration-test
 fleet_control:
-  enabled: true
   endpoint: {}
 agents: {}
 {}

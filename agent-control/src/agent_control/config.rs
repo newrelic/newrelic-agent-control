@@ -252,7 +252,6 @@ pub struct SubAgentConfig {
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
 pub struct OpAMPClientConfig {
-    pub enabled: bool,
     pub endpoint: Url,
     #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
@@ -269,7 +268,6 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateOpAMPClientConfig {
-            enabled: bool,
             #[serde(default)]
             fleet_id: String,
             endpoint: Url,
@@ -294,7 +292,6 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             .collect::<HeaderMap>();
 
         Ok(OpAMPClientConfig {
-            enabled: intermediate_spec.enabled,
             fleet_id: intermediate_spec.fleet_id,
             endpoint: intermediate_spec.endpoint,
             headers: censored_headers,
@@ -388,7 +385,6 @@ pub(crate) mod tests {
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
             OpAMPClientConfig {
-                enabled: false,
                 fleet_id: String::default(),
                 endpoint: "http://localhost".try_into().unwrap(),
                 headers: HeaderMap::default(),
@@ -399,7 +395,6 @@ pub(crate) mod tests {
 
     const EXAMPLE_AGENTCONTROL_CONFIG: &str = r#"
 fleet_control:
-  enabled: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -421,7 +416,6 @@ proxy:
 
     const EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS: &str = r#"
 fleet_control:
-  enabled: false
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -429,7 +423,6 @@ fleet_control:
 
     const EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS: &str = r#"
 fleet_control:
-  enabled: true
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -494,7 +487,6 @@ agents: {}
 
     const AGENTCONTROL_FLEET_ID: &str = r#"
 fleet_control:
-  enabled: true
   endpoint: http://localhost:8080/some/path
   fleet_id: 123
 agents: {}

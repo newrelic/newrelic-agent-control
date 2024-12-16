@@ -118,7 +118,7 @@ impl Cli {
             base_paths.local_dir.to_string_lossy().to_string()
         );
 
-        let opamp = agent_control_config.fleet_control.filter(|fc| fc.enabled);
+        let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
         let proxy = agent_control_config
             .proxy

@@ -117,7 +117,6 @@ The following Agent Control configuration example shows how to integrate the Inf
 # integrate with fleet control by defining the opamp backend settings
 # remove to run the agent standalone (disconnected from fleet)
 fleet_control:
-  enabled: true
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY
@@ -299,7 +298,6 @@ Compile and run locally:
 
 ```yaml
 fleet_control:
-  enabled: true
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY
