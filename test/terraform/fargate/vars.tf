@@ -140,7 +140,7 @@ variable "additional_efs_security_group_rules" {
 #######################################
 
 variable "oidc_repository" {
-  default = "repo:newrelic/newrelic-super-agent:*"
+  default = "repo:newrelic/newrelic-agent-control:*"
 }
 
 variable "oidc_role_name" {
