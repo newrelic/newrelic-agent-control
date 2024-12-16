@@ -180,7 +180,7 @@ impl NotStartedSupervisorK8s {
     ) -> Option<EventPublisher<()>> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
-        let k8s_version_checker = AgentVersionChecker::build(
+        let k8s_version_checker = AgentVersionChecker::checked_new(
             self.k8s_client.clone(),
             self.agent_id.to_string(),
             resources,

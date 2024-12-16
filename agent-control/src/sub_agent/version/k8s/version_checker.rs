@@ -1,13 +1,14 @@
-use super::{
-    helmrelease_version::HelmReleaseVersionChecker,
-    instrumentation_version::NewrelicInstrumentationVersionChecker,
-};
+mod helmrelease;
+mod instrumentation;
+
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
     agent_control::config::{helm_release_type_meta, instrumentation_type_meta},
     sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker},
 };
+use helmrelease::HelmReleaseVersionChecker;
+use instrumentation::NewrelicInstrumentationVersionChecker;
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 use tracing::warn;
@@ -36,7 +37,7 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
 }
 
 /// Represents all supported version checkers for k8s objects.
-#[derive(Debug)]
+#[cfg_attr(test, derive(Debug))]
 pub enum AgentVersionChecker {
     HelmRelease(HelmReleaseVersionChecker),
     Instrumentation(NewrelicInstrumentationVersionChecker),
@@ -54,7 +55,7 @@ impl VersionChecker for AgentVersionChecker {
 impl AgentVersionChecker {
     /// Builds the VersionChecker corresponding to the first k8s object compatible with version check.
     /// It returns None if no object is compatible with version check.
-    pub fn build(
+    pub fn checked_new(
         k8s_client: Arc<SyncK8sClient>,
         agent_id: String,
         k8s_objects: Arc<Vec<DynamicObject>>,
@@ -104,7 +105,7 @@ mod tests {
         impl TestCase {
             fn run(self) {
                 let k8s_objects = Arc::new(self.k8s_objects);
-                let result = AgentVersionChecker::build(
+                let result = AgentVersionChecker::checked_new(
                     Arc::new(MockSyncK8sClient::new()),
                     "some-agent-id".into(),
                     k8s_objects,

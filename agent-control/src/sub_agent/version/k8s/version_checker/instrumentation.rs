@@ -67,12 +67,14 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
     }
 }
 
+#[cfg(test)]
 impl std::fmt::Debug for NewrelicInstrumentationVersionChecker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_fmt(format_args!(
+        write!(
+            f,
             "NewrelicInstrumentationVersionChecker{{agent_id: {}}}",
-            self.agent_id
-        ))
+            self.agent_id,
+        )
     }
 }
 
