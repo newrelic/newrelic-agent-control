@@ -1,9 +1,9 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::config::{AgentID, K8sConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::{agent_control_fqn, AgentControl};
@@ -31,7 +31,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 impl AgentControlRunner {
     pub fn run(self) -> Result<(), AgentError> {
@@ -102,6 +102,9 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
         );
 
+        let additional_identifying_attributes =
+            agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
+
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
@@ -110,10 +113,7 @@ impl AgentControlRunner {
                     &instance_id_getter,
                     AgentID::new_agent_control_id(),
                     &agent_control_fqn(),
-                    HashMap::from([(
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]),
+                    additional_identifying_attributes,
                     non_identifying_attributes,
                 )
             })
@@ -166,4 +166,67 @@ pub fn agent_control_opamp_non_identifying_attributes(
             DescriptionValueType::String(identifiers.fleet_id.clone()),
         ),
     ])
+}
+
+fn agent_control_additional_opamp_identifying_attributes(
+    k8s_config: &K8sConfig,
+) -> HashMap<String, DescriptionValueType> {
+    let mut attributes = HashMap::from([(
+        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
+    )]);
+
+    if k8s_config.chart_version.is_empty() {
+        warn!("Agent Control chart version was not set, it will not be reported");
+        return attributes;
+    }
+
+    let chart_version = k8s_config.chart_version.to_string();
+
+    attributes.insert(
+        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+        DescriptionValueType::String(chart_version),
+    );
+
+    attributes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_agent_control_additional_opamp_identifying_attributes_chart_version_unset() {
+        let k8s_config = K8sConfig::default();
+        let expected = HashMap::from([(
+            "agent.version".to_string(),
+            DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
+        )]);
+        assert_eq!(
+            agent_control_additional_opamp_identifying_attributes(&k8s_config),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_agent_control_additional_opamp_identifying_attributes_chart_version_set() {
+        let k8s_config = K8sConfig {
+            chart_version: "1.2.3".to_string(),
+            ..Default::default()
+        };
+        let expected = HashMap::from([
+            (
+                "agent.version".to_string(),
+                DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
+            ),
+            (
+                "chart.version".to_string(),
+                DescriptionValueType::String("1.2.3".to_string()),
+            ),
+        ]);
+        assert_eq!(
+            agent_control_additional_opamp_identifying_attributes(&k8s_config),
+            expected
+        );
+    }
 }

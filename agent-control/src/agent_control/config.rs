@@ -307,6 +307,9 @@ pub struct K8sConfig {
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
+    /// chart_version is the version of the chart used to deploy agent control3
+    #[serde(default)]
+    pub chart_version: String,
 
     /// CRDs is a list of crds that the SA should watch and be able to create/delete.
     #[cfg(feature = "k8s")]
@@ -318,8 +321,9 @@ pub struct K8sConfig {
 impl Default for K8sConfig {
     fn default() -> Self {
         Self {
-            cluster_name: String::new(),
-            namespace: String::new(),
+            cluster_name: Default::default(),
+            namespace: Default::default(),
+            chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
         }
     }
