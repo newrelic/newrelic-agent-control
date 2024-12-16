@@ -173,7 +173,7 @@ pub struct AgentControlConfig {
     #[serde(flatten)]
     pub dynamic: AgentControlDynamicConfig,
 
-    /// opamp contains the OpAMP client configuration
+    /// fleet_control contains the OpAMP client configuration
     pub fleet_control: Option<OpAMPClientConfig>,
 
     // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
