@@ -64,8 +64,8 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
           cloud_watch_logs_stream_name: ecs/test-super_agent-releases
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: "newrelic/newrelic-agent-control"
+          git_clone_url: "ssh://git@github.com/newrelic/newrelic-agent-control.git"
           ref: "${{ env.GIT_BRANCH }}"
           log_filters: |
             \[ALLOW_MSG\].+
@@ -85,8 +85,8 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
           cloud_watch_logs_stream_name: ecs/test-super_agent-releases
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: "newrelic/newrelic-agent-control"
+          git_clone_url: "ssh://git@github.com/newrelic/newrelic-agent-control.git"
           ref: "${{ env.GIT_BRANCH }}"
 
       - name: Destroy the infra
@@ -100,7 +100,7 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
           cloud_watch_logs_stream_name: ecs/test-super_agent-releases
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: "newrelic/newrelic-agent-control"
+          git_clone_url: "ssh://git@github.com/newrelic/newrelic-agent-control.git"
           ref: "${{ env.GIT_BRANCH }}"
 
