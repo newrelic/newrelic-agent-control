@@ -307,7 +307,7 @@ pub struct K8sConfig {
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
-    /// chart_version is the version of the chart used to deploy agent control3
+    /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
 
