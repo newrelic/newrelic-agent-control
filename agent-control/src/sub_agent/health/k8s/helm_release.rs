@@ -6,7 +6,6 @@ use crate::sub_agent::health::health_checker::{
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::serde_json::{Map, Value};
-use kube::api::DynamicObject;
 use std::sync::Arc;
 
 const CONDITION_READY: &str = "Ready";
@@ -37,21 +36,14 @@ impl From<&str> for ConditionStatus {
 pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
-    k8s_object: DynamicObject,
     start_time: StartTime,
 }
 
 impl K8sHealthFluxHelmRelease {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        name: String,
-        k8s_object: DynamicObject,
-        start_time: StartTime,
-    ) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, start_time: StartTime) -> Self {
         Self {
             k8s_client,
             name,
-            k8s_object,
             start_time,
         }
     }
@@ -266,7 +258,6 @@ pub mod tests {
             let checker = K8sHealthFluxHelmRelease::new(
                 Arc::new(mock_client),
                 "example-release".to_string(),
-                dynamic_object(),
                 start_time,
             );
             let result = checker.check_health();
@@ -284,14 +275,6 @@ pub mod tests {
                     assert_eq!(result_err.to_string(), expected_err.to_string(), "{}", name);
                 }
             }
-        }
-    }
-
-    fn dynamic_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(helm_release_type_meta()),
-            metadata: ObjectMeta::default(),
-            data: json!({}),
         }
     }
 
