@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_agent_control"
 description = "New Relic Agent Control Limited Preview"
-version = "0.26.3"
+version = "0.26.4"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
