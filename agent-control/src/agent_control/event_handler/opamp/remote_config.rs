@@ -6,20 +6,14 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigStorer,
 };
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
+use crate::opamp::remote_config::report::RemoteConfigStatusReport;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
     agent_control::{
         agent_control::{AgentControl, AgentControlCallbacks},
         error::AgentError,
     },
-    opamp::{
-        hash_repository::HashRepository,
-        remote_config::RemoteConfig,
-        remote_config_report::{
-            report_remote_config_status_applied, report_remote_config_status_applying,
-            report_remote_config_status_error,
-        },
-    },
+    opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
     sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
 };
 
@@ -48,22 +42,19 @@ where
         };
 
         info!("Applying AgentControl remote config");
-        report_remote_config_status_applying(opamp_client, &remote_config.hash)?;
+        RemoteConfigStatusReport::Applying.report(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_agent_control_config(&remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
-                report_remote_config_status_error(
-                    opamp_client,
-                    &remote_config.hash,
-                    error_message.clone(),
-                )?;
+                RemoteConfigStatusReport::Error(error_message.clone())
+                    .report(opamp_client, &remote_config.hash)?;
                 Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
-                report_remote_config_status_applied(opamp_client, &remote_config.hash)?;
+                RemoteConfigStatusReport::Applied.report(opamp_client, &remote_config.hash)?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
             }
@@ -92,8 +83,8 @@ mod tests {
         opamp::{
             client_builder::tests::MockStartedOpAMPClientMock,
             hash_repository::repository::tests::MockHashRepositoryMock,
+            remote_config::hash::Hash,
             remote_config::{ConfigurationMap, RemoteConfig},
-            remote_config_hash::Hash,
         },
         sub_agent::{
             collection::StartedSubAgents,

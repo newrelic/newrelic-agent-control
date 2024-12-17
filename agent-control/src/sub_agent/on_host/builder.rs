@@ -223,7 +223,7 @@ mod tests {
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
-    use crate::opamp::remote_config_hash::Hash;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;

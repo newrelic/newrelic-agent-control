@@ -1,9 +1,12 @@
 use crate::agent_control::config::AgentID;
-use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config::hash::Hash;
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
 use thiserror::Error;
+
+pub mod hash;
+pub mod report;
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values

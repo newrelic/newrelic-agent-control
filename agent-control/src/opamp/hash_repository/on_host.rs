@@ -1,6 +1,6 @@
 use crate::agent_control::config::AgentID;
 use crate::opamp::hash_repository::repository::{HashRepository, HashRepositoryError};
-use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config::hash::Hash;
 use fs::directory_manager::DirectoryManagementError;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;

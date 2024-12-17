@@ -14,12 +14,12 @@ use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
 };
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
+use crate::opamp::remote_config::report::RemoteConfigStatusReport;
 use crate::opamp::{
     callbacks::AgentCallbacks,
     hash_repository::HashRepository,
+    remote_config::hash::Hash,
     remote_config::{RemoteConfig, RemoteConfigError},
-    remote_config_hash::Hash,
-    remote_config_report::report_remote_config_status_applied,
 };
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
@@ -111,7 +111,7 @@ where
                 }
                 Ok(Some(mut hash)) => {
                     if !hash.is_applied() {
-                        report_remote_config_status_applied(opamp_handle, &hash)?;
+                        RemoteConfigStatusReport::Applied.report(opamp_handle, &hash)?;
                         self.set_config_hash_as_applied(&mut hash)?;
                     }
                 }
@@ -437,8 +437,8 @@ mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::tests::MockStartedSubAgent;

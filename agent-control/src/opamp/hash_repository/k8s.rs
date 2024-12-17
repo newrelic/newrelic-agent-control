@@ -4,7 +4,7 @@ use crate::k8s::store::K8sStore;
 use crate::k8s::store::STORE_KEY_OPAMP_DATA_CONFIG_HASH;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config::hash::Hash;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
