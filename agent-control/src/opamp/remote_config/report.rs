@@ -21,7 +21,7 @@ impl RemoteConfigStatusReport {
     fn err_message(self) -> Option<String> {
         match self {
             Self::Error(msg) => Some(msg),
-            _ => None,
+            Self::Applying | Self::Applied => None,
         }
     }
 
