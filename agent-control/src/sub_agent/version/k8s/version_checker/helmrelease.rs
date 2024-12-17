@@ -73,17 +73,6 @@ impl VersionChecker for HelmReleaseVersionChecker {
     }
 }
 
-#[cfg(test)]
-impl std::fmt::Debug for HelmReleaseVersionChecker {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "HelmReleaseVersionChecker{{agent_id: {}}}",
-            self.agent_id
-        )
-    }
-}
-
 //Attempt to get version from chart
 fn extract_revision(helm_data: &serde_json::map::Map<String, Value>) -> Option<String> {
     helm_data
@@ -136,8 +125,9 @@ fn extract_revision_from_history(
         _ => None,
     }
 }
+
 #[cfg(test)]
-pub mod test {
+pub mod tests {
     use super::*;
     use crate::agent_control::config::helm_release_type_meta;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
@@ -146,6 +136,16 @@ pub mod test {
     use kube::api::DynamicObject;
     use serde_json::{json, Value};
     use std::sync::Arc;
+
+    impl std::fmt::Debug for HelmReleaseVersionChecker {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "HelmReleaseVersionChecker{{agent_id: {}}}",
+                self.agent_id
+            )
+        }
+    }
 
     #[test]
     fn test_k8s_check_agent_version() {

@@ -50,7 +50,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         let maybe_stop_health =
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
         let maybe_stop_version =
-            self.start_version_checker(sub_agent_internal_publisher, resources.clone());
+            self.start_version_checker(sub_agent_internal_publisher, resources);
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,

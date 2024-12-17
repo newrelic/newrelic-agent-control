@@ -62,11 +62,11 @@ impl AgentVersionChecker {
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
-            let Some(type_meta) = object.types.clone() else {
+            let Some(type_meta) = &object.types else {
                 warn!(%agent_id, "Skipping k8s object with unknown type {:?}", object);
                 continue;
             };
-            let Ok(resource_type) = (&type_meta).try_into() else {
+            let Ok(resource_type) = type_meta.try_into() else {
                 continue;
             };
             let health_checker = match resource_type {

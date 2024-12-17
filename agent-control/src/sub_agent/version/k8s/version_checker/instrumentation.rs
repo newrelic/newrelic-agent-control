@@ -67,17 +67,6 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
     }
 }
 
-#[cfg(test)]
-impl std::fmt::Debug for NewrelicInstrumentationVersionChecker {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "NewrelicInstrumentationVersionChecker{{agent_id: {}}}",
-            self.agent_id,
-        )
-    }
-}
-
 /// Obtains the version from the data of a 'newrelic instrumentation' (newrelic.com/v1alpha2, Instrumentation) object.
 /// Specifically it gets it from `spec.agent.image`, where the image's tag is considered the version.
 fn version_from_newrelic_instrumentation_image(
@@ -92,8 +81,18 @@ fn version_from_newrelic_instrumentation_image(
 
 #[cfg(test)]
 mod tests {
-    use super::version_from_newrelic_instrumentation_image;
+    use super::*;
     use serde_json::json;
+
+    impl std::fmt::Debug for NewrelicInstrumentationVersionChecker {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "NewrelicInstrumentationVersionChecker{{agent_id: {}}}",
+                self.agent_id,
+            )
+        }
+    }
 
     #[test]
     fn test_version_from_newrelic_instrumentation_image() {
