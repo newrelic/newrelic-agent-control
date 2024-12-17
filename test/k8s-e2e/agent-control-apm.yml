@@ -2,7 +2,7 @@
 
 agent-control-deployment:
   config:
-    opamp:
+    fleet_control:
       enabled: false
     agentControl:
       content:

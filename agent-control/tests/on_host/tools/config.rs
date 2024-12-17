@@ -36,7 +36,7 @@ pub fn create_agent_control_config_with_proxy(
     let agent_control_config = format!(
         r#"
 host_id: integration-test
-opamp:
+fleet_control:
   endpoint: {}
 agents: {}
 {}

@@ -5,8 +5,9 @@ update_settings ( k8s_upsert_timeout_secs = 150)
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = os.getenv('CHART_SOURCE', 'branch') # local|branch|helm-repo
-feature_branch = 'feat/rename-sa-to-ac-env-vars'
+chart_source = os.getenv('CHART_SOURCE', 'helm-repo') # local|branch|helm-repo
+feature_branch = ''
+
 local_chart_repo = ''
 
 #### Set-up charts

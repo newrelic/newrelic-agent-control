@@ -1,4 +1,4 @@
-# opamp:
+# fleet_control:
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
 #   headers:
 #     api-key: API_KEY_HERE
