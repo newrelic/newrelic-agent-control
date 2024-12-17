@@ -16,8 +16,7 @@ use opamp_client::{
     },
     operation::callbacks::{Callbacks, MessageData},
 };
-use std::str;
-use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 use thiserror::Error;
 use tracing::{debug, error, trace};
 use HttpClientError::UnsuccessfulResponse;
@@ -28,7 +27,7 @@ pub enum AgentCallbacksError {
     DeserializationError(#[from] RemoteConfigError),
 
     #[error("Invalid UTF-8 sequence: `{0}`")]
-    UTF8(#[from] Utf8Error),
+    UTF8(#[from] FromUtf8Error),
 
     #[error("unable to publish OpAMP event")]
     PublishEventError(#[from] EventPublisherError),
@@ -66,14 +65,14 @@ where
     /// Assembles a `RemoteConfig` from the OpAMP message and publish the `crate::event::OpAMPEvent::RemoteConfigReceived`.
     fn process_remote_config(
         &self,
-        msg_remote_config: &AgentRemoteConfig,
+        msg_remote_config: AgentRemoteConfig,
     ) -> Result<(), AgentCallbacksError> {
         trace!(
             agent_id = self.agent_id.to_string(),
             "OpAMP remote config message received"
         );
 
-        let mut hash = match str::from_utf8(&msg_remote_config.config_hash) {
+        let mut hash = match String::from_utf8(msg_remote_config.config_hash) {
             Ok(hash) => Hash::new(hash.to_string()),
             Err(err) => {
                 // the hash must be created to keep track of the failing remote config.
@@ -83,11 +82,11 @@ where
             }
         };
 
-        let config_map: Option<ConfigurationMap> = match &msg_remote_config.config {
+        let config_map: Option<ConfigurationMap> = match msg_remote_config.config {
             Some(msg_config_map) => msg_config_map
                 .try_into()
                 .inspect_err(|err: &RemoteConfigError| {
-                    hash.fail(format!("Invalid format: {}", err))
+                    hash.fail(format!("Invalid remote config format: {}", err))
                 })
                 .ok(),
             None => {
@@ -160,22 +159,17 @@ where
 
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
+            trace!(agent_id = %self.agent_id, "remote config received: {:?}", msg_remote_config);
             let _ = self
-                .process_remote_config(&msg_remote_config)
-                .map_err(|error| {
+                .process_remote_config(msg_remote_config)
+                .inspect_err(|error| {
                     error!(
                         agent_id = self.agent_id.to_string(),
                         err = error.to_string(),
                         "processing OpAMP message"
                     )
                 })
-                .map(|_| {
-                    trace!(
-                        agent_id = self.agent_id.to_string(),
-                        "on message ok {:?}",
-                        msg_remote_config
-                    )
-                });
+                .inspect(|_| trace!(agent_id = self.agent_id.to_string(), "on message ok",));
         } else {
             trace!(
                 agent_id = self.agent_id.to_string(),
@@ -397,7 +391,7 @@ pub(crate) mod tests {
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new(valid_hash.to_string());
                     expected_hash.fail(
-                        "Invalid format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
+                        "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
                     );
                     expected_hash
                 },
