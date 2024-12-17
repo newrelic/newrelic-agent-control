@@ -73,7 +73,7 @@ impl AgentControlRunner {
 
         let instance_id_storer = Storer::new(
             LocalFile,
-            DirectoryManagerFs::default(),
+            DirectoryManagerFs,
             self.base_paths.remote_dir.clone(),
             self.base_paths.remote_dir.join(SUB_AGENT_DIR),
         );

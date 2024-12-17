@@ -20,7 +20,7 @@ fn test_configuration_persister_single_file() {
     let mut temp_path = PathBuf::from(&tempdir.path());
     temp_path.push("test_configuration_persister_single_file");
 
-    let dir_manager = DirectoryManagerFs::default();
+    let dir_manager = DirectoryManagerFs;
     let res = dir_manager.create(temp_path.as_path(), Permissions::from_mode(0o700));
 
     assert!(res.is_ok());

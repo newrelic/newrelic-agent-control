@@ -22,7 +22,7 @@ fn test_store_remote_no_mocks() {
     let mut remote_dir = PathBuf::from(&tempdir.path());
     remote_dir.push("remote_dir");
 
-    let dir_manager = DirectoryManagerFs::default();
+    let dir_manager = DirectoryManagerFs;
 
     // Ensure dir exists
     let res = dir_manager.create(remote_dir.as_path(), Permissions::from_mode(0o700));

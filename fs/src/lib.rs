@@ -4,7 +4,7 @@ pub mod file_renamer;
 pub mod utils;
 pub mod writer_file;
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct LocalFile;
 
 #[cfg(feature = "mocks")]

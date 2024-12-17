@@ -38,7 +38,7 @@ impl ValuesPersisterFile<DirectoryManagerFs> {
     pub fn new(data_dir: PathBuf) -> Self {
         ValuesPersisterFile {
             file_writer: LocalFile,
-            directory_manager: DirectoryManagerFs::default(),
+            directory_manager: DirectoryManagerFs,
             local_agent_data_dir: data_dir,
         }
     }

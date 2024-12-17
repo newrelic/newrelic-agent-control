@@ -30,8 +30,7 @@ pub trait DirectoryManager {
     fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
 }
 
-#[derive(Default)]
-pub struct DirectoryManagerFs {}
+pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
     #[cfg(target_family = "unix")]
@@ -159,19 +158,18 @@ pub mod mock {
 pub mod tests {
     use std::fs;
     use std::fs::Permissions;
-    #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
-    use super::{DirectoryManager, DirectoryManagerFs};
+    use super::DirectoryManagerFs;
+    use crate::directory_manager::DirectoryManager;
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_path_to_create_cannot_contain_dots() {
         // Prepare temp path and folder name
         let folder_name = "some/path/../with/../dots";
         let path = PathBuf::from(folder_name);
-        let directory_manager = DirectoryManagerFs::default();
+        let directory_manager = DirectoryManagerFs;
 
         let result = directory_manager.create(&path, Permissions::from_mode(0o645));
 
@@ -182,13 +180,12 @@ pub mod tests {
         );
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_path_to_delete_cannot_contain_dots() {
         // Prepare temp path and folder name
         let folder_name = "some/path/../with/../dots";
         let path = PathBuf::from(folder_name);
-        let directory_manager = DirectoryManagerFs::default();
+        let directory_manager = DirectoryManagerFs;
 
         let result = directory_manager.delete(&path);
 
@@ -199,7 +196,6 @@ pub mod tests {
         );
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_folder_creation_and_permissions() {
         // Prepare temp path and folder name
@@ -211,7 +207,7 @@ pub mod tests {
 
         // Create directory manager and create directory with some permissions
         let some_permissions = Permissions::from_mode(0o645);
-        let directory_manager = DirectoryManagerFs::default();
+        let directory_manager = DirectoryManagerFs;
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
 
@@ -239,7 +235,6 @@ pub mod tests {
         );
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_folder_creation_should_not_fail_if_exists() {
         // Prepare temp path and folder name
@@ -251,14 +246,13 @@ pub mod tests {
 
         // Create directory manager and create directory with some permissions
         let some_permissions = Permissions::from_mode(0o645);
-        let directory_manager = DirectoryManagerFs::default();
+        let directory_manager = DirectoryManagerFs;
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_folder_deletion() {
         // Prepare temp path and folder name
@@ -270,7 +264,7 @@ pub mod tests {
 
         // Create directory manager and create directory with some permissions
         let some_permissions = Permissions::from_mode(0o645);
-        let directory_manager = DirectoryManagerFs::default();
+        let directory_manager = DirectoryManagerFs;
         let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
         assert!(create_result.is_ok());
         let delete_result = directory_manager.delete(path.as_path());
