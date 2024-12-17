@@ -151,7 +151,7 @@ pub(crate) mod tests {
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
         let local_config = r#"
 agents: {}
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -181,7 +181,7 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -202,7 +202,7 @@ opamp:
         // source checked when loading the local config.
         let local_config = r#"
 agents: {}
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -227,7 +227,7 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -247,7 +247,7 @@ opamp:
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
         let local_config = r#"
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 agents:
   rolldice2:
@@ -275,7 +275,7 @@ agents:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),

@@ -53,7 +53,12 @@ impl AgentControlRunner {
 
         let identifiers_provider = IdentifiersProvider::default()
             .with_host_id(config.host_id)
-            .with_fleet_id(config.fleet_id);
+            .with_fleet_id(
+                config
+                    .fleet_control
+                    .map(|opamp_config| opamp_config.fleet_id)
+                    .unwrap_or_default(),
+            );
         let identifiers = identifiers_provider
             .provide()
             .map_err(|e| AgentError::IdentifiersError(e.to_string()))?;

@@ -38,7 +38,7 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
         assert!(opamp_poll_interval > garbage_collector_interval);
 
         let run_config = AgentControlRunConfig {
-            opamp: agent_control_config.opamp,
+            opamp: agent_control_config.fleet_control,
             opamp_poll_interval,
             http_server: agent_control_config.server,
             base_paths,

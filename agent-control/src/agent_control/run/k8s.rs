@@ -53,7 +53,11 @@ impl AgentControlRunner {
 
         let identifiers = instance_id::get_identifiers(
             self.k8s_config.cluster_name.clone(),
-            config_storer.load()?.fleet_id,
+            config_storer
+                .load()?
+                .fleet_control
+                .map(|c| c.fleet_id)
+                .unwrap_or_default(),
         );
         info!("Instance Identifiers: {}", identifiers);
 

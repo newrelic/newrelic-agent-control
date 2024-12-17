@@ -16,5 +16,5 @@ agent-control-deployment:
             nr-k8s-otel-collector:  
               verboseLog: true
 
-    opamp:
+    fleet_control:
       enabled: false
