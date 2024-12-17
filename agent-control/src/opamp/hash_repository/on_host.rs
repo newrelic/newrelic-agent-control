@@ -54,7 +54,7 @@ impl HashRepositoryFile<LocalFile, DirectoryManagerFs> {
         HashRepositoryFile {
             file_rw: LocalFile,
             conf_path,
-            directory_manager: DirectoryManagerFs::default(),
+            directory_manager: DirectoryManagerFs,
         }
     }
 }

@@ -61,7 +61,7 @@ impl Default for PIDCache<LocalFile, DirectoryManagerFs> {
     fn default() -> Self {
         PIDCache {
             file_rw: LocalFile,
-            directory_manager: DirectoryManagerFs::default(),
+            directory_manager: DirectoryManagerFs,
             file_path: PID_FILE_PATH.into(),
             proc_path: PROC_PATH.into(),
         }
