@@ -43,8 +43,9 @@ docker_build(
 
 ######## Feature Branch Workaround ########
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = os.getenv('CHART_SOURCE', 'branch') # local|branch|helm-repo
-feature_branch = 'chore/rename_opamp_to_fleet_control'
+chart_source = os.getenv('CHART_SOURCE', 'helm-repo') # local|branch|helm-repo
+feature_branch = ''
+
 # relative path to the NR Helm Charts repo on your local machine
 local_chart_repo = os.getenv('LOCAL_CHARTS_PATH','')
 
