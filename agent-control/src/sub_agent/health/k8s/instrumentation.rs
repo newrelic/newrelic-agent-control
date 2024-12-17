@@ -5,7 +5,6 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use kube::api::DynamicObject;
 use serde::Deserialize;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -109,21 +108,14 @@ impl Display for UnhealthyPodError {
 pub struct K8sHealthNRInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
-    k8s_object: DynamicObject,
     start_time: StartTime,
 }
 
 impl K8sHealthNRInstrumentation {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        name: String,
-        k8s_object: DynamicObject,
-        start_time: StartTime,
-    ) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, start_time: StartTime) -> Self {
         Self {
             k8s_client,
             name,
-            k8s_object,
             start_time,
         }
     }
