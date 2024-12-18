@@ -13,9 +13,10 @@ use crate::k8s::tools::{
 };
 use newrelic_agent_control::agent_control::config::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
-    OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
@@ -30,7 +31,7 @@ use tempfile::tempdir;
 #[ignore = "needs a k8s cluster"]
 #[serial]
 fn test_attributes_from_existing_agent_type() {
-    let test_name = "k8s_opamp_add_sub_agent";
+    let test_name = "k8s_opamp_attributes_existing_agent_type";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
     let mut server = FakeServer::start_new();
@@ -52,6 +53,7 @@ fn test_attributes_from_existing_agent_type() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
+    let expected_chart_version = "1.2.3-beta".to_string(); // Set in <test_name>/local-data-agent-control.template
     let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
     server.set_config_response(
         instance_id.clone(),
@@ -64,7 +66,7 @@ agents:
         ),
     );
 
-    let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
+    let ac_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OPAMP_SERVICE_NAMESPACE,
             Value::StringValue("newrelic".to_string()),
@@ -75,11 +77,15 @@ agents:
         ),
         (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-            Value::StringValue("0.26.0".to_string()),
+            Value::StringValue(AGENT_CONTROL_VERSION.to_string()),
+        ),
+        (
+            OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+            Value::StringValue(expected_chart_version.to_string()),
         ),
     ]));
 
-    let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
+    let ac_expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
@@ -99,17 +105,17 @@ agents:
         check_latest_identifying_attributes_match_expected(
             &server,
             &instance_id,
-            expected_identifying_attributes.clone(),
+            ac_expected_identifying_attributes.clone(),
         )?;
         check_latest_non_identifying_attributes_match_expected(
             &server,
             &instance_id,
-            expected_non_identifying_attributes.clone(),
+            ac_expected_non_identifying_attributes.clone(),
         )?;
         Ok(())
     });
 
-    let expected_identifying_attributes_sub_agent = convert_to_vec_key_value(Vec::from([
+    let sub_agent_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OPAMP_SERVICE_NAMESPACE,
             Value::StringValue("newrelic".to_string()),
@@ -128,7 +134,7 @@ agents:
         ),
     ]));
 
-    let expected_non_identifying_attributes_sub_agent = convert_to_vec_key_value(Vec::from([
+    let sub_agent_expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             CLUSTER_NAME_ATTRIBUTE_KEY,
             Value::StringValue("minikube".to_string()),
@@ -146,12 +152,12 @@ agents:
         check_latest_identifying_attributes_match_expected(
             &server,
             &instance_id_sub_agent,
-            expected_identifying_attributes_sub_agent.clone(),
+            sub_agent_expected_identifying_attributes.clone(),
         )?;
         check_latest_non_identifying_attributes_match_expected(
             &server,
             &instance_id_sub_agent,
-            expected_non_identifying_attributes_sub_agent.clone(),
+            sub_agent_expected_non_identifying_attributes.clone(),
         )?;
         Ok(())
     })
