@@ -7,7 +7,7 @@ scenarios:
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-infra.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
-      - kubectl logs -l app.kubernetes.io/name=agent-control-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=infra --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/name=newrelic-logging --all-containers --prefix=true

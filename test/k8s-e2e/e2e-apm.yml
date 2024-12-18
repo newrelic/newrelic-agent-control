@@ -24,7 +24,7 @@ scenarios:
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
 
     after:
-      - kubectl logs -l app.kubernetes.io/name=agent-control-deployment --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
       - kubectl get all -o wide
       - cd ../../ && tilt down
