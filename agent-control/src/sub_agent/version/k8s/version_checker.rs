@@ -79,6 +79,7 @@ impl AgentVersionChecker {
             };
             return Some(health_checker);
         }
+        warn!(%agent_id, "Version cannot be fetched from any of the agent underlying resources, it won't be reported");
         None
     }
 }

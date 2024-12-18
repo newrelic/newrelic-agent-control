@@ -53,7 +53,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
         k8s_client: Arc<SyncK8sClient>,
         resources: Arc<Vec<DynamicObject>>,
         start_time: StartTime,
-    ) -> Result<Self, HealthCheckerError> {
+    ) -> Result<Option<Self>, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
             let type_meta = resource.types.clone().ok_or(HealthCheckerError::Generic(
@@ -112,10 +112,13 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 }
             }
         }
-        Ok(Self {
+        if health_checkers.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(Self {
             health_checkers,
             start_time,
-        })
+        }))
     }
 }
 
@@ -158,9 +161,7 @@ pub mod tests {
             StartTime::now()
         )
         .unwrap()
-        .check_health()
-        .unwrap()
-        .is_healthy());
+        .is_none())
     }
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
