@@ -9,12 +9,13 @@ use std::sync::Arc;
 
 const LAST_ATTEMPTED_REVISION: &str = "lastAttemptedRevision";
 const LAST_REVISION: &str = "*";
-pub struct K8sVersionChecker {
+
+pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     agent_id: String,
 }
 
-impl K8sVersionChecker {
+impl HelmReleaseVersionChecker {
     pub fn new(k8s_client: Arc<SyncK8sClient>, agent_id: String) -> Self {
         Self {
             k8s_client,
@@ -48,7 +49,7 @@ impl K8sVersionChecker {
     }
 }
 
-impl VersionChecker for K8sVersionChecker {
+impl VersionChecker for HelmReleaseVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
@@ -71,6 +72,7 @@ impl VersionChecker for K8sVersionChecker {
         self.extract_version(helm_release_data)
     }
 }
+
 //Attempt to get version from chart
 fn extract_revision(helm_data: &serde_json::map::Map<String, Value>) -> Option<String> {
     helm_data
@@ -82,6 +84,7 @@ fn extract_revision(helm_data: &serde_json::map::Map<String, Value>) -> Option<S
         .filter(|&version| version != LAST_REVISION)
         .map(|version| version.to_string())
 }
+
 //Attempt to get version from last attempted deployed revision
 fn extract_last_deployed_revision(
     helm_data: &serde_json::map::Map<String, Value>,
@@ -92,6 +95,7 @@ fn extract_last_deployed_revision(
         .filter(|version| !version.is_empty())
         .map(|version| version.to_string())
 }
+
 //Attempt to get version from the history looking for status deployed and sort by date
 fn extract_revision_from_history(
     helm_data: &serde_json::map::Map<String, Value>,
@@ -121,18 +125,27 @@ fn extract_revision_from_history(
         _ => None,
     }
 }
+
 #[cfg(test)]
-pub mod test {
+pub mod tests {
+    use super::*;
     use crate::agent_control::config::helm_release_type_meta;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::version::k8s::k8s_version_checker::K8sVersionChecker;
-    use crate::sub_agent::version::version_checker::{
-        AgentVersion, VersionCheckError, VersionChecker,
-    };
+    use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError};
     use kube::api::DynamicObject;
     use serde_json::{json, Value};
     use std::sync::Arc;
+
+    impl std::fmt::Debug for HelmReleaseVersionChecker {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "HelmReleaseVersionChecker{{agent_id: {}}}",
+                self.agent_id
+            )
+        }
+    }
 
     #[test]
     fn test_k8s_check_agent_version() {
@@ -145,8 +158,10 @@ pub mod test {
             fn run(self) {
                 let mut k8s_client = MockSyncK8sClient::new();
                 setup_default_mock(&mut k8s_client, self.mock_return);
-                let check =
-                    K8sVersionChecker::new(Arc::new(k8s_client), String::from("default-test"));
+                let check = HelmReleaseVersionChecker::new(
+                    Arc::new(k8s_client),
+                    String::from("default-test"),
+                );
                 let result = check.check_agent_version();
                 match self.expected {
                     Ok(expected_agent_version) => {
