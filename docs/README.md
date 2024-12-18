@@ -46,7 +46,7 @@ In a nutshell, OpAMP is the protocol handling the communication with the Fleet C
   - Both report health and status (metadata, effective configuration, …).
   - Both will receive package availability messages (not implemented).
 
-Agents (including the agent control itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management.
+Agents (including the agent control itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Control.
 
 ### Agent Types
 
@@ -246,7 +246,7 @@ Users can disable remote management just by commenting the `fleet_control` secti
 
 ### Agents Health Reporting
 
-Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Management after any health change.
+Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Control after any health change.
 
 The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc.
 
