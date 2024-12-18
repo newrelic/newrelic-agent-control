@@ -172,7 +172,7 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
         AGENT_CONTROL_CONFIG_FILE,
         format!(
             r#"
-opamp:
+fleet_control:
   endpoint: "{}"
 log:
   level: info
@@ -233,7 +233,7 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
 
     // We set the environment variable with the `__` separator which will create the nested
     // configs appropriately.
-    let env_var_name = "NR_SA_AGENTS__ROLLDICE__AGENT_TYPE";
+    let env_var_name = "NR_AC_AGENTS__ROLLDICE__AGENT_TYPE";
     env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second

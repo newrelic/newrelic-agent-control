@@ -1,14 +1,15 @@
-# opamp:
+# fleet_control:
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
 #   headers:
 #     api-key: API_KEY_HERE
+#   fleet_id: FLEET_ID_HERE
 #   auth_config:
 #     token_url: PLACEHOLDER
 #     client_id: PLACEHOLDER
 #     provider: PLACEHOLDER
 #     private_key_path: PLACEHOLDER
 
-# fleet_id: FLEET_ID_HERE
+
 
 server:
   enabled: true

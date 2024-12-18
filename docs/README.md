@@ -337,7 +337,7 @@ Compile and run locally:
 4. Prepare a `config.yaml` file in /etc/newrelic-agent-control/, example: 
 
 ```yaml
-opamp:
+fleet_control:
   endpoint: https://opamp.service.newrelic.com/v1/opamp
   headers:
     api-key: YOUR_INGEST_KEY

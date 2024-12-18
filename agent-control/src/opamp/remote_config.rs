@@ -2,7 +2,7 @@ use crate::agent_control::config::AgentID;
 use crate::opamp::remote_config_hash::Hash;
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use std::collections::HashMap;
-use std::str::Utf8Error;
+use std::string::FromUtf8Error;
 use thiserror::Error;
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
@@ -17,7 +17,7 @@ pub struct RemoteConfig {
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum RemoteConfigError {
     #[error("invalid UTF-8 sequence: `{0}`")]
-    UTF8(#[from] Utf8Error),
+    UTF8(#[from] FromUtf8Error),
 
     #[error("config hash: `{0}` config error: `{1}`")]
     InvalidConfig(String, String),
@@ -69,15 +69,15 @@ impl ConfigurationMap {
     }
 }
 
-impl TryFrom<&AgentConfigMap> for ConfigurationMap {
+impl TryFrom<AgentConfigMap> for ConfigurationMap {
     type Error = RemoteConfigError;
 
-    fn try_from(agent_config_map: &AgentConfigMap) -> Result<Self, Self::Error> {
-        agent_config_map.config_map.iter().try_fold(
+    fn try_from(agent_config_map: AgentConfigMap) -> Result<Self, Self::Error> {
+        agent_config_map.config_map.into_iter().try_fold(
             ConfigurationMap::default(),
             |mut result: ConfigurationMap, (key, value)| {
-                let body = std::str::from_utf8(&value.body)?;
-                let _ = result.0.insert(key.clone(), body.to_string());
+                let body = String::from_utf8(value.body)?;
+                let _ = result.0.insert(key, body.to_string());
                 Ok(result)
             },
         )

@@ -151,7 +151,7 @@ pub(crate) mod tests {
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
         let local_config = r#"
 agents: {}
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
@@ -181,7 +181,7 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -202,14 +202,14 @@ opamp:
         // source checked when loading the local config.
         let local_config = r#"
 agents: {}
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE1__AGENT_TYPE";
+        let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
         env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
@@ -227,7 +227,7 @@ opamp:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),
@@ -247,7 +247,7 @@ opamp:
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
         let local_config = r#"
-opamp:
+fleet_control:
   endpoint: http://127.0.0.1/v1/opamp
 agents:
   rolldice2:
@@ -257,7 +257,7 @@ agents:
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_SA_AGENTS__ROLLDICE2__AGENT_TYPE";
+        let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
         env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
@@ -275,7 +275,7 @@ agents:
                 },
             )])
             .into(),
-            opamp: Some(OpAMPClientConfig {
+            fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
             }),

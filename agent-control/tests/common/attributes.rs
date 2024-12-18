@@ -17,8 +17,9 @@ pub fn check_latest_identifying_attributes_match_expected(
         expected_identifying_attributes.clone(),
         current_attributes.identifying_attributes.clone(),
     )
-    .map_err(|e| format!("Identifying {}", e))
+    .map_err(|e| format!("Identifying attributes don't match {}:", e))
 }
+
 pub fn check_latest_non_identifying_attributes_match_expected(
     opamp_server: &FakeServer,
     instance_id: &InstanceID,
@@ -32,8 +33,9 @@ pub fn check_latest_non_identifying_attributes_match_expected(
         expected_non_identifying_attributes.clone(),
         current_attributes.non_identifying_attributes.clone(),
     )
-    .map_err(|e| format!("Non identifying {}", e))
+    .map_err(|e| format!("Non identifying attributes don't match: {}", e))
 }
+
 fn check_opamp_attributes(
     mut expected_vec: Vec<KeyValue>,
     mut current_vec: Vec<KeyValue>,
@@ -42,7 +44,7 @@ fn check_opamp_attributes(
     current_vec.sort_by(|a, b| a.key.cmp(&b.key));
     if expected_vec != current_vec {
         return Err(format!(
-            "not as expected, Expected: {:?}, Found: {:?}",
+            "Expected != Found\nExpected:\n{:?}\nFound:\n{:?}\n",
             expected_vec, current_vec
         ));
     }

@@ -38,7 +38,7 @@ impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
 
         ConfigurationPersisterFile {
             file_writer: LocalFile,
-            directory_manager: DirectoryManagerFs::default(),
+            directory_manager: DirectoryManagerFs,
             generated_conf_path: generated_conf_dir,
         }
     }

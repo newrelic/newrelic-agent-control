@@ -53,7 +53,12 @@ impl AgentControlRunner {
 
         let identifiers_provider = IdentifiersProvider::default()
             .with_host_id(config.host_id)
-            .with_fleet_id(config.fleet_id);
+            .with_fleet_id(
+                config
+                    .fleet_control
+                    .map(|opamp_config| opamp_config.fleet_id)
+                    .unwrap_or_default(),
+            );
         let identifiers = identifiers_provider
             .provide()
             .map_err(|e| AgentError::IdentifiersError(e.to_string()))?;
@@ -68,7 +73,7 @@ impl AgentControlRunner {
 
         let instance_id_storer = Storer::new(
             LocalFile,
-            DirectoryManagerFs::default(),
+            DirectoryManagerFs,
             self.base_paths.remote_dir.clone(),
             self.base_paths.remote_dir.join(SUB_AGENT_DIR),
         );

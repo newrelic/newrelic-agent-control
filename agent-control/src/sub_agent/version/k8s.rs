@@ -1,1 +1,1 @@
-pub mod k8s_version_checker;
+pub mod version_checker;

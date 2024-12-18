@@ -273,6 +273,7 @@ pub mod tests {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
             namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
+            ..Default::default()
         };
 
         let assembler = MockEffectiveAgentAssemblerMock::new();
@@ -312,6 +313,7 @@ pub mod tests {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
             namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
+            ..Default::default()
         };
 
         let assembler = MockEffectiveAgentAssemblerMock::new();
@@ -488,6 +490,7 @@ pub mod tests {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
             namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
+            ..Default::default()
         };
         SupervisorBuilderK8s::new(
             agent_id,

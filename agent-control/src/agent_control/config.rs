@@ -169,16 +169,12 @@ pub struct AgentControlConfig {
     #[serde(default)]
     pub host_id: String,
 
-    /// Unique identifier for the fleet in which the agent control will join upon initialization.
-    #[serde(default)]
-    pub fleet_id: String,
-
     /// this is the only part of the config that can be changed with opamp.
     #[serde(flatten)]
     pub dynamic: AgentControlDynamicConfig,
 
-    /// opamp contains the OpAMP client configuration
-    pub opamp: Option<OpAMPClientConfig>,
+    /// fleet_control contains the OpAMP client configuration
+    pub fleet_control: Option<OpAMPClientConfig>,
 
     // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
     // the struct definition and usage. Making it optional should work no matter what features are enabled.
@@ -260,6 +256,8 @@ pub struct OpAMPClientConfig {
     #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
     pub auth_config: Option<AuthConfig>,
+    /// Unique identifier for the fleet in which the super agent will join upon initialization.
+    pub fleet_id: String,
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
@@ -270,10 +268,12 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateOpAMPClientConfig {
-            pub endpoint: Url,
+            #[serde(default)]
+            fleet_id: String,
+            endpoint: Url,
             #[serde(default, with = "http_serde::header_map")]
-            pub headers: HeaderMap,
-            pub auth_config: Option<AuthConfig>,
+            headers: HeaderMap,
+            auth_config: Option<AuthConfig>,
         }
 
         let mut intermediate_spec = IntermediateOpAMPClientConfig::deserialize(deserializer)?;
@@ -292,6 +292,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             .collect::<HeaderMap>();
 
         Ok(OpAMPClientConfig {
+            fleet_id: intermediate_spec.fleet_id,
             endpoint: intermediate_spec.endpoint,
             headers: censored_headers,
             auth_config: intermediate_spec.auth_config,
@@ -306,6 +307,9 @@ pub struct K8sConfig {
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
+    /// chart_version is the version of the chart used to deploy agent control
+    #[serde(default)]
+    pub chart_version: String,
 
     /// CRDs is a list of crds that the SA should watch and be able to create/delete.
     #[cfg(feature = "k8s")]
@@ -317,8 +321,9 @@ pub struct K8sConfig {
 impl Default for K8sConfig {
     fn default() -> Self {
         Self {
-            cluster_name: String::new(),
-            namespace: String::new(),
+            cluster_name: Default::default(),
+            namespace: Default::default(),
+            chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
         }
     }
@@ -384,6 +389,7 @@ pub(crate) mod tests {
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
             OpAMPClientConfig {
+                fleet_id: String::default(),
                 endpoint: "http://localhost".try_into().unwrap(),
                 headers: HeaderMap::default(),
                 auth_config: None,
@@ -392,7 +398,7 @@ pub(crate) mod tests {
     }
 
     const EXAMPLE_AGENTCONTROL_CONFIG: &str = r#"
-opamp:
+fleet_control:
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -413,14 +419,14 @@ proxy:
 "#;
 
     const EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS: &str = r#"
-opamp:
+fleet_control:
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
 "#;
 
     const EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS: &str = r#"
-opamp:
+fleet_control:
   endpoint: http://localhost:8080/some/path
   headers:
     some-key: some-value
@@ -484,7 +490,9 @@ agents: {}
 "#;
 
     const AGENTCONTROL_FLEET_ID: &str = r#"
-fleet_id: 123
+fleet_control:
+  endpoint: http://localhost:8080/some/path
+  fleet_id: 123
 agents: {}
 "#;
 
@@ -716,7 +724,7 @@ agents: {}
     #[test]
     fn fleet_id_config() {
         let config = serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_FLEET_ID).unwrap();
-        assert_eq!(config.fleet_id, "123");
+        assert_eq!(config.fleet_control.unwrap().fleet_id, "123");
     }
 
     #[cfg(feature = "k8s")]

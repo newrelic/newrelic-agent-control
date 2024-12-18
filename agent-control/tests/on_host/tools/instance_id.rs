@@ -12,7 +12,7 @@ use std::time::Duration;
 pub fn get_instance_id(agent_id: &AgentID, base_paths: BasePaths) -> InstanceID {
     let instance_id_storer = Storer::new(
         LocalFile,
-        DirectoryManagerFs::default(),
+        DirectoryManagerFs,
         base_paths.remote_dir.clone(),
         base_paths.remote_dir.join(SUB_AGENT_DIR),
     );

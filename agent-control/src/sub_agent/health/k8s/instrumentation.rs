@@ -5,7 +5,6 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use kube::api::DynamicObject;
 use serde::Deserialize;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -109,21 +108,14 @@ impl Display for UnhealthyPodError {
 pub struct K8sHealthNRInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
     name: String,
-    k8s_object: DynamicObject,
     start_time: StartTime,
 }
 
 impl K8sHealthNRInstrumentation {
-    pub fn new(
-        k8s_client: Arc<SyncK8sClient>,
-        name: String,
-        k8s_object: DynamicObject,
-        start_time: StartTime,
-    ) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, start_time: StartTime) -> Self {
         Self {
             k8s_client,
             name,
-            k8s_object,
             start_time,
         }
     }
@@ -148,23 +140,6 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
             HealthCheckerError::Generic("instrumentation CR data is not an object".to_string())
         })?;
-
-        // Check if the instrumentation is properly updated: it should reflect the agent's configuration
-        if self
-            .k8s_client
-            .has_dynamic_object_changed(&self.k8s_object)?
-        {
-            return Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(
-                    String::default(),
-                    format!(
-                        "instrumentation CR '{}' does not match the latest agent configuration",
-                        &self.name,
-                    ),
-                ),
-                self.start_time,
-            ));
-        }
 
         let status = instrumentation_data.get("status").cloned().ok_or_else(|| {
             HealthCheckerError::Generic("instrumentation status could not be retrieved".to_string())
