@@ -39,7 +39,7 @@ The SA has a modular architecture:
 
 The **Open Agent Management Protocol** is "_...a network protocol for remote management of large fleets of data collection agents_" (from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md)).
 
-In a nutshell, OpAMP is the protocol handling the communication with the Fleet Management backend:
+In a nutshell, OpAMP is the protocol handling the communication with the Fleet Control backend:
   - Agent Control registers itself as an agent.
   - Supervisors register agents.
   - Both receive remote configurations.
@@ -59,45 +59,73 @@ This is a simplified version of the Infra Agent Type:
 ```yaml
 # Agent Type Metadata (name + version)
 namespace: newrelic
-name: infra-agent
-version: 1.0.0
+name: com.newrelic.infrastructure
+version: 0.1.0
 
 # Variables configurable by the customers
 variables:
-  backoff_delay:
-    description: "seconds until next retry if agent fails to start"
-    type: string
-    required: false
-    default: 20s
-  config_agent:
-    description: "YAML config for the agent"
-    type: file
-    required: true
-    file_path: "newrelic-infra.yml"
-  config_integrations:
+  on_host:
+    config_agent:
+      description: "Newrelic infra configuration"
+      type: file
+      required: false
+      default: ""
+      file_path: "newrelic-infra.yml"
+    config_integrations:
       description: "map of YAML configs for the OHIs"
       type: map[string]file
       required: false
       default: {}
       file_path: "integrations.d"
+    backoff_delay:
+      description: "seconds until next retry if agent fails to start"
+      type: string
+      required: false
+      default: 20s
+  k8s:
+    chart_values:
+      newrelic-infrastructure:
+        description: "newrelic-infrastructure chart values"
+        type: yaml
+        required: false
+        default: {}
+      nri-metadata-injection:
+        description: "nri-metadata-injection chart values"
+        type: yaml
+        required: false
+        default: {}
+      global:
+        description: "Global chart values"
+        type: yaml
+        required: false
+        default: {}
+    chart_version:
+      description: "nri-bundle chart version"
+      type: string
+      required: true
 
 # How the agent should be supervised
 deployment:
   on_host:
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "/v1/status/health"
+        port: 8003
     executable:
-      path: /opt/newrelic-agent-control/bin/newrelic-infra
-      args: "--config=${nr-var:config_agent}"
-      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+      path: /usr/bin/newrelic-infra
+      args: >-
+        --config=${nr-var:config_agent}
+      env:
+        NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
+        NRIA_STATUS_SERVER_ENABLED: true
+        NRIA_STATUS_SERVER_PORT: "8003"
+        NR_HOST_ID: "${nr-sa:host_id}"
       restart_policy:
         backoff_strategy:
           type: fixed
           backoff_delay: ${nr-var:backoff_delay}
-      health:
-        interval: 5s
-        timeout: 5s
-        http:
-          path: "/v1/status"
-          port: 8003
 ```
 
 Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.
@@ -116,10 +144,20 @@ The following Agent Control configuration example shows how to integrate the Inf
 ```yaml
 # integrate with fleet control by defining the opamp backend settings
 # remove to run the agent standalone (disconnected from fleet)
-fleet_control:
-  endpoint: https://opamp.service.newrelic.com/v1/opamp
-  headers:
-    api-key: YOUR_INGEST_KEY
+# fleet_control:
+#   endpoint: https://opamp.service.newrelic.com/v1/opamp
+#   headers:
+#     api-key: API_KEY_HERE
+#   auth_config:
+#     token_url: PLACEHOLDER
+#     client_id: PLACEHOLDER
+#     provider: PLACEHOLDER
+#     private_key_path: PLACEHOLDER
+
+# fleet_id: FLEET_ID_HERE
+
+server:
+  enabled: true
 
 # define agents to be supervised based on their agent types
 # your-agent-id must contain 32 alpanumeric (or dashes) characters at most, and start and end with alphanumeric.
@@ -128,8 +166,10 @@ fleet_control:
 #     agent_type: "namespace/agent_type:version"
 #
 agents:
-  newrelic-infra:
-    agent_type: "newrelic/infra-agent:0.1.0"
+  nr-infra-agent:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+  nr-otel-collector:
+    agent_type: "newrelic/io.opentelemetry.collector:0.2.0"
 ```
 
 - `opamp` defines the required attributes to establish the connection with the backend.
@@ -159,7 +199,7 @@ config_integrations:
 ```
 
 - `backoff_delay` is a Supervisor setting that customers can tweak.
-- `config_agent` and `config_integrations` are the actual agent configuration YAML files that the Agent Control stores for the Infra Agent to read.
+- `config_agent` and `config_integrations` are the actual agent configuration YAML files that Agent Control stores for the Infra Agent to read.
 
 ### Configuration Persistence
 
@@ -191,7 +231,7 @@ This is the file structure:
                             └── newrelic-infra.yaml
 ```
 
-The Agent Control parses both its own configuration and agents values files to replace placeholders, and then SA then persists all these auto-generated files.
+Agent Control parses both its own configuration and agents values files to replace placeholders, and then AC then persists all these auto-generated files.
 
 * Files under `/etc/newrelic-agent-control`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
 * Files under `/var/lib/newrelic-agent-control/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
@@ -200,7 +240,7 @@ The Agent Control generates actual agent configuration files and places these un
 
 ### OpAMP Capabilities
 
-Users can disable remote management just by commenting the `opamp` section in the  [Agent Control Configuration](#agent-control-configuration) file.
+Users can disable remote management just by commenting the `fleet_control` section in the  [Agent Control Configuration](#agent-control-configuration) file.
 
 ## Health
 
@@ -227,11 +267,11 @@ health:
   interval: 5s
   timeout: 5s
   http:
-    path: "/v1/status"
+    path: "/v1/status/health"
     port: 8003
 ```
 
-The Agent Control currently only supports a HTTP interface (just because this is how the Infra Agent and the OpenTelemetry Collector expose their status). More interfaces will be added as new agents with newer needs are integrated.
+Agent Control currently supports a HTTP interface (this is how the Infra Agent and the OpenTelemetry Collector expose their status) and a File interface. More interfaces will be added as new agents with newer needs are integrated.
 
 If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached.
 
@@ -241,7 +281,7 @@ In **Kubernetes**, we are leveraging health checks to its ecosystem because K8s 
 
 ### Agent Control Health
 
-There is a service that ultimately exposes the /status endpoint for the Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
+There is a service that ultimately exposes the /status endpoint for Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
 * Reachability of OpAMP endpoint (if OpAMP is enabled at all).
 * Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned in the section above.
 
