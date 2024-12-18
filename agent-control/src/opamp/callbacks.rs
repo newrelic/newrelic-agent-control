@@ -160,19 +160,13 @@ where
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
             trace!(agent_id = %self.agent_id, "remote config received: {:?}", msg_remote_config);
-            let _ = self
-                .process_remote_config(msg_remote_config)
-                .inspect_err(|error| {
-                    error!(
-                        agent_id = self.agent_id.to_string(),
-                        err = error.to_string(),
-                        "processing OpAMP message"
-                    )
-                })
-                .inspect(|_| trace!(agent_id = self.agent_id.to_string(), "on message ok",));
+            match self.process_remote_config(msg_remote_config) {
+                Ok(_) => trace!(agent_id = %self.agent_id, "on message ok"),
+                Err(e) => error!(agent_id = %self.agent_id, err = %e, "processing OpAMP message"),
+            };
         } else {
             trace!(
-                agent_id = self.agent_id.to_string(),
+                agent_id = %self.agent_id,
                 "Empty OpAMP message received"
             );
         }
