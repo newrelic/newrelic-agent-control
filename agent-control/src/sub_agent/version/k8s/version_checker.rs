@@ -4,7 +4,7 @@ mod instrumentation;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
-    agent_control::config::{helm_release_type_meta, instrumentation_type_meta},
+    agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta},
     sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker},
 };
 use helmrelease::HelmReleaseVersionChecker;
@@ -26,10 +26,10 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
     type Error = UnsupportedResourceType;
 
     fn try_from(type_meta: &TypeMeta) -> Result<Self, Self::Error> {
-        if type_meta == &helm_release_type_meta() {
+        if type_meta == &helmrelease_v2_type_meta() {
             return Ok(Self::HelmRelease);
         }
-        if type_meta == &instrumentation_type_meta() {
+        if type_meta == &instrumentation_v1alpha2_type_meta() {
             return Ok(Self::Instrumentation);
         }
         Err(UnsupportedResourceType)
@@ -62,23 +62,24 @@ impl AgentVersionChecker {
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
-            let Some(type_meta) = &object.types else {
+            let Some(type_meta) = object.types.clone() else {
                 warn!(%agent_id, "Skipping k8s object with unknown type {:?}", object);
                 continue;
             };
-            let Ok(resource_type) = type_meta.try_into() else {
+            let Ok(resource_type) = (&type_meta).try_into() else {
                 continue;
             };
             let health_checker = match resource_type {
-                SupportedResourceType::HelmRelease => {
-                    Self::HelmRelease(HelmReleaseVersionChecker::new(k8s_client, agent_id))
-                }
+                SupportedResourceType::HelmRelease => Self::HelmRelease(
+                    HelmReleaseVersionChecker::new(k8s_client, type_meta, agent_id),
+                ),
                 SupportedResourceType::Instrumentation => Self::Instrumentation(
-                    NewrelicInstrumentationVersionChecker::new(k8s_client, agent_id),
+                    NewrelicInstrumentationVersionChecker::new(k8s_client, type_meta, agent_id),
                 ),
             };
             return Some(health_checker);
         }
+        warn!(%agent_id, "Version cannot be fetched from any of the agent underlying resources, it won't be reported");
         None
     }
 }
@@ -87,7 +88,7 @@ impl AgentVersionChecker {
 mod tests {
     use super::AgentVersionChecker;
     use crate::{
-        agent_control::config::{helm_release_type_meta, instrumentation_type_meta},
+        agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta},
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
@@ -196,11 +197,11 @@ mod tests {
     }
 
     fn helm_release_dyn_obj() -> DynamicObject {
-        empty_dynamic_object(helm_release_type_meta())
+        empty_dynamic_object(helmrelease_v2_type_meta())
     }
 
     fn instrumentation_dyn_obj() -> DynamicObject {
-        empty_dynamic_object(instrumentation_type_meta())
+        empty_dynamic_object(instrumentation_v1alpha2_type_meta())
     }
 
     fn secret_dyn_obj() -> DynamicObject {

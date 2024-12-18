@@ -53,7 +53,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
         k8s_client: Arc<SyncK8sClient>,
         resources: Arc<Vec<DynamicObject>>,
         start_time: StartTime,
-    ) -> Result<Self, HealthCheckerError> {
+    ) -> Result<Option<Self>, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
             let type_meta = resource.types.clone().ok_or(HealthCheckerError::Generic(
@@ -77,6 +77,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 ResourceType::HelmRelease => {
                     health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                         k8s_client.clone(),
+                        type_meta,
                         name.clone(),
                         start_time,
                     )));
@@ -103,6 +104,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                     health_checkers.push(K8sHealthChecker::NewRelic(
                         K8sHealthNRInstrumentation::new(
                             k8s_client.clone(),
+                            type_meta,
                             name.clone(),
                             start_time,
                         ),
@@ -110,10 +112,13 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 }
             }
         }
-        Ok(Self {
+        if health_checkers.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(Self {
             health_checkers,
             start_time,
-        })
+        }))
     }
 }
 
@@ -137,7 +142,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::helm_release_type_meta;
+    use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
@@ -156,9 +161,7 @@ pub mod tests {
             StartTime::now()
         )
         .unwrap()
-        .check_health()
-        .unwrap()
-        .is_healthy());
+        .is_none())
     }
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
@@ -191,7 +194,7 @@ pub mod tests {
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
                 Arc::new(vec![DynamicObject {
-                    types: Some(helm_release_type_meta()),
+                    types: Some(helmrelease_v2_type_meta()),
                     // having no name causes an error
                     metadata: Default::default(),
                     data: Default::default(),

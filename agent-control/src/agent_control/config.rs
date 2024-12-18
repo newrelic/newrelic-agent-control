@@ -330,7 +330,7 @@ impl Default for K8sConfig {
 }
 
 #[cfg(feature = "k8s")]
-pub fn helm_release_type_meta() -> TypeMeta {
+pub fn helmrelease_v2_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
         kind: "HelmRelease".to_string(),
@@ -338,7 +338,7 @@ pub fn helm_release_type_meta() -> TypeMeta {
 }
 
 #[cfg(feature = "k8s")]
-pub fn instrumentation_type_meta() -> TypeMeta {
+pub fn instrumentation_v1alpha2_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "newrelic.com/v1alpha2".to_string(),
         kind: "Instrumentation".to_string(),
@@ -352,7 +352,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // A dynamic object reflector will be created for each of these types, since the GC lists them.
     vec![
         // Agent Operator CRD
-        instrumentation_type_meta(),
+        instrumentation_v1alpha2_type_meta(),
         // This allows Secrets created as dynamic objects to be cleaned up by the GC
         // This should not be needed anymore whenever the GC detection logic doesn't rely on this list.
         TypeMeta {
@@ -363,7 +363,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
             api_version: "source.toolkit.fluxcd.io/v1".to_string(),
             kind: "HelmRepository".to_string(),
         },
-        helm_release_type_meta(),
+        helmrelease_v2_type_meta(),
     ]
 }
 

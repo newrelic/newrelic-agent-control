@@ -1,31 +1,30 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
-    agent_control::{
-        config::instrumentation_type_meta, defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    },
+    agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker},
 };
-use kube::api::DynamicObject;
+use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 
 pub struct NewrelicInstrumentationVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
+    type_meta: TypeMeta,
     agent_id: String,
 }
 
 impl NewrelicInstrumentationVersionChecker {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, agent_id: String) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: String) -> Self {
         Self {
             k8s_client,
+            type_meta,
             agent_id,
         }
     }
 
     fn get_instrumentation(&self) -> Result<Arc<DynamicObject>, VersionCheckError> {
-        let tm = instrumentation_type_meta();
         self.k8s_client
-            .get_dynamic_object(&tm, &self.agent_id)
+            .get_dynamic_object(&self.type_meta, &self.agent_id)
             .map_err(|err| {
                 VersionCheckError::Generic(format!(
                     "Error fetching Instrumentation for agent_id '{}': {}",

@@ -21,7 +21,7 @@ use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 
@@ -155,8 +155,12 @@ impl NotStartedSupervisorK8s {
 
         if let Some(health_config) = self.k8s_config.health.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
-            let k8s_health_checker =
-                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?;
+            let Some(k8s_health_checker) =
+                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
+            else {
+                warn!(agent_id=%self.agent_id, "health-check cannot start even if it is enabled there are no compatible k8s resources");
+                return Ok(None);
+            };
 
             spawn_health_checker(
                 self.agent_id.clone(),
@@ -246,7 +250,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::{
-        helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
+        helmrelease_v2_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
     };
     use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
@@ -386,7 +390,7 @@ pub mod tests {
             .start_health_check(
                 sub_agent_internal_publisher,
                 Arc::new(vec![DynamicObject {
-                    types: Some(helm_release_type_meta()),
+                    types: Some(helmrelease_v2_type_meta()),
                     metadata: Default::default(), // missing name
                     data: Default::default(),
                 }]),
@@ -506,7 +510,7 @@ pub mod tests {
             .return_const("default".to_string());
         mock_client.expect_get_dynamic_object().returning(|_, _| {
             Ok(Some(Arc::new(DynamicObject {
-                types: Some(helm_release_type_meta()),
+                types: Some(helmrelease_v2_type_meta()),
                 metadata: Default::default(),
                 data: Default::default(),
             })))
