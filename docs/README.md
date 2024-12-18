@@ -126,8 +126,6 @@ deployment:
         backoff_strategy:
           type: fixed
           backoff_delay: ${nr-var:backoff_delay}
-  k8s:
-    ...
 ```
 
 Note that the actual Infra Agent configuration `config_agent` is a variable whose yaml content is saved in a specific file defined by the Agent Type creator through a variable attribute `file_path`.
