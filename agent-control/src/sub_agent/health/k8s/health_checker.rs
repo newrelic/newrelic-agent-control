@@ -77,6 +77,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                 ResourceType::HelmRelease => {
                     health_checkers.push(K8sHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                         k8s_client.clone(),
+                        type_meta,
                         name.clone(),
                         start_time,
                     )));
@@ -103,6 +104,7 @@ impl SubAgentHealthChecker<K8sHealthChecker> {
                     health_checkers.push(K8sHealthChecker::NewRelic(
                         K8sHealthNRInstrumentation::new(
                             k8s_client.clone(),
+                            type_meta,
                             name.clone(),
                             start_time,
                         ),
@@ -137,7 +139,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::helm_release_type_meta;
+    use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
@@ -191,7 +193,7 @@ pub mod tests {
             SubAgentHealthChecker::try_new(
                 Arc::new(mock_client),
                 Arc::new(vec![DynamicObject {
-                    types: Some(helm_release_type_meta()),
+                    types: Some(helmrelease_v2_type_meta()),
                     // having no name causes an error
                     metadata: Default::default(),
                     data: Default::default(),

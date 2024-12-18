@@ -1,4 +1,3 @@
-use crate::agent_control::config::helm_release_type_meta;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
@@ -6,6 +5,7 @@ use crate::sub_agent::health::health_checker::{
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::serde_json::{Map, Value};
+use kube::api::TypeMeta;
 use std::sync::Arc;
 
 const CONDITION_READY: &str = "Ready";
@@ -35,14 +35,21 @@ impl From<&str> for ConditionStatus {
 /// health checks across several Helm releases within a Kubernetes cluster.
 pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
+    type_meta: TypeMeta,
     name: String,
     start_time: StartTime,
 }
 
 impl K8sHealthFluxHelmRelease {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, start_time: StartTime) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        type_meta: TypeMeta,
+        name: String,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
+            type_meta,
             name,
             start_time,
         }
@@ -131,7 +138,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&helm_release_type_meta(), &self.name)
+            .get_dynamic_object(&self.type_meta, &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -167,7 +174,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::helm_release_type_meta;
+    use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::{client::MockSyncK8sClient, Error};
     use crate::sub_agent::health::health_checker::Health;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -257,6 +264,7 @@ pub mod tests {
             let start_time = StartTime::now();
             let checker = K8sHealthFluxHelmRelease::new(
                 Arc::new(mock_client),
+                helmrelease_v2_type_meta(),
                 "example-release".to_string(),
                 start_time,
             );
@@ -287,7 +295,7 @@ pub mod tests {
             .times(1)
             .returning(move |_, _| {
                 Ok(Some(Arc::new(DynamicObject {
-                    types: Some(helm_release_type_meta()),
+                    types: Some(helmrelease_v2_type_meta()),
                     metadata: ObjectMeta::default(),
                     data: json!({
                         "status": status_conditions

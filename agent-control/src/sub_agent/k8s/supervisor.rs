@@ -246,7 +246,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::{
-        helm_release_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
+        helmrelease_v2_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
     };
     use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
@@ -386,7 +386,7 @@ pub mod tests {
             .start_health_check(
                 sub_agent_internal_publisher,
                 Arc::new(vec![DynamicObject {
-                    types: Some(helm_release_type_meta()),
+                    types: Some(helmrelease_v2_type_meta()),
                     metadata: Default::default(), // missing name
                     data: Default::default(),
                 }]),
@@ -506,7 +506,7 @@ pub mod tests {
             .return_const("default".to_string());
         mock_client.expect_get_dynamic_object().returning(|_, _| {
             Ok(Some(Arc::new(DynamicObject {
-                types: Some(helm_release_type_meta()),
+                types: Some(helmrelease_v2_type_meta()),
                 metadata: Default::default(),
                 data: Default::default(),
             })))

@@ -1,10 +1,10 @@
-use crate::agent_control::config::instrumentation_type_meta;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -107,14 +107,21 @@ impl Display for UnhealthyPodError {
 /// health checks across several instrumentations within a Kubernetes cluster.
 pub struct K8sHealthNRInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
+    type_meta: TypeMeta,
     name: String,
     start_time: StartTime,
 }
 
 impl K8sHealthNRInstrumentation {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, name: String, start_time: StartTime) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        type_meta: TypeMeta,
+        name: String,
+        start_time: StartTime,
+    ) -> Self {
         Self {
             k8s_client,
+            type_meta,
             name,
             start_time,
         }
@@ -126,7 +133,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self
             .k8s_client
-            .get_dynamic_object(&instrumentation_type_meta(), &self.name)
+            .get_dynamic_object(&self.type_meta, &self.name)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "instrumentation CR could not be fetched'{}': {}",
