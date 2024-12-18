@@ -1,6 +1,6 @@
 # Agent overview
 
-New Relic agent control is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet control to help customers deploy, monitor and manage agents at scale. 
+New Relic agent control is a generic supervisor that can be configured to orchestrate  observability agents. It integrates with New Relic fleet control to help customers deploy, monitor and manage agents at scale.
 
 ## Table of contents
 - [Agent overview](#agent-overview)
@@ -26,18 +26,18 @@ New Relic agent control is a generic supervisor that can be configured to orches
   - [Testing](#testing)
 
 ## High-level architecture
-![Agent Control Diagram](agent-control-diagram.png)
+![Agent Control Diagram](arquitecture-diagram.png)
 
-The Agent Control (SA) itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry. 
+The Agent Control (SA) itself does not currently collect system or application telemetry itself. A combination of managed agents can be used to monitor your target entities and collect system and/or services telemetry.
 
 The SA has a modular architecture:
-- The SA orchestrates observability **Agents** that need to be explicitly configured. We will see that agents are configured using an agent ID, **Agent Type** and agent type version. 
--  For each configured agent, the SA creates a **Supervisor** in charge of (1) orchestrating the agent based on provided configuration and (2) establishing the communication with the backend. 
+- The SA orchestrates observability **Agents** that need to be explicitly configured. We will see that agents are configured using an agent ID, **Agent Type** and agent type version.
+-  For each configured agent, the SA creates a **Supervisor** in charge of (1) orchestrating the agent based on provided configuration and (2) establishing the communication with the backend.
 
 
 ### OpAMP
 
-The **Open Agent Management Protocol** is "_...a network protocol for remote management of large fleets of data collection agents_" (from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md)). 
+The **Open Agent Management Protocol** is "_...a network protocol for remote management of large fleets of data collection agents_" (from the [public specs](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md)).
 
 In a nutshell, OpAMP is the protocol handling the communication with the Fleet Management backend:
   - Agent Control registers itself as an agent.
@@ -46,11 +46,11 @@ In a nutshell, OpAMP is the protocol handling the communication with the Fleet M
   - Both report health and status (metadata, effective configuration, …).
   - Both will receive package availability messages (not implemented).
 
-Agents (including the agent control itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management. 
+Agents (including the agent control itself) support either `local` or `remote` configuration. Local configuration is expected to be deployed together with the SA. Remote configuration is centrally defined and managed via Fleet Management.
 
 ### Agent Types
 
-An Agent Type is a yaml based definition that determines how the Supervisor should manage a given agent. 
+An Agent Type is a yaml based definition that determines how the Supervisor should manage a given agent.
 
 Agent Types are versioned to ensure compatibility with a given configuration values (no breaking changes). Agent Types define how agents get orchestrated using a set of `variables` and `deployment` settings for on-host and kubernetes scenarios.
 
@@ -122,22 +122,22 @@ fleet_control:
     api-key: YOUR_INGEST_KEY
 
 # define agents to be supervised based on their agent types
-# your-agent-id must contain 32 alpanumeric (or dashes) characters at most, and start and end with alphanumeric. 
+# your-agent-id must contain 32 alpanumeric (or dashes) characters at most, and start and end with alphanumeric.
 # agents:
 #   your-agent-id:
 #     agent_type: "namespace/agent_type:version"
-# 
+#
 agents:
   newrelic-infra:
     agent_type: "newrelic/infra-agent:0.1.0"
 ```
 
 - `opamp` defines the required attributes to establish the connection with the backend.
-- `agents` defines which agents should be running on the target environment. A built-in or custom agent type and version definition is expected. 
+- `agents` defines which agents should be running on the target environment. A built-in or custom agent type and version definition is expected.
 
 ### Agent Values File
 
-An agent supervised by the SA can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment. 
+An agent supervised by the SA can be customized by defining or overriding those settings in a `values.yaml` (file or ConfigMap) provided when installed on a particular environment.
 
 The following values file shows how to configure the Infra Agent given the Agent Type we defined above:
 
@@ -147,7 +147,7 @@ config_agent: |
   license_key: 123456789
   log:
     level: debug
-config_integrations: 
+config_integrations:
   nri-redis-example.yml: |
     integrations:
       - name: nri-redis
@@ -155,7 +155,7 @@ config_integrations:
           hostname: localhost
           port: 6380
           keys: '{"0":["<KEY_1>"],"1":["<KEY_2>"]}'
-          remote_monitoring: true    
+          remote_monitoring: true
 ```
 
 - `backoff_delay` is a Supervisor setting that customers can tweak.
@@ -196,7 +196,7 @@ The Agent Control parses both its own configuration and agents values files to r
 * Files under `/etc/newrelic-agent-control`  are used for local configuration. These are provisioned by the customer using Ansible like tools.
 * Files under `/var/lib/newrelic-agent-control/fleet`  are used for remote configuration. These are centrally managed through New Relic fleet control, offering streamlined control for large-scale deployments.
 
-The Agent Control generates actual agent configuration files and places these under `/var/lib/newrelic-agent-control/auto-generated` after processing Agent Type + Agent Values. 
+The Agent Control generates actual agent configuration files and places these under `/var/lib/newrelic-agent-control/auto-generated` after processing Agent Type + Agent Values.
 
 ### OpAMP Capabilities
 
@@ -206,9 +206,9 @@ Users can disable remote management just by commenting the `opamp` section in th
 
 ### Agents Health Reporting
 
-Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Management after any health change. 
+Following OpAMP specs, each Supervisor sends an AgentToServer message to Fleet Management after any health change.
 
-The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc. 
+The message includes a detailed ComponentHealth structure containing information such as the agent's health status, start time, last error, etc.
 
 On an unhealthy check, the Agent Control:
 * Logs an error.
@@ -233,11 +233,11 @@ health:
 
 The Agent Control currently only supports a HTTP interface (just because this is how the Infra Agent and the OpenTelemetry Collector expose their status). More interfaces will be added as new agents with newer needs are integrated.
 
-If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached. 
+If the Agent Type does not declare its health interface, the Supervisor uses its restart policy violations as a fallback. In this case, an unhealthy message is sent when the maximum number of retries has been reached.
 
 In **Kubernetes**, we are leveraging health checks to its ecosystem because K8s already offers many built-in mechanisms to check the health of k8s objects. Therefore, the health information is obtained from the k8s objects related to each agent type. Currently, only the interval can be configured in the Agent Type, but we could offer the customer the possibility of selecting what information should be retrieved in the future.
 
-ℹ️ Again, refer to the [agent type](../agent-control/src/agent_type/README.md) development guide to know more. 
+ℹ️ Again, refer to the [agent type](../agent-control/src/agent_type/README.md) development guide to know more.
 
 ### Agent Control Health
 
@@ -294,7 +294,7 @@ Compile and run locally:
 1. Install [RUST](https://www.rust-lang.org/tools/install)
 2. Run `cargo build --features onhost`
 3. `newrelic-agent-control` binary will be generated at `./target/debug/newrelic-agent-control`
-4. Prepare a `config.yaml` file in /etc/newrelic-agent-control/, example: 
+4. Prepare a `config.yaml` file in /etc/newrelic-agent-control/, example:
 
 ```yaml
 fleet_control:
@@ -313,7 +313,7 @@ config: |
     # exporters:
     # pipelines:
 ```
-6. Execute the binary with the config file:  
+6. Execute the binary with the config file:
     * `sudo ./target/debug/newrelic-agent-control`
 
 ### Running in Kubernetes
