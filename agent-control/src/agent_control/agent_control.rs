@@ -14,7 +14,7 @@ use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
 };
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
-use crate::opamp::remote_config::report::RemoteConfigStatusReport;
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::{
     callbacks::AgentCallbacks,
     hash_repository::HashRepository,
@@ -111,7 +111,7 @@ where
                 }
                 Ok(Some(mut hash)) => {
                     if !hash.is_applied() {
-                        RemoteConfigStatusReport::Applied.report(opamp_handle, &hash)?;
+                        OpampRemoteConfigStatus::Applied.report(opamp_handle, &hash)?;
                         self.set_config_hash_as_applied(&mut hash)?;
                     }
                 }

@@ -3,13 +3,13 @@ use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{operation::callbacks::Callbacks, ClientError, StartedClient};
 
-pub enum RemoteConfigStatusReport {
+pub enum OpampRemoteConfigStatus {
     Applying,
     Error(String),
     Applied,
 }
 
-impl RemoteConfigStatusReport {
+impl OpampRemoteConfigStatus {
     fn as_remote_config_status_i32(&self) -> i32 {
         match self {
             Self::Applying => RemoteConfigStatuses::Applying as i32,

@@ -1,6 +1,6 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config::report::RemoteConfigStatusReport;
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::error::SubAgentError;
@@ -85,7 +85,7 @@ where
         {
             // log the error as it might be that we return a different error
             error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating remote config");
-            RemoteConfigStatusReport::Error(e.to_string())
+            OpampRemoteConfigStatus::Error(e.to_string())
                 .report(opamp_client, &config.hash)
                 .map_err(|e| {
                     RemoteConfigHandlerError::StatusReporting(
@@ -98,7 +98,7 @@ where
             return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
         }
 
-        RemoteConfigStatusReport::Applying
+        OpampRemoteConfigStatus::Applying
             .report(opamp_client, &config.hash)
             .map_err(|e| {
                 RemoteConfigHandlerError::StatusReporting(
@@ -111,7 +111,7 @@ where
         if let Err(e) = self.store_remote_config_hash_and_values(config) {
             // log the error as it might be that we return a different error
             error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error storing remote config");
-            RemoteConfigStatusReport::Error(e.to_string())
+            OpampRemoteConfigStatus::Error(e.to_string())
                 .report(opamp_client, &config.hash)
                 .map_err(|e| {
                     RemoteConfigHandlerError::StatusReporting(

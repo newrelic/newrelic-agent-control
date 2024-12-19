@@ -6,7 +6,7 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigStorer,
 };
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
-use crate::opamp::remote_config::report::RemoteConfigStatusReport;
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
     agent_control::{
@@ -42,19 +42,19 @@ where
         };
 
         info!("Applying AgentControl remote config");
-        RemoteConfigStatusReport::Applying.report(opamp_client, &remote_config.hash)?;
+        OpampRemoteConfigStatus::Applying.report(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_agent_control_config(&remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
-                RemoteConfigStatusReport::Error(error_message.clone())
+                OpampRemoteConfigStatus::Error(error_message.clone())
                     .report(opamp_client, &remote_config.hash)?;
                 Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
                 self.set_config_hash_as_applied(&mut remote_config.hash)?;
-                RemoteConfigStatusReport::Applied.report(opamp_client, &remote_config.hash)?;
+                OpampRemoteConfigStatus::Applied.report(opamp_client, &remote_config.hash)?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
             }
