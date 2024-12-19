@@ -67,8 +67,8 @@ pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
 mod tests {
     use crate::agent_control::config::{AgentID, AgentTypeFQN};
     use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
+    use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::config_validator::tests::VALID_ONHOST_NRDOT_CONFIG;
     use crate::sub_agent::config_validator::{ConfigValidator, ValidatorError};
     use assert_matches::assert_matches;

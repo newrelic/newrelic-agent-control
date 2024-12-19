@@ -3,8 +3,8 @@ use crate::event::{
     channel::{EventPublisher, EventPublisherError},
     OpAMPEvent,
 };
+use crate::opamp::remote_config::hash::Hash;
 use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-use crate::opamp::remote_config_hash::Hash;
 use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfigError};
 use opamp_client::{
     error::ConnectionError,
@@ -233,8 +233,8 @@ pub(crate) mod tests {
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::opamp::remote_config_hash::Hash;
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;

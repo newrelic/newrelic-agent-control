@@ -122,8 +122,8 @@ pub(super) mod tests {
     use std::collections::HashMap;
 
     use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::opamp::remote_config_hash::Hash;
     use crate::sub_agent::config_validator::{ConfigValidator, FQN_NAME_INFRA_AGENT};
 
     #[test]

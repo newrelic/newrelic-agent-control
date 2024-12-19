@@ -1,5 +1,5 @@
 use crate::agent_control::config::AgentID;
-use crate::opamp::remote_config_hash::Hash;
+use crate::opamp::remote_config::hash::Hash;
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum HashRepositoryError {

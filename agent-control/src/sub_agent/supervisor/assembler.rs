@@ -1,9 +1,7 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::agent_type::environment::Environment;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config_report::{
-    report_remote_config_status_applied, report_remote_config_status_error,
-};
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use opamp_client::operation::callbacks::Callbacks;
@@ -92,7 +90,8 @@ where
                         hash.fail(e.to_string());
                         _ = self.hash_repository.save(&self.agent_id, &hash).inspect_err(|e| error!(%self.agent_id, err = %e, "failed to save hash to repository"));
                     }
-                    _ = report_remote_config_status_error(opamp_client, &hash, e.to_string())
+                    _ = OpampRemoteConfigStatus::Error(e.to_string())
+                        .report(opamp_client, &hash)
                         .inspect_err(
                             |e| error!(%self.agent_id, %e, "error reporting remote config status"),
                         );
@@ -109,13 +108,13 @@ where
                         _ = opamp_client.update_effective_config().inspect_err(
                             |e| error!(%self.agent_id, %e, "effective config update failed"),
                         );
-                        _ = report_remote_config_status_applied(opamp_client, &hash).inspect_err(
+                        _ = OpampRemoteConfigStatus::Applied.report(opamp_client, &hash).inspect_err(
                             |e| error!(%self.agent_id, %e, "error reporting remote config status"),
                         );
                     }
                     if let Some(err) = hash.error_message() {
                         warn!(%self.agent_id, err = %err, "remote config failed. Building with previous stored config");
-                        _ = report_remote_config_status_error(opamp_client, &hash, err).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
+                        _ = OpampRemoteConfigStatus::Error(err).report(opamp_client, &hash).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
                     }
                 }
                 let supervisor = self
@@ -139,7 +138,7 @@ mod tests {
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
-    use crate::opamp::remote_config_hash::Hash;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::{
         EffectiveAgent, EffectiveAgentsAssemblerError,

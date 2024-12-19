@@ -22,7 +22,7 @@ use newrelic_agent_control::opamp::instance_id::{
     getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
     Identifiers,
 };
-use newrelic_agent_control::opamp::remote_config_hash::Hash;
+use newrelic_agent_control::opamp::remote_config::hash::Hash;
 use newrelic_agent_control::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository,
 };
