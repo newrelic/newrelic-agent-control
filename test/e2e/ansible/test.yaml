@@ -1,5 +1,8 @@
 ---
 
+- name: installation of the package
+  import_playbook: package-installation.yaml
+
 #- name: Agents registration/unregistration
 #  import_playbook: agents_registration_unregistration.yaml
 
