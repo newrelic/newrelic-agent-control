@@ -42,6 +42,7 @@ endif
         -e organization_id=$(NR_ORGANIZATION_ID) \
         -e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \
         -e opamp_endpoint=${OPAMP_ENDPOINT} \
+        -e package_version=${PACKAGE_VERSION} \
  		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean

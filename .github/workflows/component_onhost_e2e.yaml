@@ -15,6 +15,10 @@ on:
       EC2_FILTERS:
         required: false
         type: string
+      PACKAGE_VERSION:
+        required: false
+        type: string
+        default: ""
       REPOSITORY_ENDPOINT:
         required: false
         type: string
@@ -79,7 +83,7 @@ jobs:
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2'"
+          container_make_target: "test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2' PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}"
           ecs_cluster_name: caos_super_agent_releases
           task_definition_name: super_agent-releases
           cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
