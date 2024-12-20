@@ -902,13 +902,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## hermit-abi https://crates.io/crates/hermit-abi
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## home https://crates.io/crates/home
 
 Distributed under the following license(s):
