@@ -3,12 +3,13 @@
 #######################
 
 ---
-- src: "newrelic-agent-control_{version}_linux_{arch}.rpm"
+- src: "newrelic-agent-control_{version}_linux_{arch}.deb"
   arch:
-    - x86_64
+    - amd64
     - arm64
   uploads:
     - type: apt
+      src_repo: "{access_point_host}/preview/linux/apt"
       dest: "{dest_prefix}linux/apt/"
       os_version:
         - jammy
