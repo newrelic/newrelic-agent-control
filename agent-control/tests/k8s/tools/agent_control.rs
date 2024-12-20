@@ -12,7 +12,7 @@ use kube::{
 };
 use newrelic_agent_control::agent_control::config::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILE, DYNAMIC_AGENT_TYPE_FILENAME,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
 use newrelic_agent_control::{
     agent_control::run::BasePaths,
@@ -126,7 +126,7 @@ pub fn create_local_agent_control_config(
         content.clone(),
     ));
 
-    File::create(tmp_dir.join(AGENT_CONTROL_CONFIG_FILE))
+    File::create(tmp_dir.join(AGENT_CONTROL_CONFIG_FILENAME))
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();

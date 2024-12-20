@@ -1,5 +1,5 @@
 use crate::agent_control::config::AgentID;
-use crate::agent_control::defaults::{VALUES_DIR, VALUES_FILE};
+use crate::agent_control::defaults::{VALUES_DIR, VALUES_FILENAME};
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
@@ -63,7 +63,7 @@ where
         if !path.exists() {
             self.create_directory(&path)?;
         }
-        path.push(VALUES_FILE);
+        path.push(VALUES_FILENAME);
 
         debug!("writing to file {:?}", path.as_path());
 

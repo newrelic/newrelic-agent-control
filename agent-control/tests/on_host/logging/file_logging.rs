@@ -1,5 +1,5 @@
 use crate::on_host::cli::cmd_with_config_file;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILE;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path};
 use tempfile::TempDir;
@@ -23,7 +23,7 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILE);
+    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("agent_control.log");
 
@@ -59,7 +59,7 @@ fn default_log_level_no_root() {
 #[test]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILE);
+    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("agent_control.log");
 

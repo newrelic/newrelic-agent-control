@@ -1,6 +1,6 @@
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILE, DYNAMIC_AGENT_TYPE_FILENAME,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
 use nix::{
     sys::signal::{self, Signal},
@@ -57,7 +57,7 @@ duration: "1000000"
 
     let _config_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 log:
   level: debug

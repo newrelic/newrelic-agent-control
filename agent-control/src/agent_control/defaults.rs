@@ -46,11 +46,11 @@ cfg_if::cfg_if! {
 }
 
 pub const SUB_AGENT_DIR: &str = "fleet/agents.d";
-pub const AGENT_CONTROL_CONFIG_FILE: &str = "config.yaml";
+pub const AGENT_CONTROL_CONFIG_FILENAME: &str = "config.yaml";
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-type.yaml";
 pub const IDENTIFIERS_FILENAME: &str = "identifiers.yaml";
 pub const VALUES_DIR: &str = "values";
-pub const VALUES_FILE: &str = "values.yaml";
+pub const VALUES_FILENAME: &str = "values.yaml";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
 pub const STDOUT_LOG_PREFIX: &str = "stdout.log";

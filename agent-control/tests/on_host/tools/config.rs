@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use newrelic_agent_control::agent_control::config::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    default_capabilities, AGENT_CONTROL_CONFIG_FILE, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILE,
+    default_capabilities, AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
@@ -45,7 +45,7 @@ agents: {}
     );
     create_file(
         agent_control_config,
-        local_dir.join(AGENT_CONTROL_CONFIG_FILE),
+        local_dir.join(AGENT_CONTROL_CONFIG_FILENAME),
     );
 }
 
@@ -60,7 +60,7 @@ pub fn create_sub_agent_values(agent_id: String, config: String, base_dir: PathB
     let agent_values_dir_path = base_dir.join(SUB_AGENT_DIR).join(agent_id).join(VALUES_DIR);
     create_dir_all(agent_values_dir_path.clone()).expect("failed to create values directory");
 
-    let values_file_path = agent_values_dir_path.join(VALUES_FILE);
+    let values_file_path = agent_values_dir_path.join(VALUES_FILENAME);
 
     create_file(config, values_file_path.clone());
 }

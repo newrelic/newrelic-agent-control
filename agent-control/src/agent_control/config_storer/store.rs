@@ -137,7 +137,7 @@ pub(crate) mod tests {
     use crate::agent_control::config::{
         AgentControlConfig, AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig,
     };
-    use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILE;
+    use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
     use crate::values::file::YAMLConfigRepositoryFile;
     use serial_test::serial;
     use std::path::PathBuf;
@@ -148,7 +148,7 @@ pub(crate) mod tests {
     #[serial]
     fn load_agents_local_remote() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
+        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
         let local_config = r#"
 agents: {}
 fleet_control:
@@ -157,7 +157,7 @@ fleet_control:
         std::fs::write(local_file.as_path(), local_config).unwrap();
 
         let remote_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let remote_file = remote_dir.join(AGENT_CONTROL_CONFIG_FILE);
+        let remote_file = remote_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
 
         let remote_config = r#"
         agents:
@@ -196,7 +196,7 @@ fleet_control:
     #[serial]
     fn load_config_env_vars() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
+        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
 
         // Note the file contains no `agents` key, which would fail if this config was the only
         // source checked when loading the local config.
@@ -245,7 +245,7 @@ fleet_control:
     #[serial]
     fn load_config_env_vars_override() {
         let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILE);
+        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
         let local_config = r#"
 fleet_control:
   endpoint: http://127.0.0.1/v1/opamp

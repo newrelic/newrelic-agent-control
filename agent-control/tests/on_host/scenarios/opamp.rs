@@ -13,7 +13,8 @@ use crate::on_host::tools::custom_agent_type::{
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::config::{AgentControlDynamicConfig, AgentID};
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILE, DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILE,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, VALUES_DIR,
+    VALUES_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
@@ -138,7 +139,7 @@ agents:
         get_instance_id(&AgentID::new("nr-sleep-agent").unwrap(), base_paths.clone());
 
     retry(60, Duration::from_secs(1), || {
-        let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILE);
+        let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
         let remote_config =
             std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
         let content_parsed =
@@ -205,7 +206,7 @@ non-existing: {}
             // Then the config should be updated in the remote filesystem.
             let expected_containing = "non-existing: {}";
 
-            let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILE);
+            let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
             let remote_config =
                 std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
             if !remote_config.contains(expected_containing) {
@@ -505,7 +506,7 @@ fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
                 .join(SUB_AGENT_DIR)
                 .join(agent_id)
                 .join(VALUES_DIR)
-                .join(VALUES_FILE);
+                .join(VALUES_FILENAME);
             if !remote_file.exists() {
                 return Err("Remote config file should be created".into());
             }

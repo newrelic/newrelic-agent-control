@@ -1,6 +1,6 @@
 use crate::agent_control::config::AgentID;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILE, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILE,
+    AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
 use crate::values::yaml_config::{has_remote_management, YAMLConfig};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
@@ -76,7 +76,7 @@ where
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         if agent_id.is_agent_control_id() {
-            return self.local_conf_path.join(AGENT_CONTROL_CONFIG_FILE);
+            return self.local_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
         }
         concatenate_sub_agent_dir_path(&self.local_conf_path, agent_id)
     }
@@ -85,7 +85,7 @@ where
         // This file (soon files) will often be removed, but its parent directory contains files
         // that should persist across these deletions.
         if agent_id.is_agent_control_id() {
-            return self.remote_conf_path.join(AGENT_CONTROL_CONFIG_FILE);
+            return self.remote_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
         }
         concatenate_sub_agent_dir_path(&self.remote_conf_path, agent_id)
     }
@@ -209,7 +209,7 @@ pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf
     dir.join(SUB_AGENT_DIR)
         .join(agent_id)
         .join(VALUES_DIR)
-        .join(VALUES_FILE)
+        .join(VALUES_FILENAME)
 }
 
 #[cfg(test)]
