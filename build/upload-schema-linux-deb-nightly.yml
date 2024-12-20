@@ -1,0 +1,26 @@
+#######################
+  # NIGHTLY SCHEMA #
+#######################
+
+---
+- src: "newrelic-agent-control_{version}_linux_{arch}.rpm"
+  arch:
+    - x86_64
+    - arm64
+  uploads:
+    - type: apt
+      dest: "{dest_prefix}linux/apt/"
+      os_version:
+        - jammy
+
+#########################
+  # UPLOAD CHECKSUMS #
+#########################
+
+- src: "newrelic-agent-control_{version}_linux_{arch}.deb.sum"
+  arch:
+    - amd64
+    - arm64
+  uploads:
+    - type: file
+      dest: "{dest_prefix}linux/apt/pool/main/n/newrelic-agent-control/{src}"

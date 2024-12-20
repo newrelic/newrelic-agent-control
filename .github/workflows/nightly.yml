@@ -53,14 +53,14 @@ jobs:
           name: built-binaries
           path: ./
 
-      - name: Publish rpm to S3 action
+      - name: Publish deb to S3 action
         uses: newrelic/infrastructure-publish-action@v1
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"
           repo_name: "newrelic/newrelic-agent-control"
           schema: "custom-local"
-          schema_path: "./build/upload-schema-linux-rpm-nightly.yml"
+          schema_path: "./build/upload-schema-linux-deb-nightly.yml"
           aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
           aws_secret_access_key: ${{ secrets.OHAI_AWS_SECRET_ACCESS_KEY_TESTING }}
           aws_s3_bucket_name: "nr-downloads-ohai-testing"
@@ -76,7 +76,7 @@ jobs:
           disable_lock: false
           dest_prefix: "preview/"
           local_packages_path: "/srv/dist/"
-          apt_skip_mirror: false
+          apt_skip_mirror: true
 
   # e2e test were not actually testing the new packages! This will be addressed in https://new-relic.atlassian.net/browse/NR-346876
   onhost-e2e:
@@ -84,7 +84,7 @@ jobs:
     needs: [ build-nightly ]
     with:
       UNIQUE_NAME: "nightly:e2e"
-      EC2_FILTERS: '[\"al-2023\"]'
+      EC2_FILTERS: '[\"ubuntu22.04\"]'
       REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
       PACKAGE_VERSION: 0.100.${{ github.run_id }}
     secrets:
