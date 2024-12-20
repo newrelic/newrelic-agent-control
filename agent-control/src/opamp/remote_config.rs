@@ -1,5 +1,5 @@
 use crate::agent_control::config::AgentID;
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::{hash::Hash, signature::Signature};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
@@ -7,6 +7,7 @@ use thiserror::Error;
 
 pub mod hash;
 pub mod report;
+pub mod signature;
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -14,6 +15,7 @@ pub mod report;
 pub struct RemoteConfig {
     pub agent_id: AgentID,
     pub hash: Hash,
+    signature: Option<Signature>,
     config_map: Option<ConfigurationMap>,
 }
 
@@ -36,6 +38,13 @@ impl RemoteConfig {
             agent_id,
             hash,
             config_map,
+            signature: None,
+        }
+    }
+    pub fn with_signature(self, signature: Signature) -> Self {
+        Self {
+            signature: Some(signature),
+            ..self
         }
     }
     //TODO : This is temporal as when there is only one conf item we should receive an empty string as key

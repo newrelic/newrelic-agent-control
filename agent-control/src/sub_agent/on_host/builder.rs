@@ -211,8 +211,9 @@ mod tests {
     use super::*;
     use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::{
-        default_capabilities, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
-        OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+        default_capabilities, default_sub_agent_custom_capabilities,
+        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+        OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
     };
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
@@ -446,6 +447,7 @@ mod tests {
         StartSettings {
             instance_id: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
+            custom_capabilities: Some(default_sub_agent_custom_capabilities()),
             agent_description: AgentDescription {
                 identifying_attributes,
                 non_identifying_attributes: HashMap::from([

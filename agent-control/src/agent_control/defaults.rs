@@ -1,5 +1,6 @@
+use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use opamp_client::capabilities;
-use opamp_client::opamp::proto::AgentCapabilities;
+use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
 use opamp_client::operation::settings::DescriptionValueType;
 
@@ -64,6 +65,12 @@ pub fn default_capabilities() -> Capabilities {
         AgentCapabilities::ReportsRemoteConfig,
         AgentCapabilities::ReportsStatus
     )
+}
+
+pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
+    CustomCapabilities {
+        capabilities: vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
+    }
 }
 
 pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";

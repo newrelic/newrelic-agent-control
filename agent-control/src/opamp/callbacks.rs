@@ -1,18 +1,22 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
-use crate::event::{
-    channel::{EventPublisher, EventPublisherError},
-    OpAMPEvent,
+use crate::opamp::remote_config::{
+    hash::Hash, signature::Signature, ConfigurationMap, RemoteConfig,
 };
-use crate::opamp::remote_config::hash::Hash;
-use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
 use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfigError};
+use crate::{
+    event::{
+        channel::{EventPublisher, EventPublisherError},
+        OpAMPEvent,
+    },
+    opamp::remote_config::signature::SignatureError,
+};
 use opamp_client::{
     error::ConnectionError,
     error::ConnectionError::HTTPClientError,
     http::HttpClientError,
     opamp::proto::{
-        AgentRemoteConfig, EffectiveConfig, OpAmpConnectionSettings, ServerErrorResponse,
-        ServerToAgentCommand,
+        AgentRemoteConfig, CustomMessage, EffectiveConfig, OpAmpConnectionSettings,
+        ServerErrorResponse, ServerToAgentCommand,
     },
     operation::callbacks::{Callbacks, MessageData},
 };
@@ -66,6 +70,7 @@ where
     fn process_remote_config(
         &self,
         msg_remote_config: AgentRemoteConfig,
+        custom_message: Option<CustomMessage>,
     ) -> Result<(), AgentCallbacksError> {
         trace!(
             agent_id = self.agent_id.to_string(),
@@ -95,7 +100,27 @@ where
             }
         };
 
-        let remote_config = RemoteConfig::new(self.agent_id.clone(), hash, config_map);
+        let maybe_config_signature =
+            custom_message.and_then(
+                |custom_message| match Signature::try_from(&custom_message) {
+                    Ok(signature) => Some(signature),
+                    // Do not correspond to a config signature message
+                    Err(SignatureError::InvalidCapability) | Err(SignatureError::InvalidType) => {
+                        debug!(%self.agent_id, "custom message doesn't contain a valid config signature");
+                        None
+                    }
+                    Err(SignatureError::InvalidData(err)) => {
+                        error!(%self.agent_id, %err, "parsing config signature message");
+                        hash.fail(format!("Invalid remote config signature format: {}", err));
+                        None
+                    }
+                },
+            );
+
+        let mut remote_config = RemoteConfig::new(self.agent_id.clone(), hash, config_map);
+        if let Some(config_signature) = maybe_config_signature {
+            remote_config = remote_config.with_signature(config_signature);
+        }
 
         trace!(
             agent_id = self.agent_id.to_string(),
@@ -160,7 +185,7 @@ where
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
             trace!(agent_id = %self.agent_id, "remote config received: {:?}", msg_remote_config);
-            match self.process_remote_config(msg_remote_config) {
+            match self.process_remote_config(msg_remote_config, msg.custom_message) {
                 Ok(_) => trace!(agent_id = %self.agent_id, "on message ok"),
                 Err(e) => error!(agent_id = %self.agent_id, err = %e, "processing OpAMP message"),
             };
@@ -234,6 +259,9 @@ pub(crate) mod tests {
     use crate::event::OpAMPEvent;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::signature::{
+        SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+    };
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
@@ -305,12 +333,28 @@ pub(crate) mod tests {
     fn test_remote_config() {
         let valid_hash = "hash";
         let invalid_utf = vec![128, 129];
+        let (valid_remote_config_map, expected_remote_config_map) = (
+            AgentConfigMap {
+                config_map: HashMap::from([(
+                    "my-config".to_string(),
+                    AgentConfigFile {
+                        body: "enable_proces_metrics: true".as_bytes().to_vec(),
+                        content_type: "".to_string(),
+                    },
+                )]),
+            },
+            ConfigurationMap::new(HashMap::from([(
+                "my-config".to_string(),
+                "enable_proces_metrics: true".to_string(),
+            )])),
+        );
 
         struct TestCase {
             name: &'static str,
             opamp_msg: Option<MessageData>, // using option here to allow taking the ownership of the MessageData which cannot be cloned.
             expected_remote_config_hash: Hash,
             expected_remote_config_config_map: Option<ConfigurationMap>,
+            expected_signature: Option<Signature>,
         }
         impl TestCase {
             fn run(mut self) {
@@ -329,13 +373,18 @@ pub(crate) mod tests {
                     .recv_timeout(Duration::from_millis(1))
                     .unwrap();
 
-                let expected_event = OpAMPEvent::RemoteConfigReceived(RemoteConfig::new(
+                let mut remote_config = RemoteConfig::new(
                     agent_id.clone(),
                     self.expected_remote_config_hash.clone(),
                     self.expected_remote_config_config_map.clone(),
-                ));
+                );
+                if let Some(signature) = self.expected_signature {
+                    remote_config = remote_config.with_signature(signature);
+                }
 
-                assert_eq!(event, expected_event, "{}", self.name);
+                let expected_event = OpAMPEvent::RemoteConfigReceived(remote_config);
+
+                assert_eq!(event, expected_event, "test case: {}", self.name);
 
                 assert!(event_consumer.as_ref().is_empty());
             }
@@ -344,31 +393,21 @@ pub(crate) mod tests {
             TestCase {
                 name: "with valid values",
                 opamp_msg: Some(MessageData {
-                    remote_config: Option::from(AgentRemoteConfig {
-                        config: Option::from(AgentConfigMap {
-                            config_map: HashMap::from([(
-                                "my-config".to_string(),
-                                AgentConfigFile {
-                                    body: "enable_proces_metrics: true".as_bytes().to_vec(),
-                                    content_type: "".to_string(),
-                                },
-                            )]),
-                        }),
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
                         config_hash: valid_hash.as_bytes().to_vec(),
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(ConfigurationMap::new(HashMap::from([(
-                    "my-config".to_string(),
-                    "enable_proces_metrics: true".to_string(),
-                )]))),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: Hash::new(valid_hash.to_string()),
+                expected_signature: None,
             },
             TestCase {
                 name: "with invalid values",
                 opamp_msg: Some(MessageData {
-                    remote_config: Option::from(AgentRemoteConfig {
-                        config: Option::from(AgentConfigMap {
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(AgentConfigMap {
                             config_map: HashMap::from([(
                                 "my-config".to_string(),
                                 AgentConfigFile {
@@ -389,11 +428,12 @@ pub(crate) mod tests {
                     );
                     expected_hash
                 },
+                expected_signature: None,
             },
             TestCase {
                 name: "with missing config and valid hash",
                 opamp_msg: Some(MessageData {
-                    remote_config: Option::from(AgentRemoteConfig {
+                    remote_config: Some(AgentRemoteConfig {
                         config: None,
                         config_hash: valid_hash.as_bytes().to_vec(),
                     }),
@@ -405,11 +445,12 @@ pub(crate) mod tests {
                     expected_hash.fail("Config missing".into());
                     expected_hash
                 },
+                expected_signature: None,
             },
             TestCase {
                 name: "with missing config and invalid hash",
                 opamp_msg: Some(MessageData {
-                    remote_config: Option::from(AgentRemoteConfig {
+                    remote_config: Some(AgentRemoteConfig {
                         config: None,
                         config_hash: invalid_utf.clone(),
                     }),
@@ -421,28 +462,18 @@ pub(crate) mod tests {
                     expected_hash.fail("Config missing".into());
                     expected_hash
                 },
+                expected_signature: None,
             },
             TestCase {
                 name: "with valid config and invalid hash",
                 opamp_msg: Some(MessageData {
-                    remote_config: Option::from(AgentRemoteConfig {
-                        config: Option::from(AgentConfigMap {
-                            config_map: HashMap::from([(
-                                "my-config".to_string(),
-                                AgentConfigFile {
-                                    body: "enable_proces_metrics: true".as_bytes().to_vec(),
-                                    content_type: "".to_string(),
-                                },
-                            )]),
-                        }),
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
                         config_hash: invalid_utf.clone(),
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(ConfigurationMap::new(HashMap::from([(
-                    "my-config".to_string(),
-                    "enable_proces_metrics: true".to_string(),
-                )]))),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new("".to_string());
                     expected_hash.fail(
@@ -450,6 +481,86 @@ pub(crate) mod tests {
                     );
                     expected_hash
                 },
+                expected_signature: None,
+            },
+            TestCase {
+                name: "with valid config and valid signature",
+                opamp_msg: Some(MessageData {
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    custom_message: Some(CustomMessage {
+                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_hash: Hash::new(valid_hash.to_string()),
+                expected_signature: Some(Signature::new("fake".into())),
+            },
+            TestCase {
+                name: "with valid config and invalid signature type",
+                opamp_msg: Some(MessageData {
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    custom_message: Some(CustomMessage {
+                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        r#type: "unsupported_type".to_string(),
+                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_hash: Hash::new(valid_hash.to_string()),
+                expected_signature: None,
+            },
+            TestCase {
+                name: "with valid config and invalid signature capability",
+                opamp_msg: Some(MessageData {
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    custom_message: Some(CustomMessage {
+                        capability: "unsupported.capability".to_string(),
+                        r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_hash: Hash::new(valid_hash.to_string()),
+                expected_signature: None,
+            },
+            TestCase {
+                name: "with valid config and invalid signature data",
+                opamp_msg: Some(MessageData {
+                    remote_config: Some(AgentRemoteConfig {
+                        config: Some(valid_remote_config_map.clone()),
+                        config_hash: valid_hash.as_bytes().to_vec(),
+                    }),
+                    custom_message: Some(CustomMessage {
+                        capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                        r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                        data: "invalid signature".as_bytes().to_vec(),
+                    }),
+                    ..Default::default()
+                }),
+                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_hash: {
+                    let mut expected_hash = Hash::new(valid_hash.to_string());
+                    expected_hash.fail(
+                        "Invalid remote config signature format: expected value at line 1 column 1"
+                            .into(),
+                    );
+                    expected_hash
+                },
+                expected_signature: None,
             },
         ];
 

@@ -154,7 +154,8 @@ jobs:
 
   k8s-integration-tests:
     name: K8s integration tests
-    runs-on: ubuntu-latest
+    # minikube action requires ubuntu-22.04 at the moment
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -192,9 +193,10 @@ jobs:
   # in the test/k8s-e2e/Readme.md
   k8s-e2e-tests:
     name: K8s e2e tests ${{ matrix.group }}
-    runs-on: ubuntu-latest
+    # minikube action requires ubuntu-22.04 at the moment
+    runs-on: ubuntu-22.04
     strategy:
-      matrix:
+      matrix: 
         group: [ collector, apm, infra ]
     steps:
       - uses: actions/checkout@v4
