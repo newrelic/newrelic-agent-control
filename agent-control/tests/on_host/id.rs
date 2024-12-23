@@ -5,7 +5,7 @@ use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILE, DYNAMIC_AGENT_TYPE_FILENAME,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::opamp::instance_id::IdentifiersProvider;
@@ -148,7 +148,7 @@ deployment:
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
-    let sa_config_path = local_dir.path().join(AGENT_CONTROL_CONFIG_FILE);
+    let sa_config_path = local_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
     create_file(
         r#"
 host_id: fixed-host-id

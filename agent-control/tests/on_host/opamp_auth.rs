@@ -3,7 +3,7 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILE;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use nr_auth::authenticator::{Request, Response};
 use nr_auth::jwt::claims::Claims;
 use nr_auth::token_retriever::DEFAULT_AUDIENCE;
@@ -35,7 +35,7 @@ fn test_auth_local_provider_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
 fleet_control:
@@ -94,7 +94,7 @@ fn test_empty_auth_config_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
 fleet_control:
@@ -144,7 +144,7 @@ fn test_unauthorized_token_retrieve_as_root() {
 
     let config_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
 fleet_control:

@@ -1,6 +1,6 @@
 use crate::common::retry::retry;
 use assert_cmd::Command;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILE;
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use predicates::prelude::predicate;
 use std::error::Error;
 use std::process::Stdio;
@@ -44,7 +44,7 @@ impl Drop for AutoDropChild {
 #[test]
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILE, r"agents: {}")?;
+    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
     let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
     cmd.arg("--local-dir")
         .arg(dir.path())
@@ -57,7 +57,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILE, r"agents: {}")?;
+    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
     let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
     cmd.arg("--local-dir").arg(dir.path());
     cmd.assert()
@@ -74,7 +74,7 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use crate::on_host::logging::level::TIME_FORMAT;
 
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILE, r"agents: {}")?;
+    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
     cmd.arg("--local-dir").arg(dir.path());
@@ -113,7 +113,7 @@ fn custom_logging_format_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 agents: {}
 log:
@@ -169,7 +169,7 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
 
     let _config_path = create_temp_file(
         &dir,
-        AGENT_CONTROL_CONFIG_FILE,
+        AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
 fleet_control:
