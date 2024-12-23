@@ -38,7 +38,11 @@ pub struct ConfigValidator {
 }
 
 impl ConfigValidator {
-    pub fn try_new() -> Result<Self, ValidatorError> {
+    pub fn new() -> Self {
+        Self::try_new().expect("Failed to compile config validation regexes")
+    }
+
+    fn try_new() -> Result<Self, ValidatorError> {
         Ok(Self {
             rules: HashMap::from([
                 (
@@ -59,6 +63,7 @@ impl ConfigValidator {
             valid_otel_endpoint: Regex::new(REGEX_VALID_OTEL_ENDPOINT)?,
         })
     }
+
     pub fn validate(
         &self,
         agent_type_fqn: &AgentTypeFQN,

@@ -563,9 +563,6 @@ pub mod tests {
         let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
 
         let remote_config_handler = RemoteConfigHandler::new(
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
             agent_id.clone(),
             agent_cfg.clone(),
             hash_repository_ref.clone(),

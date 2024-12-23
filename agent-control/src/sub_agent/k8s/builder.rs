@@ -133,9 +133,6 @@ where
         );
 
         let remote_config_handler = RemoteConfigHandler::new(
-            Arc::new(
-                ConfigValidator::try_new().expect("Failed to compile config validation regexes"),
-            ),
             agent_id.clone(),
             sub_agent_config.clone(),
             self.hash_repository.clone(),
