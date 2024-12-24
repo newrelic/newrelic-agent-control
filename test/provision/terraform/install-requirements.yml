@@ -1,13 +1,27 @@
 ---
 
-- hosts: all
+- hosts: testing_hosts_linux
   become: true
   gather_facts: no
+  vars:
+    instances_requiring_opensuse_repos:
+      "sles-15.3": http://download.opensuse.org/distribution/leap/15.3/repo/oss/
+      "sles-15.4": http://download.opensuse.org/distribution/leap/15.4/repo/oss/
+      "sles-15.5": http://download.opensuse.org/distribution/leap/15.5/repo/oss/
 
   tasks:
     - name: Remove EOL repository sources
       include_role:
         name: caos.ansible_roles.remove_eol_sources
+
+    - name: Configure OpenSUSE repositories when needed
+      include_role:
+        name: caos.ansible_roles.opensuse_repositories
+      loop: "{{ instances_requiring_opensuse_repos | dict2items }}"
+      when: inventory_hostname is search(item.key)
+      vars:
+        suse_repo_base_url: "{{ item.value }}"
+        suse_version: "{{ inventory_hostname | regex_replace('[^:]+:[^:]+:sles-', '') }}"
 
     - name: re-install rpm
       include_role:
@@ -25,7 +39,7 @@
       include_role:
         name: caos.ansible_roles.install_gpg
 
-- hosts: all
+- hosts: testing_hosts_linux
   become: true
   gather_facts: yes
   vars:
