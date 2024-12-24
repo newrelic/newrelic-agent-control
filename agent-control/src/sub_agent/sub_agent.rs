@@ -331,6 +331,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
@@ -339,11 +340,8 @@ pub mod tests {
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-
-    use crate::agent_control::config::AgentTypeFQN;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;

@@ -262,7 +262,6 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
-    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
