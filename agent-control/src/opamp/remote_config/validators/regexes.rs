@@ -68,15 +68,15 @@ mod tests {
     use crate::agent_control::config::{AgentID, AgentTypeFQN};
     use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::validators::config::tests::VALID_ONHOST_NRDOT_CONFIG;
+    use crate::opamp::remote_config::validators::config::{ConfigValidator, ConfigValidatorError};
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::config_validator::tests::VALID_ONHOST_NRDOT_CONFIG;
-    use crate::sub_agent::config_validator::{ConfigValidator, ValidatorError};
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 
     #[test]
     fn test_valid_configs_are_allowed() {
-        let config_validator = ConfigValidator::new();
+        let config_validator = ConfigValidator::default();
 
         let config = remote_config(GOOD_INFRA_AGENT_CONFIG);
         let result = config_validator.validate(&infra_agent(), &config);
@@ -100,13 +100,13 @@ mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let config_validator = ConfigValidator::new();
+                let config_validator = ConfigValidator::default();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
                     .validate(&self.agent_type, &remote_config)
                     .unwrap_err();
 
-                assert_matches!(err, ValidatorError::InvalidConfig);
+                assert_matches!(err, ConfigValidatorError::InvalidConfig);
             }
         }
         let test_cases = vec![

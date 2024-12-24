@@ -12,6 +12,7 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::validators::signature::SignatureValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
@@ -104,6 +105,9 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
+        let signature_validator = SignatureValidator::try_new()
+            .map_err(|e| AgentError::BuildingSignatureValidator(e.to_string()))?;
+
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
@@ -111,6 +115,7 @@ impl AgentControlRunner {
             agents_assembler,
             self.base_paths.log_dir.join(SUB_AGENT_DIR),
             yaml_config_repository.clone(),
+            signature_validator,
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder

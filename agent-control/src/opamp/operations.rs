@@ -1,14 +1,10 @@
-use std::collections::HashMap;
-use std::ops::Not;
-
 use super::instance_id::InstanceID;
 use super::{
     client_builder::{OpAMPClientBuilder, OpAMPClientBuilderError},
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
-    default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use crate::{
     agent_control::config::{AgentID, AgentTypeFQN},
@@ -25,6 +21,7 @@ use opamp_client::{
     },
     StartedClient,
 };
+use std::collections::HashMap;
 use tracing::info;
 
 pub fn build_sub_agent_opamp<CB, OB, IG>(
@@ -74,7 +71,6 @@ where
     let (opamp_publisher, opamp_consumer) = pub_sub();
     let start_settings = start_settings(
         instance_id_getter.get(&agent_id)?,
-        &agent_id,
         agent_type,
         additional_identifying_attributes,
         non_identifying_attributes,
@@ -88,7 +84,6 @@ where
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
 pub fn start_settings(
     instance_id: InstanceID,
-    agent_id: &AgentID,
     agent_fqn: &AgentTypeFQN,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
@@ -103,16 +98,10 @@ pub fn start_settings(
 
     identifying_attributes.extend(additional_identifying_attributes);
 
-    // Agent control does not have custom capabilities
-    let custom_capabilities = agent_id
-        .is_agent_control_id()
-        .not()
-        .then(default_sub_agent_custom_capabilities);
-
     StartSettings {
         instance_id: instance_id.into(),
         capabilities: agent_fqn.get_capabilities(),
-        custom_capabilities,
+        custom_capabilities: agent_fqn.get_custom_capabilities(),
         agent_description: AgentDescription {
             identifying_attributes,
             non_identifying_attributes,

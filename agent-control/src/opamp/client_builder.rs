@@ -1,3 +1,10 @@
+use super::callbacks::AgentCallbacks;
+use super::effective_config::loader::EffectiveConfigLoaderBuilder;
+use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
+use crate::agent_control::config::AgentID;
+use crate::event::channel::EventPublisher;
+use crate::event::OpAMPEvent;
+use crate::opamp::instance_id;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
@@ -5,15 +12,6 @@ use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{error, info};
-
-use crate::agent_control::config::AgentID;
-use crate::event::channel::EventPublisher;
-use crate::event::OpAMPEvent;
-use crate::opamp::instance_id;
-
-use super::callbacks::AgentCallbacks;
-use super::effective_config::loader::EffectiveConfigLoaderBuilder;
-use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 
 /// Default poll interval for the OpAMP http managed client
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);

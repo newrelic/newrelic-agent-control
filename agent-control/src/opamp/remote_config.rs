@@ -8,6 +8,7 @@ use thiserror::Error;
 pub mod hash;
 pub mod report;
 pub mod signature;
+pub mod validators;
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
@@ -72,6 +73,10 @@ impl RemoteConfig {
                 "too many config items".to_string(),
             )),
         }
+    }
+
+    pub fn get_signature(&self) -> Option<Signature> {
+        self.signature.clone()
     }
 }
 

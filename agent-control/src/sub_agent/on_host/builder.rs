@@ -11,6 +11,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::remote_config::validators::signature::SignatureValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -46,6 +47,7 @@ where
     effective_agent_assembler: Arc<A>,
     logging_path: PathBuf,
     yaml_config_repository: Arc<Y>,
+    signature_validator: Arc<SignatureValidator>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -68,6 +70,7 @@ where
         effective_agent_assembler: Arc<A>,
         logging_path: PathBuf,
         yaml_config_repository: Arc<Y>,
+        signature_validator: Arc<SignatureValidator>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -76,6 +79,7 @@ where
             effective_agent_assembler,
             logging_path,
             yaml_config_repository,
+            signature_validator,
 
             _effective_config_loader: PhantomData,
         }
@@ -133,6 +137,7 @@ where
             sub_agent_config.clone(),
             self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
+            self.signature_validator.clone(),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(
@@ -305,6 +310,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
+            SignatureValidator::try_new().unwrap(),
         );
 
         on_host_builder
@@ -387,6 +393,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
+            SignatureValidator::try_new().unwrap(),
         );
 
         let sub_agent = on_host_builder

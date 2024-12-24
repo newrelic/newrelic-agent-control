@@ -1,18 +1,16 @@
-use std::collections::HashMap;
-
-use regex::Regex;
-use thiserror::Error;
-
 use crate::agent_control::config::AgentTypeFQN;
 use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
-use crate::opamp::remote_config::RemoteConfig;
-use crate::sub_agent::validation_regexes::{
+use crate::opamp::remote_config::validators::regexes::{
     REGEX_BINARY_PATH_FIELD, REGEX_COMMAND_FIELD, REGEX_EXEC_FIELD, REGEX_IMAGE_REPOSITORY,
     REGEX_NRI_FLEX, REGEX_OTEL_ENDPOINT, REGEX_VALID_OTEL_ENDPOINT,
 };
+use crate::opamp::remote_config::RemoteConfig;
+use regex::Regex;
+use std::collections::HashMap;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum ValidatorError {
+pub enum ConfigValidatorError {
     #[error("Invalid config: restricted values detected")]
     InvalidConfig,
 
@@ -38,11 +36,7 @@ pub struct ConfigValidator {
 }
 
 impl ConfigValidator {
-    pub fn new() -> Self {
-        Self::try_new().expect("Failed to compile config validation regexes")
-    }
-
-    fn try_new() -> Result<Self, ValidatorError> {
+    fn try_new() -> Result<Self, ConfigValidatorError> {
         Ok(Self {
             rules: HashMap::from([
                 (
@@ -68,7 +62,7 @@ impl ConfigValidator {
         &self,
         agent_type_fqn: &AgentTypeFQN,
         remote_config: &RemoteConfig,
-    ) -> Result<(), ValidatorError> {
+    ) -> Result<(), ConfigValidatorError> {
         // This config will fail further on the event processor.
         if let Ok(raw_config) = remote_config.get_unique() {
             self.validate_regex_rules(agent_type_fqn, raw_config)?;
@@ -82,7 +76,7 @@ impl ConfigValidator {
         &self,
         agent_type_fqn: &AgentTypeFQN,
         raw_config: &str,
-    ) -> Result<(), ValidatorError> {
+    ) -> Result<(), ConfigValidatorError> {
         let agent_type_fqn_name = AgentTypeFQNName(agent_type_fqn.name());
         if !self.rules.contains_key(&agent_type_fqn_name) {
             return Ok(());
@@ -90,7 +84,7 @@ impl ConfigValidator {
 
         for regex in self.rules[&agent_type_fqn_name].iter() {
             if regex.is_match(raw_config) {
-                return Err(ValidatorError::InvalidConfig);
+                return Err(ConfigValidatorError::InvalidConfig);
             }
         }
 
@@ -102,7 +96,7 @@ impl ConfigValidator {
         &self,
         agent_type_fqn: &AgentTypeFQN,
         raw_config: &str,
-    ) -> Result<(), ValidatorError> {
+    ) -> Result<(), ConfigValidatorError> {
         // this rule applies only to nrdot agents
         if !agent_type_fqn.name().eq(FQN_NAME_NRDOT) {
             return Ok(());
@@ -113,7 +107,7 @@ impl ConfigValidator {
             if let Some(endpoint) = capture.get(1) {
                 // verifies that the endpoint is valid
                 if !self.valid_otel_endpoint.is_match(endpoint.as_str()) {
-                    return Err(ValidatorError::InvalidConfig);
+                    return Err(ConfigValidatorError::InvalidConfig);
                 }
             }
         }
@@ -122,14 +116,22 @@ impl ConfigValidator {
     }
 }
 
+impl Default for ConfigValidator {
+    fn default() -> Self {
+        // Notice that we allow an expect here since all regexes are hardcoded
+        Self::try_new().expect("Failed to compile config validation regexes")
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use std::collections::HashMap;
 
     use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::defaults::FQN_NAME_INFRA_AGENT;
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::validators::config::ConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::config_validator::{ConfigValidator, FQN_NAME_INFRA_AGENT};
 
     #[test]
     fn test_validate() {
@@ -175,7 +177,7 @@ pub(super) mod tests {
                 content.to_string(),
             )]))),
         );
-        let validator = ConfigValidator::new();
+        let validator = ConfigValidator::default();
         let agent_type_fqn =
             AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str())
                 .unwrap();
@@ -207,7 +209,7 @@ pub(super) mod tests {
                 let agent_type_fqn =
                     AgentTypeFQN::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
 
-                let validator = ConfigValidator::new();
+                let validator = ConfigValidator::default();
 
                 let res = validator.validate(&agent_type_fqn, &remote_config);
                 assert_eq!(res.is_ok(), self.valid, "test case: {}", self.name);
