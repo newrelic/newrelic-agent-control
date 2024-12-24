@@ -27,7 +27,7 @@ pub enum RemoteConfigHandlerError {
 }
 
 pub struct RemoteConfigHandler<R, Y> {
-    config_validator: Arc<ConfigValidator>,
+    config_validator: ConfigValidator,
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
     sub_agent_remote_config_hash_repository: Arc<R>,
@@ -40,14 +40,13 @@ where
     Y: YAMLConfigRepository,
 {
     pub fn new(
-        config_validator: Arc<ConfigValidator>,
         agent_id: AgentID,
         agent_cfg: SubAgentConfig,
         sub_agent_remote_config_hash_repository: Arc<R>,
         remote_values_repo: Arc<Y>,
     ) -> Self {
         RemoteConfigHandler {
-            config_validator,
+            config_validator: ConfigValidator::new(),
             agent_id,
             agent_cfg,
             sub_agent_remote_config_hash_repository,
