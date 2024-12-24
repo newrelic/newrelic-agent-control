@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn test_valid_configs_are_allowed() {
-        let config_validator = ConfigValidator::try_new().unwrap();
+        let config_validator = ConfigValidator::new();
 
         let config = remote_config(GOOD_INFRA_AGENT_CONFIG);
         let result = config_validator.validate(&infra_agent(), &config);
@@ -100,7 +100,7 @@ mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let config_validator = ConfigValidator::try_new().unwrap();
+                let config_validator = ConfigValidator::new();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
                     .validate(&self.agent_type, &remote_config)

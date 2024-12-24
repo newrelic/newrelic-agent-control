@@ -175,7 +175,7 @@ pub(super) mod tests {
                 content.to_string(),
             )]))),
         );
-        let validator = ConfigValidator::try_new().unwrap();
+        let validator = ConfigValidator::new();
         let agent_type_fqn =
             AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str())
                 .unwrap();
@@ -207,7 +207,7 @@ pub(super) mod tests {
                 let agent_type_fqn =
                     AgentTypeFQN::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
 
-                let validator = ConfigValidator::try_new().unwrap();
+                let validator = ConfigValidator::new();
 
                 let res = validator.validate(&agent_type_fqn, &remote_config);
                 assert_eq!(res.is_ok(), self.valid, "test case: {}", self.name);
