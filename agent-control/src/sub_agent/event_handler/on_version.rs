@@ -1,5 +1,5 @@
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::version::version_checker::AgentVersion;
+use crate::sub_agent::version::k8s::version_checker::AgentVersion;
 use opamp_client::opamp::proto::{any_value, AgentDescription, AnyValue, KeyValue};
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;

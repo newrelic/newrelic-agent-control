@@ -6,7 +6,6 @@ use crate::agent_control::config::AgentTypeFQN;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::version::version_checker::AgentVersion;
 use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfig};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -46,7 +45,8 @@ impl SubAgentEvent {
 pub enum SubAgentInternalEvent {
     StopRequested,
     AgentHealthInfo(HealthWithStartTime),
-    AgentVersionInfo(AgentVersion),
+    #[cfg(feature = "k8s")]
+    AgentVersionInfo(crate::sub_agent::version::k8s::version_checker::AgentVersion),
 }
 
 impl From<HealthWithStartTime> for SubAgentInternalEvent {

@@ -7,15 +7,13 @@ use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
-use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
-
-use crate::sub_agent::event_handler::on_version::on_version;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
+use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
@@ -214,8 +212,9 @@ where
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
                             }
+                            #[cfg(feature = "k8s")]
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agenta_data)) => {
-                                 let _ = on_version(
+                                 let _ = crate::sub_agent::event_handler::on_version::on_version(
                                     agenta_data,
                                     self.maybe_opamp_client.as_ref(),
                                 )
@@ -332,6 +331,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
@@ -340,11 +340,8 @@ pub mod tests {
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::config_validator::ConfigValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-
-    use crate::agent_control::config::AgentTypeFQN;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
