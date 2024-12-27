@@ -105,8 +105,7 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let signature_validator = SignatureValidator::try_new()
-            .map_err(|e| AgentError::BuildingSignatureValidator(e.to_string()))?;
+        let signature_validator = SignatureValidator::new();
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),

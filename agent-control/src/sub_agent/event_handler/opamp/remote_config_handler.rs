@@ -1,7 +1,7 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
-use crate::opamp::remote_config::validators::config::ConfigValidator;
+use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::opamp::remote_config::validators::signature::SignatureValidator;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::sub_agent::error::SubAgentError;

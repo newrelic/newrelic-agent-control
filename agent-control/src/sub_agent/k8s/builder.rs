@@ -290,7 +290,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            SignatureValidator::try_new().unwrap(),
+            SignatureValidator::new(),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -331,7 +331,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            SignatureValidator::try_new().unwrap(),
+            SignatureValidator::new(),
         );
 
         let (application_event_publisher, _) = pub_sub();

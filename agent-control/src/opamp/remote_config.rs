@@ -75,8 +75,8 @@ impl RemoteConfig {
         }
     }
 
-    pub fn get_signature(&self) -> Option<Signature> {
-        self.signature.clone()
+    pub fn get_signature(&self) -> &Option<Signature> {
+        &self.signature
     }
 }
 

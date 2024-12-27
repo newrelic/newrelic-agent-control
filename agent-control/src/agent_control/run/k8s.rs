@@ -92,8 +92,7 @@ impl AgentControlRunner {
 
         let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
-        let signature_validator = SignatureValidator::try_new()
-            .map_err(|e| AgentError::BuildingSignatureValidator(e.to_string()))?;
+        let signature_validator = SignatureValidator::new();
 
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
