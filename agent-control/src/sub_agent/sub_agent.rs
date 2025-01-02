@@ -553,6 +553,7 @@ pub mod tests {
         assert!(logs_contain("Error stopping event loop"));
     }
 
+    #[traced_test]
     #[test]
     fn test_run_remote_config() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -674,5 +675,8 @@ pub mod tests {
 
         // stop the runtime
         started_agent.stop();
+        // If the sub-agent underlying threads panics (due any failure in the underlying mocks) the stop function
+        // will handle it by logging the corresponding error, therefore we do not expect any error reported here.
+        assert!(!logs_contain("ERROR"));
     }
 }
