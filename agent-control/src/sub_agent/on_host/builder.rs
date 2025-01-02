@@ -231,6 +231,7 @@ mod tests {
         AgentDescription, DescriptionValueType, StartSettings,
     };
     use std::collections::HashMap;
+    use tracing_test::traced_test;
 
     // TODO: tests below are testing not only the builder but also the sub-agent start/stop behavior.
     // We should re-consider their scope.
@@ -314,6 +315,7 @@ mod tests {
             .stop()
     }
 
+    #[traced_test]
     #[test]
     fn test_subagent_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
@@ -392,7 +394,9 @@ mod tests {
         let sub_agent = on_host_builder
             .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .expect("Subagent build should be OK");
-        let _ = sub_agent.run(); // Running the sub-agent should report the failed configuration.
+        let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
+        started_sub_agent.stop();
+        assert!(!logs_contain("ERROR"));
     }
 
     // HELPERS
