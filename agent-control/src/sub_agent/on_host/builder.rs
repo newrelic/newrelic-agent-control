@@ -27,6 +27,7 @@ use crate::{
 #[cfg(unix)]
 use nix::unistd::gethostname;
 use std::collections::HashMap;
+use std::env;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
