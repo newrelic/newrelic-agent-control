@@ -350,7 +350,7 @@ pub mod tests {
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::Applying;
+    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::sleep;
@@ -578,37 +578,44 @@ pub mod tests {
             2,
         );
 
-        let mut supervisor_stopper = MockSupervisorStopper::new();
-        supervisor_stopper
-            .expect_stop()
-            .once()
-            .return_once(|| Ok(()));
-
-        let mut supervisor_starter = MockSupervisorStarter::new();
-        supervisor_starter
-            .expect_start()
-            .once()
-            .with(predicate::always())
-            .return_once(|_| Ok(supervisor_stopper));
-
         let mut supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter> =
             MockSupervisorBuilder::new();
+
         supervisor_builder
             .expect_build_supervisor()
             .with(predicate::function(move |e: &EffectiveAgent| {
                 e == &effective_agent
             }))
-            .return_once(|_| Ok(supervisor_starter));
+            .returning(|_| {
+                let mut supervisor_stopper = MockSupervisorStopper::new();
+                supervisor_stopper
+                    .expect_stop()
+                    .once()
+                    .return_once(|| Ok(()));
+
+                let mut supervisor_starter = MockSupervisorStarter::new();
+                supervisor_starter
+                    .expect_start()
+                    .once()
+                    .with(predicate::always())
+                    .return_once(|_| Ok(supervisor_stopper));
+                Ok(supervisor_starter)
+            });
 
         // Event's config
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let hash = Hash::new(String::from("some-hash"));
+        let mut applied_hash = hash.clone();
+        applied_hash.apply();
         let config_map = ConfigurationMap::new(HashMap::from([(
             "".to_string(),
             "some_item: some_value".to_string(),
         )]));
 
         hash_repository.should_save_hash(&agent_id, &hash);
+        hash_repository.should_get_hash(&agent_id, hash.clone());
+        hash_repository.should_save_hash(&agent_id, &applied_hash);
+        hash_repository.should_get_hash(&agent_id, applied_hash.clone());
         remote_values_repo.should_store_remote(
             &agent_id,
             &YAMLConfig::new(HashMap::from([("some_item".into(), "some_value".into())])),
@@ -626,10 +633,15 @@ pub mod tests {
             last_remote_config_hash: hash.get().into_bytes(),
             error_message: Default::default(),
         });
+        opamp_client.should_set_remote_config_status(RemoteConfigStatus {
+            status: Applied as i32,
+            last_remote_config_hash: hash.get().into_bytes(),
+            error_message: Default::default(),
+        });
 
         opamp_client
             .expect_update_effective_config()
-            .once()
+            .times(2)
             .returning(|| Ok(()));
 
         //opamp client expects to be stopped
