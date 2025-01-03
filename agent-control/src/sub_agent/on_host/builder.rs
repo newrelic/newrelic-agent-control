@@ -359,6 +359,8 @@ mod tests {
             status: Failed as i32,
             last_remote_config_hash: "a-hash".as_bytes().to_vec(),
         });
+        started_client.should_update_effective_config(1);
+        started_client.should_stop(1);
 
         opamp_builder.should_build_and_start(
             sub_agent_id.clone(),
