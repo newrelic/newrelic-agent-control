@@ -1,13 +1,11 @@
 //! This module contains functions to deal with the health-check of a list of items.
 //!
 use super::health_checker::LABEL_RELEASE_FLUX;
-use crate::{
-    k8s::utils as client_utils,
-    sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy},
-};
+use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
     apimachinery::pkg::apis::meta::v1::ObjectMeta, Metadata, NamespaceResourceScope, Resource,
 };
+use kube::core::{Expression, Selector, SelectorExt};
 use std::{any::Any, sync::Arc};
 
 /// Executes the provided health-check function over the items provided. It expects a list
@@ -39,13 +37,16 @@ pub fn flux_release_filter<K>(release_name: String) -> impl Fn(&Arc<K>) -> bool
 where
     K: Metadata<Ty = ObjectMeta>,
 {
-    // TODO: when https://github.com/kube-rs/kube/pull/1482, is ready, a label-selector could be used instead.
+    let selector = Selector::from(Expression::Equal(
+        LABEL_RELEASE_FLUX.to_string(),
+        release_name,
+    ));
+
     move |obj| {
-        client_utils::contains_label_with_value(
-            &obj.metadata().labels,
-            LABEL_RELEASE_FLUX,
-            release_name.as_str(),
-        )
+        obj.metadata()
+            .labels
+            .as_ref()
+            .is_some_and(|labels| selector.matches(labels))
     }
 }
 
