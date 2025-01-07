@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 tera = { version = "1", default-features = false }
