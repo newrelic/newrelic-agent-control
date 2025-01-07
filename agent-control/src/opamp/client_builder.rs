@@ -100,7 +100,6 @@ pub(crate) mod tests {
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
-    use std::thread;
 
     use super::*;
 
@@ -206,6 +205,7 @@ pub(crate) mod tests {
     where
         C: Callbacks + Send + Sync + 'static,
     {
+        #[cfg(feature = "k8s")] // Currently in k8s only
         pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,
@@ -222,6 +222,7 @@ pub(crate) mod tests {
                 .return_once(move |_, _, _| Ok(client));
         }
 
+        #[cfg(feature = "onhost")]
         // This is a Mock OpAMP Client Builder, which builds the Callbacks and the OpAMP Client
         // and starts the OpAMP Client thread. This thread owns the callbacks, and these publish
         // into the OpAMP Publisher <-- Sub Agent OpAMP Consumer
@@ -240,8 +241,8 @@ pub(crate) mod tests {
             self.expect_build_and_start()
                 .withf(move |publisher, _sub_agent_id, _start_settings| {
                     let publisher = publisher.clone();
-                    thread::spawn(move || {
-                        thread::sleep(run_for);
+                    std::thread::spawn(move || {
+                        std::thread::sleep(run_for);
                         drop(publisher)
                     });
                     //

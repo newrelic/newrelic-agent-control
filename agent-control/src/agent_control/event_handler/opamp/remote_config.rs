@@ -13,15 +13,14 @@ use crate::{
         agent_control::{AgentControl, AgentControlCallbacks},
         error::AgentError,
     },
-    opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
+    opamp::remote_config::RemoteConfig,
     sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
 };
 
-impl<S, O, HR, SL, G> AgentControl<S, O, HR, SL, G>
+impl<S, O, SL, G> AgentControl<S, O, SL, G>
 where
     G: EffectiveConfigLoader,
     O: StartedClient<AgentControlCallbacks<G>>,
-    HR: HashRepository,
     S: SubAgentBuilder,
     SL: AgentControlDynamicConfigStorer
         + AgentControlDynamicConfigLoader
@@ -53,7 +52,7 @@ where
                 Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
-                self.set_config_hash_as_applied(&mut remote_config.hash)?;
+                remote_config.hash.apply();
                 OpampRemoteConfigStatus::Applied.report(opamp_client, &remote_config.hash)?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
@@ -73,6 +72,7 @@ mod tests {
 
     use crate::agent_control::agent_control::AgentControlCallbacks;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
     use crate::{
         agent_control::{
             agent_control::AgentControl,
@@ -82,7 +82,6 @@ mod tests {
         event::channel::pub_sub,
         opamp::{
             client_builder::tests::MockStartedOpAMPClientMock,
-            hash_repository::repository::tests::MockHashRepositoryMock,
             remote_config::hash::Hash,
             remote_config::{ConfigurationMap, RemoteConfig},
         },
@@ -91,6 +90,7 @@ mod tests {
             tests::{MockStartedSubAgent, MockSubAgentBuilderMock},
         },
     };
+    use mockall::predicate;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
 
@@ -101,7 +101,6 @@ mod tests {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
         let mut started_client = MockStartedOpAMPClientMock::<
             AgentControlCallbacks<MockEffectiveConfigLoaderMock>,
         >::new();
@@ -129,7 +128,10 @@ mod tests {
         started_client.should_set_remote_config_status(status);
 
         // load current sub agents config
-        sub_agents_config_store.should_load(&old_sub_agents_config);
+        sub_agents_config_store
+            .expect_load()
+            .once()
+            .return_once(move || Ok(old_sub_agents_config.clone()));
 
         // report failed after trying to unserialize
         let status = RemoteConfigStatus {
@@ -147,7 +149,6 @@ mod tests {
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
-            hash_repository_mock,
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
             agent_control_publisher,
@@ -166,7 +167,6 @@ mod tests {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::<
             AgentControlCallbacks<MockEffectiveConfigLoaderMock>,
         >::new();
@@ -186,7 +186,7 @@ mod tests {
         )]));
 
         let agent_id = AgentID::new_agent_control_id();
-        let remote_config = RemoteConfig::new(
+        let mut remote_config = RemoteConfig::new(
             agent_id,
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -207,19 +207,21 @@ mod tests {
         started_client.should_update_effective_config(1);
 
         // load current sub agents config
-        sub_agents_config_store.should_load(&old_sub_agents_config);
-
-        // store remote config with empty agents
-        sub_agents_config_store.should_store(&AgentControlDynamicConfig::default());
-
-        // persist hash
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config.hash);
+        sub_agents_config_store
+            .expect_load()
+            .once()
+            .return_once(move || Ok(old_sub_agents_config.clone()));
 
         // persist hash after applied
-        let mut applied_hash = remote_config.hash.clone();
-        applied_hash.apply();
-        hash_repository_mock.should_save_hash(&AgentID::new_agent_control_id(), &applied_hash);
+        remote_config.hash.apply();
+
+        let remote_config_status: AgentRemoteConfigStatus =
+            remote_config.clone().try_into().unwrap();
+        sub_agents_config_store
+            .expect_store()
+            .once()
+            .with(predicate::eq(remote_config_status))
+            .return_once(|_| Ok(()));
 
         // Report config status as applied
         let status = RemoteConfigStatus {
@@ -237,7 +239,6 @@ mod tests {
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
             agent_control_publisher,

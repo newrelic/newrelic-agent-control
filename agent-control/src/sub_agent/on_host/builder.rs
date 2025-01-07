@@ -5,9 +5,9 @@ use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 use crate::opamp::effective_config::loader::EffectiveConfigLoader;
-use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::remote_config::status_manager::ConfigStatusManager;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
@@ -17,7 +17,6 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::SubAgentCallbacks;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
@@ -30,74 +29,68 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
+pub struct OnHostSubAgentBuilder<'a, O, I, A, G, S, M>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
-    HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    M: ConfigStatusManager,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
-    hash_repository: Arc<HR>,
     effective_agent_assembler: Arc<A>,
     logging_path: PathBuf,
-    yaml_config_repository: Arc<Y>,
     signature_validator: Arc<S>,
+    config_status_manager: Arc<M>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, G, Y, S> OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
+impl<'a, O, I, A, G, S, M> OnHostSubAgentBuilder<'a, O, I, A, G, S, M>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
     I: InstanceIDGetter,
-    HR: HashRepository,
     A: EffectiveAgentsAssembler,
-    Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    M: ConfigStatusManager,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
-        hash_repository: Arc<HR>,
         effective_agent_assembler: Arc<A>,
         logging_path: PathBuf,
-        yaml_config_repository: Arc<Y>,
         signature_validator: Arc<S>,
+        config_status_manager: Arc<M>,
     ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
-            hash_repository,
             effective_agent_assembler,
             logging_path,
-            yaml_config_repository,
             signature_validator,
+            config_status_manager,
 
             _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<O, I, HR, A, G, Y, S> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, A, G, Y, S>
+impl<O, I, A, G, S, M> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, A, G, S, M>
 where
     G: EffectiveConfigLoader + Send + Sync + 'static,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
     I: InstanceIDGetter,
-    HR: HashRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
-    Y: YAMLConfigRepository,
     S: RemoteConfigValidator + Send + Sync + 'static,
+    M: ConfigStatusManager + Send + Sync + 'static,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost, HR, Y, S>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost, S, M>;
 
     fn build(
         &self,
@@ -130,13 +123,12 @@ where
         let remote_config_handler = RemoteConfigHandler::new(
             agent_id.clone(),
             sub_agent_config.clone(),
-            self.hash_repository.clone(),
-            self.yaml_config_repository.clone(),
             self.signature_validator.clone(),
+            self.config_status_manager.clone(),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(
-            self.hash_repository.clone(),
+            self.config_status_manager.clone(),
             SupervisortBuilderOnHost::new(self.logging_path.clone()),
             agent_id.clone(),
             sub_agent_config.clone(),
@@ -153,6 +145,7 @@ where
             sub_agent_opamp_consumer,
             pub_sub(),
             remote_config_handler,
+            self.config_status_manager.clone(),
         ))
     }
 }
@@ -215,9 +208,8 @@ mod tests {
     use super::*;
     use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::{
-        default_capabilities, default_sub_agent_custom_capabilities,
-        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-        OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+        default_capabilities, default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME,
+        OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
     };
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
@@ -225,14 +217,15 @@ mod tests {
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
+    use crate::opamp::remote_config::status_manager::tests::MockConfigStatusManagerMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use mockall::predicate;
     use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
@@ -291,37 +284,47 @@ mod tests {
         instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let hash = Hash::new("a-hash".to_string());
-            Ok(Some(hash))
-        });
-        hash_repository_mock
-            .expect_save()
-            .times(1)
-            .returning(|_, _| Ok(()));
+        let hash = Hash::new("a-hash".to_string());
+        let remote_config_status = AgentRemoteConfigStatus {
+            status_hash: hash.clone(),
+            remote_config: None,
+        };
+        let mut remote_config_status_saved = remote_config_status.clone();
+        remote_config_status_saved.status_hash.apply();
 
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler.should_assemble_agent(
             &sub_agent_id,
             &sub_agent_config,
             &Environment::OnHost,
+            None,
             final_agent,
             1,
         );
 
-        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
-
         let signature_validator = MockRemoteConfigValidatorMock::new();
+        let mut config_status_manager = MockConfigStatusManagerMock::new();
+        config_status_manager
+            .expect_retrieve_remote_status()
+            .once()
+            .with(predicate::eq(sub_agent_id.clone()), predicate::always())
+            .return_once(|_, _| Ok(Some(remote_config_status)));
+        config_status_manager
+            .expect_store_remote_status()
+            .once()
+            .with(
+                predicate::eq(sub_agent_id.clone()),
+                predicate::eq(remote_config_status_saved),
+            )
+            .returning(|_, _| Ok(()));
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            Arc::new(hash_repository_mock),
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
-            Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(config_status_manager),
         );
 
         on_host_builder
@@ -340,7 +343,7 @@ mod tests {
         let mut opamp_builder: MockOpAMPClientBuilderMock<
             SubAgentCallbacks<MockEffectiveConfigLoaderMock>,
         > = MockOpAMPClientBuilderMock::new();
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
+
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
 
@@ -392,6 +395,7 @@ mod tests {
             &sub_agent_id,
             &sub_agent_config,
             &Environment::OnHost,
+            None,
             final_agent,
             1,
         );
@@ -399,20 +403,27 @@ mod tests {
         // return a failed hash
         let failed_hash =
             Hash::failed("a-hash".to_string(), "this is an error message".to_string());
-        hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
-
-        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
+        let config_status = AgentRemoteConfigStatus {
+            status_hash: failed_hash.clone(),
+            remote_config: None,
+        };
 
         let signature_validator = MockRemoteConfigValidatorMock::new();
+        let mut config_status_manager = MockConfigStatusManagerMock::new();
+        config_status_manager
+            .expect_retrieve_remote_status()
+            .once()
+            .with(predicate::eq(sub_agent_id.clone()), predicate::always())
+            .return_once(|_, _| Ok(Some(config_status)));
+
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            Arc::new(hash_repository_mock),
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
-            Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(config_status_manager),
         );
 
         let sub_agent = on_host_builder
@@ -423,7 +434,6 @@ mod tests {
     }
 
     // HELPERS
-    #[cfg(test)]
     fn on_host_final_agent(agent_id: AgentID, agent_fqn: AgentTypeFQN) -> EffectiveAgent {
         use crate::agent_type::definition::TemplateableValue;
 

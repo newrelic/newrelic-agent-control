@@ -72,7 +72,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &agent_control_instance_id,
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
     });

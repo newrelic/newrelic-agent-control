@@ -6,73 +6,75 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigStorer,
 };
 use crate::agent_control::defaults::{default_capabilities, AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX};
-use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
-use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
+use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
+use crate::opamp::remote_config::status_manager::error::ConfigStatusManagerError;
+use crate::opamp::remote_config::status_manager::ConfigStatusManager;
+use crate::values::yaml_config::YAMLConfigError;
 use config::builder::DefaultState;
 use config::{Config, ConfigBuilder, Environment, File, FileFormat};
 use opamp_client::operation::capabilities::Capabilities;
 use std::sync::Arc;
 
-pub struct AgentControlConfigStore<Y>
+pub struct AgentControlConfigStore<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
     config_builder: ConfigBuilder<DefaultState>,
-    values_repository: Arc<Y>,
+    config_manager: Arc<M>,
     agent_control_id: AgentID,
     agent_control_capabilities: Capabilities,
 }
 
-impl<Y> AgentControlConfigLoader for AgentControlConfigStore<Y>
+impl<M> AgentControlConfigLoader for AgentControlConfigStore<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
     fn load(&self) -> Result<AgentControlConfig, AgentControlConfigError> {
         self._load_config()
     }
 }
 
-impl<Y> AgentControlDynamicConfigLoader for AgentControlConfigStore<Y>
+impl<M> AgentControlDynamicConfigLoader for AgentControlConfigStore<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
     fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError> {
         Ok(self._load_config()?.dynamic)
     }
 }
 
-impl<Y> AgentControlDynamicConfigDeleter for AgentControlConfigStore<Y>
+impl<M> AgentControlDynamicConfigDeleter for AgentControlConfigStore<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
     fn delete(&self) -> Result<(), AgentControlConfigError> {
-        self.values_repository
-            .delete_remote(&self.agent_control_id)?;
+        self.config_manager
+            .delete_remote_status(&self.agent_control_id)?;
         Ok(())
     }
 }
 
-impl<Y> AgentControlDynamicConfigStorer for AgentControlConfigStore<Y>
+impl<M> AgentControlDynamicConfigStorer for AgentControlConfigStore<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    fn store(&self, yaml_config: &YAMLConfig) -> Result<(), AgentControlConfigError> {
-        self.values_repository
-            .store_remote(&self.agent_control_id, yaml_config)?;
+    fn store(&self, yaml_config: &AgentRemoteConfigStatus) -> Result<(), AgentControlConfigError> {
+        self.config_manager
+            .store_remote_status(&self.agent_control_id, yaml_config)?;
         Ok(())
     }
 }
 
-impl<V> AgentControlConfigStore<V>
+impl<M> AgentControlConfigStore<M>
 where
-    V: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    pub fn new(values_repository: Arc<V>) -> Self {
+    pub fn new(config_manager: Arc<M>) -> Self {
         let config_builder = Config::builder();
 
         Self {
             config_builder,
-            values_repository,
+            config_manager,
             agent_control_id: AgentID::new_agent_control_id(),
             agent_control_capabilities: default_capabilities(),
         }
@@ -83,8 +85,8 @@ where
     /// on top of the local config
     fn _load_config(&self) -> Result<AgentControlConfig, AgentControlConfigError> {
         let local_config_string: String = self
-            .values_repository
-            .load_local(&self.agent_control_id)?
+            .config_manager
+            .retrieve_local_config(&self.agent_control_id)?
             .ok_or(AgentControlConfigError::Load(
                 "missing local agent control config".to_string(),
             ))?
@@ -110,8 +112,9 @@ where
             .try_deserialize::<AgentControlConfig>()?;
 
         if let Some(remote_config) = self
-            .values_repository
-            .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
+            .config_manager
+            .retrieve_remote_status(&self.agent_control_id, &self.agent_control_capabilities)?
+            .and_then(|status| status.remote_config)
         {
             let dynamic_config: AgentControlDynamicConfig = remote_config.try_into()?;
             config.dynamic = dynamic_config;
@@ -121,12 +124,12 @@ where
     }
 }
 
-impl From<YAMLConfigRepositoryError> for AgentControlConfigError {
-    fn from(e: YAMLConfigRepositoryError) -> Self {
+impl From<ConfigStatusManagerError> for AgentControlConfigError {
+    fn from(e: ConfigStatusManagerError) -> Self {
         match e {
-            YAMLConfigRepositoryError::LoadError(e) => AgentControlConfigError::Load(e),
-            YAMLConfigRepositoryError::StoreError(e) => AgentControlConfigError::Store(e),
-            YAMLConfigRepositoryError::DeleteError(e) => AgentControlConfigError::Delete(e),
+            ConfigStatusManagerError::Retrieval(e) => AgentControlConfigError::Load(e),
+            ConfigStatusManagerError::Store(e) => AgentControlConfigError::Store(e),
+            ConfigStatusManagerError::Deletion(e) => AgentControlConfigError::Delete(e),
         }
     }
 }
@@ -138,9 +141,10 @@ pub(crate) mod tests {
         AgentControlConfig, AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig,
     };
     use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
-    use crate::values::file::YAMLConfigRepositoryFile;
+    use crate::opamp::remote_config::status_manager::local_filesystem::FileSystemConfigStatusManager;
+    // use crate::values::file::YAMLConfigRepositoryFile;
     use serial_test::serial;
-    use std::path::PathBuf;
+
     use std::{collections::HashMap, env};
     use url::Url;
 
@@ -160,14 +164,18 @@ fleet_control:
         let remote_file = remote_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
 
         let remote_config = r#"
-        agents:
-          rolldice:
-            agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
+        status_hash:
+            hash: "1234567890"
+            state: applied
+        remote_config:
+            agents:
+                rolldice:
+                    agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
         "#;
         std::fs::write(remote_file.as_path(), remote_config).unwrap();
 
-        let vr = YAMLConfigRepositoryFile::new(local_dir, remote_dir).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
+        let cm = FileSystemConfigStatusManager::new(local_dir).with_remote(remote_dir);
+        let store = AgentControlConfigStore::new(Arc::new(cm));
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
@@ -212,8 +220,8 @@ fleet_control:
         let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
         env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
-        let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
+        let cm = FileSystemConfigStatusManager::new(local_dir);
+        let store = AgentControlConfigStore::new(Arc::new(cm));
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
@@ -260,8 +268,8 @@ agents:
         let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
         env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
 
-        let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
+        let cm = FileSystemConfigStatusManager::new(local_dir);
+        let store = AgentControlConfigStore::new(Arc::new(cm));
         let actual: AgentControlConfig = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {

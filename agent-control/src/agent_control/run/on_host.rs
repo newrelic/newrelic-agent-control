@@ -12,6 +12,7 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::status_manager::local_filesystem::FileSystemConfigStatusManager;
 use crate::opamp::remote_config::validators::signature::validator::{
     build_signature_validator, SignatureValidator,
 };
@@ -19,12 +20,11 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     agent_type::renderer::TemplateRenderer,
-    opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
+    opamp::instance_id::IdentifiersProvider,
     sub_agent::{
         on_host::builder::OnHostSubAgentBuilder,
         persister::config_persister_file::ConfigurationPersisterFile,
     },
-    values::file::YAMLConfigRepositoryFile,
 };
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
@@ -35,23 +35,16 @@ use tracing::{debug, info};
 
 impl AgentControlRunner {
     pub fn run(self) -> Result<(), AgentError> {
-        debug!("Initialising yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(
-                YAMLConfigRepositoryFile::new(
-                    self.base_paths.local_dir.clone(),
-                    self.base_paths.remote_dir.clone(),
-                )
-                .with_remote(),
-            )
+        debug!("Initialising AC config manager");
+
+        let config_manager = FileSystemConfigStatusManager::new(self.base_paths.local_dir.clone());
+        let config_manager = if self.opamp_http_builder.is_some() {
+            Arc::new(config_manager.with_remote(self.base_paths.remote_dir.clone()))
         } else {
-            Arc::new(YAMLConfigRepositoryFile::new(
-                self.base_paths.local_dir.clone(),
-                self.base_paths.remote_dir.clone(),
-            ))
+            Arc::new(config_manager)
         };
 
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
+        let config_storer = Arc::new(AgentControlConfigStore::new(config_manager.clone()));
         let config = config_storer.load()?;
 
         let fleet_id = config
@@ -85,16 +78,10 @@ impl AgentControlRunner {
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
-        let agent_control_hash_repository =
-            Arc::new(HashRepositoryFile::new(self.base_paths.remote_dir.clone()));
-        let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
-            self.base_paths.remote_dir.join(SUB_AGENT_DIR),
-        ));
-
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                DefaultEffectiveConfigLoaderBuilder::new(config_manager.clone()),
                 self.opamp_poll_interval,
             )
         });
@@ -104,7 +91,7 @@ impl AgentControlRunner {
             .with_agent_control_variables(agent_control_variables.into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
+            config_manager.clone(),
             self.agent_type_registry,
             template_renderer,
         ));
@@ -122,11 +109,10 @@ impl AgentControlRunner {
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
-            sub_agent_hash_repository,
             agents_assembler,
             self.base_paths.log_dir.join(SUB_AGENT_DIR),
-            yaml_config_repository.clone(),
             Arc::new(signature_validator),
+            config_manager,
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
@@ -150,7 +136,6 @@ impl AgentControlRunner {
             .unwrap_or_default();
         AgentControl::new(
             maybe_client,
-            agent_control_hash_repository,
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,

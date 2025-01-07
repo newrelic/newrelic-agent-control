@@ -2,6 +2,7 @@ use crate::agent_control::config::AgentID;
 use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
 use signature::Signatures;
+use status_manager::error::ConfigStatusManagerError;
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
 use thiserror::Error;
@@ -9,6 +10,8 @@ use thiserror::Error;
 pub mod hash;
 pub mod report;
 pub mod signature;
+pub mod status;
+pub mod status_manager;
 pub mod validators;
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
@@ -28,6 +31,9 @@ pub enum RemoteConfigError {
 
     #[error("config hash: `{0}` config error: `{1}`")]
     InvalidConfig(String, String),
+
+    #[error("handling of the remote config status failed: `{0}")]
+    Handling(#[from] ConfigStatusManagerError),
 }
 
 /// This structure represents the actual configuration values that are stored in the remote config.

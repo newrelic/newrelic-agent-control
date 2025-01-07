@@ -2,7 +2,7 @@ mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
-use crate::values::file::YAMLConfigRepositoryFile;
+use crate::opamp::remote_config::status_manager::local_filesystem::FileSystemConfigStatusManager;
 use crate::{
     agent_control::{
         config::AgentControlConfigError,
@@ -92,22 +92,22 @@ impl Cli {
             return Ok(CliCommand::OneShot(OneShotCommand::PrintDebugInfo(cli)));
         }
 
-        let agent_control_repository = YAMLConfigRepositoryFile::new(
-            base_paths.local_dir.clone(),
-            base_paths.remote_dir.clone(),
-        );
+        let agent_control_config_manager =
+            FileSystemConfigStatusManager::new(base_paths.local_dir.clone())
+                .with_remote(base_paths.remote_dir.clone());
 
         // In both K8s and onHost we read here the agent-control config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps
         // The real configStores are created in the run fn, the onhost reads file, the k8s one reads configMaps
-        let agent_control_config = AgentControlConfigStore::new(Arc::new(agent_control_repository))
-            .load()
-            .map_err(|err| {
-                CliError::LoaderError(
-                    base_paths.local_dir.to_string_lossy().to_string(),
-                    err.to_string(),
-                )
-            })?;
+        let agent_control_config =
+            AgentControlConfigStore::new(Arc::new(agent_control_config_manager))
+                .load()
+                .map_err(|err| {
+                    CliError::LoaderError(
+                        base_paths.local_dir.to_string_lossy().to_string(),
+                        err.to_string(),
+                    )
+                })?;
 
         let file_logger_guard = agent_control_config
             .log

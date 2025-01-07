@@ -2,12 +2,10 @@ use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::agent_control::config::AgentControlConfigError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::remote_config::validators::regexes::ConfigValidatorError;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfigError;
-use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
 use opamp_client::StartedClientError;
 use opamp_client::{ClientError, NotStartedClientError};
 use std::time::SystemTimeError;
@@ -31,14 +29,10 @@ pub enum SubAgentError {
     StartedOpampClientError(#[from] StartedClientError),
     #[error("not started opamp client error: `{0}`")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
-    #[error("remote config hash error: `{0}`")]
-    RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("agent control config error: `{0}`")]
     AgentControlConfigError(#[from] AgentControlConfigError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
-    #[error("sub agent yaml config repository error: `{0}`")]
-    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
     #[error("sub agent values error: `{0}`")]
     ValuesUnserializeError(#[from] YAMLConfigError),
     #[error("remote config error: `{0}`")]
@@ -59,8 +53,6 @@ pub enum SubAgentBuilderError {
     SubAgent(#[from] SubAgentError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
-    #[error("remote config hash error: `{0}`")]
-    RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
     #[error("OpAMP client error: `{0}`")]

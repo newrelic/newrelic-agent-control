@@ -19,6 +19,7 @@ pub type StoreKey = str;
 pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
 pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
 pub const STORE_KEY_OPAMP_DATA_CONFIG_HASH: &StoreKey = "remote_config_hash";
+pub const STORE_KEY_OPAMP_DATA_REMOTE_CONFIG_STATUS: &StoreKey = "remote_config_status";
 pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.

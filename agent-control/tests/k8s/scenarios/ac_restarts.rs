@@ -82,7 +82,7 @@ valid: true
         check_latest_effective_config_is_expected(
             &server,
             &instance_id.clone(),
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
@@ -118,7 +118,7 @@ valid: super-true
         check_latest_effective_config_is_expected(
             &server,
             &instance_id.clone(),
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
@@ -156,7 +156,7 @@ valid: super-true
         check_latest_effective_config_is_expected(
             &server,
             &instance_id.clone(),
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
@@ -192,7 +192,7 @@ valid: super-super-true
         check_latest_effective_config_is_expected(
             &server,
             &instance_id.clone(),
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });

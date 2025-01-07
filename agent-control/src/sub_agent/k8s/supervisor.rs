@@ -262,7 +262,7 @@ pub mod tests {
     use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::remote_config::status_manager::tests::MockConfigStatusManagerMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
@@ -271,7 +271,6 @@ pub mod tests {
     use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -535,16 +534,17 @@ pub mod tests {
             &agent_id,
             &agent_cfg,
             &Environment::K8s,
+            None,
             effective_agent,
             1,
         );
 
-        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
-        sub_agent_remote_config_hash_repository
-            .expect_get()
-            .with(predicate::eq(agent_id.clone()))
+        let mut config_status_manager = MockConfigStatusManagerMock::default();
+        config_status_manager
+            .expect_retrieve_remote_status()
+            .with(predicate::eq(agent_id.clone()), predicate::always())
             .return_const(Ok(None));
-        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
+        let config_status_manager = Arc::new(config_status_manager);
 
         let agent_id_clone = agent_id.clone();
         let mut supervisor_builder = MockSupervisorBuilder::new();
@@ -560,19 +560,16 @@ pub mod tests {
                 ))
             });
 
-        let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
-
         let signature_validator = MockRemoteConfigValidatorMock::new();
         let remote_config_handler = RemoteConfigHandler::new(
             agent_id.clone(),
             agent_cfg.clone(),
-            hash_repository_ref.clone(),
-            Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            config_status_manager.clone(),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(
-            hash_repository_ref,
+            config_status_manager.clone(),
             supervisor_builder,
             agent_id.clone(),
             agent_cfg.clone(),
@@ -592,6 +589,7 @@ pub mod tests {
                 sub_agent_internal_consumer,
             ),
             remote_config_handler,
+            config_status_manager,
         )
         .run();
 

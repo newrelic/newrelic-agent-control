@@ -14,21 +14,18 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::status_manager::k8s::K8sConfigStatusManager;
 use crate::opamp::remote_config::validators::signature::validator::{
     build_signature_validator, SignatureValidator,
 };
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{
     agent_control::error::AgentError,
-    opamp::{
-        client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
-        instance_id,
-    },
+    opamp::{client_builder::DefaultOpAMPClientBuilder, instance_id},
 };
 use crate::{
     k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
     sub_agent::k8s::builder::K8sSubAgentBuilder,
-    values::k8s::YAMLConfigRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
@@ -45,14 +42,14 @@ impl AgentControlRunner {
         );
         let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
-        debug!("Initialising yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
+        debug!("Initialising config manager");
+        let config_manager = if self.opamp_http_builder.is_some() {
+            Arc::new(K8sConfigStatusManager::new(k8s_store.clone()).with_remote())
         } else {
-            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()))
+            Arc::new(K8sConfigStatusManager::new(k8s_store.clone()))
         };
 
-        let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
+        let config_storer = Arc::new(AgentControlConfigStore::new(config_manager.clone()));
 
         let agent_control_config = config_storer.load()?;
 
@@ -81,20 +78,26 @@ impl AgentControlRunner {
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
                 http_builder,
-                DefaultEffectiveConfigLoaderBuilder::new(yaml_config_repository.clone()),
+                DefaultEffectiveConfigLoaderBuilder::new(config_manager.clone()),
                 self.opamp_poll_interval,
             )
         });
 
         let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir);
 
+        let config_status_manager = K8sConfigStatusManager::new(k8s_store.clone());
+
+        let config_status_manager = if opamp_client_builder.is_some() {
+            Arc::new(config_status_manager.with_remote())
+        } else {
+            Arc::new(config_status_manager)
+        };
+
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
+            config_status_manager.clone(),
             self.agent_type_registry,
             template_renderer,
         ));
-
-        let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
         let signature_validator = agent_control_config
             .fleet_control
@@ -111,11 +114,10 @@ impl AgentControlRunner {
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             k8s_client.clone(),
-            hash_repository.clone(),
             agents_assembler,
             self.k8s_config.clone(),
-            yaml_config_repository.clone(),
             Arc::new(signature_validator),
+            config_status_manager,
         );
 
         let additional_identifying_attributes =
@@ -148,7 +150,6 @@ impl AgentControlRunner {
 
         AgentControl::new(
             maybe_client,
-            hash_repository,
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,

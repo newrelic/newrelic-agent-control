@@ -7,10 +7,9 @@ use newrelic_agent_control::agent_control::defaults::{
     default_capabilities, AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
-use newrelic_agent_control::values::yaml_config_repository::{
-    YAMLConfigRepository, YAMLConfigRepositoryError,
-};
+use newrelic_agent_control::opamp::remote_config::status_manager::error::ConfigStatusManagerError;
+use newrelic_agent_control::opamp::remote_config::status_manager::local_filesystem::FileSystemConfigStatusManager;
+use newrelic_agent_control::opamp::remote_config::status_manager::ConfigStatusManager;
 
 /// Creates the agent-control config given an opamp_server_endpoint
 /// and a list of agents on the specified local_dir.
@@ -82,13 +81,12 @@ pub fn create_sub_agent_values(agent_id: String, config: String, base_dir: PathB
 pub fn get_remote_config_content(
     agent_id: &AgentID,
     base_paths: BasePaths,
-) -> Result<String, YAMLConfigRepositoryError> {
-    let yaml_config_repo =
-        YAMLConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone())
-            .with_remote();
-    let remote_config = yaml_config_repo.load_remote(agent_id, &default_capabilities())?;
+) -> Result<String, ConfigStatusManagerError> {
+    let config_manager = FileSystemConfigStatusManager::new(base_paths.local_dir.clone())
+        .with_remote(base_paths.remote_dir.clone());
+    let remote_config = config_manager.retrieve_remote_status(agent_id, &default_capabilities())?;
     match remote_config {
-        None => Err(YAMLConfigRepositoryError::LoadError(
+        None => Err(ConfigStatusManagerError::Retrieval(
             "file not found...".to_string(),
         )),
         Some(remote_config) => Ok(serde_yaml::to_string(&remote_config).unwrap()),

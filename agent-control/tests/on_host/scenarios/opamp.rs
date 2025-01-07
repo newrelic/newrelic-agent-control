@@ -13,11 +13,11 @@ use crate::on_host::tools::custom_agent_type::{
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::config::{AgentControlDynamicConfig, AgentID};
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, VALUES_DIR,
-    VALUES_FILENAME,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
+use newrelic_agent_control::opamp::remote_config::status::AgentRemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::env;
 use std::path::Path;
@@ -62,7 +62,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &agent_control_instance_id,
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
     });
@@ -142,14 +142,22 @@ agents:
 
     retry(60, Duration::from_secs(1), || {
         let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
-        let remote_config =
-            std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
-        let content_parsed =
-            serde_yaml::from_str::<AgentControlDynamicConfig>(remote_config.as_str()).unwrap();
+        let Ok(remote_status) = std::fs::read_to_string(remote_file.as_path()) else {
+            return Err("Remote config file should be created".into());
+        };
+        // First, parse the incoming file as a remote status
+        let parsed_remote_status =
+            serde_yaml::from_str::<AgentRemoteConfigStatus>(remote_status.as_str()).unwrap();
+        // And then attempt to parse the inner values as the agent control dynamic config
+        let content_parsed = AgentControlDynamicConfig::try_from(
+            parsed_remote_status.remote_config.clone().unwrap(),
+        )
+        .unwrap();
+
         if content_parsed != expected_config_parsed {
             return Err(format!(
                 "Agent Control config not as expected, Expected: {:?}, Found: {:?}",
-                expected_config, remote_config,
+                expected_config_parsed, content_parsed,
             )
             .into());
         }
@@ -157,7 +165,7 @@ agents:
         check_latest_effective_config_is_expected(
             &opamp_server,
             &agent_control_instance_id,
-            remote_config,
+            parsed_remote_status.remote_config.unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)?;
         check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
@@ -234,7 +242,7 @@ non-existing: {}
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &agent_control_instance_id,
-                expected_config.to_string(),
+                expected_config.to_string().try_into().unwrap(),
             )
         }
     });
@@ -309,7 +317,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                expected_config,
+                expected_config.try_into().unwrap(),
             )
         }
     });
@@ -383,7 +391,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                expected_config.to_string(),
+                expected_config.to_string().try_into().unwrap(),
             )
         }
     });
@@ -441,7 +449,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                expected_config.to_string(),
+                expected_config.to_string().try_into().unwrap(),
             )
         }
     });
@@ -455,6 +463,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 #[test]
 fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
+
+    use newrelic_agent_control::opamp::remote_config::status_manager::local_filesystem::concatenate_sub_agent_status_dir_path;
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -508,12 +518,10 @@ fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
     retry(60, Duration::from_secs(1), || {
         {
             // Then the remote config should be created in the remote filesystem.
-            let remote_file = remote_dir
-                .path()
-                .join(SUB_AGENT_DIR)
-                .join(agent_id)
-                .join(VALUES_DIR)
-                .join(VALUES_FILENAME);
+            let remote_file = concatenate_sub_agent_status_dir_path(
+                remote_dir.path(),
+                &AgentID::try_from(agent_id.to_string()).unwrap(),
+            );
             if !remote_file.exists() {
                 return Err("Remote config file should be created".into());
             }
@@ -530,7 +538,7 @@ fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                expected_config.to_string(),
+                expected_config.to_string().try_into().unwrap(),
             )
         }
     });
@@ -608,7 +616,7 @@ status_time_unix_nano: 1725444001
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            expected_config.to_string(),
+            expected_config.to_string().try_into().unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
@@ -663,13 +671,18 @@ fn test_config_without_supervisor() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            first_remote_config.to_string(),
+            first_remote_config.to_string().try_into().unwrap(),
         )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+        let remote_config_string = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths.clone(),
         )?;
-        if remote_config != first_remote_config {
+        let remote_config_yaml_values =
+            serde_yaml::from_str::<AgentRemoteConfigStatus>(&remote_config_string)?
+                .remote_config
+                .unwrap();
+        let first_remote_config_yaml_values = first_remote_config.to_string().try_into()?;
+        if remote_config_yaml_values != first_remote_config_yaml_values {
             return Err("not the expected content for first config".into());
         }
         Ok(())
@@ -686,14 +699,19 @@ fn test_config_without_supervisor() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            second_remote_config.to_string(),
+            second_remote_config.to_string().try_into().unwrap(),
         )?;
 
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+        let remote_config_string = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths.clone(),
         )?;
-        if remote_config != second_remote_config {
+        let remote_config_yaml_values =
+            serde_yaml::from_str::<AgentRemoteConfigStatus>(&remote_config_string)?
+                .remote_config
+                .unwrap();
+        let second_remote_config_yaml_values = second_remote_config.to_string().try_into()?;
+        if remote_config_yaml_values != second_remote_config_yaml_values {
             return Err("not the expected content for second config".into());
         }
         Ok(())
@@ -748,13 +766,18 @@ fn test_invalid_config_without_supervisor() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            "".to_string(), // The effective config should not be updated, since the configuration failed
+            "".to_string().try_into().unwrap(), // The effective config should not be updated, since the configuration failed
         )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+        let remote_config_string = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths.clone(),
         )?;
-        if remote_config != first_remote_config {
+        let remote_config_yaml_values =
+            serde_yaml::from_str::<AgentRemoteConfigStatus>(&remote_config_string)?
+                .remote_config
+                .unwrap();
+        let first_remote_config_yaml_values = first_remote_config.to_string().try_into()?;
+        if remote_config_yaml_values != first_remote_config_yaml_values {
             return Err("not the expected content".into());
         }
         Ok(())
@@ -771,13 +794,18 @@ fn test_invalid_config_without_supervisor() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            second_remote_config.to_string(), // Correct config leads to updated effective config
+            second_remote_config.to_string().try_into().unwrap(), // Correct config leads to updated effective config
         )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
+        let remote_config_string = crate::on_host::tools::config::get_remote_config_content(
             &sub_agent_id,
             base_paths.clone(),
         )?;
-        if remote_config != second_remote_config {
+        let remote_config_yaml_values =
+            serde_yaml::from_str::<AgentRemoteConfigStatus>(&remote_config_string)?
+                .remote_config
+                .unwrap();
+        let second_remote_config_yaml_values = second_remote_config.to_string().try_into()?;
+        if remote_config_yaml_values != second_remote_config_yaml_values {
             return Err("not the expected content".into());
         }
         Ok(())

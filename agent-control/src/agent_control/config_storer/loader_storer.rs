@@ -1,7 +1,7 @@
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
-use crate::values::yaml_config::YAMLConfig;
+use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
 
 /// AgentControlConfigLoader loads a whole AgentControlConfig
 #[cfg_attr(test, mockall::automock)]
@@ -11,7 +11,7 @@ pub trait AgentControlConfigLoader {
 
 /// AgentControlDynamicConfigStorer stores the dynamic part of the AgentControlConfig
 pub trait AgentControlDynamicConfigStorer {
-    fn store(&self, config: &YAMLConfig) -> Result<(), AgentControlConfigError>;
+    fn store(&self, config: &AgentRemoteConfigStatus) -> Result<(), AgentControlConfigError>;
 }
 
 /// AgentControlDynamicConfigLoader loads the dynamic part of the AgentControlConfig
@@ -33,14 +33,14 @@ pub(crate) mod tests {
         AgentControlDynamicConfigStorer,
     };
     use crate::agent_control::config::AgentControlDynamicConfig;
-    use crate::values::yaml_config::YAMLConfig;
+    use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
     use mockall::{mock, predicate};
 
     mock! {
         pub AgentControlDynamicConfigStore {}
 
         impl AgentControlDynamicConfigStorer for AgentControlDynamicConfigStore {
-            fn store(&self, config: &YAMLConfig) -> Result<(), AgentControlConfigError>;
+            fn store(&self, config: &AgentRemoteConfigStatus) -> Result<(), AgentControlConfigError>;
         }
         impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigStore {
             fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
@@ -58,11 +58,10 @@ pub(crate) mod tests {
                 .returning(move || Ok(sub_agents_config.clone()));
         }
 
-        pub fn should_store(&mut self, sub_agents_config: &AgentControlDynamicConfig) {
-            let sub_agents_config: YAMLConfig = sub_agents_config.try_into().unwrap();
+        pub fn should_store(&mut self, sub_agents_config: &AgentRemoteConfigStatus) {
             self.expect_store()
                 .once()
-                .with(predicate::eq(sub_agents_config))
+                .with(predicate::eq(sub_agents_config.clone()))
                 .returning(move |_| Ok(()));
         }
     }

@@ -2,8 +2,8 @@ use super::agent_control::AgentControlEffectiveConfigLoader;
 use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::agent_control::config::AgentID;
+use crate::opamp::remote_config::status_manager::ConfigStatusManager;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -26,55 +26,53 @@ pub trait EffectiveConfigLoaderBuilder {
 }
 
 /// Builder for effective configuration loaders.
-pub struct DefaultEffectiveConfigLoaderBuilder<Y>
+pub struct DefaultEffectiveConfigLoaderBuilder<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    yaml_config_repository: Arc<Y>,
+    config_manager: Arc<M>,
 }
 
-impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
+impl<M> DefaultEffectiveConfigLoaderBuilder<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    pub fn new(yaml_config_repository: Arc<Y>) -> Self {
-        Self {
-            yaml_config_repository,
-        }
+    pub fn new(config_manager: Arc<M>) -> Self {
+        Self { config_manager }
     }
 }
 
-impl<Y> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<Y>
+impl<M> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager + Send + Sync + 'static,
 {
-    type Loader = EffectiveConfigLoaderImpl<Y>;
+    type Loader = EffectiveConfigLoaderImpl<M>;
 
     fn build(&self, agent_id: AgentID) -> Self::Loader {
         if agent_id.is_agent_control_id() {
             return EffectiveConfigLoaderImpl::AgentControl(
-                AgentControlEffectiveConfigLoader::new(self.yaml_config_repository.clone()),
+                AgentControlEffectiveConfigLoader::new(self.config_manager.clone()),
             );
         }
         EffectiveConfigLoaderImpl::SubAgent(SubAgentEffectiveConfigLoader::new(
             agent_id,
-            self.yaml_config_repository.clone(),
+            self.config_manager.clone(),
         ))
     }
 }
 
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
-pub enum EffectiveConfigLoaderImpl<Y>
+pub enum EffectiveConfigLoaderImpl<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    AgentControl(AgentControlEffectiveConfigLoader<Y>),
-    SubAgent(SubAgentEffectiveConfigLoader<Y>),
+    AgentControl(AgentControlEffectiveConfigLoader<M>),
+    SubAgent(SubAgentEffectiveConfigLoader<M>),
 }
 
-impl<Y> EffectiveConfigLoader for EffectiveConfigLoaderImpl<Y>
+impl<M> EffectiveConfigLoader for EffectiveConfigLoaderImpl<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager + Send + Sync + 'static,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         match self {
@@ -88,7 +86,7 @@ where
 pub mod tests {
     use mockall::mock;
 
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::opamp::remote_config::status_manager::tests::MockConfigStatusManagerMock;
 
     use super::*;
 
@@ -111,9 +109,8 @@ pub mod tests {
     }
     #[test]
     fn builder() {
-        let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
-            MockYAMLConfigRepositoryMock::default(),
-        ));
+        let builder =
+            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockConfigStatusManagerMock::new()));
 
         match builder.build(AgentID::new_agent_control_id()) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}

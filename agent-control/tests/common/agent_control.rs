@@ -7,7 +7,7 @@ use newrelic_agent_control::agent_control::run::{
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
+use newrelic_agent_control::opamp::remote_config::status_manager::local_filesystem::FileSystemConfigStatusManager;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -22,11 +22,10 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
         // logger is a global variable shared between all test threads
         init_logger();
 
-        let agent_control_repository = YAMLConfigRepositoryFile::new(
-            base_paths.local_dir.clone(),
-            base_paths.remote_dir.clone(),
-        );
-        let config_storer = AgentControlConfigStore::new(Arc::new(agent_control_repository));
+        let agent_control_config_manager =
+            FileSystemConfigStatusManager::new(base_paths.local_dir.clone())
+                .with_remote(base_paths.remote_dir.clone());
+        let config_storer = AgentControlConfigStore::new(Arc::new(agent_control_config_manager));
 
         let agent_control_config = config_storer.load().unwrap();
 

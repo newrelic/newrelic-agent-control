@@ -6,31 +6,31 @@ use thiserror::Error;
 
 use crate::agent_control::config::AgentID;
 use crate::agent_control::defaults::default_capabilities;
+use crate::opamp::remote_config::status_manager::ConfigStatusManager;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::values::yaml_config::YAMLConfig;
-use crate::values::yaml_config_repository::{load_remote_fallback_local, YAMLConfigRepository};
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;
 
 /// Loader for effective configuration of a agent-control.
 #[derive(Debug)]
-pub struct AgentControlEffectiveConfigLoader<Y>
+pub struct AgentControlEffectiveConfigLoader<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    yaml_config_repository: Arc<Y>,
+    config_manager: Arc<M>,
     agent_id: AgentID,
     agent_control_capabilities: Capabilities,
 }
 
-impl<Y> AgentControlEffectiveConfigLoader<Y>
+impl<M> AgentControlEffectiveConfigLoader<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager,
 {
-    pub fn new(yaml_config_repository: Arc<Y>) -> Self {
+    pub fn new(config_manager: Arc<M>) -> Self {
         Self {
-            yaml_config_repository,
+            config_manager,
             agent_id: AgentID::new_agent_control_id(),
             agent_control_capabilities: default_capabilities(),
         }
@@ -76,9 +76,9 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
     }
 }
 
-impl<Y> EffectiveConfigLoader for AgentControlEffectiveConfigLoader<Y>
+impl<M> EffectiveConfigLoader for AgentControlEffectiveConfigLoader<M>
 where
-    Y: YAMLConfigRepository,
+    M: ConfigStatusManager + Send + Sync + 'static,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // Given the effective config constraints mentionend in the `EffectiveConfigLoader` trait,
@@ -88,14 +88,12 @@ where
 
         // For the effective config load, we can follow the load remote or fallback to local, since only the dynamic part is needed.
 
-        let config = load_remote_fallback_local(
-            self.yaml_config_repository.as_ref(),
-            &self.agent_id,
-            &self.agent_control_capabilities,
-        )
-        .map_err(|err| {
-            LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
-        })?;
+        let config = self
+            .config_manager
+            .load_remote_fallback_local(&self.agent_id, &self.agent_control_capabilities)
+            .map_err(|err| {
+                LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
+            })?;
 
         // Deserialize only effective config making sure that not default values are reported.
         let dynamic_config: AgentControlEffectiveConfig = config.try_into().map_err(|err| {
@@ -122,13 +120,18 @@ where
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate;
+
     use crate::agent_control::config::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::opamp::effective_config::agent_control::AgentControlEffectiveConfigLoader;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::status::AgentRemoteConfigStatus;
+    use crate::opamp::remote_config::status_manager::error::ConfigStatusManagerError;
+    use crate::opamp::remote_config::status_manager::tests::MockConfigStatusManagerMock;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -144,42 +147,42 @@ mod tests {
                 let agent_id = AgentID::new_agent_control_id();
                 let capabilities = default_capabilities();
 
-                // Prepare the mock repository to load from remote
-                let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
-                yaml_config_repository.should_load_remote(
-                    &agent_id,
-                    capabilities,
-                    &YAMLConfig::try_from(String::from(self.yaml_config)).unwrap(),
-                );
+                let mut hash = Hash::new("some_hash".to_string());
+                hash.apply();
+                let yaml_config = YAMLConfig::try_from(String::from(self.yaml_config)).unwrap();
+                let remote_config = AgentRemoteConfigStatus {
+                    status_hash: hash,
+                    remote_config: Some(yaml_config.clone()),
+                };
 
-                self.assert("load_from_remote", yaml_config_repository);
+                // Prepare the mock repository to load from remote
+                let mut config_manager = MockConfigStatusManagerMock::new();
+                config_manager
+                    .expect_retrieve_remote_status()
+                    .once()
+                    .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
+                    .return_once(|_, _| Ok(Some(remote_config)));
+
+                self.assert("load_from_remote", config_manager);
 
                 // Prepare the mock repository to load from fallback local
-                let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
-                yaml_config_repository
-                    .expect_load_remote()
+                let mut config_manager = MockConfigStatusManagerMock::new();
+                config_manager
+                    .expect_retrieve_remote_status()
                     .once()
-                    .returning(move |agent_id, c| {
-                        assert_eq!(c, &capabilities);
-                        assert!(agent_id.is_agent_control_id());
-                        Ok(None)
-                    });
-                yaml_config_repository
-                    .expect_load_local()
+                    .with(predicate::eq(agent_id.clone()), predicate::eq(capabilities))
+                    .return_once(|_, _| Ok(None));
+                config_manager
+                    .expect_retrieve_local_config()
                     .once()
-                    .returning(move |agent_id| {
-                        assert!(agent_id.is_agent_control_id());
-                        Ok(Some(
-                            YAMLConfig::try_from(String::from(self.yaml_config)).unwrap(),
-                        ))
-                    });
+                    .with(predicate::eq(agent_id))
+                    .return_once(|_| Ok(Some(yaml_config)));
 
-                self.assert("load_fallback_local", yaml_config_repository);
+                self.assert("load_fallback_local", config_manager);
             }
 
-            fn assert(&self, scenario: &str, yaml_config_repository: MockYAMLConfigRepositoryMock) {
-                let loader =
-                    AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));
+            fn assert(&self, scenario: &str, config_manager: MockConfigStatusManagerMock) {
+                let loader = AgentControlEffectiveConfigLoader::new(Arc::new(config_manager));
 
                 let effective_config = loader.load().unwrap();
 
@@ -243,10 +246,17 @@ agents:
         let capabilities = default_capabilities();
 
         // Prepare the mock repository to load from remote
-        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
-        yaml_config_repository.should_not_load_remote(&agent_id, capabilities);
+        let mut config_manager = MockConfigStatusManagerMock::new();
+        config_manager
+            .expect_retrieve_remote_status()
+            .with(predicate::eq(agent_id), predicate::eq(capabilities))
+            .returning(|_, _| {
+                Err(ConfigStatusManagerError::Retrieval(
+                    "load error".to_string(),
+                ))
+            });
 
-        let loader = AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));
+        let loader = AgentControlEffectiveConfigLoader::new(Arc::new(config_manager));
 
         let load_error = loader.load().unwrap_err();
 
