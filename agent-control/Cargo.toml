@@ -28,7 +28,7 @@ uuid = { version = "1.8.0", features = ["serde", "v7"] }
 duration-str = "0.11.2"
 konst = { workspace = true }
 http = { workspace = true }
-ureq = { workspace = true, features = ["http-crate", "socks-proxy"] }
+ureq = { workspace = true, features = ["http-crate", "socks-proxy", "native-certs"] }
 url = { version = "2.5.4", features = ["serde"] }
 actix-web = "4"
 serde_json = { workspace = true }
