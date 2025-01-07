@@ -83,7 +83,8 @@ mod tests {
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
     use mockall::predicate::*;
     use mockall::{mock, Sequence};
-    use std::io::{Read, Write};
+    use std::io::{Read, Seek, SeekFrom, Write};
+    use tempfile::tempfile;
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
@@ -203,27 +204,12 @@ mod tests {
     #[test]
     fn spawn_logger_with_file_logging() {
         // Create a writer and from it build a Logger::File(FileLogger)
-        let log_line_1 = b"logging test 1\n";
-        let log_line_2 = b"logging test 2\n";
-
-        let mut write_mock = MockWriteMock::new();
         let agent_id = AgentID::new("test-agent").unwrap();
-        // Writing in sequence
-        let mut seq = Sequence::new();
-        write_mock
-            .expect_write()
-            .once()
-            .in_sequence(&mut seq)
-            .with(eq(*log_line_1))
-            .returning(|_| Ok(log_line_1.len()));
-        write_mock
-            .expect_write()
-            .once()
-            .in_sequence(&mut seq)
-            .with(eq(*log_line_2))
-            .returning(|_| Ok(log_line_2.len()));
-        write_mock.expect_flush().returning(|| Ok(()));
-        let file_logger = Logger::File(FileLogger::from(write_mock), agent_id.clone());
+        let mut temp_file = tempfile().unwrap();
+        let file_logger = Logger::File(
+            FileLogger::from(temp_file.try_clone().unwrap()),
+            agent_id.clone(),
+        );
 
         let mut read_mock = MockReadMock::new();
         // Reading in sequence
@@ -260,5 +246,13 @@ mod tests {
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
             "logging test 2 agent_id=test-agent",
         ));
+
+        // Check the file content
+        temp_file.seek(SeekFrom::Start(0)).unwrap();
+        let mut content = String::new();
+        temp_file.read_to_string(&mut content).unwrap();
+        let expected =
+            "logging test 1 agent_id=test-agent\nlogging test 2 agent_id=test-agent\n".to_string();
+        assert_eq!(content, expected);
     }
 }
