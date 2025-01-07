@@ -1,8 +1,9 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
+use crate::opamp::remote_config::validators::regexes::ConfigValidator;
+use crate::opamp::remote_config::validators::signature::SignatureValidator;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
-use crate::sub_agent::config_validator::ConfigValidator;
 use crate::sub_agent::error::SubAgentError;
 use crate::values::yaml_config::YAMLConfig;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
@@ -28,6 +29,7 @@ pub enum RemoteConfigHandlerError {
 
 pub struct RemoteConfigHandler<R, Y> {
     config_validator: ConfigValidator,
+    signature_validator: Arc<SignatureValidator>,
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
     sub_agent_remote_config_hash_repository: Arc<R>,
@@ -44,13 +46,15 @@ where
         agent_cfg: SubAgentConfig,
         sub_agent_remote_config_hash_repository: Arc<R>,
         remote_values_repo: Arc<Y>,
+        signature_validator: Arc<SignatureValidator>,
     ) -> Self {
         RemoteConfigHandler {
-            config_validator: ConfigValidator::new(),
+            config_validator: ConfigValidator::default(),
             agent_id,
             agent_cfg,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
+            signature_validator,
         }
     }
 
@@ -67,8 +71,6 @@ where
         CB: Callbacks + Send + Sync + 'static,
         C: StartedClient<CB> + Send + Sync + 'static,
     {
-        // This branch only makes sense with a valid OpAMP client
-
         debug!(
             agent_id = self.agent_id.to_string(),
             select_arm = "sub_agent_opamp_consumer",
@@ -82,18 +84,17 @@ where
             .config_validator
             .validate(&self.agent_cfg.agent_type, config)
         {
-            // log the error as it might be that we return a different error
-            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating remote config");
-            OpampRemoteConfigStatus::Error(e.to_string())
-                .report(opamp_client, &config.hash)
-                .map_err(|e| {
-                    RemoteConfigHandlerError::StatusReporting(
-                        Status::from("error"),
-                        Hash::from(&config.hash.get()),
-                        e.to_string(),
-                    )
-                })?;
+            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating remote config with regexes");
+            Self::report_error(opamp_client, config, e.to_string())?;
+            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
+        }
 
+        if let Err(e) = self
+            .signature_validator
+            .validate(&self.agent_cfg.agent_type, config)
+        {
+            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating signature of remote config");
+            Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
         }
 
@@ -110,18 +111,30 @@ where
         if let Err(e) = self.store_remote_config_hash_and_values(config) {
             // log the error as it might be that we return a different error
             error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error storing remote config");
-            OpampRemoteConfigStatus::Error(e.to_string())
-                .report(opamp_client, &config.hash)
-                .map_err(|e| {
-                    RemoteConfigHandlerError::StatusReporting(
-                        Status::from("error"),
-                        Hash::from(&config.hash.get()),
-                        e.to_string(),
-                    )
-                })?;
-
+            Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::HashAndValuesStore(e.to_string()));
         }
+        Ok(())
+    }
+
+    fn report_error<CB, C>(
+        opamp_client: &C,
+        config: &RemoteConfig,
+        error_string: String,
+    ) -> Result<(), RemoteConfigHandlerError>
+    where
+        CB: Callbacks + Send + Sync + 'static,
+        C: StartedClient<CB> + Send + Sync + 'static,
+    {
+        OpampRemoteConfigStatus::Error(error_string)
+            .report(opamp_client, &config.hash)
+            .map_err(|e| {
+                RemoteConfigHandlerError::StatusReporting(
+                    Status::from("error"),
+                    Hash::from(&config.hash.get()),
+                    e.to_string(),
+                )
+            })?;
         Ok(())
     }
 

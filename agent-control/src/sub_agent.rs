@@ -11,9 +11,6 @@ pub mod supervisor;
 pub mod version;
 
 pub use sub_agent::*;
-mod config_validator;
+pub(crate) mod event_handler;
 #[allow(clippy::module_inception)]
 mod sub_agent;
-mod validation_regexes;
-
-mod event_handler;

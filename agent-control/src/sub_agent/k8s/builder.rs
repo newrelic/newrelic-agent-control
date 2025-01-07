@@ -9,6 +9,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::opamp::remote_config::validators::signature::SignatureValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
@@ -43,6 +44,7 @@ where
     effective_agent_assembler: Arc<A>,
     k8s_config: K8sConfig,
     yaml_config_repository: Arc<Y>,
+    signature_validator: Arc<SignatureValidator>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
@@ -58,6 +60,8 @@ where
     A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
 {
+    // TODO refactor this new function
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
@@ -66,6 +70,7 @@ where
         effective_agent_assembler: Arc<A>,
         k8s_config: K8sConfig,
         yaml_config_repository: Arc<Y>,
+        signature_validator: Arc<SignatureValidator>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -75,6 +80,7 @@ where
             effective_agent_assembler,
             k8s_config,
             yaml_config_repository,
+            signature_validator,
 
             _effective_config_loader: PhantomData,
         }
@@ -136,6 +142,7 @@ where
             sub_agent_config.clone(),
             self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
+            self.signature_validator.clone(),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(
@@ -237,6 +244,7 @@ pub mod tests {
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
+    use crate::opamp::remote_config::validators::signature::SignatureValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{
@@ -283,6 +291,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -323,6 +332,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -428,7 +438,6 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            &agent_id,
             &sub_agent_config.agent_type,
             HashMap::from([(
                 OPAMP_SERVICE_VERSION.to_string(),

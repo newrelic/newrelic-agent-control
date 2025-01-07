@@ -99,4 +99,7 @@ pub enum AgentError {
 
     #[error("parsing remote config into YAMLConfig: `{0}`")]
     YAMLConfigError(#[from] YAMLConfigError),
+
+    #[error("failed to initialize the signature validator: `{0}`")]
+    InitialiseSignatureValidator(String),
 }

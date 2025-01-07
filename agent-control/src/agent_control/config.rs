@@ -1,5 +1,8 @@
 use super::http_server::config::ServerConfig;
-use crate::agent_control::defaults::{default_capabilities, AGENT_CONTROL_ID};
+use crate::agent_control::agent_control_fqn;
+use crate::agent_control::defaults::{
+    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_ID,
+};
 use crate::http::proxy::ProxyConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -8,6 +11,7 @@ use crate::values::yaml_config::YAMLConfig;
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
+use opamp_client::opamp::proto::CustomCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Deref;
@@ -371,6 +375,16 @@ impl AgentTypeFQN {
     pub(crate) fn get_capabilities(&self) -> Capabilities {
         //TODO: We should move this to EffectiveAgent
         default_capabilities()
+    }
+
+    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
+        //TODO: We should move this to EffectiveAgent
+        if self.eq(&agent_control_fqn()) {
+            // Agent_Control does not have custom capabilities for now
+            return None;
+        }
+
+        Some(default_sub_agent_custom_capabilities())
     }
 }
 
