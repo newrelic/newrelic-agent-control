@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
 use crate::agent_control::defaults::{
@@ -6,7 +6,7 @@ use crate::agent_control::defaults::{
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
 use crate::agent_control::run::AgentControlRunner;
-use crate::agent_control::{agent_control_fqn, AgentControl};
+use crate::agent_control::AgentControl;
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -127,7 +127,7 @@ impl AgentControlRunner {
                     builder,
                     &instance_id_getter,
                     AgentID::new_agent_control_id(),
-                    &agent_control_fqn(),
+                    &AgentTypeFQN::new_agent_control_fqn(),
                     HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),

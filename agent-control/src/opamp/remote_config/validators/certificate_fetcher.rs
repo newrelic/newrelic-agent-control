@@ -1,6 +1,5 @@
 use crate::opamp::remote_config::validators::signature::Certificate;
 use std::sync::Mutex;
-use std::time::SystemTime;
 use thiserror::Error;
 use tracing::debug;
 use tracing::log::error;

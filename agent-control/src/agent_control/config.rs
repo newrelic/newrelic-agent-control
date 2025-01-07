@@ -1,7 +1,7 @@
 use super::http_server::config::ServerConfig;
-use crate::agent_control::agent_control_fqn;
 use crate::agent_control::defaults::{
     default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_ID,
+    AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
 };
 use crate::http::proxy::ProxyConfig;
 use crate::logging::config::LoggingConfig;
@@ -221,6 +221,13 @@ impl AgentTypeFQN {
     pub fn version(&self) -> String {
         self.0.chars().skip_while(|&i| i != ':').skip(1).collect()
     }
+
+    pub fn new_agent_control_fqn() -> Self {
+        AgentTypeFQN(format!(
+            "{}/{}:{}",
+            AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION
+        ))
+    }
 }
 
 impl Display for AgentTypeFQN {
@@ -379,7 +386,7 @@ impl AgentTypeFQN {
 
     pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
         //TODO: We should move this to EffectiveAgent
-        if self.eq(&agent_control_fqn()) {
+        if self.eq(&AgentTypeFQN::new_agent_control_fqn()) {
             // Agent_Control does not have custom capabilities for now
             return None;
         }
