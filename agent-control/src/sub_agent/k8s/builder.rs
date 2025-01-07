@@ -244,6 +244,7 @@ pub mod tests {
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
+    use crate::opamp::remote_config::validators::signature::SignatureValidator;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{
@@ -290,7 +291,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            SignatureValidator::new(),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -331,7 +332,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            SignatureValidator::new(),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let (application_event_publisher, _) = pub_sub();

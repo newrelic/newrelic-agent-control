@@ -485,7 +485,7 @@ pub mod tests {
                 agent_cfg.clone(),
                 hash_repository_ref.clone(),
                 Arc::new(remote_values_repo),
-                SignatureValidator::new(),
+                Arc::new(SignatureValidator::try_new().unwrap()),
             );
 
             let supervisor_assembler = SupervisorAssembler::new(
@@ -643,7 +643,7 @@ pub mod tests {
             agent_cfg.clone(),
             hash_repository_ref.clone(),
             Arc::new(remote_values_repo),
-            SignatureValidator::new(),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(

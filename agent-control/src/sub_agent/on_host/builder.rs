@@ -310,7 +310,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
-            SignatureValidator::new(),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         on_host_builder
@@ -393,7 +393,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
-            SignatureValidator::new(),
+            Arc::new(SignatureValidator::try_new().unwrap()),
         );
 
         let sub_agent = on_host_builder

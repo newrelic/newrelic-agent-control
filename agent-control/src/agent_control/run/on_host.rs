@@ -105,7 +105,10 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let signature_validator = SignatureValidator::new();
+        let signature_validator = Arc::new(
+            SignatureValidator::try_new()
+                .map_err(|e| AgentError::InitialiseSignatureValidator(e.to_string()))?,
+        );
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
