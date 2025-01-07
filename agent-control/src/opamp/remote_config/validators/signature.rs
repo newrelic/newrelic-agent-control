@@ -61,7 +61,6 @@ impl SignatureValidator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::agent_control_fqn;
     use crate::agent_control::config::AgentID;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::Signature;
@@ -105,7 +104,7 @@ mod tests {
             Hash::new("test".to_string()),
             None,
         );
-        let agent_type = agent_control_fqn();
+        let agent_type = AgentTypeFQN::new_agent_control_fqn();
 
         assert!(signature_validator.validate(&agent_type, &rc).unwrap());
     }

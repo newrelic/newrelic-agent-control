@@ -1,14 +1,9 @@
-use super::config::{
-    AgentControlDynamicConfig, AgentID, AgentTypeFQN, SubAgentConfig, SubAgentsMap,
-};
+use super::config::{AgentControlDynamicConfig, AgentID, SubAgentConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
-use crate::agent_control::{
-    defaults::{AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION},
-    error::AgentError,
-};
+use crate::agent_control::error::AgentError;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
@@ -407,17 +402,6 @@ where
         }
         Ok(())
     }
-}
-
-pub fn agent_control_fqn() -> AgentTypeFQN {
-    AgentTypeFQN::try_from(
-        format!(
-            "{}/{}:{}",
-            AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION
-        )
-        .as_str(),
-    )
-    .unwrap()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

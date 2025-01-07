@@ -1,4 +1,4 @@
-use crate::agent_control::config::{AgentID, K8sConfig};
+use crate::agent_control::config::{AgentID, AgentTypeFQN, K8sConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
 use crate::agent_control::defaults::{
@@ -6,7 +6,7 @@ use crate::agent_control::defaults::{
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::run::AgentControlRunner;
-use crate::agent_control::{agent_control_fqn, AgentControl};
+use crate::agent_control::AgentControl;
 use crate::agent_type::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -119,7 +119,7 @@ impl AgentControlRunner {
                     builder,
                     &instance_id_getter,
                     AgentID::new_agent_control_id(),
-                    &agent_control_fqn(),
+                    &AgentTypeFQN::new_agent_control_fqn(),
                     additional_identifying_attributes,
                     non_identifying_attributes,
                 )
