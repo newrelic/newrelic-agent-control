@@ -319,6 +319,7 @@ mod tests {
             .unwrap()
             .run()
             .stop()
+            .unwrap();
     }
 
     #[traced_test]
@@ -404,8 +405,7 @@ mod tests {
             .build(sub_agent_id, &sub_agent_config, opamp_publisher)
             .expect("Subagent build should be OK");
         let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
-        started_sub_agent.stop();
-        assert!(!logs_contain("ERROR"));
+        started_sub_agent.stop().unwrap();
     }
 
     // HELPERS

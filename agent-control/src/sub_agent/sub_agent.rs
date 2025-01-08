@@ -24,6 +24,8 @@ use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error};
 
+use super::error::SubAgentStopError;
+
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
@@ -40,7 +42,7 @@ pub trait NotStartedSubAgent {
 /// supervised processes' execution and the loop processing the events.
 pub trait StartedSubAgent {
     /// Stops all internal services owned by the SubAgent
-    fn stop(self);
+    fn stop(self) -> Result<(), SubAgentStopError>;
 }
 
 pub trait SubAgentBuilder {
@@ -60,7 +62,6 @@ pub trait SubAgentBuilder {
 /// the exposed method Stop that will publish a StopRequested event to the runtime
 /// and wait on the JoinHandle for the runtime to finish.
 pub struct SubAgentStopper {
-    agent_id: AgentID,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     runtime: JoinHandle<Result<(), SubAgentError>>,
 }
@@ -266,26 +267,17 @@ where
 }
 
 impl StartedSubAgent for SubAgentStopper {
-    fn stop(self) {
+    fn stop(self) -> Result<(), SubAgentStopError> {
         // Stop processing events
-        let _ = self
-            .sub_agent_internal_publisher
-            .publish(SubAgentInternalEvent::StopRequested)
-            .inspect_err(|err| {
-                error!(
-                    agent_id = %self.agent_id,
-                    %err,
-                    "Error stopping event loop"
-                )
-            })
-            .inspect(|_| {
-                let _ = self.runtime.join().inspect_err(|_| {
-                    error!(
-                        agent_id = %self.agent_id,
-                        "Error stopping event thread"
-                    );
-                });
-            });
+        self.sub_agent_internal_publisher
+            .publish(SubAgentInternalEvent::StopRequested)?;
+        // Wait for the sub agent thread to finish
+        let runtime_join_result = self.runtime.join().map_err(|_| {
+            SubAgentStopError::SubAgentJoinHandle(
+                "the sub agent thread failed unexpectedly".to_string(),
+            )
+        })?;
+        Ok(runtime_join_result?)
     }
 }
 
@@ -316,12 +308,10 @@ where
     type StartedSubAgent = SubAgentStopper;
 
     fn run(self) -> Self::StartedSubAgent {
-        let agent_id = self.agent_id.clone();
         let sub_agent_internal_publisher = self.sub_agent_internal_publisher.clone();
         let runtime_handle = self.runtime();
 
         SubAgentStopper {
-            agent_id,
             sub_agent_internal_publisher,
             runtime: runtime_handle,
         }
@@ -349,6 +339,7 @@ pub mod tests {
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying};
@@ -362,13 +353,13 @@ pub mod tests {
         pub StartedSubAgent {}
 
         impl StartedSubAgent for StartedSubAgent {
-            fn stop(self);
+            fn stop(self) -> Result<(), SubAgentStopError>;
         }
     }
 
     impl MockStartedSubAgent {
         pub fn should_stop(&mut self) {
-            self.expect_stop().once().return_const(());
+            self.expect_stop().once().returning(|| Ok(()));
         }
     }
 
@@ -413,7 +404,7 @@ pub mod tests {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
-                    started_agent.expect_stop().times(1).return_const(());
+                    started_agent.expect_stop().times(1).returning(|| Ok(()));
                     started_agent
                 });
                 Ok(not_started_sub_agent)
@@ -529,12 +520,11 @@ pub mod tests {
         let sub_agent = SubAgentForTesting::default();
         let started_agent = sub_agent.run();
         sleep(Duration::from_millis(20));
-        started_agent.stop();
+        started_agent.stop().unwrap();
 
         assert!(!logs_contain("ERROR"));
     }
 
-    #[traced_test]
     #[test]
     fn test_run_and_fail_stop() {
         let mut sub_agent = SubAgentForTesting::default();
@@ -549,13 +539,10 @@ pub mod tests {
 
         let started_agent = sub_agent.run();
         sleep(Duration::from_millis(20));
-        started_agent.stop();
-
-        // This error is triggered since we try to send a StopRequested event on a closed channel
-        assert!(logs_contain("Error stopping event loop"));
+        let result = started_agent.stop();
+        assert_matches!(result, Err(SubAgentStopError::SubAgentEventLoop(_)));
     }
 
-    #[traced_test]
     #[test]
     fn test_run_remote_config() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -689,9 +676,6 @@ pub mod tests {
         sleep(Duration::from_millis(20));
 
         // stop the runtime
-        started_agent.stop();
-        // If the sub-agent underlying threads panics (due any failure in the underlying mocks) the stop function
-        // will handle it by logging the corresponding error, therefore we do not expect any error reported here.
-        assert!(!logs_contain("ERROR"));
+        started_agent.stop().unwrap();
     }
 }

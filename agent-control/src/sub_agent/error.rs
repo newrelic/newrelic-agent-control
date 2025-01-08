@@ -78,3 +78,13 @@ pub enum SubAgentCollectionError {
     #[error("Sub Agent `{0}` not found in the collection")]
     SubAgentNotFound(String),
 }
+
+#[derive(Error, Debug)]
+pub enum SubAgentStopError {
+    #[error("could not stop the sub agent event loop: `{0}`")]
+    SubAgentEventLoop(#[from] EventPublisherError),
+    #[error("failed to join the sub agent thread: `{0}")]
+    SubAgentJoinHandle(String),
+    #[error("failed to stop the sub agent runtime: `{0}")]
+    SubAgentRuntimeStop(#[from] SubAgentError),
+}

@@ -1,7 +1,7 @@
 use super::{error::SubAgentCollectionError, NotStartedSubAgent, StartedSubAgent};
 use crate::agent_control::config::AgentID;
 use std::collections::HashMap;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
 where
@@ -53,7 +53,7 @@ where
                 ))?;
 
         info!(%agent_id, "Stopping sub agent");
-        sub_agent.stop();
+        Self::stop_subagent(sub_agent, agent_id);
 
         Ok(())
     }
@@ -66,8 +66,14 @@ where
     pub(crate) fn stop(self) {
         self.0.into_iter().for_each(|(agent_id, sub_agent)| {
             info!(%agent_id, "Stopping sub agent");
-            sub_agent.stop();
+            Self::stop_subagent(sub_agent, &agent_id);
         })
+    }
+
+    fn stop_subagent(sub_agent: S, agent_id: &AgentID) {
+        let _ = sub_agent
+            .stop()
+            .inspect_err(|err| error!(%agent_id, %err, "Error stopping sub agent"));
     }
 }
 
