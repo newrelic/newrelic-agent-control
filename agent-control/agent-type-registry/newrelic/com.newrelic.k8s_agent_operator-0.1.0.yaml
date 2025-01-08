@@ -43,6 +43,8 @@ deployment:
           name: default-values-${nr-sub:agent_id}
         stringData:
           # These env variables are attached to the AC pod on the Helm Chart.
+          # ${nr-env:NR_STAGING}, ${nr-env:NR_LOW_DATA_MODE} and ${nr-env:NR_VERBOSE_LOG} are not set because they are
+          # not supported by the chart.
           values.yaml: |
             global:
               licenseKey: ${nr-env:NR_LICENSE_KEY}
