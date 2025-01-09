@@ -88,7 +88,7 @@ where
         // Get a ref to the target file's parent directory
         let dest_dir = dest_file
             .parent()
-            .expect("no parent directory found for {dest_file} (empty or root dir)");
+            .expect("parent directory dest_file should be valid (not empty nor root dir)");
 
         self.dir_manager
             .create(dest_dir, Permissions::from_mode(DIRECTORY_PERMISSIONS))?;

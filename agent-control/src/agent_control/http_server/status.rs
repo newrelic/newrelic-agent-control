@@ -132,7 +132,7 @@ impl SubAgentStatus {
     // if we make it mutable
     pub fn update_health(&mut self, health: HealthWithStartTime) {
         self.healthy = health.is_healthy();
-        self.last_error = health.last_error().map(String::from);
+        self.last_error = health.last_error();
         self.status = health.status().to_string();
         self.start_time_unix_nano = health
             .start_time()
