@@ -273,6 +273,7 @@ impl StartedSubAgent for SubAgentStopper {
             .publish(SubAgentInternalEvent::StopRequested)?;
         // Wait for the sub agent thread to finish
         let runtime_join_result = self.runtime.join().map_err(|_| {
+            // Error when the 'runtime thread' panics.
             SubAgentStopError::SubAgentJoinHandle(
                 "the sub agent thread failed unexpectedly".to_string(),
             )
