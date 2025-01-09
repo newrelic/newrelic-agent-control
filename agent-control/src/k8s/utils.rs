@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use k8s_openapi::{
     apimachinery::pkg::util::intstr::IntOrString, Metadata, NamespaceResourceScope, Resource,
 };
@@ -117,18 +115,6 @@ impl std::fmt::Display for IntOrPercentage {
             }
         }
     }
-}
-
-/// This function returns true if there are labels and they contain the provided key, value.
-pub fn contains_label_with_value(
-    labels: &Option<BTreeMap<String, String>>,
-    key: &str,
-    value: &str,
-) -> bool {
-    labels
-        .as_ref()
-        .and_then(|labels| labels.get(key))
-        .is_some_and(|v| v == value)
 }
 
 /// Return the value of `.metadata.name` of the object that is passed.
@@ -270,68 +256,6 @@ pub mod tests {
             TestCase {
                 name: "int_or_percentage should not parse: broken percentage",
                 int_or_string: IntOrString::String("%100".into()),
-            },
-        ];
-
-        test_cases.into_iter().for_each(|tc| tc.run());
-    }
-
-    #[test]
-    fn test_contains_label_with_value() {
-        struct TestCase {
-            name: &'static str,
-            labels: Option<BTreeMap<String, String>>,
-            key: &'static str,
-            value: &'static str,
-            expected: bool,
-        }
-
-        impl TestCase {
-            fn run(self) {
-                assert_eq!(
-                    self.expected,
-                    contains_label_with_value(&self.labels, self.key, self.value),
-                    "{}",
-                    self.name
-                )
-            }
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "No labels",
-                labels: None,
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Empty labels",
-                labels: Some(BTreeMap::default()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "No matching label",
-                labels: Some([("a".to_string(), "b".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Matching label with different value",
-                labels: Some([("key".to_string(), "other".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: false,
-            },
-            TestCase {
-                name: "Matching label and value",
-                labels: Some([("key".to_string(), "value".to_string())].into()),
-                key: "key",
-                value: "value",
-                expected: true,
             },
         ];
 

@@ -909,6 +909,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## hostname https://crates.io/crates/hostname
+
+Distributed under the following license(s):
+* MIT
+
+
 ## http https://crates.io/crates/http
 
 Distributed under the following license(s):
@@ -2469,6 +2475,13 @@ Distributed under the following license(s):
 
 
 ## winapi-x86_64-pc-windows-gnu https://crates.io/crates/winapi-x86_64-pc-windows-gnu
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## windows https://crates.io/crates/windows
 
 Distributed under the following license(s):
 * MIT
