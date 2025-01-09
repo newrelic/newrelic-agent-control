@@ -6,6 +6,7 @@ use crate::agent_control::defaults::{
 use crate::http::proxy::ProxyConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
+use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfig;
 use http::HeaderMap;
@@ -269,6 +270,9 @@ pub struct OpAMPClientConfig {
     pub auth_config: Option<AuthConfig>,
     /// Unique identifier for the fleet in which the super agent will join upon initialization.
     pub fleet_id: String,
+    /// Contains the signature_validation configuration
+    #[serde(default)]
+    pub signature_validation: SignatureValidatorConfig,
 }
 
 impl<'de> Deserialize<'de> for OpAMPClientConfig {
@@ -285,6 +289,8 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             #[serde(default, with = "http_serde::header_map")]
             headers: HeaderMap,
             auth_config: Option<AuthConfig>,
+            #[serde(default)]
+            pub signature_validation: SignatureValidatorConfig,
         }
 
         let mut intermediate_spec = IntermediateOpAMPClientConfig::deserialize(deserializer)?;
@@ -307,6 +313,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             endpoint: intermediate_spec.endpoint,
             headers: censored_headers,
             auth_config: intermediate_spec.auth_config,
+            signature_validation: intermediate_spec.signature_validation,
         })
     }
 }
@@ -414,6 +421,7 @@ pub(crate) mod tests {
                 endpoint: "http://localhost".try_into().unwrap(),
                 headers: HeaderMap::default(),
                 auth_config: None,
+                signature_validation: Default::default(),
             }
         }
     }

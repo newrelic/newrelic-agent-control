@@ -4,7 +4,7 @@ use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::remote_config::validators::regexes::ConfigValidatorError;
-use crate::opamp::remote_config::validators::signature::SignatureValidatorError;
+use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfigError;
 use crate::values::yaml_config_repository::YAMLConfigRepositoryError;

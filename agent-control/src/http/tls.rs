@@ -22,6 +22,16 @@ pub fn install_rustls_default_crypto_provider() {
     })
 }
 
+pub fn root_store_with_native_certs() -> Result<RootCertStore, TLSConfigBuildingError> {
+    let mut root_store = rustls::RootCertStore::empty();
+    load_native_certs().certs.iter().try_for_each(|cert| {
+        root_store.add(cert.to_owned()).map_err(|e| {
+            TLSConfigBuildingError::BuildingError(format!("cannot add system certificates: {}", e))
+        })
+    })?;
+    Ok(root_store)
+}
+
 /// It builds rustls client configuration including the system native certificates and the certificates in the file
 /// and dir provided as arguments if any of the paths is empty, it is ignored.
 /// It return an error if there are issues reading the provided paths or if invalid certificates are found.
@@ -29,14 +39,7 @@ pub fn build_tls_config(
     pem_file: &Path,
     pem_files_dir: &Path,
 ) -> Result<ClientConfig, TLSConfigBuildingError> {
-    let mut root_store = rustls::RootCertStore::empty();
-
-    // Load system native certs to the root store
-    load_native_certs().certs.iter().try_for_each(|cert| {
-        root_store.add(cert.to_owned()).map_err(|e| {
-            TLSConfigBuildingError::BuildingError(format!("cannot add system certificates: {}", e))
-        })
-    })?;
+    let mut root_store = root_store_with_native_certs()?;
 
     // Add custom certificates from file
     if !pem_file.is_empty() {

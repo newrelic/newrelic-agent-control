@@ -14,7 +14,9 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
-use crate::opamp::remote_config::validators::signature::SignatureValidator;
+use crate::opamp::remote_config::validators::signature::validator::{
+    build_signature_validator, SignatureValidator,
+};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{
     agent_control::error::AgentError,
@@ -52,14 +54,16 @@ impl AgentControlRunner {
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
 
-        let identifiers = instance_id::get_identifiers(
-            self.k8s_config.cluster_name.clone(),
-            config_storer
-                .load()?
-                .fleet_control
-                .map(|c| c.fleet_id)
-                .unwrap_or_default(),
-        );
+        let agent_control_config = config_storer.load()?;
+
+        let fleet_id = agent_control_config
+            .fleet_control
+            .as_ref()
+            .map(|c| c.fleet_id.clone())
+            .unwrap_or_default();
+
+        let identifiers =
+            instance_id::get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
         let mut non_identifying_attributes =
@@ -92,10 +96,15 @@ impl AgentControlRunner {
 
         let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
-        let signature_validator = Arc::new(
-            SignatureValidator::try_new()
-                .map_err(|e| AgentError::InitialiseSignatureValidator(e.to_string()))?,
-        );
+        let signature_validator = agent_control_config
+            .fleet_control
+            .map(|fleet_config| {
+                build_signature_validator(fleet_config.signature_validation).map_err(|e| {
+                    AgentError::ExternalError(format!("initializing signature validator: {}", e))
+                })
+            })
+            .transpose()?
+            .unwrap_or(SignatureValidator::Noop);
 
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
@@ -106,7 +115,7 @@ impl AgentControlRunner {
             agents_assembler,
             self.k8s_config.clone(),
             yaml_config_repository.clone(),
-            signature_validator,
+            Arc::new(signature_validator),
         );
 
         let additional_identifying_attributes =
