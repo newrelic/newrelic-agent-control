@@ -1,0 +1,422 @@
+use std::time::Duration;
+
+use crate::agent_control::config::AgentTypeFQN;
+use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
+use crate::opamp::remote_config::RemoteConfig;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tracing::log::error;
+use url::Url;
+
+use super::certificate_fetcher::CertificateFetcher;
+use super::certificate_store::CertificateStore;
+
+const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://csec.nr-data.net/";
+const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = false;
+
+type ErrorMessage = String;
+#[derive(Error, Debug)]
+pub enum SignatureValidatorError {
+    #[error("failed to fetch certificate: `{0}`")]
+    FetchCertificate(ErrorMessage),
+    #[error("failed to initialize the certificate fetcher: `{0}`")]
+    InitializeCertificateStore(ErrorMessage),
+    #[error("failed to verify signature: `{0}`")]
+    VerifySignature(ErrorMessage),
+}
+
+#[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct SignatureValidatorConfig {
+    #[serde(default)]
+    pub certificate_server_url: SignatureCertificateServerUrl,
+    #[serde(default)]
+    pub enabled: SignatureValidatorEnabled,
+    // config to build a fetcher using this cert instead
+    // pub pem_cert_file_path: Optional<>
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct SignatureCertificateServerUrl(Url);
+
+impl From<SignatureCertificateServerUrl> for Url {
+    fn from(value: SignatureCertificateServerUrl) -> Self {
+        value.0
+    }
+}
+
+impl Default for SignatureCertificateServerUrl {
+    fn default() -> Self {
+        let certificate_server_url =  Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap_or_else(
+            |err| panic!("Invalid DEFAULT_CERTIFICATE_SERVER_URL: '{DEFAULT_CERTIFICATE_SERVER_URL}': {err}"));
+        Self(certificate_server_url)
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct SignatureValidatorEnabled(bool);
+
+impl From<SignatureValidatorEnabled> for bool {
+    fn from(value: SignatureValidatorEnabled) -> Self {
+        value.0
+    }
+}
+
+impl Default for SignatureValidatorEnabled {
+    fn default() -> Self {
+        Self(DEFAULT_SIGNATURE_VALIDATOR_ENABLED)
+    }
+}
+
+// NOTE: if we updated the components using the validator to use a composite-like implementation to handle validation,
+// the no-op validator wouldn't be necessary.
+/// The SignatureValidator enum wraps [CertificateSignatureValidator] and adds support for No-op validator.
+pub enum SignatureValidator {
+    Validator(CertificateSignatureValidator),
+    Noop,
+}
+
+impl RemoteConfigValidator for SignatureValidator {
+    type Err = SignatureValidatorError;
+
+    fn validate(
+        &self,
+        agent_type_fqn: &AgentTypeFQN,
+        remote_config: &RemoteConfig,
+    ) -> Result<(), Self::Err> {
+        match self {
+            SignatureValidator::Validator(v) => v.validate(agent_type_fqn, remote_config),
+            SignatureValidator::Noop => Ok(()),
+        }
+    }
+}
+
+/// The CertificateSignatureValidator is responsible for checking the validity of the signature.
+pub struct CertificateSignatureValidator {
+    certificate_store: CertificateStore,
+}
+
+impl CertificateSignatureValidator {
+    pub fn try_new(url: Url) -> Result<Self, SignatureValidatorError> {
+        CertificateStore::try_new(CertificateFetcher::Https(
+            url.clone(),
+            DEFAULT_HTTPS_CLIENT_TIMEOUT,
+        ))
+        .map_err(|e| SignatureValidatorError::InitializeCertificateStore(e.to_string()))
+        .map(|certificate_store| Self { certificate_store })
+    }
+}
+
+impl RemoteConfigValidator for CertificateSignatureValidator {
+    type Err = SignatureValidatorError;
+
+    fn validate(
+        &self,
+        agent_type_fqn: &AgentTypeFQN,
+        remote_config: &RemoteConfig,
+    ) -> Result<(), SignatureValidatorError> {
+        // custom capabilities are got from the agent-type (currently hard-coded)
+        // If the capability is not set, no validation is performed
+        if !agent_type_fqn.get_custom_capabilities().is_some_and(|c| {
+            c.capabilities
+                .contains(&SIGNATURE_CUSTOM_CAPABILITY.to_string())
+        }) {
+            return Ok(());
+        }
+
+        let signature = remote_config
+            .get_unique_signature()
+            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
+            .ok_or(SignatureValidatorError::VerifySignature(
+                "Signature is missing".to_string(),
+            ))?;
+
+        let config_content = remote_config
+            .get_unique()
+            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
+            .as_bytes();
+
+        let signature_algorithm = signature
+            .signature_algorithm()
+            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?;
+
+        self.certificate_store
+            .verify_signature(signature_algorithm, config_content, signature.signature())
+            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::agent_control::config::AgentID;
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::signature::{
+        SignatureData, Signatures, ECDSA_P256_SHA256, ED25519,
+    };
+    use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
+    use crate::opamp::remote_config::ConfigurationMap;
+    use assert_matches::assert_matches;
+
+    impl CertificateSignatureValidator {
+        pub fn new(certificate_store: CertificateStore) -> Self {
+            CertificateSignatureValidator { certificate_store }
+        }
+    }
+
+    fn certificate_store() -> CertificateStore {
+        let test_signer = TestSigner::new();
+        CertificateStore::try_new(CertificateFetcher::from_pem_string(&test_signer.cert_pem()))
+            .unwrap()
+    }
+
+    #[test]
+    fn test_default_signature_validator_config() {
+        let config = SignatureValidatorConfig::default();
+        assert_eq!(
+            config.certificate_server_url.0.to_string(),
+            DEFAULT_CERTIFICATE_SERVER_URL
+        );
+        assert_eq!(config.enabled.0, DEFAULT_SIGNATURE_VALIDATOR_ENABLED)
+    }
+
+    #[test]
+    fn test_signature_validator_config() {
+        struct TestCase {
+            name: &'static str,
+            cfg: &'static str,
+            expected: SignatureValidatorConfig,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let config: SignatureValidatorConfig = serde_yaml::from_str(self.cfg)
+                    .unwrap_or_else(|err| {
+                        panic!("{} - Invalid config '{}': {}", self.name, self.cfg, err)
+                    });
+                assert_eq!(config, self.expected, "{} failed", self.name);
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "Setup enabled only (false)",
+                cfg: r#"
+enabled: false
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: SignatureValidatorEnabled(false),
+                    certificate_server_url: SignatureCertificateServerUrl(
+                        Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    ),
+                },
+            },
+            TestCase {
+                name: "Setup enabled only (true)",
+                cfg: r#"
+enabled: true
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: SignatureValidatorEnabled(true),
+                    certificate_server_url: SignatureCertificateServerUrl(
+                        Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    ),
+                },
+            },
+            TestCase {
+                name: "Setup url only",
+                cfg: r#"
+certificate_server_url: https://example.com
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: SignatureValidatorEnabled(DEFAULT_SIGNATURE_VALIDATOR_ENABLED),
+                    certificate_server_url: SignatureCertificateServerUrl(
+                        Url::parse("https://example.com").unwrap(),
+                    ),
+                },
+            },
+            TestCase {
+                name: "Setup url and enabled",
+                cfg: r#"
+enabled: true
+certificate_server_url: https://example.com
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: SignatureValidatorEnabled(true),
+                    certificate_server_url: SignatureCertificateServerUrl(
+                        Url::parse("https://example.com").unwrap(),
+                    ),
+                },
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    fn test_noop_signature_validator() {
+        let rc = RemoteConfig::new(
+            AgentID::new("test").unwrap(),
+            Hash::new("test_payload".to_string()),
+            None,
+        );
+        let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+
+        let noop_validator = SignatureValidator::Noop;
+
+        assert!(
+            noop_validator.validate(&agent_type, &rc).is_ok(),
+            "The config should be valid even if the signature is missing when no-op validator is used",
+        )
+    }
+
+    #[test]
+    pub fn test_certificate_signature_validator_err() {
+        struct TestCase {
+            name: &'static str,
+            remote_config: RemoteConfig,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+                let signature_validator = CertificateSignatureValidator::new(certificate_store());
+
+                let result = signature_validator.validate(&agent_type, &self.remote_config);
+                assert_matches!(
+                    result,
+                    Err(SignatureValidatorError::VerifySignature(_)),
+                    "{}",
+                    self.name
+                );
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "Signature is missing",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    None,
+                ),
+            },
+            TestCase {
+                name: "Signature cannot be retrieved because multiple signatures are defined",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    None,
+                )
+                .with_signature(Signatures::new_multiple([
+                    SignatureData::new("first", ED25519, "fake_key_id"),
+                    SignatureData::new("second", ED25519, "fake_key_id"),
+                ])),
+            },
+            TestCase {
+                name: "Config is empty",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    None,
+                )
+                .with_signature(Signatures::new_unique("", ED25519, "fake_key_id")),
+            },
+            TestCase {
+                name: "Empty signing algorithm",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    Some(ConfigurationMap::new(HashMap::from([(
+                        "key".to_string(),
+                        "value".to_string(),
+                    )]))),
+                )
+                .with_signature(Signatures::new_unique("some", "", "fake_key_id")),
+            },
+            TestCase {
+                name: "Invalid signing algorithm",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    Some(ConfigurationMap::new(HashMap::from([(
+                        "key".to_string(),
+                        "value".to_string(),
+                    )]))),
+                )
+                .with_signature(Signatures::new_unique(
+                    "some",
+                    "invalid",
+                    "fake_key_id",
+                )),
+            },
+            TestCase {
+                name: "Invalid signature",
+                remote_config: RemoteConfig::new(
+                    AgentID::new("test").unwrap(),
+                    Hash::new("test_payload".to_string()),
+                    Some(ConfigurationMap::new(HashMap::from([(
+                        "key".to_string(),
+                        "value".to_string(),
+                    )]))),
+                )
+                .with_signature(Signatures::new_unique(
+                    "invalid signature",
+                    ECDSA_P256_SHA256,
+                    "fake_key_id",
+                )),
+            },
+        ];
+
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+
+    #[test]
+    pub fn test_certificate_signature_validator_signature_is_missing_for_agent_control_agent() {
+        let signature_validator = CertificateSignatureValidator::new(certificate_store());
+        let rc = RemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            Hash::new("test".to_string()),
+            None,
+        );
+        let agent_type = AgentTypeFQN::new_agent_control_fqn();
+        // Signature custom capability is not set for agent-control agent, therefore signature is not checked
+        assert!(signature_validator.validate(&agent_type, &rc).is_ok());
+    }
+
+    #[test]
+    pub fn test_certificate_signature_validator_signature_is_valid() {
+        let test_signer = TestSigner::new();
+        let certificate_store =
+            CertificateStore::try_new(CertificateFetcher::from_pem_string(&test_signer.cert_pem()))
+                .unwrap();
+
+        let signature_validator = CertificateSignatureValidator::new(certificate_store);
+
+        let config = "value";
+
+        let encoded_signature = test_signer.encoded_signature(config);
+        let remote_config = RemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            Hash::new("test".to_string()),
+            Some(ConfigurationMap::new(HashMap::from([(
+                "key".into(),
+                config.to_string(),
+            )]))),
+        )
+        .with_signature(Signatures::new_unique(
+            encoded_signature.as_str(),
+            ED25519, // Test signer uses this algorithm
+            "fake_key_id",
+        ));
+
+        let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+
+        assert!(signature_validator
+            .validate(&agent_type, &remote_config)
+            .is_ok())
+    }
+}

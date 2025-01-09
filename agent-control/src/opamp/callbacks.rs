@@ -1,7 +1,6 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
-use crate::opamp::remote_config::{
-    hash::Hash, signature::Signature, ConfigurationMap, RemoteConfig,
-};
+use crate::opamp::remote_config::signature::Signatures;
+use crate::opamp::remote_config::{hash::Hash, ConfigurationMap, RemoteConfig};
 use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfigError};
 use crate::{
     event::{
@@ -22,7 +21,7 @@ use opamp_client::{
 };
 use std::string::FromUtf8Error;
 use thiserror::Error;
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 use HttpClientError::UnsuccessfulResponse;
 
 #[derive(Debug, Error)]
@@ -102,7 +101,7 @@ where
 
         let maybe_config_signature =
             custom_message.and_then(
-                |custom_message| match Signature::try_from(&custom_message) {
+                |custom_message| match Signatures::try_from(&custom_message) {
                     Ok(signature) => Some(signature),
                     // Do not correspond to a config signature message
                     Err(SignatureError::InvalidCapability) | Err(SignatureError::InvalidType) => {
@@ -112,6 +111,11 @@ where
                     Err(SignatureError::InvalidData(err)) => {
                         error!(%self.agent_id, %err, "parsing config signature message");
                         hash.fail(format!("Invalid remote config signature format: {}", err));
+                        None
+                    },
+                    Err(SignatureError::UnsupportedAlgorithm(err)) => {
+                        error!(%self.agent_id, %err, "unsupported signature algorithm");
+                        hash.fail(format!("Unsupported signature algorithm: {}", err));
                         None
                     }
                 },
@@ -184,7 +188,6 @@ where
 
     fn on_message(&self, msg: MessageData) {
         if let Some(msg_remote_config) = msg.remote_config {
-            trace!(agent_id = %self.agent_id, "remote config received: {:?}", msg_remote_config);
             match self.process_remote_config(msg_remote_config, msg.custom_message) {
                 Ok(_) => trace!(agent_id = %self.agent_id, "on message ok"),
                 Err(e) => error!(agent_id = %self.agent_id, err = %e, "processing OpAMP message"),
@@ -260,7 +263,7 @@ pub(crate) mod tests {
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
-        SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+        RSA_PKCS1_2048_8192_SHA256, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
     };
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
@@ -354,7 +357,7 @@ pub(crate) mod tests {
             opamp_msg: Option<MessageData>, // using option here to allow taking the ownership of the MessageData which cannot be cloned.
             expected_remote_config_hash: Hash,
             expected_remote_config_config_map: Option<ConfigurationMap>,
-            expected_signature: Option<Signature>,
+            expected_signature: Option<Signatures>,
         }
         impl TestCase {
             fn run(mut self) {
@@ -493,13 +496,22 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                        data: serde_json::to_vec(&Signatures::new_unique(
+                            "fake config",
+                            RSA_PKCS1_2048_8192_SHA256,
+                            "fake keyid",
+                        ))
+                        .unwrap(),
                     }),
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: Hash::new(valid_hash.to_string()),
-                expected_signature: Some(Signature::new("fake".into())),
+                expected_signature: Some(Signatures::new_unique(
+                    "fake config",
+                    RSA_PKCS1_2048_8192_SHA256,
+                    "fake keyid",
+                )),
             },
             TestCase {
                 name: "with valid config and invalid signature type",
@@ -511,7 +523,12 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: "unsupported_type".to_string(),
-                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                        data: serde_json::to_vec(&Signatures::new_unique(
+                            "fake config",
+                            RSA_PKCS1_2048_8192_SHA256,
+                            "fake keyid",
+                        ))
+                        .unwrap(),
                     }),
                     ..Default::default()
                 }),
@@ -529,7 +546,12 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: "unsupported.capability".to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: serde_json::to_vec(&Signature::new("fake".into())).unwrap(),
+                        data: serde_json::to_vec(&Signatures::new_unique(
+                            "fake config",
+                            RSA_PKCS1_2048_8192_SHA256,
+                            "fake keyid",
+                        ))
+                        .unwrap(),
                     }),
                     ..Default::default()
                 }),

@@ -1,8 +1,9 @@
-use super::config::OpAMPClientConfig;
+use super::config::{AgentControlConfig, OpAMPClientConfig};
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_FILENAME,
 };
+use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -14,12 +15,16 @@ use crate::event::{
 use crate::http::proxy::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::UreqHttpClientBuilder;
+use crate::opamp::remote_config::validators::signature::validator::{
+    CertificateSignatureValidator, SignatureValidator,
+};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tracing::{debug, error};
+use url::Url;
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 #[cfg(feature = "k8s")]
@@ -147,6 +152,27 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: config.base_paths,
         })
+    }
+
+    /// Returns a SignatureValidator wrapping a CertificateSignatureValidator if fleet_control and signature validation are
+    /// enabled and a no-op validator otherwise.
+    fn build_signature_validator(
+        config: &AgentControlConfig,
+    ) -> Result<SignatureValidator, AgentError> {
+        Ok(config
+            .fleet_control
+            .as_ref()
+            .and_then(|c| {
+                bool::from(c.signature_validation.enabled.clone()).then(|| {
+                    CertificateSignatureValidator::try_new(Url::from(
+                        c.signature_validation.certificate_server_url.clone(),
+                    ))
+                    .map(SignatureValidator::Validator)
+                })
+            })
+            .transpose()
+            .map_err(|e| AgentError::InitialiseSignatureValidator(e.to_string()))?
+            .unwrap_or(SignatureValidator::Noop))
     }
 }
 

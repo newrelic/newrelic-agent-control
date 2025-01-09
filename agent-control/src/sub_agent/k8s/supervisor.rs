@@ -262,7 +262,7 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
-    use crate::opamp::remote_config::validators::signature::SignatureValidator;
+    use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
@@ -561,12 +561,13 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
 
+        let signature_validator = MockRemoteConfigValidatorMock::new();
         let remote_config_handler = RemoteConfigHandler::new(
             agent_id.clone(),
             agent_cfg.clone(),
             hash_repository_ref.clone(),
             Arc::new(remote_values_repo),
-            Arc::new(SignatureValidator::try_new().unwrap()),
+            Arc::new(signature_validator),
         );
 
         let supervisor_assembler = SupervisorAssembler::new(

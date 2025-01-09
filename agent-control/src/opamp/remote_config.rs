@@ -1,6 +1,7 @@
 use crate::agent_control::config::AgentID;
-use crate::opamp::remote_config::{hash::Hash, signature::Signature};
+use crate::opamp::remote_config::{hash::Hash, signature::SignatureData};
 use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, EffectiveConfig};
+use signature::Signatures;
 use std::collections::HashMap;
 use std::string::FromUtf8Error;
 use thiserror::Error;
@@ -16,7 +17,7 @@ pub mod validators;
 pub struct RemoteConfig {
     pub agent_id: AgentID,
     pub hash: Hash,
-    signature: Option<Signature>,
+    signatures: Option<Signatures>,
     config_map: Option<ConfigurationMap>,
 }
 
@@ -39,12 +40,12 @@ impl RemoteConfig {
             agent_id,
             hash,
             config_map,
-            signature: None,
+            signatures: None,
         }
     }
-    pub fn with_signature(self, signature: Signature) -> Self {
+    pub fn with_signature(self, signatures: Signatures) -> Self {
         Self {
-            signature: Some(signature),
+            signatures: Some(signatures),
             ..self
         }
     }
@@ -75,8 +76,32 @@ impl RemoteConfig {
         }
     }
 
-    pub fn get_signature(&self) -> &Option<Signature> {
-        &self.signature
+    pub fn get_unique_signature(&self) -> Result<Option<SignatureData>, RemoteConfigError> {
+        if let Some(signatures) = &self.signatures {
+            match signatures.len() {
+                0 => Err(RemoteConfigError::InvalidConfig(
+                    self.hash.get(),
+                    "empty signature".to_string(),
+                )),
+                1 => Ok(Some(
+                    signatures
+                        .iter()
+                        .next()
+                        .map(|(_, signature)| signature.clone())
+                        .ok_or(RemoteConfigError::InvalidConfig(
+                            self.hash.get(),
+                            "getting unique signature".to_string(),
+                        ))?,
+                )),
+                _ => Err(RemoteConfigError::InvalidConfig(
+                    self.hash.get(),
+                    "too many signature items".to_string(),
+                )),
+            }
+        } else {
+            // Agent control config is not signed
+            Ok(None)
+        }
     }
 }
 

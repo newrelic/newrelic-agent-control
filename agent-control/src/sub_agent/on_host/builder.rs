@@ -11,7 +11,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::opamp::remote_config::validators::signature::SignatureValidator;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -32,7 +32,7 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
@@ -40,6 +40,7 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -47,14 +48,14 @@ where
     effective_agent_assembler: Arc<A>,
     logging_path: PathBuf,
     yaml_config_repository: Arc<Y>,
-    signature_validator: Arc<SignatureValidator>,
+    signature_validator: Arc<S>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, G, Y> OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y>
+impl<'a, O, I, HR, A, G, Y, S> OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
@@ -62,6 +63,7 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -70,7 +72,7 @@ where
         effective_agent_assembler: Arc<A>,
         logging_path: PathBuf,
         yaml_config_repository: Arc<Y>,
-        signature_validator: Arc<SignatureValidator>,
+        signature_validator: Arc<S>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -86,7 +88,7 @@ where
     }
 }
 
-impl<O, I, HR, A, G, Y> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, A, G, Y>
+impl<O, I, HR, A, G, Y, S> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader + Send + Sync + 'static,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
@@ -94,9 +96,10 @@ where
     HR: HashRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator + Send + Sync + 'static,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisortBuilderOnHost, HR, Y, S>;
 
     fn build(
         &self,
@@ -226,6 +229,7 @@ mod tests {
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
@@ -304,6 +308,8 @@ mod tests {
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
+        let signature_validator = MockRemoteConfigValidatorMock::new();
+
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -311,7 +317,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
-            Arc::new(SignatureValidator::try_new().unwrap()),
+            Arc::new(signature_validator),
         );
 
         on_host_builder
@@ -389,6 +395,7 @@ mod tests {
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
+        let signature_validator = MockRemoteConfigValidatorMock::new();
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
@@ -397,7 +404,7 @@ mod tests {
             Arc::new(effective_agent_assembler),
             PathBuf::default(),
             Arc::new(remote_values_repo),
-            Arc::new(SignatureValidator::try_new().unwrap()),
+            Arc::new(signature_validator),
         );
 
         let sub_agent = on_host_builder
