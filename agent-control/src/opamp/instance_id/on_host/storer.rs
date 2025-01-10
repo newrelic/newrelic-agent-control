@@ -4,6 +4,7 @@ use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
+use fs::utils::FsError;
 use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
 use std::fs::Permissions;
@@ -88,7 +89,10 @@ where
         // Get a ref to the target file's parent directory
         let dest_dir = dest_file
             .parent()
-            .expect("parent directory dest_file should be valid (not empty nor root dir)");
+            .ok_or(WriteError::from(FsError::InvalidPath(format!(
+                "no parent directory found for {} (empty or root dir)",
+                dest_file.display()
+            ))))?;
 
         self.dir_manager
             .create(dest_dir, Permissions::from_mode(DIRECTORY_PERMISSIONS))?;

@@ -4,8 +4,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub enum FsError {
-    #[error("invalid path")]
-    InvalidPath(),
+    #[error("invalid path: `{0}`")]
+    InvalidPath(String),
 
     #[error("dots disallowed in path `{0}`")]
     DotsDisallowed(String),
@@ -14,7 +14,10 @@ pub enum FsError {
 #[cfg(target_family = "unix")]
 pub fn validate_path(path: &Path) -> Result<(), FsError> {
     match path.to_str() {
-        None => Err(FsError::InvalidPath()),
+        None => Err(FsError::InvalidPath(format!(
+            "{} is not valid unicode",
+            path.to_string_lossy()
+        ))),
         Some(valid_path) => {
             // disallow dots
             let dots_regex = Regex::new(r"\.\.").unwrap();

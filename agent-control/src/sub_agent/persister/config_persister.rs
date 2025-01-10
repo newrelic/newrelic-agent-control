@@ -59,9 +59,9 @@ pub mod tests {
                         ErrorDeletingDirectory(delete_error.to_string()),
                     ),
                     InvalidDirectory(invalid_dir_error) => match invalid_dir_error {
-                        FsError::InvalidPath() => {
-                            PersistError::DirectoryError(InvalidDirectory(FsError::InvalidPath()))
-                        }
+                        FsError::InvalidPath(s) => PersistError::DirectoryError(InvalidDirectory(
+                            FsError::InvalidPath(s.to_string()),
+                        )),
                         FsError::DotsDisallowed(msg) => PersistError::DirectoryError(
                             InvalidDirectory(FsError::DotsDisallowed(msg.to_string())),
                         ),
@@ -76,9 +76,9 @@ pub mod tests {
                             )))
                         }
                         InvalidPath(fs_error) => match fs_error {
-                            FsError::InvalidPath() => {
-                                PersistError::FileError(InvalidPath(FsError::InvalidPath()))
-                            }
+                            FsError::InvalidPath(s) => PersistError::FileError(InvalidPath(
+                                FsError::InvalidPath(s.to_string()),
+                            )),
                             FsError::DotsDisallowed(path) => PersistError::FileError(InvalidPath(
                                 FsError::DotsDisallowed(path.to_string()),
                             )),
