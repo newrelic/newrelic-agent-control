@@ -130,12 +130,8 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let supervisor_builder = SupervisorBuilderK8s::new(
-            agent_id.clone(),
-            sub_agent_config.clone(),
-            self.k8s_client.clone(),
-            self.k8s_config.clone(),
-        );
+        let supervisor_builder =
+            SupervisorBuilderK8s::new(self.k8s_client.clone(), self.k8s_config.clone());
 
         let remote_config_handler = RemoteConfigHandler::new(
             agent_id.clone(),
@@ -168,22 +164,13 @@ where
 }
 
 pub struct SupervisorBuilderK8s {
-    agent_id: AgentID,
-    agent_cfg: SubAgentConfig,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8sConfig,
 }
 
 impl SupervisorBuilderK8s {
-    pub fn new(
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
-        k8s_client: Arc<SyncK8sClient>,
-        k8s_config: K8sConfig,
-    ) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, k8s_config: K8sConfig) -> Self {
         Self {
-            agent_id,
-            agent_cfg,
             k8s_client,
             k8s_config,
         }
@@ -197,7 +184,9 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
         &self,
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
-        debug!("Building CR supervisors {}", &self.agent_id);
+        let agent_id = effective_agent.get_agent_id().clone();
+        let agent_type = effective_agent.get_agent_type().clone();
+        debug!("Building supervisors {}:{}", agent_type, agent_id);
 
         let k8s_objects = effective_agent.get_k8s_config()?;
 
@@ -221,8 +210,8 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
 
         // Clone the k8s_client on each build.
         Ok(NotStartedSupervisorK8s::new(
-            self.agent_id.clone(),
-            self.agent_cfg.agent_type.clone(),
+            agent_id,
+            agent_type,
             self.k8s_client.clone(),
             k8s_objects.clone(),
         ))
@@ -352,8 +341,8 @@ pub mod tests {
         };
 
         let effective_agent = EffectiveAgent::new(
-            agent_id.clone(),
-            sub_agent_config.agent_type.clone(),
+            agent_id,
+            sub_agent_config.agent_type,
             Runtime {
                 deployment: Deployment {
                     on_host: None,
@@ -362,8 +351,7 @@ pub mod tests {
             },
         );
 
-        let supervisor_builder =
-            testing_supervisor_builder(agent_id.clone(), sub_agent_config.clone());
+        let supervisor_builder = testing_supervisor_builder();
 
         let result = supervisor_builder.build_supervisor(effective_agent);
         assert!(
@@ -381,8 +369,8 @@ pub mod tests {
         };
 
         let effective_agent = EffectiveAgent::new(
-            agent_id.clone(),
-            sub_agent_config.agent_type.clone(),
+            agent_id,
+            sub_agent_config.agent_type,
             Runtime {
                 deployment: Deployment {
                     on_host: None,
@@ -391,8 +379,7 @@ pub mod tests {
             },
         );
 
-        let supervisor_builder =
-            testing_supervisor_builder(agent_id.clone(), sub_agent_config.clone());
+        let supervisor_builder = testing_supervisor_builder();
 
         let result = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
@@ -483,10 +470,7 @@ pub mod tests {
         (opamp_builder, instance_id_getter, hash_repository_mock)
     }
 
-    fn testing_supervisor_builder(
-        agent_id: AgentID,
-        sub_agent_config: SubAgentConfig,
-    ) -> SupervisorBuilderK8s {
+    fn testing_supervisor_builder() -> SupervisorBuilderK8s {
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
             .expect_default_namespace()
@@ -498,11 +482,6 @@ pub mod tests {
             cr_type_meta: K8sConfig::default().cr_type_meta,
             ..Default::default()
         };
-        SupervisorBuilderK8s::new(
-            agent_id,
-            sub_agent_config,
-            Arc::new(mock_client),
-            k8s_config,
-        )
+        SupervisorBuilderK8s::new(Arc::new(mock_client), k8s_config)
     }
 }

@@ -87,12 +87,12 @@ where
 
         let handle = thread::spawn(move || {
             loop {
-                if stop_rx.is_cancelled(interval) {
-                    break;
-                }
                 let _ = self
                     .collect()
                     .inspect_err(|err| warn!("executing garbage collection: {err}"));
+                if stop_rx.is_cancelled(interval) {
+                    break;
+                }
             }
             info!("k8s garbage collector stopped");
         });

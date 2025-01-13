@@ -1,5 +1,6 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::health_config::OnHostHealthConfig;
+use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
@@ -16,6 +17,8 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
+use crate::sub_agent::version::version_checker::spawn_version_checker;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -31,10 +34,12 @@ pub struct StartedSupervisorOnHost {
     maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
     maybe_stop_health: Option<EventPublisher<()>>,
+    maybe_stop_version: Option<EventPublisher<()>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
     pub(super) agent_id: AgentID,
+    pub(super) agent_fqn: AgentTypeFQN,
     pub(super) ctx: Context<bool>,
     pub(crate) maybe_exec: Option<ExecutableData>,
     pub(super) log_to_file: bool,
@@ -51,6 +56,8 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
         let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
+        let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher.clone());
+
         let id = self.agent_id.clone();
 
         // the process thread is created if exec is Some
@@ -64,6 +71,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             maybe_handle,
             ctx,
             maybe_stop_health,
+            maybe_stop_version,
         })
     }
 }
@@ -72,6 +80,9 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), EventPublisherError> {
         if let Some(stop_health) = self.maybe_stop_health {
             stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
+        }
+        if let Some(stop_version) = self.maybe_stop_version {
+            stop_version.publish(())?;
         }
         self.ctx.cancel_all(true).unwrap();
 
@@ -90,13 +101,15 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 
 impl NotStartedSupervisorOnHost {
     pub fn new(
-        id: AgentID,
+        agent_id: AgentID,
+        agent_fqn: AgentTypeFQN,
         maybe_exec: Option<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
-            agent_id: id,
+            agent_id,
+            agent_fqn,
             ctx,
             maybe_exec,
             log_to_file: false,
@@ -133,6 +146,25 @@ impl NotStartedSupervisorOnHost {
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
+    }
+
+    pub fn start_version_checker(
+        &self,
+        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    ) -> Option<EventPublisher<()>> {
+        let (stop_version_publisher, stop_version_consumer) = pub_sub();
+
+        let onhost_version_checker =
+            OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
+
+        spawn_version_checker(
+            self.agent_id.clone(),
+            onhost_version_checker,
+            stop_version_consumer,
+            sub_agent_internal_publisher,
+            VersionCheckerInterval::default(),
+        );
+        Some(stop_version_publisher)
     }
 
     fn start_process_thread(
@@ -368,6 +400,7 @@ pub mod tests {
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::version::version_checker::AgentVersion;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 
@@ -394,6 +427,7 @@ pub mod tests {
 
                 let supervisor = NotStartedSupervisorOnHost::new(
                     self.agent_id.to_owned().try_into().unwrap(),
+                    AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
                     Some(self.executable.with_restart_policy(RestartPolicy::new(
                         BackoffStrategy::Fixed(backoff),
                         any_exit_code,
@@ -495,6 +529,7 @@ pub mod tests {
 
         let agent = NotStartedSupervisorOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
+            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
             Context::new(),
             None,
@@ -524,6 +559,7 @@ pub mod tests {
 
         let agent = NotStartedSupervisorOnHost::new(
             "wrong-command".to_owned().try_into().unwrap(),
+            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
             Context::new(),
             None,
@@ -554,6 +590,7 @@ pub mod tests {
 
         let agent = NotStartedSupervisorOnHost::new(
             "echo".to_owned().try_into().unwrap(),
+            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
             Context::new(),
             None,
@@ -596,6 +633,7 @@ pub mod tests {
 
         let agent = NotStartedSupervisorOnHost::new(
             "echo".to_owned().try_into().unwrap(),
+            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
             Context::new(),
             None,
@@ -638,6 +676,12 @@ pub mod tests {
                     HealthWithStartTime::new(health.into(), start_time).into()
                 }
                 SubAgentInternalEvent::StopRequested => SubAgentInternalEvent::StopRequested,
+                SubAgentInternalEvent::AgentVersionInfo(agent_id) => {
+                    SubAgentInternalEvent::AgentVersionInfo(AgentVersion::new(
+                        agent_id.version().to_string(),
+                        agent_id.opamp_field().to_string(),
+                    ))
+                }
             })
             .collect::<Vec<_>>();
 

@@ -1,8 +1,5 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
-use crate::agent_control::defaults::{
-    sub_agent_version, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_VERSION,
-};
+use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_type::environment::Environment;
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
@@ -31,6 +28,7 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tracing::debug;
 
 pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, G, Y>
 where
@@ -104,17 +102,8 @@ where
         sub_agent_config: &SubAgentConfig,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        let mut identifying_attributes = HashMap::from([(
-            OPAMP_SERVICE_VERSION.to_string(),
-            sub_agent_config.agent_type.version().into(),
-        )]);
-        if let Some(agent_version) = sub_agent_version(sub_agent_config.agent_type.name().as_str())
-        {
-            identifying_attributes.insert(
-                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                agent_version.clone(),
-            );
-        }
+        debug!(agent_id = agent_id.to_string(), "building subAgent");
+
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
@@ -123,7 +112,10 @@ where
                     self.instance_id_getter,
                     agent_id.clone(),
                     &sub_agent_config.agent_type,
-                    identifying_attributes,
+                    HashMap::from([(
+                        OPAMP_SERVICE_VERSION.to_string(),
+                        sub_agent_config.agent_type.version().into(),
+                    )]),
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
             })
@@ -188,6 +180,9 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
         let agent_id = effective_agent.get_agent_id().clone();
+        let agent_type = effective_agent.get_agent_type().clone();
+        debug!("Building CR supervisors {}:{}", agent_type, agent_id);
+
         let on_host = effective_agent.get_onhost_config()?.clone();
 
         let enable_file_logging = on_host.enable_file_logging.get();
@@ -199,9 +194,14 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
                 .with_restart_policy(e.restart_policy.into())
         });
 
-        let executable_supervisors =
-            NotStartedSupervisorOnHost::new(agent_id, maybe_exec, Context::new(), on_host.health)
-                .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+        let executable_supervisors = NotStartedSupervisorOnHost::new(
+            agent_id,
+            agent_type,
+            maybe_exec,
+            Context::new(),
+            on_host.health,
+        )
+        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 
         Ok(executable_supervisors)
     }
@@ -447,10 +447,6 @@ mod tests {
             (
                 OPAMP_SERVICE_VERSION.to_string(),
                 agent_config.agent_type.version().into(),
-            ),
-            (
-                OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                "0.0.0".into(),
             ),
         ]);
         StartSettings {

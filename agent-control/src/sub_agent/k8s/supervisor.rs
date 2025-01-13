@@ -13,7 +13,8 @@ use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::version::k8s::version_checker::{spawn_version_checker, AgentVersionChecker};
+use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
+use crate::sub_agent::version::version_checker::spawn_version_checker;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -183,7 +184,7 @@ impl NotStartedSupervisorK8s {
     ) -> Option<EventPublisher<()>> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
-        let k8s_version_checker = AgentVersionChecker::checked_new(
+        let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
             self.agent_id.to_string(),
             resources,
