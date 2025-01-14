@@ -57,3 +57,58 @@ pub fn onhost_sub_agent_versions() -> String {
     {FQN_NAME_NRDOT} : {NR_OTEL_COLLECTOR_VERSION}"#
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_control::config::AgentTypeFQN;
+    use assert_matches::assert_matches;
+
+    #[test]
+    fn test_agent_version_checker_build() {
+        struct TestCase {
+            name: &'static str,
+            agent_type_fqn: AgentTypeFQN,
+            check: fn(&'static str, Option<OnHostAgentVersionChecker>),
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let result = OnHostAgentVersionChecker::checked_new(self.agent_type_fqn);
+                let check = self.check;
+                check(self.name, result);
+            }
+        }
+
+        let test_cases = [
+            TestCase {
+                name: "Version cannot be computed for the superAgent",
+                agent_type_fqn: AgentTypeFQN::new_agent_control_fqn(),
+                check: |name, result| {
+                    assert!(result.is_none(), "{name}",);
+                },
+            },
+            TestCase {
+                name: "infrastructure agent version is computed correctly ",
+                agent_type_fqn: AgentTypeFQN::try_from(
+                    "newrelic/com.newrelic.infrastructure:0.1.0",
+                )
+                .unwrap(),
+                check: |name, result| {
+                    let r = result.unwrap();
+                    assert_matches!(
+                        r.check_agent_version().unwrap().version(),
+                        NEWRELIC_INFRA_AGENT_VERSION,
+                        "{name}",
+                    );
+                    assert_matches!(
+                        r.check_agent_version().unwrap().opamp_field(),
+                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+                        "{name}",
+                    );
+                },
+            },
+        ];
+        test_cases.into_iter().for_each(|tc| tc.run());
+    }
+}
