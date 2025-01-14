@@ -31,8 +31,8 @@ pub enum SignatureValidatorError {
 pub struct SignatureValidatorConfig {
     #[serde(default)]
     pub certificate_server_url: SignatureCertificateServerUrl,
-    #[serde(default)]
-    pub enabled: SignatureValidatorEnabled,
+    #[serde(default = "default_signature_validator_config_enabled")]
+    pub enabled: bool,
     // config to build a fetcher using this cert instead
     // pub pem_cert_file_path: Optional<>
 }
@@ -54,19 +54,8 @@ impl Default for SignatureCertificateServerUrl {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct SignatureValidatorEnabled(bool);
-
-impl From<SignatureValidatorEnabled> for bool {
-    fn from(value: SignatureValidatorEnabled) -> Self {
-        value.0
-    }
-}
-
-impl Default for SignatureValidatorEnabled {
-    fn default() -> Self {
-        Self(DEFAULT_SIGNATURE_VALIDATOR_ENABLED)
-    }
+fn default_signature_validator_config_enabled() -> bool {
+    DEFAULT_SIGNATURE_VALIDATOR_ENABLED
 }
 
 // NOTE: if we updated the components using the validator to use a composite-like implementation to handle validation,
@@ -180,7 +169,7 @@ mod tests {
             config.certificate_server_url.0.to_string(),
             DEFAULT_CERTIFICATE_SERVER_URL
         );
-        assert_eq!(config.enabled.0, DEFAULT_SIGNATURE_VALIDATOR_ENABLED)
+        assert_eq!(config.enabled, DEFAULT_SIGNATURE_VALIDATOR_ENABLED)
     }
 
     #[test]
@@ -208,7 +197,7 @@ mod tests {
 enabled: false
 "#,
                 expected: SignatureValidatorConfig {
-                    enabled: SignatureValidatorEnabled(false),
+                    enabled: false,
                     certificate_server_url: SignatureCertificateServerUrl(
                         Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
                     ),
@@ -220,7 +209,7 @@ enabled: false
 enabled: true
 "#,
                 expected: SignatureValidatorConfig {
-                    enabled: SignatureValidatorEnabled(true),
+                    enabled: true,
                     certificate_server_url: SignatureCertificateServerUrl(
                         Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
                     ),
@@ -232,7 +221,7 @@ enabled: true
 certificate_server_url: https://example.com
 "#,
                 expected: SignatureValidatorConfig {
-                    enabled: SignatureValidatorEnabled(DEFAULT_SIGNATURE_VALIDATOR_ENABLED),
+                    enabled: DEFAULT_SIGNATURE_VALIDATOR_ENABLED,
                     certificate_server_url: SignatureCertificateServerUrl(
                         Url::parse("https://example.com").unwrap(),
                     ),
@@ -245,7 +234,7 @@ enabled: true
 certificate_server_url: https://example.com
 "#,
                 expected: SignatureValidatorConfig {
-                    enabled: SignatureValidatorEnabled(true),
+                    enabled: true,
                     certificate_server_url: SignatureCertificateServerUrl(
                         Url::parse("https://example.com").unwrap(),
                     ),

@@ -163,7 +163,7 @@ impl AgentControlRunner {
             .fleet_control
             .as_ref()
             .and_then(|c| {
-                bool::from(c.signature_validation.enabled.clone()).then(|| {
+                c.signature_validation.enabled.then(|| {
                     CertificateSignatureValidator::try_new(Url::from(
                         c.signature_validation.certificate_server_url.clone(),
                     ))
