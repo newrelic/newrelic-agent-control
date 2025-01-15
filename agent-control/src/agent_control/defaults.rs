@@ -2,16 +2,11 @@ use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use opamp_client::capabilities;
 use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
-use opamp_client::operation::settings::DescriptionValueType;
 
 pub const AGENT_CONTROL_ID: &str = "agent-control";
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
 pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const NEWRELIC_INFRA_AGENT_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NEWRELIC_INFRA_AGENT_VERSION"), "0.0.0");
-pub const NR_OTEL_COLLECTOR_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
 
 // Keys identifying attributes
 pub const OPAMP_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
@@ -75,15 +70,3 @@ pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
 
 pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
 pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
-
-pub fn sub_agent_version(agent_type: &str) -> Option<DescriptionValueType> {
-    match agent_type {
-        FQN_NAME_INFRA_AGENT => Some(DescriptionValueType::String(
-            NEWRELIC_INFRA_AGENT_VERSION.to_string(),
-        )),
-        FQN_NAME_NRDOT => Some(DescriptionValueType::String(
-            NR_OTEL_COLLECTOR_VERSION.to_string(),
-        )),
-        _ => None,
-    }
-}

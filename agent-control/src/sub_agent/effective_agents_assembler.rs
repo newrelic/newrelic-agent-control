@@ -80,9 +80,12 @@ impl EffectiveAgent {
         )
     }
 
-    #[allow(dead_code)]
     pub(crate) fn get_agent_id(&self) -> &AgentID {
         &self.agent_id
+    }
+
+    pub(crate) fn get_agent_type(&self) -> &AgentTypeFQN {
+        &self.agent_fqn
     }
 }
 

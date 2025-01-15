@@ -9,9 +9,9 @@ use crate::on_host::tools::config::create_agent_control_config;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::config::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    FQN_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    AGENT_CONTROL_NAMESPACE, FQN_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use nix::unistd::gethostname;
@@ -115,9 +115,9 @@ fn test_attributes_from_an_existing_agent_type() {
     let agents = format!(
         r#"
   test-agent:
-    agent_type: "{}/{}:{}"
+    agent_type: "{}/{}:0.1.0"
 "#,
-        DEFAULT_NAMESPACE, FQN_NAME_INFRA_AGENT, DEFAULT_VERSION
+        AGENT_CONTROL_NAMESPACE, FQN_NAME_INFRA_AGENT
     );
 
     create_agent_control_config(
@@ -141,7 +141,7 @@ fn test_attributes_from_an_existing_agent_type() {
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OPAMP_SERVICE_NAMESPACE,
-            Value::StringValue(DEFAULT_NAMESPACE.to_string()),
+            Value::StringValue(AGENT_CONTROL_NAMESPACE.to_string()),
         ),
         (
             OPAMP_SERVICE_NAME,
@@ -149,7 +149,7 @@ fn test_attributes_from_an_existing_agent_type() {
         ),
         (
             OPAMP_SERVICE_VERSION,
-            Value::StringValue(DEFAULT_VERSION.to_string()),
+            Value::StringValue("0.1.0".to_string()),
         ),
         (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,

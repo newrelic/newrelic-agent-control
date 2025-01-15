@@ -1,1 +1,3 @@
-pub mod version_checker;
+pub mod checkers;
+pub mod helmrelease;
+pub mod instrumentation;

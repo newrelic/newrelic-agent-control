@@ -221,9 +221,6 @@ pub(crate) fn spawn_health_checker<H>(
     H: HealthChecker + Send + 'static,
 {
     thread::spawn(move || loop {
-        if cancel_signal.is_cancelled(interval.into()) {
-            break;
-        }
         debug!(%agent_id, "starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
@@ -235,6 +232,11 @@ pub(crate) fn spawn_health_checker<H>(
             &sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentHealthInfo(health),
         );
+
+        // Check the cancellation signal
+        if cancel_signal.is_cancelled(interval.into()) {
+            break;
+        }
     });
 }
 
