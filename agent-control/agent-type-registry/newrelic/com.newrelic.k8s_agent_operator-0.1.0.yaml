@@ -35,7 +35,7 @@ deployment:
           # delaying the application of important updates.
           interval: 30m
           provider: generic
-          url: https://newrelic.github.io/k8s-agents-operator
+          url: https://danielstokes.github.io/charts
       default-values:
         apiVersion: v1
         kind: Secret
@@ -65,7 +65,7 @@ deployment:
           interval: 3m
           chart:
             spec:
-              chart: k8s-agents-operator
+              chart: newrelic-k8s-agents-operator
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
               sourceRef:
@@ -91,11 +91,11 @@ deployment:
             disableWait: true
             disableWaitForJobs: true
           valuesFrom:
-          - kind: Secret
-            name: default-values-${nr-sub:agent_id}
-            valuesKey: values.yaml
-          - kind: Secret
-            name: values-${nr-sub:agent_id}
-            valuesKey: values.yaml
+            - kind: Secret
+              name: default-values-${nr-sub:agent_id}
+              valuesKey: values.yaml
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
+              valuesKey: values.yaml
           values:
             global: ${nr-var:chart_values.global}
