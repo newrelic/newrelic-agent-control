@@ -52,14 +52,13 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
-    name: ${{ matrix.toolchain }} / ${{ matrix.flag }} / clippy
+    name:  ${{ matrix.flag }} / clippy
     permissions:
       contents: read
       checks: write
     strategy:
       fail-fast: false
       matrix:
-        toolchain: [ stable, beta ]
         # newrelic_agent_control needs either onhost or k8s feature, the rest of packages can be checked also without features
         flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_agent_control'" ]
     steps:
@@ -79,10 +78,10 @@ jobs:
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
-      - name: Install Rust ${{ matrix.toolchain }}
+      - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
       - name: cargo clippy (${{ matrix.flag }})
