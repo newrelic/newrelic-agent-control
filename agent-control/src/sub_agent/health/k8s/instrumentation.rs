@@ -26,11 +26,17 @@ use std::sync::Arc;
 #[derive(Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct InstrumentationStatus {
+    #[serde(default)]
     pods_matching: i64,
+    #[serde(default)]
     pods_healthy: i64,
+    #[serde(default)]
     pods_injected: i64,
+    #[serde(default)]
     pods_not_ready: i64,
+    #[serde(default)]
     pods_outdated: i64,
+    #[serde(default)]
     pods_unhealthy: i64,
     #[serde(default)]
     unhealthy_pods_errors: Vec<UnhealthyPodError>,
@@ -219,6 +225,19 @@ mod tests {
                     pods_matching: 1,
                     pods_healthy: 1,
                     pods_injected: 1,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 0,
+                    unhealthy_pods_errors: vec![],
+                },
+            },
+            TestData {
+                case: "default values",
+                json: serde_json::json!({}),
+                expected: InstrumentationStatus {
+                    pods_matching: 0,
+                    pods_healthy: 0,
+                    pods_injected: 0,
                     pods_not_ready: 0,
                     pods_outdated: 0,
                     pods_unhealthy: 0,
