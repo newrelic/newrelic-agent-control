@@ -40,6 +40,7 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
@@ -131,6 +132,7 @@ valid: super-true
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],

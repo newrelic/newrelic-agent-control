@@ -51,6 +51,7 @@ deployment:
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -161,6 +162,7 @@ deployment:
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {

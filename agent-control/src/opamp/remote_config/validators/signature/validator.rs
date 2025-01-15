@@ -1,12 +1,15 @@
+use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::agent_control::config::AgentTypeFQN;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
+use nix::NixPath;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::log::error;
+use tracing::{info, warn};
 use url::Url;
 
 use super::certificate_fetcher::CertificateFetcher;
@@ -33,11 +36,25 @@ pub fn build_signature_validator(
     config: SignatureValidatorConfig,
 ) -> Result<SignatureValidator, SignatureValidatorError> {
     if !config.enabled {
+        warn!("Remote config signature validation is disabled");
         return Ok(SignatureValidator::Noop);
     }
 
-    let certificate_fetcher =
-        CertificateFetcher::Https(config.certificate_server_url, DEFAULT_HTTPS_CLIENT_TIMEOUT);
+    // Certificate from file takes precedence over fetching from the server when it is set
+    let certificate_fetcher = if !config.certificate_pem_file_path.is_empty() {
+        warn!(
+            "Remote config signature validation is enabled, using certificate from file: {}. Certificate rotation is not supported",
+            config.certificate_pem_file_path.display()
+        );
+        CertificateFetcher::PemFile(config.certificate_pem_file_path)
+    } else {
+        info!(
+            "Remote config signature validation is enabled, fetching certificate from: {}",
+            config.certificate_server_url
+        );
+        CertificateFetcher::Https(config.certificate_server_url, DEFAULT_HTTPS_CLIENT_TIMEOUT)
+    };
+
     let certificate_store = CertificateStore::try_new(certificate_fetcher)
         .map_err(|e| SignatureValidatorError::InitializeCertificateStore(e.to_string()))?;
 
@@ -50,6 +67,10 @@ pub fn build_signature_validator(
 pub struct SignatureValidatorConfig {
     #[serde(default = "default_signature_validator_url")]
     pub certificate_server_url: Url,
+    /// Path to the PEM file containing the certificate to validate the signature.
+    /// Takes precedence over fetching from the server when it is set
+    #[serde(default)]
+    pub certificate_pem_file_path: PathBuf,
     #[serde(default = "default_signature_validator_config_enabled")]
     pub enabled: bool,
 }
@@ -59,6 +80,7 @@ impl Default for SignatureValidatorConfig {
         Self {
             enabled: default_signature_validator_config_enabled(),
             certificate_server_url: default_signature_validator_url(),
+            certificate_pem_file_path: PathBuf::new(),
         }
     }
 }
@@ -164,6 +186,7 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::str::FromStr;
 
     use super::*;
     use crate::agent_control::config::AgentID;
@@ -218,6 +241,7 @@ enabled: false
                 expected: SignatureValidatorConfig {
                     enabled: false,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
@@ -228,6 +252,7 @@ enabled: true
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
@@ -238,6 +263,7 @@ certificate_server_url: https://example.com
                 expected: SignatureValidatorConfig {
                     enabled: DEFAULT_SIGNATURE_VALIDATOR_ENABLED,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
@@ -249,6 +275,32 @@ certificate_server_url: https://example.com
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    certificate_pem_file_path: PathBuf::new(),
+                },
+            },
+            TestCase {
+                name: "Setup file and enabled",
+                cfg: r#"
+enabled: true
+certificate_pem_file_path: /path/to/file
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: true,
+                    certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
+                },
+            },
+            TestCase {
+                name: "Setup file and url and enabled",
+                cfg: r#"
+enabled: true
+certificate_server_url: https://example.com
+certificate_pem_file_path: /path/to/file
+"#,
+                expected: SignatureValidatorConfig {
+                    enabled: true,
+                    certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
                 },
             },
         ];

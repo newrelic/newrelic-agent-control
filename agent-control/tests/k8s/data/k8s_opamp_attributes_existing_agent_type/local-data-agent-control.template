@@ -2,6 +2,9 @@ opamp:
   endpoint: <opamp-endpoint>
   headers:
     api-key: test-api-key
+  signature_validation:
+    certificate_pem_file_path: <cert-path>
+    enabled: true
 k8s:
   namespace: <ns>
   cluster_name: <cluster-name>

@@ -46,6 +46,7 @@ fn k8s_opamp_enabled_with_no_remote_configuration() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
@@ -127,6 +128,7 @@ fn k8s_opamp_subagent_configuration_change() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
@@ -232,6 +234,7 @@ fn k8s_opamp_add_subagent() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
@@ -296,6 +299,7 @@ fn k8s_opamp_subagent_modify_secret() {
         CUSTOM_AGENT_TYPE_SECRET_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
@@ -333,7 +337,6 @@ fn k8s_opamp_subagent_modify_secret() {
             &["hello-world-remote-override-secret"],
             namespace.as_str(),
         ))?;*/
-
         check_latest_health_status_was_healthy(&server, &instance_id.clone())
     });
 }
