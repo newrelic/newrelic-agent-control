@@ -154,8 +154,8 @@ jobs:
 
   k8s-integration-tests:
     name: K8s integration tests
-    # minikube action requires ubuntu-22.04 at the moment
-    runs-on: ubuntu-22.04
+    # pinned to ensure the actual minikube action is compatible
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
@@ -167,7 +167,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.10.0
+        uses: manusa/actions-setup-minikube@v2.13.1
         with:
           minikube version: v1.32.0
           kubernetes version: "v1.28.1" # Should we support a specific range of versions?
@@ -193,8 +193,8 @@ jobs:
   # in the test/k8s-e2e/Readme.md
   k8s-e2e-tests:
     name: K8s e2e tests ${{ matrix.group }}
-    # minikube action requires ubuntu-22.04 at the moment
-    runs-on: ubuntu-22.04
+    # pinned to ensure the actual minikube action is compatible
+    runs-on: ubuntu-24.04
     strategy:
       matrix: 
         group: [ collector, apm, infra ]
@@ -209,7 +209,7 @@ jobs:
             ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
             ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.10.0
+        uses: manusa/actions-setup-minikube@v2.13.1
         with:
           minikube version: v1.32.0
           kubernetes version: "v1.28.1"
