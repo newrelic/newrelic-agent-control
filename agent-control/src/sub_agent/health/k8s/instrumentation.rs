@@ -26,11 +26,17 @@ use std::sync::Arc;
 #[derive(Debug, Default, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 struct InstrumentationStatus {
+    #[serde(default)]
     pods_matching: i64,
+    #[serde(default)]
     pods_healthy: i64,
+    #[serde(default)]
     pods_injected: i64,
+    #[serde(default)]
     pods_not_ready: i64,
+    #[serde(default)]
     pods_outdated: i64,
+    #[serde(default)]
     pods_unhealthy: i64,
     #[serde(default)]
     unhealthy_pods_errors: Vec<UnhealthyPodError>,
@@ -55,26 +61,36 @@ impl Display for InstrumentationStatus {
 
 impl InstrumentationStatus {
     /// Evaluates the healthiness from an Instrumentation, it returns a status with the following:
-    /// "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
-    /// It returns a Healthy or Unhealthy type depending on the conditions:
-    /// not_ready > 0 --> Unhealthy
-    /// Matching != Injected --> Unhealthy
-    /// Unhealthy > 0 ---> Unhealthy with lastErrors
-    /// We can't rely on the number of healthy pods lower than matching because there can be uninstrumented
-    /// or outdated pods so the matching will be higher, so we just consider healthy
+    /// `"podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"`
+    /// It returns an Healthy value if:
+    /// `not_ready` <= 0
+    /// `healthy` > 0
+    /// `unhealthy` <= 0
+    /// `matching` > 0
+    /// `matching` == `injected`
+    /// We can't rely on the number of healthy pods the same as matching pods because there can be
+    /// uninstrumented or outdated pods so the matching will be higher. We just consider healthy
     /// any case not being one of the previous cases.
     pub(crate) fn get_health(&self) -> Health {
-        if self.pods_matching <= 0 || self.is_healthy() {
+        if self.is_healthy() {
             Health::Healthy(Healthy::new(self.to_string()))
         } else {
             Health::Unhealthy(Unhealthy::new(self.to_string(), self.last_error()))
         }
     }
 
+    // If this changes please align the docs here: <https://newrelic.atlassian.net/wiki/spaces/INST/pages/3945988387/K8s+Retrieving+health+from+Instrumentation+CR+s+status#Agent-Control-logic>
     fn is_healthy(&self) -> bool {
+        // All pods must be ready
         self.pods_not_ready <= 0
-            && self.pods_injected == self.pods_matching
-            && self.pods_unhealthy <= 0
+        // No unhealthy pods
+        && self.pods_unhealthy <= 0
+        // At least one pod healthy
+        && self.pods_healthy > 0
+        // There should be matching pods, else the instrumentation is not doing anything
+        && self.pods_matching > 0
+        // The pods that match should have been injected
+        && self.pods_injected == self.pods_matching
     }
 
     fn last_error(&self) -> String {
@@ -173,27 +189,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn get_healthiness_basic() {
+    fn default_instrumentation_value_evals_to_unhealthy() {
         let status = InstrumentationStatus::default();
 
-        assert!(matches!(status.get_health(), Health::Healthy(_)));
+        assert!(matches!(status.get_health(), Health::Unhealthy(_)));
     }
 
     #[test]
     fn json_failing_serde() {
         let status_jsons = [
-            serde_json::json!({}),
-            serde_json::json!([]),
-            serde_json::json!(null),
             serde_json::json!(1),
             serde_json::json!(true),
+            serde_json::json!("podsMatching"),
+            serde_json::json!(["podsMatching"]),
+            serde_json::json!([{"podsMatching": 1}]),
+            serde_json::json!(null),
         ];
 
-        for status_json in status_jsons.iter() {
-            let status: Result<InstrumentationStatus, _> =
-                serde_json::from_value(status_json.clone());
-            assert!(status.is_err());
-        }
+        status_jsons.into_iter().for_each(|status_json| {
+            assert!(serde_json::from_value::<InstrumentationStatus>(status_json).is_err())
+        });
+    }
+
+    #[test]
+    fn json_empty_collections_can_be_deserialized() {
+        let status_jsons = [serde_json::json!([]), serde_json::json!({})];
+
+        status_jsons.into_iter().for_each(|status_json| {
+            assert!(serde_json::from_value::<InstrumentationStatus>(status_json).is_ok())
+        });
     }
 
     #[test]
@@ -264,12 +288,53 @@ mod tests {
                     ],
                 },
             },
+            TestData {
+                case: "missing fields",
+                json: serde_json::json!({
+                    "podsMatching": 1,
+                    "podsHealthy": 1,
+                    "podsInjected": 1,
+                    "podsUnhealthy": 1,
+                    "unhealthyPodsErrors": [
+                        {
+                            "pod": "pod1",
+                            "lastError": "error1"
+                        },
+                        {
+                            "pod": "pod2",
+                            "lastError": "error2"
+                        }
+                    ]
+                }),
+                expected: InstrumentationStatus {
+                    pods_matching: 1,
+                    pods_healthy: 1,
+                    pods_injected: 1,
+                    pods_not_ready: 0,
+                    pods_outdated: 0,
+                    pods_unhealthy: 1,
+                    unhealthy_pods_errors: vec![
+                        UnhealthyPodError {
+                            pod: "pod1".to_string(),
+                            last_error: "error1".to_string(),
+                        },
+                        UnhealthyPodError {
+                            pod: "pod2".to_string(),
+                            last_error: "error2".to_string(),
+                        },
+                    ],
+                },
+            },
         ];
 
-        for data in data_table.iter() {
-            let status: InstrumentationStatus = serde_json::from_value(data.json.clone()).unwrap();
-            assert_eq!(status, data.expected, "failed case '{}'", data.case);
-        }
+        data_table.into_iter().for_each(|data| {
+            assert_eq!(
+                serde_json::from_value::<InstrumentationStatus>(data.json.clone()).unwrap(),
+                data.expected,
+                "failed case '{}'",
+                data.case
+            );
+        });
     }
 
     #[test]
@@ -283,9 +348,9 @@ mod tests {
             TestData {
                 case: "default case",
                 status: InstrumentationStatus::default(),
-                expected: Health::Healthy(Healthy::new(
+                expected: Health::Unhealthy(Unhealthy::new(
                     "podsMatching:0, podsHealthy:0, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
-                        .to_string(),
+                        .to_string(), String::default()
                 )),
             },
             TestData {
@@ -294,15 +359,11 @@ mod tests {
                     pods_matching: 1,
                     pods_healthy: 1,
                     pods_injected: 1,
-                    pods_not_ready: 1,
-                    pods_outdated: 0,
-                    pods_unhealthy: 0,
-                    unhealthy_pods_errors: vec![],
+                    ..Default::default()
                 },
-                expected: Health::Unhealthy(Unhealthy::new(
-                    "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:0, podsUnhealthy:0"
-                        .to_string(),
-                    "".to_string(),
+                expected: Health::Healthy(Healthy::new(
+                    "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
+                        .to_string()
                 )),
             },
             TestData {
@@ -310,11 +371,7 @@ mod tests {
                 status: InstrumentationStatus {
                     pods_matching: 1,
                     pods_healthy: 1,
-                    pods_injected: 0,
-                    pods_not_ready: 0,
-                    pods_outdated: 0,
-                    pods_unhealthy: 0,
-                    unhealthy_pods_errors: vec![],
+                    ..Default::default()
                 },
                 expected: Health::Unhealthy(Unhealthy::new(
                     "podsMatching:1, podsHealthy:1, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
@@ -328,28 +385,160 @@ mod tests {
                     pods_matching: 1,
                     pods_healthy: 1,
                     pods_injected: 1,
-                    pods_not_ready: 0,
-                    pods_outdated: 0,
                     pods_unhealthy: 1,
                     unhealthy_pods_errors: vec![UnhealthyPodError {
                         pod: "pod1".to_string(),
                         last_error: "error1".to_string(),
                     }],
+                    ..Default::default()
                 },
                 expected: Health::Unhealthy(Unhealthy::new(
                     "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:1"
                         .to_string(),
                     "pod pod1:error1".to_string(),
                 )),},
+                TestData {
+                    case: "unhealthy case with multiple errors",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 1,
+                        pods_injected: 1,
+                        pods_unhealthy: 2,
+                        unhealthy_pods_errors: vec![
+                            UnhealthyPodError {
+                                pod: "pod1".to_string(),
+                                last_error: "error1".to_string(),
+                            },
+                            UnhealthyPodError {
+                                pod: "pod2".to_string(),
+                                last_error: "error2".to_string(),
+                            },
+                        ],
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:2"
+                            .to_string(),
+                        "pod pod1:error1, pod pod2:error2".to_string(),
+                    )),
+                },
+                TestData {
+                    case: "0 pods matching",
+                    status: InstrumentationStatus {
+                        pods_matching: 0,
+                        pods_healthy: 1,
+                        pods_injected: 1,
+                        pods_not_ready: 1,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:0, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+
+                },
+                TestData {
+                    case: "0 healthy pods",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 0,
+                        pods_injected: 1,
+                        pods_not_ready: 1,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:0, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+                },
+
+                TestData {
+                    case: "0 injected pods",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 1,
+                        pods_injected: 0,
+                        pods_not_ready: 1,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:1, podsInjected:0, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+                },
+
+                TestData {
+                    case: "0 not ready pods but unhealthy",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 1,
+                        pods_injected: 1,
+                        pods_not_ready: 0,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+                },
+
+                TestData {
+                    case: "matching != injected",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 1,
+                        pods_injected: 2,
+                        pods_not_ready: 1,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:1, podsInjected:2, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+                },
+                TestData {
+                    case: "not ready pods",
+                    status: InstrumentationStatus {
+                        pods_matching: 1,
+                        pods_healthy: 1,
+                        pods_injected: 1,
+                        pods_not_ready: 1,
+                        pods_outdated: 1,
+                        pods_unhealthy: 1,
+                        ..Default::default()
+                    },
+                    expected: Health::Unhealthy(Unhealthy::new(
+                        "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
+                            .to_string(),
+                        "".to_string(),
+                    )),
+                },
+
+
         ];
 
-        for data in data_table.iter() {
+        data_table.into_iter().for_each(|data| {
             assert_eq!(
                 data.status.get_health(),
                 data.expected,
                 "failed case '{}'",
                 data.case
             );
-        }
+        });
     }
 }
