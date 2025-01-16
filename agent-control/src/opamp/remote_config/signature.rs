@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
+use tracing::warn;
 use webpki::SignatureAlgorithm;
 
 /// signature custom message capability
@@ -117,7 +118,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 /// The signature will consist in a encrypted hash of the configuration data, signed with a private key.
 /// The public key is distributed to the agents in the form of a HTTPS server TLS certificate.
 ///
-/// example:
+/// Example:
 /// ```json
 /// ServerToAgent: {
 /// remote_config:{
@@ -150,25 +151,122 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 /// ```
 /// `Signatures` holds the signature custom message data. It is coupled to a RemoteConfig message and
 /// should be present in the same ServerToAgent message.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+///
+/// Even if each config identifier may contain many signature details (it holds an array) it is deserialized
+/// as a single structure of [SignatureData] containing the first signature with a supported algorithm.
+///
+/// Example:
+/// ```
+/// use crate::newrelic_agent_control::opamp::remote_config::signature::Signatures;
+///
+/// let data= r#"{
+///      "3936250589": [
+///         {
+///            "signature":  "some signature",
+///            "signingAlgorithm": "UNSUPPORTED",
+///            "keyID":  "some key id"
+///         },
+///         {
+///            "signature":  "some signature",
+///            "signingAlgorithm": "ED25519",
+///            "keyID":  "some key id"
+///         },
+///         {
+///            "signature":  "some signature",
+///            "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
+///            "keyID":  "some key id"
+///         }
+///     ]
+/// }"#.as_bytes().to_vec();
+///
+/// let signatures: Signatures = serde_json::from_slice(&data).unwrap();
+/// let (_, signature) = signatures.iter().next().unwrap();
+/// assert_eq!(signature.signing_algorithm.as_ref(), "ED25519");
+/// ```
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub struct Signatures {
     #[serde(flatten)]
     signatures: HashMap<ConfigID, SignatureData>,
 }
 
+impl<'de> Deserialize<'de> for Signatures {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        // Externally, Signatures include an array of signature fields for algorithm backwards compatibility purposes
+        type RawSignatures = HashMap<ConfigID, Vec<RawSignatureData>>;
+        let raw_signatures = RawSignatures::deserialize(deserializer)?;
+
+        // Get the first supported signature-data (SignatureData) for each config-map if any, return an error otherwise.
+        let signatures: Result<HashMap<ConfigID, SignatureData>, D::Error> = raw_signatures
+            .into_iter()
+            .map(|(config_id, signature_list)| {
+                let first_supported_signature =
+                    signature_list
+                        .into_iter()
+                        .enumerate()
+                        .find_map(|(i, raw_signature)| {
+                            SignatureData::try_from(raw_signature)
+                                .inspect_err(|err| {
+                                    warn!(
+                                    "Cannot process the signature data in position {} for {}: {}",
+                                    i, &config_id, err
+                                );
+                                })
+                                .ok()
+                        });
+                first_supported_signature
+                    .map(|s| (config_id.clone(), s))
+                    .ok_or_else(|| {
+                        Error::custom(format!("there is no valid signature data for {config_id}",))
+                    })
+            })
+            .collect();
+
+        Ok(Signatures {
+            signatures: signatures?,
+        })
+    }
+}
+
+/// SignatureFields holds all the fields that make up the signature data. It allows us to represent the signature
+/// data before validation ([RawSignatureData], where the signing algorithm is a string) and after validation
+/// [SignatureData] (where the signing algorithm is represented by the [SigningAlgorithm] type).
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-pub struct SignatureData {
+pub struct SignatureFields<A> {
     /// RemoteConfiguration signature on TLS's `DigitallySigned.signature` format encoded in base64.
-    signature: String,
+    pub signature: String,
     /// Public key identifier.
     #[serde(rename = "keyID")]
-    key_id: String,
+    pub key_id: String,
     /// Signing algorithm used the config:
     /// [ECDSA_P256_SHA256,ECDSA_P256_SHA384,ECDSA_P384_SHA256,ECDSA_P384_SHA384,RSA_PKCS1_[2048-8192]_SHA256,
     /// RSA_PKCS1_2048_8192_SHA384,RSA_PKCS1_2048_8192_SHA512,RSA_PKCS1_3072_8192_SHA384,ED25519]
     #[serde(rename = "signingAlgorithm")]
-    signing_algorithm: SigningAlgorithm,
+    pub signing_algorithm: A,
 }
+
+/// Represents the signature data before checking if the algorithm is supported.
+type RawSignatureData = SignatureFields<String>;
+
+/// Represent signature data ready to be used for config validation.
+pub type SignatureData = SignatureFields<SigningAlgorithm>;
+
+impl TryFrom<RawSignatureData> for SignatureData {
+    type Error = SignatureError;
+
+    fn try_from(s: RawSignatureData) -> Result<Self, Self::Error> {
+        Ok(Self {
+            signature: s.signature,
+            key_id: s.key_id,
+            signing_algorithm: s.signing_algorithm.as_str().try_into()?,
+        })
+    }
+}
+
 impl SignatureData {
     pub fn signature(&self) -> &[u8] {
         self.signature.as_bytes()
@@ -189,9 +287,9 @@ pub enum SignatureError {
     InvalidCapability,
     #[error("invalid config signature type")]
     InvalidType,
-    #[error("invalid config signature data")]
+    #[error("invalid config signature data: {0}")]
     InvalidData(String),
-    #[error("unsupported signature algorithm")]
+    #[error("unsupported signature algorithm: {0}")]
     UnsupportedAlgorithm(String),
 }
 
@@ -229,6 +327,7 @@ impl TryFrom<&CustomMessage> for Signatures {
 mod tests {
     use super::SignatureData;
     use super::Signatures;
+    use crate::opamp::remote_config::signature::SigningAlgorithm;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA256;
     use crate::opamp::remote_config::signature::ED25519;
     use opamp_client::opamp::proto::CustomMessage;
@@ -273,7 +372,7 @@ mod tests {
         impl TestCase {
             fn run(self) {
                 let _ = Signatures::try_from(&self.custom_message)
-                    .unwrap_or_else(|_| panic!("case: {}", self.name));
+                    .unwrap_or_else(|err| panic!("case: {} - {}", self.name, err));
             }
         }
         let test_cases = vec![
@@ -283,7 +382,7 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "checksum":  "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
                                 "checksumAlgorithm":  "SHA256",
                                 "signature":  "nppw2CuZg+YO5MsEoNOsHlgHxF7qAwWPli37NGXAr5isfP1jUTSJcLi0l7k9lNlpbq31GF9DZ0JQBZhoGS0j+sDjvirKSb7yXdqj6JcZ8sxax7KWAnk5QPiwLHFA1kGmszVJ/ccbwtVozG46FvKedcc3X5RME/HGdJupKBe3UzmJawL0xs9jNY+9519CL+CpbkBl/WgCvrIUhTNZv5TUHK23hMD+kz1Brf60pW7MQVtsyClOllsb6WhAsSXdhkpSCJ+96ZGyYywUlvx3/vkBM5a7q4IWqiPM4U0LPZDMQJQCCpxWV3T7cnIR1Ye2yYUqJHs9vfKmTWeBKH2Tb5FgpQ==",
@@ -291,7 +390,7 @@ mod tests {
                                 "signatureSpecification": "PKCS #1 v2.2",
                                 "signingDomain": "iast-csec-se.test-poised-pear.cell.us.nr-data.net",
                                 "keyID":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
-                          }
+                          }]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -301,11 +400,11 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
                                 "keyID":  "fake"
-                          }
+                          }]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -315,11 +414,11 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2048_SHA512",
                                 "keyID":  "fake"
-                          }
+                          }]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -329,11 +428,11 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2049_SHA512",
                                 "keyID":  "fake"
-                          }
+                          }]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -343,11 +442,11 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "ECDSA_P256_SHA256",
                                 "keyID":  "fake"
-                          }
+                          }]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -357,11 +456,32 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "ED25519",
                                 "keyID":  "fake"
-                          }
+                          }]
+                    }"#.as_bytes().to_vec(),
+                },
+            },
+            TestCase {
+                name: "Unsupported + ED25519",
+                custom_message: CustomMessage {
+                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                    data: r#"{
+                          "3936250589": [
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "unsupported",
+                                    "keyID":  "fake"
+                                },
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "ED25519",
+                                    "keyID":  "fake"
+                                }
+                          ]
                     }"#.as_bytes().to_vec(),
                 },
             },
@@ -372,8 +492,41 @@ mod tests {
             test_case.run();
         }
     }
+
     #[test]
-    fn test_invalid_algorithm() {
+    fn test_deserialize_signature_data_items_precedence() {
+        let custom_message = CustomMessage {
+            capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+            r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+            data: r#"{
+                          "3936250589": [
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "unsupported",
+                                    "keyID":  "fake"
+                                },
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "ED25519",
+                                    "keyID":  "fake"
+                                },
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "ECDSA_P256_SHA256",
+                                    "keyID":  "fake"
+                                }
+                          ]
+                    }"#
+            .as_bytes()
+            .to_vec(),
+        };
+        let signatures = Signatures::try_from(&custom_message).unwrap();
+        let (_, signature) = signatures.iter().next().unwrap();
+        assert_eq!(signature.signing_algorithm, SigningAlgorithm::ED25519);
+    }
+
+    #[test]
+    fn test_deserialize_invalid_signature_data() {
         struct TestCase {
             name: &'static str,
             custom_message: CustomMessage,
@@ -382,7 +535,7 @@ mod tests {
             fn run(self) {
                 let err = Signatures::try_from(&self.custom_message)
                     .expect_err(format!("case: {}", self.name).as_str());
-                assert!(format!("{:?}", err).contains("unsupported signature algorithm"));
+                assert!(format!("{:?}", err).contains("no valid signature data"));
             }
         }
         let test_cases = vec![
@@ -392,11 +545,11 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "unknown",
                                 "keyID":  "fake"
-                          }
+                          }]
                     }"#
                     .as_bytes()
                     .to_vec(),
@@ -408,11 +561,40 @@ mod tests {
                     capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                     r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
                     data: r#"{
-                          "3936250589": {
+                          "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_8193_SHA512",
                                 "keyID":  "fake"
-                          }
+                          }]
+                    }"#
+                    .as_bytes()
+                    .to_vec(),
+                },
+            },
+            TestCase {
+                name: "No data",
+                custom_message: CustomMessage {
+                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                    data: r#"{
+                          "3936250589": []
+                    }"#
+                    .as_bytes()
+                    .to_vec(),
+                },
+            },
+            TestCase {
+                name: "One config_id with no data",
+                custom_message: CustomMessage {
+                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                    data: r#"{
+                          "config_id1": [],
+                          "config_id2": [{
+                                "signature":  "fake",
+                                "signingAlgorithm": "ED25519",
+                                "keyID":  "fake"
+                          }]
                     }"#
                     .as_bytes()
                     .to_vec(),

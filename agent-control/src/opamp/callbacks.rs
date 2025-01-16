@@ -492,12 +492,15 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: serde_json::to_vec(&Signatures::new_unique(
-                            "fake config",
-                            ED25519,
-                            "fake keyid",
-                        ))
-                        .unwrap(),
+                        data: r#"{
+                            "unique": [{
+                                "signature": "fake config",
+                                "signingAlgorithm": "ED25519",
+                                "keyID": "fake keyid"
+                            }]
+                        }"#
+                        .as_bytes()
+                        .to_vec(),
                     }),
                     ..Default::default()
                 }),
@@ -519,12 +522,15 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: "unsupported_type".to_string(),
-                        data: serde_json::to_vec(&Signatures::new_unique(
-                            "fake config",
-                            ED25519,
-                            "fake keyid",
-                        ))
-                        .unwrap(),
+                        data: r#"{
+                            "unique": [{
+                                "signature": "fake config",
+                                "signingAlgorithm": "ED25519",
+                                "keyID": "fake keyid"
+                            }]
+                        }"#
+                        .as_bytes()
+                        .to_vec(),
                     }),
                     ..Default::default()
                 }),
@@ -542,12 +548,15 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: "unsupported.capability".to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: serde_json::to_vec(&Signatures::new_unique(
-                            "fake config",
-                            ED25519,
-                            "fake keyid",
-                        ))
-                        .unwrap(),
+                        data: r#"{
+                            "unique": [{
+                                "signature": "fake config",
+                                "signingAlgorithm": "ED25519",
+                                "keyID": "fake keyid"
+                            }]
+                        }"#
+                        .as_bytes()
+                        .to_vec(),
                     }),
                     ..Default::default()
                 }),
