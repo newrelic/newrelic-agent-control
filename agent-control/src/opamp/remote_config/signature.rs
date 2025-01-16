@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
-use tracing::warn;
+use tracing::debug;
 use webpki::SignatureAlgorithm;
 
 /// signature custom message capability
@@ -211,7 +211,7 @@ impl<'de> Deserialize<'de> for Signatures {
                         .find_map(|(i, raw_signature)| {
                             SignatureData::try_from(raw_signature)
                                 .inspect_err(|err| {
-                                    warn!(
+                                    debug!(
                                     "Cannot process the signature data in position {} for {}: {}",
                                     i, &config_id, err
                                 );
@@ -219,9 +219,9 @@ impl<'de> Deserialize<'de> for Signatures {
                                 .ok()
                         });
                 first_supported_signature
-                    .map(|s| (config_id.clone(), s))
+                    .map(|signature_data| (config_id.clone(), signature_data))
                     .ok_or_else(|| {
-                        Error::custom(format!("there is no valid signature data for {config_id}",))
+                        Error::custom(format!("there is no valid signature data for {config_id}"))
                     })
             })
             .collect();
@@ -287,9 +287,9 @@ pub enum SignatureError {
     InvalidCapability,
     #[error("invalid config signature type")]
     InvalidType,
-    #[error("invalid config signature data: {0}")]
+    #[error("invalid config signature data `{0}`")]
     InvalidData(String),
-    #[error("unsupported signature algorithm: {0}")]
+    #[error("unsupported signature algorithm `{0}`")]
     UnsupportedAlgorithm(String),
 }
 
