@@ -9,7 +9,7 @@ use serde::Deserialize;
 use std::fmt::Display;
 use std::sync::Arc;
 
-/// Represents the status of an Instrumentation CRD in K8s, as of apiVersion: newrelic.com/v1alpha2.
+/// Represents the status of an Instrumentation CRD in K8s, as of apiVersion: newrelic.com/v1beta1.
 ///
 /// The `Instrumentation` CR structure which contains this `status` field in K8s also contains a
 /// field `Instrumentation.status.lastUpdated`, this represents when the statuses were written

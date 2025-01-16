@@ -21,7 +21,17 @@ variables:
     env:
       description: "environment variables to pass to java agent"
       type: yaml
-      default: [ ]
+      default: []
+      required: false
+    health_env:
+      description: "environment variables to pass to health sidecar"
+      type: yaml
+      default: []
+      required: false
+    health_version:
+      description: "health sidecar image version"
+      type: string
+      default: "latest"
       required: false
 deployment:
   k8s:
@@ -29,7 +39,7 @@ deployment:
       interval: 30s
     objects:
       instrumentation:
-        apiVersion: newrelic.com/v1alpha2
+        apiVersion: newrelic.com/v1beta1
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
@@ -38,5 +48,8 @@ deployment:
             language: java
             image: newrelic/newrelic-java-init:${nr-var:version}
             env: ${nr-var:env}
+          healthAgent:
+            image: newrelic/k8s-apm-agent-health-sidecar:${nr-var:health_version}
+            env: ${nr-var:health_env}
           podLabelSelector: ${nr-var:pod_label_selector}
           namespaceLabelSelector: ${nr-var:namespace_label_selector}

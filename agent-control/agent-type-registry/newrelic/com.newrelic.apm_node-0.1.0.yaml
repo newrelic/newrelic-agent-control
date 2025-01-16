@@ -21,7 +21,7 @@ variables:
     env:
       description: "environment variables to pass to nodejs agent"
       type: yaml
-      default: [ ]
+      default: []
       required: false
 deployment:
   k8s:
@@ -29,7 +29,7 @@ deployment:
       interval: 30s
     objects:
       instrumentation:
-        apiVersion: newrelic.com/v1alpha2
+        apiVersion: newrelic.com/v1beta1
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
