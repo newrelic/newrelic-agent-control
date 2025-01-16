@@ -200,11 +200,12 @@ impl<'de> Deserialize<'de> for Signatures {
         type RawSignatures = HashMap<ConfigID, Vec<RawSignatureData>>;
         let raw_signatures = RawSignatures::deserialize(deserializer)?;
 
-        // Get the first supported signature-data (SignatureData) for each config-map if any, return an error otherwise.
+        // Get the first supported signature-data (SignatureData) for each config-map if any, return an error if there is
+        // no valid signature data for any config_id.
         let signatures: Result<HashMap<ConfigID, SignatureData>, D::Error> = raw_signatures
             .into_iter()
             .map(|(config_id, signature_list)| {
-                let first_supported_signature =
+                let maybe_first_supported =
                     signature_list
                         .into_iter()
                         .enumerate()
@@ -218,11 +219,10 @@ impl<'de> Deserialize<'de> for Signatures {
                                 })
                                 .ok()
                         });
-                first_supported_signature
-                    .map(|signature_data| (config_id.clone(), signature_data))
-                    .ok_or_else(|| {
-                        Error::custom(format!("there is no valid signature data for {config_id}"))
-                    })
+                let first_supported = maybe_first_supported.ok_or_else(|| {
+                    Error::custom(format!("there is no valid signature data for {config_id}"))
+                })?;
+                Ok((config_id, first_supported))
             })
             .collect();
 
