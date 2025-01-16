@@ -22,6 +22,18 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "javaapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: 'true'
+            - name: NEW_RELIC_HOST
+              value: "staging-collector.newrelic.com"
+            - name: NEW_RELIC_EVENT_INGEST_URI
+              value: "https://staging-insights-collector.newrelic.com"
+            - name: NEW_RELIC_METRIC_INGEST_URI
+              value: "https://staging-metric-api.newrelic.com"
+          health_env:
+            - name: NEW_RELIC_FLEET_CONTROL_HEALTH_PATH
+              value: /newrelic/apm/health
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -30,6 +42,18 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "pythonapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: 'true'
+            - name: NEW_RELIC_HOST
+              value: "staging-collector.newrelic.com"
+            - name: NEW_RELIC_EVENT_INGEST_URI
+              value: "https://staging-insights-collector.newrelic.com"
+            - name: NEW_RELIC_METRIC_INGEST_URI
+              value: "https://staging-metric-api.newrelic.com"
+          health_env:
+            - name: NEW_RELIC_FLEET_CONTROL_HEALTH_PATH
+              value: /newrelic/apm/health
       node-agent:
         type: newrelic/com.newrelic.apm_node:0.1.0
         content:

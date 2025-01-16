@@ -16,6 +16,23 @@ scenarios:
       - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -
 
       # Generate some traffic
+      - kubectl api-resources
+      - sleep 120
+      - kubectl get pods
+      - kubectl logs ${SCENARIO_TAG}-java -c newrelic-apm-health-sidecar  || true
+      - kubectl describe pod ${SCENARIO_TAG}-java  || true
+      - kubectl get pod ${SCENARIO_TAG}-java -o yaml  || true
+      - kubectl logs ${SCENARIO_TAG}-python -c newrelic-apm-health-sidecar  || true
+      - kubectl logs ${SCENARIO_TAG}-python  || true
+      - kubectl logs ${SCENARIO_TAG}-dotnet
+      - kubectl logs ${SCENARIO_TAG}-node
+      - kubectl logs ${SCENARIO_TAG}-ruby
+      - kubectl describe pod ${SCENARIO_TAG}-python
+      - kubectl describe pod ${SCENARIO_TAG}-java
+      - kubectl get pods
+      - kubectl get instrumentation
+      - kubectl exec -it ${SCENARIO_TAG}-java -c ${SCENARIO_TAG}-java -- sh -c 'cat newrelic/apm/health/health-*'
+      - kubectl exec -it ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- sh -c 'cat newrelic/apm/health/health-*'
       - kubectl wait --for=condition=Ready --all pods --timeout 5m
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000
@@ -24,6 +41,8 @@ scenarios:
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
 
     after:
+      - kubectl api-resources
+      - kubectl get pods
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
       - kubectl get all -o wide

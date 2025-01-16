@@ -7,6 +7,14 @@ this Sub-Agent have reached NR.
 
 # Run locally
 
+To be able to run the tests these dependencies should be installed
+```bash
+brew install coreutils
+brew install jq
+```
+
+# Run locally
+
 The test leverages the Tilt environment so all requirements to launch Tilt must be followed.
 Notice that the local execution expect to use Testing account.
 
