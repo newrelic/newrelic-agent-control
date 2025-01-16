@@ -4,8 +4,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::remote_config::signature::{
-    SignatureData, Signatures, SigningAlgorithm, SIGNATURE_CUSTOM_CAPABILITY,
-    SIGNATURE_CUSTOM_MESSAGE_TYPE,
+    SignatureData, SigningAlgorithm, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
 };
 use opamp_client::opamp;
 use prost::Message;
@@ -14,9 +13,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::{collections::HashMap, net, sync::Arc};
+use tempfile::TempDir;
 use tokio::task::JoinHandle;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
+const CERT_FILE: &str = "server.crt";
 
 pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 
@@ -127,7 +128,7 @@ pub struct FakeServer {
     state: Arc<Mutex<State>>,
     port: u16,
     path: String,
-    cert_path: PathBuf,
+    cert_tmp_dir: TempDir,
 }
 
 impl FakeServer {
@@ -148,9 +149,8 @@ impl FakeServer {
             .self_signed(&key_pair)
             .unwrap();
 
-        let tmp_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-        let pem_file = tmp_dir.join("server.crt");
-        std::fs::write(pem_file.as_path(), cert.pem()).unwrap();
+        let tmp_dir = tempfile::tempdir().unwrap();
+        std::fs::write(tmp_dir.path().join(CERT_FILE), cert.pem()).unwrap();
 
         let state = Arc::new(Mutex::new(State::new(key_pair)));
 
@@ -161,7 +161,7 @@ impl FakeServer {
             state,
             port,
             path: FAKE_SERVER_PATH.to_string(),
-            cert_path: pem_file,
+            cert_tmp_dir: tmp_dir,
         }
     }
 
@@ -188,7 +188,7 @@ impl FakeServer {
     }
 
     pub fn cert_file_path(&self) -> PathBuf {
-        self.cert_path.to_path_buf()
+        self.cert_tmp_dir.path().join(CERT_FILE)
     }
 
     pub fn get_health_status(
