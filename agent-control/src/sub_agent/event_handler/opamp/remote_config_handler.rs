@@ -2,7 +2,7 @@ use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::remote_config::validators::regexes::ConfigValidator;
-use crate::opamp::remote_config::validators::signature::SignatureValidator;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::sub_agent::error::SubAgentError;
 use crate::values::yaml_config::YAMLConfig;
@@ -27,26 +27,29 @@ pub enum RemoteConfigHandlerError {
     HashAndValuesStore(ErrorMessage),
 }
 
-pub struct RemoteConfigHandler<R, Y> {
+pub struct RemoteConfigHandler<R, Y, S> {
+    // TODO: `ConfigValidator` could also implement `RemoteConfigValidator`. We may want to consider abstracting it
+    // as well and implementing some sort of composite validator.
     config_validator: ConfigValidator,
-    signature_validator: Arc<SignatureValidator>,
+    signature_validator: Arc<S>,
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
     sub_agent_remote_config_hash_repository: Arc<R>,
     remote_values_repo: Arc<Y>,
 }
 
-impl<R, Y> RemoteConfigHandler<R, Y>
+impl<R, Y, S> RemoteConfigHandler<R, Y, S>
 where
     R: HashRepository,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
 {
     pub fn new(
         agent_id: AgentID,
         agent_cfg: SubAgentConfig,
         sub_agent_remote_config_hash_repository: Arc<R>,
         remote_values_repo: Arc<Y>,
-        signature_validator: Arc<SignatureValidator>,
+        signature_validator: Arc<S>,
     ) -> Self {
         RemoteConfigHandler {
             config_validator: ConfigValidator::default(),

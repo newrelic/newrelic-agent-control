@@ -9,7 +9,7 @@ use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
-use crate::opamp::remote_config::validators::signature::SignatureValidator;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
@@ -28,7 +28,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, G, Y>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
@@ -36,6 +36,7 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -44,14 +45,14 @@ where
     effective_agent_assembler: Arc<A>,
     k8s_config: K8sConfig,
     yaml_config_repository: Arc<Y>,
-    signature_validator: Arc<SignatureValidator>,
+    signature_validator: Arc<S>,
 
     // This is needed to ensure the generic type parameter G is used in the struct.
     // Else Rust will reject this, complaining that the type parameter is not used.
     _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, G, Y> K8sSubAgentBuilder<'a, O, I, HR, A, G, Y>
+impl<'a, O, I, HR, A, G, Y, S> K8sSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
@@ -59,6 +60,7 @@ where
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
 {
     // TODO refactor this new function
     #[allow(clippy::too_many_arguments)]
@@ -70,7 +72,7 @@ where
         effective_agent_assembler: Arc<A>,
         k8s_config: K8sConfig,
         yaml_config_repository: Arc<Y>,
-        signature_validator: Arc<SignatureValidator>,
+        signature_validator: Arc<S>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -87,7 +89,7 @@ where
     }
 }
 
-impl<O, I, HR, A, G, Y> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, G, Y>
+impl<O, I, HR, A, G, Y, S> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, G, Y, S>
 where
     G: EffectiveConfigLoader + Send + Sync + 'static,
     O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
@@ -95,9 +97,10 @@ where
     HR: HashRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
+    S: RemoteConfigValidator + Send + Sync + 'static,
 {
     type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s, HR, Y>;
+        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s, HR, Y, S>;
 
     fn build(
         &self,
@@ -233,7 +236,7 @@ pub mod tests {
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
-    use crate::opamp::remote_config::validators::signature::SignatureValidator;
+    use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{
@@ -272,6 +275,8 @@ pub mod tests {
         let assembler = MockEffectiveAgentAssemblerMock::new();
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
+        let signature_validator = MockRemoteConfigValidatorMock::new();
+
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -280,7 +285,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            Arc::new(SignatureValidator::try_new().unwrap()),
+            Arc::new(signature_validator),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -313,6 +318,8 @@ pub mod tests {
         let assembler = MockEffectiveAgentAssemblerMock::new();
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
+        let signature_validator = MockRemoteConfigValidatorMock::new();
+
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -321,7 +328,7 @@ pub mod tests {
             Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
-            Arc::new(SignatureValidator::try_new().unwrap()),
+            Arc::new(signature_validator),
         );
 
         let (application_event_publisher, _) = pub_sub();

@@ -12,7 +12,9 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
-use crate::opamp::remote_config::validators::signature::SignatureValidator;
+use crate::opamp::remote_config::validators::signature::validator::{
+    build_signature_validator, SignatureValidator,
+};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
@@ -52,14 +54,16 @@ impl AgentControlRunner {
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
         let config = config_storer.load()?;
 
+        let fleet_id = config
+            .fleet_control
+            .as_ref()
+            .map(|c| c.fleet_id.clone())
+            .unwrap_or_default();
+
         let identifiers_provider = IdentifiersProvider::default()
-            .with_host_id(config.host_id)
-            .with_fleet_id(
-                config
-                    .fleet_control
-                    .map(|opamp_config| opamp_config.fleet_id)
-                    .unwrap_or_default(),
-            );
+            .with_host_id(config.host_id.clone())
+            .with_fleet_id(fleet_id);
+
         let identifiers = identifiers_provider
             .provide()
             .map_err(|e| AgentError::IdentifiersError(e.to_string()))?;
@@ -105,10 +109,15 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let signature_validator = Arc::new(
-            SignatureValidator::try_new()
-                .map_err(|e| AgentError::InitialiseSignatureValidator(e.to_string()))?,
-        );
+        let signature_validator = config
+            .fleet_control
+            .map(|fleet_config| {
+                build_signature_validator(fleet_config.signature_validation).map_err(|e| {
+                    AgentError::ExternalError(format!("initializing signature validator: {}", e))
+                })
+            })
+            .transpose()?
+            .unwrap_or(SignatureValidator::Noop);
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
@@ -117,7 +126,7 @@ impl AgentControlRunner {
             agents_assembler,
             self.base_paths.log_dir.join(SUB_AGENT_DIR),
             yaml_config_repository.clone(),
-            signature_validator,
+            Arc::new(signature_validator),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
