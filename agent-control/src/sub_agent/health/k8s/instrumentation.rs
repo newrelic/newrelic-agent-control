@@ -79,6 +79,7 @@ impl InstrumentationStatus {
         }
     }
 
+    // If this changes please align the docs here: <https://newrelic.atlassian.net/wiki/spaces/INST/pages/3945988387/K8s+Retrieving+health+from+Instrumentation+CR+s+status#Agent-Control-logic>
     fn is_healthy(&self) -> bool {
         // All pods must be ready
         self.pods_not_ready <= 0
