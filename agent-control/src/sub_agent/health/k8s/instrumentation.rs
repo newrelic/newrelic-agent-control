@@ -62,14 +62,14 @@ impl Display for InstrumentationStatus {
 impl InstrumentationStatus {
     /// Evaluates the healthiness from an Instrumentation, it returns a status with the following:
     /// `"podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"`
-    /// It returns an Unhealthy value if:
-    /// `not_ready` > 0 --> Unhealthy
-    /// `healthy` <= 0 --> Unhealthy
-    /// `unhealthy` > 0 ---> Unhealthy
-    /// `matching` <= 0 --> Unhealthy
-    /// `matching` != `injected` --> Unhealthy
-    /// We can't rely on the number of healthy pods lower than matching because there can be uninstrumented
-    /// or outdated pods so the matching will be higher, so we just consider healthy
+    /// It returns an Healthy value if:
+    /// `not_ready` <= 0
+    /// `healthy` > 0
+    /// `unhealthy` <= 0
+    /// `matching` > 0
+    /// `matching` == `injected`
+    /// We can't rely on the number of healthy pods the same as matching pods because there can be
+    /// uninstrumented or outdated pods so the matching will be higher. We just consider healthy
     /// any case not being one of the previous cases.
     pub(crate) fn get_health(&self) -> Health {
         if self.is_healthy() {
