@@ -23,7 +23,7 @@ struct InstrumentationStatus {
     /// `Instrumentation.spec.podLabelSelectors` and `Instrumentation.spec.NamespaceLabelSelectors`
     /// (when empty defaults to matching everything, and both must match to "select" a pod).
     #[serde(default)]
-    pods_matching: i64,
+    pods_matching: u64,
 
     /// [`pods_healthy`] is the number of pods which match based on [`pods_matching`] and
     /// [`pods_injected`] and the operator was able to get:
@@ -31,31 +31,31 @@ struct InstrumentationStatus {
     /// - A health response which had a healthy status reported via the yaml field healthy.
     /// - An http status code of 200.
     #[serde(default)]
-    pods_healthy: i64,
+    pods_healthy: u64,
 
     /// [`pods_injected`] is the number of pods which matched the Instrumentation based on
     /// [`pods_matching`] which had the the health sidecar injected.
     #[serde(default)]
-    pods_injected: i64,
+    pods_injected: u64,
 
     /// [`pods_not_ready`] is the number of pods which are not in a ready state
     /// (`Pod.status.phase` != `"Running"`) which matched both [`pods_matching`]
     /// and [`pods_injected`].
     #[serde(default)]
-    pods_not_ready: i64,
+    pods_not_ready: u64,
 
     /// [`pods_outdated`] is the number of pods which match based on [`pods_matching`] and
     /// [`pods_injected`] but there's a mismatch between the `Instrumentation.generation` and
     /// the injected pods annotation (to identify changes to the spec).
     #[serde(default)]
-    pods_outdated: i64,
+    pods_outdated: u64,
 
     /// [`pods_unhealthy`] is the number of pods which failed a health check, either because
     /// the operator couldn't get the pod ip, pod port, communication issues, timeout,
     /// non-200 http status, failure to decode the http response, and lastly
     /// the `last_error` field in the response.
     #[serde(default)]
-    pods_unhealthy: i64,
+    pods_unhealthy: u64,
 
     /// [`unhealthy_pod_errors`] is a list of pods (namespace.name/pod.name) and either
     /// the last error from the response
@@ -104,9 +104,9 @@ impl InstrumentationStatus {
     // If this changes please align the docs here: <https://newrelic.atlassian.net/wiki/spaces/INST/pages/3945988387/K8s+Retrieving+health+from+Instrumentation+CR+s+status#Agent-Control-logic>
     fn is_healthy(&self) -> bool {
         // All pods must be ready
-        self.pods_not_ready <= 0
+        self.pods_not_ready == 0
         // No unhealthy pods
-        && self.pods_unhealthy <= 0
+        && self.pods_unhealthy == 0
         // At least one pod healthy
         && self.pods_healthy > 0
         // There should be matching pods, else the instrumentation is not doing anything
