@@ -175,10 +175,13 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .as_bytes();
 
-        let signature_algorithm = signature.signature_algorithm();
-
         self.certificate_store
-            .verify_signature(signature_algorithm, config_content, signature.signature())
+            .verify_signature(
+                signature.signature_algorithm(),
+                signature.key_id(),
+                config_content,
+                signature.signature(),
+            )
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))
     }
 }
@@ -197,12 +200,6 @@ mod tests {
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use crate::opamp::remote_config::ConfigurationMap;
     use assert_matches::assert_matches;
-
-    fn certificate_store() -> CertificateStore {
-        let test_signer = TestSigner::new();
-        CertificateStore::try_new(CertificateFetcher::from_pem_string(&test_signer.cert_pem()))
-            .unwrap()
-    }
 
     #[test]
     fn test_default_signature_validator_config() {
@@ -335,7 +332,14 @@ certificate_pem_file_path: /path/to/file
         impl TestCase {
             fn run(self) {
                 let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
-                let signature_validator = CertificateSignatureValidator::new(certificate_store());
+                let test_signer = TestSigner::new();
+
+                let signature_validator = CertificateSignatureValidator::new(
+                    CertificateStore::try_new(CertificateFetcher::PemFile(
+                        test_signer.cert_pem_path(),
+                    ))
+                    .unwrap(),
+                );
 
                 let result = signature_validator.validate(&agent_type, &self.remote_config);
                 assert_matches!(
@@ -400,7 +404,11 @@ certificate_pem_file_path: /path/to/file
 
     #[test]
     pub fn test_certificate_signature_validator_signature_is_missing_for_agent_control_agent() {
-        let signature_validator = CertificateSignatureValidator::new(certificate_store());
+        let test_signer = TestSigner::new();
+        let signature_validator = CertificateSignatureValidator::new(
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap(),
+        );
         let rc = RemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("test".to_string()),
@@ -414,11 +422,11 @@ certificate_pem_file_path: /path/to/file
     #[test]
     pub fn test_certificate_signature_validator_signature_is_valid() {
         let test_signer = TestSigner::new();
-        let certificate_store =
-            CertificateStore::try_new(CertificateFetcher::from_pem_string(&test_signer.cert_pem()))
-                .unwrap();
 
-        let signature_validator = CertificateSignatureValidator::new(certificate_store);
+        let signature_validator = CertificateSignatureValidator::new(
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap(),
+        );
 
         let config = "value";
 
@@ -434,7 +442,7 @@ certificate_pem_file_path: /path/to/file
         .with_signature(Signatures::new_unique(
             encoded_signature.as_str(),
             ED25519, // Test signer uses this algorithm
-            "fake_key_id",
+            test_signer.key_id(),
         ));
 
         let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();

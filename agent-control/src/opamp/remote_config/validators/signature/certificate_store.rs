@@ -1,15 +1,20 @@
-use super::certificate_fetcher::{CertificateFetcher, DerCertificateBytes};
+use super::certificate::Certificate;
+use super::certificate_fetcher::CertificateFetcher;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::log::error;
-use webpki::EndEntityCert;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum CertificateStoreError {
     #[error("fetching certificate: `{0}`")]
     CertificateFetch(String),
+    #[error("signature keyID({signature_key_id}) does not match certificate keyID({certificate_key_id})")]
+    KeyMismatch {
+        signature_key_id: String,
+        certificate_key_id: String,
+    },
     #[error("validating signature: `{0}`")]
     VerifySignature(String),
     #[error("decoding signature: `{0}`")]
@@ -19,8 +24,7 @@ pub enum CertificateStoreError {
 /// The CertificateStore is responsible for fetching and holding the certificate
 /// used to verify remote configurations.
 pub struct CertificateStore {
-    certificate: Mutex<DerCertificateBytes>,
-    #[allow(dead_code)] // TODO will be used when the cache is added
+    certificate: Mutex<Certificate>,
     fetcher: CertificateFetcher,
 }
 
@@ -37,9 +41,11 @@ impl CertificateStore {
 
     /// Verify the signature of the given message using the stored certificate.
     /// The signature is expected to be in standard base64 encoding.
+    /// Fails if the signature is not valid or the key_id does not match the certificate's public key id.
     pub fn verify_signature(
         &self,
         algorithm: &webpki::SignatureAlgorithm,
+        key_id: &str,
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), CertificateStoreError> {
@@ -47,23 +53,42 @@ impl CertificateStore {
             .decode(signature)
             .map_err(|e| CertificateStoreError::DecodingSignature(e.to_string()))?;
 
-        let der_certificate_bytes = self.get_certificate();
-        let certificate = EndEntityCert::try_from(der_certificate_bytes.as_slice())
-            .map_err(|e| CertificateStoreError::VerifySignature(e.to_string()))?;
+        let cert = self.get_certificate(key_id)?;
 
-        certificate
-            .verify_signature(algorithm, msg, &decoded_signature)
+        cert.verify_signature(algorithm, msg, &decoded_signature)
             .map_err(|e| CertificateStoreError::VerifySignature(e.to_string()))
     }
 
-    fn get_certificate(&self) -> DerCertificateBytes {
-        // TODO a cache will be added here based on the keyID
-        let certificate = self
+    /// Gets the stored certificate if the key_id matches the certificate's public key id.
+    /// If the key_id does not match, fetch the certificate again assuming the certificate has been rotated.
+    /// Fails if the key_id does not match the certificate's public key id after fetching the certificate.
+    fn get_certificate(
+        &self,
+        signature_key_id: &str,
+    ) -> Result<Certificate, CertificateStoreError> {
+        let mut certificate = self
             .certificate
             .lock()
-            .expect("to acquire certificate lock");
+            .map_err(|e| CertificateStoreError::VerifySignature(e.to_string()))?;
 
-        certificate.clone()
+        if certificate.public_key_id() == signature_key_id {
+            return Ok(certificate.clone());
+        }
+
+        // If the key_id does not match, fetch the certificate again assuming the certificate has been rotated.
+        *certificate = self
+            .fetcher
+            .fetch()
+            .map_err(|e| CertificateStoreError::CertificateFetch(e.to_string()))?;
+
+        if certificate.public_key_id() != signature_key_id {
+            return Err(CertificateStoreError::KeyMismatch {
+                signature_key_id: signature_key_id.to_string(),
+                certificate_key_id: certificate.public_key_id().to_string(),
+            });
+        }
+
+        Ok(certificate.clone())
     }
 }
 
@@ -71,26 +96,52 @@ impl CertificateStore {
 pub mod tests {
     use super::*;
     use crate::http::tls::install_rustls_default_crypto_provider;
-    use rcgen::{Certificate, CertificateParams, KeyPair, PKCS_ED25519};
+    use assert_matches::assert_matches;
+    use rcgen::{CertificateParams, PKCS_ED25519};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
     use webpki::{ED25519, RSA_PKCS1_2048_8192_SHA512};
 
     pub struct TestSigner {
-        key_pair: KeyPair,
-        cert: Certificate,
+        key_pair: rcgen::KeyPair,
+        cert_temp_dir: TempDir,
+        cert: rcgen::Certificate,
+        key_id: String,
     }
     impl TestSigner {
+        const CERT_FILE_NAME: &'static str = "test.pem";
         pub fn new() -> Self {
-            let key_pair = KeyPair::generate_for(&PKCS_ED25519).unwrap();
+            let key_pair = rcgen::KeyPair::generate_for(&PKCS_ED25519).unwrap();
             let cert = CertificateParams::new(vec!["localhost".to_string()])
                 .unwrap()
                 .self_signed(&key_pair)
                 .unwrap();
 
-            Self { key_pair, cert }
+            let key_id = Certificate::try_new(cert.der().as_ref().to_vec())
+                .unwrap()
+                .public_key_id()
+                .to_string();
+
+            let cert_temp_dir = tempfile::tempdir().unwrap();
+            std::fs::write(cert_temp_dir.path().join(Self::CERT_FILE_NAME), cert.pem()).unwrap();
+
+            Self {
+                key_pair,
+                key_id,
+                cert,
+                cert_temp_dir,
+            }
+        }
+        pub fn cert_pem_path(&self) -> PathBuf {
+            self.cert_temp_dir.path().join(Self::CERT_FILE_NAME)
+        }
+        pub fn key_id(&self) -> &str {
+            &self.key_id
         }
         pub fn cert_pem(&self) -> String {
             self.cert.pem()
         }
+
         pub fn encoded_signature(&self, msg: &str) -> String {
             let key_pair_ring =
                 ring::signature::Ed25519KeyPair::from_pkcs8(&self.key_pair.serialize_der())
@@ -101,89 +152,187 @@ pub mod tests {
     }
 
     #[test]
-    fn test_verify() {
+    fn test_verify_sucess() {
         install_rustls_default_crypto_provider();
-
         let test_signer = TestSigner::new();
-        let config = r#"fake_config: 1.10.12"#;
+        let config = "fake_config";
+
+        let cert_store =
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        cert_store
+            .verify_signature(
+                &ED25519,
+                test_signer.key_id(),
+                config.as_bytes(),
+                test_signer.encoded_signature(config).as_bytes(),
+            )
+            .unwrap();
+    }
+    #[test]
+    fn test_signature_content_missmatch() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestSigner::new();
+
+        let cert_store =
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &ED25519,
+                test_signer.key_id(),
+                b"some config",
+                test_signer
+                    .encoded_signature("some other config")
+                    .as_bytes(),
+            )
+            .unwrap_err();
+
+        assert_matches!(err, CertificateStoreError::VerifySignature(_));
+    }
+    #[test]
+    fn test_signature_algorithm_missmatch() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestSigner::new();
+        let config = "fake_config";
+
+        let cert_store =
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &RSA_PKCS1_2048_8192_SHA512,
+                test_signer.key_id(),
+                config.as_bytes(),
+                test_signer.encoded_signature(config).as_bytes(),
+            )
+            .unwrap_err();
+
+        assert_matches!(err, CertificateStoreError::VerifySignature(_));
+    }
+    #[test]
+    fn test_signature_encode_fail() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestSigner::new();
+
+        let cert_store =
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &ED25519,
+                test_signer.key_id(),
+                b"some config",
+                b"not base 64",
+            )
+            .unwrap_err();
+
+        assert_matches!(err, CertificateStoreError::DecodingSignature(_));
+    }
+    #[test]
+    fn test_signature_key_missmatch() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestSigner::new();
+
+        let cert_store =
+            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &ED25519,
+                "123",
+                b"fake",
+                test_signer
+                    .encoded_signature("some other config")
+                    .as_bytes(),
+            )
+            .unwrap_err();
+
+        assert_eq!(
+            err,
+            CertificateStoreError::KeyMismatch {
+                signature_key_id: "123".to_string(),
+                certificate_key_id: test_signer.key_id().to_string(),
+            }
+        );
+    }
+    #[test]
+    fn cache_hit() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestSigner::new();
+        let config = "fake_config";
         let config_signature = test_signer.encoded_signature(config);
 
-        struct TestCase {
-            name: &'static str,
-            algorithm: &'static webpki::SignatureAlgorithm,
-            config: &'static str,
-            config_signature: String,
-            expected_result: Result<(), CertificateStoreError>,
-        }
-        impl TestCase {
-            fn run(self, test_signer: &TestSigner) {
-                let fetcher = CertificateFetcher::from_pem_string(&test_signer.cert_pem());
+        let fetcher = CertificateFetcher::PemFile(test_signer.cert_pem_path());
+        let cert_store = CertificateStore::try_new(fetcher).unwrap();
 
-                let cert_store = CertificateStore::try_new(fetcher)
-                    .unwrap_or_else(|_| panic!("to create store, case: {}", self.name));
+        let key_id = test_signer.key_id().to_string();
+        cert_store
+            .verify_signature(
+                &ED25519,
+                &key_id,
+                config.as_bytes(),
+                config_signature.as_bytes(),
+            )
+            .unwrap();
+        // dropping the test signer cleans the certificate pem file form disk
+        let copy_of_cert_path = test_signer.cert_pem_path();
+        drop(test_signer);
+        assert!(!copy_of_cert_path.exists());
+        // Verifies the fetcher fails to fetch the certificate from file
+        CertificateFetcher::PemFile(copy_of_cert_path)
+            .fetch()
+            .unwrap_err();
 
-                let _ = cert_store
-                    .verify_signature(
-                        self.algorithm,
-                        self.config.as_bytes(),
-                        self.config_signature.as_bytes(),
-                    )
-                    .map(|_| {
-                        assert!(
-                            self.expected_result.is_ok(),
-                            "expected Ok, case: {}",
-                            self.name
-                        )
-                    })
-                    .map_err(|err| {
-                        assert_eq!(
-                            err,
-                            self.expected_result.expect_err(
-                                format!("error is expected, case: {}", self.name).as_str()
-                            )
-                        );
-                    });
-            }
-        }
-        let test_cases = vec![
-            TestCase {
-                name: "verify OK",
-                algorithm: &ED25519,
-                config_signature: config_signature.clone(),
-                config,
-                expected_result: Ok(()),
-            },
-            TestCase {
-                name: "signature content mismatch",
-                algorithm: &ED25519,
-                config_signature: config_signature.clone(),
-                config: "this is not the config used to sign",
-                expected_result: Err(CertificateStoreError::VerifySignature(
-                    "InvalidSignatureForPublicKey".to_string(),
-                )),
-            },
-            TestCase {
-                name: "signature algorithm mismatch",
-                algorithm: &RSA_PKCS1_2048_8192_SHA512,
-                config_signature: config_signature.clone(),
-                config,
-                expected_result: Err(CertificateStoreError::VerifySignature(
-                    "UnsupportedSignatureAlgorithmForPublicKey".to_string(),
-                )),
-            },
-            TestCase {
-                name: "signature wrong encode",
-                algorithm: &ED25519,
-                config_signature: "not standard base64".to_string(),
-                config,
-                expected_result: Err(CertificateStoreError::DecodingSignature(
-                    "Invalid symbol 32, offset 3.".to_string(),
-                )),
-            },
-        ];
+        // verify with the cached certificate
+        cert_store
+            .verify_signature(
+                &ED25519,
+                &key_id,
+                config.as_bytes(),
+                config_signature.as_bytes(),
+            )
+            .unwrap();
+    }
+    #[test]
+    fn cache_miss() {
+        install_rustls_default_crypto_provider();
+        let test_signer_first = TestSigner::new();
+        let config = "fake_config";
 
-        for test_case in test_cases {
-            test_case.run(&test_signer);
-        }
+        let cert_temp_dir = tempfile::tempdir().unwrap();
+        let certificate_path = cert_temp_dir.path().join("test.crt");
+        std::fs::write(&certificate_path, test_signer_first.cert_pem()).unwrap();
+
+        let fetcher = CertificateFetcher::PemFile(certificate_path.to_path_buf());
+        let cert_store = CertificateStore::try_new(fetcher).unwrap();
+        // Make sure the cache is populated
+        cert_store
+            .verify_signature(
+                &ED25519,
+                test_signer_first.key_id(),
+                config.as_bytes(),
+                test_signer_first.encoded_signature(config).as_bytes(),
+            )
+            .unwrap();
+
+        // Create a new certificate and update the file on disk where the fetcher is reading from.
+        let test_signer_second = TestSigner::new();
+        std::fs::write(&certificate_path, test_signer_second.cert_pem()).unwrap();
+
+        // Verifies a signature with the new certificate
+        cert_store
+            .verify_signature(
+                &ED25519,
+                test_signer_second.key_id(),
+                config.as_bytes(),
+                test_signer_second.encoded_signature(config).as_bytes(),
+            )
+            .unwrap();
     }
 }

@@ -275,6 +275,10 @@ impl SignatureData {
     pub fn signature_algorithm(&self) -> &SignatureAlgorithm {
         (&self.signing_algorithm).into()
     }
+
+    pub fn key_id(&self) -> &str {
+        &self.key_id
+    }
 }
 
 /// CRC32 checksum of the config data. Currently this field is ignored since the current implementation of RemoteConfig
