@@ -1,14 +1,23 @@
 use super::runtime::tokio_runtime;
 use actix_web::{web, App, HttpResponse, HttpServer};
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
+use newrelic_agent_control::opamp::remote_config::signature::{
+    SignatureData, SigningAlgorithm, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+};
 use opamp_client::opamp;
 use prost::Message;
+use rcgen::{CertificateParams, KeyPair, PKCS_ED25519};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
 use std::{collections::HashMap, net, sync::Arc};
+use tempfile::TempDir;
 use tokio::task::JoinHandle;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
+const CERT_FILE: &str = "server.crt";
 
 pub type ConfigResponses = HashMap<InstanceID, ConfigResponse>;
 
@@ -28,13 +37,26 @@ pub type EffectiveConfigs = HashMap<InstanceID, opamp::proto::EffectiveConfig>;
 pub type RemoteConfigStatus = HashMap<InstanceID, opamp::proto::RemoteConfigStatus>;
 
 /// Represents the state of the FakeServer.
-#[derive(Default)]
 struct State {
     health_statuses: HealthStatuses,
     attributes: Attributes,
     config_responses: ConfigResponses,
     effective_configs: EffectiveConfigs,
     config_status: RemoteConfigStatus,
+    // Server private key to sign the remote config
+    key_pair: KeyPair,
+}
+impl State {
+    fn new(key_pair: KeyPair) -> Self {
+        Self {
+            health_statuses: Default::default(),
+            attributes: Default::default(),
+            config_responses: Default::default(),
+            effective_configs: Default::default(),
+            config_status: Default::default(),
+            key_pair,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -52,26 +74,47 @@ impl From<&str> for ConfigResponse {
 }
 
 impl ConfigResponse {
-    fn encode(&self) -> Vec<u8> {
-        // remote config is only set if there is any content
-        let remote_config = self
-            .clone()
-            .raw_body
-            .map(|raw_body| opamp::proto::AgentRemoteConfig {
+    fn encode(&self, key_pair: &KeyPair) -> Vec<u8> {
+        let mut remote_config = None;
+        let mut custom_message = None;
+
+        if let Some(config) = self.raw_body.clone() {
+            remote_config = Some(opamp::proto::AgentRemoteConfig {
                 config_hash: "hash".into(), // fake has for the shake of simplicity
                 config: Some(opamp::proto::AgentConfigMap {
                     config_map: HashMap::from([(
                         "".to_string(),
                         opamp::proto::AgentConfigFile {
-                            body: raw_body.clone().into_bytes(),
+                            body: config.clone().into_bytes(),
                             content_type: " text/yaml".to_string(),
                         },
                     )]),
                 }),
             });
+
+            let key_pair_ring =
+                ring::signature::Ed25519KeyPair::from_pkcs8(&key_pair.serialize_der()).unwrap();
+            let signature = key_pair_ring.sign(config.as_bytes());
+
+            let custom_message_data: HashMap<String, Vec<SignatureData>> = HashMap::from([(
+                "fakeCRC".to_string(),
+                vec![SignatureData {
+                    signature: BASE64_STANDARD.encode(signature.as_ref()),
+                    signing_algorithm: SigningAlgorithm::ED25519,
+                    key_id: "fake".to_string(),
+                }],
+            )]);
+
+            custom_message = Some(opamp::proto::CustomMessage {
+                capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                data: serde_json::to_vec(&custom_message_data).unwrap(),
+            });
+        }
         opamp::proto::ServerToAgent {
             instance_uid: "test".into(), // fake uid for the sake of simplicity
             remote_config,
+            custom_message,
             ..Default::default()
         }
         .encode_to_vec()
@@ -85,6 +128,7 @@ pub struct FakeServer {
     state: Arc<Mutex<State>>,
     port: u16,
     path: String,
+    cert_tmp_dir: TempDir,
 }
 
 impl FakeServer {
@@ -95,10 +139,20 @@ impl FakeServer {
 
     /// Starts and returns new FakeServer in a random port.
     pub fn start_new() -> Self {
-        let state = Arc::new(Mutex::new(State::default()));
         // While binding to port 0, the kernel gives you a free ephemeral port.
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
+
+        let key_pair = KeyPair::generate_for(&PKCS_ED25519).unwrap();
+        let cert = CertificateParams::new(vec!["localhost".to_string()])
+            .unwrap()
+            .self_signed(&key_pair)
+            .unwrap();
+
+        let tmp_dir = tempfile::tempdir().unwrap();
+        std::fs::write(tmp_dir.path().join(CERT_FILE), cert.pem()).unwrap();
+
+        let state = Arc::new(Mutex::new(State::new(key_pair)));
 
         let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
 
@@ -107,6 +161,7 @@ impl FakeServer {
             state,
             port,
             path: FAKE_SERVER_PATH.to_string(),
+            cert_tmp_dir: tmp_dir,
         }
     }
 
@@ -130,6 +185,10 @@ impl FakeServer {
     pub fn set_config_response(&mut self, identifier: InstanceID, response: ConfigResponse) {
         let mut state = self.state.lock().unwrap();
         state.config_responses.insert(identifier, response);
+    }
+
+    pub fn cert_file_path(&self) -> PathBuf {
+        self.cert_tmp_dir.path().join(CERT_FILE)
     }
 
     pub fn get_health_status(
@@ -220,5 +279,5 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
     // `message` content before removing the config response from the state.
     state.config_responses.remove(&instance_id);
 
-    HttpResponse::Ok().body(config_response.encode())
+    HttpResponse::Ok().body(config_response.encode(&state.key_pair))
 }

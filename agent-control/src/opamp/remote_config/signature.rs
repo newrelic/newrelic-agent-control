@@ -186,7 +186,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub struct Signatures {
     #[serde(flatten)]
-    signatures: HashMap<ConfigID, SignatureData>,
+    pub signatures: HashMap<ConfigID, SignatureData>,
 }
 
 impl<'de> Deserialize<'de> for Signatures {

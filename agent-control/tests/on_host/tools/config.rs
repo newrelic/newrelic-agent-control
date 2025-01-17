@@ -18,8 +18,15 @@ pub fn create_agent_control_config(
     opamp_server_endpoint: String,
     agents: String,
     local_dir: PathBuf,
+    remote_config_sign_cert: PathBuf,
 ) {
-    create_agent_control_config_with_proxy(opamp_server_endpoint, agents, local_dir, None);
+    create_agent_control_config_with_proxy(
+        opamp_server_endpoint,
+        agents,
+        local_dir,
+        None,
+        remote_config_sign_cert,
+    );
 }
 
 /// Extends [create_agent_control_config] with a proxy configuration parameter.
@@ -28,6 +35,7 @@ pub fn create_agent_control_config_with_proxy(
     agents: String,
     local_dir: PathBuf,
     proxy: Option<String>,
+    remote_config_sign_cert: PathBuf,
 ) {
     let proxy_config = proxy
         .map(|config| format!("proxy: {config}"))
@@ -38,10 +46,16 @@ pub fn create_agent_control_config_with_proxy(
 host_id: integration-test
 fleet_control:
   endpoint: {}
+  signature_validation: 
+    certificate_pem_file_path: {}
+    enabled: true
 agents: {}
 {}
 "#,
-        opamp_server_endpoint, agents, proxy_config,
+        opamp_server_endpoint,
+        remote_config_sign_cert.to_str().unwrap(),
+        agents,
+        proxy_config,
     );
     create_file(
         agent_control_config,

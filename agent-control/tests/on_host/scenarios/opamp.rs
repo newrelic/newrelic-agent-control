@@ -42,6 +42,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -88,6 +89,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -178,6 +180,7 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -267,6 +270,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -342,6 +346,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -413,6 +418,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has no config values
@@ -471,6 +477,7 @@ fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -563,6 +570,7 @@ agents:
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let sub_agent_id = AgentID::new("no-executables").unwrap();
@@ -629,6 +637,7 @@ fn test_config_without_supervisor() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -713,6 +722,7 @@ fn test_invalid_config_without_supervisor() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {

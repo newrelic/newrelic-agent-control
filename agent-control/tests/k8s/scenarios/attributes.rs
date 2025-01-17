@@ -47,6 +47,7 @@ fn test_attributes_from_existing_agent_type() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),

@@ -46,6 +46,7 @@ fn test_attributes_from_non_existing_agent_type() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -124,6 +125,7 @@ fn test_attributes_from_an_existing_agent_type() {
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
+        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {

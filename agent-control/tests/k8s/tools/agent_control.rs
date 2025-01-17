@@ -18,10 +18,10 @@ use newrelic_agent_control::{
     agent_control::run::BasePaths,
     k8s::store::{K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG},
 };
-use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
+use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
@@ -32,11 +32,13 @@ pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
 
 /// Starts the agent-control through [start_agent_control] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
+#[allow(clippy::too_many_arguments)]
 pub fn start_agent_control_with_testdata_config(
     folder_name: &str,
     dynamic_agent_type_path: &str,
     client: Client,
     ns: &str,
+    remote_config_sign_cert: Option<PathBuf>,
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
@@ -47,7 +49,14 @@ pub fn start_agent_control_with_testdata_config(
     )
     .unwrap();
 
-    create_local_agent_control_config(client.clone(), ns, opamp_endpoint, folder_name, local_dir);
+    create_local_agent_control_config(
+        client.clone(),
+        ns,
+        opamp_endpoint,
+        remote_config_sign_cert,
+        folder_name,
+        local_dir,
+    );
     for file_name in subagent_file_names {
         block_on(create_local_config_map(
             client.clone(),
@@ -100,6 +109,7 @@ pub fn create_local_agent_control_config(
     client: Client,
     test_ns: &str,
     opamp_endpoint: Option<&str>,
+    remote_config_sign_cert: Option<PathBuf>,
     folder_name: &str,
     tmp_dir: &Path,
 ) {
@@ -117,6 +127,9 @@ pub fn create_local_agent_control_config(
         .replace("<cluster-name>", TEST_CLUSTER_NAME);
     if let Some(endpoint) = opamp_endpoint {
         content = content.replace("<opamp-endpoint>", endpoint);
+    }
+    if let Some(cert_path) = remote_config_sign_cert {
+        content = content.replace("<cert-path>", cert_path.to_str().unwrap());
     }
     block_on(create_config_map(
         client,
