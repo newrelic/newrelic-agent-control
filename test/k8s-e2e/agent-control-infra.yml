@@ -1,6 +1,6 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-
 agent-control-deployment:
+  verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
   config:
     fleet_control:
       enabled: false
@@ -42,4 +42,3 @@ agent-control-deployment:
               customSecretLicenseKey: "not-existing"
               nodeSelector:
                 not-existing/os: "not-existing"
-
