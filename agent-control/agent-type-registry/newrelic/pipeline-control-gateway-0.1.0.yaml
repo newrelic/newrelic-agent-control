@@ -49,6 +49,9 @@ deployment:
             global:
               licenseKey: ${nr-env:NR_LICENSE_KEY}
               cluster: ${nr-env:NR_CLUSTER_NAME}
+              nrStaging: ${nr-env:NR_STAGING}
+              lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
+              verboseLog: ${nr-env:NR_VERBOSE_LOG}
       values:
         apiVersion: v1
         kind: Secret
