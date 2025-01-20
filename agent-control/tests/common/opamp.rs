@@ -6,6 +6,7 @@ use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::remote_config::signature::{
     SignatureData, SigningAlgorithm, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
 };
+use newrelic_agent_control::opamp::remote_config::validators::signature::public_key_fingerprint;
 use opamp_client::opamp;
 use prost::Message;
 use rcgen::{CertificateParams, KeyPair, PKCS_ED25519};
@@ -101,7 +102,7 @@ impl ConfigResponse {
                 vec![SignatureData {
                     signature: BASE64_STANDARD.encode(signature.as_ref()),
                     signing_algorithm: SigningAlgorithm::ED25519,
-                    key_id: "fake".to_string(),
+                    key_id: public_key_fingerprint(&key_pair.public_key_der()),
                 }],
             )]);
 

@@ -71,7 +71,10 @@ impl CertificateStore {
             .lock()
             .map_err(|e| CertificateStoreError::VerifySignature(e.to_string()))?;
 
-        if certificate.public_key_id() == signature_key_id {
+        if certificate
+            .public_key_id()
+            .eq_ignore_ascii_case(signature_key_id)
+        {
             return Ok(certificate.clone());
         }
 
@@ -81,7 +84,10 @@ impl CertificateStore {
             .fetch()
             .map_err(|e| CertificateStoreError::CertificateFetch(e.to_string()))?;
 
-        if certificate.public_key_id() != signature_key_id {
+        if !certificate
+            .public_key_id()
+            .eq_ignore_ascii_case(signature_key_id)
+        {
             return Err(CertificateStoreError::KeyMismatch {
                 signature_key_id: signature_key_id.to_string(),
                 certificate_key_id: certificate.public_key_id().to_string(),
@@ -102,6 +108,9 @@ pub mod tests {
     use tempfile::TempDir;
     use webpki::{ED25519, RSA_PKCS1_2048_8192_SHA512};
 
+    // A test signer util that generates a key pair and a self-signed certificate, and can be used to sign messages,
+    // as the OpAmp server would do.
+    // The certificate is written to a temporary file which is cleaned up when the signer is dropped.
     pub struct TestSigner {
         key_pair: rcgen::KeyPair,
         cert_temp_dir: TempDir,
@@ -141,7 +150,7 @@ pub mod tests {
         pub fn cert_pem(&self) -> String {
             self.cert.pem()
         }
-
+        /// Sign a message and encode the signature in standard base64 encoding.
         pub fn encoded_signature(&self, msg: &str) -> String {
             let key_pair_ring =
                 ring::signature::Ed25519KeyPair::from_pkcs8(&self.key_pair.serialize_der())
