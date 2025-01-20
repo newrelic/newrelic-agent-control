@@ -13,6 +13,8 @@ scenarios:
       - kubectl logs -l app.kubernetes.io/name=newrelic-logging --all-containers --prefix=true
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
+      - kubectl get helmrelease
+      - kubectl get helmchart
       - helm list -a -A
       - cd ../../ && tilt down
     tests:
