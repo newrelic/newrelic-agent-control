@@ -37,7 +37,7 @@ deployment:
           interval: 30m
           provider: generic
           # TODO point to the newrelic repository once available
-          url: https://rnoothi.github.io/gateway
+          url: https://rnoothi.github.io/foobar
       default-values:
         apiVersion: v1
         kind: Secret
