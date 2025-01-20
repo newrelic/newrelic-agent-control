@@ -18,6 +18,7 @@ use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
+use tracing::log::warn;
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -295,9 +296,10 @@ fn update_specs(
     agent_vars: &mut HashMap<String, VariableDefinitionTree>,
 ) -> Result<(), AgentTypeError> {
     for (ref k, v) in values.into_iter() {
-        let spec = agent_vars
-            .get_mut(k)
-            .ok_or_else(|| AgentTypeError::UnexpectedValueKey(k.clone()))?;
+        let Some(spec) = agent_vars.get_mut(k) else {
+            warn!("Unexpected variable in the configuration: {}={:?}", k, v);
+            continue;
+        };
 
         match spec {
             VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,
@@ -352,7 +354,8 @@ pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
 pub mod tests {
-
+    use super::*;
+    use crate::agent_type::runtime_config::Deployment;
     use crate::{
         agent_type::{
             environment::Environment,
@@ -362,9 +365,6 @@ pub mod tests {
         },
         sub_agent::effective_agents_assembler::build_agent_type,
     };
-
-    use super::*;
-    use crate::agent_type::runtime_config::Deployment;
     use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
@@ -556,7 +556,6 @@ deployment:
     #[test]
     fn test_normalize_agent_spec() {
         // create AgentSpec
-
         let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
 
         let expected_map: Map<String, VariableDefinition> = Map::from([(

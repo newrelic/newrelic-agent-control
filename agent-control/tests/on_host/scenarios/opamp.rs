@@ -502,7 +502,8 @@ fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
     // When a new incorrect config is received from OpAMP
     opamp_server.set_config_response(
         sub_agent_instance_id.clone(),
-        ConfigResponse::from("config_agent: aa"),
+        // The configuration is invalid since a string is expected
+        ConfigResponse::from("backoff_delay: 123"),
     );
 
     retry(60, Duration::from_secs(1), || {
