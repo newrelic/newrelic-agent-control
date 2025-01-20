@@ -1,4 +1,6 @@
-use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta};
+use crate::agent_control::config::{
+    helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta, AgentID,
+};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::version::k8s::helmrelease::HelmReleaseVersionChecker;
@@ -52,7 +54,7 @@ impl K8sAgentVersionChecker {
     /// It returns None if no object is compatible with version check.
     pub fn checked_new(
         k8s_client: Arc<SyncK8sClient>,
-        agent_id: String,
+        agent_id: &AgentID,
         k8s_objects: Arc<Vec<DynamicObject>>,
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
@@ -111,7 +113,7 @@ mod tests {
                 let k8s_objects = Arc::new(self.k8s_objects);
                 let result = K8sAgentVersionChecker::checked_new(
                     Arc::new(MockSyncK8sClient::new()),
-                    "some-agent-id".into(),
+                    &AgentID::new("some-agent-id").unwrap(),
                     k8s_objects,
                 );
                 let check = self.check;

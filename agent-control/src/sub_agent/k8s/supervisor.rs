@@ -186,7 +186,7 @@ impl NotStartedSupervisorK8s {
 
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
-            self.agent_id.to_string(),
+            &self.agent_id,
             resources,
         )?;
 

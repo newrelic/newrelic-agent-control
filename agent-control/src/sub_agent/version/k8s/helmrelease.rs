@@ -1,41 +1,38 @@
+use crate::agent_control::config::AgentID;
 use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
-use serde_json::Value;
+use serde_json::{Map, Value};
 use std::sync::Arc;
+use tracing::debug;
 
-const LAST_ATTEMPTED_REVISION: &str = "lastAttemptedRevision";
-const LAST_REVISION: &str = "*";
+const LATEST_REVISION: &str = "*";
 
 pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
-    agent_id: String,
+    agent_id: AgentID,
 }
 
 impl HelmReleaseVersionChecker {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: String) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: &AgentID) -> Self {
         Self {
             k8s_client,
             type_meta,
-            agent_id,
+            agent_id: agent_id.clone(),
         }
     }
     fn extract_version(
         &self,
-        data: &serde_json::Map<String, Value>,
+        data: &Map<String, Value>,
     ) -> Result<AgentVersion, VersionCheckError> {
-        let extractors = [
-            extract_revision,
-            extract_last_deployed_revision,
-            extract_revision_from_history,
-        ];
+        let extractors = [from_revision, from_last_deployed, from_history];
 
         for extractor in &extractors {
-            if let Some(version) = extractor(data) {
+            if let Some(version) = extractor(data, &self.agent_id) {
                 if !version.is_empty() {
                     return Ok(AgentVersion::new(
                         version,
@@ -76,56 +73,49 @@ impl VersionChecker for HelmReleaseVersionChecker {
 }
 
 //Attempt to get version from chart
-fn extract_revision(helm_data: &serde_json::map::Map<String, Value>) -> Option<String> {
+fn from_revision(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
     helm_data
-        .get("spec")
-        .and_then(|spec| spec.get("chart"))
-        .and_then(|chart| chart.get("spec"))
-        .and_then(|spec| spec.get("version"))
-        .and_then(|version| version.as_str())
-        .filter(|&version| version != LAST_REVISION)
-        .map(|version| version.to_string())
+        .get("spec")?
+        .get("chart")?
+        .get("spec")?
+        .get("version")
+        // The as_str is needed, using directly the to_string will add an extra \"\"
+        .map(|v| v.as_str().map(|s| s.to_string()))?
+        .filter(|version| !version.contains(LATEST_REVISION))
+        .inspect(|version| debug!(%agent_id, %version, "version extracted from revision"))
 }
 
 //Attempt to get version from last attempted deployed revision
-fn extract_last_deployed_revision(
-    helm_data: &serde_json::map::Map<String, Value>,
-) -> Option<String> {
+fn from_last_deployed(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
     helm_data
-        .get(LAST_ATTEMPTED_REVISION)
-        .and_then(|last_attempt_revision| last_attempt_revision.as_str())
+        .get("status")?
+        .get("lastAttemptedRevision")
+        // The as_str is needed, using directly the to_string will add an extra \"\"
+        .map(|v| v.as_str().map(|s| s.to_string()))?
         .filter(|version| !version.is_empty())
-        .map(|version| version.to_string())
+        .inspect(|version| debug!(%agent_id,%version, "version extracted from revision"))
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
-fn extract_revision_from_history(
-    helm_data: &serde_json::map::Map<String, Value>,
-) -> Option<String> {
-    let helm_history = helm_data.get("history")?.as_array()?;
+fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
+    let helm_history = helm_data.get("status")?.get("history")?.as_array()?;
 
-    let latest_entry = helm_history
+    helm_history
         .iter()
-        .filter_map(|history_item| {
-            let item = history_item.as_object()?;
-            let status = item.get("status")?.as_str()?;
-            let deployment_date = item.get("firstDeployed")?.as_str()?;
-            let chart_version = item.get("chartVersion")?.as_str()?;
-
-            if status == "deployed" {
-                let parsed_date =
-                    NaiveDateTime::parse_from_str(deployment_date, "%Y-%m-%dT%H:%M:%SZ").ok()?;
-                Some((parsed_date, chart_version.to_string()))
-            } else {
-                None
+        .filter_map(|item| {
+            if item.get("status")?.as_str()? != "deployed" {
+                return None;
             }
+            // The as_str is needed, using directly the to_string will add an extra \"\"
+            let chart_version = item.get("chartVersion")?.as_str()?.to_string();
+            let deployment_date = item.get("firstDeployed")?.as_str()?;
+            let parsed_date =
+                NaiveDateTime::parse_from_str(deployment_date, "%Y-%m-%dT%H:%M:%SZ").ok()?;
+            Some((parsed_date, chart_version))
         })
-        .max_by_key(|entry| entry.0);
-
-    match latest_entry {
-        Some((_, version)) => Some(version),
-        _ => None,
-    }
+        .max_by_key(|entry| entry.0)
+        .map(|entry| entry.1)
+        .inspect(|version| debug!(%agent_id, %version, "version extracted from revision"))
 }
 
 #[cfg(test)]
@@ -162,7 +152,7 @@ pub mod tests {
                 let check = HelmReleaseVersionChecker::new(
                     Arc::new(k8s_client),
                     helmrelease_v2_type_meta(),
-                    String::from("default-test"),
+                    &AgentID::new("default-test").unwrap(),
                 );
                 let result = check.check_agent_version();
                 match self.expected {
@@ -224,7 +214,6 @@ pub mod tests {
     fn build_json_data(chart_version: &str, last_attempted_version: &str) -> String {
         format!(
             r#"{{
-        "lastAttemptedRevision": "{}",
         "spec": {{
             "chart": {{
                 "spec": {{
@@ -233,28 +222,31 @@ pub mod tests {
                 }}
             }}
         }},
-        "history": [
-            {{
-                "chartName": "default-test",
-                "chartVersion": "1.45.6",
-                "firstDeployed": "2024-11-13T14:28:33Z",
-                "status": "deployed"
-            }},
-            {{
-                "chartName": "default-test",
-                "chartVersion": "1.43.6",
-                "firstDeployed": "2024-11-16T14:28:33Z",
-                "status": "deployed"
-            }},
-            {{
-                "chartName": "default-test",
-                "chartVersion": "1.45.9",
-                "firstDeployed": "2024-11-14T14:28:33Z",
-                "status": "fail"
-            }}
-        ]
+        "status": {{
+            "lastAttemptedRevision": "{}",
+            "history": [
+                {{
+                    "chartName": "default-test",
+                    "chartVersion": "1.45.6",
+                    "firstDeployed": "2024-11-13T14:28:33Z",
+                    "status": "deployed"
+                }},
+                {{
+                    "chartName": "default-test",
+                    "chartVersion": "1.43.6",
+                    "firstDeployed": "2024-11-16T14:28:33Z",
+                    "status": "deployed"
+                }},
+                {{
+                    "chartName": "default-test",
+                    "chartVersion": "1.45.9",
+                    "firstDeployed": "2024-11-14T14:28:33Z",
+                    "status": "fail"
+                }}
+            ]
+        }}    
     }}"#,
-            last_attempted_version, chart_version
+            chart_version, last_attempted_version
         )
     }
     fn get_dynamic_object(json_data: String) -> DynamicObject {

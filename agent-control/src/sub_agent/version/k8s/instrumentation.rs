@@ -1,3 +1,4 @@
+use crate::agent_control::config::AgentID;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -8,15 +9,15 @@ use std::sync::Arc;
 pub struct NewrelicInstrumentationVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
-    agent_id: String,
+    agent_id: AgentID,
 }
 
 impl NewrelicInstrumentationVersionChecker {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: String) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: &AgentID) -> Self {
         Self {
             k8s_client,
             type_meta,
-            agent_id,
+            agent_id: agent_id.clone(),
         }
     }
 
