@@ -100,6 +100,7 @@ pub(crate) mod tests {
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
+    use std::thread;
 
     use super::*;
 
@@ -217,6 +218,35 @@ pub(crate) mod tests {
                     predicate::eq(agent_id),
                     predicate::eq(start_settings),
                 )
+                .once()
+                .return_once(move |_, _, _| Ok(client));
+        }
+
+        // This is a Mock OpAMP Client Builder, which builds the Callbacks and the OpAMP Client
+        // and starts the OpAMP Client thread. This thread owns the callbacks, and these publish
+        // into the OpAMP Publisher <-- Sub Agent OpAMP Consumer
+        // Sub Agent OpAMP Consumer consumes the OpAMP events.
+        // Using the Mock, makes the OpAMP publisher to be dropped, as it's part of the expectations
+        // Until we refactor these tests (and find a better solution for this pattern) we'll
+        // spawn a thread with the publisher, just not to be dropped in the test
+        // TL;DR: Let the OpAMP Publisher leave for Duration
+        pub fn should_build_and_start_and_run(
+            &mut self,
+            agent_id: AgentID,
+            start_settings: StartSettings,
+            client: MockStartedOpAMPClientMock<C>,
+            run_for: Duration,
+        ) {
+            self.expect_build_and_start()
+                .withf(move |publisher, _sub_agent_id, _start_settings| {
+                    let publisher = publisher.clone();
+                    thread::spawn(move || {
+                        thread::sleep(run_for);
+                        drop(publisher)
+                    });
+                    //
+                    agent_id == _sub_agent_id.clone() && start_settings == *_start_settings
+                })
                 .once()
                 .return_once(move |_, _, _| Ok(client));
         }
