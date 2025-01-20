@@ -20,6 +20,9 @@ pub struct Certificate {
 
 impl Certificate {
     pub fn try_new(cert_der: Vec<u8>) -> Result<Self, CertificateError> {
+        let _ = EndEntityCert::try_from(cert_der.as_slice())
+            .map_err(|e| CertificateError::ParseCertificate(e.to_string()))?;
+
         let (_, cer) = X509Certificate::from_der(&cert_der)
             .map_err(|e| CertificateError::ParseCertificate(e.to_string()))?;
 

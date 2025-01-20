@@ -3,7 +3,7 @@ use crate::event::{AgentControlEvent, SubAgentEvent};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
-use tracing::debug;
+use tracing::{debug, trace};
 
 pub(super) async fn on_agent_control_event_update_status(
     mut agent_control_event_consumer: UnboundedReceiver<AgentControlEvent>,
@@ -50,7 +50,7 @@ async fn update_agent_control_status(
             unreachable!("AgentControlStopped is controlled outside");
         }
         AgentControlEvent::OpAMPConnected => {
-            debug!("opamp server is reachable");
+            trace!("opamp server is reachable");
             status.opamp.reachable();
         }
         AgentControlEvent::OpAMPConnectFailed(error_code, error_message) => {
