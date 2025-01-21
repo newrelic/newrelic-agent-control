@@ -29,7 +29,7 @@ impl HelmReleaseVersionChecker {
         &self,
         data: &Map<String, Value>,
     ) -> Result<AgentVersion, VersionCheckError> {
-        let extractors = [from_revision, from_last_deployed, from_history];
+        let extractors = [from_version, from_last_deployed, from_history];
 
         for extractor in &extractors {
             if let Some(version) = extractor(data, &self.agent_id) {
@@ -73,7 +73,7 @@ impl VersionChecker for HelmReleaseVersionChecker {
 }
 
 //Attempt to get version from chart
-fn from_revision(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
+fn from_version(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
     helm_data
         .get("spec")?
         .get("chart")?
@@ -82,7 +82,7 @@ fn from_revision(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<S
         // The as_str is needed, using directly the to_string will add an extra \"\"
         .map(|v| v.as_str().map(|s| s.to_string()))?
         .filter(|version| !version.contains(LATEST_REVISION))
-        .inspect(|version| debug!(%agent_id, %version, "version extracted from revision"))
+        .inspect(|version| debug!(%agent_id, %version, "version extracted from version"))
 }
 
 //Attempt to get version from last attempted deployed revision
@@ -93,7 +93,9 @@ fn from_last_deployed(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Opt
         // The as_str is needed, using directly the to_string will add an extra \"\"
         .map(|v| v.as_str().map(|s| s.to_string()))?
         .filter(|version| !version.is_empty())
-        .inspect(|version| debug!(%agent_id,%version, "version extracted from revision"))
+        .inspect(
+            |version| debug!(%agent_id,%version, "version extracted from lastAttemptedRevision"),
+        )
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
@@ -115,7 +117,7 @@ fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<St
         })
         .max_by_key(|entry| entry.0)
         .map(|entry| entry.1)
-        .inspect(|version| debug!(%agent_id, %version, "version extracted from revision"))
+        .inspect(|version| debug!(%agent_id, %version, "version extracted from history"))
 }
 
 #[cfg(test)]
