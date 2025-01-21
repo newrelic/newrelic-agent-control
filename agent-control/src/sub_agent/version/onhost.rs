@@ -28,7 +28,6 @@ impl OnHostAgentVersionChecker {
 
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
-        error!("DEBUG VERSION RETRIEVED!");
         Ok(self.agent_version.clone())
     }
 }
