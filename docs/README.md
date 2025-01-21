@@ -169,7 +169,7 @@ agents:
   nr-infra-agent:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nr-otel-collector:
-    agent_type: "newrelic/io.opentelemetry.collector:0.2.0"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 ```
 
 - `fleet_control` defines the required attributes to establish the connection with the backend.

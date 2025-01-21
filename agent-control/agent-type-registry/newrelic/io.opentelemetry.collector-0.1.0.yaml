@@ -1,6 +1,6 @@
 namespace: newrelic
 name: io.opentelemetry.collector
-version: 0.2.0
+version: 0.1.0
 variables:
   on_host:
     config:

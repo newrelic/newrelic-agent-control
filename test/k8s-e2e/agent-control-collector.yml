@@ -8,7 +8,7 @@ agent-control-deployment:
           level: trace
     subAgents:
       open-telemetry:
-        type: newrelic/io.opentelemetry.collector:0.2.0
+        type: newrelic/io.opentelemetry.collector:0.1.0
         content:
           # Testing the latest released version of the chart
           chart_version: "*"
