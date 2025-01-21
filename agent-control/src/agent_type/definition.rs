@@ -18,7 +18,7 @@ use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
-use tracing::log::warn;
+use tracing::warn;
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -295,16 +295,16 @@ fn update_specs(
     values: HashMap<String, serde_yaml::Value>,
     agent_vars: &mut HashMap<String, VariableDefinitionTree>,
 ) -> Result<(), AgentTypeError> {
-    for (ref k, v) in values.into_iter() {
-        let Some(spec) = agent_vars.get_mut(k) else {
-            warn!("Unexpected variable in the configuration: {}={:?}", k, v);
+    for (ref key, value) in values.into_iter() {
+        let Some(spec) = agent_vars.get_mut(key) else {
+            warn!(%key, %value, "Unexpected variable in the configuration");
             continue;
         };
 
         match spec {
-            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,
+            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(value)?,
             VariableDefinitionTree::Mapping(m) => {
-                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
+                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(value)?;
                 update_specs(v, m)?
             }
         }
@@ -717,8 +717,8 @@ deployment:
             args: TemplateableValue {
                 value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
                 template:
-                    "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
-                        .to_string(),
+                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
+                    .to_string(),
             },
             env: Env::default(),
             restart_policy: RestartPolicyConfig {
@@ -1019,7 +1019,7 @@ status_server_port: 8004
                 .unwrap()
                 .clone()
         );
-        assert!(filled_variables.get("unknown_variable").is_none())
+        assert!(!filled_variables.contains_key("unknown_variable"))
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
