@@ -240,6 +240,7 @@ mod tests {
         AgentDescription, DescriptionValueType, StartSettings,
     };
     use std::collections::HashMap;
+    use std::time::Duration;
     use tracing_test::traced_test;
 
     // TODO: tests below are testing not only the builder but also the sub-agent start/stop behavior.
@@ -277,10 +278,13 @@ mod tests {
         started_client.should_stop(1);
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        opamp_builder.should_build_and_start(
+        // TODO: We should discuss if this is a valid approach once we refactor the unit tests
+        // Build an OpAMP Client and let it run so the publisher is not dropped
+        opamp_builder.should_build_and_start_and_run(
             sub_agent_id.clone(),
             start_settings_infra,
             started_client,
+            Duration::from_millis(10),
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
@@ -375,10 +379,13 @@ mod tests {
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
-        opamp_builder.should_build_and_start(
+        // TODO: We should discuss if this is a valid approach once we refactor the unit tests
+        // Build an OpAMP Client and let it run so the publisher is not dropped
+        opamp_builder.should_build_and_start_and_run(
             sub_agent_id.clone(),
             start_settings_infra,
             started_client,
+            Duration::from_millis(10),
         );
 
         effective_agent_assembler.should_assemble_agent(
