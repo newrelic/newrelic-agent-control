@@ -74,35 +74,43 @@ impl VersionChecker for HelmReleaseVersionChecker {
 
 //Attempt to get version from chart
 fn from_version(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
-    helm_data
+    let version = helm_data
         .get("spec")?
         .get("chart")?
         .get("spec")?
-        .get("version")
+        .get("version")?
         // The as_str is needed, using directly the to_string will add an extra \"\"
-        .map(|v| v.as_str().map(|s| s.to_string()))?
-        .filter(|version| !version.contains(LATEST_REVISION))
-        .inspect(|version| debug!(%agent_id, %version, "version extracted from version"))
+        .as_str()?
+        .to_string();
+
+    if version.contains(LATEST_REVISION) {
+        return None;
+    }
+    debug!(%agent_id, %version, "version extracted from version");
+    Some(version)
 }
 
 //Attempt to get version from last attempted deployed revision
 fn from_last_deployed(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
-    helm_data
+    let version = helm_data
         .get("status")?
-        .get("lastAttemptedRevision")
+        .get("lastAttemptedRevision")?
         // The as_str is needed, using directly the to_string will add an extra \"\"
-        .map(|v| v.as_str().map(|s| s.to_string()))?
-        .filter(|version| !version.is_empty())
-        .inspect(
-            |version| debug!(%agent_id,%version, "version extracted from lastAttemptedRevision"),
-        )
+        .as_str()?
+        .to_string();
+
+    if version.is_empty() {
+        return None;
+    }
+    debug!(%agent_id,%version, "version extracted from lastAttemptedRevision");
+    Some(version)
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
 fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
     let helm_history = helm_data.get("status")?.get("history")?.as_array()?;
 
-    helm_history
+    let (_, version) = helm_history
         .iter()
         .filter_map(|item| {
             if item.get("status")?.as_str()? != "deployed" {
@@ -115,9 +123,10 @@ fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<St
                 NaiveDateTime::parse_from_str(deployment_date, "%Y-%m-%dT%H:%M:%SZ").ok()?;
             Some((parsed_date, chart_version))
         })
-        .max_by_key(|entry| entry.0)
-        .map(|entry| entry.1)
-        .inspect(|version| debug!(%agent_id, %version, "version extracted from history"))
+        .max_by_key(|entry| entry.0)?;
+
+    debug!(%agent_id, %version, "version extracted from history");
+    Some(version)
 }
 
 #[cfg(test)]
