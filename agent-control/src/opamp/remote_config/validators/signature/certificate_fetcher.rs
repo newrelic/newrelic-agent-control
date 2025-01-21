@@ -1,3 +1,4 @@
+use super::certificate::Certificate;
 use crate::http::tls::root_store_with_native_certs;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
@@ -29,20 +30,21 @@ pub enum CertificateFetcherError {
 }
 pub enum CertificateFetcher {
     Https(Url, ConnectionTimeout),
-    #[allow(dead_code)] // TODO add support for fetching from a local file
     PemFile(PathBuf),
 }
 
 impl CertificateFetcher {
-    pub fn fetch(&self) -> Result<DerCertificateBytes, CertificateFetcherError> {
-        match self {
+    pub fn fetch(&self) -> Result<Certificate, CertificateFetcherError> {
+        let cert = match self {
             CertificateFetcher::Https(url, connection_timeout) => {
-                CertificateFetcher::fetch_https(url, connection_timeout)
+                CertificateFetcher::fetch_https(url, connection_timeout)?
             }
             CertificateFetcher::PemFile(pem_file_path) => {
-                CertificateFetcher::fetch_file(pem_file_path)
+                CertificateFetcher::fetch_file(pem_file_path)?
             }
-        }
+        };
+        Certificate::try_new(cert)
+            .map_err(|e| CertificateFetcherError::CertificateFetch(e.to_string()))
     }
 
     fn fetch_https(
@@ -161,15 +163,6 @@ mod tests {
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use assert_matches::assert_matches;
 
-    impl CertificateFetcher {
-        pub fn from_pem_string(pem: &str) -> Self {
-            let tmp_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
-            let pem_file = tmp_dir.join("server.crt");
-            std::fs::write(pem_file.as_path(), pem).unwrap();
-            CertificateFetcher::PemFile(pem_file)
-        }
-    }
-
     #[test]
     fn test_https_fetcher() {
         install_rustls_default_crypto_provider();
@@ -258,7 +251,7 @@ mod tests {
     #[test]
     fn test_file_fetcher() {
         let test_signer = TestSigner::new();
-        CertificateFetcher::from_pem_string(&test_signer.cert_pem())
+        CertificateFetcher::PemFile(test_signer.cert_pem_path())
             .fetch()
             .expect("to fetch certificate");
     }
