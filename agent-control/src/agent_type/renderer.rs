@@ -308,16 +308,12 @@ pub(crate) mod tests {
     fn test_render_with_persister() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_FILES, &Environment::OnHost);
-        let values = testing_values(AGENT_VALUES_WITH_FILES);
+        let values = AGENT_VALUES_WITH_FILES;
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
         let path_as_string = test_data_dir().join(GENERATED_FOLDER_NAME).join(&agent_id);
-        let filled_variables = agent_type
-            .variables
-            .clone()
-            .fill_with_values(values.clone())
-            .unwrap()
-            .flatten();
+        let filled_variables = agent_type.fill_variables(values);
+
         let expanded_path_filled_variables =
             TemplateRenderer::<MockConfigurationPersisterMock>::extend_variables_file_path(
                 path_as_string.clone(),
@@ -331,7 +327,7 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, testing_values(values), attributes)
             .unwrap();
         assert_eq!(
             Args(format!(
@@ -379,14 +375,9 @@ pub(crate) mod tests {
     fn test_render_with_persister_persists_error() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
-        let values = testing_values(SIMPLE_AGENT_VALUES);
+        let values = SIMPLE_AGENT_VALUES;
         let attributes = testing_agent_attributes(&agent_id);
-        let filled_variables = agent_type
-            .variables
-            .clone()
-            .fill_with_values(values.clone())
-            .unwrap()
-            .flatten();
+        let filled_variables = agent_type.fill_variables(values);
 
         let mut persister = MockConfigurationPersisterMock::new();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
@@ -398,7 +389,7 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let expected_error = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, testing_values(values), attributes)
             .err()
             .unwrap();
         assert_matches!(

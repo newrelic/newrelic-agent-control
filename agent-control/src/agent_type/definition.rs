@@ -910,6 +910,7 @@ deployment:
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+unknown_variable: ignored
 config3:
   log_level: trace
   forward: "true"
@@ -1017,7 +1018,8 @@ status_server_port: 8004
                 .as_ref()
                 .unwrap()
                 .clone()
-        )
+        );
+        assert!(filled_variables.get("unknown_variable").is_none())
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
@@ -1054,16 +1056,9 @@ restart_policy:
     fn test_variables_with_variants() {
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &Environment::OnHost);
-        let values: YAMLConfig =
-            serde_yaml::from_str(VALUES_VALID_VARIANT).expect("Failed to parse user config");
 
         // Valid variant
-        let filled_variables = agent_type
-            .variables
-            .clone()
-            .fill_with_values(values)
-            .unwrap()
-            .flatten();
+        let filled_variables = agent_type.fill_variables(VALUES_VALID_VARIANT);
 
         let var = filled_variables.get("restart_policy.type").unwrap();
         assert_eq!(
@@ -1085,12 +1080,7 @@ restart_policy:
         );
 
         // Default invalid variant is allowed
-        let filled_variables_default = agent_type
-            .variables
-            .clone()
-            .fill_with_values(YAMLConfig::default())
-            .unwrap()
-            .flatten();
+        let filled_variables_default = agent_type.fill_variables("");
         let var = filled_variables_default.get("restart_policy.type").unwrap();
         assert_eq!(
             "exponential".to_string(),
