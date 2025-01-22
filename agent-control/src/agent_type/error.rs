@@ -1,5 +1,4 @@
 use crate::sub_agent::persister::config_persister::PersistError;
-use std::io;
 use thiserror::Error;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.
@@ -9,12 +8,8 @@ pub enum AgentTypeError {
     SerdeYaml(#[from] serde_yaml::Error),
     #[error("Missing value for key: `{0}`")]
     MissingValue(String),
-    #[error("Unexpected key in agent type config values: {0}")]
-    UnexpectedValueKey(String),
     #[error("Unexpected value for key: key({0}) val({1})")]
     UnexpectedValueForKey(String, String),
-    #[error("I/O error: `{0}`")]
-    IOError(#[from] io::Error),
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
     #[error("Missing default value for a non-required spec key")]

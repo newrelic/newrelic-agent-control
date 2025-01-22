@@ -18,6 +18,7 @@ use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, str::FromStr};
+use tracing::warn;
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
@@ -294,15 +295,16 @@ fn update_specs(
     values: HashMap<String, serde_yaml::Value>,
     agent_vars: &mut HashMap<String, VariableDefinitionTree>,
 ) -> Result<(), AgentTypeError> {
-    for (ref k, v) in values.into_iter() {
-        let spec = agent_vars
-            .get_mut(k)
-            .ok_or_else(|| AgentTypeError::UnexpectedValueKey(k.clone()))?;
+    for (ref key, value) in values.into_iter() {
+        let Some(spec) = agent_vars.get_mut(key) else {
+            warn!(%key, "Unexpected variable in the configuration");
+            continue;
+        };
 
         match spec {
-            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,
+            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(value)?,
             VariableDefinitionTree::Mapping(m) => {
-                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
+                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(value)?;
                 update_specs(v, m)?
             }
         }
@@ -352,7 +354,8 @@ pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
 pub mod tests {
-
+    use super::*;
+    use crate::agent_type::runtime_config::Deployment;
     use crate::{
         agent_type::{
             environment::Environment,
@@ -362,9 +365,6 @@ pub mod tests {
         },
         sub_agent::effective_agents_assembler::build_agent_type,
     };
-
-    use super::*;
-    use crate::agent_type::runtime_config::Deployment;
     use assert_matches::assert_matches;
     use serde_yaml::{Error, Number};
     use std::collections::HashMap as Map;
@@ -556,7 +556,6 @@ deployment:
     #[test]
     fn test_normalize_agent_spec() {
         // create AgentSpec
-
         let given_agent = AgentType::build_for_testing(AGENT_GIVEN_YAML, &Environment::OnHost);
 
         let expected_map: Map<String, VariableDefinition> = Map::from([(
@@ -718,8 +717,8 @@ deployment:
             args: TemplateableValue {
                 value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
                 template:
-                    "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
-                        .to_string(),
+                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
+                    .to_string(),
             },
             env: Env::default(),
             restart_policy: RestartPolicyConfig {
@@ -911,6 +910,7 @@ deployment:
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
+unknown_variable: ignored
 config3:
   log_level: trace
   forward: "true"
@@ -1018,7 +1018,8 @@ status_server_port: 8004
                 .as_ref()
                 .unwrap()
                 .clone()
-        )
+        );
+        assert!(!filled_variables.contains_key("unknown_variable"))
     }
 
     const AGENT_TYPE_WITH_VARIANTS: &str = r#"
@@ -1055,16 +1056,9 @@ restart_policy:
     fn test_variables_with_variants() {
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_WITH_VARIANTS, &Environment::OnHost);
-        let values: YAMLConfig =
-            serde_yaml::from_str(VALUES_VALID_VARIANT).expect("Failed to parse user config");
 
         // Valid variant
-        let filled_variables = agent_type
-            .variables
-            .clone()
-            .fill_with_values(values)
-            .unwrap()
-            .flatten();
+        let filled_variables = agent_type.fill_variables(VALUES_VALID_VARIANT);
 
         let var = filled_variables.get("restart_policy.type").unwrap();
         assert_eq!(
@@ -1086,12 +1080,7 @@ restart_policy:
         );
 
         // Default invalid variant is allowed
-        let filled_variables_default = agent_type
-            .variables
-            .clone()
-            .fill_with_values(YAMLConfig::default())
-            .unwrap()
-            .flatten();
+        let filled_variables_default = agent_type.fill_variables("");
         let var = filled_variables_default.get("restart_policy.type").unwrap();
         assert_eq!(
             "exponential".to_string(),
