@@ -18,7 +18,7 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
-    #[error("`{0}`")]
+    #[error("OpAMP client: `{0}`")]
     NotStartedClientError(#[from] NotStartedClientError),
     #[error("error getting agent instance id: `{0}`")]
     GetInstanceIDError(#[from] instance_id::GetterError),
