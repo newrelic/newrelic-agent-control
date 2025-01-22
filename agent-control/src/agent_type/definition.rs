@@ -353,6 +353,8 @@ fn inner_flatten(key: String, spec: VariableDefinitionTree) -> HashMap<String, V
 pub(crate) type Variables = HashMap<String, VariableDefinition>;
 
 #[cfg(test)]
+mod agent_type_validation_tests;
+#[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::agent_type::runtime_config::Deployment;

@@ -245,7 +245,7 @@ pub(crate) mod tests {
         serde_yaml::from_str(yaml_values).unwrap()
     }
 
-    fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
+    pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
         AgentAttributes {
             agent_id: agent_id.to_string(),
         }
