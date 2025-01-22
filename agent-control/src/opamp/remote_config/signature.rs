@@ -143,7 +143,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 ///                 "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
 ///                 "signatureSpecification": "PKCS #1 v2.2",
 ///                 "signingDomain": "iast-csec-se.test-poised-pear.cell.us.nr-data.net",
-///                 "keyID":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
+///                 "keyId":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
 ///           }]
 ///     }
 /// }
@@ -164,17 +164,17 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 ///         {
 ///            "signature":  "some signature",
 ///            "signingAlgorithm": "UNSUPPORTED",
-///            "keyID":  "some key id"
+///            "keyId":  "some key id"
 ///         },
 ///         {
 ///            "signature":  "some signature",
 ///            "signingAlgorithm": "ED25519",
-///            "keyID":  "some key id"
+///            "keyId":  "some key id"
 ///         },
 ///         {
 ///            "signature":  "some signature",
 ///            "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
-///            "keyID":  "some key id"
+///            "keyId":  "some key id"
 ///         }
 ///     ]
 /// }"#.as_bytes().to_vec();
@@ -236,16 +236,15 @@ impl<'de> Deserialize<'de> for Signatures {
 /// data before validation ([RawSignatureData], where the signing algorithm is a string) and after validation
 /// [SignatureData] (where the signing algorithm is represented by the [SigningAlgorithm] type).
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SignatureFields<A> {
     /// RemoteConfiguration signature on TLS's `DigitallySigned.signature` format encoded in base64.
     pub signature: String,
     /// Public key identifier.
-    #[serde(rename = "keyID")]
     pub key_id: String,
     /// Signing algorithm used the config:
     /// [ECDSA_P256_SHA256,ECDSA_P256_SHA384,ECDSA_P384_SHA256,ECDSA_P384_SHA384,RSA_PKCS1_[2048-8192]_SHA256,
     /// RSA_PKCS1_2048_8192_SHA384,RSA_PKCS1_2048_8192_SHA512,RSA_PKCS1_3072_8192_SHA384,ED25519]
-    #[serde(rename = "signingAlgorithm")]
     pub signing_algorithm: A,
 }
 
@@ -393,7 +392,7 @@ mod tests {
                                 "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
                                 "signatureSpecification": "PKCS #1 v2.2",
                                 "signingDomain": "iast-csec-se.test-poised-pear.cell.us.nr-data.net",
-                                "keyID":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
+                                "keyId":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -407,7 +406,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -421,7 +420,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2048_SHA512",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -435,7 +434,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_2049_SHA512",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -449,7 +448,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "ECDSA_P256_SHA256",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -463,7 +462,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "ED25519",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#.as_bytes().to_vec(),
                 },
@@ -478,12 +477,12 @@ mod tests {
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "unsupported",
-                                    "keyID":  "fake"
+                                    "keyId":  "fake"
                                 },
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "ED25519",
-                                    "keyID":  "fake"
+                                    "keyId":  "fake"
                                 }
                           ]
                     }"#.as_bytes().to_vec(),
@@ -507,17 +506,17 @@ mod tests {
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "unsupported",
-                                    "keyID":  "fake"
+                                    "keyId":  "fake"
                                 },
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "ED25519",
-                                    "keyID":  "fake"
+                                    "keyId":  "fake"
                                 },
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "ECDSA_P256_SHA256",
-                                    "keyID":  "fake"
+                                    "keyId":  "fake"
                                 }
                           ]
                     }"#
@@ -552,7 +551,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "unknown",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#
                     .as_bytes()
@@ -568,7 +567,7 @@ mod tests {
                           "3936250589": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "RSA_PKCS1_8193_SHA512",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#
                     .as_bytes()
@@ -597,7 +596,7 @@ mod tests {
                           "config_id2": [{
                                 "signature":  "fake",
                                 "signingAlgorithm": "ED25519",
-                                "keyID":  "fake"
+                                "keyId":  "fake"
                           }]
                     }"#
                     .as_bytes()

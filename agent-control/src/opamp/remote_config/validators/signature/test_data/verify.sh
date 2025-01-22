@@ -24,7 +24,7 @@
 #                         "signingAlgorithm": "RSA_PKCS1_2048_SHA256",
 #                         "signatureSpecification": "PKCS #1 v2.2",
 #                         "signingDomain": "iast-csec-se.test-poised-pear.cell.us.nr-data.net",
-#                         "keyID":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
+#                         "keyId":  "778b223984d389ad6555bdbbbf118420290c53296b6511e1964309965ec5f710"
 #                   }]
 #             }
 #       }

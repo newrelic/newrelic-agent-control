@@ -496,7 +496,7 @@ pub(crate) mod tests {
                             "unique": [{
                                 "signature": "fake config",
                                 "signingAlgorithm": "ED25519",
-                                "keyID": "fake keyid"
+                                "keyId": "fake keyid"
                             }]
                         }"#
                         .as_bytes()
@@ -526,7 +526,7 @@ pub(crate) mod tests {
                             "unique": [{
                                 "signature": "fake config",
                                 "signingAlgorithm": "ED25519",
-                                "keyID": "fake keyid"
+                                "keyId": "fake keyid"
                             }]
                         }"#
                         .as_bytes()
@@ -552,7 +552,7 @@ pub(crate) mod tests {
                             "unique": [{
                                 "signature": "fake config",
                                 "signingAlgorithm": "ED25519",
-                                "keyID": "fake keyid"
+                                "keyId": "fake keyid"
                             }]
                         }"#
                         .as_bytes()
