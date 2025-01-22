@@ -18,6 +18,10 @@ pub trait AgentRegistry {
     // get returns an Agent type given a definition.
     // TODO: evaluate if returning an owned value is needed, CoW?
     fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
+
+    /// Returns an iterator over all agent type definitions.
+    // FIXME: This could have been an iterator over references, but mockall complains (sigh...)
+    fn get_all(&self) -> impl Iterator<Item = AgentTypeDefinition>;
 }
 
 #[cfg(test)]
@@ -32,6 +36,7 @@ pub mod tests {
 
         impl AgentRegistry for AgentRegistryMock  {
             fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
+            fn get_all(&self) -> impl Iterator<Item = AgentTypeDefinition>;
         }
     }
 

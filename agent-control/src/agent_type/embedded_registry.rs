@@ -43,6 +43,10 @@ impl AgentRegistry for EmbeddedRegistry {
             .cloned()
             .ok_or(AgentRepositoryError::NotFound)
     }
+    fn get_all(&self) -> impl Iterator<Item = AgentTypeDefinition> {
+        // FIXME: .cloned() to satisfy mockall
+        self.0.values().cloned()
+    }
 }
 
 impl EmbeddedRegistry {
