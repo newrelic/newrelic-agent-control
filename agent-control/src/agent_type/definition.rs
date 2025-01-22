@@ -297,7 +297,7 @@ fn update_specs(
 ) -> Result<(), AgentTypeError> {
     for (ref key, value) in values.into_iter() {
         let Some(spec) = agent_vars.get_mut(key) else {
-            warn!(%key, ?value, "Unexpected variable in the configuration");
+            warn!(%key, "Unexpected variable in the configuration");
             continue;
         };
 
