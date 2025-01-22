@@ -259,7 +259,7 @@ where
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client)
             .inspect_err(
-                |e| error!(agent_id = %self.agent_id, error = %e,"cannot assemble supervisor"),
+                |e| error!(agent_id = %self.agent_id, agent_type=%self.agent_cfg.agent_type, error = %e,"cannot assemble supervisor"),
             )
             .ok();
 
