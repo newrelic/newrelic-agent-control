@@ -13,8 +13,9 @@ pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSigna
 pub const SIGNATURE_CUSTOM_MESSAGE_TYPE: &str = "newrelicRemoteConfigSignature";
 // Supported signature algorithms
 // RSA regex matching supported RSA signature algorithms, length between 2048 and 8192 bits
-pub const RSA_REGEX: &str = "RSA_PKCS1_([0-9]+)_SHA(256|512)";
+pub const RSA_REGEX: &str = "RSA_PKCS1_([0-9]+)_SHA(256|384|512)";
 pub const RSA_PKCS1_2048_8192_SHA256: &str = "RSA_PKCS1_2048_8192_SHA256";
+pub const RSA_PKCS1_2048_8192_SHA384: &str = "RSA_PKCS1_2048_8192_SHA384";
 pub const RSA_PKCS1_2048_8192_SHA512: &str = "RSA_PKCS1_2048_8192_SHA512";
 pub const ECDSA_P256_SHA256: &str = "ECDSA_P256_SHA256";
 pub const ECDSA_P256_SHA384: &str = "ECDSA_P256_SHA384";
@@ -32,6 +33,7 @@ fn rsa_regex() -> &'static Regex {
 #[allow(non_camel_case_types)]
 pub enum SigningAlgorithm {
     RSA_PKCS1_2048_8192_SHA256,
+    RSA_PKCS1_2048_8192_SHA384,
     RSA_PKCS1_2048_8192_SHA512,
     ECDSA_P256_SHA256,
     ECDSA_P256_SHA384,
@@ -64,6 +66,7 @@ impl AsRef<str> for SigningAlgorithm {
     fn as_ref(&self) -> &str {
         match self {
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256 => RSA_PKCS1_2048_8192_SHA256,
+            SigningAlgorithm::RSA_PKCS1_2048_8192_SHA384 => RSA_PKCS1_2048_8192_SHA384,
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512 => RSA_PKCS1_2048_8192_SHA512,
             SigningAlgorithm::ECDSA_P256_SHA256 => ECDSA_P256_SHA256,
             SigningAlgorithm::ECDSA_P256_SHA384 => ECDSA_P256_SHA384,
@@ -78,6 +81,7 @@ impl From<&SigningAlgorithm> for &SignatureAlgorithm {
     fn from(value: &SigningAlgorithm) -> Self {
         match value {
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
+            SigningAlgorithm::RSA_PKCS1_2048_8192_SHA384 => &webpki::RSA_PKCS1_2048_8192_SHA384,
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512 => &webpki::RSA_PKCS1_2048_8192_SHA512,
             SigningAlgorithm::ECDSA_P256_SHA256 => &webpki::ECDSA_P256_SHA256,
             SigningAlgorithm::ECDSA_P256_SHA384 => &webpki::ECDSA_P256_SHA384,
@@ -105,6 +109,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 
     match hash_bytes {
         b"256" => Some(SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256),
+        b"384" => Some(SigningAlgorithm::RSA_PKCS1_2048_8192_SHA384),
         b"512" => Some(SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512),
         _ => None,
     }
@@ -332,6 +337,7 @@ mod tests {
     use super::Signatures;
     use crate::opamp::remote_config::signature::SigningAlgorithm;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA256;
+    use crate::opamp::remote_config::signature::ECDSA_P256_SHA384;
     use crate::opamp::remote_config::signature::ED25519;
     use opamp_client::opamp::proto::CustomMessage;
     use std::collections::HashMap;
@@ -371,11 +377,14 @@ mod tests {
         struct TestCase {
             name: &'static str,
             custom_message: CustomMessage,
+            algorithm: SigningAlgorithm,
         }
         impl TestCase {
             fn run(self) {
-                let _ = Signatures::try_from(&self.custom_message)
+                let signatures = Signatures::try_from(&self.custom_message)
                     .unwrap_or_else(|err| panic!("case: {} - {}", self.name, err));
+                let (_, signature) = signatures.iter().next().unwrap();
+                assert_eq!(signature.signing_algorithm, self.algorithm);
             }
         }
         let test_cases = vec![
@@ -396,6 +405,7 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256,
             },
             TestCase {
                 name: "required fields only, RSA_PKCS1_2048_SHA256",
@@ -410,6 +420,7 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256,
             },
             TestCase {
                 name: "RSA_PKCS1_2048_SHA512",
@@ -424,6 +435,7 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512,
             },
             TestCase {
                 name: "RSA_PKCS1_2049_SHA512",
@@ -438,6 +450,22 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512,
+            },
+            TestCase {
+                name: "RSA_PKCS1_3072_SHA384",
+                custom_message: CustomMessage {
+                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                    data: r#"{
+                          "3936250589": [{
+                                "signature":  "fake",
+                                "signingAlgorithm": "RSA_PKCS1_3072_SHA384",
+                                "keyId":  "fake"
+                          }]
+                    }"#.as_bytes().to_vec(),
+                },
+                algorithm: SigningAlgorithm::RSA_PKCS1_2048_8192_SHA384,
             },
             TestCase {
                 name: ECDSA_P256_SHA256,
@@ -452,6 +480,22 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::ECDSA_P256_SHA256,
+            },
+            TestCase {
+                name: ECDSA_P256_SHA384,
+                custom_message: CustomMessage {
+                    capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+                    r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+                    data: r#"{
+                          "3936250589": [{
+                                "signature":  "fake",
+                                "signingAlgorithm": "ECDSA_P256_SHA384",
+                                "keyId":  "fake"
+                          }]
+                    }"#.as_bytes().to_vec(),
+                },
+                algorithm: SigningAlgorithm::ECDSA_P256_SHA384,
             },
             TestCase {
                 name: ED25519,
@@ -466,6 +510,7 @@ mod tests {
                           }]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::ED25519,
             },
             TestCase {
                 name: "Unsupported + ED25519",
@@ -487,6 +532,7 @@ mod tests {
                           ]
                     }"#.as_bytes().to_vec(),
                 },
+                algorithm: SigningAlgorithm::ED25519,
             },
 
         ];
