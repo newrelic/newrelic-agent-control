@@ -10,7 +10,7 @@ use tracing::log::error;
 pub enum CertificateStoreError {
     #[error("fetching certificate: `{0}`")]
     CertificateFetch(String),
-    #[error("signature keyID({signature_key_id}) does not match certificate keyID({certificate_key_id})")]
+    #[error("signature keyId({signature_key_id}) does not match certificate keyId({certificate_key_id})")]
     KeyMismatch {
         signature_key_id: String,
         certificate_key_id: String,
