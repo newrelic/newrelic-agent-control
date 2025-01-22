@@ -295,17 +295,16 @@ fn update_specs(
     values: HashMap<String, serde_yaml::Value>,
     agent_vars: &mut HashMap<String, VariableDefinitionTree>,
 ) -> Result<(), AgentTypeError> {
-    for (ref key, v) in values.into_iter() {
+    for (ref key, value) in values.into_iter() {
         let Some(spec) = agent_vars.get_mut(key) else {
-            let value = format!("{:?}", v); // `serde_yaml::Value` cannot be formatted with the default formatter
-            warn!(%key, %value, "Unexpected variable in the configuration");
+            warn!(%key, ?value, "Unexpected variable in the configuration");
             continue;
         };
 
         match spec {
-            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(v)?,
+            VariableDefinitionTree::End(e) => e.merge_with_yaml_value(value)?,
             VariableDefinitionTree::Mapping(m) => {
-                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(v)?;
+                let v: HashMap<String, serde_yaml::Value> = serde_yaml::from_value(value)?;
                 update_specs(v, m)?
             }
         }
