@@ -121,7 +121,7 @@ deployment:
         NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
         NRIA_STATUS_SERVER_ENABLED: true
         NRIA_STATUS_SERVER_PORT: "8003"
-        NR_HOST_ID: "${nr-sa:host_id}"
+        NR_HOST_ID: "${nr-ac:host_id}"
       restart_policy:
         backoff_strategy:
           type: fixed

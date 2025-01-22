@@ -85,7 +85,7 @@ deployment:
         NRIA_LOGGING_CONFIGS_DIR: "${nr-var:config_logging}"
         NRIA_STATUS_SERVER_ENABLED: true
         NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
-        NR_HOST_ID: "${nr-sa:host_id}"
+        NR_HOST_ID: "${nr-ac:host_id}"
       restart_policy:
         backoff_strategy:
           type: fixed

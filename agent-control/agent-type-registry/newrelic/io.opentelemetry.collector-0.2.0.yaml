@@ -59,7 +59,7 @@ deployment:
         --feature-gates=-pkg.translator.prometheus.NormalizeName
       env:
         # sets the otel-collector "env" source resource detector 
-        OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-sa:host_id}"
+        OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
       restart_policy:
         backoff_strategy:
           type: fixed

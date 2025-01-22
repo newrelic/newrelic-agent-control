@@ -123,7 +123,7 @@ fn test_gcp_cloud_id() {
     mock.assert_calls(1);
 }
 
-/// tests that nr-sa:host_id and nr-sub:agent_id are correctly replaced in the agent type.
+/// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
 #[cfg(unix)]
 #[test]
 fn test_sub_sa_vars() {
@@ -142,7 +142,7 @@ deployment:
       path: "sh"
       args: >-
         tests/on_host/data/trap_term_sleep_60.sh
-        --host_id=${nr-sa:host_id}
+        --host_id=${nr-ac:host_id}
         --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
