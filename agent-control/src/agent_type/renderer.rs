@@ -9,7 +9,6 @@ use super::{
         namespace::{Namespace, NamespacedVariableName},
     },
 };
-use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_control::{config::AgentID, defaults::GENERATED_FOLDER_NAME},
@@ -26,6 +25,7 @@ pub trait Renderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
+        environment_variables: HashMap<String, VariableDefinition>,
     ) -> Result<Runtime, AgentTypeError>;
 }
 
@@ -42,13 +42,13 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
+        environment_variables: HashMap<String, VariableDefinition>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
-        let environment_variables = retrieve_env_var_variables();
         let values_expanded = values.template_with(&environment_variables)?;
 
         // Fill agent variables
@@ -187,8 +187,6 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError;
     use mockall::{mock, predicate};
-    use serial_test::serial;
-    use std::env;
 
     fn test_data_dir() -> PathBuf {
         PathBuf::from("/some/path")
@@ -215,6 +213,7 @@ pub(crate) mod tests {
                 agent_type: AgentType,
                 values: YAMLConfig,
                 attributes: AgentAttributes,
+                environment_variables: HashMap<String, VariableDefinition>,
             ) -> Result<Runtime, AgentTypeError>;
          }
     }
@@ -236,8 +235,9 @@ pub(crate) mod tests {
                     predicate::eq(values.clone()),
                     //predicate::eq(attributes.clone()),
                     predicate::eq(attributes.clone()),
+                    predicate::always(), // Not caring for env vars
                 )
-                .returning(move |_, _, _, _| Ok(runtime.clone()));
+                .returning(move |_, _, _, _, _| Ok(runtime.clone()));
         }
     }
 
@@ -260,7 +260,7 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .unwrap();
         assert_eq!(
             Args("--config_path=/some/path/config --foo=bar".into()),
@@ -284,7 +284,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(&agent_id, agent_type, values, attributes);
+        let result = renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -298,7 +298,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(&agent_id, agent_type, values, attributes);
+        let result = renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -327,7 +327,13 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let runtime_config = renderer
-            .render(&agent_id, agent_type, testing_values(values), attributes)
+            .render(
+                &agent_id,
+                agent_type,
+                testing_values(values),
+                attributes,
+                HashMap::new(),
+            )
             .unwrap();
         assert_eq!(
             Args(format!(
@@ -362,7 +368,7 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default().with_config_persister(persister);
         let expected_error = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .err()
             .unwrap();
         assert_matches!(
@@ -389,7 +395,13 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default().with_config_persister(persister);
 
         let expected_error = renderer
-            .render(&agent_id, agent_type, testing_values(values), attributes)
+            .render(
+                &agent_id,
+                agent_type,
+                testing_values(values),
+                attributes,
+                HashMap::new(),
+            )
             .err()
             .unwrap();
         assert_matches!(
@@ -408,7 +420,7 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let backoff_strategy = &runtime_config
@@ -447,7 +459,7 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let backoff_strategy = &runtime_config
@@ -526,7 +538,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .unwrap();
 
         let k8s = runtime_config.deployment.k8s.unwrap();
@@ -540,7 +552,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     }
 
     #[test]
-    #[serial]
     fn test_render_with_env_variables() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
@@ -550,8 +561,16 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
-        env::set_var("MY_VARIABLE", "my-value");
-        env::set_var("MY_VARIABLE_2", "my-value-2");
+        let env_vars = HashMap::from([
+            (
+                Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE"),
+                VariableDefinition::new_final_string_variable("my-value".to_string()),
+            ),
+            (
+                Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE_2"),
+                VariableDefinition::new_final_string_variable("my-value-2".to_string()),
+            ),
+        ]);
 
         let expected_spec_yaml = r#"
 values:
@@ -572,10 +591,7 @@ substituted_2: my-value-2
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
-
-        env::remove_var("MY_VARIABLE");
-        env::remove_var("MY_VARIABLE_2");
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -588,7 +604,6 @@ substituted_2: my-value-2
     }
 
     #[test]
-    #[serial]
     fn test_render_double_expansion_with_env_variables() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
@@ -606,8 +621,16 @@ config:
         );
         let attributes = testing_agent_attributes(&agent_id);
 
-        env::set_var("DOUBLE_EXPANSION", "test");
-        env::set_var("DOUBLE_EXPANSION_2", "test-2");
+        let env_vars = HashMap::from([
+            (
+                Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION"),
+                VariableDefinition::new_final_string_variable("test".to_string()),
+            ),
+            (
+                Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION_2"),
+                VariableDefinition::new_final_string_variable("test-2".to_string()),
+            ),
+        ]);
 
         let expected_spec_yaml = r#"
 values:
@@ -622,10 +645,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
-
-        env::remove_var("DOUBLE_EXPANSION");
-        env::remove_var("DOUBLE_EXPANSION_2");
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -633,7 +653,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     }
 
     #[test]
-    #[serial]
     fn test_render_with_env_variables_not_found() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
@@ -644,7 +663,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+        let runtime_config =
+            renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -653,7 +673,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     }
 
     #[test]
-    #[serial]
     fn test_render_with_env_variables_are_case_sensitive() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
@@ -686,17 +705,21 @@ deployment:
         );
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
-        env::set_var("my_variable", "my-value");
+
+        let env_vars = HashMap::from([(
+            Namespace::EnvironmentVariable.namespaced_name("my_variable"),
+            VariableDefinition::new_final_string_variable("my-value".to_string()),
+        )]);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes);
+        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
 
-        env::remove_var("my_variable");
         assert_matches!(
             runtime_config.unwrap_err(),
             AgentTypeError::MissingTemplateKey(_)
         );
     }
+
     #[test]
     fn test_render_expand_agent_control_variables() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
@@ -726,7 +749,7 @@ deployment:
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.into_iter());
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes)
+            .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .unwrap();
         assert_eq!(
             Args("fake_value".into()),

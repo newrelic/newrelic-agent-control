@@ -4,6 +4,7 @@ use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::environment::Environment;
+use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::renderer::{Renderer, TemplateRenderer};
 #[cfg(feature = "k8s")]
@@ -158,9 +159,17 @@ where
             agent_id: agent_id.get(),
         };
 
-        let runtime_config = self
-            .renderer
-            .render(agent_id, agent_type, values, attributes)?;
+        // Values are expanded substituting all ${nr-env...} with environment variables.
+        // Notice that only environment variables are taken into consideration (no other vars for example)
+        let environment_variables = retrieve_env_var_variables();
+
+        let runtime_config = self.renderer.render(
+            agent_id,
+            agent_type,
+            values,
+            attributes,
+            environment_variables,
+        )?;
 
         Ok(EffectiveAgent::new(
             agent_id.clone(),
