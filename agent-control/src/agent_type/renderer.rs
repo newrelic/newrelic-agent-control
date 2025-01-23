@@ -734,7 +734,7 @@ deployment:
   on_host:
     executable:
       path: /opt/first
-      args: "${nr-sa:sa-fake-var}"
+      args: "${nr-ac:sa-fake-var}"
 "#,
             &Environment::OnHost,
         );

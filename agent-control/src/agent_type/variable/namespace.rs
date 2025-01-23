@@ -19,14 +19,14 @@ impl Namespace {
     /// Encapsulates attributes related to the sub-agent
     const SUB_AGENT: &'static str = "sub";
     /// Encapsulates attributes related to the agent-control
-    const SA: &'static str = "sa";
+    const AC: &'static str = "ac";
 
     pub fn namespaced_name(&self, name: &str) -> NamespacedVariableName {
         let ns = match self {
             Self::Variable => Self::VARIABLE,
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
-            Self::AgentControl => Self::SA,
+            Self::AgentControl => Self::AC,
         };
         format!("{}{}:{}", Self::PREFIX, ns, name)
     }
@@ -49,7 +49,7 @@ mod tests {
             Namespace::EnvironmentVariable.namespaced_name("test")
         );
         assert_eq!(
-            "nr-sa:test".to_string(),
+            "nr-ac:test".to_string(),
             Namespace::AgentControl.namespaced_name("test")
         );
     }
