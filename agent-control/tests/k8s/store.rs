@@ -214,7 +214,7 @@ agents:
   infra-agent-b:
     agent_type: "com.newrelic.infrastructure:0.0.2"
   not-infra-agent:
-    agent_type: "io.opentelemetry.collector:0.2.0"
+    agent_type: "io.opentelemetry.collector:0.1.0"
 "#;
     assert!(store_sa
         .store(&from_str::<YAMLConfig>(agents_cfg).unwrap())
