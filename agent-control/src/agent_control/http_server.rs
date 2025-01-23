@@ -21,7 +21,3 @@ pub enum StatusServerError {
     #[error("error waiting for async join handle `{0}`")]
     JoinHandleError(#[from] JoinError),
 }
-
-pub trait StatusServer {
-    fn run(self) -> Result<(), StatusServerError>;
-}

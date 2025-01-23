@@ -18,10 +18,15 @@ pub(super) async fn on_agent_control_event_update_status(
                     break;
                 }
                 update_agent_control_status(agent_control_event, status.clone()).await;
-            },
+            }
             Some(sub_agent_event) = sub_agent_event_consumer.recv() => {
                 update_sub_agent_status(sub_agent_event, status.clone()).await;
-            },
+            }
+            else => {
+                debug!("agent_control_event_consumer and sub_agent_event_consumer disconnected");
+                break;
+            }
+
         }
     }
 }
@@ -500,5 +505,24 @@ mod tests {
         )
         .await;
         publisher_handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_all_channels_closed() {
+        let rt = Handle::current();
+        let (sa_event_publisher, sa_event_consumer) = unbounded_channel::<AgentControlEvent>();
+        let (suba_event_publisher, suba_event_consumer) = unbounded_channel::<SubAgentEvent>();
+
+        // We drop the publisher so the channels get disconnected
+        drop(sa_event_publisher);
+        drop(suba_event_publisher);
+
+        // Then the event will be consumed
+        on_agent_control_event_update_status(
+            sa_event_consumer,
+            suba_event_consumer,
+            Arc::new(RwLock::new(Status::default())),
+        )
+        .await;
     }
 }
