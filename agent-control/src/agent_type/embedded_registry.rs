@@ -41,7 +41,7 @@ impl AgentRegistry for EmbeddedRegistry {
         self.0
             .get(name)
             .cloned()
-            .ok_or(AgentRepositoryError::NotFound)
+            .ok_or(AgentRepositoryError::NotFound(name.to_string()))
     }
 }
 
@@ -149,7 +149,7 @@ pub mod tests {
         assert_eq!(definitions[1], agent_2);
 
         let err = registry.get("not-existent").unwrap_err();
-        assert_matches!(err, AgentRepositoryError::NotFound);
+        assert_matches!(err, AgentRepositoryError::NotFound(_));
     }
 
     #[test]

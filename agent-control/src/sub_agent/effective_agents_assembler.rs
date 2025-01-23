@@ -383,7 +383,7 @@ pub(crate) mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "error assembling agents: `agent not found`",
+            "error assembling agents: `agent type `namespace/some_fqn:0.0.1` not found`",
             result.unwrap_err().to_string()
         );
     }
