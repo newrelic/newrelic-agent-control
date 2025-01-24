@@ -109,7 +109,6 @@ pub mod tests {
         }
     }
 
-
     const AGENT_TYPE_AMOUNT: usize = 11;
 
     #[test]
