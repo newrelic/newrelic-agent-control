@@ -96,7 +96,6 @@ where
                             |e| error!(%self.agent_id, %e, "error reporting remote config status"),
                         );
                 }
-                error!(agent_id=%self.agent_id, err = %e, "Error building the supervisor");
                 Err(SupervisorAssemblerError::AgentAssembleError(e.to_string()))
             }
             Ok(effective_agent) => {

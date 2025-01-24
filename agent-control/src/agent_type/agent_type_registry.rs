@@ -5,8 +5,8 @@ use super::definition::AgentTypeDefinition;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
-    #[error("agent not found")]
-    NotFound,
+    #[error("agent type `{0}` not found")]
+    NotFound(String),
     #[error("agent `{0}` already exists")]
     AlreadyExists(String),
     #[error("`{0}`")]
@@ -48,7 +48,7 @@ pub mod tests {
             self.expect_get()
                 .with(predicate::eq(name.clone()))
                 .once()
-                .returning(move |_| Err(AgentRepositoryError::NotFound));
+                .returning(move |_| Err(AgentRepositoryError::NotFound(name.clone())));
         }
     }
 }
