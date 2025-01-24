@@ -401,6 +401,19 @@ fn all_agent_type_definitions_are_present() {
 }
 
 #[test]
+fn all_agent_types_covered_by_tests() {
+    let registry = EmbeddedRegistry::default();
+    let registry_items = registry.iter_definitions().collect::<Vec<_>>();
+    let test_cases = get_agent_type_test_cases().collect::<Vec<_>>();
+
+    assert_eq!(
+        registry_items.len(),
+        test_cases.len(),
+        "Expected the same amount of agent types in the registry and in the test cases"
+    );
+}
+
+#[test]
 fn all_agent_type_definitions_are_resilient_to_missing_non_required_fields_k8s() {
     let registry = EmbeddedRegistry::default();
     for case in get_agent_type_test_cases() {

@@ -103,6 +103,13 @@ pub mod tests {
 
     use super::*;
 
+    impl EmbeddedRegistry {
+        pub fn iter_definitions(&self) -> impl Iterator<Item = &AgentTypeDefinition> {
+            self.0.values()
+        }
+    }
+
+
     const AGENT_TYPE_AMOUNT: usize = 11;
 
     #[test]
