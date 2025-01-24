@@ -494,6 +494,22 @@ fn all_agent_types_covered_by_tests() {
         test_cases.len(),
         "Expected the same amount of agent types in the registry and in the test cases"
     );
+
+    let agent_type_names_from_registry =
+        registry_items.iter().map(|item| item.metadata.to_string());
+    let agent_type_names_from_test_cases = test_cases
+        .iter()
+        .map(|case| case.agent_type)
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>();
+
+    agent_type_names_from_registry.for_each(|name| {
+        assert!(
+            agent_type_names_from_test_cases.contains(&name),
+            "Agent type {} not covered by test cases",
+            name
+        )
+    })
 }
 
 #[test]
@@ -530,7 +546,7 @@ fn iterate_test_cases(environment: &Environment) {
             }
         };
 
-        for (scenario, yaml) in values.cases.iter() {
+        values.cases.iter().for_each(|(scenario, yaml)| {
             let definition = registry.get(case.agent_type).unwrap();
             let agent_type = build_agent_type(definition, environment).unwrap();
             let attributes = testing_agent_attributes(&agent_id);
@@ -550,7 +566,7 @@ fn iterate_test_cases(environment: &Environment) {
                 scenario,
                 case.agent_type,
                 result
-            );
-        }
+            )
+        });
     }
 }
