@@ -6,6 +6,9 @@ use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
 use tracing::debug;
 use webpki::SignatureAlgorithm;
+use x509_parser::num_bigint::Sign;
+
+use crate::opamp::remote_config::signature;
 
 /// signature custom message capability
 pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
@@ -194,6 +197,27 @@ pub struct Signatures {
     pub signatures: HashMap<ConfigID, SignatureData>,
 }
 
+/// Traverse the list of signature fields and return the first valid signature data.
+/// If no valid signature data is found, return an error with the accumulated errors.
+fn parse_first_valid(
+    signature_list: Vec<SignatureFields<String>>,
+) -> Result<SignatureFields<SigningAlgorithm>, SignatureError> {
+    let mut errors_accumulator = String::new();
+    for (i, raw_signature) in signature_list.into_iter().enumerate() {
+        match SignatureData::try_from(raw_signature) {
+            Ok(valid_signature) => return Ok(valid_signature),
+            Err(err) => {
+                errors_accumulator.push_str(&format!(
+                    "Cannot process the signature data in position {}: {}\n",
+                    i, err
+                ));
+            }
+        }
+    }
+
+    Err(SignatureError::InvalidData(errors_accumulator))
+}
+
 impl<'de> Deserialize<'de> for Signatures {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -207,33 +231,16 @@ impl<'de> Deserialize<'de> for Signatures {
 
         // Get the first supported signature-data (SignatureData) for each config-map if any, return an error if there is
         // no valid signature data for any config_id.
-        let signatures: Result<HashMap<ConfigID, SignatureData>, D::Error> = raw_signatures
-            .into_iter()
-            .map(|(config_id, signature_list)| {
-                let maybe_first_supported =
-                    signature_list
-                        .into_iter()
-                        .enumerate()
-                        .find_map(|(i, raw_signature)| {
-                            SignatureData::try_from(raw_signature)
-                                .inspect_err(|err| {
-                                    debug!(
-                                    "Cannot process the signature data in position {} for {}: {}",
-                                    i, &config_id, err
-                                );
-                                })
-                                .ok()
-                        });
-                let first_supported = maybe_first_supported.ok_or_else(|| {
-                    Error::custom(format!("there is no valid signature data for {config_id}"))
-                })?;
-                Ok((config_id, first_supported))
-            })
-            .collect();
+        let mut signatures = HashMap::new();
+        for (id, signature_list) in raw_signatures {
+            let valid = parse_first_valid(signature_list).map_err(|e| {
+                Error::custom(format!("there is no valid signature data for {id}: {e}"))
+            })?;
 
-        Ok(Signatures {
-            signatures: signatures?,
-        })
+            signatures.insert(id, valid);
+        }
+
+        Ok(Signatures { signatures })
     }
 }
 
@@ -543,12 +550,39 @@ mod tests {
     }
 
     #[test]
+    fn test_print_acc_err() {
+        let custom_message = CustomMessage {
+            capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
+            r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
+            data: r#"{
+                          "1": [
+                                {
+                                    "signature":  "fake1",
+                                    "signingAlgorithm": "unsupported1",
+                                    "keyId":  "fake2"
+                                },
+                                {
+                                    "signature":  "fake2",
+                                    "signingAlgorithm": "unsupported2",
+                                    "keyId":  "fake2"
+                                }
+                          ]
+                    }"#
+            .as_bytes()
+            .to_vec(),
+        };
+        let error = Signatures::try_from(&custom_message).unwrap_err();
+        assert!(error.to_string().contains("unsupported1"));
+        assert!(error.to_string().contains("unsupported2"));
+    }
+
+    #[test]
     fn test_deserialize_signature_data_items_precedence() {
         let custom_message = CustomMessage {
             capability: super::SIGNATURE_CUSTOM_CAPABILITY.to_string(),
             r#type: super::SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
             data: r#"{
-                          "3936250589": [
+                          "1": [
                                 {
                                     "signature":  "fake",
                                     "signingAlgorithm": "unsupported",
@@ -564,14 +598,37 @@ mod tests {
                                     "signingAlgorithm": "ECDSA_P256_SHA256",
                                     "keyId":  "fake"
                                 }
+                          ],
+                          "2": [
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "unsupported",
+                                    "keyId":  "fake"
+                                },
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "ECDSA_P256_SHA256",
+                                    "keyId":  "fake"
+                                },
+                                {
+                                    "signature":  "fake",
+                                    "signingAlgorithm": "ED25519",
+                                    "keyId":  "fake"
+                                }
                           ]
                     }"#
             .as_bytes()
             .to_vec(),
         };
         let signatures = Signatures::try_from(&custom_message).unwrap();
-        let (_, signature) = signatures.iter().next().unwrap();
-        assert_eq!(signature.signing_algorithm, SigningAlgorithm::ED25519);
+        assert_eq!(
+            signatures.signatures.get("1").unwrap().signing_algorithm,
+            SigningAlgorithm::ED25519
+        );
+        assert_eq!(
+            signatures.signatures.get("2").unwrap().signing_algorithm,
+            SigningAlgorithm::ECDSA_P256_SHA256
+        );
     }
 
     #[test]
