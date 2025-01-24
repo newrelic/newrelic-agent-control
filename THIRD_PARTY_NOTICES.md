@@ -760,6 +760,20 @@ Distributed under the following license(s):
 * MIT
 
 
+## fastrand https://crates.io/crates/fastrand
+
+Distributed under the following license(s):
+* Apache-2.0
+* MIT
+
+
+## fixedbitset https://crates.io/crates/fixedbitset
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## flate2 https://crates.io/crates/flate2
 
 Distributed under the following license(s):
@@ -1416,6 +1430,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## multimap https://crates.io/crates/multimap
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## nix https://crates.io/crates/nix
 
 Distributed under the following license(s):
@@ -1489,7 +1510,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.24
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.25
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1596,6 +1617,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## petgraph https://crates.io/crates/petgraph
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
 ## pin-project https://crates.io/crates/pin-project
 
 Distributed under the following license(s):
@@ -1686,6 +1714,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
+## prost-build https://crates.io/crates/prost-build
+
+Distributed under the following license(s):
+* Apache-2.0
+
+
 ## prost-derive https://crates.io/crates/prost-derive
 
 Distributed under the following license(s):
@@ -1696,6 +1730,11 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * Apache-2.0
+
+
+## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.25
+
+Distributed under the following license(s):
 
 
 ## quote https://crates.io/crates/quote
@@ -2096,6 +2135,13 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 * MIT
+
+
+## tempfile https://crates.io/crates/tempfile
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
 
 
 ## tera https://crates.io/crates/tera
