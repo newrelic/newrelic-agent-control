@@ -1,10 +1,10 @@
 // The scenarios we want to cover here are:
-// 1. All agent type definitions are resilient when they are passed values with a
-//    missing non-required field.
-// 2. All agent type definitions are resilient when they are passed values with an additional,
-//    unknown variable (cannot know if this variable is optional for the agent type).
-// 3. All agent type definitions fail when they are passed values with a missing
-//    required field.
+// 1. All agent type definitions are resilient when they are passed values with missing,
+// non-required fields (i.e. required values only).
+// 2. All passed values conform to the data types expected by the agent type definition.
+// 3. All tested agent type definitions are present in the embedded registry.
+// 4. All agent type definitions are covered by the test cases (i.e. there are no agent types
+// in the registry that are not tested here).
 
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
@@ -45,10 +45,18 @@ static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_dotnet:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", r#"version: "some-version""#),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                version: "some-string"
+                pod_label_selector:
+                    yaml: object
+                namespace_label_selector:
+                    yaml: object
+                env:
+                    - SOME_VAR: "some-value"
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -62,10 +70,18 @@ static AGENT_TYPE_APM_JAVA: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_java:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", r#"version: "some-version""#),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                version: "some-string"
+                pod_label_selector:
+                    yaml: object
+                namespace_label_selector:
+                    yaml: object
+                env:
+                    - SOME_VAR: "some-value"
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -79,10 +95,18 @@ static AGENT_TYPE_APM_NODE: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_node:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", r#"version: "some-version""#),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                version: "some-string"
+                pod_label_selector:
+                    yaml: object
+                namespace_label_selector:
+                    yaml: object
+                env:
+                    - SOME_VAR: "some-value"
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -96,10 +120,18 @@ static AGENT_TYPE_APM_PYTHON: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_python:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", r#"version: "some-version""#),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                version: "some-string"
+                pod_label_selector:
+                    yaml: object
+                namespace_label_selector:
+                    yaml: object
+                env:
+                    - SOME_VAR: "some-value"
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -113,10 +145,18 @@ static AGENT_TYPE_APM_RUBY: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.apm_ruby:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", r#"version: "some-version""#),
+                ("mandatory fields only", r#"version: "some-version""#),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                version: "some-string"
+                pod_label_selector:
+                    yaml: object
+                namespace_label_selector:
+                    yaml: object
+                env:
+                    - SOME_VAR: "some-value"
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -130,16 +170,22 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.infrastructure:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.newrelic-infrastructure:
+                    yaml: object
+                chart_values.nri-metadata-injection:
+                    yaml: object
+                chart_values.kube-state-metrics:
+                    yaml: object
+                chart_values.nri-kube-events:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
@@ -168,10 +214,19 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_onhost: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", ""),
+                ("mandatory fields only", ""),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                config_agent: "some file contents"
+                config_integrations:
+                    map_string: "some file contents"
+                config_logging:
+                    map_string: "some file contents"
+                backoff_delay: "10s"
+                enable_file_logging: true
+                health_port: 12345
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -184,16 +239,16 @@ static AGENT_TYPE_K8S_AGENT_OPERATOR: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.k8s_agent_operator:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.k8s-agents-operator:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
@@ -216,16 +271,16 @@ static AGENT_TYPE_PROMETHEUS: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.prometheus:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.newrelic-prometheus-agent:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
@@ -260,16 +315,16 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/io.fluentbit:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.newrelic-logging:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
@@ -300,16 +355,16 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/io.opentelemetry.collector:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.nr-k8s-otel-collector:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
@@ -338,10 +393,15 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
         .into(),
         values_onhost: AgentTypeValues {
             cases: HashMap::from([
-                ("missing non-required fields", ""),
+                ("mandatory fields only", ""),
                 (
-                    "additional unknown variables",
-                    r#"random_var: "random-value""#,
+                    "check all value types are correct",
+                    r#"
+                config: "some file contents"
+                backoff_delay: "10s"
+                health_check.path: "/health"
+                health_check.port: 12345
+                "#,
                 ),
             ]),
             ..Default::default()
@@ -354,16 +414,16 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
         agent_type: "newrelic/com.newrelic.pipeline_control_gateway:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
                 (
-                    "missing non-required fields",
-                    r#"chart_version: "some-version""#,
-                ),
-                (
-                    "additional unknown variables",
+                    "check all value types are correct",
                     r#"
-                    chart_version: "some-version"
-                    random_var: "random-value"
-                    "#,
+                chart_version: "some-version"
+                chart_values.gateway:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
                 ),
             ]),
             additional_env: HashMap::from([
