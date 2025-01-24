@@ -1510,7 +1510,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.25
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.26
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1732,9 +1732,10 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.25
+## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.26
 
 Distributed under the following license(s):
+* Apache-2.0
 
 
 ## quote https://crates.io/crates/quote
