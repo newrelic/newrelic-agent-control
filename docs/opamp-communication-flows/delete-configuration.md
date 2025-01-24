@@ -1,7 +1,19 @@
 # Delete remote configuration
 
- Since there is no specific field to delete
-a remote configuration in the [ServerToAgent message](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#servertoagent-message), we use an empty config to do so. In other words, In order to remove a remote configuration and make an agent going back to local or default, the `AgentToServer` from OpAMP will contain an **empty** remote configuration.
+Since there is no specific field to delete a remote configuration in the [ServerToAgent message](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#servertoagent-message), we use a config entry with empty content to do so. In other words, In order to remove a remote configuration and make an agent going back to local or default, the `AgentToServer` from OpAMP will contain a remote configuration config entry with **empty** content. 
+
+```json
+{
+    "AgentToServer": {
+        "AgentRemoteConfig" : {
+            "AgentConfigMap" : {
+                "<config-name>" : ""
+            }
+        },
+        "Hash" : "<hash>"
+    }
+}
+```
 
 Therefore, applying an empty configuration means that agent falls back to the local configuration, and it is important to highlight that this configuration is applied like any other. When the empty configuration is successfully received by the agent, it sends an _Applying_ message, and once it is successfully applied (the agent is running with the local/default configuration), it sends an _Applied_ message. The sequence diagram below shows an scenario where a remote configuration is set and then deleted.
 
