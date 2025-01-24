@@ -24,6 +24,9 @@ use crate::{
     values::yaml_config::YAMLConfig,
 };
 
+type CaseDescription = &'static str;
+type YamlContents = &'static str;
+
 #[derive(Debug, Default)]
 struct AgentTypeValuesTestCase {
     agent_type: &'static str,
@@ -33,25 +36,21 @@ struct AgentTypeValuesTestCase {
 
 #[derive(Debug, Default)]
 struct AgentTypeValues {
-    missing_non_required_fields: &'static str,
-    additional_unknown_variables: &'static str,
-    missing_required_fields: &'static str,
+    cases: HashMap<CaseDescription, YamlContents>,
     additional_env: HashMap<String, VariableDefinition>,
-    has_optional_fields_only: bool,
 }
 
 static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.apm_dotnet:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-          version: "some-version"
-          "#,
-            additional_unknown_variables: r#"
-          random_var: "random-value"
-          "#,
-            missing_required_fields: "",
-            has_optional_fields_only: true,
+            cases: HashMap::from([
+                ("missing non-required fields", r#"version: "some-version""#),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -62,14 +61,13 @@ static AGENT_TYPE_APM_JAVA: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.apm_java:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-              version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
-            missing_required_fields: "",
-            has_optional_fields_only: true,
+            cases: HashMap::from([
+                ("missing non-required fields", r#"version: "some-version""#),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -80,14 +78,13 @@ static AGENT_TYPE_APM_NODE: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.apm_node:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-              version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
-            missing_required_fields: "",
-            has_optional_fields_only: true,
+            cases: HashMap::from([
+                ("missing non-required fields", r#"version: "some-version""#),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -98,14 +95,13 @@ static AGENT_TYPE_APM_PYTHON: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.apm_python:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-              version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
-            missing_required_fields: "",
-            has_optional_fields_only: true,
+            cases: HashMap::from([
+                ("missing non-required fields", r#"version: "some-version""#),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -116,14 +112,13 @@ static AGENT_TYPE_APM_RUBY: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.apm_ruby:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-              version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
-            missing_required_fields: "",
-            has_optional_fields_only: true,
+            cases: HashMap::from([
+                ("missing non-required fields", r#"version: "some-version""#),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -134,16 +129,19 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.infrastructure:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: r#"
-            enable_file_logging: true
-            "#,
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -166,14 +164,16 @@ static AGENT_TYPE_INFRASTRUCTURE: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("true".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         values_onhost: AgentTypeValues {
-            has_optional_fields_only: true,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
+            cases: HashMap::from([
+                ("missing non-required fields", ""),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -183,14 +183,19 @@ static AGENT_TYPE_K8S_AGENT_OPERATOR: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.k8s_agent_operator:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: "",
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -201,7 +206,6 @@ static AGENT_TYPE_K8S_AGENT_OPERATOR: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("my-test-cluster".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         ..Default::default()
@@ -211,14 +215,19 @@ static AGENT_TYPE_PROMETHEUS: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.prometheus:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: "",
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -241,7 +250,6 @@ static AGENT_TYPE_PROMETHEUS: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("true".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         ..Default::default()
@@ -251,14 +259,19 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/io.fluentbit:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: "",
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -277,7 +290,6 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("true".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         ..Default::default()
@@ -287,14 +299,19 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/io.opentelemetry.collector:0.2.0", // FIXME after PR #1010 is merged
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: "",
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -317,14 +334,16 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("true".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         values_onhost: AgentTypeValues {
-            has_optional_fields_only: true,
-            additional_unknown_variables: r#"
-              random_var: "random-value"
-            "#,
+            cases: HashMap::from([
+                ("missing non-required fields", ""),
+                (
+                    "additional unknown variables",
+                    r#"random_var: "random-value""#,
+                ),
+            ]),
             ..Default::default()
         }
         .into(),
@@ -334,14 +353,19 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.pipeline_control_gateway:0.1.0",
         values_k8s: AgentTypeValues {
-            missing_non_required_fields: r#"
-            chart_version: "some-version"
-            "#,
-            additional_unknown_variables: r#"
-            chart_version: "some-version"
-            random_var: "random-value"
-            "#,
-            missing_required_fields: "",
+            cases: HashMap::from([
+                (
+                    "missing non-required fields",
+                    r#"chart_version: "some-version""#,
+                ),
+                (
+                    "additional unknown variables",
+                    r#"
+                    chart_version: "some-version"
+                    random_var: "random-value"
+                    "#,
+                ),
+            ]),
             additional_env: HashMap::from([
                 (
                     Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
@@ -364,7 +388,6 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
                     VariableDefinition::new_final_string_variable("true".to_string()),
                 ),
             ]),
-            ..Default::default()
         }
         .into(),
         ..Default::default()
@@ -414,211 +437,57 @@ fn all_agent_types_covered_by_tests() {
 }
 
 #[test]
-fn all_agent_type_definitions_are_resilient_to_missing_non_required_fields_k8s() {
-    let registry = EmbeddedRegistry::default();
-    for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_k8s else {
-            continue;
-        };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::K8s).unwrap();
-        let variables =
-            serde_yaml::from_str::<YAMLConfig>(values.missing_non_required_fields).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
-
-        assert!(
-            result.is_ok(),
-            "Failed to fill variables for {}: {:#?}",
-            case.agent_type,
-            result
-        );
-    }
+fn all_agent_type_definitions_are_resilient_k8s() {
+    iterate_test_cases(&Environment::K8s);
 }
 
 #[test]
-fn all_agent_type_definitions_are_resilient_to_additional_unknown_variables_k8s() {
-    let registry = EmbeddedRegistry::default();
-    for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_k8s else {
-            continue;
-        };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::K8s).unwrap();
-        let variables =
-            serde_yaml::from_str::<YAMLConfig>(values.additional_unknown_variables).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
-
-        assert!(
-            result.is_ok(),
-            "Failed to fill variables for {}: {:#?}",
-            case.agent_type,
-            result
-        );
-    }
+fn all_agent_type_definitions_are_resilient_onhost() {
+    iterate_test_cases(&Environment::OnHost);
 }
 
-#[test]
-fn all_agent_type_definitions_fail_when_missing_required_fields_k8s() {
+fn iterate_test_cases(environment: &Environment) {
     let registry = EmbeddedRegistry::default();
     for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_k8s else {
+        // Skip cases where values for the environment are not provided
+        let Some(values) = (match environment {
+            Environment::K8s => &case.values_k8s,
+            Environment::OnHost => &case.values_onhost,
+        }) else {
             continue;
         };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::K8s).unwrap();
-        let variables = serde_yaml::from_str::<YAMLConfig>(values.missing_required_fields).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
 
-        if values.has_optional_fields_only && values.missing_required_fields.is_empty() {
+        let agent_id = AgentID::new("random-agent-id").unwrap();
+
+        // Create the renderer with specifics for the environment
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
+            Environment::K8s => TemplateRenderer::default(),
+            Environment::OnHost => {
+                TemplateRenderer::default().with_agent_control_variables(iter::once((
+                    "host_id".to_string(),
+                    VariableDefinition::new_final_string_variable("host-id".to_string()),
+                )))
+            }
+        };
+
+        for (scenario, yaml) in values.cases.iter() {
+            let definition = registry.get(case.agent_type).unwrap();
+            let agent_type = build_agent_type(definition, environment).unwrap();
+            let attributes = testing_agent_attributes(&agent_id);
+            let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
+            let result = renderer.render(
+                &agent_id,
+                agent_type,
+                variables,
+                attributes,
+                values.additional_env.clone(),
+            );
+
             assert!(
                 result.is_ok(),
-                "Expected no error for agent in which all variables are optional {}: {:#?}",
-                case.agent_type,
-                result
-            );
-        } else {
-            assert!(
-                result.is_err(),
-                "Expected error when filling variables for {}: {:#?}",
-                case.agent_type,
-                result
-            );
-        }
-    }
-}
-#[test]
-fn all_agent_type_definitions_are_resilient_to_missing_non_required_fields_onhost() {
-    let registry = EmbeddedRegistry::default();
-    for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_onhost else {
-            continue;
-        };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
-        let variables =
-            serde_yaml::from_str::<YAMLConfig>(values.missing_non_required_fields).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
-            .with_agent_control_variables(iter::once((
-                "host_id".to_string(),
-                VariableDefinition::new_final_string_variable("host-id".to_string()),
-            )));
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
-
-        assert!(
-            result.is_ok(),
-            "Failed to fill variables for {}: {:#?}",
-            case.agent_type,
-            result
-        );
-    }
-}
-
-#[test]
-fn all_agent_type_definitions_are_resilient_to_additional_unknown_variables_onhost() {
-    let registry = EmbeddedRegistry::default();
-    for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_onhost else {
-            continue;
-        };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
-        let variables =
-            serde_yaml::from_str::<YAMLConfig>(values.additional_unknown_variables).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
-            .with_agent_control_variables(iter::once((
-                "host_id".to_string(),
-                VariableDefinition::new_final_string_variable("host-id".to_string()),
-            )));
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
-
-        assert!(
-            result.is_ok(),
-            "Failed to fill variables for {}: {:#?}",
-            case.agent_type,
-            result
-        );
-    }
-}
-
-#[test]
-fn all_agent_type_definitions_fail_when_missing_required_fields_onhost() {
-    let registry = EmbeddedRegistry::default();
-    for case in get_agent_type_test_cases() {
-        let Some(values) = &case.values_onhost else {
-            continue;
-        };
-        let agent_id = AgentID::new("random-agent-id").unwrap();
-        let definition = registry.get(case.agent_type).unwrap();
-        let agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
-        let variables = serde_yaml::from_str::<YAMLConfig>(values.missing_required_fields).unwrap();
-        let attributes = testing_agent_attributes(&agent_id);
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
-            .with_agent_control_variables(iter::once((
-                "host_id".to_string(),
-                VariableDefinition::new_final_string_variable("host-id".to_string()),
-            )));
-        let result = renderer.render(
-            &agent_id,
-            agent_type,
-            variables,
-            attributes,
-            values.additional_env.clone(),
-        );
-
-        if values.has_optional_fields_only && values.missing_required_fields.is_empty() {
-            assert!(
-                result.is_ok(),
-                "Expected no error for agent in which all variables are optional {}: {:#?}",
-                case.agent_type,
-                result
-            );
-        } else {
-            assert!(
-                result.is_err(),
-                "Expected error when filling variables for {}: {:#?}",
+                "{:?} scenario: {} -- Failed to fill variables for {}: {:#?}",
+                environment,
+                scenario,
                 case.agent_type,
                 result
             );
