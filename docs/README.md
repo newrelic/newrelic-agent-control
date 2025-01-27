@@ -366,6 +366,12 @@ We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.de
 - Ensure you have Tilt installed for managing local development environments.
 - Add a agent-control-deployment values file in `local/agent-control-tilt.yml`
 
+> Be aware that cross 0.2.5 [broke cross-compilation](https://github.com/cross-rs/cross/issues/1214). If you are using it, run the following command.
+>
+> ```
+> docker pull ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5 --platform linux/x86_64
+> ```
+
 Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows to use local helm charts.
 #### Steps
 ```shell
