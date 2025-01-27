@@ -103,6 +103,25 @@ pub mod tests {
 
     use super::*;
 
+    impl EmbeddedRegistry {
+        pub fn iter_definitions(&self) -> impl Iterator<Item = &AgentTypeDefinition> {
+            self.0.values()
+        }
+    }
+
+    const AGENT_TYPE_AMOUNT: usize = 11;
+
+    #[test]
+    fn check_agent_type_amount_is_unchanged() {
+        // This is intended to flag in CI if any agent type has been added or removed.
+        // Changes in code that modify the amount of agent types would need to modify this test.
+        assert_eq!(
+            AGENT_TYPE_REGISTRY_FILES.len(),
+            AGENT_TYPE_AMOUNT,
+            "Expected amount of agent types to be unchanged"
+        );
+    }
+
     #[test]
     fn test_default_embedded_registry() {
         let registry = EmbeddedRegistry::default(); // Any invalid Agent Type definition would panic
