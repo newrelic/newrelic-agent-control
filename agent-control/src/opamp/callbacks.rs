@@ -103,14 +103,14 @@ where
             custom_message.and_then(
                 |custom_message|  Signatures::try_from(&custom_message).inspect_err(|err|match err {
                     SignatureError::InvalidCapability |SignatureError::InvalidType  => {
-                        debug!(%self.agent_id, "custom message doesn't contain a valid config signature");
+                        debug!(%self.agent_id, "custom message doesn't contain a valid config signature: {:?}", custom_message);
                     },
                     SignatureError::InvalidData(err) => {
-                        error!(%self.agent_id, %err, "parsing config signature message");
+                        error!(%self.agent_id, %err, "parsing config signature message: {:?}", custom_message);
                         hash.fail(format!("Invalid remote config signature format: {}", err));
                     },
                     SignatureError::UnsupportedAlgorithm(err) => {
-                        error!(%self.agent_id, %err, "unsupported signature algorithm");
+                        error!(%self.agent_id, %err, "unsupported signature algorithm: {:?}", custom_message);
                         hash.fail(format!("Unsupported signature algorithm: {}", err));
                     }
                 }).ok()

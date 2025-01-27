@@ -4,7 +4,7 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::remote_config::signature::{
-    SignatureData, SigningAlgorithm, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+    SignatureFields, ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
 };
 use newrelic_agent_control::opamp::remote_config::validators::signature::public_key_fingerprint;
 use opamp_client::opamp;
@@ -97,11 +97,11 @@ impl ConfigResponse {
                 ring::signature::Ed25519KeyPair::from_pkcs8(&key_pair.serialize_der()).unwrap();
             let signature = key_pair_ring.sign(config.as_bytes());
 
-            let custom_message_data: HashMap<String, Vec<SignatureData>> = HashMap::from([(
+            let custom_message_data = HashMap::from([(
                 "fakeCRC".to_string(),
-                vec![SignatureData {
+                vec![SignatureFields {
                     signature: BASE64_STANDARD.encode(signature.as_ref()),
-                    signing_algorithm: SigningAlgorithm::ED25519,
+                    signing_algorithm: ED25519,
                     key_id: public_key_fingerprint(&key_pair.public_key_der()),
                 }],
             )]);
