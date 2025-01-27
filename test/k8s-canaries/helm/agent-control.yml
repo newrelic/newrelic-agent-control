@@ -1,0 +1,29 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+agent-control-deployment:
+  image:
+    imagePullPolicy: Always
+  config:
+    fleet_control:
+      enabled: false
+    agentControl:
+      content:
+        log:
+          level: info
+    subAgents:
+      infra:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "*" # Use latest
+          chart_values:
+            nri-metadata-injection:
+              # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
+              # together with the gatewayRESE
+              enabled: false
+      prometheus:
+        type: newrelic/com.newrelic.prometheus:0.1.0
+        content:
+          chart_version: "*" # Use latest
+      logs:
+        type: newrelic/io.fluentbit:0.1.0
+        content:
+          chart_version: "*" # Use latest

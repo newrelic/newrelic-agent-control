@@ -11,8 +11,38 @@ The purpose of this tool is to create the EKS Clusters to run our canaries.
 
 ## Usage on pipelines
 
-There is a Make target to run the terraform init and apply in our pipelines. The idea is to call it any time there are changes in the tf files.
+### Terraform init and apply
+
+The idea is to call this target any time there are changes in the tf files and will apply the changes if correct.
+There are 2 clusters created and when calling the target the CANARY_DIR needs to be provided, the canary dirs are:
+- staging
+- production
+
+The default terraform dir for where the terraform modules are taken from is:
+`TERRAFORM_DIR := ./terraform`
 
 ```bash
-$ make CANARY_DIR=staging sync
+$ make CANARY_DIR=staging test/k8s-canaries/sync
+```
+
+If this target is called from the root of this repository, the TERRAFORM_DIR should be overwritten to point to the relative path:
+```bash
+$ make TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/sync
+```
+
+### Helm Upgrade for nightlies and prereleases
+
+This target will add the helm repo if not present and upgrade (or install) the helm repo with the agent-control.yml values present on this folder.
+The agent-control pod will always pull the image on every upgrade because there is a random deployment-key annotation added each time.
+
+The default helm dir where there is the default values file to apply is:
+`HELM_DIR := ./helm`
+
+```bash
+$ make NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm
+```
+
+If this target is called from the root of this repository, the HELM_DIR should be overwritten to point to the relative path:
+```bash
+$ make HELM_DIR=test/k8s-canaries/helm NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm
 ```
