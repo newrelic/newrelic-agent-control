@@ -363,6 +363,7 @@ We use [Minikube](https://minikube.sigs.k8s.io/docs/) and [Tilt](https://tilt.de
 #### Prerequisites
 - Install Minikube for local Kubernetes cluster emulation.
 - Install [ctlptl](https://github.com/tilt-dev/ctlptl)
+- Pull docker image `ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5`
 - Ensure you have Tilt installed for managing local development environments.
 - Add a agent-control-deployment values file in `local/agent-control-tilt.yml`
 
@@ -371,6 +372,10 @@ Note: Adding the `'chart_repo'` setting, pointing to the [newrelic charts](https
 ```shell
 ctlptl create registry ctlptl-registry --port=5005
 ctlptl create cluster minikube --registry=ctlptl-registry
+# Linux
+docker pull ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5
+# Mac
+docker pull ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5 --platform linux/x86_64
 make tilt-up
 ```
 
