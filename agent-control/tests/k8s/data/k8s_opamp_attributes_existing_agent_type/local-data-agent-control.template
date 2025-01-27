@@ -1,4 +1,4 @@
-opamp:
+fleet_control:
   endpoint: <opamp-endpoint>
   headers:
     api-key: test-api-key
