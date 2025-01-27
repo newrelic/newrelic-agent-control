@@ -25,12 +25,10 @@ use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// This scenario tests an Agent type which only create a CR when the CRD already exists.
-/// The sub-agent is added from remote config and them we check if the agent description is what we expect.
 #[test]
 #[ignore = "needs a k8s cluster"]
 #[serial]
-fn test_attributes_from_existing_agent_type() {
+fn k8s_test_attributes_from_existing_agent_type() {
     let test_name = "k8s_opamp_attributes_existing_agent_type";
 
     // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
