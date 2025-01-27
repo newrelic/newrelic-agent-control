@@ -4,11 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
-use tracing::debug;
 use webpki::SignatureAlgorithm;
-use x509_parser::num_bigint::Sign;
-
-use crate::opamp::remote_config::signature;
 
 /// signature custom message capability
 pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
