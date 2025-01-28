@@ -142,7 +142,8 @@ where
         thread::spawn(move || {
             let mut supervisor = self.assemble_and_start_supervisor();
 
-            let mut is_healthy = None; // Stores the current healthy state for logging purposes
+            // Stores the current healthy state for logging purposes.
+            let mut is_healthy = false;
 
             debug!(
                 agent_id = %self.agent_id,
@@ -206,7 +207,7 @@ where
                                 break;
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
-                                debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");                               debug!("StopRequested");
+                                debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
                                 stop_supervisor(&self.agent_id, supervisor);
                                 break;
                             },
@@ -221,7 +222,7 @@ where
                                     self.agent_cfg.agent_type.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
-                                is_healthy = Some(health.is_healthy())
+                                is_healthy = health.is_healthy()
                             }
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                  let _ = on_version(
@@ -239,17 +240,17 @@ where
         })
     }
 
-    fn log_health_info(agent_id: &AgentID, was_healthy: Option<bool>, health: Health) {
+    fn log_health_info(agent_id: &AgentID, was_healthy: bool, health: Health) {
         match health {
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
-                if !was_healthy.unwrap_or(false) {
+                if !was_healthy {
                     info!(%agent_id, "agent is healthy");
                 }
             }
             // Every time health is unhealthy
             Health::Unhealthy(unhealthy) => {
-                warn!(%agent_id, status=unhealthy.status(), last_error=unhealthy.last_error(), "agent is unhealthy")
+                warn!(%agent_id, status=unhealthy.status(), last_error=unhealthy.last_error(), "agent is unhealthy");
             }
         }
     }
