@@ -16,16 +16,6 @@ resource "aws_eks_cluster" "ekscluster" {
   ]
 }
 
-
-# EKS Addons
-resource "aws_eks_addon" "volume-provisioner" {
-  cluster_name                = aws_eks_cluster.ekscluster.name
-  addon_name                  = "aws-ebs-csi-driver"
-  addon_version               = var.aws_eks_addon_version
-  resolve_conflicts_on_create = "OVERWRITE"
-}
-
-
 # EKS Cluster IAM Role
 resource "aws_iam_role" "cluster" {
   name = "${var.canary_name}-EKS_Cluster_Role"
@@ -81,6 +71,25 @@ resource "aws_security_group_rule" "cluster_outbound" {
   type                     = "egress"
 }
 
+resource "aws_launch_template" "eks_node" {
+  name_prefix   = "${var.canary_name}-"
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+
+    ebs {
+      volume_size = var.node_volume_size
+    }
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      "Name" = "${var.canary_name}-node"
+    }
+  }
+}
 
 resource "aws_eks_node_group" "eks-nodegroup" {
   cluster_name    = aws_eks_cluster.ekscluster.name
@@ -96,9 +105,13 @@ resource "aws_eks_node_group" "eks-nodegroup" {
     min_size     = var.cluster_min_size
   }
 
+  launch_template {
+    id      = aws_launch_template.eks_node.id
+    version = "$Latest"
+  }
+
   ami_type       = var.nodes_ami_type
   capacity_type  = "ON_DEMAND" # ON_DEMAND, SPOT
-  disk_size      = 20
   instance_types = ["${var.nodes_instance_type}"]
 
   depends_on = [
@@ -110,6 +123,17 @@ resource "aws_eks_node_group" "eks-nodegroup" {
   ]
 }
 
+# EKS Addons
+resource "aws_eks_addon" "volume-provisioner" {
+  cluster_name                = aws_eks_cluster.ekscluster.name
+  addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = var.aws_eks_addon_version
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  depends_on = [
+    aws_eks_node_group.eks-nodegroup
+  ]
+}
 
 # EKS Node IAM Role
 resource "aws_iam_role" "node" {
