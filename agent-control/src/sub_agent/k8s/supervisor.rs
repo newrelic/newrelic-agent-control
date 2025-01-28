@@ -130,6 +130,7 @@ impl NotStartedSupervisorK8s {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
 
+        info!(%agent_id, "k8s objects supervisor started");
         let join_handle = thread::spawn(move || loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
