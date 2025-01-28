@@ -24,9 +24,10 @@ use std::marker::PhantomData;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
-use tracing::{debug, error};
+use tracing::{debug, error, info, warn};
 
 use super::error::SubAgentStopError;
+use super::health::health_checker::Health;
 
 pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
@@ -141,6 +142,9 @@ where
         thread::spawn(move || {
             let mut supervisor = self.assemble_and_start_supervisor();
 
+            // Stores the current healthy state for logging purposes.
+            let mut is_healthy = false;
+
             debug!(
                 agent_id = %self.agent_id,
                 "runtime started"
@@ -208,18 +212,21 @@ where
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
+                                debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
+                                Self::log_health_info(&self.agent_id, is_healthy, health.clone().into());
                                 let _ = on_health(
-                                    health,
+                                    health.clone(),
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.agent_id.clone(),
                                     self.agent_cfg.agent_type.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                                is_healthy = health.is_healthy()
                             }
-                            Ok(SubAgentInternalEvent::AgentVersionInfo(agenta_data)) => {
+                            Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                  let _ = on_version(
-                                    agenta_data,
+                                    agent_data,
                                     self.maybe_opamp_client.as_ref(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
@@ -231,6 +238,21 @@ where
 
             stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
         })
+    }
+
+    fn log_health_info(agent_id: &AgentID, was_healthy: bool, health: Health) {
+        match health {
+            // From unhealthy (or initial) to healthy
+            Health::Healthy(_) => {
+                if !was_healthy {
+                    info!(%agent_id, "agent is healthy");
+                }
+            }
+            // Every time health is unhealthy
+            Health::Unhealthy(unhealthy) => {
+                warn!(%agent_id, status=unhealthy.status(), last_error=unhealthy.last_error(), "agent is unhealthy");
+            }
+        }
     }
 
     pub(crate) fn start_supervisor(
