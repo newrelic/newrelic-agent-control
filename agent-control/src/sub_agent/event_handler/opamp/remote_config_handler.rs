@@ -7,7 +7,6 @@ use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::sub_agent::error::SubAgentError;
 use crate::values::yaml_config::YAMLConfig;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
@@ -65,14 +64,13 @@ where
     /// It will
     /// * validate and persist the configuration
     /// * communicate to FM config status (applying first, applied if correct, error if failed)
-    pub fn handle<CB, C>(
+    pub fn handle<C>(
         &self,
         opamp_client: &C,
         config: &mut RemoteConfig,
     ) -> Result<(), RemoteConfigHandlerError>
     where
-        CB: Callbacks + Send + Sync + 'static,
-        C: StartedClient<CB> + Send + Sync + 'static,
+        C: StartedClient + Send + Sync + 'static,
     {
         debug!(
             agent_id = self.agent_id.to_string(),
@@ -120,14 +118,13 @@ where
         Ok(())
     }
 
-    fn report_error<CB, C>(
+    fn report_error<C>(
         opamp_client: &C,
         config: &RemoteConfig,
         error_string: String,
     ) -> Result<(), RemoteConfigHandlerError>
     where
-        CB: Callbacks + Send + Sync + 'static,
-        C: StartedClient<CB> + Send + Sync + 'static,
+        C: StartedClient + Send + Sync + 'static,
     {
         OpampRemoteConfigStatus::Error(error_string)
             .report(opamp_client, &config.hash)

@@ -5,22 +5,17 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
-    agent_control::{
-        agent_control::{AgentControl, AgentControlCallbacks},
-        error::AgentError,
-    },
+    agent_control::{agent_control::AgentControl, error::AgentError},
     opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
     sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
 };
 
-impl<S, O, HR, SL, G> AgentControl<S, O, HR, SL, G>
+impl<S, O, HR, SL> AgentControl<S, O, HR, SL>
 where
-    G: EffectiveConfigLoader,
-    O: StartedClient<AgentControlCallbacks<G>>,
+    O: StartedClient,
     HR: HashRepository,
     S: SubAgentBuilder,
     SL: AgentControlDynamicConfigStorer
@@ -71,8 +66,6 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use crate::agent_control::agent_control::AgentControlCallbacks;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::{
         agent_control::{
             agent_control::AgentControl,
@@ -102,9 +95,7 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
-        let mut started_client = MockStartedOpAMPClientMock::<
-            AgentControlCallbacks<MockEffectiveConfigLoaderMock>,
-        >::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = AgentControlDynamicConfig::default();
@@ -167,9 +158,7 @@ mod tests {
         let sub_agent_builder = MockSubAgentBuilderMock::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::<
-            AgentControlCallbacks<MockEffectiveConfigLoaderMock>,
-        >::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
         let sub_agent_id = AgentID::try_from("agent-id".to_string()).unwrap();

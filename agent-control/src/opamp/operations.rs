@@ -15,16 +15,13 @@ use crate::{
     sub_agent::error::SubAgentError,
 };
 use opamp_client::{
-    operation::{
-        callbacks::Callbacks,
-        settings::{AgentDescription, DescriptionValueType, StartSettings},
-    },
+    operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
     StartedClient,
 };
 use std::collections::HashMap;
 use tracing::info;
 
-pub fn build_sub_agent_opamp<CB, OB, IG>(
+pub fn build_sub_agent_opamp<OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
     agent_id: AgentID,
@@ -33,8 +30,7 @@ pub fn build_sub_agent_opamp<CB, OB, IG>(
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
-    CB: Callbacks,
-    OB: OpAMPClientBuilder<CB>,
+    OB: OpAMPClientBuilder,
     IG: InstanceIDGetter,
 {
     let agent_control_id = AgentID::new_agent_control_id();
@@ -55,7 +51,7 @@ where
     )
 }
 
-pub fn build_opamp_with_channel<CB, OB, IG>(
+pub fn build_opamp_with_channel<OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
     agent_id: AgentID,
@@ -64,8 +60,7 @@ pub fn build_opamp_with_channel<CB, OB, IG>(
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
 where
-    CB: Callbacks,
-    OB: OpAMPClientBuilder<CB>,
+    OB: OpAMPClientBuilder,
     IG: InstanceIDGetter,
 {
     let (opamp_publisher, opamp_consumer) = pub_sub();
@@ -110,7 +105,7 @@ pub fn start_settings(
 }
 
 /// Stops an started OpAMP client.
-pub fn stop_opamp_client<CB: Callbacks, C: StartedClient<CB>>(
+pub fn stop_opamp_client<C: StartedClient>(
     client: Option<C>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {

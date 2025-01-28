@@ -5,7 +5,6 @@ use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::effective_config::loader::EffectiveConfigLoader;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
@@ -15,7 +14,6 @@ use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigH
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::SubAgentCallbacks;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
@@ -24,14 +22,12 @@ use crate::{
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
-use std::marker::PhantomData;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, A, Y, S>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
@@ -46,16 +42,11 @@ where
     k8s_config: K8sConfig,
     yaml_config_repository: Arc<Y>,
     signature_validator: Arc<S>,
-
-    // This is needed to ensure the generic type parameter G is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _effective_config_loader: PhantomData<G>,
 }
 
-impl<'a, O, I, HR, A, G, Y, S> K8sSubAgentBuilder<'a, O, I, HR, A, G, Y, S>
+impl<'a, O, I, HR, A, Y, S> K8sSubAgentBuilder<'a, O, I, HR, A, Y, S>
 where
-    G: EffectiveConfigLoader,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>>,
+    O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
     A: EffectiveAgentsAssembler,
@@ -83,24 +74,20 @@ where
             k8s_config,
             yaml_config_repository,
             signature_validator,
-
-            _effective_config_loader: PhantomData,
         }
     }
 }
 
-impl<O, I, HR, A, G, Y, S> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, G, Y, S>
+impl<O, I, HR, A, Y, S> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, Y, S>
 where
-    G: EffectiveConfigLoader + Send + Sync + 'static,
-    O: OpAMPClientBuilder<SubAgentCallbacks<G>> + Send + Sync + 'static,
+    O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
     HR: HashRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator + Send + Sync + 'static,
 {
-    type NotStartedSubAgent =
-        SubAgent<O::Client, SubAgentCallbacks<G>, A, SupervisorBuilderK8s, HR, Y, S>;
+    type NotStartedSubAgent = SubAgent<O::Client, A, SupervisorBuilderK8s, HR, Y, S>;
 
     fn build(
         &self,
@@ -230,7 +217,6 @@ pub mod tests {
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::http::builder::HttpClientBuilderError;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
@@ -421,7 +407,7 @@ pub mod tests {
         agent_id: AgentID,
         opamp_builder_fails: bool,
     ) -> (
-        MockOpAMPClientBuilderMock<SubAgentCallbacks<MockEffectiveConfigLoaderMock>>,
+        MockOpAMPClientBuilderMock,
         MockInstanceIDGetterMock,
         MockHashRepositoryMock,
     ) {

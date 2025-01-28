@@ -509,7 +509,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_all_channels_closed() {
-        let rt = Handle::current();
         let (sa_event_publisher, sa_event_consumer) = unbounded_channel::<AgentControlEvent>();
         let (suba_event_publisher, suba_event_consumer) = unbounded_channel::<SubAgentEvent>();
 

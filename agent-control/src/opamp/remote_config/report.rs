@@ -1,7 +1,7 @@
 use super::hash::Hash;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
-use opamp_client::{operation::callbacks::Callbacks, ClientError, StartedClient};
+use opamp_client::{ClientError, StartedClient};
 
 pub enum OpampRemoteConfigStatus {
     Applying,
@@ -25,10 +25,9 @@ impl OpampRemoteConfigStatus {
         }
     }
 
-    pub fn report<O, C>(self, opamp_client: &O, hash: &Hash) -> Result<(), ClientError>
+    pub fn report<C>(self, opamp_client: &C, hash: &Hash) -> Result<(), ClientError>
     where
-        C: Callbacks,
-        O: StartedClient<C>,
+        C: StartedClient,
     {
         opamp_client.set_remote_config_status(RemoteConfigStatus {
             last_remote_config_hash: hash.get().into_bytes(),

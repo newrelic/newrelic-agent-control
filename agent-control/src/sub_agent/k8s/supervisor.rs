@@ -261,9 +261,7 @@ pub mod tests {
     use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
-    use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -609,8 +607,7 @@ pub mod tests {
         }
     }
 
-    fn none_mock_opamp_client(
-    ) -> Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>> {
+    fn none_mock_opamp_client() -> Option<MockStartedOpAMPClientMock> {
         None
     }
 }
