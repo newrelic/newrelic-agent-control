@@ -21,7 +21,7 @@ $(addsuffix -clean,$(TARGETS)):
 ##########################################
 # 		     Static targets 			 #
 ##########################################
-#include build/embedded/Makefile
+include test/k8s-canaries/Makefile
 
 help:
 	@echo "## Available targets:"
