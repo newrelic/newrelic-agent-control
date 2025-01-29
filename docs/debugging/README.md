@@ -27,3 +27,12 @@ $ RUSTFLAGS="--cfg tokio_unstable" LOG_LEVEL="newrelic_agent_control=debug" carg
 ```bash
 $ tokio-console
 ```
+
+## Print traced logs for specific crates
+
+### Opamp crate example
+Opamp trace logs containing the raw messages ServerToAgent and AgentToServer, can be activated with the following config:
+```yaml
+log:
+  insecure_fine_grained_level: newrelic_agent_control=info,opamp_client=trace,off
+```
