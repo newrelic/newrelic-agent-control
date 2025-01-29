@@ -46,4 +46,9 @@ jobs:
       - name: Push image
         if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
         run: |
-          docker push ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} 
+          docker buildx build \
+            --platform=${DOCKER_PLATFORMS} \
+            --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
+            --file system_identity_registration/Dockerfile \
+            --push \
+            .
