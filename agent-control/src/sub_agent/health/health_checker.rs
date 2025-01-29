@@ -221,7 +221,7 @@ pub(crate) fn spawn_health_checker<H>(
     H: HealthChecker + Send + 'static,
 {
     thread::Builder::new()
-        .name("Health checker ".to_string())
+        .name("Health checker".to_string())
         .spawn(move || loop {
             debug!(%agent_id, "starting to check health with the configured checker");
 

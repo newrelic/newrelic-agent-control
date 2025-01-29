@@ -181,7 +181,7 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
-        thread::Builder::new().name("OnHost process ".to_string()).spawn({
+        thread::Builder::new().name("OnHost process".to_string()).spawn({
             move || loop {
                 // locks the current_pid to prevent `wait_for_termination` finishing before the process
                 // is started and the pid is set.
@@ -371,7 +371,7 @@ fn wait_for_termination(
     agent_id: AgentID,
 ) -> JoinHandle<()> {
     thread::Builder::new()
-        .name("OnHost Termination signal listener ".to_string())
+        .name("OnHost Termination signal listener".to_string())
         .spawn(move || {
             let (lck, cvar) = Context::get_lock_cvar(&ctx);
             drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));

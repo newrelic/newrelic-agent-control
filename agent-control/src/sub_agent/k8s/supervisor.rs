@@ -132,7 +132,7 @@ impl NotStartedSupervisorK8s {
 
         info!(%agent_id, "k8s objects supervisor started");
         let join_handle = thread::Builder::new()
-            .name("K8s objects supervisor ".to_string())
+            .name("K8s objects supervisor".to_string())
             .spawn(move || loop {
                 // Check and apply k8s objects
                 if let Err(err) =

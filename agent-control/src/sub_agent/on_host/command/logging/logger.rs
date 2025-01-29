@@ -15,7 +15,7 @@ impl Logger {
         S: ToString + Send + 'static,
     {
         std::thread::Builder::new()
-            .name("OnHost logger ".to_string())
+            .name("OnHost logger".to_string())
             .spawn(move || {
                 match self {
                     Self::File(file_logger, agent_id) => {
