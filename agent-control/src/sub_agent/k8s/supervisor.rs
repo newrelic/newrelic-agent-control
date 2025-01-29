@@ -131,18 +131,22 @@ impl NotStartedSupervisorK8s {
         let k8s_client = self.k8s_client.clone();
 
         info!(%agent_id, "k8s objects supervisor started");
-        let join_handle = thread::spawn(move || loop {
-            // Check and apply k8s objects
-            if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
-            {
-                error!(%agent_id, %err, "k8s resources apply failed");
-            }
-            // Check the cancellation signal
-            if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "k8s objects supervisor stopped");
-                break;
-            }
-        });
+        let join_handle = thread::Builder::new()
+            .name("K8s objects supervisor thread".to_string())
+            .spawn(move || loop {
+                // Check and apply k8s objects
+                if let Err(err) =
+                    Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
+                {
+                    error!(%agent_id, %err, "k8s resources apply failed");
+                }
+                // Check the cancellation signal
+                if stop_consumer.is_cancelled(interval) {
+                    info!(%agent_id, "k8s objects supervisor stopped");
+                    break;
+                }
+            })
+            .expect("thread config should be valid");
 
         (stop_publisher, join_handle)
     }

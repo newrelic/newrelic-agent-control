@@ -139,7 +139,7 @@ where
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
-        thread::spawn(move || {
+        thread::Builder::new().name("SubAgent runtime thread".to_string()).spawn(move || {
             let mut supervisor = self.assemble_and_start_supervisor();
 
             // Stores the current healthy state for logging purposes.
@@ -237,7 +237,7 @@ where
             }
 
             stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
-        })
+        }).expect("thread config should be valid")
     }
 
     fn log_health_info(agent_id: &AgentID, was_healthy: bool, health: Health) {

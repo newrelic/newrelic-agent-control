@@ -85,17 +85,20 @@ where
         let (stop_tx, stop_rx) = pub_sub();
         let interval = self.interval;
 
-        let handle = thread::spawn(move || {
-            loop {
-                let _ = self
-                    .collect()
-                    .inspect_err(|err| warn!("executing garbage collection: {err}"));
-                if stop_rx.is_cancelled(interval) {
-                    break;
+        let handle = thread::Builder::new()
+            .name("Garbage collector thread".to_string())
+            .spawn(move || {
+                loop {
+                    let _ = self
+                        .collect()
+                        .inspect_err(|err| warn!("executing garbage collection: {err}"));
+                    if stop_rx.is_cancelled(interval) {
+                        break;
+                    }
                 }
-            }
-            info!("k8s garbage collector stopped");
-        });
+                info!("k8s garbage collector stopped");
+            })
+            .expect("thread config should be valid");
 
         K8sGarbageCollectorStarted { stop_tx, handle }
     }

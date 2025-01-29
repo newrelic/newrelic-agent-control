@@ -220,24 +220,27 @@ pub(crate) fn spawn_health_checker<H>(
 ) where
     H: HealthChecker + Send + 'static,
 {
-    thread::spawn(move || loop {
-        debug!(%agent_id, "starting to check health with the configured checker");
+    thread::Builder::new()
+        .name("Health checker thread".to_string())
+        .spawn(move || loop {
+            debug!(%agent_id, "starting to check health with the configured checker");
 
-        let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!(%agent_id, last_error = %err, "the configured health check failed");
-            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
-        });
+            let health = health_checker.check_health().unwrap_or_else(|err| {
+                debug!(%agent_id, last_error = %err, "the configured health check failed");
+                HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
+            });
 
-        publish_health_event(
-            &sub_agent_internal_publisher,
-            SubAgentInternalEvent::AgentHealthInfo(health),
-        );
+            publish_health_event(
+                &sub_agent_internal_publisher,
+                SubAgentInternalEvent::AgentHealthInfo(health),
+            );
 
-        // Check the cancellation signal
-        if cancel_signal.is_cancelled(interval.into()) {
-            break;
-        }
-    });
+            // Check the cancellation signal
+            if cancel_signal.is_cancelled(interval.into()) {
+                break;
+            }
+        })
+        .expect("thread config should be valid");
 }
 
 pub(crate) fn publish_health_event(

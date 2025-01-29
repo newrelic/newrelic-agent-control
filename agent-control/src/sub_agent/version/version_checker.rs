@@ -50,25 +50,28 @@ pub(crate) fn spawn_version_checker<V>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
 {
-    thread::spawn(move || loop {
-        debug!(%agent_id, "starting to check version with the configured checker");
+    thread::Builder::new()
+        .name("Version checker thread".to_string())
+        .spawn(move || loop {
+            debug!(%agent_id, "starting to check version with the configured checker");
 
-        match version_checker.check_agent_version() {
-            Ok(agent_data) => {
-                publish_version_event(
-                    &sub_agent_internal_publisher,
-                    SubAgentInternalEvent::AgentVersionInfo(agent_data),
-                );
+            match version_checker.check_agent_version() {
+                Ok(agent_data) => {
+                    publish_version_event(
+                        &sub_agent_internal_publisher,
+                        SubAgentInternalEvent::AgentVersionInfo(agent_data),
+                    );
+                }
+                Err(error) => {
+                    error!(%agent_id, %error, "failed to check agent version");
+                }
             }
-            Err(error) => {
-                error!(%agent_id, %error, "failed to check agent version");
-            }
-        }
 
-        if cancel_signal.is_cancelled(interval.into()) {
-            break;
-        }
-    });
+            if cancel_signal.is_cancelled(interval.into()) {
+                break;
+            }
+        })
+        .expect("thread config should be valid");
 }
 
 pub(crate) fn publish_version_event(

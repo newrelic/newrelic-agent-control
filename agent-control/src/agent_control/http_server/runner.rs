@@ -55,73 +55,79 @@ impl Runner {
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> JoinHandle<()> {
-        thread::spawn(move || {
-            // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
-            // to the Async Status Server
-            let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
-                mpsc::unbounded_channel::<AgentControlEvent>();
-            let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
-                mpsc::unbounded_channel::<SubAgentEvent>();
-            // Run an OS Thread that listens to sync channel and forwards the events
-            // to an async channel
-            let bridge_join_handle = run_async_sync_bridge(
-                async_agent_control_event_publisher,
-                async_sub_agent_event_publisher,
-                agent_control_consumer,
-                sub_agent_consumer,
-            );
+        thread::Builder::new()
+            .name("Http server thread".to_string())
+            .spawn(move || {
+                // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
+                // to the Async Status Server
+                let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
+                    mpsc::unbounded_channel::<AgentControlEvent>();
+                let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
+                    mpsc::unbounded_channel::<SubAgentEvent>();
+                // Run an OS Thread that listens to sync channel and forwards the events
+                // to an async channel
+                let bridge_join_handle = run_async_sync_bridge(
+                    async_agent_control_event_publisher,
+                    async_sub_agent_event_publisher,
+                    agent_control_consumer,
+                    sub_agent_consumer,
+                );
 
-            // Run the async status server
-            let _ = runtime
-                .block_on(
-                    crate::agent_control::http_server::server::run_status_server(
-                        config.clone(),
-                        async_agent_control_event_consumer,
-                        async_sub_agent_event_consumer,
-                        maybe_opamp_client_config,
-                    ),
-                )
-                .inspect_err(|err| {
-                    error!(error_msg = %err, "error running status server");
-                });
+                // Run the async status server
+                let _ = runtime
+                    .block_on(
+                        crate::agent_control::http_server::server::run_status_server(
+                            config.clone(),
+                            async_agent_control_event_consumer,
+                            async_sub_agent_event_consumer,
+                            maybe_opamp_client_config,
+                        ),
+                    )
+                    .inspect_err(|err| {
+                        error!(error_msg = %err, "error running status server");
+                    });
 
-            // Wait until the bridge is closed
-            bridge_join_handle.join().unwrap();
-        })
+                // Wait until the bridge is closed
+                bridge_join_handle.join().unwrap();
+            })
+            .expect("thread config should be valid")
     }
 
     fn spawn_noop_consumer(
         agent_control_consumer: EventConsumer<AgentControlEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
     ) -> JoinHandle<()> {
-        thread::spawn(move || loop {
-            select! {
-                recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
-                    match agent_control_consumer_res {
-                        Ok(_) => {}
-                        Err(err) => {
-                            debug!(
-                                error_msg = %err,
-                                "http server event drain processor closed"
-                            );
-                            break;
+        thread::Builder::new()
+            .name("No-action consumer thread".to_string())
+            .spawn(move || loop {
+                select! {
+                    recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
+                        match agent_control_consumer_res {
+                            Ok(_) => {}
+                            Err(err) => {
+                                debug!(
+                                    error_msg = %err,
+                                    "http server event drain processor closed"
+                                );
+                                break;
+                            }
                         }
-                    }
-                },
-                recv(sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
-                    match sub_agent_consumer_res {
-                        Ok(_) => {}
-                        Err(err) => {
-                            debug!(
-                                error_msg = %err,
-                                "http server event drain processor closed"
-                            );
-                            break;
+                    },
+                    recv(sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
+                        match sub_agent_consumer_res {
+                            Ok(_) => {}
+                            Err(err) => {
+                                debug!(
+                                    error_msg = %err,
+                                    "http server event drain processor closed"
+                                );
+                                break;
+                            }
                         }
                     }
                 }
-            }
-        })
+            })
+            .expect("thread config should be valid")
     }
 }
 

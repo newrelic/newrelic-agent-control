@@ -14,7 +14,7 @@ pub fn run_async_sync_bridge(
     agent_control_consumer: EventConsumer<AgentControlEvent>,
     sub_agent_consumer: EventConsumer<SubAgentEvent>,
 ) -> JoinHandle<()> {
-    thread::spawn(move || loop {
+    thread::Builder::new().name("AC sync events to/from Status Http server async events bridge thread".to_string()).spawn(move || loop {
         select! {
             recv(&agent_control_consumer.as_ref()) -> sa_event_res => {
                 match sa_event_res {
@@ -55,5 +55,5 @@ pub fn run_async_sync_bridge(
                     }
                 }
         }
-    })
+    }).expect("thread config should be valid")
 }

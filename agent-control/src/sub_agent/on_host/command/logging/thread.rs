@@ -26,19 +26,22 @@ where
     } = LogBroadcaster::new(loggers);
 
     // In a separate thread, iterate over the handle to get the logs
-    let sender_thread = std::thread::spawn(move || {
-        let log_entries = BufReader::new(handle).lines();
-        for line in log_entries {
-            let line = line.expect("Failed to read line from buffered reader");
-            // Send each line to all existing loggers.
-            // We do not expect too many loggers at the moment but this is O(n * m) after all.
-            // Parallelize using rayon?
-            senders.iter().for_each(|tx| {
-                tx.send(line.clone())
-                    .expect("Failed to send line to channel")
-            });
-        }
-    });
+    let sender_thread = std::thread::Builder::new()
+        .name("OnHost log sender thread".to_string())
+        .spawn(move || {
+            let log_entries = BufReader::new(handle).lines();
+            for line in log_entries {
+                let line = line.expect("Failed to read line from buffered reader");
+                // Send each line to all existing loggers.
+                // We do not expect too many loggers at the moment but this is O(n * m) after all.
+                // Parallelize using rayon?
+                senders.iter().for_each(|tx| {
+                    tx.send(line.clone())
+                        .expect("Failed to send line to channel")
+                });
+            }
+        })
+        .expect("thread config should be valid");
 
     let log_threads = loggers_rx
         .into_iter()
