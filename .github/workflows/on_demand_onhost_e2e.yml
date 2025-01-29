@@ -28,6 +28,6 @@ jobs:
       EC2_FILTERS: ${{ inputs.EC2_FILTERS || '[\"ubuntu22.04\"]' }}
       REPOSITORY_ENDPOINT: ${{ inputs.REPOSITORY_ENDPOINT || 'https://nr-downloads-ohai-staging.s3.amazonaws.com/'}}
     secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 

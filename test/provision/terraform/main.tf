@@ -1,6 +1,26 @@
 variable "ec2_prefix" {
   default = ""
 }
+
+variable "ec2_otels" {
+  type = map(any)
+  default = {
+    "amd64:ubuntu22.04" = {
+      ami           = "ami-0884d2865dbe9de4b"
+      subnet        = "subnet-00aa02e6d991b478e"
+      security_groups = ["sg-04ae18f8c34a11d38"]
+      key_name      = "caos-dev-arm"
+      instance_type = "t3a.small"
+      username      = "ubuntu"
+      python        = "/usr/bin/python3"
+      platform      = "linux"
+      tags = {
+        "otel_role" = "agent"
+      }
+    }
+  }
+}
+
 variable "ec2_filters" {
   default = ""
 }
@@ -32,7 +52,7 @@ variable "inventory_output" {
   default = "./inventory.ec2"
 }
 
-module "super_agent-env-provisioner" {
+module "agent_control-env-provisioner" {
   source             = "git::https://github.com/newrelic-experimental/env-provisioner//terraform/otel-ec2"
   ec2_prefix         = var.ec2_prefix
   ec2_filters        = var.ec2_filters
@@ -43,6 +63,7 @@ module "super_agent-env-provisioner" {
   inventory_template = "${path.module}/inventory.tmpl"
   inventory_output   = var.inventory_output
   ansible_playbook   = var.ansible_playbook
+  ec2_otels          = var.ec2_otels
 }
 
 output "check_vars" {

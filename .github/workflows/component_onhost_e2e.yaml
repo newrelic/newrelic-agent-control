@@ -63,10 +63,10 @@ jobs:
         with:
           aws_region: us-east-2
           container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.UNIQUE_NAME }} EC2_FILTERS=${{ env.EC2_FILTERS }}"
-          ecs_cluster_name: caos_super_agent_releases
-          task_definition_name: super_agent-releases
-          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
-          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
           repo_name: "newrelic/newrelic-super-agent"
           git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
@@ -84,10 +84,10 @@ jobs:
         with:
           aws_region: us-east-2
           container_make_target: "test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2' PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}"
-          ecs_cluster_name: caos_super_agent_releases
-          task_definition_name: super_agent-releases
-          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
-          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
           repo_name: "newrelic/newrelic-super-agent"
           git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
@@ -99,10 +99,10 @@ jobs:
         with:
           aws_region: us-east-2
           container_make_target: "test/provision-clean TAG_OR_UNIQUE_NAME=${{ env.UNIQUE_NAME }}"
-          ecs_cluster_name: caos_super_agent_releases
-          task_definition_name: super_agent-releases
-          cloud_watch_logs_group_name: /ecs/test-prerelease-super_agent-releases
-          cloud_watch_logs_stream_name: ecs/test-super_agent-releases
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
           repo_name: "newrelic/newrelic-super-agent"
           git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"

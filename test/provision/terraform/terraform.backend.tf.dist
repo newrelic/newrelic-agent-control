@@ -3,8 +3,9 @@
 #########################################
 terraform {
   backend "s3" {
-    bucket = "automation-pipeline-terraform-state"
-    key    = "super_agent-pipeline/TAG_OR_UNIQUE_NAME"
+    bucket         = "agent-control-terraform-states"
+    dynamodb_table = "agent-control-terraform-states"
+    key    = "agent_control-pipeline/TAG_OR_UNIQUE_NAME"
     region = "us-east-2"
   }
 }
