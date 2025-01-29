@@ -56,7 +56,7 @@ impl Runner {
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> JoinHandle<()> {
         thread::Builder::new()
-            .name("Http server thread".to_string())
+            .name("Http server ".to_string())
             .spawn(move || {
                 // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
                 // to the Async Status Server
@@ -98,7 +98,7 @@ impl Runner {
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
     ) -> JoinHandle<()> {
         thread::Builder::new()
-            .name("No-action consumer thread".to_string())
+            .name("No-action consumer ".to_string())
             .spawn(move || loop {
                 select! {
                     recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {

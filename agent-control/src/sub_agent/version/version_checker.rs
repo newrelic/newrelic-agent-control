@@ -51,7 +51,7 @@ pub(crate) fn spawn_version_checker<V>(
     V: VersionChecker + Send + Sync + 'static,
 {
     thread::Builder::new()
-        .name("Version checker thread".to_string())
+        .name("Version checker ".to_string())
         .spawn(move || loop {
             debug!(%agent_id, "starting to check version with the configured checker");
 

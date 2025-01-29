@@ -86,7 +86,7 @@ where
         let interval = self.interval;
 
         let handle = thread::Builder::new()
-            .name("Garbage collector thread".to_string())
+            .name("Garbage collector ".to_string())
             .spawn(move || {
                 loop {
                     let _ = self

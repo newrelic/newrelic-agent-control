@@ -27,7 +27,7 @@ where
 
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = std::thread::Builder::new()
-        .name("OnHost log sender thread".to_string())
+        .name("OnHost log sender ".to_string())
         .spawn(move || {
             let log_entries = BufReader::new(handle).lines();
             for line in log_entries {

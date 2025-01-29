@@ -139,7 +139,7 @@ where
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
-        thread::Builder::new().name("SubAgent runtime thread".to_string()).spawn(move || {
+        thread::Builder::new().name("SubAgent runtime ".to_string()).spawn(move || {
             let mut supervisor = self.assemble_and_start_supervisor();
 
             // Stores the current healthy state for logging purposes.
