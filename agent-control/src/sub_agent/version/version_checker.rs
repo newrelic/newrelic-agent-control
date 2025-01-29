@@ -3,7 +3,7 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use std::thread;
+use crate::utils::threads::spawn_named_thread;
 use tracing::{debug, error};
 
 pub trait VersionChecker {
@@ -50,28 +50,25 @@ pub(crate) fn spawn_version_checker<V>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
 {
-    thread::Builder::new()
-        .name("Version checker".to_string())
-        .spawn(move || loop {
-            debug!(%agent_id, "starting to check version with the configured checker");
+    spawn_named_thread("Version checker", move || loop {
+        debug!(%agent_id, "starting to check version with the configured checker");
 
-            match version_checker.check_agent_version() {
-                Ok(agent_data) => {
-                    publish_version_event(
-                        &sub_agent_internal_publisher,
-                        SubAgentInternalEvent::AgentVersionInfo(agent_data),
-                    );
-                }
-                Err(error) => {
-                    error!(%agent_id, %error, "failed to check agent version");
-                }
+        match version_checker.check_agent_version() {
+            Ok(agent_data) => {
+                publish_version_event(
+                    &sub_agent_internal_publisher,
+                    SubAgentInternalEvent::AgentVersionInfo(agent_data),
+                );
             }
+            Err(error) => {
+                error!(%agent_id, %error, "failed to check agent version");
+            }
+        }
 
-            if cancel_signal.is_cancelled(interval.into()) {
-                break;
-            }
-        })
-        .expect("thread config should be valid");
+        if cancel_signal.is_cancelled(interval.into()) {
+            break;
+        }
+    });
 }
 
 pub(crate) fn publish_version_event(

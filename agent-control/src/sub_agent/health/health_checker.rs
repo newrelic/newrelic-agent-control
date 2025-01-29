@@ -8,7 +8,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
-use std::thread;
+use crate::utils::threads::spawn_named_thread;
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -220,27 +220,24 @@ pub(crate) fn spawn_health_checker<H>(
 ) where
     H: HealthChecker + Send + 'static,
 {
-    thread::Builder::new()
-        .name("Health checker".to_string())
-        .spawn(move || loop {
-            debug!(%agent_id, "starting to check health with the configured checker");
+    spawn_named_thread("Health checker", move || loop {
+        debug!(%agent_id, "starting to check health with the configured checker");
 
-            let health = health_checker.check_health().unwrap_or_else(|err| {
-                debug!(%agent_id, last_error = %err, "the configured health check failed");
-                HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
-            });
+        let health = health_checker.check_health().unwrap_or_else(|err| {
+            debug!(%agent_id, last_error = %err, "the configured health check failed");
+            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
+        });
 
-            publish_health_event(
-                &sub_agent_internal_publisher,
-                SubAgentInternalEvent::AgentHealthInfo(health),
-            );
+        publish_health_event(
+            &sub_agent_internal_publisher,
+            SubAgentInternalEvent::AgentHealthInfo(health),
+        );
 
-            // Check the cancellation signal
-            if cancel_signal.is_cancelled(interval.into()) {
-                break;
-            }
-        })
-        .expect("thread config should be valid");
+        // Check the cancellation signal
+        if cancel_signal.is_cancelled(interval.into()) {
+            break;
+        }
+    });
 }
 
 pub(crate) fn publish_health_event(

@@ -1,7 +1,7 @@
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
+use crate::utils::threads::spawn_named_thread;
 use crossbeam::select;
-use std::thread;
 use std::thread::JoinHandle;
 use tokio::sync::mpsc::UnboundedSender;
 use tracing::{debug, error};
@@ -14,7 +14,7 @@ pub fn run_async_sync_bridge(
     agent_control_consumer: EventConsumer<AgentControlEvent>,
     sub_agent_consumer: EventConsumer<SubAgentEvent>,
 ) -> JoinHandle<()> {
-    thread::Builder::new().name("AC sync events to/from Status Http server async events bridge".to_string()).spawn(move || loop {
+    spawn_named_thread("Async-Sync bridge", move || loop {
         select! {
             recv(&agent_control_consumer.as_ref()) -> sa_event_res => {
                 match sa_event_res {
@@ -55,5 +55,5 @@ pub fn run_async_sync_bridge(
                     }
                 }
         }
-    }).expect("thread config should be valid")
+    })
 }

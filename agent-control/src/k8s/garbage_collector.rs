@@ -12,6 +12,7 @@ use crate::k8s::error::GarbageCollectorK8sError::{
 use crate::k8s::error::{GarbageCollectorK8sError, K8sError};
 use crate::k8s::Error::MissingName;
 use crate::k8s::{annotations, labels};
+use crate::utils::threads::spawn_named_thread;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::TypeMeta;
 use std::{sync::Arc, thread, time::Duration};
@@ -85,20 +86,17 @@ where
         let (stop_tx, stop_rx) = pub_sub();
         let interval = self.interval;
 
-        let handle = thread::Builder::new()
-            .name("Garbage collector".to_string())
-            .spawn(move || {
-                loop {
-                    let _ = self
-                        .collect()
-                        .inspect_err(|err| warn!("executing garbage collection: {err}"));
-                    if stop_rx.is_cancelled(interval) {
-                        break;
-                    }
+        let handle = spawn_named_thread("Garbage collector", move || {
+            loop {
+                let _ = self
+                    .collect()
+                    .inspect_err(|err| warn!("executing garbage collection: {err}"));
+                if stop_rx.is_cancelled(interval) {
+                    break;
                 }
-                info!("k8s garbage collector stopped");
-            })
-            .expect("thread config should be valid");
+            }
+            info!("k8s garbage collector stopped");
+        });
 
         K8sGarbageCollectorStarted { stop_tx, handle }
     }

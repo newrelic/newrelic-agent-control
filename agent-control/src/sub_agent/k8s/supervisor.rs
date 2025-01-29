@@ -15,11 +15,12 @@ use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarter
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::threads::spawn_named_thread;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
@@ -131,22 +132,18 @@ impl NotStartedSupervisorK8s {
         let k8s_client = self.k8s_client.clone();
 
         info!(%agent_id, "k8s objects supervisor started");
-        let join_handle = thread::Builder::new()
-            .name("K8s objects supervisor".to_string())
-            .spawn(move || loop {
-                // Check and apply k8s objects
-                if let Err(err) =
-                    Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
-                {
-                    error!(%agent_id, %err, "k8s resources apply failed");
-                }
-                // Check the cancellation signal
-                if stop_consumer.is_cancelled(interval) {
-                    info!(%agent_id, "k8s objects supervisor stopped");
-                    break;
-                }
-            })
-            .expect("thread config should be valid");
+        let join_handle = spawn_named_thread("K8s objects supervisor", move || loop {
+            // Check and apply k8s objects
+            if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
+            {
+                error!(%agent_id, %err, "k8s resources apply failed");
+            }
+            // Check the cancellation signal
+            if stop_consumer.is_cancelled(interval) {
+                info!(%agent_id, "k8s objects supervisor stopped");
+                break;
+            }
+        });
 
         (stop_publisher, join_handle)
     }

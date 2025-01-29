@@ -19,13 +19,14 @@ use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarter
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::threads::spawn_named_thread;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::SystemTime;
 use std::{
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
+    thread::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
 
@@ -181,7 +182,7 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
-        thread::Builder::new().name("OnHost process".to_string()).spawn({
+        spawn_named_thread("OnHost process", {
             move || loop {
                 // locks the current_pid to prevent `wait_for_termination` finishing before the process
                 // is started and the pid is set.
@@ -286,7 +287,7 @@ impl NotStartedSupervisorOnHost {
                     wait_exit_timeout(self.ctx.clone(), duration);
                 });
             }
-        }).expect("thread config should be valid")
+        })
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
@@ -370,30 +371,26 @@ fn wait_for_termination(
     shutdown_ctx: Context<bool>,
     agent_id: AgentID,
 ) -> JoinHandle<()> {
-    thread::Builder::new()
-        .name("OnHost Termination signal listener".to_string())
-        .spawn(move || {
-            let (lck, cvar) = Context::get_lock_cvar(&ctx);
-            drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
+    spawn_named_thread("OnHost Termination signal listener", move || {
+        let (lck, cvar) = Context::get_lock_cvar(&ctx);
+        drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
-            // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
+        // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
 
-            if let Some(pid) = *current_pid.lock().unwrap() {
-                info!(
-                    agent_id = agent_id.to_string(),
-                    pid = pid,
-                    msg = "stopping supervisor process"
-                );
-                _ = ProcessTerminator::new(pid)
-                    .shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-            } else {
-                info!(
-                    agent_id = agent_id.to_string(),
-                    msg = "stopped supervisor without process running"
-                );
-            }
-        })
-        .expect("thread config should be valid")
+        if let Some(pid) = *current_pid.lock().unwrap() {
+            info!(
+                agent_id = agent_id.to_string(),
+                pid = pid,
+                msg = "stopping supervisor process"
+            );
+            _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
+        } else {
+            info!(
+                agent_id = agent_id.to_string(),
+                msg = "stopped supervisor without process running"
+            );
+        }
+    })
 }
 
 #[cfg(test)]
