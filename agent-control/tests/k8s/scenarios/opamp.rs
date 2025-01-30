@@ -17,7 +17,6 @@ use crate::k8s::tools::{
     k8s_env::K8sEnv,
 };
 use newrelic_agent_control::agent_control::config::AgentID;
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -30,7 +29,6 @@ use tempfile::tempdir;
 /// - HelmRelease is recreated and healthy
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_enabled_with_no_remote_configuration() {
     let test_name = "k8s_opamp_enabled_with_no_remote_configuration";
     let server = FakeServer::start_new();
@@ -59,9 +57,16 @@ cluster: minikube
 licenseKey: test
     "#;
 
-    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
-    let sub_agent_instance_id =
-        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new_agent_control_id(),
+    );
+    let sub_agent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("hello-world").unwrap(),
+    );
 
     retry(60, Duration::from_secs(1), || {
         block_on(check_helmrelease_spec_values(
@@ -111,7 +116,6 @@ licenseKey: test
 /// in the corresponding HelmRelease resource.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_subagent_configuration_change() {
     let test_name = "k8s_opamp_subagent_configuration_change";
 
@@ -136,8 +140,11 @@ fn k8s_opamp_subagent_configuration_change() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id =
-        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("hello-world").unwrap(),
+    );
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
@@ -216,7 +223,6 @@ valid: super-true
 /// sub-agent.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_add_subagent() {
     let test_name = "k8s_opamp_add_sub_agent";
 
@@ -241,7 +247,11 @@ fn k8s_opamp_add_subagent() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new_agent_control_id(),
+    );
 
     server.set_config_response(
         instance_id.clone(),
@@ -282,7 +292,6 @@ agents:
 /// Those changes should be reflected in the corresponding HelmRelease resource.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_subagent_modify_secret() {
     let test_name = "k8s_opamp_subagent_modify_secret";
 
@@ -307,8 +316,11 @@ fn k8s_opamp_subagent_modify_secret() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id =
-        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("hello-world").unwrap(),
+    );
 
     // Update the agent configuration via OpAMP
     server.set_config_response(

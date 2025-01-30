@@ -11,7 +11,6 @@ use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::AgentID;
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -23,7 +22,6 @@ use tempfile::tempdir;
 /// in the k8s cluster.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let test_name = "k8s_opamp_subagent_configuration_change_after_ac_restarts";
 
@@ -48,8 +46,11 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id =
-        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("hello-world").unwrap(),
+    );
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
