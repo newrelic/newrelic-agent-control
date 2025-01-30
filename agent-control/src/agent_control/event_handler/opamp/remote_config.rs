@@ -36,7 +36,7 @@ where
             unreachable!("got remote config without OpAMP being enabled");
         };
 
-        info!("Applying AgentControl remote config");
+        info!(agent_id=%remote_config.agent_id, "Applying remote config");
         OpampRemoteConfigStatus::Applying.report(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_agent_control_config(&remote_config, sub_agents) {

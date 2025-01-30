@@ -177,6 +177,7 @@ where
                                         )
                                     },
                                     Ok(())  =>{
+                                        info!(agent_id = %self.agent_id, "Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
                                         stop_supervisor(&self.agent_id, supervisor);
@@ -233,7 +234,7 @@ where
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
                 if !was_healthy {
-                    info!(%agent_id, "agent is healthy");
+                    info!(%agent_id, "Agent is healthy");
                 }
             }
             // Every time health is unhealthy

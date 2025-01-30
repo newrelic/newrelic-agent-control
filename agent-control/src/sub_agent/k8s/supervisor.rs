@@ -131,16 +131,16 @@ impl NotStartedSupervisorK8s {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
 
-        info!(%agent_id, "k8s objects supervisor started");
+        info!(%agent_id, "K8s objects supervisor started");
         let join_handle = spawn_named_thread("K8s objects supervisor", move || loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
-                error!(%agent_id, %err, "k8s resources apply failed");
+                error!(%agent_id, %err, "K8s resources apply failed");
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "k8s objects supervisor stopped");
+                info!(%agent_id, "K8s objects supervisor stopped");
                 break;
             }
         });
