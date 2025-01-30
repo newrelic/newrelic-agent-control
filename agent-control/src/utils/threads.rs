@@ -9,5 +9,6 @@ where
     thread::Builder::new()
         .name(name.to_string())
         .spawn(f)
+        // Panics if the OS fails to create a thread, as in `std::thread::spawn`.
         .expect("thread config should be valid")
 }
