@@ -25,7 +25,7 @@ use tempfile::tempdir;
 #[ignore = "needs k8s cluster"]
 #[serial]
 fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
-    let test_name = "k8s_opamp_subagent_configuration_change";
+    let test_name = "k8s_opamp_subagent_configuration_change_after_ac_restarts";
 
     let mut server = FakeServer::start_new();
 
