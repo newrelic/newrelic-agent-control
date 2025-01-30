@@ -284,6 +284,7 @@ pub mod tests {
     use serde_json::json;
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Arc;
+    use std::thread;
     use std::time::Duration;
     use tracing_test::traced_test;
 

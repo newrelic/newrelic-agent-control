@@ -402,6 +402,7 @@ pub mod tests {
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::version::version_checker::AgentVersion;
+    use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 
