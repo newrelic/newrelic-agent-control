@@ -41,7 +41,7 @@ pub enum LoggingError {
 pub struct LoggingConfig {
     #[serde(default)]
     pub(crate) format: LoggingFormat,
-    /// Defines the log level. It applies to creates defined in [LOGGING_ENABLED_CRATES] only, logs for the rest of
+    /// Defines the log level. It applies to crates defined in [LOGGING_ENABLED_CRATES] only, logs for the rest of
     /// external crates are disabled. In order to show them `insecure_fine_grained_level` needs to be set.
     #[serde(default)]
     pub(crate) level: LogLevel,
@@ -122,7 +122,7 @@ impl LoggingConfig {
         let mut env_filter = EnvFilter::builder()
             .with_default_directive(LevelFilter::OFF.into()) // Disables logs for any crate
             .parse_lossy("");
-        // Enables and setups the log level for known crates
+        // Enables and sets up the log level for known crates
         for crate_name in LOGGING_ENABLED_CRATES {
             let directive = format!("{}={}", crate_name, &level);
             env_filter =
