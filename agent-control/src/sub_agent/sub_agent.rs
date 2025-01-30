@@ -15,13 +15,13 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::utils::threads::spawn_named_thread;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
 use std::marker::PhantomData;
-use std::thread;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
@@ -139,7 +139,7 @@ where
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
-        thread::spawn(move || {
+        spawn_named_thread("SubAgent runtime", move || {
             let mut supervisor = self.assemble_and_start_supervisor();
 
             // Stores the current healthy state for logging purposes.

@@ -19,13 +19,14 @@ use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarter
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::threads::spawn_named_thread;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::SystemTime;
 use std::{
     sync::{Arc, Mutex},
-    thread::{self, JoinHandle},
+    thread::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
 
@@ -181,7 +182,7 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
-        thread::spawn({
+        spawn_named_thread("OnHost process", {
             move || loop {
                 // locks the current_pid to prevent `wait_for_termination` finishing before the process
                 // is started and the pid is set.
@@ -370,7 +371,7 @@ fn wait_for_termination(
     shutdown_ctx: Context<bool>,
     agent_id: AgentID,
 ) -> JoinHandle<()> {
-    thread::spawn(move || {
+    spawn_named_thread("OnHost Termination signal listener", move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
@@ -401,6 +402,7 @@ pub mod tests {
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::version::version_checker::AgentVersion;
+    use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 

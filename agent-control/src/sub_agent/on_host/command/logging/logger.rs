@@ -1,5 +1,6 @@
 use super::file_logger::FileLogger;
 use crate::agent_control::config::AgentID;
+use crate::utils::threads::spawn_named_thread;
 use std::{sync::mpsc::Receiver, thread::JoinHandle};
 use tracing::{debug, info};
 
@@ -14,7 +15,7 @@ impl Logger {
     where
         S: ToString + Send + 'static,
     {
-        std::thread::spawn(move || {
+        spawn_named_thread("OnHost logger", move || {
             match self {
                 Self::File(file_logger, agent_id) => {
                     // If the logger is a FileLogger, set this file logging as the default.

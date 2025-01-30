@@ -3,9 +3,9 @@ use crate::agent_control::http_server::async_bridge::run_async_sync_bridge;
 use crate::agent_control::http_server::config::ServerConfig;
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
+use crate::utils::threads::spawn_named_thread;
 use crossbeam::select;
 use std::sync::Arc;
-use std::thread;
 use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -55,7 +55,7 @@ impl Runner {
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> JoinHandle<()> {
-        thread::spawn(move || {
+        spawn_named_thread("Http server", move || {
             // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
             // to the Async Status Server
             let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
@@ -94,7 +94,7 @@ impl Runner {
         agent_control_consumer: EventConsumer<AgentControlEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
     ) -> JoinHandle<()> {
-        thread::spawn(move || loop {
+        spawn_named_thread("No-action consumer", move || loop {
             select! {
                 recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
                     match agent_control_consumer_res {

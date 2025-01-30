@@ -15,11 +15,12 @@ use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarter
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::threads::spawn_named_thread;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
@@ -131,7 +132,7 @@ impl NotStartedSupervisorK8s {
         let k8s_client = self.k8s_client.clone();
 
         info!(%agent_id, "k8s objects supervisor started");
-        let join_handle = thread::spawn(move || loop {
+        let join_handle = spawn_named_thread("K8s objects supervisor", move || loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
@@ -283,6 +284,7 @@ pub mod tests {
     use serde_json::json;
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Arc;
+    use std::thread;
     use std::time::Duration;
     use tracing_test::traced_test;
 

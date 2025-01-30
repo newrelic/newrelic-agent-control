@@ -8,7 +8,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
-use std::thread;
+use crate::utils::threads::spawn_named_thread;
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -220,7 +220,7 @@ pub(crate) fn spawn_health_checker<H>(
 ) where
     H: HealthChecker + Send + 'static,
 {
-    thread::spawn(move || loop {
+    spawn_named_thread("Health checker", move || loop {
         debug!(%agent_id, "starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {

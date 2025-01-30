@@ -1,4 +1,5 @@
 use super::logger::Logger;
+use crate::utils::threads::spawn_named_thread;
 use std::{
     io::{BufRead, BufReader, Read},
     sync::mpsc::{self, Receiver, Sender},
@@ -26,7 +27,7 @@ where
     } = LogBroadcaster::new(loggers);
 
     // In a separate thread, iterate over the handle to get the logs
-    let sender_thread = std::thread::spawn(move || {
+    let sender_thread = spawn_named_thread("OnHost log sender", move || {
         let log_entries = BufReader::new(handle).lines();
         for line in log_entries {
             let line = line.expect("Failed to read line from buffered reader");

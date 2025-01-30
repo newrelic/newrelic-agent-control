@@ -3,7 +3,7 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use std::thread;
+use crate::utils::threads::spawn_named_thread;
 use tracing::{debug, error};
 
 pub trait VersionChecker {
@@ -50,7 +50,7 @@ pub(crate) fn spawn_version_checker<V>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
 {
-    thread::spawn(move || loop {
+    spawn_named_thread("Version checker", move || loop {
         debug!(%agent_id, "starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
