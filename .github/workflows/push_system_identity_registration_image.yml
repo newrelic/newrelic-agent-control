@@ -1,4 +1,4 @@
-name: 📞 Build and Push System Identity Registration image
+name: ⏯️ Build and Push System Identity Registration image
 
 on:
   workflow_dispatch:
