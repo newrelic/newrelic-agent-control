@@ -1,3 +1,5 @@
+use std::thread::JoinHandle;
+
 use crate::agent_control::config::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
@@ -47,7 +49,8 @@ pub(crate) fn spawn_version_checker<V>(
     cancel_signal: EventConsumer<CancellationMessage>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
-) where
+) -> JoinHandle<()>
+where
     V: VersionChecker + Send + Sync + 'static,
 {
     // Stores if the version was retrieved in last iteration for logging purposes.
@@ -77,7 +80,7 @@ pub(crate) fn spawn_version_checker<V>(
         if cancel_signal.is_cancelled(interval.into()) {
             break;
         }
-    });
+    })
 }
 
 pub(crate) fn publish_version_event(

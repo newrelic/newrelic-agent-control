@@ -50,7 +50,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             self.start_k8s_objects_supervisor(resources.clone());
         let health_checker_output =
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
-        let maybe_stop_version =
+        let version_checker_output =
             self.start_version_checker(sub_agent_internal_publisher, resources);
 
         Ok(StartedSupervisorK8s {
@@ -60,7 +60,11 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
                 .map(|(stop, _)| stop)
                 .cloned(),
             maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
-            maybe_stop_version,
+            maybe_stop_version: version_checker_output
+                .as_ref()
+                .map(|(stop, _)| stop)
+                .cloned(),
+            maybe_version_handle: version_checker_output.map(|(_, handle)| handle),
             stop_objects_supervisor,
             objects_supervisor_handle,
         })
@@ -187,7 +191,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Option<EventPublisher<()>> {
+    ) -> Option<(EventPublisher<()>, JoinHandle<()>)> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
@@ -196,14 +200,14 @@ impl NotStartedSupervisorK8s {
             resources,
         )?;
 
-        spawn_version_checker(
+        let join_handle = spawn_version_checker(
             self.agent_id.clone(),
             k8s_version_checker,
             stop_version_consumer,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        Some(stop_version_publisher)
+        Some((stop_version_publisher, join_handle))
     }
 
     /// It applies each of the provided k8s resources to the cluster if it has changed.
@@ -227,6 +231,7 @@ pub struct StartedSupervisorK8s {
     maybe_stop_health: Option<EventPublisher<()>>,
     maybe_health_handle: Option<JoinHandle<()>>,
     maybe_stop_version: Option<EventPublisher<()>>,
+    maybe_version_handle: Option<JoinHandle<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
 }
@@ -248,6 +253,14 @@ impl SupervisorStopper for StartedSupervisorK8s {
         }
         if let Some(stop_version) = self.maybe_stop_version {
             stop_version.publish(())?;
+        }
+        if let Some(version_handle) = self.maybe_version_handle {
+            let _ = version_handle.join().inspect_err(|_| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    "Error stopping k8s supervisor thread"
+                );
+            });
         }
 
         self.stop_objects_supervisor.publish(())?;
