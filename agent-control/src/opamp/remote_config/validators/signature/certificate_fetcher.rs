@@ -178,7 +178,7 @@ mod tests {
                     Duration::from_secs(10),
                 )
                 .fetch()
-                .unwrap_or_else(|_| panic!("fetching cert, case: {}", self.name));
+                .unwrap_or_else(|err| panic!("fetching cert err '{}', case: '{}'", err, self.name));
             }
         }
         let test_cases = vec![
