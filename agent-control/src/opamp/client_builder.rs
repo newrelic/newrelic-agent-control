@@ -5,8 +5,8 @@ use crate::agent_control::config::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;
+use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
 use std::time::Duration;
@@ -26,11 +26,8 @@ pub enum OpAMPClientBuilderError {
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
-pub trait OpAMPClientBuilder<CB>
-where
-    CB: Callbacks,
-{
-    type Client: StartedClient<CB> + 'static;
+pub trait OpAMPClientBuilder {
+    type Client: StartedClient + 'static;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -67,12 +64,17 @@ where
     }
 }
 
-impl<C, B> OpAMPClientBuilder<AgentCallbacks<B::Loader>> for DefaultOpAMPClientBuilder<C, B>
+impl<C, B> OpAMPClientBuilder for DefaultOpAMPClientBuilder<C, B>
 where
     B: EffectiveConfigLoaderBuilder,
     C: HttpClientBuilder,
 {
-    type Client = StartedHttpClient<AgentCallbacks<B::Loader>, C::Client>;
+    type Client = StartedHttpClient<
+        OpAMPHttpClient<
+            AgentCallbacks<<B as EffectiveConfigLoaderBuilder>::Loader>,
+            <C as HttpClientBuilder>::Client,
+        >,
+    >;
     fn build_and_start(
         &self,
         opamp_publisher: EventPublisher<OpAMPEvent>,
@@ -83,9 +85,10 @@ where
         let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
         let callbacks =
             AgentCallbacks::new(agent_id.clone(), opamp_publisher, effective_config_loader);
-        let not_started_client =
-            NotStartedHttpClient::new(http_client).with_interval(self.poll_interval);
-        let started_client = not_started_client.start(callbacks, start_settings)?;
+        let not_started_client = NotStartedHttpClient::new(http_client, callbacks, start_settings)?;
+        let started_client = not_started_client
+            .with_interval(self.poll_interval)
+            .start()?;
         info!(%agent_id,"OpAMP client started");
         Ok(started_client)
     }
@@ -107,26 +110,22 @@ pub(crate) mod tests {
     mock! {
         pub NotStartedOpAMPClientMock {}
         impl NotStartedClient for NotStartedOpAMPClientMock
-         {
-            type StartedClient<C: Callbacks + Send + Sync + 'static> = MockStartedOpAMPClientMock<C>;
-            fn start<C: Callbacks + Send + Sync + 'static>(self, callbacks: C, start_settings: StartSettings ) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient<C>>;
+        {
+            type StartedClient= MockStartedOpAMPClientMock;
+            fn start(self) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient>;
         }
     }
 
     mock! {
-        pub StartedOpAMPClientMock<C> where C: Callbacks {}
+        pub StartedOpAMPClientMock {}
 
-        impl<C> StartedClient<C> for StartedOpAMPClientMock<C>
-            where
-            C: Callbacks + Send + Sync + 'static {
-
+        impl StartedClient for StartedOpAMPClientMock
+        {
             fn stop(self) -> StartedClientResult<()>;
         }
 
-        impl<C> Client for StartedOpAMPClientMock<C>
-        where
-        C: Callbacks + Send + Sync + 'static {
-
+        impl Client for StartedOpAMPClientMock
+        {
             fn get_agent_description(
                 &self,
             ) -> ClientResult<AgentDescription>;
@@ -146,10 +145,7 @@ pub(crate) mod tests {
         }
     }
 
-    impl<C> MockStartedOpAMPClientMock<C>
-    where
-        C: Callbacks + Send + Sync + 'static,
-    {
+    impl MockStartedOpAMPClientMock {
         pub fn should_update_effective_config(&mut self, times: usize) {
             self.expect_update_effective_config()
                 .times(times)
@@ -194,23 +190,21 @@ pub(crate) mod tests {
     }
 
     mock! {
-        pub OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{}
+        pub OpAMPClientBuilderMock {}
 
-        impl<C> OpAMPClientBuilder<C> for OpAMPClientBuilderMock<C> where C: Callbacks + Send + Sync + 'static{
-            type Client = MockStartedOpAMPClientMock<C>;
-            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder<C>>::Client, OpAMPClientBuilderError>;
+        impl OpAMPClientBuilder for OpAMPClientBuilderMock{
+            type Client = MockStartedOpAMPClientMock;
+            fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 
-    impl<C> MockOpAMPClientBuilderMock<C>
-    where
-        C: Callbacks + Send + Sync + 'static,
-    {
+    impl MockOpAMPClientBuilderMock {
+        #[allow(dead_code)] //used in k8s feature
         pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            client: MockStartedOpAMPClientMock<C>,
+            client: MockStartedOpAMPClientMock,
         ) {
             self.expect_build_and_start()
                 .with(
@@ -234,7 +228,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            client: MockStartedOpAMPClientMock<C>,
+            client: MockStartedOpAMPClientMock,
             run_for: Duration,
         ) {
             self.expect_build_and_start()

@@ -3,10 +3,9 @@ use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
 
-pub fn on_health<C, CB>(
+pub fn on_health<C>(
     health: HealthWithStartTime,
     maybe_opamp_client: Option<&C>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -14,8 +13,7 @@ pub fn on_health<C, CB>(
     agent_type: AgentTypeFQN,
 ) -> Result<(), SubAgentError>
 where
-    C: StartedClient<CB>,
-    CB: Callbacks,
+    C: StartedClient,
 {
     if let Some(client) = maybe_opamp_client.as_ref() {
         client.set_health(health.clone().into())?;

@@ -131,16 +131,16 @@ impl NotStartedSupervisorK8s {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
 
-        info!(%agent_id, "k8s objects supervisor started");
+        info!(%agent_id, "K8s objects supervisor started");
         let join_handle = spawn_named_thread("K8s objects supervisor", move || loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
-                error!(%agent_id, %err, "k8s resources apply failed");
+                error!(%agent_id, %err, "K8s resources apply failed");
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "k8s objects supervisor stopped");
+                info!(%agent_id, "K8s objects supervisor stopped");
                 break;
             }
         });
@@ -261,9 +261,7 @@ pub mod tests {
     use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
-    use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
@@ -609,8 +607,7 @@ pub mod tests {
         }
     }
 
-    fn none_mock_opamp_client(
-    ) -> Option<MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>> {
+    fn none_mock_opamp_client() -> Option<MockStartedOpAMPClientMock> {
         None
     }
 }

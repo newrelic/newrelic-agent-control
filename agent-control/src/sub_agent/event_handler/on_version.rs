@@ -1,18 +1,16 @@
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::version::version_checker::AgentVersion;
 use opamp_client::opamp::proto::{any_value, AgentDescription, AnyValue, KeyValue};
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
 
 /// This method request the AgentDescription from the current opamp client and, updates or add the
 /// field from agent version to be sent to opamp server
-pub fn on_version<C, CB>(
+pub fn on_version<C>(
     agent_data: AgentVersion,
     maybe_opamp_client: Option<&C>,
 ) -> Result<(), SubAgentError>
 where
-    C: StartedClient<CB>,
-    CB: Callbacks,
+    C: StartedClient,
 {
     if let Some(client) = maybe_opamp_client.as_ref() {
         let agent_description = client.get_agent_description()?;

@@ -92,8 +92,8 @@ where
 pub(crate) mod tests {
     use http::Response;
     use mockall::mock;
-    use opamp_client::http::HttpClientError;
     use opamp_client::operation::settings::StartSettings;
+    use opamp_client::{http::HttpClientError, StartedClient};
 
     use crate::{
         agent_control::config::AgentID,
@@ -138,17 +138,17 @@ pub(crate) mod tests {
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilderMock::new();
         effective_config_loader_builder
             .expect_build()
-            .times(1)
+            .once()
             .return_once(|_| MockEffectiveConfigLoaderMock::default());
 
         http_client // Define http client behavior for this test
             .expect_post()
-            .times(1)
+            .times(1 + 1) // first message + drop
             .returning(|_| Ok(Response::new(vec![])));
         // Define http builder behavior for this test
         http_builder
             .expect_build()
-            .times(1)
+            .once()
             .return_once(|| Ok(http_client));
 
         let builder = DefaultOpAMPClientBuilder::new(
@@ -156,9 +156,13 @@ pub(crate) mod tests {
             effective_config_loader_builder,
             DEFAULT_POLL_INTERVAL,
         );
-        let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
-        assert!(actual_client.is_ok());
+        let started_client = builder
+            .build_and_start(tx, agent_id, start_settings)
+            .unwrap();
+
+        // gracefully shutdown the all threads to avoid mocks panicking go unnoticed
+        started_client.stop().unwrap();
     }
 
     #[test]
@@ -172,7 +176,7 @@ pub(crate) mod tests {
         effective_config_loader_builder.expect_build().never();
 
         // Define http builder behavior for this test
-        http_builder.expect_build().times(1).return_once(|| {
+        http_builder.expect_build().once().return_once(|| {
             Err(HttpClientBuilderError::BuildingError(String::from(
                 "bad config",
             )))

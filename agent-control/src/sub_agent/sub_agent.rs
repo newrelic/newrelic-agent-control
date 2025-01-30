@@ -1,7 +1,6 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
-use crate::opamp::callbacks::AgentCallbacks;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
@@ -19,17 +18,13 @@ use crate::utils::threads::spawn_named_thread;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
-use std::marker::PhantomData;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
-
-pub(crate) type SubAgentCallbacks<C> = AgentCallbacks<C>;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -75,10 +70,9 @@ pub struct SubAgentStopper {
 ///
 /// All its methods are internal and only called from the runtime method that spawns
 /// a thread listening to events and acting on them.
-pub struct SubAgent<C, CB, A, B, HS, Y, S>
+pub struct SubAgent<C, A, B, HS, Y, S>
 where
-    C: StartedClient<CB> + Send + Sync + 'static,
-    CB: Callbacks + Send + Sync + 'static,
+    C: StartedClient + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
@@ -94,16 +88,11 @@ where
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     remote_config_handler: RemoteConfigHandler<HS, Y, S>,
     supervisor_assembler: SupervisorAssembler<HS, B, A>,
-
-    // This is needed to ensure the generic type parameter CB is used in the struct.
-    // Else Rust will reject this, complaining that the type parameter is not used.
-    _opamp_callbacks: PhantomData<CB>,
 }
 
-impl<C, CB, A, B, HS, Y, S> SubAgent<C, CB, A, B, HS, Y, S>
+impl<C, A, B, HS, Y, S> SubAgent<C, A, B, HS, Y, S>
 where
-    C: StartedClient<CB> + Send + Sync + 'static,
-    CB: Callbacks + Send + Sync + 'static,
+    C: StartedClient + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
@@ -134,7 +123,6 @@ where
             sub_agent_internal_publisher: internal_pub_sub.0,
             sub_agent_internal_consumer: internal_pub_sub.1,
             remote_config_handler,
-            _opamp_callbacks: PhantomData,
         }
     }
 
@@ -189,6 +177,7 @@ where
                                         )
                                     },
                                     Ok(())  =>{
+                                        info!(agent_id = %self.agent_id, "Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
                                         stop_supervisor(&self.agent_id, supervisor);
@@ -245,7 +234,7 @@ where
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
                 if !was_healthy {
-                    info!(%agent_id, "agent is healthy");
+                    info!(%agent_id, "Agent is healthy");
                 }
             }
             // Every time health is unhealthy
@@ -322,10 +311,9 @@ where
     }
 }
 
-impl<C, CB, A, B, HS, Y, S> NotStartedSubAgent for SubAgent<C, CB, A, B, HS, Y, S>
+impl<C, A, B, HS, Y, S> NotStartedSubAgent for SubAgent<C, A, B, HS, Y, S>
 where
-    C: StartedClient<CB> + Send + Sync + 'static,
-    CB: Callbacks + Send + Sync + 'static,
+    C: StartedClient + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     HS: HashRepository + Send + Sync + 'static,
@@ -353,7 +341,6 @@ pub mod tests {
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
@@ -440,8 +427,7 @@ pub mod tests {
     }
 
     type SubAgentForTesting = SubAgent<
-        MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>,
-        AgentCallbacks<MockEffectiveConfigLoaderMock>,
+        MockStartedOpAMPClientMock,
         MockEffectiveAgentAssemblerMock,
         MockSupervisorBuilder<MockSupervisorStarter>,
         MockHashRepositoryMock,
@@ -642,9 +628,7 @@ pub mod tests {
 
         let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
 
-        let mut opamp_client: MockStartedOpAMPClientMock<
-            AgentCallbacks<MockEffectiveConfigLoaderMock>,
-        > = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClientMock::new();
 
         // Applying config status should be reported
         opamp_client.should_set_remote_config_status(RemoteConfigStatus {

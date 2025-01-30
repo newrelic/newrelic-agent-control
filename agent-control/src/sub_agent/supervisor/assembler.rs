@@ -4,7 +4,6 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
-use opamp_client::operation::callbacks::Callbacks;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
@@ -57,13 +56,12 @@ where
         }
     }
 
-    pub fn assemble_supervisor<CB, C>(
+    pub fn assemble_supervisor<C>(
         &self,
         maybe_opamp_client: &Option<C>,
     ) -> Result<B::SupervisorStarter, SupervisorAssemblerError>
     where
-        CB: Callbacks + Send + Sync + 'static,
-        C: StartedClient<CB> + Send + Sync + 'static,
+        C: StartedClient + Send + Sync + 'static,
     {
         // Attempt to retrieve the hash
         let hash = self
@@ -132,9 +130,7 @@ mod tests {
     use crate::agent_control::config::{AgentID, AgentTypeFQN, SubAgentConfig};
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
-    use crate::opamp::callbacks::AgentCallbacks;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::hash::Hash;
@@ -158,8 +154,7 @@ mod tests {
         MockEffectiveAgentAssemblerMock,
     >;
 
-    type OpampClientForTest =
-        MockStartedOpAMPClientMock<AgentCallbacks<MockEffectiveConfigLoaderMock>>;
+    type OpampClientForTest = MockStartedOpAMPClientMock;
 
     impl Default for AssemblerForTesting {
         fn default() -> Self {
