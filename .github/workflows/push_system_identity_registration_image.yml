@@ -1,0 +1,55 @@
+name: ⏯️ Build and Push System Identity Registration image
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag'
+        required: false
+        default: 'latest'
+  push:
+    paths:
+      - 'system_identity_registration/**'
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    name: Build and Push System Identity Registration image
+    env:
+      DOCKER_IMAGE_NAME: newrelic/agent-control-system-identity-registration
+      DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        if: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_dispatch' }}
+        run: |
+          docker buildx build \
+            --platform=${DOCKER_PLATFORMS} \
+            --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
+            --file system_identity_registration/Dockerfile \
+            .
+
+      # Only log in and push image on code pushes to `main` or manual triggers
+      - uses: docker/login-action@v3
+        if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}  
+        with:
+          username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
+          password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
+
+      - name: Build and Push image
+        if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          docker buildx build \
+            --platform=${DOCKER_PLATFORMS} \
+            --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
+            --file system_identity_registration/Dockerfile \
+            --push \
+            .
