@@ -48,14 +48,18 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 
         let (stop_objects_supervisor, objects_supervisor_handle) =
             self.start_k8s_objects_supervisor(resources.clone());
-        let maybe_stop_health =
+        let health_checker_output =
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
         let maybe_stop_version =
             self.start_version_checker(sub_agent_internal_publisher, resources);
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,
-            maybe_stop_health,
+            maybe_stop_health: health_checker_output
+                .as_ref()
+                .map(|(stop, _)| stop)
+                .cloned(),
+            maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
             maybe_stop_version,
             stop_objects_supervisor,
             objects_supervisor_handle,
@@ -152,7 +156,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<EventPublisher<()>>, SupervisorStarterError> {
+    ) -> Result<Option<(EventPublisher<()>, JoinHandle<()>)>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
         if let Some(health_config) = self.k8s_config.health.clone() {
@@ -164,7 +168,7 @@ impl NotStartedSupervisorK8s {
                 return Ok(None);
             };
 
-            spawn_health_checker(
+            let join_handle = spawn_health_checker(
                 self.agent_id.clone(),
                 k8s_health_checker,
                 stop_health_consumer,
@@ -172,7 +176,7 @@ impl NotStartedSupervisorK8s {
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(stop_health_publisher));
+            return Ok(Some((stop_health_publisher, join_handle)));
         }
 
         debug!(%self.agent_id, "health checks are disabled for this agent");
@@ -221,6 +225,7 @@ impl NotStartedSupervisorK8s {
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
     maybe_stop_health: Option<EventPublisher<()>>,
+    maybe_health_handle: Option<JoinHandle<()>>,
     maybe_stop_version: Option<EventPublisher<()>>,
     stop_objects_supervisor: EventPublisher<()>,
     objects_supervisor_handle: JoinHandle<()>,
@@ -231,7 +236,15 @@ impl SupervisorStopper for StartedSupervisorK8s {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
 
         if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
+            stop_health.publish(())?;
+        }
+        if let Some(health_handle) = self.maybe_health_handle {
+            let _ = health_handle.join().inspect_err(|_| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    "Error stopping k8s supervisor thread"
+                );
+            });
         }
         if let Some(stop_version) = self.maybe_stop_version {
             stop_version.publish(())?;

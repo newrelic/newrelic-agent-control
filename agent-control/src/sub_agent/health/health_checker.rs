@@ -9,6 +9,7 @@ use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::threads::spawn_named_thread;
+use std::thread::JoinHandle;
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -217,7 +218,8 @@ pub(crate) fn spawn_health_checker<H>(
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
-) where
+) -> JoinHandle<()>
+where
     H: HealthChecker + Send + 'static,
 {
     spawn_named_thread("Health checker", move || loop {
@@ -237,7 +239,7 @@ pub(crate) fn spawn_health_checker<H>(
         if cancel_signal.is_cancelled(interval.into()) {
             break;
         }
-    });
+    })
 }
 
 pub(crate) fn publish_health_event(
