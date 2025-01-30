@@ -605,6 +605,9 @@ pub mod tests {
             thread::sleep(Duration::from_millis(15));
         }
 
+        // buffer to ensure all logs are flushed
+        thread::sleep(Duration::from_millis(300));
+
         // Log output corresponding to 1 base execution + 3 retries
         tracing_test::internal::logs_assert(
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
