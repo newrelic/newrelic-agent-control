@@ -29,6 +29,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - name: Build image
+        if: ${{ github.ref != 'refs/heads/main' && github.event_name != 'workflow_dispatch' }}
         run: |
           docker buildx build \
             --platform=${DOCKER_PLATFORMS} \
@@ -43,7 +44,7 @@ jobs:
           username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
           password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
 
-      - name: Push image
+      - name: Build and Push image
         if: ${{ github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' }}
         run: |
           docker buildx build \
