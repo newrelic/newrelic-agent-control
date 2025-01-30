@@ -109,11 +109,18 @@ impl LoggingConfig {
     }
 
     fn insecure_logging_filter(&self) -> Option<Result<EnvFilter, LoggingError>> {
-        self.insecure_fine_grained_level.as_ref().map(|s| {
-            Ok(EnvFilter::builder()
-                .with_default_directive(Self::logging_directive(s, "insecure_fine_grained_level")?)
-                .parse_lossy(""))
-        })
+        self.insecure_fine_grained_level
+            .as_ref()
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                EnvFilter::builder()
+                    .parse(s)
+                    .map_err(|err| LoggingError::InvalidDirective {
+                        directive: s.to_string(),
+                        field_name: "insecure_fine_grained_level".to_string(),
+                        err: err.to_string(),
+                    })
+            })
     }
 
     fn crate_logging_filter(&self) -> Result<EnvFilter, LoggingError> {
@@ -212,10 +219,29 @@ mod tests {
                 name: "insecure fine grained overrides any logging",
                 config: LoggingConfig {
                     insecure_fine_grained_level: Some("info".into()),
-                    level: LogLevel(Level::INFO),
+                    level: LogLevel(Level::DEBUG),
                     ..Default::default()
                 },
                 expected: "info",
+            },
+            TestCase {
+                name: "empty insecure fine grained does not apply",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some("".into()),
+                    ..Default::default()
+                },
+                expected: "newrelic_agent_control=info,opamp_client=info,off", // default
+            },
+            TestCase {
+                name: "several specific targets in insecure_fine_grained_level",
+                config: LoggingConfig {
+                    insecure_fine_grained_level: Some(
+                        "newrelic_agent_control=info,opamp_client=debug,off".into(),
+                    ),
+                    level: LogLevel(Level::INFO),
+                    ..Default::default()
+                },
+                expected: "newrelic_agent_control=info,opamp_client=debug,off",
             },
             TestCase {
                 name: "parses log level from int",
@@ -241,24 +267,14 @@ mod tests {
         impl TestCase {
             fn run(self) {
                 let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
-                assert_eq!(
-                    env_filter.unwrap_err().to_string(),
-                    self.expected.to_string(),
-                    "{}",
-                    self.name
-                );
+                let err = env_filter
+                    .err()
+                    .unwrap_or_else(|| panic!("expected err got Ok - {}", self.name));
+                assert_eq!(err.to_string(), self.expected.to_string(), "{}", self.name);
             }
         }
 
         let test_cases = vec![
-            TestCase {
-                name: "empty insecure fine grained",
-                config: LoggingConfig {
-                    insecure_fine_grained_level: Some("".into()),
-                    ..Default::default()
-                },
-                expected: "invalid directive `` in `insecure_fine_grained_level`: invalid filter directive",
-            },
             TestCase {
                 name: "invalid insecure fine grained (level as string)",
                 config: LoggingConfig {
