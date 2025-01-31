@@ -119,7 +119,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
             h.join().inspect_err(|_| {
                 error!(
                     agent_id = self.agent_id.to_string(),
-                    "Error stopping k8s supervisor thread"
+                    "Error stopping onhost supervisor thread"
                 );
             })
         });
