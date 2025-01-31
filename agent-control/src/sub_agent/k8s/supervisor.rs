@@ -79,7 +79,6 @@ impl NotStartedSupervisorK8s {
     pub fn build_dynamic_objects(&self) -> Result<Vec<DynamicObject>, SupervisorStarterError> {
         self.k8s_config
             .objects
-            .clone()
             .values()
             .map(|k8s_obj| self.create_dynamic_object(k8s_obj))
             .collect()
@@ -153,7 +152,7 @@ impl NotStartedSupervisorK8s {
     ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
-        let Some(health_config) = self.k8s_config.health.clone() else {
+        let Some(health_config) = &self.k8s_config.health else {
             debug!(%self.agent_id, "health checks are disabled for this agent");
             return Ok(None);
         };

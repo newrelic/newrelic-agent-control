@@ -120,7 +120,7 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
         let start_time = StartTime::now();
-        if let Some(health_config) = self.health_config.clone() {
+        if let Some(health_config) = &self.health_config {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
             let join_handle = spawn_health_checker(
@@ -191,7 +191,7 @@ impl NotStartedSupervisorOnHost {
                 if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                     debug!(
                         agent_id = self.agent_id.to_string(),
-                        supervisor = executable_data.bin.clone(),
+                        supervisor = executable_data.bin,
                         msg = "supervisor stopped before starting the process"
                     );
                     break;
@@ -199,7 +199,7 @@ impl NotStartedSupervisorOnHost {
 
                 info!(
                     agent_id = self.agent_id.to_string(),
-                    supervisor = executable_data.bin.clone(),
+                    supervisor = executable_data.bin,
                     msg = "starting supervisor process"
                 );
 
@@ -207,8 +207,6 @@ impl NotStartedSupervisorOnHost {
                 // Signals return exit_code 0, if in the future we need to act on them we can import
                 // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
                 let not_started_command = self.not_started_command(&executable_data);
-                let bin = executable_data.bin.clone();
-                let id = self.agent_id.clone();
 
                 let supervisor_start_time = SystemTime::now();
 
@@ -222,8 +220,8 @@ impl NotStartedSupervisorOnHost {
                 let exit_code = start_command(not_started_command, pid_guard)
                     .inspect_err(|err| {
                         error!(
-                            agent_id = id.to_string(),
-                            supervisor = bin,
+                            agent_id = self.agent_id.to_string(),
+                            supervisor = executable_data.bin,
                             "error while launching supervisor process: {}",
                             err
                         );
@@ -232,8 +230,8 @@ impl NotStartedSupervisorOnHost {
                         handle_termination(
                             exit_status,
                             &internal_event_publisher,
-                            &id,
-                            bin.to_string(),
+                            &self.agent_id,
+                            executable_data.bin.to_string(),
                             supervisor_start_time,
                         )
                     });
@@ -260,7 +258,7 @@ impl NotStartedSupervisorOnHost {
                 if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                     // Log if we are not restarting anymore due to the restart policy being broken
                     if restart_policy.backoff != BackoffStrategy::None {
-                        warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
+                        warn!("supervisor for {} won't restart anymore due to having exceeded its restart policy", self.agent_id);
 
                         let unhealthy = Unhealthy::new(
                             String::default(),
@@ -276,7 +274,7 @@ impl NotStartedSupervisorOnHost {
                     break;
                 }
 
-                info!("restarting supervisor for {id}...");
+                info!("restarting supervisor for {}...", self.agent_id);
 
                 restart_policy.backoff(|duration| {
                     // early exit if supervisor timeout is canceled
