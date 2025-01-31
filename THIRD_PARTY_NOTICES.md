@@ -2672,6 +2672,14 @@ Distributed under the following license(s):
 * MIT
 
 
+## wit-bindgen-rt https://crates.io/crates/wit-bindgen-rt
+
+Distributed under the following license(s):
+* Apache-2.0 WITH LLVM-exception
+* Apache-2.0
+* MIT
+
+
 ## write16 https://crates.io/crates/write16
 
 Distributed under the following license(s):
