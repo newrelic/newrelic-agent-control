@@ -25,7 +25,7 @@ async-trait = { version = "0.1.83", optional = true }
 tokio = { version = "1.41.1", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.4.1", optional = true }
 uuid = { version = "1.8.0", features = ["serde", "v7"] }
-duration-str = "0.11.2"
+duration-str = "0.12.0"
 konst = { workspace = true }
 http = { workspace = true }
 ureq = { workspace = true, features = ["http-crate", "socks-proxy", "native-certs"] }
@@ -59,12 +59,12 @@ cfg-if = "1.0.0"
 opentelemetry-semantic-conventions = "0.14.0"
 http-serde = "2.1.1"
 paste = "1.0"
-config = { version = "0.14.1", features = ["yaml"] }
+config = { version = "0.15.7", features = ["yaml"] }
 rustls = { version = "0.23.18", features = ["ring"] }
 rustls-pemfile = { version = "2.1.3" }
 rustls-native-certs = "0.8.1"
 webpki = { version = "0.22.4", features = ["alloc"] }
-x509-parser = "0.16.0"
+x509-parser = "0.17.0"
 ring = "0.17.8"
 
 [dev-dependencies]
@@ -84,7 +84,7 @@ tracing-test = { workspace = true }
 jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.37.0", features = ["rt-multi-thread", "macros"] }
-fake = { version = "2.9.2", features = ["derive", "http"] }
+fake = { version = "3.1.0", features = ["derive", "http"] }
 prost = "0.13.3"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
 httpmock = { version = "0.8.0-alpha.1", features = ["proxy"] }
