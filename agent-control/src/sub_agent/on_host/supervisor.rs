@@ -37,6 +37,7 @@ pub struct StartedSupervisorOnHost {
     maybe_stop_health: Option<EventPublisher<()>>,
     maybe_health_handle: Option<JoinHandle<()>>,
     maybe_stop_version: Option<EventPublisher<()>>,
+    maybe_version_handle: Option<JoinHandle<()>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -57,8 +58,10 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
-        let health_checker_output = self.start_health_check(sub_agent_internal_publisher.clone())?;
-        let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher.clone());
+        let health_checker_output =
+            self.start_health_check(sub_agent_internal_publisher.clone())?;
+        let version_checker_output =
+            self.start_version_checker(sub_agent_internal_publisher.clone());
 
         let id = self.agent_id.clone();
 
@@ -77,7 +80,11 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
                 .map(|(stop, _)| stop)
                 .cloned(),
             maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
-            maybe_stop_version,
+            maybe_stop_version: version_checker_output
+                .as_ref()
+                .map(|(stop, _)| stop)
+                .cloned(),
+            maybe_version_handle: version_checker_output.map(|(_, handle)| handle),
         })
     }
 }
@@ -97,6 +104,14 @@ impl SupervisorStopper for StartedSupervisorOnHost {
         }
         if let Some(stop_version) = self.maybe_stop_version {
             stop_version.publish(())?;
+        }
+        if let Some(version_handle) = self.maybe_version_handle {
+            let _ = version_handle.join().inspect_err(|_| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    "Error stopping onhost supervisor thread"
+                );
+            });
         }
         self.ctx.cancel_all(true).unwrap();
 
