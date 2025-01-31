@@ -12,7 +12,9 @@ use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::supervisor::stopper::{
+    stop_thread_resources, SupervisorStopper, ThreadResources,
+};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -20,7 +22,6 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
-use std::thread::JoinHandle;
 use std::time::Duration;
 use tracing::{debug, error, info, warn};
 
@@ -46,27 +47,15 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
-        let (stop_objects_supervisor, objects_supervisor_handle) =
-            self.start_k8s_objects_supervisor(resources.clone());
-        let health_checker_output =
-            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?;
-        let version_checker_output =
-            self.start_version_checker(sub_agent_internal_publisher, resources);
+        let threads_resources = vec![
+            Some(self.start_k8s_objects_supervisor(resources.clone())),
+            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
+            self.start_version_checker(sub_agent_internal_publisher, resources),
+        ];
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,
-            maybe_stop_health: health_checker_output
-                .as_ref()
-                .map(|(stop, _)| stop)
-                .cloned(),
-            maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
-            maybe_stop_version: version_checker_output
-                .as_ref()
-                .map(|(stop, _)| stop)
-                .cloned(),
-            maybe_version_handle: version_checker_output.map(|(_, handle)| handle),
-            stop_objects_supervisor,
-            objects_supervisor_handle,
+            threads_resources: threads_resources.into_iter().flatten().collect(),
         })
     }
 }
@@ -130,10 +119,7 @@ impl NotStartedSupervisorK8s {
         })
     }
 
-    fn start_k8s_objects_supervisor(
-        &self,
-        resources: Arc<Vec<DynamicObject>>,
-    ) -> (EventPublisher<()>, JoinHandle<()>) {
+    fn start_k8s_objects_supervisor(&self, resources: Arc<Vec<DynamicObject>>) -> ThreadResources {
         let (stop_publisher, stop_consumer) = pub_sub();
         let interval = self.interval;
         let agent_id = self.agent_id.clone();
@@ -153,45 +139,54 @@ impl NotStartedSupervisorK8s {
             }
         });
 
-        (stop_publisher, join_handle)
+        ThreadResources {
+            thread_name: "k8s objects supervisor".to_string(),
+            stop_publisher: Some(stop_publisher),
+            join_handle,
+        }
     }
 
     pub fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<(EventPublisher<()>, JoinHandle<()>)>, SupervisorStarterError> {
+    ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
-        if let Some(health_config) = self.k8s_config.health.clone() {
-            let (stop_health_publisher, stop_health_consumer) = pub_sub();
-            let Some(k8s_health_checker) =
-                SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
-            else {
-                warn!(agent_id=%self.agent_id, "health-check cannot start even if it is enabled there are no compatible k8s resources");
-                return Ok(None);
-            };
+        let Some(health_config) = self.k8s_config.health.clone() else {
+            debug!(%self.agent_id, "health checks are disabled for this agent");
+            return Ok(None);
+        };
 
-            let join_handle = spawn_health_checker(
-                self.agent_id.clone(),
-                k8s_health_checker,
-                stop_health_consumer,
-                sub_agent_internal_publisher,
-                health_config.interval,
-                start_time,
-            );
-            return Ok(Some((stop_health_publisher, join_handle)));
-        }
+        let (stop_health_publisher, stop_health_consumer) = pub_sub();
+        let Some(k8s_health_checker) =
+            SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
+        else {
+            warn!(agent_id=%self.agent_id, "health-check cannot start even if it is enabled there are no compatible k8s resources");
+            return Ok(None);
+        };
 
-        debug!(%self.agent_id, "health checks are disabled for this agent");
-        Ok(None)
+        let join_handle = spawn_health_checker(
+            self.agent_id.clone(),
+            k8s_health_checker,
+            stop_health_consumer,
+            sub_agent_internal_publisher,
+            health_config.interval,
+            start_time,
+        );
+
+        Ok(Some(ThreadResources {
+            thread_name: "k8s health checker".to_string(),
+            stop_publisher: Some(stop_health_publisher),
+            join_handle,
+        }))
     }
 
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Option<(EventPublisher<()>, JoinHandle<()>)> {
+    ) -> Option<ThreadResources> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
@@ -207,7 +202,12 @@ impl NotStartedSupervisorK8s {
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        Some((stop_version_publisher, join_handle))
+
+        Some(ThreadResources {
+            thread_name: "k8s version checker".to_string(),
+            stop_publisher: Some(stop_version_publisher),
+            join_handle,
+        })
     }
 
     /// It applies each of the provided k8s resources to the cluster if it has changed.
@@ -228,48 +228,17 @@ impl NotStartedSupervisorK8s {
 
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
-    maybe_stop_health: Option<EventPublisher<()>>,
-    maybe_health_handle: Option<JoinHandle<()>>,
-    maybe_stop_version: Option<EventPublisher<()>>,
-    maybe_version_handle: Option<JoinHandle<()>>,
-    stop_objects_supervisor: EventPublisher<()>,
-    objects_supervisor_handle: JoinHandle<()>,
+    threads_resources: Vec<ThreadResources>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<(), EventPublisherError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
+        self.threads_resources
+            .into_iter()
+            .map(|thread_resources| stop_thread_resources(&self.agent_id, thread_resources))
+            .collect::<Result<Vec<_>, _>>()?;
 
-        if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?;
-        }
-        if let Some(health_handle) = self.maybe_health_handle {
-            let _ = health_handle.join().inspect_err(|_| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping k8s supervisor thread"
-                );
-            });
-        }
-        if let Some(stop_version) = self.maybe_stop_version {
-            stop_version.publish(())?;
-        }
-        if let Some(version_handle) = self.maybe_version_handle {
-            let _ = version_handle.join().inspect_err(|_| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping k8s supervisor thread"
-                );
-            });
-        }
-
-        self.stop_objects_supervisor.publish(())?;
-        let _ = self.objects_supervisor_handle.join().inspect_err(|_| {
-            error!(
-                agent_id = self.agent_id.to_string(),
-                "Error stopping k8s supervisor thread"
-            );
-        });
         Ok(())
     }
 }
@@ -395,10 +364,13 @@ pub mod tests {
             k8s_config: Default::default(),
         };
 
-        let (stop_ch, join_handle) =
-            supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
+        let ThreadResources {
+            thread_name: _,
+            stop_publisher,
+            join_handle,
+        } = supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
-        stop_ch.publish(()).unwrap();
+        stop_publisher.unwrap().publish(()).unwrap();
         join_handle.join().unwrap();
     }
 
@@ -456,7 +428,10 @@ pub mod tests {
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
-        assert!(started.maybe_stop_health.is_none());
+        assert!(!started
+            .threads_resources
+            .iter()
+            .any(|thread_resources| thread_resources.thread_name == "k8s health checker"));
     }
 
     fn k8s_object() -> K8sObject {

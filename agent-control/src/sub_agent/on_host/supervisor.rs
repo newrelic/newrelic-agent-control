@@ -16,7 +16,9 @@ use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::supervisor::stopper::{
+    stop_thread_resources, SupervisorStopper, ThreadResources,
+};
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -32,12 +34,8 @@ use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
     agent_id: AgentID,
-    maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
-    maybe_stop_health: Option<EventPublisher<()>>,
-    maybe_health_handle: Option<JoinHandle<()>>,
-    maybe_stop_version: Option<EventPublisher<()>>,
-    maybe_version_handle: Option<JoinHandle<()>>,
+    threads_resources: Vec<ThreadResources>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -57,72 +55,34 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
+        let agent_id = self.agent_id.clone();
         let ctx = self.ctx.clone();
-        let health_checker_output =
-            self.start_health_check(sub_agent_internal_publisher.clone())?;
-        let version_checker_output =
-            self.start_version_checker(sub_agent_internal_publisher.clone());
 
-        let id = self.agent_id.clone();
-
-        // the process thread is created if exec is Some
-        let maybe_handle = self
-            .maybe_exec
-            .clone()
-            .map(|e| self.start_process_thread(sub_agent_internal_publisher, e));
+        let threads_resources = vec![
+            self.start_health_check(sub_agent_internal_publisher.clone())?,
+            self.start_version_checker(sub_agent_internal_publisher.clone()),
+            // the process thread is created if exec is Some
+            self.maybe_exec
+                .clone()
+                .map(|e| self.start_process_thread(sub_agent_internal_publisher, e)),
+        ];
 
         Ok(StartedSupervisorOnHost {
-            agent_id: id,
-            maybe_handle,
+            agent_id,
             ctx,
-            maybe_stop_health: health_checker_output
-                .as_ref()
-                .map(|(stop, _)| stop)
-                .cloned(),
-            maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
-            maybe_stop_version: version_checker_output
-                .as_ref()
-                .map(|(stop, _)| stop)
-                .cloned(),
-            maybe_version_handle: version_checker_output.map(|(_, handle)| handle),
+            threads_resources: threads_resources.into_iter().flatten().collect(),
         })
     }
 }
 
 impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), EventPublisherError> {
-        if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?;
-        }
-        if let Some(health_handle) = self.maybe_health_handle {
-            let _ = health_handle.join().inspect_err(|_| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping onhost supervisor thread"
-                );
-            });
-        }
-        if let Some(stop_version) = self.maybe_stop_version {
-            stop_version.publish(())?;
-        }
-        if let Some(version_handle) = self.maybe_version_handle {
-            let _ = version_handle.join().inspect_err(|_| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping onhost supervisor thread"
-                );
-            });
-        }
         self.ctx.cancel_all(true).unwrap();
 
-        let _ = self.maybe_handle.map(|h| {
-            h.join().inspect_err(|_| {
-                error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping onhost supervisor thread"
-                );
-            })
-        });
+        self.threads_resources
+            .into_iter()
+            .map(|thread_resources| stop_thread_resources(&self.agent_id, thread_resources))
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
@@ -158,7 +118,7 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<(EventPublisher<()>, JoinHandle<()>)>, SupervisorStarterError> {
+    ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = self.health_config.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
@@ -171,7 +131,11 @@ impl NotStartedSupervisorOnHost {
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some((stop_health_publisher, join_handle)));
+            return Ok(Some(ThreadResources {
+                thread_name: "onhost health checker".to_string(),
+                stop_publisher: Some(stop_health_publisher),
+                join_handle,
+            }));
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
@@ -180,7 +144,7 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<(EventPublisher<()>, JoinHandle<()>)> {
+    ) -> Option<ThreadResources> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let onhost_version_checker =
@@ -193,14 +157,18 @@ impl NotStartedSupervisorOnHost {
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        Some((stop_version_publisher, join_handle))
+        Some(ThreadResources {
+            thread_name: "onhost version checker".to_string(),
+            stop_publisher: Some(stop_version_publisher),
+            join_handle,
+        })
     }
 
     fn start_process_thread(
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
         executable_data: ExecutableData,
-    ) -> JoinHandle<()> {
+    ) -> ThreadResources {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
@@ -210,7 +178,7 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
-        spawn_named_thread("OnHost process", {
+        let join_handle = spawn_named_thread("OnHost process", {
             move || loop {
                 // locks the current_pid to prevent `wait_for_termination` finishing before the process
                 // is started and the pid is set.
@@ -315,7 +283,13 @@ impl NotStartedSupervisorOnHost {
                     wait_exit_timeout(self.ctx.clone(), duration);
                 });
             }
-        })
+        });
+
+        ThreadResources {
+            thread_name: "onhost supervisor".to_string(),
+            stop_publisher: None,
+            join_handle,
+        }
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
@@ -568,8 +542,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_resource in agent.threads_resources {
+            while !thread_resource.join_handle.is_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
     }
 
@@ -629,8 +605,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_resource in agent.threads_resources {
+            while !thread_resource.join_handle.is_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
 
         // buffer to ensure all logs are flushed
@@ -675,8 +653,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_resource in agent.threads_resources {
+            while !thread_resource.join_handle.is_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
 
         // Fix the start times to allow comparison
