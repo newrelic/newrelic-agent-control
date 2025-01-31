@@ -4,7 +4,6 @@ use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
 };
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -12,7 +11,6 @@ use tempfile::tempdir;
 /// including the secret that is honored to modify the Deployment Name, when OpAMP is not enabled.
 #[test]
 #[ignore = "needs a k8s cluster"]
-#[serial]
 fn k8s_sub_agent_started_with_no_opamp() {
     let test_name = "k8s_sub_agent_started";
     // Setup k8s env

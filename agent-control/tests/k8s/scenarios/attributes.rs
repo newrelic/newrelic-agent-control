@@ -21,13 +21,11 @@ use newrelic_agent_control::agent_control::defaults::{
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
 #[test]
 #[ignore = "needs a k8s cluster"]
-#[serial]
 fn k8s_test_attributes_from_existing_agent_type() {
     let test_name = "k8s_opamp_attributes_existing_agent_type";
 
@@ -53,7 +51,11 @@ fn k8s_test_attributes_from_existing_agent_type() {
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let expected_chart_version = "1.2.3-beta".to_string(); // Set in <test_name>/local-data-agent-control.template
-    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new_agent_control_id(),
+    );
     server.set_config_response(
         instance_id.clone(),
         ConfigResponse::from(
@@ -146,8 +148,11 @@ agents:
 
     // Check attributes of sub agent
     retry(90, Duration::from_secs(5), || {
-        let instance_id_sub_agent =
-            instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+        let instance_id_sub_agent = instance_id::get_instance_id(
+            k8s.client.clone(),
+            &namespace,
+            &AgentID::new("hello-world").unwrap(),
+        );
         check_latest_identifying_attributes_match_expected(
             &server,
             &instance_id_sub_agent,

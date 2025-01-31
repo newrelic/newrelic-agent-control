@@ -186,7 +186,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
       - name: Run k8s integration tests
-        run: make -C agent-control/tests/k8s
+        run: make -C agent-control test/k8s/integration
 
   # These tests are using (by default) the released charts
   # In case a breaking change is introduced by the PR, a feature branch can be used as explained

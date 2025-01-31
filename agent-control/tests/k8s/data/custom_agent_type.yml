@@ -6,7 +6,8 @@ variables:
     chart_values:
       description: "chart_values"
       type: yaml
-      required: true
+      required: false
+      default: {}
 deployment:
   k8s:
     health:

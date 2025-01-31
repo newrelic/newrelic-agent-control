@@ -20,7 +20,6 @@ use kube::{Api, CustomResource, CustomResourceExt};
 use newrelic_agent_control::agent_control::config::AgentID;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -28,7 +27,6 @@ use tempfile::tempdir;
 /// The sub-agent is added from remote config and then removed.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_foo_cr_subagent() {
     let test_name = "k8s_opamp_foo_cr_subagent";
 
@@ -52,7 +50,11 @@ fn k8s_opamp_foo_cr_subagent() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new_agent_control_id(),
+    );
 
     server.set_config_response(
         instance_id.clone(),
@@ -98,7 +100,6 @@ agents: {}
 /// and asserts that the agent resources are created after the CRD is created.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_opamp_cr_subagent_installed_before_crd() {
     let test_name = "k8s_opamp_cr_subagent_installed_before_crd";
 
@@ -130,7 +131,11 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id = instance_id::get_instance_id(&namespace, &AgentID::new_agent_control_id());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new_agent_control_id(),
+    );
 
     server.set_config_response(
         instance_id.clone(),

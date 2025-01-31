@@ -36,3 +36,6 @@ test/onhost/root/integration:
 .PHONY: test/k8s
 test/k8s:
 	cargo $(CARGO_CMD) $(PACKAGE_SA) --features=k8s --all-targets
+.PHONY: test/k8s/integration
+test/k8s/integration:
+	$(MAKE) -C tests/k8s

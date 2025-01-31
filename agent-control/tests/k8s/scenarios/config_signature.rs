@@ -14,7 +14,6 @@ use crate::k8s::tools::{
     k8s_env::K8sEnv,
 };
 use newrelic_agent_control::agent_control::config::AgentID;
-use serial_test::serial;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -24,7 +23,6 @@ use tempfile::tempdir;
 /// and that it can receive and apply a configuration from OpAMP.
 #[test]
 #[ignore = "needs k8s cluster"]
-#[serial]
 fn k8s_signature_disabled() {
     let test_name = "k8s_signature_disabled";
 
@@ -49,8 +47,11 @@ fn k8s_signature_disabled() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id =
-        instance_id::get_instance_id(&namespace, &AgentID::new("hello-world").unwrap());
+    let instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("hello-world").unwrap(),
+    );
 
     // Update the agent configuration via OpAMP
     server.set_config_response(
