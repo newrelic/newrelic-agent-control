@@ -35,6 +35,7 @@ pub struct StartedSupervisorOnHost {
     maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
     maybe_stop_health: Option<EventPublisher<()>>,
+    maybe_health_handle: Option<JoinHandle<()>>,
     maybe_stop_version: Option<EventPublisher<()>>,
 }
 
@@ -56,7 +57,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
-        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
+        let health_checker_output = self.start_health_check(sub_agent_internal_publisher.clone())?;
         let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher.clone());
 
         let id = self.agent_id.clone();
@@ -71,7 +72,11 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             agent_id: id,
             maybe_handle,
             ctx,
-            maybe_stop_health,
+            maybe_stop_health: health_checker_output
+                .as_ref()
+                .map(|(stop, _)| stop)
+                .cloned(),
+            maybe_health_handle: health_checker_output.map(|(_, handle)| handle),
             maybe_stop_version,
         })
     }
@@ -80,7 +85,15 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
 impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), EventPublisherError> {
         if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
+            stop_health.publish(())?;
+        }
+        if let Some(health_handle) = self.maybe_health_handle {
+            let _ = health_handle.join().inspect_err(|_| {
+                error!(
+                    agent_id = self.agent_id.to_string(),
+                    "Error stopping onhost supervisor thread"
+                );
+            });
         }
         if let Some(stop_version) = self.maybe_stop_version {
             stop_version.publish(())?;
@@ -130,12 +143,12 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<EventPublisher<()>>, SupervisorStarterError> {
+    ) -> Result<Option<(EventPublisher<()>, JoinHandle<()>)>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = self.health_config.clone() {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
-            spawn_health_checker(
+            let join_handle = spawn_health_checker(
                 self.agent_id.clone(),
                 health_checker,
                 stop_health_consumer,
@@ -143,7 +156,7 @@ impl NotStartedSupervisorOnHost {
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(stop_health_publisher));
+            return Ok(Some((stop_health_publisher, join_handle)));
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
@@ -152,20 +165,20 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<EventPublisher<()>> {
+    ) -> Option<(EventPublisher<()>, JoinHandle<()>)> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let onhost_version_checker =
             OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
 
-        spawn_version_checker(
+        let join_handle = spawn_version_checker(
             self.agent_id.clone(),
             onhost_version_checker,
             stop_version_consumer,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        Some(stop_version_publisher)
+        Some((stop_version_publisher, join_handle))
     }
 
     fn start_process_thread(
