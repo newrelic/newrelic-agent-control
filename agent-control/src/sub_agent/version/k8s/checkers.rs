@@ -1,5 +1,5 @@
 use crate::agent_control::config::{
-    helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta, AgentID,
+    helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta, AgentID,
 };
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -26,7 +26,7 @@ impl TryFrom<&TypeMeta> for SupportedResourceType {
         if type_meta == &helmrelease_v2_type_meta() {
             return Ok(Self::HelmRelease);
         }
-        if type_meta == &instrumentation_v1alpha2_type_meta() {
+        if type_meta == &instrumentation_v1beta1_type_meta() {
             return Ok(Self::Instrumentation);
         }
         Err(UnsupportedResourceType)
@@ -85,7 +85,7 @@ impl K8sAgentVersionChecker {
 mod tests {
     use super::*;
     use crate::{
-        agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1alpha2_type_meta},
+        agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
@@ -214,7 +214,7 @@ mod tests {
     }
 
     fn instrumentation_dyn_obj() -> DynamicObject {
-        empty_dynamic_object(instrumentation_v1alpha2_type_meta())
+        empty_dynamic_object(instrumentation_v1beta1_type_meta())
     }
 
     fn secret_dyn_obj() -> DynamicObject {

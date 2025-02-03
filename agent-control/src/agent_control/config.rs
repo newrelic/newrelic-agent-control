@@ -356,13 +356,12 @@ pub fn helmrelease_v2_type_meta() -> TypeMeta {
 }
 
 #[cfg(feature = "k8s")]
-pub fn instrumentation_v1alpha2_type_meta() -> TypeMeta {
+pub fn instrumentation_v1beta1_type_meta() -> TypeMeta {
     TypeMeta {
-        api_version: "newrelic.com/v1alpha2".to_string(),
+        api_version: "newrelic.com/v1beta1".to_string(),
         kind: "Instrumentation".to_string(),
     }
 }
-
 #[cfg(feature = "k8s")]
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
@@ -370,7 +369,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // A dynamic object reflector will be created for each of these types, since the GC lists them.
     vec![
         // Agent Operator CRD
-        instrumentation_v1alpha2_type_meta(),
+        instrumentation_v1beta1_type_meta(),
         // This allows Secrets created as dynamic objects to be cleaned up by the GC
         // This should not be needed anymore whenever the GC detection logic doesn't rely on this list.
         TypeMeta {

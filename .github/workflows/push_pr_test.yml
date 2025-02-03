@@ -170,7 +170,7 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.10.0
         with:
           minikube version: v1.32.0
-          kubernetes version: "v1.28.1" # Should we support a specific range of versions?
+          kubernetes version: "v1.30.9" # Should we support a specific range of versions?
           driver: docker
       - name: Install Tilt
         run: |
@@ -212,7 +212,7 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.10.0
         with:
           minikube version: v1.32.0
-          kubernetes version: "v1.28.1"
+          kubernetes version: "v1.30.9"
           driver: docker
       - name: Install Tilt
         run: |
