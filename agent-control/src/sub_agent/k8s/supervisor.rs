@@ -231,12 +231,15 @@ pub struct StartedSupervisorK8s {
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<(), EventPublisherError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
-        self.thread_contexts
-            .into_iter()
-            .map(|thread_resources| thread_resources.stop(&self.agent_id))
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut stop_result = Ok(());
+        for thread_context in self.thread_contexts {
+            let result = thread_context.stop(&self.agent_id);
+            if let Err(err) = result {
+                stop_result = Err(err);
+            }
+        }
 
-        Ok(())
+        stop_result
     }
 }
 
