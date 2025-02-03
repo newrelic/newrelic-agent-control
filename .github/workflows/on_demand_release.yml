@@ -27,7 +27,7 @@ jobs:
         with:
           tag: ${{ github.event.inputs.tag }}
           app_name: "newrelic-agent-control"
-          repo_name: "newrelic/newrelic-agent-control"
+          repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-deb.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
@@ -52,7 +52,7 @@ jobs:
         with:
           tag: ${{ github.event.inputs.tag }}
           app_name: "newrelic-agent-control"
-          repo_name: "newrelic/newrelic-agent-control"
+          repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "/srv/build/upload-schema-linux-rpm.yml"
           aws_access_key_id: ${{ secrets.TMP_OHAI_AWS_ACCESS_KEY_ID_PRODUCTION }}
