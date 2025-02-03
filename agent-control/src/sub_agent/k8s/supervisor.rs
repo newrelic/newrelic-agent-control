@@ -122,8 +122,10 @@ impl NotStartedSupervisorK8s {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
 
-        info!(%agent_id, "K8s objects supervisor started");
-        let join_handle = spawn_named_thread("K8s objects supervisor", move || loop {
+        let thread_name = "k8s objects supervisor".to_string();
+        let thread_name_copy = thread_name.clone();
+        info!(%agent_id, "{} started", thread_name);
+        let join_handle = spawn_named_thread(&thread_name, move || loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
@@ -131,16 +133,12 @@ impl NotStartedSupervisorK8s {
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "K8s objects supervisor stopped");
+                info!(%agent_id, "{} stopped", thread_name_copy);
                 break;
             }
         });
 
-        ThreadContext {
-            thread_name: "k8s objects supervisor".to_string(),
-            stop_publisher: Some(stop_publisher),
-            join_handle,
-        }
+        ThreadContext::new(thread_name, Some(stop_publisher), join_handle)
     }
 
     pub fn start_health_check(
@@ -155,7 +153,6 @@ impl NotStartedSupervisorK8s {
             return Ok(None);
         };
 
-        let (stop_health_publisher, stop_health_consumer) = pub_sub();
         let Some(k8s_health_checker) =
             SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
@@ -163,20 +160,15 @@ impl NotStartedSupervisorK8s {
             return Ok(None);
         };
 
-        let join_handle = spawn_health_checker(
+        let thread_context = spawn_health_checker(
             self.agent_id.clone(),
             k8s_health_checker,
-            stop_health_consumer,
             sub_agent_internal_publisher,
             health_config.interval,
             start_time,
         );
 
-        Ok(Some(ThreadContext {
-            thread_name: "k8s health checker".to_string(),
-            stop_publisher: Some(stop_health_publisher),
-            join_handle,
-        }))
+        Ok(Some(thread_context))
     }
 
     pub fn start_version_checker(
@@ -184,27 +176,18 @@ impl NotStartedSupervisorK8s {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Option<ThreadContext> {
-        let (stop_version_publisher, stop_version_consumer) = pub_sub();
-
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
             &self.agent_id,
             resources,
         )?;
 
-        let join_handle = spawn_version_checker(
+        Some(spawn_version_checker(
             self.agent_id.clone(),
             k8s_version_checker,
-            stop_version_consumer,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
-        );
-
-        Some(ThreadContext {
-            thread_name: "k8s version checker".to_string(),
-            stop_publisher: Some(stop_version_publisher),
-            join_handle,
-        })
+        ))
     }
 
     /// It applies each of the provided k8s resources to the cluster if it has changed.
@@ -358,20 +341,16 @@ pub mod tests {
 
         let supervisor = NotStartedSupervisorK8s {
             interval,
-            agent_id,
+            agent_id: agent_id.clone(),
             agent_fqn,
             k8s_client: Arc::new(mock_client),
             k8s_config: Default::default(),
         };
 
-        let ThreadContext {
-            thread_name: _,
-            stop_publisher,
-            join_handle,
-        } = supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
+        let thread_context =
+            supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
-        stop_publisher.unwrap().publish(()).unwrap();
-        join_handle.join().unwrap();
+        thread_context.stop(&agent_id).unwrap()
     }
 
     #[test]
@@ -431,7 +410,7 @@ pub mod tests {
         assert!(!started
             .thread_contexts
             .iter()
-            .any(|thread_contexts| thread_contexts.thread_name == "k8s health checker"));
+            .any(|thread_contexts| thread_contexts.get_thread_name() == "k8s health checker"));
     }
 
     fn k8s_object() -> K8sObject {

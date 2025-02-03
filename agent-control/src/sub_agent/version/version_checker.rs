@@ -1,10 +1,9 @@
-use std::thread::JoinHandle;
-
 use crate::agent_control::config::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentInternalEvent;
+use crate::sub_agent::supervisor::stopper::ThreadContext;
 use crate::utils::threads::spawn_named_thread;
 use tracing::{debug, error, info, warn};
 
@@ -46,10 +45,9 @@ pub enum VersionCheckError {
 pub(crate) fn spawn_version_checker<V>(
     agent_id: AgentID,
     version_checker: V,
-    cancel_signal: EventConsumer<CancellationMessage>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
-) -> JoinHandle<()>
+) -> ThreadContext
 where
     V: VersionChecker + Send + Sync + 'static,
 {
@@ -57,6 +55,10 @@ where
     let mut version_retrieved = false;
 
     spawn_named_thread("Version checker", move || loop {
+    let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
+
+    let thread_name = "version checker".to_string();
+    let join_handle = spawn_named_thread(&thread_name, move || loop {
         debug!(%agent_id, "starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
@@ -77,10 +79,12 @@ where
             }
         }
 
-        if cancel_signal.is_cancelled(interval.into()) {
+        if stop_consumer.is_cancelled(interval.into()) {
             break;
         }
-    })
+    });
+
+    ThreadContext::new(thread_name, Some(stop_publisher), join_handle)
 }
 
 pub(crate) fn publish_version_event(
@@ -121,7 +125,6 @@ pub mod tests {
 
     #[test]
     fn test_spawn_version_checker() {
-        let (cancel_publisher, cancel_signal) = pub_sub();
         let (version_publisher, version_consumer) = pub_sub();
 
         let mut version_checker = MockVersionCheckerMock::new();
@@ -142,20 +145,20 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                cancel_publisher.publish(()).unwrap();
                 Err(VersionCheckError::Generic(
                     "mocked version check error!".to_string(),
                 ))
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_version_checker(
-            agent_id,
+        let thread_context = spawn_version_checker(
+            agent_id.clone(),
             version_checker,
-            cancel_signal,
             version_publisher,
             Duration::default().into(),
         );
+        std::thread::sleep(Duration::from_millis(300));
+        thread_context.stop(&agent_id).unwrap();
 
         let expected_version_events: Vec<SubAgentInternalEvent> = {
             vec![AgentVersionInfo(AgentVersion {

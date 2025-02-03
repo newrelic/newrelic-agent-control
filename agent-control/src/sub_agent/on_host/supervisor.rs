@@ -2,7 +2,7 @@ use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
-use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
+use crate::event::channel::{EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
@@ -122,21 +122,15 @@ impl NotStartedSupervisorOnHost {
     ) -> Result<Option<ThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
-            let (stop_health_publisher, stop_health_consumer) = pub_sub();
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
-            let join_handle = spawn_health_checker(
+            let thread_context = spawn_health_checker(
                 self.agent_id.clone(),
                 health_checker,
-                stop_health_consumer,
                 sub_agent_internal_publisher,
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(ThreadContext {
-                thread_name: "onhost health checker".to_string(),
-                stop_publisher: Some(stop_health_publisher),
-                join_handle,
-            }));
+            return Ok(Some(thread_context));
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
@@ -146,23 +140,15 @@ impl NotStartedSupervisorOnHost {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Option<ThreadContext> {
-        let (stop_version_publisher, stop_version_consumer) = pub_sub();
-
         let onhost_version_checker =
             OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
 
-        let join_handle = spawn_version_checker(
+        Some(spawn_version_checker(
             self.agent_id.clone(),
             onhost_version_checker,
-            stop_version_consumer,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
-        );
-        Some(ThreadContext {
-            thread_name: "onhost version checker".to_string(),
-            stop_publisher: Some(stop_version_publisher),
-            join_handle,
-        })
+        ))
     }
 
     fn start_process_thread(
@@ -284,11 +270,7 @@ impl NotStartedSupervisorOnHost {
             }
         });
 
-        ThreadContext {
-            thread_name: "onhost supervisor".to_string(),
-            stop_publisher: None,
-            join_handle,
-        }
+        ThreadContext::new("onhost supervisor".to_string(), None, join_handle)
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
@@ -542,7 +524,7 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.join_handle.is_finished() {
+            while !thread_context.is_thread_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
@@ -605,7 +587,7 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.join_handle.is_finished() {
+            while !thread_context.is_thread_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
@@ -653,7 +635,7 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.join_handle.is_finished() {
+            while !thread_context.is_thread_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
