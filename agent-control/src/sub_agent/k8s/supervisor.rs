@@ -45,7 +45,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
-        let threads_resources = vec![
+        let thread_contexts = vec![
             Some(self.start_k8s_objects_supervisor(resources.clone())),
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher, resources),
@@ -53,7 +53,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_id,
-            threads_resources: threads_resources.into_iter().flatten().collect(),
+            thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
 }
@@ -225,13 +225,13 @@ impl NotStartedSupervisorK8s {
 
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
-    threads_resources: Vec<ThreadContext>,
+    thread_contexts: Vec<ThreadContext>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
     fn stop(self) -> Result<(), EventPublisherError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
-        self.threads_resources
+        self.thread_contexts
             .into_iter()
             .map(|thread_resources| thread_resources.stop(&self.agent_id))
             .collect::<Result<Vec<_>, _>>()?;
@@ -426,7 +426,7 @@ pub mod tests {
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
         assert!(!started
-            .threads_resources
+            .thread_contexts
             .iter()
             .any(|thread_resources| thread_resources.thread_name == "k8s health checker"));
     }

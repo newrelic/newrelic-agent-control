@@ -33,7 +33,7 @@ use tracing::{debug, error, info, warn};
 pub struct StartedSupervisorOnHost {
     agent_id: AgentID,
     ctx: Context<bool>,
-    threads_resources: Vec<ThreadContext>,
+    thread_contexts: Vec<ThreadContext>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -56,7 +56,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let agent_id = self.agent_id.clone();
         let ctx = self.ctx.clone();
 
-        let threads_resources = vec![
+        let thread_contexts = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone()),
             // the process thread is created if exec is Some
@@ -68,7 +68,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         Ok(StartedSupervisorOnHost {
             agent_id,
             ctx,
-            threads_resources: threads_resources.into_iter().flatten().collect(),
+            thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
 }
@@ -77,7 +77,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), EventPublisherError> {
         self.ctx.cancel_all(true).unwrap();
 
-        self.threads_resources
+        self.thread_contexts
             .into_iter()
             .map(|thread_resources| thread_resources.stop(&self.agent_id))
             .collect::<Result<Vec<_>, _>>()?;
@@ -538,7 +538,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.threads_resources {
+        for thread_resource in agent.thread_contexts {
             while !thread_resource.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
@@ -601,7 +601,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.threads_resources {
+        for thread_resource in agent.thread_contexts {
             while !thread_resource.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
@@ -649,7 +649,7 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.threads_resources {
+        for thread_resource in agent.thread_contexts {
             while !thread_resource.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
