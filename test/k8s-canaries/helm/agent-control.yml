@@ -3,8 +3,6 @@ agent-control-deployment:
   image:
     imagePullPolicy: Always
   config:
-    fleet_control:
-      enabled: false
     agentControl:
       content:
         log:

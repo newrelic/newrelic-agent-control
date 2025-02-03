@@ -17,8 +17,17 @@ ifndef CANARY_DIR
 	@echo "CANARY_DIR variable must be provided to know which canary to terraform-plan"
 	exit 1
 endif
-	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
-	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) plan
+ifndef NEW_RELIC_ACCOUNT_ID
+	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/k8s-canaries/terraform-plan"
+	exit 1
+endif
+ifndef NEW_RELIC_API_KEY
+	@echo "NEW_RELIC_API_KEY variable must be provided for test/k8s-canaries/terraform-plan"
+	exit 1
+endif
+	@terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
+	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) plan \
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)"
 
 .PHONY: test/k8s-canaries/terraform-apply
 test/k8s-canaries/terraform-apply:
@@ -26,9 +35,17 @@ ifndef CANARY_DIR
 	@echo "CANARY_DIR variable must be provided to know which canary to terraform-apply"
 	exit 1
 endif
-	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
-	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) apply -auto-approve
-
+ifndef NEW_RELIC_ACCOUNT_ID
+	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/k8s-canaries/terraform-plan"
+	exit 1
+endif
+ifndef NEW_RELIC_API_KEY
+	@echo "NEW_RELIC_API_KEY variable must be provided for test/k8s-canaries/terraform-plan"
+	exit 1
+endif
+	@terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
+	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) apply -auto-approve \
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)"
 
 .PHONY: test/k8s-canaries/update-kubeconfig-from-aws
 test/k8s-canaries/update-kubeconfig-from-aws:
@@ -52,11 +69,33 @@ ifndef IMAGE_TAG
 	@echo "IMAGE_TAG variable must be provided for test/k8s-canaries/helm-upgrade"
 	exit 1
 endif
+ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/k8s-canaries/helm-upgrade"
+	exit 1
+endif
+ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
+	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/k8s-canaries/helm-upgrade"
+	exit 1
+endif
+ifndef FLEET_ID
+	@echo "FLEET_ID variable must be provided for test/k8s-canaries/helm-upgrade"
+	exit 1
+endif
 	@helm repo add newrelic https://helm-charts.newrelic.com
+	@kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
+	@echo -n $$NR_SYSTEM_IDENTITY_PRIVATE_KEY > /tmp/private_key
+	@kubectl get secret sys-identity --namespace newrelic || \
+    kubectl create secret generic sys-identity \
+    --namespace newrelic \
+    --from-literal=CLIENT_ID=$$NR_SYSTEM_IDENTITY_CLIENT_ID \
+    --from-file=private_key=/tmp/private_key
 	@helm upgrade --install ac newrelic/agent-control --devel -f $(HELM_DIR)/agent-control.yml \
-    -n newrelic --create-namespace \
+    --namespace newrelic \
     --set global.licenseKey=$(NR_LICENSE_KEY) \
     --set global.cluster=$(CLUSTER_NAME) \
+    --set global.nrStaging=true \
     --set agent-control-deployment.image.tag=$(IMAGE_TAG) \
-    --set agent-control-deployment.podAnnotations.deploymentKey="${DEPLOYMENT_KEY}"
-
+    --set agent-control-deployment.config.fleet_control.auth.secret.create=false \
+    --set agent-control-deployment.config.fleet_control.auth.secret.name="sys-identity" \
+    --set agent-control-deployment.config.fleet_control.fleet_id="$(FLEET_ID)" \
+    --set agent-control-deployment.podAnnotations.deploymentKey="$(DEPLOYMENT_KEY)"
