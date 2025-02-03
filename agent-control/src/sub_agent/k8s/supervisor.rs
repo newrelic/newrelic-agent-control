@@ -12,9 +12,7 @@ use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::{
-    stop_thread_resources, SupervisorStopper, ThreadResources,
-};
+use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadResources};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -235,7 +233,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
         self.threads_resources
             .into_iter()
-            .map(|thread_resources| stop_thread_resources(&self.agent_id, thread_resources))
+            .map(|thread_resources| thread_resources.stop(&self.agent_id))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())

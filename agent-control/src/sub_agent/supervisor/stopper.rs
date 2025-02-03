@@ -17,21 +17,20 @@ pub struct ThreadResources {
     pub join_handle: JoinHandle<()>,
 }
 
-pub fn stop_thread_resources(
-    agent_id: &AgentID,
-    thread_resources: ThreadResources,
-) -> Result<(), EventPublisherError> {
-    if let Some(stop_publisher) = thread_resources.stop_publisher {
-        stop_publisher.publish(())?;
-    }
-    let _ = thread_resources.join_handle.join().inspect_err(|_| {
-        error!(
-            agent_id = agent_id.to_string(),
-            "Error stopping {} thread", thread_resources.thread_name
-        );
-    });
+impl ThreadResources {
+    pub fn stop(self, agent_id: &AgentID) -> Result<(), EventPublisherError> {
+        if let Some(stop_publisher) = self.stop_publisher {
+            stop_publisher.publish(())?;
+        }
+        let _ = self.join_handle.join().inspect_err(|_| {
+            error!(
+                agent_id = agent_id.to_string(),
+                "Error stopping {} thread", self.thread_name
+            );
+        });
 
-    Ok(())
+        Ok(())
+    }
 }
 
 #[cfg(test)]
