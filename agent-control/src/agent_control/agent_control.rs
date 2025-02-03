@@ -88,14 +88,14 @@ where
 
     pub fn run(self) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
-        if let Some(opamp_handle) = &self.opamp_client {
+        if let Some(opamp_client) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
                 Err(e) => {
                     warn!("Failed getting remote config hash from the store: {}", e);
                 }
                 Ok(Some(mut hash)) => {
                     if !hash.is_applied() {
-                        OpampRemoteConfigStatus::Applied.report(opamp_handle, &hash)?;
+                        OpampRemoteConfigStatus::Applied.report(opamp_client, &hash)?;
                         self.set_config_hash_as_applied(&mut hash)?;
                     }
                 }
@@ -103,29 +103,25 @@ where
                     warn!("OpAMP enabled but no previous remote configuration found");
                 }
             }
+            opamp_client.update_effective_config()?
         }
 
         info!("Starting the agents supervisor runtime");
         let sub_agents_config = self.sa_dynamic_config_store.load()?.agents;
 
-        let not_started_sub_agents = self.load_sub_agents(&sub_agents_config)?;
-
-        info!("Agents supervisor runtime successfully started");
-
-        if let Some(handle) = &self.opamp_client {
-            handle.update_effective_config()?;
-        }
+        let not_started_sub_agents = self.build_sub_agents(&sub_agents_config)?;
 
         // RETURNS CHANNEL_TO_STOP (WHEN GRACEFUL OR CONFIG REMOVAL STOP) AND JOIN_HANDLE
         // Run all the Sub Agents
         let running_sub_agents = not_started_sub_agents.run();
 
-        self.process_events(running_sub_agents)?;
+        info!("Agents supervisor runtime successfully started");
 
-        if let Some(handle) = self.opamp_client {
+        self.process_events(running_sub_agents);
+
+        if let Some(opamp_client) = self.opamp_client {
             info!("Stopping the OpAMP Client");
-            // We should call disconnect here as this means a graceful shutdown
-            handle.stop()?;
+            opamp_client.stop()?;
         }
 
         info!("AgentControl finished");
@@ -142,7 +138,7 @@ where
 
     // load_sub_agents returns a collection of not started sub agents given the corresponding
     // EffectiveAgents
-    fn load_sub_agents(
+    fn build_sub_agents(
         &self,
         sub_agents: &SubAgentsMap,
     ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
@@ -207,7 +203,7 @@ where
         mut sub_agents: StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-    ) -> Result<(), AgentError> {
+    ) {
         let _ = self
             .report_healthy(Healthy::new(String::default()))
             .inspect_err(
@@ -258,7 +254,6 @@ where
                 },
             }
         }
-        Ok(())
     }
 
     // apply a agent control remote config
@@ -794,7 +789,7 @@ agents:
             Some(opamp_consumer),
         );
 
-        let sub_agents = agent_control.load_sub_agents(&sub_agents_config);
+        let sub_agents = agent_control.build_sub_agents(&sub_agents_config);
 
         let mut running_sub_agents = sub_agents.unwrap().run();
 
@@ -922,7 +917,7 @@ agents:
                     Some(opamp_consumer),
                 );
 
-                agent.process_events(sub_agents).unwrap();
+                agent.process_events(sub_agents);
             }
         });
 
@@ -993,7 +988,7 @@ agents:
                     Some(opamp_consumer),
                 );
 
-                agent.process_events(sub_agents).unwrap();
+                agent.process_events(sub_agents);
             }
         });
 
@@ -1055,7 +1050,7 @@ agents:
                     Some(opamp_consumer),
                 );
 
-                agent.process_events(sub_agents).unwrap();
+                agent.process_events(sub_agents);
             }
         });
 
@@ -1156,7 +1151,7 @@ agents:
                     Some(opamp_consumer),
                 );
 
-                agent.process_events(sub_agents).unwrap();
+                agent.process_events(sub_agents);
             }
         });
 
