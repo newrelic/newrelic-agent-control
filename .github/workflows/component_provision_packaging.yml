@@ -53,8 +53,8 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
           cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
           ref: "${{ env.GIT_BRANCH }}"
           log_filters: |
             \[ALLOW_MSG\].+
@@ -74,8 +74,8 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
           cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
           ref: "${{ env.GIT_BRANCH }}"
 
       - name: Destroy infra
@@ -88,8 +88,8 @@ jobs:
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
           cloud_watch_logs_stream_name: ecs/test-agent_control
           aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: "newrelic/newrelic-super-agent"
-          git_clone_url: "ssh://git@github.com/newrelic/newrelic-super-agent.git"
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
           ref: "${{ env.GIT_BRANCH }}"
           log_filters: |
             Destroy\scomplete!

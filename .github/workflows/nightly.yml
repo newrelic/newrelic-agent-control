@@ -58,7 +58,7 @@ jobs:
         with:
           tag: 0.100.${{ github.run_id }}
           app_name: "newrelic-agent-control"
-          repo_name: "newrelic/newrelic-agent-control"
+          repo_name: ${{ github.repository }}
           schema: "custom-local"
           schema_path: "./build/upload-schema-linux-deb-nightly.yml"
           aws_access_key_id: ${{ secrets.OHAI_AWS_ACCESS_KEY_ID_TESTING }}
