@@ -541,8 +541,8 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.thread_contexts {
-            while !thread_resource.join_handle.is_finished() {
+        for thread_context in agent.thread_contexts {
+            while !thread_context.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
@@ -604,8 +604,8 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.thread_contexts {
-            while !thread_resource.join_handle.is_finished() {
+        for thread_context in agent.thread_contexts {
+            while !thread_context.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }
@@ -652,8 +652,8 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        for thread_resource in agent.thread_contexts {
-            while !thread_resource.join_handle.is_finished() {
+        for thread_context in agent.thread_contexts {
+            while !thread_context.join_handle.is_finished() {
                 thread::sleep(Duration::from_millis(15));
             }
         }

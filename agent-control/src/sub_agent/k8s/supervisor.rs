@@ -431,7 +431,7 @@ pub mod tests {
         assert!(!started
             .thread_contexts
             .iter()
-            .any(|thread_resources| thread_resources.thread_name == "k8s health checker"));
+            .any(|thread_contexts| thread_contexts.thread_name == "k8s health checker"));
     }
 
     fn k8s_object() -> K8sObject {
