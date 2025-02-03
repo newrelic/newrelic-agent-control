@@ -16,7 +16,7 @@ use crate::sub_agent::on_host::command::shutdown::{
     wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadResources};
+use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadContext};
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -33,7 +33,7 @@ use tracing::{debug, error, info, warn};
 pub struct StartedSupervisorOnHost {
     agent_id: AgentID,
     ctx: Context<bool>,
-    threads_resources: Vec<ThreadResources>,
+    threads_resources: Vec<ThreadContext>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -116,7 +116,7 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
+    ) -> Result<Option<ThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
             let (stop_health_publisher, stop_health_consumer) = pub_sub();
@@ -129,7 +129,7 @@ impl NotStartedSupervisorOnHost {
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(ThreadResources {
+            return Ok(Some(ThreadContext {
                 thread_name: "onhost health checker".to_string(),
                 stop_publisher: Some(stop_health_publisher),
                 join_handle,
@@ -142,7 +142,7 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<ThreadResources> {
+    ) -> Option<ThreadContext> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let onhost_version_checker =
@@ -155,7 +155,7 @@ impl NotStartedSupervisorOnHost {
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
         );
-        Some(ThreadResources {
+        Some(ThreadContext {
             thread_name: "onhost version checker".to_string(),
             stop_publisher: Some(stop_version_publisher),
             join_handle,
@@ -166,7 +166,7 @@ impl NotStartedSupervisorOnHost {
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
         executable_data: ExecutableData,
-    ) -> ThreadResources {
+    ) -> ThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
@@ -281,7 +281,7 @@ impl NotStartedSupervisorOnHost {
             }
         });
 
-        ThreadResources {
+        ThreadContext {
             thread_name: "onhost supervisor".to_string(),
             stop_publisher: None,
             join_handle,

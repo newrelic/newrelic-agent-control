@@ -12,7 +12,7 @@ use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadResources};
+use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadContext};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -116,7 +116,7 @@ impl NotStartedSupervisorK8s {
         })
     }
 
-    fn start_k8s_objects_supervisor(&self, resources: Arc<Vec<DynamicObject>>) -> ThreadResources {
+    fn start_k8s_objects_supervisor(&self, resources: Arc<Vec<DynamicObject>>) -> ThreadContext {
         let (stop_publisher, stop_consumer) = pub_sub();
         let interval = self.interval;
         let agent_id = self.agent_id.clone();
@@ -136,7 +136,7 @@ impl NotStartedSupervisorK8s {
             }
         });
 
-        ThreadResources {
+        ThreadContext {
             thread_name: "k8s objects supervisor".to_string(),
             stop_publisher: Some(stop_publisher),
             join_handle,
@@ -147,7 +147,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<ThreadResources>, SupervisorStarterError> {
+    ) -> Result<Option<ThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
@@ -172,7 +172,7 @@ impl NotStartedSupervisorK8s {
             start_time,
         );
 
-        Ok(Some(ThreadResources {
+        Ok(Some(ThreadContext {
             thread_name: "k8s health checker".to_string(),
             stop_publisher: Some(stop_health_publisher),
             join_handle,
@@ -183,7 +183,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Option<ThreadResources> {
+    ) -> Option<ThreadContext> {
         let (stop_version_publisher, stop_version_consumer) = pub_sub();
 
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
@@ -200,7 +200,7 @@ impl NotStartedSupervisorK8s {
             VersionCheckerInterval::default(),
         );
 
-        Some(ThreadResources {
+        Some(ThreadContext {
             thread_name: "k8s version checker".to_string(),
             stop_publisher: Some(stop_version_publisher),
             join_handle,
@@ -225,7 +225,7 @@ impl NotStartedSupervisorK8s {
 
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
-    threads_resources: Vec<ThreadResources>,
+    threads_resources: Vec<ThreadContext>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
@@ -361,7 +361,7 @@ pub mod tests {
             k8s_config: Default::default(),
         };
 
-        let ThreadResources {
+        let ThreadContext {
             thread_name: _,
             stop_publisher,
             join_handle,
