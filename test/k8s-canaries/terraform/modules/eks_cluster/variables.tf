@@ -9,7 +9,7 @@ variable "base_vpc_id" {
 }
 # By Default we use the subnets created by Security
 variable "base_subnet_ids" {
-  default = ["subnet-00aa02e6d991b478e", "subnet-00aa02e6d991b478e", "subnet-0792c40be9a9e023c"]
+  default = ["subnet-00aa02e6d991b478e", "subnet-02848327c6307b4dc", "subnet-0792c40be9a9e023c"]
 }
 
 # EKS Cluster definitions (When upgrading only one minor version upgrading is supported by AWS at a time,
@@ -33,6 +33,10 @@ variable "nodes_instance_type" {
 variable "nodes_ami_type" {
   type    = string
   default = "AL2_x86_64" # AL2_x86_64, AL2_x86_64_GPU, AL2_ARM_64, CUSTOM
+}
+variable "node_volume_size" {
+  type    = number
+  default = 20
 }
 variable "cluster_desired_size" {
   type        = number
