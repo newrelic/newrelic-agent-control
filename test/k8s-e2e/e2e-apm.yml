@@ -30,9 +30,14 @@ scenarios:
       - kubectl describe pod ${SCENARIO_TAG}-python
       - kubectl describe pod ${SCENARIO_TAG}-java
       - kubectl get pods
+      - sleep 5
+      - kubectl get pods
+      - sleep 10
+      - kubectl get pods
+      - sleep 15
       - kubectl get instrumentation
-      - kubectl exec -it ${SCENARIO_TAG}-java -c ${SCENARIO_TAG}-java -- sh -c 'cat newrelic/apm/health/health-*'
-      - kubectl exec -it ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- sh -c 'cat newrelic/apm/health/health-*'
+      - kubectl exec ${SCENARIO_TAG}-java -c ${SCENARIO_TAG}-java -- sh -c 'cat newrelic/apm/health/health-*'
+      - kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- sh -c 'cat newrelic/apm/health/health-*'
       - kubectl wait --for=condition=Ready --all pods --timeout 5m
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000
