@@ -88,8 +88,8 @@ jobs:
       REPOSITORY_ENDPOINT: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
       PACKAGE_VERSION: 0.100.${{ github.run_id }}
     secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   notify-failure:
     if: ${{ always() && failure() }}

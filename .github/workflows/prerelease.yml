@@ -100,18 +100,17 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-  # e2e test were not actually testing the new packages! This will be addressed in https://new-relic.atlassian.net/browse/NR-346876
-  # onhost-e2e:
-  #   uses: ./.github/workflows/component_onhost_e2e.yaml
-  #   needs: [ upload ]
-  #   with:
-  #     TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-  #     UNIQUE_NAME: "onhost:e2e:${{ github.event.inputs.tag || github.event.release.tag_name }}"
-  #     # We use single quotes so the double-quotes are passed to the sed command in the make target (see the test/provision target)
-  #     EC2_FILTERS: '[\"ubuntu\",\"centos7\",\"centos8\",\"centos-stream\",\"sles-15.3\",\"sles-15.4\",\"sles-15.5\",\"redhat\",\"debian-bullseye\",\"debian-bookworm\",\"al\"]'
-  #   secrets:
-  #     AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-  #     AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    needs: [ upload ]
+    with:
+      PACKAGE_VERSION: ${{ github.event.inputs.tag || github.event.release.tag_name }}
+      UNIQUE_NAME: "onhost:e2e:${{ github.event.inputs.tag || github.event.release.tag_name }}"
+      # We use single quotes so the double-quotes are passed to the sed command in the make target (see the test/provision target)
+      EC2_FILTERS: '[\"ubuntu\",\"centos7\",\"centos8\",\"centos-stream\",\"sles-15.3\",\"sles-15.4\",\"sles-15.5\",\"redhat\",\"debian-bullseye\",\"debian-bookworm\",\"al\"]'
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
@@ -128,8 +127,8 @@ jobs:
   #    with:
   #      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
   #    secrets:
-  #      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-  #      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+  #      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  #      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   get_previous_tag:
     runs-on: ubuntu-latest
@@ -141,14 +140,15 @@ jobs:
       - id: previous_tag_step
         run: ./.github/workflows/scripts/previous_version.sh ${{ inputs.TAG }} >> "$GITHUB_OUTPUT"
 
-  prune-previous-canaries:
-    needs: get_previous_tag
-    uses: ./.github/workflows/component_canaries_prune.yaml
-    with:
-      TAG: ${{ needs.get_previous_tag.outputs.previous_tag }}
-    secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+  # TODO The creation of the canaries is commented out right now
+  #  prune-previous-canaries:
+  #    needs: get_previous_tag
+  #    uses: ./.github/workflows/component_canaries_prune.yaml
+  #    with:
+  #      TAG: ${{ needs.get_previous_tag.outputs.previous_tag }}
+  #    secrets:
+  #      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+  #      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   notify-failure:
     if: ${{ always() && failure() }}

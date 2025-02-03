@@ -17,5 +17,5 @@ jobs:
     with:
       TAG_OR_UNIQUE_NAME: ${{ inputs.tag }}
     secrets:
-      AWS_ROLE_ARN: ${{ secrets.TMP_AWS_ROLE_ARN }} 
-      AWS_VPC_SUBNET: ${{ secrets.TMP_AWS_VPC_SUBNET }}
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

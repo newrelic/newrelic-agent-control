@@ -44,7 +44,7 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "preview/"
-          local_packages_path:  "/srv/dist/"
+          local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
       - name: Publish rpm to S3 action
@@ -69,12 +69,12 @@ jobs:
           gpg_private_key_base64: ${{ secrets.OHAI_GPG_PRIVATE_KEY_BASE64 }} # base64 encoded
           disable_lock: false
           dest_prefix: "preview/"
-          local_packages_path:  "/srv/dist/"
+          local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
-    needs: [upload]
+    needs: [ upload ]
     with:
       TAG: ${{ github.event.inputs.tag }}
       PACKAGE_NAME: "newrelic-agent-control"

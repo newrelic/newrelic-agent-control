@@ -7,77 +7,71 @@ variable "region" {
 }
 
 variable "accountId" {
-  default = "018789649883"
+  default = "288761741714"
 }
 
 variable "vpc_id" {
-  default = "vpc-0a3c00f5dc8645fe0"
+  default = "vpc-0f62d8a55c8d9ad61"
 }
 
 variable "vpc_subnet" {
-  default = "subnet-09b64de757828cdd4"
+  default = "subnet-00aa02e6d991b478e"
 }
 
 variable "cluster_name" {
-  default = "caos_super_agent_releases"
+  default = "agent_control"
 }
 
 #######################################
 # Task definition
 #######################################
 
-variable "task_command" {
-  default = [
-    "test/automated-run"
-  ]
+variable "tags" {
+  type = map
+  default = {
+    owning_team = "agent_control"
+  }
 }
+
 # Account secrets
 variable "secret_name_license" {
-  default = "agent_control/canaries/license_key-33qwzE"
+  default = "canaries/license_key-5wRtkT"
 }
 
 variable "secret_name_account_id" {
-  default = "agent_control/canaries/account_id-fCpTng"
+  default = "canaries/account_id-a25041"
 }
 
 variable "secret_name_api_key" {
-  default = "agent_control/canaries/nr_api_key-62y4Xp"
+  default = "canaries/nr_api_key-zHyTVS"
 }
 
 variable "secret_name_organization_id" {
-  default = "agent_control/canaries/organization_id-EPEqrL"
+  default = "canaries/organization_id-a0w4NX"
 }
 
 ####
 
 variable "secret_name_ssh" {
-  default = "caos/canaries/ssh_key-UBSKNA"
-}
-
-variable "secret_name_docker_username" {
-  default = "caos/canaries/docker-username-iksa0V"
-}
-
-variable "secret_name_docker_password" {
-  default = "caos/canaries/docker-password-jAtw3v"
+  default = "canaries/ssh_key-yhthNk"
 }
 
 # CrowdStrike Falcon secrets
 
 variable "secret_name_crowdstrike_client_id" {
-  default = "caos/canaries/crowdstrike_falcon_client_id-N7nGXx"
+  default = "canaries/crowdstrike_falcon_client_id-OnAVWJ"
 }
 
 variable "secret_name_crowdstrike_client_secret" {
-  default = "caos/canaries/crowdstrike_falcon_client_secret-l9EIhi"
+  default = "canaries/crowdstrike_falcon_client_secret-PfSOHH"
 }
 
 variable "secret_name_crowdstrike_customer_id" {
-  default = "caos/canaries/crowdstrike_falcon_customer_id-f7n7rI"
+  default = "canaries/crowdstrike_falcon_customer_id-2NbNLJ"
 }
 
 variable "secret_name_crowdstrike_ansible_role_key" {
-  default = "caos/crowdstrike/ansible-role-key-DPyrW4"
+  default = "crowdstrike/ansible-role-key-jJrGNu"
 }
 
 ####
@@ -87,23 +81,19 @@ variable "task_container_image" {
 }
 
 variable "task_logs_group" {
-  default = "/ecs/test-prerelease-super_agent-releases"
+  default = "/ecs/test-prerelease-agent_control"
 }
 
 variable "task_container_name" {
-  default = "test-super_agent-releases"
+  default = "test-agent_control"
 }
 
 variable "task_name_prefix" {
-  default = "super_agent-releases"
-}
-
-variable "task_logs_prefix" {
-  default = "ecs-super_agent-releases"
+  default = "agent_control"
 }
 
 variable "s3_bucket" {
-  default = "arn:aws:s3:::automation-pipeline-terraform-state"
+  default = "arn:aws:s3:::agent-control-terraform-states"
 }
 
 #######################################
@@ -115,22 +105,22 @@ variable "efs_volume_mount_point" {
 }
 
 variable "efs_volume_name" {
-  default = "shared-super_agent-releases"
+  default = "shared-agent_control"
 }
 
 variable "canaries_security_group" {
-  default = "sg-044ef7bc34691164a"
+  default = "sg-04ae18f8c34a11d38"
 }
 
 variable "additional_efs_security_group_rules" {
-    default = [
+  default = [
     {
-      type                     = "ingress"
-      from_port                = 0
-      to_port                  = 65535
-      protocol                 = "tcp"
-      cidr_blocks              = ["10.10.0.0/24"]
-      description              = "Allow ingress traffic to EFS from trusted subnet"
+      type        = "ingress"
+      from_port   = 0
+      to_port     = 65535
+      protocol    = "tcp"
+      cidr_blocks = ["10.10.0.0/24"]
+      description = "Allow ingress traffic to EFS from trusted subnet"
     }
   ]
 }
@@ -139,10 +129,22 @@ variable "additional_efs_security_group_rules" {
 # OIDC permissions
 #######################################
 
+// These permissions are the ones that the Fargate task can assume and execute.
+variable "task_runtime_custom_policies" {
+  type = list(string)
+  description = "Custom policies for task runtime as JSON strings."
+  default = [
+    "{ \"Statement\": [{ \"Effect\": \"Allow\", \"Action\": \"eks:*\", \"Resource\": \"*\" }] }",
+    "{ \"Statement\": [{ \"Effect\": \"Allow\", \"Action\": \"ec2:*\", \"Resource\": \"*\" }] }",
+    "{ \"Statement\": [{ \"Effect\": \"Allow\", \"Action\": \"dynamodb:*\", \"Resource\": \"*\" }]}",
+    "{ \"Statement\": [{ \"Effect\": \"Allow\", \"Action\": [\"iam:GetGroup\", \"iam:GetGroupPolicy\", \"iam:GetPolicy\", \"iam:GetPolicyVersion\", \"iam:GetRole\", \"iam:GetRolePolicy\", \"iam:GetUser\", \"iam:GetUserPolicy\", \"iam:ListAttachedGroupPolicies\", \"iam:ListAttachedRolePolicies\", \"iam:ListAttachedUserPolicies\", \"iam:ListGroups\", \"iam:ListGroupPolicies\", \"iam:ListGroupsForUser\", \"iam:ListRolePolicies\", \"iam:ListRoles\", \"iam:ListUserPolicies\", \"iam:ListUsers\"], \"Resource\": \"*\"}]}"
+  ]
+}
+
 variable "oidc_repository" {
   default = "repo:newrelic/newrelic-super-agent:*"
 }
 
 variable "oidc_role_name" {
-  default = "caos-pipeline-oidc-super_agent-releases"
+  default = "caos-pipeline-oidc-agent_control"
 }
