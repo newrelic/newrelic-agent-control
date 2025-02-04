@@ -388,9 +388,13 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(),
             start_time,
         );
+
+        // Stop the thread before the second check
+        std::thread::sleep(Duration::from_millis(15));
+        thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
@@ -409,8 +413,6 @@ pub mod tests {
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop();
-
         assert_eq!(expected_health_events, actual_health_events);
     }
 
@@ -450,9 +452,13 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(),
             start_time,
         );
+
+        // Stop the thread after the second check
+        std::thread::sleep(Duration::from_millis(20));
+        thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = vec![
@@ -462,8 +468,6 @@ pub mod tests {
                 .into(),
         ];
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop();
-
         assert_eq!(expected_health_events, actual_health_events);
     }
 
@@ -500,9 +504,13 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(),
             start_time,
         );
+
+        // Stop the thread after the second check
+        std::thread::sleep(Duration::from_millis(20));
+        thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once
         let expected_health_events: Vec<SubAgentInternalEvent> = {
@@ -528,8 +536,6 @@ pub mod tests {
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop();
-
         assert_eq!(expected_health_events, actual_health_events);
     }
 }

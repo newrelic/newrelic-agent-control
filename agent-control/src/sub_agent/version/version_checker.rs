@@ -156,9 +156,11 @@ pub mod tests {
             agent_id.clone(),
             version_checker,
             version_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(),
         );
-        std::thread::sleep(Duration::from_millis(300));
+
+        // Stop the thread before the second check
+        std::thread::sleep(Duration::from_millis(15));
         thread_context.stop().unwrap();
 
         let expected_version_events: Vec<SubAgentInternalEvent> = {
