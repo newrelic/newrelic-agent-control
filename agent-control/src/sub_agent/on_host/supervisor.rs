@@ -31,7 +31,6 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
-    agent_id: AgentID,
     ctx: Context<bool>,
     thread_contexts: Vec<ThreadContext>,
 }
@@ -53,7 +52,6 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
-        let agent_id = self.agent_id.clone();
         let ctx = self.ctx.clone();
 
         let thread_contexts = vec![
@@ -66,7 +64,6 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         ];
 
         Ok(StartedSupervisorOnHost {
-            agent_id,
             ctx,
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
