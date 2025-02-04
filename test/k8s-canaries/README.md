@@ -22,12 +22,12 @@ The default terraform dir for where the terraform modules are taken from is:
 `TERRAFORM_DIR := ./terraform`
 
 ```bash
-$ make CANARY_DIR=staging test/k8s-canaries/sync
+$ make CANARY_DIR=staging test/k8s-canaries/terraform-apply
 ```
 
 If this target is called from the root of this repository, the TERRAFORM_DIR should be overwritten to point to the relative path:
 ```bash
-$ make TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/sync
+$ make TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/terraform-apply
 ```
 
 ### Helm Upgrade for nightlies and prereleases
@@ -39,10 +39,10 @@ The default helm dir where there is the default values file to apply is:
 `HELM_DIR := ./helm`
 
 ```bash
-$ make NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm
+$ make NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm-upgrade
 ```
 
 If this target is called from the root of this repository, the HELM_DIR should be overwritten to point to the relative path:
 ```bash
-$ make HELM_DIR=test/k8s-canaries/helm NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm
+$ make HELM_DIR=test/k8s-canaries/helm NR_LICENSE_KEY=xxx CLUSTER_NAME=my-cluster IMAGE_TAG=nightly test/k8s-canaries/helm-upgrade
 ```

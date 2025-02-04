@@ -91,6 +91,16 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
+  k8s_canaries:
+    uses: ./.github/workflows/component_k8s_canaries.yml
+    needs: [ build-image ]
+    with:
+      image-tag: nightly
+      cluster_name: Agent_Control_Canaries_Staging-Cluster
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [ build-image ]

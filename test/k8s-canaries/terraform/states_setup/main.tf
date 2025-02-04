@@ -10,8 +10,8 @@ terraform {
   # On first execution it should be commented to allow creation of the bucket,
   # because this will fail to save the state on a bucket that was still not created.
   backend s3 {
-    bucket         = "agent-control-canary-states"
-    dynamodb_table = "agent-control-canary-states"
+    bucket         = "agent-control-terraform-states"
+    dynamodb_table = "agent-control-terraform-states"
     key            = "foundations/state_framework.tfstate"
     region         = "us-east-2"
   }
@@ -31,6 +31,6 @@ data "aws_region" "current" {}
 
 module "state_backend" {
   source              = "../modules/state_backend"
-  bucket_name         = "agent-control-canary-states"
-  dynamodb_table_name = "agent-control-canary-states"
+  bucket_name         = "agent-control-terraform-states"
+  dynamodb_table_name = "agent-control-terraform-states"
 }

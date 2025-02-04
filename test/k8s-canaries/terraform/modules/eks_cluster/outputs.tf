@@ -1,10 +1,6 @@
-output "ekscluster" {
+output "cluster" {
   value = {
-    aws_eks_cluster = {
-      ekscluster = {
-        name     = aws_eks_cluster.ekscluster.name
-        endpoint = aws_eks_cluster.ekscluster.endpoint
-      }
-    }
+     name     = aws_eks_cluster.ekscluster.name
+     endpoint = aws_eks_cluster.ekscluster.endpoint
   }
 }
