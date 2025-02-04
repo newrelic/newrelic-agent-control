@@ -283,7 +283,10 @@ pub fn log_and_report_unhealthy(
 
 #[cfg(test)]
 pub mod tests {
-    use std::{thread, time::{Duration, UNIX_EPOCH}};
+    use std::{
+        thread,
+        time::{Duration, UNIX_EPOCH},
+    };
 
     use crate::event::channel::pub_sub;
 
