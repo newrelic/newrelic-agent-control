@@ -134,9 +134,8 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                Ok(AgentVersion::new(
-                    "1.0.0".to_string(),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                Err(VersionCheckError::Generic(
+                    "mocked version check error!".to_string(),
                 ))
             });
         version_checker
@@ -144,8 +143,9 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                Err(VersionCheckError::Generic(
-                    "mocked version check error!".to_string(),
+                Ok(AgentVersion::new(
+                    "1.0.0".to_string(),
+                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 ))
             });
 
@@ -167,10 +167,9 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        println!("thread finished: {:?}", thread_context.stop());
-        // thread_context.stop().unwrap();
+        thread_context.stop().unwrap();
 
         // Check there are no more events
-        // assert!(version_consumer.as_ref().recv().is_err());
+        assert!(version_consumer.as_ref().recv().is_err());
     }
 }
