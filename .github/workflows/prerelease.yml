@@ -131,6 +131,16 @@ jobs:
   #      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
   #      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
+  k8s_canaries:
+    uses: ./.github/workflows/component_k8s_canaries.yml
+    needs: [ build-image ]
+    with:
+      image-tag: ${{ github.event.release.tag_name }}-rc
+      cluster_name: Agent_Control_Canaries_Production-Cluster
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+
   get_previous_tag:
     runs-on: ubuntu-latest
     outputs:

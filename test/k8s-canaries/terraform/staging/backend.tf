@@ -7,8 +7,8 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "agent-control-canary-states"
-    dynamodb_table = "agent-control-canary-states"
+    bucket         = "agent-control-terraform-states"
+    dynamodb_table = "agent-control-terraform-states"
     key            = "foundations/terraform-states-backend.tfstate"
     region         = "us-east-2"
   }

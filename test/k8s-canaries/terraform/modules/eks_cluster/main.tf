@@ -107,7 +107,7 @@ resource "aws_eks_node_group" "eks-nodegroup" {
 
   launch_template {
     id      = aws_launch_template.eks_node.id
-    version = "$Latest"
+    version = "1"
   }
 
   ami_type       = var.nodes_ami_type

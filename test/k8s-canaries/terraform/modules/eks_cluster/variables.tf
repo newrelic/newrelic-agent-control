@@ -50,3 +50,16 @@ variable "cluster_min_size" {
   type        = number
   default     = 2
 }
+
+# This ARN may change if the Fargate Runner TF is modified
+variable "fargate_iam_role_arn" {
+  description = "The ARN of the Fargate runner IAM role to be mapped in the aws-auth ConfigMap"
+  type        = string
+  default     = "arn:aws:iam::288761741714:role/test_prerelease_fargate-zke"
+}
+
+variable "fargate_iam_role_user" {
+  description = "The RBAC user created for the IAM role to be mapped in the aws-auth ConfigMap"
+  type        = string
+  default     = "fargate-user"
+}

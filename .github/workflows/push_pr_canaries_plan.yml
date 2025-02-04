@@ -1,0 +1,60 @@
+permissions:
+  id-token: write
+  contents: read
+on:
+  pull_request:
+    paths:
+      - test/k8s-canaries/terraform/**
+concurrency:
+  group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
+  cancel-in-progress: false
+name: plan k8s canaries changes
+
+jobs:
+  infra:
+    name: Prepare infra
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-2
+
+      - uses: actions/checkout@v4
+
+      - name: Set branch name
+        run: |
+          # Short name for current branch. For PRs, use target branch (base ref)
+          GIT_BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}"
+          # Is the ref a tag? If so, remove refs/tags/ prefix
+          GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
+          echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
+
+      - name: Plan k8s staging canary changes
+        uses: newrelic/fargate-runner-action@main
+        with:
+          aws_region: us-east-2
+          container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=staging test/k8s-canaries/terraform-plan"
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
+          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
+          ref: "${{ env.GIT_BRANCH }}"
+
+      - name: Plan k8s production canary changes
+        uses: newrelic/fargate-runner-action@main
+        with:
+          aws_region: us-east-2
+          container_make_target: "TERRAFORM_DIR=test/k8s-canaries/terraform CANARY_DIR=production test/k8s-canaries/terraform-plan"
+          ecs_cluster_name: agent_control
+          task_definition_name: agent_control
+          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
+          cloud_watch_logs_stream_name: ecs/test-agent_control
+          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
+          repo_name: ${{ github.repository }}
+          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
+          ref: "${{ env.GIT_BRANCH }}"
