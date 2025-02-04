@@ -23,7 +23,7 @@ on:
         required: false
         type: string
         description: 'Repository endpoint to fetch packages from'
-        default: "https://download.newrelic.com/preview"
+        default: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
 env:
   UNIQUE_NAME: ${{ inputs.UNIQUE_NAME }}
