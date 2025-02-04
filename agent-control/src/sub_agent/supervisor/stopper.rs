@@ -45,9 +45,10 @@ impl ThreadContext {
         if let Some(stop_publisher) = self.stop_publisher {
             stop_publisher.publish(())?;
         }
-        let _ = self.join_handle.join().inspect_err(|_| {
+        let _ = self.join_handle.join().inspect_err(|err| {
             error!(
                 agent_id = %self.agent_id,
+                err = err.downcast_ref::<&str>().map_or("Unknown error", |v| v),
                 "Error stopping {} thread", self.thread_name
             );
         });
