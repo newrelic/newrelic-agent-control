@@ -160,7 +160,7 @@ pub mod tests {
             Duration::from_millis(100).into(),
         );
 
-        // Stop the thread afte the second check
+        // Stop the thread after the second check
         thread::sleep(Duration::from_millis(200));
         thread_context.stop().unwrap();
 
