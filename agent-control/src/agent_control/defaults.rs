@@ -20,9 +20,9 @@ pub const AUTH_PRIVATE_KEY_FILE_NAME: &str = "auth_key";
 
 // Keys non-identifying attributes
 pub const PARENT_AGENT_ID_ATTRIBUTE_KEY: &str = "parent.agent.id";
-pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_NAME;
+pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_NAME;
 pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
-pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::resource::HOST_ID;
+pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_ID;
 pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
 
 // Paths
@@ -70,3 +70,15 @@ pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
 
 pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
 pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    #[test]
+    fn test_otel_semcov_experimental_fields() {
+        // Detect possible breaking changes when upgrading opentlemetry-semantic-conventions
+        assert_eq!(HOST_NAME_ATTRIBUTE_KEY, "host.name");
+        assert_eq!(HOST_ID_ATTRIBUTE_KEY, "host.id");
+    }
+}
