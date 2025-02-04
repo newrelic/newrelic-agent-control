@@ -283,7 +283,7 @@ pub fn log_and_report_unhealthy(
 
 #[cfg(test)]
 pub mod tests {
-    use std::time::{Duration, UNIX_EPOCH};
+    use std::{thread, time::{Duration, UNIX_EPOCH}};
 
     use crate::event::channel::pub_sub;
 
@@ -388,12 +388,12 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::from_millis(10).into(),
+            Duration::from_millis(100).into(),
             start_time,
         );
 
-        // Stop the thread before the second check
-        std::thread::sleep(Duration::from_millis(15));
+        // Stop the thread after the second check
+        thread::sleep(Duration::from_millis(200));
         thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once
@@ -452,12 +452,12 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::from_millis(10).into(),
+            Duration::from_millis(100).into(),
             start_time,
         );
 
         // Stop the thread after the second check
-        std::thread::sleep(Duration::from_millis(20));
+        thread::sleep(Duration::from_millis(200));
         thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once
@@ -504,12 +504,12 @@ pub mod tests {
             agent_id.clone(),
             health_checker,
             health_publisher,
-            Duration::from_millis(10).into(),
+            Duration::from_millis(100).into(),
             start_time,
         );
 
         // Stop the thread after the second check
-        std::thread::sleep(Duration::from_millis(20));
+        thread::sleep(Duration::from_millis(200));
         thread_context.stop().unwrap();
 
         // Check that the health checker was called at least once

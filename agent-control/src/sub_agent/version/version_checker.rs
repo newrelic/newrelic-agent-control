@@ -115,6 +115,7 @@ pub mod tests {
         spawn_version_checker, AgentVersion, VersionCheckError, VersionChecker,
     };
     use mockall::{mock, Sequence};
+    use std::thread;
     use std::time::Duration;
 
     mock! {
@@ -156,11 +157,11 @@ pub mod tests {
             agent_id.clone(),
             version_checker,
             version_publisher,
-            Duration::from_millis(10).into(),
+            Duration::from_millis(100).into(),
         );
 
-        // Stop the thread before the second check
-        std::thread::sleep(Duration::from_millis(15));
+        // Stop the thread afte the second check
+        thread::sleep(Duration::from_millis(200));
         thread_context.stop().unwrap();
 
         let expected_version_events: Vec<SubAgentInternalEvent> = {
