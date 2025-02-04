@@ -76,7 +76,7 @@ pub(crate) mod tests {
     use super::*;
 
     #[test]
-    fn test_otel_semcov_experimental_fields() {
+    fn test_otel_semconv_experimental_fields() {
         // Detect possible breaking changes when upgrading opentlemetry-semantic-conventions
         assert_eq!(HOST_NAME_ATTRIBUTE_KEY, "host.name");
         assert_eq!(HOST_ID_ATTRIBUTE_KEY, "host.id");
