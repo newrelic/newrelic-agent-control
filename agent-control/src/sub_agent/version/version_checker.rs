@@ -58,8 +58,9 @@ where
     let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
     let thread_name = "version checker".to_string();
+    let agent_id_clone = agent_id.clone();
     let join_handle = spawn_named_thread(&thread_name, move || loop {
-        debug!(%agent_id, "starting to check version with the configured checker");
+        debug!(agent_id = %agent_id_clone, "starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
             Ok(agent_data) => {
@@ -84,7 +85,7 @@ where
         }
     });
 
-    ThreadContext::new(thread_name, Some(stop_publisher), join_handle)
+    ThreadContext::new(agent_id, thread_name, Some(stop_publisher), join_handle)
 }
 
 pub(crate) fn publish_version_event(
@@ -158,7 +159,7 @@ pub mod tests {
             Duration::default().into(),
         );
         std::thread::sleep(Duration::from_millis(300));
-        thread_context.stop(&agent_id).unwrap();
+        thread_context.stop().unwrap();
 
         let expected_version_events: Vec<SubAgentInternalEvent> = {
             vec![AgentVersionInfo(AgentVersion {

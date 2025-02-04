@@ -12,6 +12,7 @@ pub trait SupervisorStopper {
 }
 
 pub struct ThreadContext {
+    agent_id: AgentID,
     thread_name: String,
     stop_publisher: Option<EventPublisher<()>>,
     join_handle: JoinHandle<()>,
@@ -19,11 +20,13 @@ pub struct ThreadContext {
 
 impl ThreadContext {
     pub fn new(
+        agent_id: AgentID,
         thread_name: String,
         stop_publisher: Option<EventPublisher<()>>,
         join_handle: JoinHandle<()>,
     ) -> Self {
         Self {
+            agent_id,
             thread_name,
             stop_publisher,
             join_handle,
@@ -38,13 +41,13 @@ impl ThreadContext {
         self.join_handle.is_finished()
     }
 
-    pub fn stop(self, agent_id: &AgentID) -> Result<(), EventPublisherError> {
+    pub fn stop(self) -> Result<(), EventPublisherError> {
         if let Some(stop_publisher) = self.stop_publisher {
             stop_publisher.publish(())?;
         }
         let _ = self.join_handle.join().inspect_err(|_| {
             error!(
-                agent_id = agent_id.to_string(),
+                agent_id = %self.agent_id,
                 "Error stopping {} thread", self.thread_name
             );
         });

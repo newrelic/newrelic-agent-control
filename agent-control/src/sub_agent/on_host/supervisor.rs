@@ -79,7 +79,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let result = thread_context.stop(&self.agent_id);
+            let result = thread_context.stop();
             if let Err(err) = result {
                 stop_result = Err(err);
             }
@@ -165,6 +165,8 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
+
+        let agent_id_clone = self.agent_id.clone();
         let join_handle = spawn_named_thread("OnHost process", {
             move || loop {
                 // locks the current_pid to prevent `wait_for_termination` finishing before the process
@@ -270,7 +272,12 @@ impl NotStartedSupervisorOnHost {
             }
         });
 
-        ThreadContext::new("onhost supervisor".to_string(), None, join_handle)
+        ThreadContext::new(
+            agent_id_clone,
+            "onhost supervisor".to_string(),
+            None,
+            join_handle,
+        )
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {

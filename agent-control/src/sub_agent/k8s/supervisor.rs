@@ -52,7 +52,6 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         ];
 
         Ok(StartedSupervisorK8s {
-            agent_id: self.agent_id,
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
@@ -123,7 +122,7 @@ impl NotStartedSupervisorK8s {
         let k8s_client = self.k8s_client.clone();
 
         let thread_name = "k8s objects supervisor".to_string();
-        let thread_name_copy = thread_name.clone();
+        let thread_name_clone = thread_name.clone();
         info!(%agent_id, "{} started", thread_name);
         let join_handle = spawn_named_thread(&thread_name, move || loop {
             // Check and apply k8s objects
@@ -133,12 +132,17 @@ impl NotStartedSupervisorK8s {
             }
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "{} stopped", thread_name_copy);
+                info!(%agent_id, "{} stopped", thread_name_clone);
                 break;
             }
         });
 
-        ThreadContext::new(thread_name, Some(stop_publisher), join_handle)
+        ThreadContext::new(
+            self.agent_id.clone(),
+            thread_name,
+            Some(stop_publisher),
+            join_handle,
+        )
     }
 
     pub fn start_health_check(
@@ -207,7 +211,6 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
-    agent_id: AgentID,
     thread_contexts: Vec<ThreadContext>,
 }
 
@@ -216,7 +219,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let result = thread_context.stop(&self.agent_id);
+            let result = thread_context.stop();
             if let Err(err) = result {
                 stop_result = Err(err);
             }
@@ -350,7 +353,7 @@ pub mod tests {
         let thread_context =
             supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
-        thread_context.stop(&agent_id).unwrap()
+        thread_context.stop().unwrap()
     }
 
     #[test]

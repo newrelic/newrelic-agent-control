@@ -224,11 +224,12 @@ where
     let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
     let thread_name = "health checker".to_string();
+    let agent_id_clone = agent_id.clone();
     let join_handle = spawn_named_thread(&thread_name, move || loop {
-        debug!(%agent_id, "starting to check health with the configured checker");
+        debug!(agent_id = %agent_id_clone, "starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!(%agent_id, last_error = %err, "the configured health check failed");
+            debug!(agent_id = %agent_id_clone, last_error = %err, "the configured health check failed");
             HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
@@ -243,7 +244,7 @@ where
         }
     });
 
-    ThreadContext::new(thread_name, Some(stop_publisher), join_handle)
+    ThreadContext::new(agent_id, thread_name, Some(stop_publisher), join_handle)
 }
 
 pub(crate) fn publish_health_event(
@@ -408,7 +409,7 @@ pub mod tests {
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop(&agent_id);
+        let _ = thread_context.stop();
 
         assert_eq!(expected_health_events, actual_health_events);
     }
@@ -461,7 +462,7 @@ pub mod tests {
                 .into(),
         ];
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop(&agent_id);
+        let _ = thread_context.stop();
 
         assert_eq!(expected_health_events, actual_health_events);
     }
@@ -527,7 +528,7 @@ pub mod tests {
             ]
         };
         let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
-        let _ = thread_context.stop(&agent_id);
+        let _ = thread_context.stop();
 
         assert_eq!(expected_health_events, actual_health_events);
     }
