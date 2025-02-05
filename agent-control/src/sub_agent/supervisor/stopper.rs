@@ -16,10 +16,10 @@ pub struct ThreadContext {
     thread_name: String,
 
     // Channel to send the stop signal to the thread
-    // 
+    //
     // The stop signal is sent to the thread to stop the infinite loop.
-    // 
-    // All threads should have a channel to receive a stop signal, but 
+    //
+    // All threads should have a channel to receive a stop signal, but
     // method `crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost::start_process_thread`
     // doesn't use this mechanism. For this reason, the publisher is optional.
     stop_publisher: Option<EventPublisher<()>>,
@@ -65,7 +65,7 @@ impl ThreadContext {
         let _ = self.join_handle.join().inspect_err(|err| {
             error!(
                 agent_id = %self.agent_id,
-                err = err.downcast_ref::<&str>().map_or("Unknown error", |v| v),
+                err = err.downcast_ref::<&str>().unwrap_or(&"Unknown error"),
                 "Error stopping {} thread", self.thread_name
             );
         });
