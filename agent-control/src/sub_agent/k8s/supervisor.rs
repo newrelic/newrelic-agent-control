@@ -162,7 +162,7 @@ impl NotStartedSupervisorK8s {
             return Ok(None);
         };
 
-        let thread_context = spawn_health_checker(
+        let started_thread_context = spawn_health_checker(
             self.agent_id.clone(),
             k8s_health_checker,
             sub_agent_internal_publisher,
@@ -170,7 +170,7 @@ impl NotStartedSupervisorK8s {
             start_time,
         );
 
-        Ok(Some(thread_context))
+        Ok(Some(started_thread_context))
     }
 
     pub fn start_version_checker(
@@ -357,10 +357,10 @@ pub mod tests {
             k8s_config: Default::default(),
         };
 
-        let thread_context =
+        let started_thread_context =
             supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
-        thread_context.stop().unwrap()
+        started_thread_context.stop().unwrap()
     }
 
     #[test]

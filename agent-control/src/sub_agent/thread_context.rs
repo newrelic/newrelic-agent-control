@@ -121,7 +121,8 @@ pub mod tests {
 
     use crate::{
         agent_control::config::AgentID,
-        event::{cancellation::CancellationMessage, channel::EventConsumer}, sub_agent::thread_context::NotStartedThreadContext,
+        event::{cancellation::CancellationMessage, channel::EventConsumer},
+        sub_agent::thread_context::NotStartedThreadContext,
     };
 
     use super::StartedThreadContext;
@@ -141,8 +142,9 @@ pub mod tests {
                 break;
             }
         };
-        let thread_context = NotStartedThreadContext::new(agent_id, thread_name, callback);
-        let started_thread_context = thread_context.start();
+        let not_started_thread_context =
+            NotStartedThreadContext::new(agent_id, thread_name, callback);
+        let started_thread_context = not_started_thread_context.start();
         assert!(!started_thread_context.is_thread_finished());
 
         started_thread_context.stop().unwrap();

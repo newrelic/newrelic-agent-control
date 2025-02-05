@@ -134,14 +134,14 @@ impl NotStartedSupervisorOnHost {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
-            let thread_context = spawn_health_checker(
+            let started_thread_context = spawn_health_checker(
                 self.agent_id.clone(),
                 health_checker,
                 sub_agent_internal_publisher,
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(thread_context));
+            return Ok(Some(started_thread_context));
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)

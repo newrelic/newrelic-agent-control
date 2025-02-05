@@ -379,7 +379,7 @@ pub mod tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        let thread_context = spawn_health_checker(
+        let started_thread_context = spawn_health_checker(
             agent_id.clone(),
             health_checker,
             health_publisher,
@@ -408,7 +408,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        thread_context.stop().unwrap();
+        started_thread_context.stop().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -445,7 +445,7 @@ pub mod tests {
 
         let agent_id = AgentID::new("test-agent").unwrap();
 
-        let thread_context = spawn_health_checker(
+        let started_thread_context = spawn_health_checker(
             agent_id.clone(),
             health_checker,
             health_publisher,
@@ -470,7 +470,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        thread_context.stop().unwrap();
+        started_thread_context.stop().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -505,7 +505,7 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        let thread_context = spawn_health_checker(
+        let started_thread_context = spawn_health_checker(
             agent_id.clone(),
             health_checker,
             health_publisher,
@@ -532,7 +532,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        thread_context.stop().unwrap();
+        started_thread_context.stop().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());

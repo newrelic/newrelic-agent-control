@@ -144,7 +144,7 @@ pub mod tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        let thread_context = spawn_version_checker(
+        let started_thread_context = spawn_version_checker(
             agent_id.clone(),
             version_checker,
             version_publisher,
@@ -161,7 +161,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        thread_context.stop().unwrap();
+        started_thread_context.stop().unwrap();
 
         // Check there are no more events
         assert!(version_consumer.as_ref().recv().is_err());
