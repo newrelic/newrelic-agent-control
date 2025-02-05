@@ -3,8 +3,8 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use tracing::{debug, error, info, warn};
 use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use tracing::{debug, error, info, warn};
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
