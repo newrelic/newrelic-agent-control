@@ -100,10 +100,6 @@ impl StartedThreadContext {
         &self.thread_name
     }
 
-    pub fn is_thread_finished(&self) -> bool {
-        self.join_handle.is_finished()
-    }
-
     pub fn stop(self) -> Result<(), ThreadContextStopperError> {
         self.stop_publisher.publish(())?;
         self.join_handle.join().map_err(|err| {
@@ -116,5 +112,39 @@ impl StartedThreadContext {
         info!(agent_id = %self.agent_id, "{} stopped", self.thread_name);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::time::Duration;
+
+    use crate::{
+        agent_control::config::AgentID,
+        event::{cancellation::CancellationMessage, channel::EventConsumer}, sub_agent::thread_context::NotStartedThreadContext,
+    };
+
+    use super::StartedThreadContext;
+
+    impl StartedThreadContext {
+        pub fn is_thread_finished(&self) -> bool {
+            self.join_handle.is_finished()
+        }
+    }
+
+    #[test]
+    fn test_thread_context_start_stop() {
+        let agent_id = AgentID::new("test-agent").unwrap();
+        let thread_name = "test-thread";
+        let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
+            if stop_consumer.is_cancelled(Duration::default()) {
+                break;
+            }
+        };
+        let thread_context = NotStartedThreadContext::new(agent_id, thread_name, callback);
+        let started_thread_context = thread_context.start();
+        assert!(!started_thread_context.is_thread_finished());
+
+        started_thread_context.stop().unwrap();
     }
 }
