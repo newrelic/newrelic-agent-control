@@ -45,6 +45,14 @@ module "agent_control_infra" {
       "name" : "NR_ORGANIZATION_ID",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}"
     },
+    {
+      "name" : "NR_SYSTEM_IDENTITY_CLIENT_ID",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_client_id}"
+    },
+    {
+      "name" : "NR_SYSTEM_IDENTITY_PRIVATE_KEY",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}"
+    },
     ####
     {
       "name" : "SSH_KEY",
@@ -84,6 +92,8 @@ module "agent_control_infra" {
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_client_id}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}",

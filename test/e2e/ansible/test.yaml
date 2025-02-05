@@ -1,7 +1,7 @@
 ---
 
-- name: installation of the package
-  import_playbook: package-installation.yaml
+- name: Agent Control remote config
+  import_playbook: agent_control_remote_config.yaml
 
 #- name: Agents registration/unregistration
 #  import_playbook: agents_registration_unregistration.yaml

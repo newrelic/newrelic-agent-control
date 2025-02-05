@@ -1,0 +1,137 @@
+---
+- name: Install AC and assert a remote config is applied.
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  vars:
+    # This test expects to have a created Fleet with an Active deployment containing a AC remote configuration
+    # with no agents.
+    fleet_id: MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk0ZDY1Yy0yZTM3LTczMzctOWM5NC05MTNmOWM5N2U1Y2Q
+
+  tasks:
+    - name: Install AC and assert a remote config is applied.
+      block:
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml 
+
+        - name: Install Agent Control
+          include_role:
+            name: newrelic-agent-control
+
+        - name: register agent control version
+          command: "/usr/bin/newrelic-agent-control --version"
+          register: version
+
+        - name: assert version
+          include_role:
+            name: caos.ansible_roles.assert_version
+          vars:
+            target_versions:
+              - exec: "/usr/bin/newrelic-agent-control --version"
+                version: "{{ package_version }}"
+          when: package_version | length > 0
+
+        - name: debug agent control version
+          debug:
+            var: version.stdout
+
+        - name: Create the L2 private key
+          copy:
+            dest: "{{ agent_control_private_key }}"
+            # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+            content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
+        - name: Setup AC config
+          include_role:
+            name: edit_yaml_config
+          vars:
+            config_path: "/etc/newrelic-agent-control/config.yaml"
+            update_config:
+              log:
+                level: debug
+              agents:
+                infra:
+                  agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+              fleet_control:
+                fleet_id: "{{ fleet_id }}"
+                endpoint: "https://opamp.staging-service.newrelic.com/v1/opamp"
+                headers:
+                  api-key: "{{ nr_license_key }}"
+                auth_config:
+                  token_url: "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
+                  client_id: "{{ system_identity_client_id }}"
+                  provider: local
+                  private_key_path: "{{ agent_control_private_key }}"
+        
+        - name: Infra Agent config folder
+          file:
+            path: /etc/newrelic-agent-control/fleet/agents.d/infra/values/
+            state: directory
+
+        - name: Infra Agent config file
+          copy:
+            dest: /etc/newrelic-agent-control/fleet/agents.d/infra/values/values.yaml
+            # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+            content: |
+              config_agent: |+
+                staging: true
+                status_server_enabled: true
+                status_server_port: 18003
+                license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}
+
+        - name: Add license to service
+          shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
+
+        - name: Restart Agent Control
+          include_role:
+            name: caos.ansible_roles.service_status
+          vars:
+            service_name: "newrelic-agent-control"
+            action: "restart"
+
+        - name: Wait for Infra Agent to start
+          pause:
+            seconds: 30
+
+        - name: Assert Agent Control and Infra Agent are running and Collector is not
+          include_role:
+            name: caos.ansible_roles.assert_process_running
+          vars:
+            processes_running:
+              - "^/usr/bin/newrelic-agent-control"
+              - "^/usr/bin/newrelic-infra"
+        
+        - name: Wait until the AC remote config file removing all agents is received
+          stat:
+            path: "{{ agent_control_remote_config_file }}"
+          register: result
+          until: result.stat.exists
+          # At the time of writing this, remote config took ~10m to hit AC :(
+          retries: 90
+          delay: 10
+
+        - name: assert remote config applied
+          shell: grep "applied" {{ agent_control_hash_file_tpl }}
+          retries: 5
+          delay: 5
+
+        - name: Assert Agent Control and Infra Agent  is not
+          include_role:
+            name: caos.ansible_roles.assert_process_running
+          vars:
+            processes_not_running:
+              - "^/usr/bin/newrelic-infra"
+            processes_running:
+              - "^/usr/bin/newrelic-agent-control"
+      always:
+        - name: AC logs
+          shell: journalctl -u newrelic-agent-control --no-pager
+          register: ac_logs
+
+        - name: debug AC logs
+          debug:
+            var: ac_logs.stdout_lines
+
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml

@@ -50,6 +50,14 @@ variable "secret_name_organization_id" {
   default = "canaries/organization_id-a0w4NX"
 }
 
+variable "secret_name_system_identity_client_id" {
+  default = "canaries/system_identity_client_id-qVzy88"
+}
+
+variable "secret_name_system_identity_private_key" {
+  default = "canaries/system_identity_private_key-G5vwsz"
+}
+
 ####
 
 variable "secret_name_ssh" {
