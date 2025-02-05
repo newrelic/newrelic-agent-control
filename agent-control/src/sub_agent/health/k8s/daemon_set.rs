@@ -2,49 +2,12 @@ use super::utils;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
-use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus, DaemonSetUpdateStrategy};
-use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
+use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
-
-enum UpdateStrategyType {
-    OnDelete,
-    RollingUpdate,
-}
-
-const ROLLING_UPDATE: &str = "RollingUpdate";
-const ON_DELETE: &str = "OnDelete";
-
-#[derive(Debug, thiserror::Error, PartialEq)]
-#[error("Unknown Update Strategy Type: '{0}'")]
-pub struct UnknownUpdateStrategyType(String);
-
-impl TryFrom<String> for UpdateStrategyType {
-    type Error = UnknownUpdateStrategyType;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            ROLLING_UPDATE => Ok(Self::RollingUpdate),
-            ON_DELETE => Ok(Self::OnDelete),
-            s => Err(UnknownUpdateStrategyType(s.to_string())),
-        }
-    }
-}
-
-impl std::fmt::Display for UpdateStrategyType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let result = match self {
-            UpdateStrategyType::RollingUpdate => ROLLING_UPDATE,
-            UpdateStrategyType::OnDelete => ON_DELETE,
-        };
-
-        write!(f, "{}", result)
-    }
-}
 
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
@@ -81,85 +44,34 @@ impl K8sHealthDaemonSet {
         }
     }
 
+    // We decided to ignore that and consider unhealthy a DaemonSet during a rolling
+    // update if the number of ready replicas is < expected replicas ignoring rolling_update.max_unavailable
+    // Moreover, following the APM approach we are currently not considering updatedNumberScheduled.
+    // I.e. we are reporting healthy if there is an agent running an old version.
     pub fn check_health_single_daemon_set(ds: &DaemonSet) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(ds)?;
         let status = Self::get_daemon_set_status(name.as_str(), ds)?;
-        let update_strategy = Self::get_daemon_set_update_strategy(name.as_str(), ds)?;
-
-        let update_strategy_type = UpdateStrategyType::try_from(
-            Self::get_daemon_set_rolling_update_type(name.as_str(), ds, &update_strategy)?,
-        )
-        .map_err(|err| HealthCheckerError::InvalidK8sObject {
-            kind: DaemonSet::KIND.to_string(),
-            name: name.to_string(),
-            err: format!("unexpected value for .spec.updateStrategy.type: {err}"),
-        })?;
-
-        let rolling_update = match update_strategy_type {
-            // If the update strategy is not a rolling update, there will be nothing to wait for
-            UpdateStrategyType::OnDelete => {
-                return Ok(Healthy::new(String::default()).into());
-            }
-            UpdateStrategyType::RollingUpdate => {
-                update_strategy.rolling_update.ok_or_else(|| {
-                    utils::missing_field_error(
-                        ds,
-                        name.as_str(),
-                        ".spec.updateStrategy.rollingUpdate",
-                    )
-                })?
-            }
-        };
-
-        if status.updated_number_scheduled.is_none() {
+        if status.number_ready < status.desired_number_scheduled {
             return Ok(Unhealthy::new(
                 String::default(),
                 format!(
-                    "DaemonSet `{}` is so new that it has no `updated_number_scheduled` status yet",
-                    name
+                    "DaemonSet '{}': The number of pods ready is less that the desired: {} < {}",
+                    name, status.number_ready, status.desired_number_scheduled
                 ),
             )
             .into());
         }
 
-        // Make sure all the updated pods have been scheduled
-        if let Some(updated_number_scheduled) = status.updated_number_scheduled {
-            if updated_number_scheduled != status.desired_number_scheduled {
-                return Ok(Unhealthy::new(
-                    String::default(),
-                    format!(
-                        "DaemonSet `{}` Not all the pods of the were able to schedule",
-                        name
-                    ),
-                )
-                .into());
-            }
-        }
-
-        let max_unavailable = match rolling_update.max_unavailable {
-            // If max unavailable is not set, the daemon set does not expect to have healthy pods.
-            // Returning Healthiness as soon as possible.
-            None => {
-                return Ok(Healthy::new(String::default()).into())
-            }
-            Some(value) => IntOrPercentage::try_from(value)
-                .map_err(|err| {
-                    HealthCheckerError::InvalidK8sObject{
-                        kind: DaemonSet::KIND.to_string(),
-                        name: name.to_string(),
-                        err: format!("unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: {err}"),
-                    }
-                })?
-                .scaled_value(status.desired_number_scheduled, true),
-        };
-
-        let expected_ready = status.desired_number_scheduled - max_unavailable;
-        if status.number_ready < expected_ready {
+        if status
+            .number_unavailable
+            .is_some_and(|number_unavailable| number_unavailable > 0)
+        {
             return Ok(Unhealthy::new(
                 String::default(),
                 format!(
-                    "Daemonset '{}': The number of pods ready is less that the desired: {} < {}",
-                    name, status.number_ready, expected_ready
+                    "DaemonSet '{}': The are {} unavailable pods",
+                    name,
+                    status.number_unavailable.unwrap_or_default()
                 ),
             )
             .into());
@@ -177,28 +89,6 @@ impl K8sHealthDaemonSet {
             .clone()
             .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".status"))
     }
-
-    fn get_daemon_set_update_strategy(
-        name: &str,
-        daemon_set: &DaemonSet,
-    ) -> Result<DaemonSetUpdateStrategy, HealthCheckerError> {
-        daemon_set
-            .spec
-            .clone()
-            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec"))?
-            .update_strategy
-            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec.updateStrategy"))
-    }
-
-    fn get_daemon_set_rolling_update_type(
-        name: &str,
-        daemon_set: &DaemonSet,
-        update_strategy: &DaemonSetUpdateStrategy,
-    ) -> Result<String, HealthCheckerError> {
-        update_strategy.type_.clone().ok_or_else(|| {
-            utils::missing_field_error(daemon_set, name, ".spec.updateStrategy.Type")
-        })
-    }
 }
 
 #[cfg(test)]
@@ -211,11 +101,10 @@ pub mod tests {
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
     };
+    use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::{
-        api::apps::v1::{
-            DaemonSetSpec, DaemonSetStatus, DaemonSetUpdateStrategy, RollingUpdateDaemonSet,
-        },
-        apimachinery::pkg::{apis::meta::v1::ObjectMeta, util::intstr::IntOrString},
+        api::apps::v1::{DaemonSetSpec, DaemonSetStatus},
+        apimachinery::pkg::apis::meta::v1::ObjectMeta,
     };
 
     const TEST_DAEMON_SET_NAME: &str = "test";
@@ -272,95 +161,6 @@ pub mod tests {
                 },
                 expected: test_util_missing_field(".status"),
             },
-            TestCase {
-                name: "ds without spec",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: None,
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: test_util_missing_field(".spec"),
-            },
-            TestCase {
-                name: "ds without update strategy",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: None,
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: test_util_missing_field(".spec.updateStrategy"),
-            },
-            TestCase {
-                name: "ds with unknown update strategy",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(String::from("Unknown-TEST")),
-                            ..Default::default()
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: HealthCheckerError::InvalidK8sObject {
-                    kind: DaemonSet::KIND.to_string(),
-                    name: TEST_DAEMON_SET_NAME.to_string(),
-                    err: "unexpected value for .spec.updateStrategy.type: Unknown Update Strategy Type: 'Unknown-TEST'".to_string(),
-                },
-            },
-            TestCase {
-                name: "ds which update strategy is rolling but has no struct",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: None,
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        ..Default::default()
-                    }),
-                },
-                expected: test_util_missing_field(".spec.updateStrategy.rollingUpdate"),
-            },
-            TestCase {
-                name: "ds update strategy policy has non-parsable max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: Some(IntOrString::String(String::from("NaN"))),
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(1),
-                        desired_number_scheduled: 1,
-                        ..Default::default()
-                    }),
-                },
-                expected: HealthCheckerError::InvalidK8sObject{
-                    kind: DaemonSet::KIND.to_string(),
-                    name: TEST_DAEMON_SET_NAME.to_string(),
-                    err: "unexpected value for .spec.updateStrategy.rollingUpdate.maxUnavailable: invalid digit found in string".to_string(),
-                },
-            },
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
@@ -390,193 +190,61 @@ pub mod tests {
 
         let test_cases = vec![
             TestCase {
-                name: "ds has on delete update strategy type",
+                name: "ds with not enough ready pods",
                 ds: DaemonSet {
                     metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ON_DELETE.to_string()),
-                            ..Default::default()
-                        }),
                         ..Default::default()
                     }),
                     status: Some(DaemonSetStatus {
+                        desired_number_scheduled: 3,
+                        number_ready: 2,
+                        ..Default::default()
+                    }),
+                },
+                expected: Unhealthy {
+                    last_error: String::from(
+                        "DaemonSet 'test': The number of pods ready is less that the desired: 2 < 3",
+                    ),
+                    ..Default::default()
+                }
+                .into(),
+            },
+            TestCase {
+                name: "ds with unavailable pods",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: Some(DaemonSetSpec {
+                        ..Default::default()
+                    }),
+                    status: Some(DaemonSetStatus {
+                        number_unavailable: Some(5),
+                        ..Default::default()
+                    }),
+                },
+                expected: Unhealthy {
+                    last_error: String::from(
+                        "DaemonSet 'test': The are 5 unavailable pods",
+                    ),
+                    ..Default::default()
+                }
+                .into(),
+            },
+            TestCase {
+                name: "everything is good",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: Some(DaemonSetSpec {
+                        ..Default::default()
+                    }),
+                    status: Some(DaemonSetStatus {
+                        desired_number_scheduled: 3,
+                        number_ready: 3,
+                        number_unavailable: Some(0),
                         ..Default::default()
                     }),
                 },
                 expected: Healthy::default().into(),
-            },
-            TestCase {
-                name: "ds without updated_number_scheduled",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy{
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet{
-                                ..Default::default()
-                            })}),
-                            ..Default::default()
-                        }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: None,
-                        ..Default::default()
-                    }),
-                },
-                expected: Unhealthy{
-                    last_error: String::from("DaemonSet `test` is so new that it has no `updated_number_scheduled` status yet"),
-                    ..Default::default()
-                }.into(),
-            },
-            TestCase {
-                name: "ds with no unschedulable pods",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(0),
-                        desired_number_scheduled: 1,
-                        ..Default::default()
-                    }),
-                },
-                expected: Unhealthy {
-                    last_error: String::from(
-                        "DaemonSet `test` Not all the pods of the were able to schedule",
-                    ),
-                    ..Default::default()
-                }.into(),
-            },
-            TestCase {
-                name: "ds without max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: None,
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(5),
-                        desired_number_scheduled: 5,
-                        ..Default::default()
-                    }),
-                },
-                expected: Healthy::default().into(),
-            },
-            TestCase {
-                name: "unhealthy ds with int max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: Some(IntOrString::Int(2)),
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(5),
-                        desired_number_scheduled: 5,
-                        number_ready: 2,
-                        ..Default::default()
-                    }),
-                },
-                expected: Unhealthy {
-                    last_error: String::from(
-                        "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
-                    ),
-                    ..Default::default()
-                }.into(),
-            },
-            TestCase {
-                name: "unhealthy ds with percent max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: Some(IntOrString::String("40%".into())),
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(5),
-                        desired_number_scheduled: 5,
-                        number_ready: 2,
-                        ..Default::default()
-                    }),
-                },
-                expected: Unhealthy {
-                    last_error: String::from(
-                        "Daemonset 'test': The number of pods ready is less that the desired: 2 < 3",
-                    ),
-                    ..Default::default()
-                }.into(),
-            },
-            TestCase {
-                name: "healthy ds with int max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: Some(IntOrString::Int(3)),
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(5),
-                        desired_number_scheduled: 5,
-                        number_ready: 2,
-                        ..Default::default()
-                    }),
-                },
-                expected: Healthy::default().into()
-            },
-            TestCase {
-                name: "healthy ds with percent max_unavailable",
-                ds: DaemonSet {
-                    metadata: test_util_get_common_metadata(),
-                    spec: Some(DaemonSetSpec {
-                        update_strategy: Some(DaemonSetUpdateStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDaemonSet {
-                                max_unavailable: Some(IntOrString::String("60%".into())),
-                                ..Default::default()
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    status: Some(DaemonSetStatus {
-                        updated_number_scheduled: Some(5),
-                        desired_number_scheduled: 5,
-                        number_ready: 2,
-                        ..Default::default()
-                    }),
-                },
-                expected: Healthy::default().into()
             },
         ];
 
@@ -595,10 +263,6 @@ pub mod tests {
                 ..Default::default()
             },
             spec: Some(DaemonSetSpec {
-                update_strategy: Some(DaemonSetUpdateStrategy {
-                    type_: Some(ON_DELETE.to_string()), // on-delete are always healthy
-                    ..Default::default()
-                }),
                 ..Default::default()
             }),
             status: Some(DaemonSetStatus {
@@ -613,19 +277,11 @@ pub mod tests {
                 ..Default::default()
             },
             spec: Some(DaemonSetSpec {
-                update_strategy: Some(DaemonSetUpdateStrategy {
-                    type_: Some(ROLLING_UPDATE.to_string()),
-                    rolling_update: Some(RollingUpdateDaemonSet {
-                        max_unavailable: Some(IntOrString::Int(2)),
-                        ..Default::default()
-                    }),
-                }),
                 ..Default::default()
             }),
             status: Some(DaemonSetStatus {
-                updated_number_scheduled: Some(5),
                 desired_number_scheduled: 5,
-                number_ready: 2, // There are 3 unavailable, maximum allowed are 2.
+                number_ready: 2,
                 ..Default::default()
             }),
         };
@@ -649,7 +305,7 @@ pub mod tests {
         assert_eq!(
             health,
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(String::default(), "Daemonset 'unhealthy-daemon-set': The number of pods ready is less that the desired: 2 < 3".into()),
+                Unhealthy::new(String::default(), "DaemonSet 'unhealthy-daemon-set': The number of pods ready is less that the desired: 2 < 5".into()),
                 start_time
             )
         );
