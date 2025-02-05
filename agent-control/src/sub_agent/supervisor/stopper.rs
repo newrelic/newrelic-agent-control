@@ -14,7 +14,24 @@ pub trait SupervisorStopper {
 pub struct ThreadContext {
     agent_id: AgentID,
     thread_name: String,
+
+    // Channel to send the stop signal to the thread
+    // 
+    // The stop signal is sent to the thread to stop the infinite loop.
+    // 
+    // All threads should have a channel to receive a stop signal, but 
+    // method `crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost::start_process_thread`
+    // doesn't use this mechanism. For this reason, the publisher is optional.
     stop_publisher: Option<EventPublisher<()>>,
+
+    // Handle to the thread
+    //
+    // All threads run infinitely and are only stopped when a message is published
+    // to the `stop_publisher`. Therefore, to stop the thread we need to first publish
+    // a message to the `stop_publisher` and then wait for the thread to finish.
+    //
+    // There is an exception. `crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost::start_process_thread`,
+    // which doesn't use this mechanism.
     join_handle: JoinHandle<()>,
 }
 
