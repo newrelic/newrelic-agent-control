@@ -4,7 +4,7 @@ use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::utils::threads::spawn_named_thread;
-use tracing::{debug, error};
+use tracing::{debug, error, info, warn};
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
@@ -50,18 +50,27 @@ pub(crate) fn spawn_version_checker<V>(
 ) where
     V: VersionChecker + Send + Sync + 'static,
 {
+    // Stores if the version was retrieved in last iteration for logging purposes.
+    let mut version_retrieved = false;
+
     spawn_named_thread("Version checker", move || loop {
         debug!(%agent_id, "starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
             Ok(agent_data) => {
+                if !version_retrieved {
+                    info!(%agent_id, "agent version successfully checked");
+                    version_retrieved = true;
+                }
+
                 publish_version_event(
                     &sub_agent_internal_publisher,
                     SubAgentInternalEvent::AgentVersionInfo(agent_data),
                 );
             }
             Err(error) => {
-                error!(%agent_id, %error, "failed to check agent version");
+                warn!(%agent_id, %error, "failed to check agent version");
+                version_retrieved = false;
             }
         }
 
