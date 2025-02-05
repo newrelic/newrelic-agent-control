@@ -52,23 +52,7 @@ where
 pub struct StartedThreadContext {
     agent_id: AgentID,
     thread_name: String,
-
-    // Channel to send the stop signal to the thread
-    //
-    // The stop signal is sent to the thread to stop the infinite loop.
-    //
-    // There is an exception. `crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost::start_process_thread`,
-    // which doesn't use this mechanism. We still create the publisher and pass it to the thread but it won't be used.
     stop_publisher: EventPublisher<CancellationMessage>,
-
-    // Handle to the thread
-    //
-    // All threads run infinitely and are only stopped when a message is published
-    // to the `stop_publisher`. Therefore, to stop the thread we need to first publish
-    // a message to the `stop_publisher` and then wait for the thread to finish.
-    //
-    // There is an exception. `crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost::start_process_thread`,
-    // which doesn't use this mechanism.
     join_handle: JoinHandle<()>,
 }
 
@@ -82,6 +66,15 @@ pub enum ThreadContextStopperError {
 }
 
 impl StartedThreadContext {
+    /// Returns a new `StartedThreadContext`
+    /// 
+    /// At this point the thread is running in the background.
+    /// In general, the thread will run until a message is published to the `stop_publisher`.
+    /// Therefore, to stop the thread a message is published through the `stop_publisher`.
+    /// 
+    /// # Exceptions
+    /// There are exceptions to this rule. Some threads don't use the mechanism of the `stop_publisher`.
+    /// In those cases, the channel will still be created but not used inside the thread.
     pub fn new(
         agent_id: AgentID,
         thread_name: String,
