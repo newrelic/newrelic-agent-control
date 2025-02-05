@@ -2,7 +2,8 @@ use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::agent_type::version_config::VersionCheckerInterval;
-use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
+use crate::event::cancellation::CancellationMessage;
+use crate::event::channel::{EventConsumer, EventPublisher, EventPublisherError};
 use crate::event::SubAgentInternalEvent;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
@@ -12,10 +13,10 @@ use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
-use crate::sub_agent::supervisor::stopper::{SupervisorStopper, ThreadContext};
+use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
-use crate::utils::threads::spawn_named_thread;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -115,41 +116,35 @@ impl NotStartedSupervisorK8s {
         })
     }
 
-    fn start_k8s_objects_supervisor(&self, resources: Arc<Vec<DynamicObject>>) -> ThreadContext {
-        let (stop_publisher, stop_consumer) = pub_sub();
-        let interval = self.interval;
+    fn start_k8s_objects_supervisor(
+        &self,
+        resources: Arc<Vec<DynamicObject>>,
+    ) -> StartedThreadContext {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
-
-        let thread_name = "k8s objects supervisor".to_string();
-        let thread_name_clone = thread_name.clone();
-        info!(%agent_id, "{} started", thread_name);
-        let join_handle = spawn_named_thread(&thread_name, move || loop {
+        let interval = self.interval;
+        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
             {
                 error!(%agent_id, %err, "K8s resources apply failed");
             }
+
             // Check the cancellation signal
             if stop_consumer.is_cancelled(interval) {
-                info!(%agent_id, "{} stopped", thread_name_clone);
                 break;
             }
-        });
+        };
 
-        ThreadContext::new(
-            self.agent_id.clone(),
-            thread_name,
-            Some(stop_publisher),
-            join_handle,
-        )
+        NotStartedThreadContext::new(self.agent_id.clone(), "k8s objects supervisor", callback)
+            .start()
     }
 
     pub fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<ThreadContext>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
@@ -179,7 +174,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Option<ThreadContext> {
+    ) -> Option<StartedThreadContext> {
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
             &self.agent_id,
@@ -211,7 +206,7 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
-    thread_contexts: Vec<ThreadContext>,
+    thread_contexts: Vec<StartedThreadContext>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {

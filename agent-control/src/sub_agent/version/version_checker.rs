@@ -1,11 +1,10 @@
 use crate::agent_control::config::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{pub_sub, EventPublisher};
+use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::supervisor::stopper::ThreadContext;
-use crate::utils::threads::spawn_named_thread;
 use tracing::{debug, error, info, warn};
+use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
@@ -47,25 +46,20 @@ pub(crate) fn spawn_version_checker<V>(
     version_checker: V,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
-) -> ThreadContext
+) -> StartedThreadContext
 where
     V: VersionChecker + Send + Sync + 'static,
 {
     // Stores if the version was retrieved in last iteration for logging purposes.
     let mut version_retrieved = false;
-
-    spawn_named_thread("Version checker", move || loop {
-    let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
-
-    let thread_name = "version checker".to_string();
     let agent_id_clone = agent_id.clone();
-    let join_handle = spawn_named_thread(&thread_name, move || loop {
+    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         debug!(agent_id = %agent_id_clone, "starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
             Ok(agent_data) => {
                 if !version_retrieved {
-                    info!(%agent_id, "agent version successfully checked");
+                    info!(agent_id = %agent_id_clone, "agent version successfully checked");
                     version_retrieved = true;
                 }
 
@@ -75,7 +69,7 @@ where
                 );
             }
             Err(error) => {
-                warn!(%agent_id, %error, "failed to check agent version");
+                warn!(agent_id = %agent_id_clone, %error, "failed to check agent version");
                 version_retrieved = false;
             }
         }
@@ -83,9 +77,9 @@ where
         if stop_consumer.is_cancelled(interval.into()) {
             break;
         }
-    });
+    };
 
-    ThreadContext::new(agent_id, thread_name, Some(stop_publisher), join_handle)
+    NotStartedThreadContext::new(agent_id, "version checker", callback).start()
 }
 
 pub(crate) fn publish_version_event(

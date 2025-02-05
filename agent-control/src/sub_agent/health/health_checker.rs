@@ -2,14 +2,13 @@ use super::with_start_time::StartTime;
 use crate::agent_control::config::AgentID;
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{pub_sub, EventPublisher};
+use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 #[cfg(feature = "k8s")]
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
-use crate::sub_agent::supervisor::stopper::ThreadContext;
-use crate::utils::threads::spawn_named_thread;
+use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -217,15 +216,12 @@ pub(crate) fn spawn_health_checker<H>(
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
-) -> ThreadContext
+) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
 {
-    let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
-
-    let thread_name = "health checker".to_string();
     let agent_id_clone = agent_id.clone();
-    let join_handle = spawn_named_thread(&thread_name, move || loop {
+    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         debug!(agent_id = %agent_id_clone, "starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
@@ -242,9 +238,9 @@ where
         if stop_consumer.is_cancelled(interval.into()) {
             break;
         }
-    });
+    };
 
-    ThreadContext::new(agent_id, thread_name, Some(stop_publisher), join_handle)
+    NotStartedThreadContext::new(agent_id, "health checker", callback).start()
 }
 
 pub(crate) fn publish_health_event(
