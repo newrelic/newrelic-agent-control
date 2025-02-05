@@ -22,7 +22,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 
