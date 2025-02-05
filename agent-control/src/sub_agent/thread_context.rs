@@ -72,6 +72,15 @@ pub struct StartedThreadContext {
     join_handle: JoinHandle<()>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum ThreadContextStopperError {
+    #[error("Error sending stop signal: {0}")]
+    EventPublisherError(#[from] EventPublisherError),
+
+    #[error("Error joining thread: {0}")]
+    JoinError(String),
+}
+
 impl StartedThreadContext {
     pub fn new(
         agent_id: AgentID,
@@ -95,15 +104,15 @@ impl StartedThreadContext {
         self.join_handle.is_finished()
     }
 
-    pub fn stop(self) -> Result<(), EventPublisherError> {
+    pub fn stop(self) -> Result<(), ThreadContextStopperError> {
         self.stop_publisher.publish(())?;
-        let _ = self.join_handle.join().inspect_err(|err| {
-            error!(
-                agent_id = %self.agent_id,
-                err = err.downcast_ref::<&str>().unwrap_or(&"Unknown error"),
-                "Error stopping {} thread", self.thread_name
-            );
-        });
+        self.join_handle.join().map_err(|err| {
+            ThreadContextStopperError::JoinError(
+                err.downcast_ref::<&str>()
+                    .unwrap_or(&"Unknown error")
+                    .to_string(),
+            )
+        })?;
         info!(agent_id = %self.agent_id, "{} stopped", self.thread_name);
 
         Ok(())

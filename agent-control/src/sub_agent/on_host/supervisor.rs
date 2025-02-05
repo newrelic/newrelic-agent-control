@@ -2,7 +2,7 @@ use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
-use crate::event::channel::{EventPublisher, EventPublisherError};
+use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
@@ -17,7 +17,9 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use crate::sub_agent::thread_context::{
+    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+};
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -32,6 +34,7 @@ use std::{
 use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
+    agent_id: AgentID,
     ctx: Context<bool>,
     thread_contexts: Vec<StartedThreadContext>,
 }
@@ -54,6 +57,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
+        let agent_id = self.agent_id.clone();
 
         let thread_contexts = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -65,6 +69,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         ];
 
         Ok(StartedSupervisorOnHost {
+            agent_id,
             ctx,
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
@@ -72,14 +77,22 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
 }
 
 impl SupervisorStopper for StartedSupervisorOnHost {
-    fn stop(self) -> Result<(), EventPublisherError> {
+    fn stop(self) -> Result<(), ThreadContextStopperError> {
         self.ctx.cancel_all(true).unwrap();
 
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let result = thread_context.stop();
-            if let Err(err) = result {
-                stop_result = Err(err);
+            let thread_name = thread_context.get_thread_name().to_string();
+            let result = thread_context.stop().inspect_err(|err| {
+                error!(
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping {} thread", thread_name
+                )
+            });
+
+            if result.is_err() && stop_result.is_ok() {
+                stop_result = result;
             }
         }
 

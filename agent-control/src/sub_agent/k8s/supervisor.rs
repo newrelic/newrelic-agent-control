@@ -3,7 +3,7 @@ use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{EventConsumer, EventPublisher, EventPublisherError};
+use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
@@ -14,7 +14,9 @@ use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use crate::sub_agent::thread_context::{
+    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -53,6 +55,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         ];
 
         Ok(StartedSupervisorK8s {
+            agent_id: self.agent_id.clone(),
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
@@ -206,17 +209,26 @@ impl NotStartedSupervisorK8s {
 }
 
 pub struct StartedSupervisorK8s {
+    agent_id: AgentID,
     thread_contexts: Vec<StartedThreadContext>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {
-    fn stop(self) -> Result<(), EventPublisherError> {
+    fn stop(self) -> Result<(), ThreadContextStopperError> {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let result = thread_context.stop();
-            if let Err(err) = result {
-                stop_result = Err(err);
+            let thread_name = thread_context.get_thread_name().to_string();
+            let result = thread_context.stop().inspect_err(|err| {
+                error!(
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping {} thread", thread_name
+                )
+            });
+
+            if result.is_err() && stop_result.is_ok() {
+                stop_result = result;
             }
         }
 
