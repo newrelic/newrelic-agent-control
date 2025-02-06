@@ -2,7 +2,7 @@ use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
-use crate::event::channel::{pub_sub, EventPublisher, EventPublisherError};
+use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
 use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
@@ -17,6 +17,9 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use crate::sub_agent::thread_context::{
+    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+};
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
@@ -32,10 +35,8 @@ use tracing::{debug, error, info, warn};
 
 pub struct StartedSupervisorOnHost {
     agent_id: AgentID,
-    maybe_handle: Option<JoinHandle<()>>,
     ctx: Context<bool>,
-    maybe_stop_health: Option<EventPublisher<()>>,
-    maybe_stop_version: Option<EventPublisher<()>>,
+    thread_contexts: Vec<StartedThreadContext>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -56,47 +57,46 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
-        let maybe_stop_health = self.start_health_check(sub_agent_internal_publisher.clone())?;
-        let maybe_stop_version = self.start_version_checker(sub_agent_internal_publisher.clone());
+        let agent_id = self.agent_id.clone();
 
-        let id = self.agent_id.clone();
-
-        // the process thread is created if exec is Some
-        let maybe_handle = self
-            .maybe_exec
-            .clone()
-            .map(|e| self.start_process_thread(sub_agent_internal_publisher, e));
+        let thread_contexts = vec![
+            self.start_health_check(sub_agent_internal_publisher.clone())?,
+            self.start_version_checker(sub_agent_internal_publisher.clone()),
+            // the process thread is created if exec is Some
+            self.maybe_exec
+                .clone()
+                .map(|e| self.start_process_thread(sub_agent_internal_publisher, e)),
+        ];
 
         Ok(StartedSupervisorOnHost {
-            agent_id: id,
-            maybe_handle,
+            agent_id,
             ctx,
-            maybe_stop_health,
-            maybe_stop_version,
+            thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
 }
 
 impl SupervisorStopper for StartedSupervisorOnHost {
-    fn stop(self) -> Result<(), EventPublisherError> {
-        if let Some(stop_health) = self.maybe_stop_health {
-            stop_health.publish(())?; // TODO: should we also wait the health-check join handle?
-        }
-        if let Some(stop_version) = self.maybe_stop_version {
-            stop_version.publish(())?;
-        }
+    fn stop(self) -> Result<(), ThreadContextStopperError> {
         self.ctx.cancel_all(true).unwrap();
 
-        let _ = self.maybe_handle.map(|h| {
-            h.join().inspect_err(|_| {
+        let mut stop_result = Ok(());
+        for thread_context in self.thread_contexts {
+            let thread_name = thread_context.get_thread_name().to_string();
+            let result = thread_context.stop().inspect_err(|err| {
                 error!(
-                    agent_id = self.agent_id.to_string(),
-                    "Error stopping k8s supervisor thread"
-                );
-            })
-        });
+                    agent_id = %self.agent_id,
+                    %err,
+                    "Error stopping {} thread", thread_name
+                )
+            });
 
-        Ok(())
+            if result.is_err() && stop_result.is_ok() {
+                stop_result = result;
+            }
+        }
+
+        stop_result
     }
 }
 
@@ -130,20 +130,18 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<EventPublisher<()>>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
-        if let Some(health_config) = self.health_config.clone() {
-            let (stop_health_publisher, stop_health_consumer) = pub_sub();
+        if let Some(health_config) = &self.health_config {
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
-            spawn_health_checker(
+            let started_thread_context = spawn_health_checker(
                 self.agent_id.clone(),
                 health_checker,
-                stop_health_consumer,
                 sub_agent_internal_publisher,
                 health_config.interval,
                 start_time,
             );
-            return Ok(Some(stop_health_publisher));
+            return Ok(Some(started_thread_context));
         }
         debug!(%self.agent_id, "health checks are disabled for this agent");
         Ok(None)
@@ -152,27 +150,23 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<EventPublisher<()>> {
-        let (stop_version_publisher, stop_version_consumer) = pub_sub();
-
+    ) -> Option<StartedThreadContext> {
         let onhost_version_checker =
             OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
 
-        spawn_version_checker(
+        Some(spawn_version_checker(
             self.agent_id.clone(),
             onhost_version_checker,
-            stop_version_consumer,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
-        );
-        Some(stop_version_publisher)
+        ))
     }
 
     fn start_process_thread(
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
         executable_data: ExecutableData,
-    ) -> JoinHandle<()> {
+    ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
@@ -182,112 +176,115 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.clone(),
             self.agent_id.clone(),
         );
-        spawn_named_thread("OnHost process", {
-            move || loop {
-                // locks the current_pid to prevent `wait_for_termination` finishing before the process
-                // is started and the pid is set.
-                // In case starting the process fail the guard will be dropped and `wait_for_termination`
-                // will finish without needing to cancel any process (current_pid==None).
-                let pid_guard: std::sync::MutexGuard<Option<u32>> = current_pid.lock().unwrap();
 
-                // A context cancelled means that the supervisor has been gracefully stopped
-                // before the process was started.
-                if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
-                    debug!(
+        let agent_id_clone = self.agent_id.clone();
+        let executable_data_clone = executable_data.clone();
+        // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
+        // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
+        // This should be refactored to work as the other threads used by the supervisor.
+        let callback = move |_| loop {
+            // locks the current_pid to prevent `wait_for_termination` finishing before the process
+            // is started and the pid is set.
+            // In case starting the process fail the guard will be dropped and `wait_for_termination`
+            // will finish without needing to cancel any process (current_pid==None).
+            let pid_guard: std::sync::MutexGuard<Option<u32>> = current_pid.lock().unwrap();
+
+            // A context cancelled means that the supervisor has been gracefully stopped
+            // before the process was started.
+            if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+                debug!(
+                    agent_id = self.agent_id.to_string(),
+                    supervisor = executable_data_clone.bin,
+                    msg = "supervisor stopped before starting the process"
+                );
+                break;
+            }
+
+            info!(
+                agent_id = self.agent_id.to_string(),
+                supervisor = executable_data_clone.bin,
+                msg = "starting supervisor process"
+            );
+
+            shutdown_ctx.reset().unwrap();
+            // Signals return exit_code 0, if in the future we need to act on them we can import
+            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+            let not_started_command = self.not_started_command(&executable_data_clone);
+
+            let supervisor_start_time = SystemTime::now();
+
+            let init_health = Healthy::new(String::default());
+
+            publish_health_event(
+                &internal_event_publisher,
+                HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
+            );
+
+            let exit_code = start_command(not_started_command, pid_guard)
+                .inspect_err(|err| {
+                    error!(
                         agent_id = self.agent_id.to_string(),
-                        supervisor = executable_data.bin.clone(),
-                        msg = "supervisor stopped before starting the process"
+                        supervisor = executable_data_clone.bin,
+                        "error while launching supervisor process: {}",
+                        err
                     );
-                    break;
-                }
+                })
+                .map(|exit_status| {
+                    handle_termination(
+                        exit_status,
+                        &internal_event_publisher,
+                        &self.agent_id,
+                        executable_data_clone.bin.to_string(),
+                        supervisor_start_time,
+                    )
+                });
 
+            // A context cancelled means that the supervisor has been gracefully stopped and is the
+            // most probably reason why process has been exited.
+            if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                 info!(
                     agent_id = self.agent_id.to_string(),
-                    supervisor = executable_data.bin.clone(),
-                    msg = "starting supervisor process"
+                    supervisor = executable_data_clone.bin,
+                    msg = "supervisor has been stopped and process terminated"
                 );
-
-                shutdown_ctx.reset().unwrap();
-                // Signals return exit_code 0, if in the future we need to act on them we can import
-                // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-                let not_started_command = self.not_started_command(&executable_data);
-                let bin = executable_data.bin.clone();
-                let id = self.agent_id.clone();
-
-                let supervisor_start_time = SystemTime::now();
-
-                let init_health = Healthy::new(String::default());
-
-                publish_health_event(
-                    &internal_event_publisher,
-                    HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
-                );
-
-                let exit_code = start_command(not_started_command, pid_guard)
-                    .inspect_err(|err| {
-                        error!(
-                            agent_id = id.to_string(),
-                            supervisor = bin,
-                            "error while launching supervisor process: {}",
-                            err
-                        );
-                    })
-                    .map(|exit_status| {
-                        handle_termination(
-                            exit_status,
-                            &internal_event_publisher,
-                            &id,
-                            bin.to_string(),
-                            supervisor_start_time,
-                        )
-                    });
-
-                // A context cancelled means that the supervisor has been gracefully stopped and is the
-                // most probably reason why process has been exited.
-                if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
-                    info!(
-                        agent_id = self.agent_id.to_string(),
-                        supervisor = executable_data.bin,
-                        msg = "supervisor has been stopped and process terminated"
-                    );
-                    break;
-                }
-
-                // canceling the shutdown ctx must be done before getting current_pid lock
-                // as it locked by the wait_for_termination function
-                shutdown_ctx.cancel_all(true).unwrap();
-                *current_pid.lock().unwrap() = None;
-
-                // check if restart policy needs to be applied
-                // As the exit code comes inside a Result but we don't care about the Err,
-                // we just unwrap or take the default value (0)
-                if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
-                    // Log if we are not restarting anymore due to the restart policy being broken
-                    if restart_policy.backoff != BackoffStrategy::None {
-                        warn!("supervisor for {id} won't restart anymore due to having exceeded its restart policy");
-
-                        let unhealthy = Unhealthy::new(
-                            String::default(),
-                            "supervisor exceeded its defined restart policy".to_string(),
-                        );
-
-                        publish_health_event(
-                            &internal_event_publisher,
-                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time)
-                                .into(),
-                        );
-                    }
-                    break;
-                }
-
-                info!("restarting supervisor for {id}...");
-
-                restart_policy.backoff(|duration| {
-                    // early exit if supervisor timeout is canceled
-                    wait_exit_timeout(self.ctx.clone(), duration);
-                });
+                break;
             }
-        })
+
+            // canceling the shutdown ctx must be done before getting current_pid lock
+            // as it locked by the wait_for_termination function
+            shutdown_ctx.cancel_all(true).unwrap();
+            *current_pid.lock().unwrap() = None;
+
+            // check if restart policy needs to be applied
+            // As the exit code comes inside a Result but we don't care about the Err,
+            // we just unwrap or take the default value (0)
+            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+                // Log if we are not restarting anymore due to the restart policy being broken
+                if restart_policy.backoff != BackoffStrategy::None {
+                    warn!("supervisor for {} won't restart anymore due to having exceeded its restart policy", self.agent_id);
+
+                    let unhealthy = Unhealthy::new(
+                        String::default(),
+                        "supervisor exceeded its defined restart policy".to_string(),
+                    );
+
+                    publish_health_event(
+                        &internal_event_publisher,
+                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time).into(),
+                    );
+                }
+                break;
+            }
+
+            info!("restarting supervisor for {}...", self.agent_id);
+
+            restart_policy.backoff(|duration| {
+                // early exit if supervisor timeout is canceled
+                wait_exit_timeout(self.ctx.clone(), duration);
+            });
+        };
+
+        NotStartedThreadContext::new(agent_id_clone, executable_data.bin, callback).start()
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
@@ -540,8 +537,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_context in agent.thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
     }
 
@@ -601,8 +600,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_context in agent.thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
 
         // buffer to ensure all logs are flushed
@@ -647,8 +648,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
-        while !agent.maybe_handle.as_ref().unwrap().is_finished() {
-            thread::sleep(Duration::from_millis(15));
+        for thread_context in agent.thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
         }
 
         // Fix the start times to allow comparison

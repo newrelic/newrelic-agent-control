@@ -8,7 +8,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
-use crate::utils::threads::spawn_named_thread;
+use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -213,18 +213,19 @@ pub trait HealthChecker {
 pub(crate) fn spawn_health_checker<H>(
     agent_id: AgentID,
     health_checker: H,
-    cancel_signal: EventConsumer<CancellationMessage>,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
-) where
+) -> StartedThreadContext
+where
     H: HealthChecker + Send + 'static,
 {
-    spawn_named_thread("Health checker", move || loop {
-        debug!(%agent_id, "starting to check health with the configured checker");
+    let agent_id_clone = agent_id.clone();
+    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+        debug!(agent_id = %agent_id_clone, "starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!(%agent_id, last_error = %err, "the configured health check failed");
+            debug!(agent_id = %agent_id_clone, last_error = %err, "the configured health check failed");
             HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
@@ -234,10 +235,12 @@ pub(crate) fn spawn_health_checker<H>(
         );
 
         // Check the cancellation signal
-        if cancel_signal.is_cancelled(interval.into()) {
+        if stop_consumer.is_cancelled(interval.into()) {
             break;
         }
-    });
+    };
+
+    NotStartedThreadContext::new(agent_id, "health checker", callback).start()
 }
 
 pub(crate) fn publish_health_event(
@@ -349,7 +352,6 @@ pub mod tests {
 
     #[test]
     fn test_spawn_health_checker() {
-        let (cancel_publisher, cancel_signal) = pub_sub();
         let (health_publisher, health_consumer) = pub_sub();
 
         let start_time = SystemTime::now();
@@ -371,47 +373,49 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                // Ensure the health checker will quit after the second loop
-                cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::Generic(
                     "mocked health check error!".to_string(),
                 ))
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_health_checker(
-            agent_id,
+        let started_thread_context = spawn_health_checker(
+            agent_id.clone(),
             health_checker,
-            cancel_signal,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
         );
 
-        // Check that the health checker was called at least once
-        let expected_health_events: Vec<SubAgentInternalEvent> = {
-            vec![
-                HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
-                    .into(),
-                HealthWithStartTime::new(
-                    Unhealthy::new(
-                        "Health check error".to_string(),
-                        "mocked health check error!".to_string(),
-                    )
-                    .into(),
-                    start_time,
+        // Check that we received the two expected health events
+        assert_eq!(
+            SubAgentInternalEvent::from(HealthWithStartTime::new(
+                Healthy::new("status: 0".to_string()).into(),
+                start_time
+            )),
+            health_consumer.as_ref().recv().unwrap()
+        );
+        assert_eq!(
+            SubAgentInternalEvent::from(HealthWithStartTime::new(
+                Unhealthy::new(
+                    "Health check error".to_string(),
+                    "mocked health check error!".to_string(),
                 )
                 .into(),
-            ]
-        };
-        let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
+                start_time,
+            )),
+            health_consumer.as_ref().recv().unwrap()
+        );
 
-        assert_eq!(expected_health_events, actual_health_events);
+        // Check that the thread is finished
+        started_thread_context.stop().unwrap();
+
+        // Check there are no more events
+        assert!(health_consumer.as_ref().recv().is_err());
     }
 
     #[test]
     fn test_repeating_healthy() {
-        let (cancel_publisher, cancel_signal) = pub_sub();
         let (health_publisher, health_consumer) = pub_sub();
 
         let start_time = SystemTime::now();
@@ -433,8 +437,6 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                // Ensure the health checker will quit after the second loop
-                cancel_publisher.publish(()).unwrap();
                 Ok(HealthWithStartTime::from_healthy(
                     Healthy::new("status: 1".to_string()),
                     start_time,
@@ -443,30 +445,39 @@ pub mod tests {
 
         let agent_id = AgentID::new("test-agent").unwrap();
 
-        spawn_health_checker(
-            agent_id,
+        let started_thread_context = spawn_health_checker(
+            agent_id.clone(),
             health_checker,
-            cancel_signal,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
         );
 
-        // Check that the health checker was called at least once
-        let expected_health_events: Vec<SubAgentInternalEvent> = vec![
-            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
-                .into(),
-            HealthWithStartTime::new(Healthy::new("status: 1".to_string()).into(), start_time)
-                .into(),
-        ];
-        let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
+        // Check that we received the two expected health events
+        assert_eq!(
+            SubAgentInternalEvent::from(HealthWithStartTime::new(
+                Healthy::new("status: 0".to_string()).into(),
+                start_time
+            )),
+            health_consumer.as_ref().recv().unwrap()
+        );
+        assert_eq!(
+            SubAgentInternalEvent::from(HealthWithStartTime::new(
+                Healthy::new("status: 1".to_string()).into(),
+                start_time
+            )),
+            health_consumer.as_ref().recv().unwrap()
+        );
 
-        assert_eq!(expected_health_events, actual_health_events);
+        // Check that the thread is finished
+        started_thread_context.stop().unwrap();
+
+        // Check there are no more events
+        assert!(health_consumer.as_ref().recv().is_err());
     }
 
     #[test]
     fn test_repeating_unhealthy() {
-        let (cancel_publisher, cancel_signal) = pub_sub();
         let (health_publisher, health_consumer) = pub_sub();
 
         let mut health_checker = MockHealthCheckMock::new();
@@ -486,7 +497,6 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(move || {
                 // Ensure the health checker will quit after the second loop
-                cancel_publisher.publish(()).unwrap();
                 Err(HealthCheckerError::Generic(
                     "mocked health check error!".to_string(),
                 ))
@@ -495,40 +505,36 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         let agent_id = AgentID::new("test-agent").unwrap();
-        spawn_health_checker(
-            agent_id,
+        let started_thread_context = spawn_health_checker(
+            agent_id.clone(),
             health_checker,
-            cancel_signal,
             health_publisher,
-            Duration::default().into(),
+            Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
         );
 
-        // Check that the health checker was called at least once
-        let expected_health_events: Vec<SubAgentInternalEvent> = {
-            vec![
-                HealthWithStartTime::new(
-                    Unhealthy::new(
-                        "Health check error".to_string(),
-                        "mocked health check error!".to_string(),
-                    )
-                    .into(),
-                    start_time,
-                )
-                .into(),
-                HealthWithStartTime::new(
-                    Unhealthy::new(
-                        "Health check error".to_string(),
-                        "mocked health check error!".to_string(),
-                    )
-                    .into(),
-                    start_time,
-                )
-                .into(),
-            ]
-        };
-        let actual_health_events = health_consumer.as_ref().iter().collect::<Vec<_>>();
+        // Check that we received the two expected health events
+        let expected_health_event = SubAgentInternalEvent::from(HealthWithStartTime::new(
+            Unhealthy::new(
+                "Health check error".to_string(),
+                "mocked health check error!".to_string(),
+            )
+            .into(),
+            start_time,
+        ));
+        assert_eq!(
+            expected_health_event.clone(),
+            health_consumer.as_ref().recv().unwrap()
+        );
+        assert_eq!(
+            expected_health_event,
+            health_consumer.as_ref().recv().unwrap()
+        );
 
-        assert_eq!(expected_health_events, actual_health_events);
+        // Check that the thread is finished
+        started_thread_context.stop().unwrap();
+
+        // Check there are no more events
+        assert!(health_consumer.as_ref().recv().is_err());
     }
 }
