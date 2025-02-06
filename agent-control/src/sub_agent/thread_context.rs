@@ -34,7 +34,7 @@ where
         }
     }
 
-    pub fn start(self) -> StartedThreadContext<T> {
+    pub fn start(self) -> StartedThreadContext {
         info!(agent_id = %self.agent_id, "{} started", self.thread_name);
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
@@ -42,16 +42,18 @@ where
             self.agent_id,
             self.thread_name.clone(),
             stop_publisher,
-            spawn_named_thread(&self.thread_name, move || (self.callback)(stop_consumer)),
+            spawn_named_thread(&self.thread_name, move || {
+                (self.callback)(stop_consumer);
+            }),
         )
     }
 }
 
-pub struct StartedThreadContext<T> {
+pub struct StartedThreadContext {
     agent_id: AgentID,
     thread_name: String,
     stop_publisher: EventPublisher<CancellationMessage>,
-    join_handle: JoinHandle<T>,
+    join_handle: JoinHandle<()>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -63,10 +65,7 @@ pub enum ThreadContextStopperError {
     JoinError(String),
 }
 
-impl<T> StartedThreadContext<T>
-where
-    T: Send + 'static,
-{
+impl StartedThreadContext {
     /// Returns a new `StartedThreadContext`
     ///
     /// At this point the thread is running in the background.
@@ -80,7 +79,7 @@ where
         agent_id: AgentID,
         thread_name: String,
         stop_publisher: EventPublisher<()>,
-        join_handle: JoinHandle<T>,
+        join_handle: JoinHandle<()>,
     ) -> Self {
         Self {
             agent_id,
@@ -94,18 +93,18 @@ where
         &self.thread_name
     }
 
-    pub fn stop(self) -> Result<T, ThreadContextStopperError> {
+    pub fn stop(self) -> Result<(), ThreadContextStopperError> {
         self.stop_publisher.publish(())?;
-        let result = self.join_handle.join().map_err(|err| {
+        self.join_handle.join().map_err(|err| {
             ThreadContextStopperError::JoinError(
                 err.downcast_ref::<&str>()
                     .unwrap_or(&"Unknown error")
                     .to_string(),
             )
-        });
+        })?;
         info!(agent_id = %self.agent_id, "{} stopped", self.thread_name);
 
-        result
+        Ok(())
     }
 }
 
@@ -121,17 +120,14 @@ pub mod tests {
 
     use super::StartedThreadContext;
 
-    impl<T> StartedThreadContext<T>
-    where
-        T: Send + 'static,
-    {
+    impl StartedThreadContext {
         pub fn is_thread_finished(&self) -> bool {
             self.join_handle.is_finished()
         }
     }
 
     #[test]
-    fn test_thread_context_start_stop_without_return() {
+    fn test_thread_context_start_stop() {
         let agent_id = AgentID::new("test-agent").unwrap();
         let thread_name = "test-thread";
         let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
@@ -145,43 +141,5 @@ pub mod tests {
         assert!(!started_thread_context.is_thread_finished());
 
         started_thread_context.stop().unwrap();
-    }
-
-    #[test]
-    fn test_thread_context_start_stop_with_return() {
-        let agent_id = AgentID::new("test-agent").unwrap();
-        let thread_name = "test-thread";
-        let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
-            if stop_consumer.is_cancelled(Duration::default()) {
-                return 1;
-            }
-        };
-        let not_started_thread_context =
-            NotStartedThreadContext::new(agent_id, thread_name, callback);
-        let started_thread_context = not_started_thread_context.start();
-        assert!(!started_thread_context.is_thread_finished());
-
-        assert_eq!(started_thread_context.stop().unwrap(), 1);
-    }
-
-    #[test]
-    fn test_thread_context_start_stop_returns_error() {
-        let agent_id = AgentID::new("test-agent").unwrap();
-        let thread_name = "test-thread";
-        let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
-            if stop_consumer.is_cancelled(Duration::default()) {
-                panic!("something went wrong");
-            }
-        };
-        let not_started_thread_context =
-            NotStartedThreadContext::new(agent_id, thread_name, callback);
-
-        // This call will fail because the thread panics.
-        // If you see the stacktrace printed to the console, it is expected.
-        let started_thread_context = not_started_thread_context.start();
-        assert_eq!(
-            started_thread_context.stop().unwrap_err().to_string(),
-            "Error joining thread: something went wrong"
-        );
     }
 }

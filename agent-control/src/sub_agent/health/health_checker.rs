@@ -216,7 +216,7 @@ pub(crate) fn spawn_health_checker<H>(
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
-) -> StartedThreadContext<()>
+) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
 {
