@@ -67,11 +67,11 @@ pub enum ThreadContextStopperError {
 
 impl StartedThreadContext {
     /// Returns a new `StartedThreadContext`
-    /// 
+    ///
     /// At this point the thread is running in the background.
     /// In general, the thread will run until a message is published to the `stop_publisher`.
     /// Therefore, to stop the thread a message is published through the `stop_publisher`.
-    /// 
+    ///
     /// # Exceptions
     /// There are exceptions to this rule. Some threads don't use the mechanism of the `stop_publisher`.
     /// In those cases, the channel will still be created but not used inside the thread.
