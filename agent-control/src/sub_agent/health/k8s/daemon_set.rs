@@ -44,10 +44,11 @@ impl K8sHealthDaemonSet {
         }
     }
 
-    // We decided to ignore that and consider unhealthy a DaemonSet during a rolling
-    // update if the number of ready replicas is < expected replicas ignoring rolling_update.max_unavailable
-    // Moreover, following the APM approach we are currently not considering updatedNumberScheduled.
-    // I.e. we are reporting healthy if there is an agent running an old version.
+    // A DS is unHealthy if the number of ready replicas is < expected replicas ignoring rolling_update.max_unavailable
+    // or if number_unavailable>0
+    // We decided to ignore max_unavailable and therefore consider unhealthy a DaemonSet during a rolling update
+    // Moreover, following the APM approach we are not considering updatedNumberScheduled.
+    // I.e. we are reporting healthy also whenever there is an instance running an old version.
     pub fn check_health_single_daemon_set(ds: &DaemonSet) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(ds)?;
         let status = Self::get_daemon_set_status(name.as_str(), ds)?;
