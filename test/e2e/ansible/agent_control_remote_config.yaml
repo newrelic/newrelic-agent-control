@@ -36,7 +36,7 @@
           debug:
             var: version.stdout
 
-        - name: Create the L2 private key
+        - name: Import the L2 private key from env-var
           copy:
             dest: "{{ agent_control_private_key }}"
             # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
@@ -116,7 +116,7 @@
           retries: 5
           delay: 5
 
-        - name: Assert Agent Control and Infra Agent  is not
+        - name: Assert Agent Control is still running and Infra Agent was stopped
           include_role:
             name: caos.ansible_roles.assert_process_running
           vars:
