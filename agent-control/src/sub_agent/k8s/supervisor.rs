@@ -122,7 +122,7 @@ impl NotStartedSupervisorK8s {
     fn start_k8s_objects_supervisor(
         &self,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> StartedThreadContext {
+    ) -> StartedThreadContext<()> {
         let agent_id = self.agent_id.clone();
         let k8s_client = self.k8s_client.clone();
         let interval = self.interval;
@@ -147,7 +147,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext<()>>, SupervisorStarterError> {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
@@ -177,7 +177,7 @@ impl NotStartedSupervisorK8s {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
         resources: Arc<Vec<DynamicObject>>,
-    ) -> Option<StartedThreadContext> {
+    ) -> Option<StartedThreadContext<()>> {
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
             &self.agent_id,
@@ -210,7 +210,7 @@ impl NotStartedSupervisorK8s {
 
 pub struct StartedSupervisorK8s {
     agent_id: AgentID,
-    thread_contexts: Vec<StartedThreadContext>,
+    thread_contexts: Vec<StartedThreadContext<()>>,
 }
 
 impl SupervisorStopper for StartedSupervisorK8s {

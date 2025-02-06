@@ -36,7 +36,7 @@ use tracing::{debug, error, info, warn};
 pub struct StartedSupervisorOnHost {
     agent_id: AgentID,
     ctx: Context<bool>,
-    thread_contexts: Vec<StartedThreadContext>,
+    thread_contexts: Vec<StartedThreadContext<()>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -130,7 +130,7 @@ impl NotStartedSupervisorOnHost {
     fn start_health_check(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
+    ) -> Result<Option<StartedThreadContext<()>>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
@@ -150,7 +150,7 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<StartedThreadContext> {
+    ) -> Option<StartedThreadContext<()>> {
         let onhost_version_checker =
             OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
 
@@ -166,7 +166,7 @@ impl NotStartedSupervisorOnHost {
         self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
         executable_data: ExecutableData,
-    ) -> StartedThreadContext {
+    ) -> StartedThreadContext<()> {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();

@@ -46,7 +46,7 @@ pub(crate) fn spawn_version_checker<V>(
     version_checker: V,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
-) -> StartedThreadContext
+) -> StartedThreadContext<()>
 where
     V: VersionChecker + Send + Sync + 'static,
 {
