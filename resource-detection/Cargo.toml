@@ -15,7 +15,7 @@ tracing = { workspace = true }
 serde_json = { workspace = true }
 http = { workspace = true }
 bytes = "1.6.0"
-ureq = { workspace = true, features = ["http-crate", "native-certs"] }
+reqwest = { workspace = true, features = ["blocking", "rustls-tls", "rustls-tls-native-roots"] }
 fs = { path = "../fs" }
 konst = { workspace = true }
 url = { version = "2.5.0" }

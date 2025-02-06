@@ -1,70 +1,93 @@
-use crate::cloud::http_client::{HttpClient, HttpClientError};
+use crate::cloud::http_client::{try_build_response, HttpClient, HttpClientError};
+use core::str;
+use reqwest::blocking::Client;
 use std::time::Duration;
 
 pub(crate) const TOKEN_HEADER: &str = "x-aws-ec2-metadata-token";
 pub(crate) const TTL_TOKEN_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
 
-/// An implementation of the `HttpClient` trait using the ureq library and IMDv2 auth.
-pub struct AWSHttpClientUreq {
-    http_client: ureq::Agent,
+/// An implementation of the `HttpClient` trait using the reqwest library and IMDv2 auth.
+pub struct AWSHttpClientReqwest {
+    http_client: Client,
     token_endpoint: String,
     token_ttl: Duration,
     metadata_endpoint: String,
 }
 
-impl AWSHttpClientUreq {
-    /// Returns a new instance of AWSHttpClientUreq
-    pub fn new(
+impl AWSHttpClientReqwest {
+    /// Returns a new instance of AWSHttpClientReqwest
+    pub fn try_new(
         metadata_endpoint: String,
         token_endpoint: String,
         token_ttl: Duration,
         timeout: Duration,
-    ) -> Self {
-        Self {
-            http_client: ureq::AgentBuilder::new()
-                .timeout_connect(timeout)
-                .timeout(timeout)
-                .build(),
+    ) -> Result<Self, HttpClientError> {
+        let http_client = Client::builder()
+            .use_rustls_tls() // Use rust-tls backend
+            .tls_built_in_native_certs(true) // Load system (native) certificates with rust-tls
+            .connect_timeout(timeout)
+            .timeout(timeout)
+            .build()?;
+        Ok(Self {
+            http_client,
             metadata_endpoint,
             token_endpoint,
             token_ttl,
-        }
+        })
     }
 
     fn get_token(&self) -> Result<String, HttpClientError> {
         let response = self
             .http_client
             .put(self.token_endpoint.as_str())
-            .set(
+            .header(
                 TTL_TOKEN_HEADER,
                 self.token_ttl.as_secs().to_string().as_str(),
             )
-            .call()?;
+            .send()?;
 
-        let token = response.into_string().map_err(|err| {
-            HttpClientError::InternalError(format!("getting AWS IMDS token: {}", err))
-        })?;
+        if !response.status().is_success() {
+            return Err(HttpClientError::ResponseError(
+                response.status().into(),
+                response.text()?,
+            ));
+        }
 
+        let bytes = response.bytes()?;
+        let token = str::from_utf8(bytes.as_ref())
+            .map_err(|err| {
+                HttpClientError::TransportError(format!("could not decode AWS IMDS token {err}"))
+            })?
+            .to_string();
         Ok(token)
     }
 }
 
-impl HttpClient for AWSHttpClientUreq {
+impl HttpClient for AWSHttpClientReqwest {
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError> {
         let token = self.get_token()?;
 
         let req = self
             .http_client
             .get(&self.metadata_endpoint)
-            .set(TOKEN_HEADER, &token);
+            .header(TOKEN_HEADER, &token);
 
-        Ok(req.call()?.into())
+        let response = req.send()?;
+
+        if !response.status().is_success() {
+            return Err(HttpClientError::ResponseError(
+                response.status().into(),
+                response.text()?,
+            ));
+        }
+
+        try_build_response(response)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::cloud::aws::http_client::{AWSHttpClientUreq, TOKEN_HEADER, TTL_TOKEN_HEADER};
+    use crate::cloud::aws::http_client::{AWSHttpClientReqwest, TOKEN_HEADER, TTL_TOKEN_HEADER};
     use crate::cloud::http_client::{HttpClient, HttpClientError, DEFAULT_CLIENT_TIMEOUT};
     use assert_matches::assert_matches;
     use httpmock::MockServer;
@@ -88,12 +111,13 @@ mod tests {
             then.status(200).body("test_metadata");
         });
 
-        let http_client = AWSHttpClientUreq::new(
+        let http_client = AWSHttpClientReqwest::try_new(
             imds_server.url("/metadata"),
             imds_server.url("/token"),
             TTL_TOKEN,
             DEFAULT_CLIENT_TIMEOUT,
-        );
+        )
+        .unwrap();
 
         let resp = http_client.get().unwrap();
 
@@ -119,12 +143,13 @@ mod tests {
             then.status(401).body("test_metadata");
         });
 
-        let http_client = AWSHttpClientUreq::new(
+        let http_client = AWSHttpClientReqwest::try_new(
             imds_server.url("/metadata"),
             imds_server.url("/token"),
             TTL_TOKEN,
             DEFAULT_CLIENT_TIMEOUT,
-        );
+        )
+        .unwrap();
 
         let err = http_client.get().unwrap_err();
 
@@ -144,12 +169,13 @@ mod tests {
             then.status(500);
         });
 
-        let http_client = AWSHttpClientUreq::new(
+        let http_client = AWSHttpClientReqwest::try_new(
             imds_server.url("/metadata"),
             imds_server.url("/token"),
             TTL_TOKEN,
             DEFAULT_CLIENT_TIMEOUT,
-        );
+        )
+        .unwrap();
 
         let err = http_client.get().unwrap_err();
 
@@ -169,12 +195,13 @@ mod tests {
             then.status(200).body(invalid_token);
         });
 
-        let http_client = AWSHttpClientUreq::new(
+        let http_client = AWSHttpClientReqwest::try_new(
             imds_server.url("/metadata"),
             imds_server.url("/token"),
             TTL_TOKEN,
             DEFAULT_CLIENT_TIMEOUT,
-        );
+        )
+        .unwrap();
 
         let err = http_client.get().unwrap_err();
 

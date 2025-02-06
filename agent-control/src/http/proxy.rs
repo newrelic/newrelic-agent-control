@@ -92,20 +92,6 @@ pub struct ProxyConfig {
     /// Proxy URL proxy:
     /// <protocol>://<user>:<password>@<host>:<port>
     /// (All parts except host are optional)
-    ///
-    /// Protocols supported:
-    /// http: HTTP
-    /// socks4: SOCKS4
-    /// socks4a: SOCKS4A
-    /// socks5 and socks: SOCKS5 (requires ureq socks feature)
-    ///
-    /// Examples from ureq:
-    /// http://127.0.0.1:8080
-    /// socks5://john:smith@socks.google.com
-    /// john:smith@socks.google.com:8000
-    /// localhost
-    ///
-    /// Note: HTTPS scheme is not supported (since it is not supported by ureq).
     #[serde(default)]
     url: ProxyUrl,
     /// System path with the CA certificates in PEM format. All `.pem` files in the directory are read.

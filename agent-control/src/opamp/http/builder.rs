@@ -3,11 +3,11 @@ use http::{HeaderMap, HeaderValue};
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::client::HttpClientUreq;
+use super::client::ReqwestOpAMPClient;
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::http::config::HttpConfig;
 use crate::http::proxy::ProxyConfig;
-use crate::http::ureq::try_build_ureq;
+use crate::http::reqwest::{try_build_reqwest_client, ReqwestBuildError};
 use nr_auth::TokenRetriever;
 use opamp_client::http::http_client::HttpClient;
 
@@ -16,7 +16,7 @@ const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(thiserror::Error, Debug)]
 pub enum HttpClientBuilderError {
-    #[error("`{0}`")]
+    #[error("error building the OpAMP HTTP client: {0}")]
     BuildingError(String),
 }
 
@@ -27,13 +27,13 @@ pub trait HttpClientBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub struct UreqHttpClientBuilder<T> {
+pub struct OpAMPHttpClientBuilder<T> {
     opamp_config: OpAMPClientConfig,
     proxy_config: ProxyConfig,
     token_retriever: Arc<T>,
 }
 
-impl<T> UreqHttpClientBuilder<T>
+impl<T> OpAMPHttpClientBuilder<T>
 where
     T: TokenRetriever + Send + Sync + 'static,
 {
@@ -62,11 +62,11 @@ where
     }
 }
 
-impl<T> HttpClientBuilder for UreqHttpClientBuilder<T>
+impl<T> HttpClientBuilder for OpAMPHttpClientBuilder<T>
 where
     T: TokenRetriever + Send + Sync + 'static,
 {
-    type Client = HttpClientUreq<T>;
+    type Client = ReqwestOpAMPClient<T>;
 
     /// Build the HTTP Client. It will contain a Token Retriever, so in all
     /// post requests a Token will be retrieved from Identity System Service
@@ -77,24 +77,35 @@ where
             DEFAULT_CLIENT_TIMEOUT,
             self.proxy_config.clone(),
         );
-        let client = try_build_ureq(http_config).map_err(|e| {
-            HttpClientBuilderError::BuildingError(format!("error building opamp client: {}", e))
-        })?;
+        let client = try_build_reqwest_client(http_config)?;
         let url = self.opamp_config.endpoint.clone();
         let headers = self.headers();
         let token_retriever = self.token_retriever.clone();
 
-        Ok(HttpClientUreq::new(client, url, headers, token_retriever))
+        Ok(ReqwestOpAMPClient::new(
+            client,
+            url,
+            headers,
+            token_retriever,
+        ))
+    }
+}
+
+impl From<ReqwestBuildError> for HttpClientBuilderError {
+    fn from(err: ReqwestBuildError) -> Self {
+        Self::BuildingError(err.to_string())
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use assert_matches::assert_matches;
     use http::Response;
     use mockall::mock;
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{http::HttpClientError, StartedClient};
 
+    use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::{
         agent_control::config::AgentID,
         event::channel::pub_sub,
@@ -195,9 +206,6 @@ pub(crate) mod tests {
             // I need to do this because this type doesn't implement Debug, TODO fix in opamp-rs!
             panic!("Expected an error");
         };
-        assert_eq!(
-            "error building http client: ``bad config``",
-            err.to_string()
-        );
+        assert_matches!(err, OpAMPClientBuilderError::HttpClientBuilderError(_));
     }
 }

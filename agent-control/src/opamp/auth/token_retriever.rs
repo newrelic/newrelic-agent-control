@@ -1,9 +1,9 @@
 use super::config::{AuthConfig, LocalConfig, ProviderConfig};
-use crate::agent_control::run::BasePaths;
+use super::http_client::ReqwestAuthHttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::proxy::ProxyConfig;
-use crate::http::ureq::try_build_ureq;
-use crate::opamp::auth::http_client::AuthHttpClient;
+use crate::http::reqwest::try_build_reqwest_client;
+use crate::{agent_control::run::BasePaths, http::reqwest::ReqwestBuildError};
 use chrono::DateTime;
 use nr_auth::{
     authenticator::HttpAuthenticator,
@@ -28,7 +28,7 @@ pub enum TokenRetrieverImplError {
 }
 
 // Just an alias to make the code more readable
-type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<AuthHttpClient>>;
+type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<ReqwestAuthHttpClient>>;
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
@@ -72,20 +72,20 @@ impl TokenRetrieverImpl {
             proxy_config,
         );
 
-        let http_client = try_build_ureq(http_config).map_err(|e| {
-            TokenRetrieverImplError::HTTPBuildingClientError(format!(
-                "error building auth http client: {}",
-                e
-            ))
-        })?;
-
-        let auth_http_client = AuthHttpClient::new(http_client);
+        let client = try_build_reqwest_client(http_config)?;
+        let auth_http_client = ReqwestAuthHttpClient::new(client);
         let authenticator = HttpAuthenticator::new(auth_http_client, ac.token_url.clone());
 
         Ok(Self::HttpTR(
             TokenRetrieverHttp::new(ac.client_id, jwt_signer, authenticator)
                 .with_retries(ac.retries),
         ))
+    }
+}
+
+impl From<ReqwestBuildError> for TokenRetrieverImplError {
+    fn from(err: ReqwestBuildError) -> Self {
+        Self::HTTPBuildingClientError(err.to_string())
     }
 }
 

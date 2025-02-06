@@ -42,12 +42,13 @@ fn test_aws_cloud_id() {
 
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
-        CloudIdDetector::new(
+        CloudIdDetector::try_new(
             fake_metadata_server.url(metadata_path),
             fake_metadata_server.url(token_path),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .provide()
     .unwrap();
@@ -75,12 +76,13 @@ fn test_azure_cloud_id() {
 
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
-        CloudIdDetector::new(
+        CloudIdDetector::try_new(
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             fake_metadata_server.url(metadata_path),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        ),
+        )
+        .unwrap(),
     )
     .provide()
     .unwrap();
@@ -108,12 +110,13 @@ fn test_gcp_cloud_id() {
 
     let id = IdentifiersProvider::new(
         SystemDetector::default(),
-        CloudIdDetector::new(
+        CloudIdDetector::try_new(
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
             fake_metadata_server.url(metadata_path),
-        ),
+        )
+        .unwrap(),
     )
     .provide()
     .unwrap();

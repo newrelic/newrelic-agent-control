@@ -1,4 +1,5 @@
 use http::HeaderMap;
+use reqwest::blocking::{Client, Response};
 use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
@@ -9,6 +10,9 @@ pub const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
+    /// Represents an error building the HttpClient
+    #[error("could not build the HTTP client: `{0}`")]
+    BuildingError(String),
     /// Represents an internal HTTP client error.
     #[error("internal HTTP client error: `{0}`")]
     InternalError(String),
@@ -28,53 +32,64 @@ pub trait HttpClient {
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError>;
 }
 
-/// An implementation of the `HttpClient` trait using the ureq library.
-pub struct HttpClientUreq {
-    client: ureq::Agent,
+/// An implementation of the [HttpClient] trait using the reqwest library.
+pub struct HttpClientReqwest {
+    client: Client,
     url: String,
-    header_map: Option<HeaderMap>,
+    headers: Option<HeaderMap>,
 }
 
-impl HttpClientUreq {
-    /// Returns a new instance of HttpClientUreq
-    pub fn new(url: String, timeout: Duration, header_map: Option<HeaderMap>) -> Self {
-        Self {
-            client: ureq::AgentBuilder::new()
-                .timeout_connect(timeout)
-                .timeout(timeout)
-                .build(),
+impl HttpClientReqwest {
+    /// Builds a new [HttpClientReqwest] instance
+    pub fn try_new(
+        url: String,
+        timeout: Duration,
+        headers: Option<HeaderMap>,
+    ) -> Result<Self, HttpClientError> {
+        let client = Client::builder()
+            .use_rustls_tls() // Use rust-tls backend
+            .tls_built_in_native_certs(true) // Load system (native) certificates with rust-tls
+            .connect_timeout(timeout)
+            .timeout(timeout)
+            .build()
+            .map_err(|err| HttpClientError::BuildingError(err.to_string()))?;
+        Ok(Self {
+            client,
             url,
-            header_map,
-        }
+            headers,
+        })
     }
 }
 
-impl HttpClient for HttpClientUreq {
+impl HttpClient for HttpClientReqwest {
     fn get(&self) -> Result<http::Response<Vec<u8>>, HttpClientError> {
         let mut req = self.client.get(&self.url);
-
-        if let Some(headers) = self.header_map.as_ref() {
-            for (header_name, header_value) in headers {
-                if let Ok(value) = header_value.to_str() {
-                    req = req.set(header_name.as_str(), value);
-                } else {
-                    error!("invalid header value for {}", header_name)
-                }
-            }
+        if let Some(headers) = self.headers.as_ref() {
+            req = req.headers(headers.clone());
         }
-
-        Ok(req.call()?.into())
+        try_build_response(req.send()?)
     }
 }
 
-impl From<ureq::Error> for HttpClientError {
-    fn from(value: ureq::Error) -> Self {
-        match value {
-            ureq::Error::Status(code, resp) => {
-                HttpClientError::ResponseError(code, resp.status_text().to_string())
-            }
-            ureq::Error::Transport(e) => HttpClientError::TransportError(e.to_string()),
-        }
+/// Helper to build a [http::Response<Vec<u8>>] from a reqwest's blocking response.
+/// It includes status, version and body. Headers are not included but could be added if needed.
+pub fn try_build_response(res: Response) -> Result<http::Response<Vec<u8>>, HttpClientError> {
+    let status = res.status();
+    let version = res.version();
+    let body: Vec<u8> = res
+        .bytes()
+        .map_err(|err| HttpClientError::TransportError(err.to_string()))?
+        .into();
+    http::Response::builder()
+        .status(status)
+        .version(version)
+        .body(body)
+        .map_err(|err| HttpClientError::TransportError(err.to_string()))
+}
+
+impl From<reqwest::Error> for HttpClientError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::TransportError(err.to_string())
     }
 }
 

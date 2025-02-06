@@ -1,10 +1,15 @@
 use crate::agent_type::health_config::{HealthCheckTimeout, HttpHealth};
+use crate::http::reqwest::{
+    reqwest_builder_with_timeout, try_build_response, ReqwestResponseError,
+};
 use crate::sub_agent::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use std::collections::HashMap;
+use std::time::Duration;
 use thiserror::Error;
+use tokio::time;
 use tracing::error;
 use url::Url;
 
@@ -13,7 +18,6 @@ const DEFAULT_PROTOCOL: &str = "http://";
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
-    /// Represents Ureq crate error.
     #[error("internal HTTP client error: `{0}`")]
     HttpClientError(String),
 }
@@ -29,8 +33,8 @@ pub trait HttpClient {
     ) -> Result<http::Response<Vec<u8>>, HttpClientError>;
 }
 
-/// An implementation of the `HttpClient` trait using the ureq library.
-impl HttpClient for ureq::Agent {
+/// An implementation of the `HttpClient` trait using the reqwest library.
+impl HttpClient for reqwest::blocking::Client {
     fn get(
         &self,
         path: &str,
@@ -39,20 +43,25 @@ impl HttpClient for ureq::Agent {
         let mut req = self.get(path);
 
         for (header_name, header_value) in headers {
-            req = req.set(header_name.as_str(), header_value.as_str());
+            req = req.header(header_name.as_str(), header_value.as_str());
         }
 
-        match req.call() {
-            Ok(response) | Err(ureq::Error::Status(_, response)) => Ok(response.into()),
+        let res = req
+            .send()
+            .map_err(|err| HttpClientError::HttpClientError(err.to_string()))?;
 
-            Err(ureq::Error::Transport(e)) => Err(HttpClientError::HttpClientError(e.to_string())),
-        }
+        Ok(try_build_response(res)?)
+    }
+}
+
+impl From<ReqwestResponseError> for HttpClientError {
+    fn from(err: ReqwestResponseError) -> Self {
+        Self::HttpClientError(err.to_string())
     }
 }
 
 /// The `HttpHealthChecker` is in charge of calling its client and parsing the health status
-/// #[derive(Debug, Default)]
-pub struct HttpHealthChecker<C = ureq::Agent>
+pub struct HttpHealthChecker<C = reqwest::blocking::Client>
 where
     C: HttpClient,
 {
@@ -63,7 +72,7 @@ where
     start_time: StartTime,
 }
 
-impl HttpHealthChecker<ureq::Agent> {
+impl HttpHealthChecker<reqwest::blocking::Client> {
     pub(crate) fn new(
         timeout: HealthCheckTimeout,
         http_config: HttpHealth,
@@ -85,11 +94,15 @@ impl HttpHealthChecker<ureq::Agent> {
         let headers = http_config.headers;
         let healthy_status_codes = http_config.healthy_status_codes;
 
+        let client_timeout = Duration::from(timeout);
+        let client = reqwest_builder_with_timeout(client_timeout, client_timeout)
+            .build()
+            .map_err(|err| {
+                HealthCheckerError::Generic(format!("could not build the http client: {err}"))
+            })?;
+
         Ok(Self {
-            client: ureq::AgentBuilder::new()
-                .timeout_connect(timeout.into())
-                .timeout(timeout.into())
-                .build(),
+            client,
             url,
             headers,
             healthy_status_codes,

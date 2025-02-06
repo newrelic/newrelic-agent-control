@@ -2,11 +2,11 @@ use crate::opamp::instance_id::on_host::storer::StorerError;
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
 };
-use resource_detection::cloud::aws::http_client::AWSHttpClientUreq;
+use resource_detection::cloud::aws::http_client::AWSHttpClientReqwest;
 use resource_detection::cloud::azure::detector::{AzureDetector, AZURE_IPV4_METADATA_ENDPOINT};
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::{GCPDetector, GCP_IPV4_METADATA_ENDPOINT};
-use resource_detection::cloud::http_client::HttpClientUreq;
+use resource_detection::cloud::http_client::{HttpClientError, HttpClientReqwest};
 use resource_detection::cloud::CLOUD_INSTANCE_ID;
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
@@ -41,14 +41,16 @@ pub enum IdentifiersProviderError {
     MissingHostIDError,
     #[error("detecting resources: `{0}`")]
     DetectError(#[from] DetectError),
+    #[error("Building cloud detector: `{0}`")]
+    BuildError(#[from] HttpClientError),
 }
 
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
-        AWSDetector<AWSHttpClientUreq>,
-        AzureDetector<HttpClientUreq>,
-        GCPDetector<HttpClientUreq>,
+        AWSDetector<AWSHttpClientReqwest>,
+        AzureDetector<HttpClientReqwest>,
+        GCPDetector<HttpClientReqwest>,
     >,
 > where
     D: Detector,
@@ -60,19 +62,19 @@ pub struct IdentifiersProvider<
     fleet_id: String,
 }
 
-impl Default for IdentifiersProvider {
-    fn default() -> Self {
-        Self {
+impl IdentifiersProvider {
+    pub fn try_new() -> Result<Self, IdentifiersProviderError> {
+        Ok(Self {
             system_detector: SystemDetector::default(),
-            cloud_id_detector: CloudIdDetector::new(
+            cloud_id_detector: CloudIdDetector::try_new(
                 AWS_IPV4_METADATA_ENDPOINT.to_string(),
                 AWS_IPV4_METADATA_TOKEN_ENDPOINT.to_string(),
                 AZURE_IPV4_METADATA_ENDPOINT.to_string(),
                 GCP_IPV4_METADATA_ENDPOINT.to_string(),
-            ),
+            )?,
             host_id: String::default(),
             fleet_id: String::default(),
-        }
+        })
     }
 }
 

@@ -3,10 +3,10 @@ use thiserror::Error;
 use tracing::warn;
 
 use crate::cloud::aws::detector::AWSDetector;
-use crate::cloud::aws::http_client::AWSHttpClientUreq;
+use crate::cloud::aws::http_client::AWSHttpClientReqwest;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
-use crate::cloud::http_client::HttpClientUreq;
+use crate::cloud::http_client::{HttpClientError, HttpClientReqwest};
 use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
@@ -22,23 +22,23 @@ pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
 
 impl
     CloudIdDetector<
-        AWSDetector<AWSHttpClientUreq>,
-        AzureDetector<HttpClientUreq>,
-        GCPDetector<HttpClientUreq>,
+        AWSDetector<AWSHttpClientReqwest>,
+        AzureDetector<HttpClientReqwest>,
+        GCPDetector<HttpClientReqwest>,
     >
 {
     /// Returns a new instance of CloudIdDetector
-    pub fn new(
+    pub fn try_new(
         aws_metadata_endpoint: String,
         aws_token_endpoint: String,
         azure_metadata_endpoint: String,
         gcp_metadata_endpoint: String,
-    ) -> Self {
-        Self {
-            aws_detector: AWSDetector::new(aws_metadata_endpoint, aws_token_endpoint),
-            azure_detector: AzureDetector::new(azure_metadata_endpoint),
-            gcp_detector: GCPDetector::new(gcp_metadata_endpoint),
-        }
+    ) -> Result<Self, HttpClientError> {
+        Ok(Self {
+            aws_detector: AWSDetector::try_new(aws_metadata_endpoint, aws_token_endpoint)?,
+            azure_detector: AzureDetector::try_new(azure_metadata_endpoint)?,
+            gcp_detector: GCPDetector::try_new(gcp_metadata_endpoint)?,
+        })
     }
 }
 

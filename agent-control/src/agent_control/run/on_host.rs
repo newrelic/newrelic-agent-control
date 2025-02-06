@@ -58,7 +58,7 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
 
-        let identifiers_provider = IdentifiersProvider::default()
+        let identifiers_provider = IdentifiersProvider::try_new()?
             .with_host_id(config.host_id.clone())
             .with_fleet_id(fleet_id);
 

@@ -13,7 +13,7 @@ use crate::event::{
 };
 use crate::http::proxy::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
-use crate::opamp::http::builder::UreqHttpClientBuilder;
+use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -65,7 +65,7 @@ pub struct AgentControlRunConfig {
 pub struct AgentControlRunner {
     agent_type_registry: EmbeddedRegistry,
     application_event_consumer: EventConsumer<ApplicationEvent>,
-    opamp_http_builder: Option<UreqHttpClientBuilder<TokenRetrieverImpl>>,
+    opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
     opamp_poll_interval: Duration,
     agent_control_publisher: EventPublisher<AgentControlEvent>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -103,8 +103,11 @@ impl AgentControlRunner {
                     .inspect_err(|err| error!(error_mgs=%err,"Building token retriever"))?,
                 );
 
-                let http_builder =
-                    UreqHttpClientBuilder::new(opamp_config.clone(), config.proxy, token_retriever);
+                let http_builder = OpAMPHttpClientBuilder::new(
+                    opamp_config.clone(),
+                    config.proxy,
+                    token_retriever,
+                );
 
                 Some(http_builder)
             }
