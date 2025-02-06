@@ -29,6 +29,14 @@ ifndef NR_ORGANIZATION_ID
 	@echo "NR_ORGANIZATION_ID variable must be provided for test/e2e"
 	exit 1
 endif
+ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/e2e"
+	exit 1
+endif
+ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
+	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/e2e"
+	exit 1
+endif
 
 # if you want to hide OK, add ANSIBLE_DISPLAY_OK_HOSTS=NO
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
@@ -43,6 +51,7 @@ endif
         -e nr_otel_collector_otlp_endpoint=$(NR_OTEL_COLLECTOR_OTLP_ENDPOINT) \
         -e opamp_endpoint=${OPAMP_ENDPOINT} \
         -e package_version=${PACKAGE_VERSION} \
+        -e system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
  		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean

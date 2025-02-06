@@ -1,4 +1,6 @@
 agent_control_config_file: /etc/newrelic-agent-control/config.yaml
+agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
+agent_control_private_key: /etc/newrelic-agent-control/priv.key
 agent_control_remote_config_file: /var/lib/newrelic-agent-control/config.yaml
 agent_control_hash_file_tpl: /var/lib/newrelic-agent-control/hash.yaml
 agent_control_identifiers_file: /var/lib/newrelic-agent-control/identifiers.yaml
