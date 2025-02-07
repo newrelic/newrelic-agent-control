@@ -2,9 +2,6 @@ name: 📞 Rust Audit
 
 on:
   workflow_call:
-    secrets:
-      slack_webhook:
-        required: false
 
 jobs:
   audit:
@@ -39,14 +36,3 @@ jobs:
       - name: Run cargo audit
         run: cargo audit
 
-      - name: Send notification to Slack Workflow
-        if: ${{ failure() }}
-        id: slack
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": ":rotating_light: Hi CAOS (@hero), critical or high vulnerabilities found in the agent control, see scheduled security action. :rotating_light:"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.slack_webhook }}

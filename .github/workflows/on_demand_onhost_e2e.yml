@@ -26,7 +26,7 @@ jobs:
     with:
       UNIQUE_NAME: ${{ inputs.UNIQUE_NAME || 'ci-on-demand' }}
       EC2_FILTERS: ${{ inputs.EC2_FILTERS || '[\"ubuntu22.04\"]' }}
-      REPOSITORY_ENDPOINT: ${{ inputs.REPOSITORY_ENDPOINT || 'https://nr-downloads-ohai-staging.s3.amazonaws.com/'}}
+      REPOSITORY_ENDPOINT: ${{ inputs.REPOSITORY_ENDPOINT || 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'}}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

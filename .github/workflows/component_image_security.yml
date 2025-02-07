@@ -51,15 +51,3 @@ jobs:
 
       # TODO Upload Trivy scan results to GitHub Security tab when the repo gets public state.
       # more info about current limitation https://docs.github.com/en/code-security/code-scanning/troubleshooting-code-scanning/advanced-security-must-be-enabled
-
-      - name: Send notification to Slack Workflow
-        if: ${{ failure() }}
-        id: slack
-        uses: slackapi/slack-github-action@v1.24.0
-        with:
-          payload: |
-            {
-              "text": ":rotating_light: Critical or high vulnerabilities found in the agent control, see scheduled security action. :rotating_light:"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.COREINT_SLACK_WEBHOOK_URL }}
