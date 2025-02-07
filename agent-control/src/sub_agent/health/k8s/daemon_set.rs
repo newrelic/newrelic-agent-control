@@ -9,6 +9,8 @@ use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
 
+const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
+
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
@@ -112,7 +114,6 @@ impl K8sHealthDaemonSet {
     }
 }
 
-const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 fn is_daemon_set_update_strategy_rolling_update(
     name: &str,
     daemon_set: &DaemonSet,
