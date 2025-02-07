@@ -30,7 +30,7 @@ jobs:
       push: true
     secrets: inherit
 
-  security-scan:
+  security-image:
     name: Security scan
     needs: [ build-image ]
     uses: ./.github/workflows/component_image_security.yml
@@ -39,7 +39,10 @@ jobs:
       image-tag: nightly
     secrets: inherit
 
-  build-nightly:
+  security-source-code:
+      uses: ./.github/workflows/component_security.yml
+
+  upload-packages-s3:
     runs-on: ubuntu-latest
     needs: [ build-packages ]
     name: Upload packages to testing bucket
@@ -81,7 +84,7 @@ jobs:
   # e2e test were not actually testing the new packages! This will be addressed in https://new-relic.atlassian.net/browse/NR-346876
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ build-nightly ]
+    needs: [ upload-packages-s3 ]
     with:
       UNIQUE_NAME: "nightly:e2e"
       EC2_FILTERS: '[\"ubuntu22.04\"]'
@@ -103,12 +106,17 @@ jobs:
 
   notify-failure:
     if: ${{ always() && failure() }}
-    needs: [ build-image ]
+    needs: [ onhost-e2e, k8s_canaries, security-image, security-source-code, build-image, build-packages ]
     runs-on: ubuntu-latest
     steps:
-      - name: Notify failure via Slack
-        uses: archive/github-actions-slack@master
-        with:
-          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
-          slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `newrelic/newrelic-agent-control`: [Nightly release failed](${{ github.server_url }}/newrelic/newrelic-agent-control/actions/runs/${{ github.run_id }})."
+    - name: Notify failure via Slack
+      uses: slackapi/slack-github-action@v1.22.0
+      with:
+        payload: |
+          {
+            "text": ":warning: [Nightly workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
+          }
+      env:
+        SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+        GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+

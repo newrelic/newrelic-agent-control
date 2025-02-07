@@ -104,14 +104,3 @@ jobs:
       PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: 'https://download.newrelic.com/preview'
 
-  notify-failure:
-    if: ${{ always() && failure() }}
-    needs: [ molecule-packaging-tests ]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify failure via Slack
-        uses: archive/github-actions-slack@master
-        with:
-          slack-bot-user-oauth-access-token: ${{ secrets.COREINT_SLACK_TOKEN }}
-          slack-channel: ${{ secrets.CAOS_COREINT_SLACK_CHANNEL }}
-          slack-text: "❌ `newrelic/newrelic-agent-control`: [release failed](${{ github.server_url }}/newrelic/newrelic-agent-control/actions/runs/${{ github.run_id }})."

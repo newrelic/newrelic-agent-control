@@ -7,7 +7,8 @@
   vars:
     # This test expects to have a created Fleet with an Active deployment containing a AC remote configuration
     # with no agents.
-    fleet_id: MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk0ZDY1Yy0yZTM3LTczMzctOWM5NC05MTNmOWM5N2U1Y2Q
+    # onhost-e2e-1 fleet on canaries account
+    fleet_id: MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk0ZGY3MS1mYWIxLTcyMmEtYjg4Zi1lYzA2MzI3NGUyODc
 
   tasks:
     - name: Install AC and assert a remote config is applied.
