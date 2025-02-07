@@ -47,11 +47,12 @@ impl K8sHealthDaemonSet {
     // A DS is unHealthy if the number of ready replicas is < expected replicas ignoring rolling_update.max_unavailable
     // or if number_unavailable>0
     // We decided to ignore max_unavailable and therefore consider unhealthy a DaemonSet during a rolling update
-    // Moreover, following the APM approach we are not considering updatedNumberScheduled.
-    // I.e. we are reporting healthy also whenever there is an instance running an old version.
+    // Moreover, following the APM approach we are not considering updatedNumberScheduled with onDelete policy.
+    // I.e. we are reporting healthy also whenever there is an instance running an old version if there are no failing pods.
     pub fn check_health_single_daemon_set(ds: &DaemonSet) -> Result<Health, HealthCheckerError> {
-        let name = client_utils::get_metadata_name(ds)?;
-        let status = Self::get_daemon_set_status(name.as_str(), ds)?;
+        let n = client_utils::get_metadata_name(ds)?;
+        let name = n.as_str();
+        let status = Self::get_daemon_set_status(name, ds)?;
         if status.number_ready < status.desired_number_scheduled {
             return Ok(Unhealthy::new(
                 String::default(),
@@ -78,6 +79,25 @@ impl K8sHealthDaemonSet {
             .into());
         }
 
+        // If the update_strategy is a rolling_update we require that all pods are running the latest version
+        // Otherwise having max_surge>0 is possible that having a pod running a new version that is broken
+        if is_daemon_set_update_strategy_rolling_update(name, ds)? {
+            let updated_number_scheduled = status.updated_number_scheduled.unwrap_or_default();
+
+            if updated_number_scheduled < status.desired_number_scheduled {
+                return Ok(Unhealthy::new(
+                    String::default(),
+                    format!(
+                        "DaemonSet '{}': The number of nodes having an updated and ready replica is less that the desired: {} < {}",
+                        name,
+                        updated_number_scheduled,
+                        status.desired_number_scheduled
+                    ),
+                )
+                .into());
+            }
+        }
+
         Ok(Healthy::new(String::default()).into())
     }
 
@@ -92,6 +112,25 @@ impl K8sHealthDaemonSet {
     }
 }
 
+const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
+fn is_daemon_set_update_strategy_rolling_update(
+    name: &str,
+    daemon_set: &DaemonSet,
+) -> Result<bool, HealthCheckerError> {
+    let update_type = daemon_set
+        .spec
+        .clone()
+        .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec"))?
+        .update_strategy
+        .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec.updateStrategy"))?
+        .type_
+        .ok_or_else(|| {
+            utils::missing_field_error(daemon_set, name, ".spec.updateStrategy.type_")
+        })?;
+
+    Ok(update_type == ROLLING_UPDATE_UPDATE_STRATEGY)
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -102,6 +141,7 @@ pub mod tests {
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
     };
+    use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::{
         api::apps::v1::{DaemonSetSpec, DaemonSetStatus},
@@ -146,7 +186,13 @@ pub mod tests {
                         name: None,
                         ..Default::default()
                     },
-                    spec: None,
+                    spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
                     status: None,
                 },
                 expected: HealthCheckerError::K8sError(crate::k8s::error::K8sError::MissingName(
@@ -157,10 +203,29 @@ pub mod tests {
                 name: "ds without status",
                 ds: DaemonSet {
                     metadata: test_util_get_common_metadata(),
-                    spec: None,
+                    spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
                     status: None,
                 },
                 expected: test_util_missing_field(".status"),
+            },
+            TestCase {
+                name: "ds without update strategy",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: Some(DaemonSetSpec {
+                        ..Default::default()
+                    }),
+                    status: Some(DaemonSetStatus {
+                        ..Default::default()
+                    }),
+                },
+                expected: test_util_missing_field(".spec.updateStrategy"),
             },
         ];
 
@@ -195,6 +260,10 @@ pub mod tests {
                 ds: DaemonSet {
                     metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            ..Default::default()
+                        }),
                         ..Default::default()
                     }),
                     status: Some(DaemonSetStatus {
@@ -216,6 +285,10 @@ pub mod tests {
                 ds: DaemonSet {
                     metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            rolling_update: None,
+                        }),
                         ..Default::default()
                     }),
                     status: Some(DaemonSetStatus {
@@ -232,16 +305,68 @@ pub mod tests {
                 .into(),
             },
             TestCase {
-                name: "everything is good",
+                name: "pods with old version",
                 ds: DaemonSet {
                     metadata: test_util_get_common_metadata(),
                     spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            ..Default::default()
+                        }),
                         ..Default::default()
                     }),
+                    status: Some(DaemonSetStatus {
+                        desired_number_scheduled: 31,
+                        number_ready: 31,
+                        number_unavailable: Some(0),
+                        updated_number_scheduled: Some(2),
+                        ..Default::default()
+                    }),
+                },
+                expected: Unhealthy {
+                    last_error: String::from(
+                        "DaemonSet 'test': The number of nodes having an updated and ready replica is less that the desired: 2 < 31",
+                    ),
+                    ..Default::default()
+                }
+                    .into(),
+            },
+            TestCase {
+                name: "pods with old version but strategy is not RollingUpdate",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some("different".to_string()),
+                            ..Default::default()
+                        }),
+                    ..Default::default()}),
                     status: Some(DaemonSetStatus {
                         desired_number_scheduled: 3,
                         number_ready: 3,
                         number_unavailable: Some(0),
+                        updated_number_scheduled: Some(2),
+                        ..Default::default()
+                    }),
+                },
+                expected: Healthy::default().into(),
+            },
+            TestCase {
+                name: "everything is good",
+                ds: DaemonSet {
+                    metadata: test_util_get_common_metadata(),
+                    spec: Some(DaemonSetSpec {
+                        update_strategy: Some(DaemonSetUpdateStrategy {
+                            type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }),
+                    status: Some(DaemonSetStatus {
+                        desired_number_scheduled: 2,
+                        number_ready: 2,
+                        number_unavailable: Some(0),
+                        updated_number_scheduled: Some(2),
                         ..Default::default()
                     }),
                 },
@@ -264,6 +389,10 @@ pub mod tests {
                 ..Default::default()
             },
             spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             status: Some(DaemonSetStatus {
@@ -278,6 +407,10 @@ pub mod tests {
                 ..Default::default()
             },
             spec: Some(DaemonSetSpec {
+                update_strategy: Some(DaemonSetUpdateStrategy {
+                    type_: Some(ROLLING_UPDATE_UPDATE_STRATEGY.to_string()),
+                    ..Default::default()
+                }),
                 ..Default::default()
             }),
             status: Some(DaemonSetStatus {
