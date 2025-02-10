@@ -59,7 +59,7 @@ impl K8sHealthDaemonSet {
             return Ok(Unhealthy::new(
                 String::default(),
                 format!(
-                    "DaemonSet '{}': The number of pods ready is less that the desired: {} < {}",
+                    "DaemonSet `{}`: the number of pods ready `{}` is less that the desired `{}`",
                     name, status.number_ready, status.desired_number_scheduled
                 ),
             )
@@ -73,7 +73,7 @@ impl K8sHealthDaemonSet {
             return Ok(Unhealthy::new(
                 String::default(),
                 format!(
-                    "DaemonSet '{}': The are {} unavailable pods",
+                    "DaemonSet `{}`: the are {} unavailable pods",
                     name,
                     status.number_unavailable.unwrap_or_default()
                 ),
@@ -90,7 +90,7 @@ impl K8sHealthDaemonSet {
                 return Ok(Unhealthy::new(
                     String::default(),
                     format!(
-                        "DaemonSet '{}': The number of nodes having an updated and ready replica is less that the desired: {} < {}",
+                        "DaemonSet `{}`: the number of nodes having an updated and ready replica `{}` is less that the desired `{}`",
                         name,
                         updated_number_scheduled,
                         status.desired_number_scheduled
@@ -164,7 +164,7 @@ pub mod tests {
                 let err_result = K8sHealthDaemonSet::check_health_single_daemon_set(&self.ds)
                     .inspect(|ok| {
                         panic!(
-                            "Test Case '{}' is returning a Health Result: {:?}",
+                            "Test Case `{}` is returning a Health Result: {:?}",
                             self.name, ok
                         );
                     })
@@ -247,7 +247,7 @@ pub mod tests {
                     K8sHealthDaemonSet::check_health_single_daemon_set(&self.ds);
                 let health_result = health_run.unwrap_or_else(|err| {
                     panic!(
-                        "Test case '{}' is not returning a Health Result: {}",
+                        "Test case `{}` is not returning a Health Result: {}",
                         self.name, err
                     )
                 });
@@ -275,7 +275,7 @@ pub mod tests {
                 },
                 expected: Unhealthy {
                     last_error: String::from(
-                        "DaemonSet 'test': The number of pods ready is less that the desired: 2 < 3",
+                        "DaemonSet `test`: the number of pods ready `2` is less that the desired `3`",
                     ),
                     ..Default::default()
                 }
@@ -299,7 +299,7 @@ pub mod tests {
                 },
                 expected: Unhealthy {
                     last_error: String::from(
-                        "DaemonSet 'test': The are 5 unavailable pods",
+                        "DaemonSet `test`: the are 5 unavailable pods",
                     ),
                     ..Default::default()
                 }
@@ -326,7 +326,7 @@ pub mod tests {
                 },
                 expected: Unhealthy {
                     last_error: String::from(
-                        "DaemonSet 'test': The number of nodes having an updated and ready replica is less that the desired: 2 < 31",
+                        "DaemonSet `test`: the number of nodes having an updated and ready replica `2` is less that the desired `31`",
                     ),
                     ..Default::default()
                 }
@@ -440,7 +440,7 @@ pub mod tests {
         assert_eq!(
             health,
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(String::default(), "DaemonSet 'unhealthy-daemon-set': The number of pods ready is less that the desired: 2 < 5".into()),
+                Unhealthy::new(String::default(), "DaemonSet `unhealthy-daemon-set`: the number of pods ready `2` is less that the desired `5`".into()),
                 start_time
             )
         );

@@ -1,23 +1,13 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
-use crate::k8s::utils::IntOrPercentage;
 use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::k8s::utils::{self, check_health_for_items, flux_release_filter};
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use k8s_openapi::api::apps::v1::{Deployment, DeploymentSpec, ReplicaSet};
-use k8s_openapi::api::core::v1::PodTemplateSpec;
-use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
-use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
+use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::Arc;
-use tracing::warn;
-
-const ROLLING_UPDATE: &str = "RollingUpdate";
-
-// https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/apis/apps/types.go#L443
-const DEFAULT_HASH_LABEL: &str = "pod-template-hash";
 
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
@@ -33,25 +23,8 @@ impl HealthChecker for K8sHealthDeployment {
             .into_iter()
             .filter(flux_release_filter(self.release_name.clone()));
 
-        let health_function = |deployment: &Deployment| {
-            let name = client_utils::get_metadata_name(deployment)?;
-            let deployment_pod_template_spec =
-                deployment.spec.clone().map(|s| s.template).ok_or_else(|| {
-                    utils::missing_field_error(deployment, name.as_str(), ".spec.template")
-                })?;
+        let health = check_health_for_items(target_deployments, Self::check_deployment_health)?;
 
-            self.active_replica_set(name.clone(), deployment_pod_template_spec)
-                .map(|replica_set| Self::check_deployment_health(deployment, &replica_set))
-                .unwrap_or_else(|| {
-                    Ok(Unhealthy::new(
-                        String::default(),
-                        format!("ReplicaSet not found for Deployment {name}"),
-                    )
-                    .into())
-                })
-        };
-
-        let health = check_health_for_items(target_deployments, health_function)?;
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
@@ -69,359 +42,188 @@ impl K8sHealthDeployment {
         }
     }
 
-    /// Checks the health of a specific deployment and its associated ReplicaSet.
-    pub fn check_deployment_health(
-        deployment: &Deployment,
-        rs: &ReplicaSet,
-    ) -> Result<Health, HealthCheckerError> {
+    /// Checks the health of a specific Deployment.
+    pub fn check_deployment_health(deployment: &Deployment) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(deployment)?;
 
         let status = deployment
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, name.as_str(), ".status"))?;
 
-        let spec = deployment
+        // The deployment is unhealthy if any of the pods are unavailable, i.e. not running or not ready.
+        if let Some(unavailable_replicas) = status.unavailable_replicas {
+            if unavailable_replicas > 0 {
+                return Ok(Unhealthy::new(
+                    String::default(),
+                    format!("Deployment `{name}`: has {unavailable_replicas} unavailable replicas"),
+                )
+                .into());
+            }
+        };
+
+        let desired_replicas = deployment
             .spec
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "spec"))?;
-
-        // If the deployment is paused, consider it unhealthy
-        if let Some(true) = spec.paused {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!("Deployment '{}' is paused", name,),
-            )
-            .into());
-        }
-
-        let replicas = status
+            .ok_or_else(|| utils::missing_field_error(deployment, name.as_str(), ".spec"))?
             .replicas
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "status.replicas"))?;
+            .ok_or_else(|| utils::missing_field_error(deployment, &name, "spec.replicas"))?;
 
-        let max_unavailable = Self::max_unavailable(deployment, &name, spec)?;
-
-        let expected_ready = replicas.checked_sub(max_unavailable).ok_or_else(|| {
-            HealthCheckerError::Generic(format!(
-                "Invalid calculation for expected ready replicas for Deployment '{}'",
-                name
-            ))
-        })?;
-
-        let rs_status = rs
-            .status
-            .as_ref()
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "replica set status"))?;
-
-        let ready_replicas = rs_status
-            .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "ready replicas"))?;
-
-        if ready_replicas < expected_ready {
+        // This condition is more of a safe net, as if there are no unavailable replicas, available replicas should match desired replicas.
+        // available_replicas is present only if > 0
+        let available_replicas = status.available_replicas.unwrap_or_default();
+        if available_replicas < desired_replicas {
             return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "Deployment '{}' is not ready. {} out of {} expected pods are ready",
-                    name, ready_replicas, expected_ready
-                ),
-            )
-            .into());
+                    String::default(),
+                    format!("Deployment `{name}`: available replicas `{available_replicas}` is less than desired `{desired_replicas}`"),
+                )
+                .into());
         }
 
         Ok(Healthy::new(String::default()).into())
     }
-
-    /// Calculates the maximum number of unavailable pods during a rolling update.
-    fn max_unavailable(
-        deployment: &Deployment,
-        metadata_name: &str,
-        spec: &DeploymentSpec,
-    ) -> Result<i32, HealthCheckerError> {
-        let replicas = spec.replicas.ok_or_else(|| {
-            utils::missing_field_error(deployment, metadata_name, "spec.replicas")
-        })?;
-
-        if !Self::is_rolling_update(deployment, metadata_name, spec)? || replicas == 0 {
-            return Ok(0);
-        }
-
-        let rolling_update_strategy = spec
-            .strategy
-            .as_ref()
-            .and_then(|strategy| strategy.rolling_update.as_ref());
-        let max_surge = rolling_update_strategy.and_then(|ru| ru.max_surge.as_ref());
-        let max_unavailable = rolling_update_strategy.and_then(|ru| ru.max_unavailable.as_ref());
-
-        let max_unavailable = Self::resolve_fenceposts(
-            deployment,
-            max_surge,
-            max_unavailable,
-            metadata_name,
-            replicas,
-        )?;
-
-        Ok(max_unavailable.min(replicas))
-    }
-
-    /// Checks if the deployment strategy is a rolling update.
-    fn is_rolling_update(
-        deployment: &Deployment,
-        metadata_name: &str,
-        spec: &DeploymentSpec,
-    ) -> Result<bool, HealthCheckerError> {
-        let strategy = spec.strategy.as_ref().ok_or_else(|| {
-            utils::missing_field_error(deployment, metadata_name, "spec.strategy")
-        })?;
-
-        let type_ = strategy.type_.as_deref().ok_or_else(|| {
-            utils::missing_field_error(deployment, metadata_name, "spec.strategy.type")
-        })?;
-
-        Ok(type_ == ROLLING_UPDATE)
-    }
-
-    /// Return the maximum number of unavailable pods during a rolling update.
-    ///
-    /// Ensures the calculated value is within reasonable bounds and defaults to 1 if both
-    /// max_surge and max_unavailable resolve to zero.
-    fn resolve_fenceposts(
-        deployment: &Deployment,
-        max_surge: Option<&IntOrString>,
-        max_unavailable: Option<&IntOrString>,
-        name: &str,
-        desired: i32,
-    ) -> Result<i32, HealthCheckerError> {
-        let surge =
-            Self::int_or_string_to_value(deployment, max_surge, name, "max_surge", desired, true)?;
-        let unavailable = Self::int_or_string_to_value(
-            deployment,
-            max_unavailable,
-            name,
-            "max_unavailable",
-            desired,
-            false,
-        )?;
-
-        // Validation should never allow zero values for both max_surge and max_unavailable.
-        // If both resolve to zero, set unavailable to 1 to ensure proper functionality.
-        if surge == 0 && unavailable == 0 {
-            return Ok(1);
-        }
-
-        Ok(unavailable)
-    }
-
-    /// Converts an IntOrString to its scaled value based on the total desired pods.
-    fn int_or_string_to_value(
-        deployment: &Deployment,
-        int_or_string: Option<&IntOrString>,
-        name: &str,
-        field: &str,
-        desired: i32,
-        round_up: bool,
-    ) -> Result<i32, HealthCheckerError> {
-        match int_or_string {
-            Some(value) => {
-                let int_or_percentage =
-                    IntOrPercentage::try_from(value.clone()).map_err(|err| {
-                        HealthCheckerError::InvalidK8sObject {
-                            kind: Deployment::KIND.to_string(),
-                            name: name.to_string(),
-                            err: format!("Invalid IntOrString value: {}", err),
-                        }
-                    })?;
-
-                Ok(int_or_percentage.scaled_value(desired, round_up))
-            }
-            None => Err(utils::missing_field_error(deployment, name, field)),
-        }
-    }
-
-    /// This function retrieves all ReplicaSets associated with the specified Deployment and
-    /// returns the used one comparing ownership, timestamps and podTemplate.
-    /// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L612
-    fn active_replica_set(
-        &self,
-        deployment_name: String,
-        deployment_pod_template: PodTemplateSpec,
-    ) -> Option<Arc<ReplicaSet>> {
-        // Filter the list of ReplicaSets referencing to the deployment
-        let mut replica_sets: Vec<Arc<ReplicaSet>> = self
-            .k8s_client
-            .list_replica_set()
-            .into_iter()
-            .filter(|rs| check_ownership(&deployment_name, rs))
-            .filter(|rs| check_pod_template(&deployment_pod_template, rs))
-            .collect();
-
-        // Sort ReplicaSets by creation timestamp in descending order and select the newest one.
-        replica_sets.sort_by(|a, b| {
-            b.metadata
-                .creation_timestamp
-                .cmp(&a.metadata.creation_timestamp)
-        });
-
-        replica_sets.into_iter().next() // replica_sets.first() would return a reference
-    }
-}
-
-fn check_ownership(deployment_name: &str, rs: &Arc<ReplicaSet>) -> bool {
-    if let Some(owner_references) = &rs.metadata.owner_references {
-        return owner_references
-            .iter()
-            .any(|owner| owner.kind == Deployment::KIND && owner.name == deployment_name);
-    }
-    false
-}
-
-fn check_pod_template(deployment_pod_template: &PodTemplateSpec, rs: &Arc<ReplicaSet>) -> bool {
-    let deployment_pod_template = remove_hash_label_from_template(deployment_pod_template);
-
-    if let Some(specs) = &rs.spec {
-        if let Some(rs_template) = &specs.template {
-            return deployment_pod_template == remove_hash_label_from_template(rs_template);
-        }
-    }
-
-    warn!(
-        "the ReplicaSet/{:?} is missing the spec.template field",
-        rs.metadata.name
-    );
-    false
-}
-
-// Implementing https://github.com/kubernetes/kubernetes/blob/release-1.31/pkg/controller/deployment/util/deployment_util.go#L603
-fn remove_hash_label_from_template(pod_template_spec: &PodTemplateSpec) -> PodTemplateSpec {
-    let mut tmp = pod_template_spec.clone();
-
-    if let Some(metadata) = tmp.metadata.as_mut() {
-        if let Some(labels) = metadata.labels.as_mut() {
-            labels.remove(DEFAULT_HASH_LABEL);
-        };
-    };
-    tmp
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-    use std::str::FromStr;
-
     use super::*;
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::{
         k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
     };
-    use chrono::{DateTime, Utc};
     use k8s_openapi::api::apps::v1::{
-        Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, ReplicaSetSpec,
-        ReplicaSetStatus, RollingUpdateDeployment,
+        Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, RollingUpdateDeployment,
     };
-    use k8s_openapi::api::core::v1::PodSpec;
-    use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, OwnerReference, Time};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 
     #[test]
     fn test_deployment_check_health() {
         struct TestCase {
             name: &'static str,
             deployment: Deployment,
-            rs: Option<ReplicaSet>,
             expected: Health,
         }
 
         impl TestCase {
             fn run(self) {
-                let result = if let Some(rs) = self.rs {
-                    K8sHealthDeployment::check_deployment_health(&self.deployment, &rs)
-                        .inspect_err(|err| {
-                            panic!("Unexpected error getting health: {} - {}", err, self.name);
-                        })
-                        .unwrap()
-                } else {
-                    Unhealthy::new(
-                        String::default(),
-                        format!(
-                            "ReplicaSet not found for Deployment '{}'",
-                            self.deployment
-                                .metadata
-                                .name
-                                .as_deref()
-                                .unwrap_or("unknown"),
-                        ),
-                    )
-                    .into()
-                };
+                let result = K8sHealthDeployment::check_deployment_health(&self.deployment)
+                    .inspect_err(|err| {
+                        panic!("Unexpected error getting health: {} - {}", err, self.name);
+                    })
+                    .unwrap();
 
                 assert_eq!(result, self.expected, "{}", self.name);
             }
         }
 
         let test_cases = [
+            // Healthy cases
             TestCase {
-                name: "Deployment ready",
+                name: "Deployment with zero replicas",
                 deployment: Deployment {
                     metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    status: Some(test_util_create_deployment_status(10)),
+                    spec: Some(DeploymentSpec {
+                        replicas: Some(0),
+                        ..Default::default()
+                    }),
+                    status: Some(DeploymentStatus {
+                        ..Default::default()
+                    }),
                 },
-                rs: Some(ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    status: Some(test_util_create_replica_set_status(8)),
-                    ..Default::default()
-                }),
                 expected: Healthy::default().into(),
             },
             TestCase {
-                name: "Deployment not ready",
+                name: "Deployment with zero replicas, zero values",
                 deployment: Deployment {
                     metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    status: Some(test_util_create_deployment_status(10)),
+                    spec: Some(DeploymentSpec {
+                        replicas: Some(0),
+                        ..Default::default()
+                    }),
+                    status: Some(DeploymentStatus {
+                        available_replicas: Some(0),
+                        unavailable_replicas: Some(0),
+                        ..Default::default()
+                    }),
                 },
-                rs: Some(ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    status: Some(test_util_create_replica_set_status(6)),
-                    ..Default::default()
-                }),
+                expected: Healthy::default().into(),
+            },
+            TestCase {
+                name: "Deployment with replicas",
+                deployment: Deployment {
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(DeploymentSpec {
+                        replicas: Some(10),
+                        ..Default::default()
+                    }),
+                    status: Some(DeploymentStatus {
+                        available_replicas: Some(10),
+                        ..Default::default()
+                    }),
+                },
+                expected: Healthy::default().into(),
+            },
+            // Unhealthy cases
+            TestCase {
+                name: "Deployment with unavailable replicas",
+                deployment: Deployment {
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(DeploymentSpec {
+                        replicas: Some(1),
+                        ..Default::default()
+                    }),
+                    status: Some(DeploymentStatus {
+                        available_replicas: Some(1),
+                        unavailable_replicas: Some(1),
+                        ..Default::default()
+                    }),
+                },
                 expected: Unhealthy::new(
                     String::default(),
-                    "Deployment 'test-deployment' is not ready. 6 out of 8 expected pods are ready"
+                    "Deployment `test-deployment`: has 1 unavailable replicas".into(),
+                )
+                .into(),
+            },
+            TestCase {
+                name: "Deployment with desired replicas not matching available replicas",
+                deployment: Deployment {
+                    metadata: test_util_create_metadata("test-deployment"),
+                    spec: Some(DeploymentSpec {
+                        replicas: Some(10),
+                        ..Default::default()
+                    }),
+                    status: Some(DeploymentStatus {
+                        available_replicas: Some(9),
+                        unavailable_replicas: None,
+                        ..Default::default()
+                    }),
+                },
+                expected: Unhealthy::new(
+                    String::default(),
+                    "Deployment `test-deployment`: available replicas `9` is less than desired `10`"
                         .into(),
                 )
                 .into(),
             },
             TestCase {
-                name: "Deployment paused",
+                name: "Deployment with desired replicas not matching available replicas (None)",
                 deployment: Deployment {
                     metadata: test_util_create_metadata("test-deployment"),
                     spec: Some(DeploymentSpec {
-                        paused: Some(true),
-                        ..test_util_create_deployment_spec(10, "30%", "20%")
+                        replicas: Some(10),
+                        ..Default::default()
                     }),
-                    status: Some(test_util_create_deployment_status(10)),
+                    status: Some(DeploymentStatus {
+                        available_replicas: None,
+                        unavailable_replicas: None,
+                        ..Default::default()
+                    }),
                 },
-                rs: Some(ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    status: Some(test_util_create_replica_set_status(8)),
-                    ..Default::default()
-                }),
                 expected: Unhealthy::new(
                     String::default(),
-                    "Deployment 'test-deployment' is paused".into(),
-                )
-                .into(),
-            },
-            TestCase {
-                name: "No ReplicaSet found",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    status: Some(test_util_create_deployment_status(10)),
-                },
-                rs: None,
-                expected: Unhealthy::new(
-                    String::default(),
-                    "ReplicaSet not found for Deployment 'test-deployment'".into(),
+                    "Deployment `test-deployment`: available replicas `0` is less than desired `10`"
+                        .into(),
                 )
                 .into(),
             },
@@ -435,13 +237,12 @@ mod tests {
         struct TestCase {
             name: &'static str,
             deployment: Deployment,
-            rs: ReplicaSet,
             expected_err: HealthCheckerError,
         }
 
         impl TestCase {
             fn run(self) {
-                let err = K8sHealthDeployment::check_deployment_health(&self.deployment, &self.rs)
+                let err = K8sHealthDeployment::check_deployment_health(&self.deployment)
                     .inspect(|result| {
                         panic!("Expected error, got {:?} for test - {}", result, self.name)
                     })
@@ -465,10 +266,6 @@ mod tests {
                     },
                     ..Default::default()
                 },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    ..Default::default()
-                },
                 expected_err: HealthCheckerError::Generic(
                     "k8s error: Deployment does not have .metadata.name".to_string(),
                 ),
@@ -480,14 +277,10 @@ mod tests {
                     spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
                     status: None,
                 },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    ..Default::default()
-                },
                 expected_err: utils::missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
-                    "status",
+                    ".status",
                 ),
             },
             TestCase {
@@ -497,73 +290,27 @@ mod tests {
                     spec: None,
                     status: Some(test_util_create_deployment_status(10)),
                 },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    ..Default::default()
-                },
                 expected_err: utils::missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
-                    "spec",
+                    ".spec",
                 ),
             },
             TestCase {
-                name: "Deployment without status.replicas",
+                name: "Deployment without spec.replicas",
                 deployment: Deployment {
                     metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+                    spec: Some(DeploymentSpec {
+                        ..Default::default()
+                    }),
                     status: Some(DeploymentStatus {
-                        replicas: None,
                         ..Default::default()
                     }),
                 },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    ..Default::default()
-                },
                 expected_err: utils::missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
-                    "status.replicas",
-                ),
-            },
-            TestCase {
-                name: "ReplicaSet without status",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    status: Some(test_util_create_deployment_status(10)),
-                },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    status: None,
-                    ..Default::default()
-                },
-                expected_err: utils::missing_field_error(
-                    &Deployment::default(),
-                    "test-deployment",
-                    "replica set status",
-                ),
-            },
-            TestCase {
-                name: "ReplicaSet without status.ready_replicas",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    status: Some(test_util_create_deployment_status(10)),
-                },
-                rs: ReplicaSet {
-                    metadata: test_util_create_metadata("test-rs"),
-                    status: Some(ReplicaSetStatus {
-                        ready_replicas: None,
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                expected_err: utils::missing_field_error(
-                    &Deployment::default(),
-                    "test-deployment",
-                    "ready replicas",
+                    "spec.replicas",
                 ),
             },
         ];
@@ -572,377 +319,127 @@ mod tests {
     }
 
     #[test]
-    fn test_latest_and_correct_replica_for_deployment() {
-        const DEPLOYMENT_NAME: &str = "deployment-name";
+    fn test_health_check_unhealthy() {
+        let healthy_deployment = Deployment {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
+                ..test_util_create_metadata("healthy_deployment")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(test_util_create_deployment_status(10)),
+        };
+        let unhealthy_deployment_foo = Deployment {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
+                ..test_util_create_metadata("unhealthy_deployment_foo")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(DeploymentStatus {
+                available_replicas: Some(9),
+                unavailable_replicas: Some(1),
+                ..Default::default()
+            }),
+        };
+        let unhealthy_foo = Health::Unhealthy(Unhealthy {
+            last_error: "Deployment `unhealthy_deployment_foo`: has 1 unavailable replicas"
+                .to_string(),
+            ..Default::default()
+        });
+        let unhealthy_deployment_bar = Deployment {
+            metadata: ObjectMeta {
+                labels: Some([(LABEL_RELEASE_FLUX.to_string(), "flux-release".to_string())].into()),
+                ..test_util_create_metadata("unhealthy_deployment_bar")
+            },
+            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
+            status: Some(DeploymentStatus {
+                available_replicas: Some(9),
+                unavailable_replicas: Some(1),
+                ..Default::default()
+            }),
+        };
+        let unhealthy_bar = Health::Unhealthy(Unhealthy {
+            last_error: "Deployment `unhealthy_deployment_bar`: has 1 unavailable replicas"
+                .to_string(),
+            ..Default::default()
+        });
 
         struct TestCase {
             name: &'static str,
-            replica_sets: Vec<Arc<ReplicaSet>>,
-            deployment_pod_template_spec: PodTemplateSpec,
-            expected_rs_name: Option<String>,
+            deployments: Vec<Arc<Deployment>>,
+            expected_health: Health,
         }
 
         impl TestCase {
             fn run(self) {
                 let mut k8s_client = MockSyncK8sClient::new();
-                let (name, replica_sets, expected) =
-                    (self.name, self.replica_sets, self.expected_rs_name);
                 k8s_client
-                    .expect_list_replica_set()
+                    .expect_list_deployment()
                     .times(1)
-                    .returning(move || replica_sets.clone());
+                    .returning(move || self.deployments.clone());
 
-                let health_checker = K8sHealthDeployment {
-                    k8s_client: Arc::new(k8s_client),
-                    release_name: "release-name".to_string(),
-                    start_time: StartTime::now(),
-                };
-
-                let result = health_checker.active_replica_set(
-                    DEPLOYMENT_NAME.to_string(),
-                    self.deployment_pod_template_spec,
+                let start_time = StartTime::now();
+                let health_checker = K8sHealthDeployment::new(
+                    Arc::new(k8s_client),
+                    "flux-release".to_string(),
+                    start_time,
                 );
+                let health = health_checker.check_health().unwrap_or_else(|_| {
+                    panic!("Unexpected error getting health for test - {}", self.name)
+                });
                 assert_eq!(
-                    result.map(|rs| rs.metadata.clone().name.unwrap()),
-                    expected,
-                    "Error in TestCase '{name}'"
+                    health,
+                    HealthWithStartTime::new(self.expected_health, start_time),
+                    "{} failed",
+                    self.name
                 );
             }
         }
 
         let test_cases = [
             TestCase {
-                name: "No replica-sets",
-                deployment_pod_template_spec: PodTemplateSpec {
-                    ..Default::default()
-                },
-                replica_sets: Vec::new(),
-                expected_rs_name: None,
-            },
-            TestCase {
-                name: "No owner matching replica-set",
-                deployment_pod_template_spec: PodTemplateSpec {
-                    ..Default::default()
-                },
-                replica_sets: vec![
-                    Arc::new(test_util_create_replica_set(
-                        "no-matching-kind",
-                        "no-deployment-kind",
-                        DEPLOYMENT_NAME,
-                        None,
-                    )),
-                    Arc::new(test_util_create_replica_set(
-                        "no-matching-name",
-                        Deployment::KIND,
-                        "no-matching-name",
-                        None,
-                    )),
-                    Arc::new(ReplicaSet::default()),
+                name: "Healthy deployments",
+                deployments: vec![
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(healthy_deployment.clone()),
                 ],
-                expected_rs_name: None,
+                expected_health: Healthy::default().into(),
             },
             TestCase {
-                name: "Only one rs matching",
-                deployment_pod_template_spec: PodTemplateSpec {
-                    ..Default::default()
-                },
-                replica_sets: vec![
-                    Arc::new(test_util_create_replica_set(
-                        "no-matching-name",
-                        Deployment::KIND,
-                        "no-matching-name",
-                        None,
-                    )),
-                    Arc::new(test_util_create_replica_set(
-                        "matching",
-                        Deployment::KIND,
-                        DEPLOYMENT_NAME,
-                        None,
-                    )),
+                name: "One unhealthy deployment",
+                deployments: vec![
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(unhealthy_deployment_foo.clone()),
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(healthy_deployment.clone()),
                 ],
-                expected_rs_name: Some("matching".to_string()),
+                expected_health: unhealthy_foo.clone(),
             },
             TestCase {
-                name: "Matching correct template only",
-                deployment_pod_template_spec: PodTemplateSpec {
-                    spec: Some(PodSpec {
-                        active_deadline_seconds: Some(15),
-                        ..Default::default()
-                    }),
-                    metadata: Some(ObjectMeta {
-                        labels: Some(BTreeMap::from([
-                            ("key".to_string(), "value".to_string()),
-                            // This is ignored
-                            (DEFAULT_HASH_LABEL.to_string(), "changed".to_string()),
-                        ])),
-                        ..Default::default()
-                    }),
-                },
-                replica_sets: vec![
-                    Arc::new(test_util_create_replica_set(
-                        "matching-1",
-                        Deployment::KIND,
-                        DEPLOYMENT_NAME,
-                        Some(Time(
-                            DateTime::<Utc>::from_str("2024-05-27 09:00:00 +00:00").unwrap(),
-                        )),
-                    )),
-                    Arc::new(test_util_create_replica_set(
-                        "no-matching-name",
-                        Deployment::KIND,
-                        "no-matching-name",
-                        None,
-                    )),
-                    // This is matching because the podTemplate is the same but the timestamp is newer
-                    Arc::new(test_util_create_replica_set_with_pod_template_specs(
-                        "matching-2",
-                        Deployment::KIND,
-                        DEPLOYMENT_NAME,
-                        Some(Time(
-                            DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
-                        )),
-                        PodTemplateSpec {
-                            spec: Some(PodSpec {
-                                active_deadline_seconds: Some(15),
-                                ..Default::default()
-                            }),
-                            metadata: Some(ObjectMeta {
-                                labels: Some(BTreeMap::from([
-                                    ("key".to_string(), "value".to_string()),
-                                    // This is ignored
-                                    (
-                                        DEFAULT_HASH_LABEL.to_string(),
-                                        "different-value".to_string(),
-                                    ),
-                                ])),
-                                ..Default::default()
-                            }),
-                        },
-                    )),
-                    // This is not matching because the podTemplate is the same but the timestamp is older
-                    Arc::new(test_util_create_replica_set_with_pod_template_specs(
-                        "matching-3",
-                        Deployment::KIND,
-                        DEPLOYMENT_NAME,
-                        Some(Time(
-                            DateTime::<Utc>::from_str("2024-05-27 9:45:00 +00:00").unwrap(),
-                        )),
-                        PodTemplateSpec {
-                            spec: Some(PodSpec {
-                                active_deadline_seconds: Some(15),
-                                ..Default::default()
-                            }),
-                            ..Default::default()
-                        },
-                    )),
-                    // This is not matching because the podTemplate is not the same
-                    Arc::new(test_util_create_replica_set(
-                        "matching-4",
-                        Deployment::KIND,
-                        DEPLOYMENT_NAME,
-                        Some(Time(
-                            DateTime::<Utc>::from_str("2024-05-27 09:30:00 +00:00").unwrap(),
-                        )),
-                    )),
+                name: "First unhealthy deployment is reported foo",
+                deployments: vec![
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(unhealthy_deployment_foo.clone()),
+                    Arc::new(unhealthy_deployment_bar.clone()),
+                    Arc::new(unhealthy_deployment_bar.clone()),
                 ],
-                expected_rs_name: Some("matching-2".to_string()),
-            },
-        ];
-        test_cases.into_iter().for_each(|ts| ts.run())
-    }
-
-    #[test]
-    fn test_max_unavailable() {
-        struct TestCase {
-            name: &'static str,
-            deployment: Deployment,
-            expected: Result<i32, HealthCheckerError>,
-        }
-
-        impl TestCase {
-            fn run(self) {
-                let metadata_name = self
-                    .deployment
-                    .metadata
-                    .name
-                    .as_deref()
-                    .unwrap_or("unknown");
-                let spec = self.deployment.spec.as_ref().unwrap();
-                let result = K8sHealthDeployment::max_unavailable(
-                    &Deployment::default(),
-                    metadata_name,
-                    spec,
-                );
-                assert!(
-                    match (&result, &self.expected) {
-                        (Ok(r), Ok(e)) => r == e,
-                        (Err(r), Err(e)) => r.to_string() == e.to_string(),
-                        _ => false,
-                    },
-                    "{}",
-                    self.name,
-                );
-            }
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "MaxUnavailable as percentage",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-                    ..Default::default()
-                },
-                expected: Ok(2),
+                expected_health: unhealthy_foo.clone(),
             },
             TestCase {
-                name: "MaxUnavailable as integer",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(10, "3", "2")),
-                    ..Default::default()
-                },
-                expected: Ok(2),
-            },
-            TestCase {
-                name: "No replicas specified",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(DeploymentSpec {
-                        replicas: None,
-                        strategy: Some(DeploymentStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDeployment {
-                                max_surge: Some(IntOrString::String("30%".to_string())),
-                                max_unavailable: Some(IntOrString::String("20%".to_string())),
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                expected: Err(HealthCheckerError::MissingK8sObjectField {
-                    kind: "Deployment".to_string(),
-                    name: "test-deployment".to_string(),
-                    field: "spec.replicas".to_string(),
-                }),
-            },
-            TestCase {
-                name: "MaxUnavailable greater than replicas",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(test_util_create_deployment_spec(2, "30%", "100%")),
-                    ..Default::default()
-                },
-                expected: Ok(2),
-            },
-            TestCase {
-                name: "Invalid MaxSurge",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(DeploymentSpec {
-                        replicas: Some(10),
-                        strategy: Some(DeploymentStrategy {
-                            type_: Some(ROLLING_UPDATE.to_string()),
-                            rolling_update: Some(RollingUpdateDeployment {
-                                max_surge: Some(IntOrString::String("invalid".to_string())),
-                                max_unavailable: Some(IntOrString::String("20%".to_string())),
-                            }),
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                expected: Err(HealthCheckerError::InvalidK8sObject {
-                    kind: Deployment::KIND.to_string(),
-                    name: "test-deployment".to_string(),
-                    err: "Invalid IntOrString value: invalid digit found in string".to_string(),
-                }),
-            },
-            TestCase {
-                name: "Non-rolling update strategy",
-                deployment: Deployment {
-                    metadata: test_util_create_metadata("test-deployment"),
-                    spec: Some(DeploymentSpec {
-                        replicas: Some(10),
-                        strategy: Some(DeploymentStrategy {
-                            type_: Some("Recreate".to_string()),
-                            rolling_update: None,
-                        }),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                },
-                expected: Ok(0),
+                name: "First unhealthy deployment is reported bar",
+                deployments: vec![
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(healthy_deployment.clone()),
+                    Arc::new(unhealthy_deployment_bar.clone()),
+                    Arc::new(unhealthy_deployment_foo.clone()),
+                    Arc::new(unhealthy_deployment_foo.clone()),
+                ],
+                expected_health: unhealthy_bar.clone(),
             },
         ];
 
         test_cases.into_iter().for_each(|tc| tc.run());
-    }
-
-    #[test]
-    fn test_health_check() {
-        let release_name = "flux-release";
-        let mut k8s_client = MockSyncK8sClient::new();
-
-        let healthy_deployment_matching = Deployment {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..test_util_create_metadata("test-deployment")
-            },
-            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-            status: Some(test_util_create_deployment_status(10)),
-        };
-
-        let deployment_with_no_replica_set = Deployment {
-            metadata: ObjectMeta {
-                labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..test_util_create_metadata("test-deployment-2")
-            },
-            spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
-            status: Some(test_util_create_deployment_status(10)),
-        };
-
-        let replica_sets = vec![Arc::new(ReplicaSet {
-            status: Some(test_util_create_replica_set_status(8)),
-            ..test_util_create_replica_set(
-                "rs",
-                Deployment::KIND,
-                "test-deployment",
-                Some(Time(
-                    DateTime::<Utc>::from_str("2024-05-27 10:00:00 +00:00").unwrap(),
-                )),
-            )
-        })];
-
-        k8s_client
-            .expect_list_deployment()
-            .times(1)
-            .returning(move || {
-                vec![
-                    Arc::new(healthy_deployment_matching.clone()),
-                    Arc::new(deployment_with_no_replica_set.clone()),
-                ]
-            });
-        k8s_client
-            .expect_list_replica_set()
-            .times(2)
-            .returning(move || replica_sets.clone());
-
-        let start_time = StartTime::now();
-        let health_checker =
-            K8sHealthDeployment::new(Arc::new(k8s_client), release_name.to_string(), start_time);
-        let result = health_checker.check_health().unwrap();
-        assert_eq!(
-            result,
-            HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(
-                    String::default(),
-                    "ReplicaSet not found for Deployment test-deployment-2".to_string()
-                ),
-                start_time
-            )
-        );
     }
 
     fn test_util_create_metadata(name: &str) -> ObjectMeta {
@@ -960,7 +457,7 @@ mod tests {
         DeploymentSpec {
             replicas: Some(replicas),
             strategy: Some(DeploymentStrategy {
-                type_: Some(ROLLING_UPDATE.to_string()),
+                type_: Some("RollingUpdate".to_string()),
                 rolling_update: Some(RollingUpdateDeployment {
                     max_surge: Some(IntOrString::String(max_surge.to_string())),
                     max_unavailable: Some(IntOrString::String(max_unavailable.to_string())),
@@ -970,57 +467,9 @@ mod tests {
         }
     }
 
-    fn test_util_create_deployment_status(replicas: i32) -> DeploymentStatus {
+    fn test_util_create_deployment_status(available_replicas: i32) -> DeploymentStatus {
         DeploymentStatus {
-            replicas: Some(replicas),
-            ..Default::default()
-        }
-    }
-
-    fn test_util_create_replica_set_status(ready_replicas: i32) -> ReplicaSetStatus {
-        ReplicaSetStatus {
-            ready_replicas: Some(ready_replicas),
-            ..Default::default()
-        }
-    }
-
-    fn test_util_create_replica_set(
-        name: &str,
-        owner_kind: &str,
-        owner_name: &str,
-        creation_timestamp: Option<Time>,
-    ) -> ReplicaSet {
-        test_util_create_replica_set_with_pod_template_specs(
-            name,
-            owner_kind,
-            owner_name,
-            creation_timestamp,
-            PodTemplateSpec::default(),
-        )
-    }
-
-    fn test_util_create_replica_set_with_pod_template_specs(
-        name: &str,
-        owner_kind: &str,
-        owner_name: &str,
-        creation_timestamp: Option<Time>,
-        pod_template_spec: PodTemplateSpec,
-    ) -> ReplicaSet {
-        ReplicaSet {
-            metadata: ObjectMeta {
-                name: Some(name.to_string()),
-                owner_references: Some(vec![OwnerReference {
-                    kind: owner_kind.to_string(),
-                    name: owner_name.to_string(),
-                    ..Default::default()
-                }]),
-                creation_timestamp,
-                ..Default::default()
-            },
-            spec: Some(ReplicaSetSpec {
-                template: Some(pod_template_spec),
-                ..Default::default()
-            }),
+            available_replicas: Some(available_replicas),
             ..Default::default()
         }
     }
