@@ -1,17 +1,16 @@
+use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
+use newrelic_agent_control::agent_type::environment::Environment;
+use newrelic_agent_control::agent_type::render::persister::config_persister::ConfigurationPersister;
+use newrelic_agent_control::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
+use newrelic_agent_control::sub_agent::effective_agents_assembler::build_agent_type;
+use newrelic_agent_control::values::yaml_config::YAMLConfig;
 use std::fs;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-
-use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_agent_control::agent_control::config::AgentID;
-use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
-use newrelic_agent_control::agent_type::environment::Environment;
-use newrelic_agent_control::sub_agent::effective_agents_assembler::build_agent_type;
-use newrelic_agent_control::sub_agent::persister::config_persister::ConfigurationPersister;
-use newrelic_agent_control::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
-use newrelic_agent_control::values::yaml_config::YAMLConfig;
 
 #[test]
 // This test is the only one that writes to an actual file in the FS

@@ -1,4 +1,4 @@
-use crate::sub_agent::persister::config_persister::PersistError;
+use crate::agent_type::render::persister::config_persister::PersistError;
 use thiserror::Error;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.

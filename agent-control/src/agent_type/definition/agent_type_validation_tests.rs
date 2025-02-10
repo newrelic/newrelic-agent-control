@@ -14,13 +14,11 @@ use crate::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
         environment::Environment,
-        renderer::{tests::testing_agent_attributes, Renderer, TemplateRenderer},
+        render::persister::config_persister_file::ConfigurationPersisterFile,
+        render::renderer::{tests::testing_agent_attributes, Renderer, TemplateRenderer},
         variable::{definition::VariableDefinition, namespace::Namespace},
     },
-    sub_agent::{
-        effective_agents_assembler::build_agent_type,
-        persister::config_persister_file::ConfigurationPersisterFile,
-    },
+    sub_agent::effective_agents_assembler::build_agent_type,
     values::yaml_config::YAMLConfig,
 };
 

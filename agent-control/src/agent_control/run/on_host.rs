@@ -7,6 +7,8 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::AgentControl;
+use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
+use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -18,12 +20,8 @@ use crate::opamp::remote_config::validators::signature::validator::{
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
-    agent_type::renderer::TemplateRenderer,
     opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
-    sub_agent::{
-        on_host::builder::OnHostSubAgentBuilder,
-        persister::config_persister_file::ConfigurationPersisterFile,
-    },
+    sub_agent::on_host::builder::OnHostSubAgentBuilder,
     values::file::YAMLConfigRepositoryFile,
 };
 use fs::directory_manager::DirectoryManagerFs;
