@@ -56,7 +56,7 @@ async fn update_agent_control_status(
         }
         AgentControlEvent::OpAMPConnected => {
             trace!("opamp server is reachable");
-            status.opamp.reachable();
+            status.fleet.reachable();
         }
         AgentControlEvent::OpAMPConnectFailed(error_code, error_message) => {
             debug!(
@@ -64,7 +64,7 @@ async fn update_agent_control_status(
                 error_msg = error_message,
                 "opamp server is unreachable"
             );
-            status.opamp.unreachable(error_code, error_message);
+            status.fleet.unreachable(error_code, error_message);
         }
     }
 }
@@ -162,12 +162,12 @@ mod tests {
                         String::from("some status"),
                         String::from("some error"),
                     ),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     agent_control: AgentControlStatus::new_healthy(String::from("some status")),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 },
             },
@@ -180,7 +180,7 @@ mod tests {
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: AgentControlStatus::new_healthy(String::from("some status")),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
@@ -188,7 +188,7 @@ mod tests {
                         String::from("some status"),
                         String::from("some error message for agent control unhealthy"),
                     ),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: sub_agents_status_random.clone(),
                 },
             },
@@ -202,12 +202,12 @@ mod tests {
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-agent-id").unwrap(),
                         SubAgentStatus::new(
@@ -237,12 +237,12 @@ mod tests {
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::default(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-agent-id").unwrap(),
                         SubAgentStatus::new(
@@ -272,7 +272,7 @@ mod tests {
                 )),
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
@@ -302,7 +302,7 @@ mod tests {
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
@@ -337,7 +337,7 @@ mod tests {
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random.clone(),
+                    fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
                             AgentID::new("some-agent-id").unwrap(),
@@ -367,7 +367,7 @@ mod tests {
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: opamp_status_random,
+                    fleet: opamp_status_random,
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
                         AgentID::new("some-other-id").unwrap(),
                         SubAgentStatus::new(
@@ -391,14 +391,14 @@ mod tests {
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: OpAMPStatus::enabled_and_reachable(Some(
+                    fleet: OpAMPStatus::enabled_and_reachable(Some(
                         Url::try_from("http://127.0.0.1").unwrap(),
                     )),
                     sub_agents: sub_agents_status_random.clone(),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
-                    opamp: OpAMPStatus::enabled_and_unreachable(
+                    fleet: OpAMPStatus::enabled_and_unreachable(
                         Some(Url::try_from("http://127.0.0.1").unwrap()),
                         404,
                         String::from("some error msg"),
