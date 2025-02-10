@@ -27,7 +27,7 @@ pub struct AgentTypeDefinition {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
     pub variables: AgentTypeVariables,
-    #[serde(default, flatten)]
+    #[serde(flatten)]
     pub runtime_config: Runtime,
 }
 

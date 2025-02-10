@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::agent_control::config::AgentID;
 use crate::agent_type::agent_metadata::AgentMetadata;
 use crate::agent_type::definition::{AgentType, VariableTree};
-use crate::agent_type::runtime_config::Runtime;
+use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::values::yaml_config_repository::{load_remote_fallback_local, YAMLConfigRepository};
 
@@ -47,7 +47,9 @@ where
                 version: Version::new(0, 0, 0),
             },
             VariableTree::default(),
-            Runtime::default(),
+            Runtime {
+                deployment: Deployment::default(),
+            },
         );
 
         let values = load_remote_fallback_local(
