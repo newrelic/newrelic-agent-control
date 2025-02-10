@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
 /// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
 /// Instance IDs, hashes, and remote configs. The Sa reads and writes those CMs.
-pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "opamp-data-";
+pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "fleet-data-";
 
 /// The key used to identify the data in the Store.
 pub type StoreKey = str;

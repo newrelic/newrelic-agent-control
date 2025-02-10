@@ -153,7 +153,7 @@ agents:
     retry(120, Duration::from_secs(1), || {
         block_on(check_config_map_exist(
             k8s.client.clone(),
-            "opamp-data-bar-agent",
+            "fleet-data-bar-agent",
             &namespace,
         ))?;
         Ok(())
