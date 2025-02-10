@@ -7,7 +7,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::AgentControl;
-use crate::agent_type::renderer::TemplateRenderer;
+use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;

@@ -7,7 +7,7 @@ pub mod environment;
 pub mod environment_variable;
 pub mod error;
 pub mod health_config;
-pub mod renderer;
+pub mod render;
 pub mod restart_policy;
 pub mod runtime_config;
 pub mod runtime_config_templates;

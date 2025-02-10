@@ -6,13 +6,13 @@ use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::environment::Environment;
 use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::renderer::{Renderer, TemplateRenderer};
+use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
+use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
 #[cfg(feature = "k8s")]
 use crate::agent_type::runtime_config::K8s;
 #[cfg(feature = "onhost")]
 use crate::agent_type::runtime_config::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
-use crate::sub_agent::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
@@ -230,7 +230,7 @@ pub(crate) mod tests {
     use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::renderer::tests::MockRendererMock;
+    use crate::agent_type::render::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;

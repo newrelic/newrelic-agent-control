@@ -1,4 +1,6 @@
-use super::{
+use crate::agent_control::{config::AgentID, defaults::GENERATED_FOLDER_NAME};
+use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
+use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
     error::AgentTypeError,
@@ -10,10 +12,6 @@ use super::{
     },
 };
 use crate::values::yaml_config::YAMLConfig;
-use crate::{
-    agent_control::{config::AgentID, defaults::GENERATED_FOLDER_NAME},
-    sub_agent::persister::config_persister::ConfigurationPersister,
-};
 use std::{collections::HashMap, path::PathBuf};
 
 /// Defines how to render an AgentType and obtain the runtime configuration needed to execute a sub agent.
@@ -171,6 +169,10 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 pub(crate) mod tests {
     use super::*;
     use crate::{
+        agent_type::render::persister::{
+            config_persister::{tests::MockConfigurationPersisterMock, PersistError},
+            config_persister_file::ConfigurationPersisterFile,
+        },
         agent_type::{
             definition::AgentType,
             environment::Environment,
@@ -178,10 +180,6 @@ pub(crate) mod tests {
                 BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
             },
             runtime_config::Args,
-        },
-        sub_agent::persister::{
-            config_persister::{tests::MockConfigurationPersisterMock, PersistError},
-            config_persister_file::ConfigurationPersisterFile,
         },
     };
     use assert_matches::assert_matches;

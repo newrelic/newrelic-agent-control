@@ -1,9 +1,3 @@
-use std::collections::HashMap;
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
-use std::path::{Path, PathBuf};
-
 use crate::agent_control::config::AgentID;
 use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -11,6 +5,11 @@ use crate::agent_type::variable::kind::Kind;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
 use fs::LocalFile;
+use std::collections::HashMap;
+use std::fs::Permissions;
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 
 use super::config_persister::{ConfigurationPersister, PersistError};
 
@@ -180,8 +179,8 @@ mod tests {
     use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
     use crate::agent_type::definition::AgentType;
     use crate::agent_type::environment::Environment;
-    use crate::sub_agent::persister::config_persister::ConfigurationPersister;
-    use crate::sub_agent::persister::config_persister_file::{
+    use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
+    use crate::agent_type::render::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,
     };
     use fs::directory_manager::mock::MockDirectoryManagerMock;
