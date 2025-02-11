@@ -64,6 +64,10 @@ pub enum ReqwestBuildError {
 pub fn try_build_reqwest_client(config: HttpConfig) -> Result<Client, ReqwestBuildError> {
     let mut builder = reqwest_builder_with_timeout(config.timeout, config.conn_timeout);
 
+    if config.tls_info {
+        builder = builder.tls_info(true);
+    }
+
     let proxy_config = config.proxy;
     let proxy_url = proxy_config.url_as_string();
     if !proxy_url.is_empty() {

@@ -6,6 +6,7 @@ pub struct HttpConfig {
     pub(crate) timeout: Duration,
     pub(crate) conn_timeout: Duration,
     pub(crate) proxy: ProxyConfig,
+    pub(crate) tls_info: bool,
 }
 
 impl HttpConfig {
@@ -14,6 +15,13 @@ impl HttpConfig {
             timeout,
             conn_timeout,
             proxy,
+            tls_info: false,
+        }
+    }
+    pub fn with_tls_info(self) -> Self {
+        Self {
+            tls_info: true,
+            ..self
         }
     }
 }

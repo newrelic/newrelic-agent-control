@@ -2,6 +2,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::agent_control::config::AgentTypeFQN;
+use crate::http::config::HttpConfig;
+use crate::http::proxy::ProxyConfig;
+use crate::http::reqwest::try_build_reqwest_client;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
@@ -24,8 +27,8 @@ type ErrorMessage = String;
 pub enum SignatureValidatorError {
     #[error("failed to fetch certificate: `{0}`")]
     FetchCertificate(ErrorMessage),
-    #[error("failed to initialize the certificate fetcher: `{0}`")]
-    InitializeCertificateStore(ErrorMessage),
+    #[error("failed to build validator: `{0}`")]
+    BuildingValidator(ErrorMessage),
     #[error("failed to verify signature: `{0}`")]
     VerifySignature(ErrorMessage),
 }
@@ -52,11 +55,21 @@ pub fn build_signature_validator(
             "Remote config signature validation is enabled, fetching certificate from: {}",
             config.certificate_server_url
         );
-        CertificateFetcher::Https(config.certificate_server_url, DEFAULT_HTTPS_CLIENT_TIMEOUT)
+        let http_config = HttpConfig::new(
+            DEFAULT_HTTPS_CLIENT_TIMEOUT,
+            DEFAULT_HTTPS_CLIENT_TIMEOUT,
+            ProxyConfig::default(), // Proxy is not supported for fetching certificate
+        )
+        .with_tls_info();
+
+        let client = try_build_reqwest_client(http_config)
+            .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
+
+        CertificateFetcher::Https(config.certificate_server_url, client)
     };
 
     let certificate_store = CertificateStore::try_new(certificate_fetcher)
-        .map_err(|e| SignatureValidatorError::InitializeCertificateStore(e.to_string()))?;
+        .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
     Ok(SignatureValidator::Validator(
         CertificateSignatureValidator::new(certificate_store),

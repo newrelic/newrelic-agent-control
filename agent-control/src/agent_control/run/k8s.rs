@@ -14,9 +14,6 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
-use crate::opamp::remote_config::validators::signature::validator::{
-    build_signature_validator, SignatureValidator,
-};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::{
     agent_control::error::AgentError,
@@ -96,16 +93,6 @@ impl AgentControlRunner {
 
         let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
-        let signature_validator = agent_control_config
-            .fleet_control
-            .map(|fleet_config| {
-                build_signature_validator(fleet_config.signature_validation).map_err(|e| {
-                    AgentError::ExternalError(format!("initializing signature validator: {}", e))
-                })
-            })
-            .transpose()?
-            .unwrap_or(SignatureValidator::Noop);
-
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
@@ -115,7 +102,7 @@ impl AgentControlRunner {
             agents_assembler,
             self.k8s_config.clone(),
             yaml_config_repository.clone(),
-            Arc::new(signature_validator),
+            Arc::new(self.signature_validator),
         );
 
         let additional_identifying_attributes =
