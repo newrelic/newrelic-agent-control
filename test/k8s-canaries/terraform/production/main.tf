@@ -43,6 +43,43 @@ module "alerts" {
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
+    # Trigger alert if no metrics
+    {
+      name          = "CPU usage (cores)"
+      metric        = "cpuUsedCores"
+      sample        = "K8sContainerSample"
+      threshold     = 0
+      duration      = 3600
+      operator      = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Memory usage (bytes)"
+      metric        = "memoryWorkingSetBytes"
+      sample        = "K8sContainerSample"
+      threshold     = 0
+      duration      = 600
+      operator      = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Storage usage (bytes)"
+      metric        = "fsUsedBytes"
+      sample        = "K8sContainerSample"
+      threshold     = 0
+      duration      = 3600
+      operator      = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name          = "Agent Control container"
+      metric        = "*"
+      sample        = "K8sContainerSample"
+      threshold     = 0
+      duration      = 600
+      operator      = "above"
+      template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
+    },
   ]
   region       = "US"
   cluster_name = "Agent_Control_Canaries_Production"
