@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Runtime {
     pub deployment: Deployment,
 }
@@ -24,6 +25,7 @@ impl<'de> Deserialize<'de> for Deployment {
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
         struct DeploymentInner {
             #[serde(default)]
             on_host: Option<OnHost>,

@@ -488,7 +488,6 @@ variables:
         type: string
         required: true
 deployment:
-  runtime:
     on_host:
       executable:
         path: /some/path
@@ -523,6 +522,7 @@ variables:
         type: string
         required: true
 deployment:
-  runtime:
+    k8s:
+      objects: {}
 "#;
 }
