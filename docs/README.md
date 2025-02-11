@@ -290,7 +290,7 @@ There is a service that ultimately exposes the /status endpoint for Agent Contro
   "agent_control": {
     "healthy": true
   },
-  "opamp": {
+  "fleet": {
     "enabled": true,
     "endpoint": "https://opamp.service.newrelic.com/v1/opamp",
     "reachable": true

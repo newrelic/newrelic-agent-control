@@ -16,7 +16,7 @@ $ curl localhost:127.0.0.1/status
     "last_error": "",
     "status": ""
   },
-  "opamp": {
+  "fleet": {
     "enabled": true,
     "endpoint": "https://example.com/opamp/v1",
     "reachable": true
