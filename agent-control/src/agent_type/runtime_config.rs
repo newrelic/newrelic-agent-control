@@ -36,12 +36,12 @@ impl<'de> Deserialize<'de> for Deployment {
         let DeploymentInner { on_host, k8s } = DeploymentInner::deserialize(deserializer)?;
 
         if on_host.is_none() && k8s.is_none() {
-            return Err(serde::de::Error::custom(
+            Err(serde::de::Error::custom(
                 "field `deployment` must have at least one of the fields `on_host` or `k8s`",
-            ));
+            ))
+        } else {
+            Ok(Deployment { on_host, k8s })
         }
-
-        Ok(Deployment { on_host, k8s })
     }
 }
 
