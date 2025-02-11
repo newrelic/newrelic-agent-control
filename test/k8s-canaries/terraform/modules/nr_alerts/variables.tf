@@ -35,7 +35,7 @@ variable "policies_prefix" {
 #   threshold     = 0
 #   duration      = 600
 #   operator      = "above"
-#   template_name = "generic_metric_comparator"
+#   template_name = "./generic_metrics_threshold.tfpl"
 # },
 # {
 #   name = "System / Cpu IOWait Percent"
@@ -44,7 +44,7 @@ variable "policies_prefix" {
 #   threshold = 0.5 # max 0.112 in last week
 #   duration = 600
 #   operator = "above"
-#   template_name = "generic_metric_comparator"
+#   template_name = "./generic_metrics_threshold.tfpl"
 # },
 # ...
 # ]

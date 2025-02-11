@@ -4,16 +4,16 @@ resource "newrelic_alert_policy" "alert_k8s_canary" {
 
 locals {
   policies_with_cluster_name = [
-    for pol in var.conditions : {
+    for cond in var.conditions : {
       policy_id    = newrelic_alert_policy.alert_k8s_canary.id
       cluster_name = var.cluster_name
-      condition    = pol
+      condition    = cond
     }
   ]
 }
 
 # Uncomment this to "debug" the generated structure
-#output prueba {
+#output test {
 #  value = local.policies_with_display_names
 #}
 
