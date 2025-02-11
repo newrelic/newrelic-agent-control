@@ -45,7 +45,7 @@ impl AgentControlStatus {
 // This information will be shown when the status endpoint is called
 // i.e.
 // {
-//   "opamp": {
+//   "fleet": {
 //     "enabled": true,
 //     "endpoint": "https://example.com/opamp/v1",
 //     "reachable": true,
@@ -175,7 +175,7 @@ impl SubAgentsStatus {
 //     "last_error": "",
 //     "status": ""
 //   },
-//   "opamp": {
+//   "fleet": {
 //     "enabled": true,
 //     "endpoint": "https://example.com/opamp/v1",
 //     "reachable": true
@@ -200,14 +200,14 @@ impl SubAgentsStatus {
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub(super) struct Status {
     pub(super) agent_control: AgentControlStatus,
-    pub(super) opamp: OpAMPStatus,
+    pub(super) fleet: OpAMPStatus,
     pub(super) sub_agents: SubAgentsStatus,
 }
 
 impl Status {
     pub fn with_opamp(mut self, endpoint: Url) -> Self {
-        self.opamp.enabled = true;
-        self.opamp.endpoint = Some(endpoint);
+        self.fleet.enabled = true;
+        self.fleet.endpoint = Some(endpoint);
         self
     }
 }

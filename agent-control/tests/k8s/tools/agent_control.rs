@@ -152,7 +152,7 @@ pub fn wait_until_agent_control_with_opamp_is_started(k8s_client: Client, namesp
     retry(30, Duration::from_secs(1), || {
         block_on(check_config_map_exist(
             k8s_client.clone(),
-            "opamp-data-agent-control",
+            "fleet-data-agent-control",
             namespace,
         ))
     });
