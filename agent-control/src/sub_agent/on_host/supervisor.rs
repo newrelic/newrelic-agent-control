@@ -435,7 +435,6 @@ pub mod tests {
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
-    use crate::sub_agent::version::version_checker::AgentVersion;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
@@ -689,10 +688,6 @@ pub mod tests {
     #[test]
     #[cfg(unix)]
     fn test_supervisor_health_events_on_breaking_backoff() {
-        use std::ops::Sub;
-
-        use crate::agent_type;
-
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
@@ -715,7 +710,7 @@ pub mod tests {
         );
 
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent
             .start(
                 Arc::new(None),
@@ -738,7 +733,7 @@ pub mod tests {
         let healthy_expected_event = SubAgentEvent::SubAgentHealthInfo(
             agent_id.clone(),
             agent_type.clone(),
-            HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+            HealthWithStartTime::new(Healthy::default().into(), start_time),
         );
         let expected_ordered_events: Vec<SubAgentEvent> = {
             vec![
@@ -756,8 +751,7 @@ pub mod tests {
                         )
                         .into(),
                         start_time,
-                    )
-                    .into(),
+                    ),
                 ),
             ]
         };
@@ -770,7 +764,7 @@ pub mod tests {
                     SubAgentEvent::SubAgentHealthInfo(
                         agent_id.clone(),
                         agent_type.clone(),
-                        HealthWithStartTime::new(health.into(), start_time).into(),
+                        HealthWithStartTime::new(health.into(), start_time),
                     )
                 }
             })
