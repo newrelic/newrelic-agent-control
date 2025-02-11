@@ -8,3 +8,17 @@ updates:
     directory: /
     schedule:
       interval: daily
+    registries:
+      opamp-rs:
+        type: "git"
+        url: "ssh://git@github.com/newrelic/opamp-rs.git"
+        token: ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
+      newrelic-oauth:
+        type: "git"
+        url: "ssh://git@github.com/newrelic/opamp-rs.git"
+        token: ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+
+
+
+
+
