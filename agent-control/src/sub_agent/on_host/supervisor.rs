@@ -3,8 +3,9 @@ use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::channel::EventPublisher;
-use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
+use crate::event::{SubAgentEvent, SubAgentInternalEvent};
+use crate::sub_agent::event_handler::on_health::on_health;
+use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -23,6 +24,8 @@ use crate::sub_agent::thread_context::{
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::threads::spawn_named_thread;
+use opamp_client::StartedClient;
+use std::marker::PhantomData;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -39,7 +42,7 @@ pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
 }
 
-pub struct NotStartedSupervisorOnHost {
+pub struct NotStartedSupervisorOnHost<C> {
     pub(super) agent_id: AgentID,
     pub(super) agent_fqn: AgentTypeFQN,
     pub(super) ctx: Context<bool>,
@@ -47,25 +50,32 @@ pub struct NotStartedSupervisorOnHost {
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
+
+    pub(super) phantom_data: PhantomData<C>,
 }
 
-impl SupervisorStarter for NotStartedSupervisorOnHost {
+impl<C> SupervisorStarter<C> for NotStartedSupervisorOnHost<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     type SupervisorStopper = StartedSupervisorOnHost;
 
     fn start(
         self,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
         let agent_id = self.agent_id.clone();
 
         let thread_contexts = vec![
-            self.start_health_check(sub_agent_internal_publisher.clone())?,
+            self.start_health_check(maybe_opamp_client.clone(), sub_agent_publisher.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone()),
             // the process thread is created if exec is Some
             self.maybe_exec
                 .clone()
-                .map(|e| self.start_process_thread(sub_agent_internal_publisher, e)),
+                .map(|e| self.start_process_thread(maybe_opamp_client, sub_agent_publisher, e)),
         ];
 
         Ok(StartedSupervisorOnHost {
@@ -100,7 +110,10 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     }
 }
 
-impl NotStartedSupervisorOnHost {
+impl<C> NotStartedSupervisorOnHost<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     pub fn new(
         agent_id: AgentID,
         agent_fqn: AgentTypeFQN,
@@ -116,6 +129,7 @@ impl NotStartedSupervisorOnHost {
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
+            phantom_data: PhantomData,
         }
     }
 
@@ -129,15 +143,18 @@ impl NotStartedSupervisorOnHost {
 
     fn start_health_check(
         &self,
-        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
             let started_thread_context = spawn_health_checker(
                 self.agent_id.clone(),
+                self.agent_fqn.clone(),
                 health_checker,
-                sub_agent_internal_publisher,
+                maybe_opamp_client,
+                sub_agent_publisher,
                 health_config.interval,
                 start_time,
             );
@@ -164,7 +181,8 @@ impl NotStartedSupervisorOnHost {
 
     fn start_process_thread(
         self,
-        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         executable_data: ExecutableData,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
@@ -214,11 +232,14 @@ impl NotStartedSupervisorOnHost {
             let supervisor_start_time = SystemTime::now();
 
             let init_health = Healthy::new(String::default());
-
-            publish_health_event(
-                &internal_event_publisher,
-                HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
-            );
+            let _ = on_health(
+                HealthWithStartTime::new(init_health.into(), supervisor_start_time),
+                            maybe_opamp_client.clone(),
+                                    sub_agent_publisher.clone(),
+                                    self.agent_id.clone(),
+                                    self.agent_fqn.clone(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
 
             let exit_code = start_command(not_started_command, pid_guard)
                 .inspect_err(|err| {
@@ -232,8 +253,10 @@ impl NotStartedSupervisorOnHost {
                 .map(|exit_status| {
                     handle_termination(
                         exit_status,
-                        &internal_event_publisher,
-                        &self.agent_id,
+                        maybe_opamp_client.clone(),
+                        sub_agent_publisher.clone(),
+                        self.agent_id.clone(),
+                        self.agent_fqn.clone(),
                         executable_data_clone.bin.to_string(),
                         supervisor_start_time,
                     )
@@ -268,10 +291,14 @@ impl NotStartedSupervisorOnHost {
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
-                    publish_health_event(
-                        &internal_event_publisher,
-                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time).into(),
-                    );
+                    let _ = on_health(
+                HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                            maybe_opamp_client.clone(),
+                                    sub_agent_publisher.clone(),
+                                    self.agent_id.clone(),
+                                    self.agent_fqn.clone(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
                 }
                 break;
             }
@@ -303,13 +330,18 @@ impl NotStartedSupervisorOnHost {
 ////////////////////////////////////////////////////////////////////////////////////
 
 /// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
-fn handle_termination(
+fn handle_termination<C>(
     exit_status: ExitStatus,
-    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
-    agent_id: &AgentID,
+    maybe_opamp_client: Arc<Option<C>>,
+    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    agent_id: AgentID,
+    agent_type: AgentTypeFQN,
     bin: String,
     start_time: SystemTime,
-) -> i32 {
+) -> i32
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     if !exit_status.success() {
         let unhealthy: Unhealthy = Unhealthy::new(
             format!(
@@ -318,10 +350,14 @@ fn handle_termination(
             ),
             exit_status.to_string(),
         );
-        publish_health_event(
-            internal_event_publisher,
-            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
-        );
+        let _ = on_health(
+                HealthWithStartTime::new(unhealthy.into(), start_time),
+                            maybe_opamp_client.clone(),
+                                    sub_agent_publisher.clone(),
+                                    agent_id.clone(),
+                                    agent_type,
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
         error!(
             %agent_id,
             supervisor = bin,
@@ -395,6 +431,7 @@ pub mod tests {
     use super::*;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::sub_agent::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
@@ -408,6 +445,8 @@ pub mod tests {
     #[traced_test]
     fn test_supervisor_gracefully_shutdown() {
         use tracing_test::internal::logs_with_scope_contain;
+
+        use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
 
         struct TestCase {
             name: &'static str,
@@ -424,7 +463,7 @@ pub mod tests {
 
                 let any_exit_code = vec![];
 
-                let supervisor = NotStartedSupervisorOnHost::new(
+                let supervisor = NotStartedSupervisorOnHost::<MockStartedOpAMPClientMock>::new(
                     self.agent_id.to_owned().try_into().unwrap(),
                     AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
                     Some(self.executable.with_restart_policy(RestartPolicy::new(
@@ -435,9 +474,14 @@ pub mod tests {
                     None,
                 );
 
+                let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
                 let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
-                let started_supervisor = supervisor.start(sub_agent_internal_publisher);
+                let started_supervisor = supervisor.start(
+                    Arc::new(None),
+                    sub_agent_publisher,
+                    sub_agent_internal_publisher,
+                );
 
                 if let Some(duration) = self.run_warmup_time {
                     thread::sleep(duration)
@@ -526,7 +570,7 @@ pub mod tests {
             .with_args(vec!["x".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<MockStartedOpAMPClientMock>::new(
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
@@ -534,8 +578,15 @@ pub mod tests {
             None,
         );
 
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+        let agent = agent
+            .start(
+                Arc::new(None),
+                sub_agent_publisher,
+                sub_agent_internal_publisher,
+            )
+            .expect("no error");
 
         for thread_context in agent.thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -558,7 +609,7 @@ pub mod tests {
             .with_args(vec!["x".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<MockStartedOpAMPClientMock>::new(
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
@@ -567,8 +618,13 @@ pub mod tests {
         );
 
         // run the agent with wrong command so it enters in restart policy
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.start(sub_agent_internal_publisher);
+        let agent = agent.start(
+            Arc::new(None),
+            sub_agent_publisher,
+            sub_agent_internal_publisher,
+        );
         // wait two seconds to ensure restart policy thread is sleeping
         thread::sleep(Duration::from_secs(2));
         agent.expect("no error").stop().expect("no error");
@@ -589,7 +645,7 @@ pub mod tests {
             .with_args(vec!["hello!".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent = NotStartedSupervisorOnHost::<MockStartedOpAMPClientMock>::new(
             "echo".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
             Some(exec),
@@ -597,8 +653,15 @@ pub mod tests {
             None,
         );
 
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+        let agent = agent
+            .start(
+                Arc::new(None),
+                sub_agent_publisher,
+                sub_agent_internal_publisher,
+            )
+            .expect("no error");
 
         for thread_context in agent.thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -626,6 +689,10 @@ pub mod tests {
     #[test]
     #[cfg(unix)]
     fn test_supervisor_health_events_on_breaking_backoff() {
+        use std::ops::Sub;
+
+        use crate::agent_type;
+
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
@@ -637,16 +704,25 @@ pub mod tests {
             .with_args(vec!["".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
-            "echo".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+        let agent_id = AgentID::new("echo").unwrap();
+        let agent_type = AgentTypeFQN::try_from("ns/test:0.1.2").unwrap();
+        let agent = NotStartedSupervisorOnHost::<MockStartedOpAMPClientMock>::new(
+            agent_id.clone(),
+            agent_type.clone(),
             Some(exec),
             Context::new(),
             None,
         );
 
+        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+        let agent = agent
+            .start(
+                Arc::new(None),
+                sub_agent_publisher,
+                sub_agent_internal_publisher,
+            )
+            .expect("no error");
 
         for thread_context in agent.thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -658,37 +734,44 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
-        let expected_ordered_events: Vec<SubAgentInternalEvent> = {
+
+        let healthy_expected_event = SubAgentEvent::SubAgentHealthInfo(
+            agent_id.clone(),
+            agent_type.clone(),
+            HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
+        );
+        let expected_ordered_events: Vec<SubAgentEvent> = {
             vec![
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(
-                    Unhealthy::new(
-                        String::default(),
-                        "supervisor exceeded its defined restart policy".to_string(),
+                healthy_expected_event.clone(),
+                healthy_expected_event.clone(),
+                healthy_expected_event.clone(),
+                healthy_expected_event.clone(),
+                SubAgentEvent::SubAgentHealthInfo(
+                    agent_id.clone(),
+                    agent_type.clone(),
+                    HealthWithStartTime::new(
+                        Unhealthy::new(
+                            String::default(),
+                            "supervisor exceeded its defined restart policy".to_string(),
+                        )
+                        .into(),
+                        start_time,
                     )
                     .into(),
-                    start_time,
-                )
-                .into(),
+                ),
             ]
         };
 
-        let actual_ordered_events = sub_agent_internal_consumer
+        let actual_ordered_events = sub_agent_consumer
             .as_ref()
             .iter()
             .map(|event| match event {
-                SubAgentInternalEvent::AgentHealthInfo(health) => {
-                    HealthWithStartTime::new(health.into(), start_time).into()
-                }
-                SubAgentInternalEvent::StopRequested => SubAgentInternalEvent::StopRequested,
-                SubAgentInternalEvent::AgentVersionInfo(agent_id) => {
-                    SubAgentInternalEvent::AgentVersionInfo(AgentVersion::new(
-                        agent_id.version().to_string(),
-                        agent_id.opamp_field().to_string(),
-                    ))
+                SubAgentEvent::SubAgentHealthInfo(agent_id, agent_type, health) => {
+                    SubAgentEvent::SubAgentHealthInfo(
+                        agent_id.clone(),
+                        agent_type.clone(),
+                        HealthWithStartTime::new(health.into(), start_time).into(),
+                    )
                 }
             })
             .collect::<Vec<_>>();

@@ -1,14 +1,16 @@
 use super::with_start_time::StartTime;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::SubAgentInternalEvent;
+use crate::event::SubAgentEvent;
 #[cfg(feature = "k8s")]
 use crate::k8s;
+use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
-use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use opamp_client::StartedClient;
+use std::sync::Arc;
 use std::time::{SystemTime, SystemTimeError};
 use tracing::{debug, error};
 
@@ -210,15 +212,18 @@ pub trait HealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
 }
 
-pub(crate) fn spawn_health_checker<H>(
+pub(crate) fn spawn_health_checker<H, C>(
     agent_id: AgentID,
+    agent_type: AgentTypeFQN,
     health_checker: H,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    maybe_opamp_client: Arc<Option<C>>,
+    sub_agent_publisher: EventPublisher<SubAgentEvent>,
     interval: HealthCheckInterval,
     sub_agent_start_time: StartTime,
 ) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
+    C: StartedClient + Send + Sync + 'static,
 {
     let agent_id_clone = agent_id.clone();
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
@@ -229,10 +234,14 @@ where
             HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
-        publish_health_event(
-            &sub_agent_internal_publisher,
-            SubAgentInternalEvent::AgentHealthInfo(health),
-        );
+        let _ = on_health(
+                                    health.clone(),
+                            maybe_opamp_client.clone(),
+                                    sub_agent_publisher.clone(),
+                                    agent_id_clone.clone(),
+                                    agent_type.clone(),
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
 
         // Check the cancellation signal
         if stop_consumer.is_cancelled(interval.into()) {
@@ -243,45 +252,15 @@ where
     NotStartedThreadContext::new(agent_id, "health checker", callback).start()
 }
 
-pub(crate) fn publish_health_event(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    event: SubAgentInternalEvent,
-) {
-    let event_type_str = format!("{:?}", event);
-    _ = sub_agent_internal_publisher
-        .publish(event)
-        .inspect_err(|e| {
-            error!(
-                err = e.to_string(),
-                event_type = event_type_str,
-                "could not publish sub agent event"
-            )
-        });
-}
-
-/// Logs the provided error and publishes the corresponding unhealthy event.
-pub fn log_and_report_unhealthy(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    err: &SupervisorStarterError,
-    msg: &str,
-    start_time: SystemTime,
-) {
-    let last_error = format!("{msg}: {err}");
-
-    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
-        Unhealthy::new(String::default(), last_error).into(),
-        start_time,
-    ));
-
-    error!(%err, msg);
-    publish_health_event(sub_agent_internal_publisher, event);
-}
-
 #[cfg(test)]
 pub mod tests {
     use std::time::{Duration, UNIX_EPOCH};
 
-    use crate::event::channel::pub_sub;
+    use crate::{
+        event::channel::pub_sub, opamp::client_builder::tests::MockStartedOpAMPClientMock,
+    };
+
+    use crate::agent_control::config::AgentTypeFQN;
 
     use super::*;
     use mockall::{mock, Sequence};
@@ -379,9 +358,12 @@ pub mod tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
+        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let started_thread_context = spawn_health_checker(
             agent_id.clone(),
+            agent_type.clone(),
             health_checker,
+            Arc::new(None::<MockStartedOpAMPClientMock>),
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
@@ -389,21 +371,26 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 0".to_string()).into(),
-                start_time
-            )),
+            SubAgentEvent::SubAgentHealthInfo(
+                agent_id.clone(),
+                agent_type.clone(),
+                HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Unhealthy::new(
-                    "Health check error".to_string(),
-                    "mocked health check error!".to_string(),
+            SubAgentEvent::SubAgentHealthInfo(
+                agent_id,
+                agent_type,
+                HealthWithStartTime::new(
+                    Unhealthy::new(
+                        "Health check error".to_string(),
+                        "mocked health check error!".to_string(),
+                    )
+                    .into(),
+                    start_time,
                 )
-                .into(),
-                start_time,
-            )),
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
 
@@ -444,10 +431,12 @@ pub mod tests {
             });
 
         let agent_id = AgentID::new("test-agent").unwrap();
-
+        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let started_thread_context = spawn_health_checker(
             agent_id.clone(),
+            agent_type.clone(),
             health_checker,
+            Arc::new(None::<MockStartedOpAMPClientMock>),
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
@@ -455,17 +444,19 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 0".to_string()).into(),
-                start_time
-            )),
+            SubAgentEvent::SubAgentHealthInfo(
+                agent_id.clone(),
+                agent_type.clone(),
+                HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time)
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 1".to_string()).into(),
-                start_time
-            )),
+            SubAgentEvent::SubAgentHealthInfo(
+                agent_id,
+                agent_type,
+                HealthWithStartTime::new(Healthy::new("status: 1".to_string()).into(), start_time)
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
 
@@ -505,23 +496,30 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         let agent_id = AgentID::new("test-agent").unwrap();
+        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
         let started_thread_context = spawn_health_checker(
             agent_id.clone(),
+            agent_type.clone(),
             health_checker,
+            Arc::new(None::<MockStartedOpAMPClientMock>),
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
             start_time,
         );
 
         // Check that we received the two expected health events
-        let expected_health_event = SubAgentInternalEvent::from(HealthWithStartTime::new(
-            Unhealthy::new(
-                "Health check error".to_string(),
-                "mocked health check error!".to_string(),
-            )
-            .into(),
-            start_time,
-        ));
+        let expected_health_event = SubAgentEvent::SubAgentHealthInfo(
+            agent_id.clone(),
+            agent_type.clone(),
+            HealthWithStartTime::new(
+                Unhealthy::new(
+                    "Health check error".to_string(),
+                    "mocked health check error!".to_string(),
+                )
+                .into(),
+                start_time,
+            ),
+        );
         assert_eq!(
             expected_health_event.clone(),
             health_consumer.as_ref().recv().unwrap()

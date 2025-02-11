@@ -21,6 +21,7 @@ use crate::{
     sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
 };
 use opamp_client::operation::settings::DescriptionValueType;
+use opamp_client::StartedClient;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::debug;
@@ -143,7 +144,7 @@ where
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
-            maybe_opamp_client,
+            Arc::new(maybe_opamp_client),
             supervisor_assembler,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
@@ -167,8 +168,11 @@ impl SupervisorBuilderK8s {
     }
 }
 
-impl SupervisorBuilder for SupervisorBuilderK8s {
-    type SupervisorStarter = NotStartedSupervisorK8s;
+impl<C> SupervisorBuilder<C> for SupervisorBuilderK8s
+where
+    C: StartedClient + Send + Sync + 'static,
+{
+    type SupervisorStarter = NotStartedSupervisorK8s<C>;
 
     fn build_supervisor(
         &self,
@@ -346,7 +350,10 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        let result = supervisor_builder.build_supervisor(effective_agent);
+        let result: Result<
+            NotStartedSupervisorK8s<MockStartedOpAMPClientMock>,
+            SubAgentBuilderError,
+        > = supervisor_builder.build_supervisor(effective_agent);
         assert!(
             result.is_ok(),
             "It should not error and it should return a supervisor"
@@ -374,7 +381,10 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        let result = supervisor_builder.build_supervisor(effective_agent);
+        let result: Result<
+            NotStartedSupervisorK8s<MockStartedOpAMPClientMock>,
+            SubAgentBuilderError,
+        > = supervisor_builder.build_supervisor(effective_agent);
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::UnsupportedK8sObject(_)

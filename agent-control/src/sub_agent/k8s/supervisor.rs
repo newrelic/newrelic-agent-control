@@ -4,7 +4,7 @@ use crate::agent_type::runtime_config::K8sObject;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::SubAgentInternalEvent;
+use crate::event::{SubAgentEvent, SubAgentInternalEvent};
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -22,21 +22,28 @@ use crate::sub_agent::version::version_checker::spawn_version_checker;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
+use opamp_client::StartedClient;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{debug, error, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 
-pub struct NotStartedSupervisorK8s {
+pub struct NotStartedSupervisorK8s<C> {
     agent_id: AgentID,
     agent_fqn: AgentTypeFQN,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: runtime_config::K8s,
     interval: Duration,
+
+    phantom_data: PhantomData<C>,
 }
 
-impl SupervisorStarter for NotStartedSupervisorK8s {
+impl<C> SupervisorStarter<C> for NotStartedSupervisorK8s<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     type SupervisorStopper = StartedSupervisorK8s;
 
     /// Starts the supervisor, it will periodically:
@@ -44,13 +51,15 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     /// * Check health
     fn start(
         self,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let thread_contexts = vec![
             Some(self.start_k8s_objects_supervisor(resources.clone())),
-            self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
+            self.start_health_check(maybe_opamp_client, sub_agent_publisher, resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher, resources),
         ];
 
@@ -61,7 +70,10 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
     }
 }
 
-impl NotStartedSupervisorK8s {
+impl<C> NotStartedSupervisorK8s<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     pub fn new(
         agent_id: AgentID,
         agent_fqn: AgentTypeFQN,
@@ -74,6 +86,7 @@ impl NotStartedSupervisorK8s {
             k8s_config,
             agent_fqn,
             interval: Duration::from_secs(OBJECTS_SUPERVISOR_INTERVAL_SECONDS),
+            phantom_data: PhantomData,
         }
     }
 
@@ -145,7 +158,8 @@ impl NotStartedSupervisorK8s {
 
     pub fn start_health_check(
         &self,
-        sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         resources: Arc<Vec<DynamicObject>>,
     ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
@@ -164,8 +178,10 @@ impl NotStartedSupervisorK8s {
 
         let started_thread_context = spawn_health_checker(
             self.agent_id.clone(),
+            self.agent_fqn.clone(),
             k8s_health_checker,
-            sub_agent_internal_publisher,
+            maybe_opamp_client,
+            sub_agent_publisher,
             health_config.interval,
             start_time,
         );
@@ -311,7 +327,7 @@ pub mod tests {
             data: json!({}),
         };
 
-        let supervisor = NotStartedSupervisorK8s::new(
+        let supervisor = NotStartedSupervisorK8s::<MockStartedOpAMPClientMock>::new(
             agent_id,
             agent_fqn,
             Arc::new(mock_k8s_client),
@@ -349,12 +365,13 @@ pub mod tests {
             .returning(|_| Err(K8sError::GetDynamic(apply_issue.to_string())))
             .in_sequence(&mut seq);
 
-        let supervisor = NotStartedSupervisorK8s {
+        let supervisor = NotStartedSupervisorK8s::<MockStartedOpAMPClientMock> {
             interval,
             agent_id: agent_id.clone(),
             agent_fqn,
             k8s_client: Arc::new(mock_client),
             k8s_config: Default::default(),
+            phantom_data: PhantomData,
         };
 
         let started_thread_context =
@@ -365,7 +382,7 @@ pub mod tests {
 
     #[test]
     fn test_start_health_check_fails() {
-        let (sub_agent_internal_publisher, _) = pub_sub();
+        let (sub_agent_publisher, _) = pub_sub();
         let config = runtime_config::K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(K8sHealthConfig {
@@ -376,7 +393,8 @@ pub mod tests {
         let supervisor = not_started_supervisor(config, None);
         let err = supervisor
             .start_health_check(
-                sub_agent_internal_publisher,
+                Arc::new(None::<MockStartedOpAMPClientMock>),
+                sub_agent_publisher,
                 Arc::new(vec![DynamicObject {
                     types: Some(helmrelease_v2_type_meta()),
                     metadata: Default::default(), // missing name
@@ -390,6 +408,7 @@ pub mod tests {
 
     #[test]
     fn test_supervisor_start_stop() {
+        let (sub_agent_publisher, _) = pub_sub();
         let (sub_agent_internal_publisher, _) = pub_sub();
 
         let config = runtime_config::K8s {
@@ -399,13 +418,18 @@ pub mod tests {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher)
+            .start(
+                Arc::new(None::<MockStartedOpAMPClientMock>),
+                sub_agent_publisher,
+                sub_agent_internal_publisher,
+            )
             .expect("supervisor started");
         started.stop().expect("supervisor thread joined");
     }
 
     #[test]
     fn test_supervisor_start_without_health_check() {
+        let (sub_agent_publisher, _) = pub_sub();
         let (sub_agent_internal_publisher, _) = pub_sub();
 
         let config = runtime_config::K8s {
@@ -415,7 +439,11 @@ pub mod tests {
 
         let not_started = not_started_supervisor(config, None);
         let started = not_started
-            .start(sub_agent_internal_publisher)
+            .start(
+                Arc::new(None::<MockStartedOpAMPClientMock>),
+                sub_agent_publisher,
+                sub_agent_internal_publisher,
+            )
             .expect("supervisor started");
         assert!(!started
             .thread_contexts
@@ -459,7 +487,7 @@ pub mod tests {
     fn not_started_supervisor(
         config: runtime_config::K8s,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
-    ) -> NotStartedSupervisorK8s {
+    ) -> NotStartedSupervisorK8s<MockStartedOpAMPClientMock> {
         let agent_id = AgentID::new(TEST_AGENT_ID).unwrap();
         let agent_fqn = AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap();
 
@@ -574,7 +602,7 @@ pub mod tests {
         SubAgent::new(
             AgentID::new(TEST_AGENT_ID).unwrap(),
             agent_cfg.clone(),
-            none_mock_opamp_client(),
+            Arc::new(none_mock_opamp_client()),
             supervisor_assembler,
             sub_agent_publisher,
             None,

@@ -19,6 +19,7 @@ use opamp_client::{
     StartedClient,
 };
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing::info;
 
 pub fn build_sub_agent_opamp<OB, IG>(
@@ -106,16 +107,30 @@ pub fn start_settings(
 
 /// Stops an started OpAMP client.
 pub fn stop_opamp_client<C: StartedClient>(
-    client: Option<C>,
+    client: Arc<Option<C>>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {
-    if let Some(client) = client {
-        info!(
-            "Stopping OpAMP client for supervised agent type: {}",
-            agent_id
-        );
-        // TODO We should call disconnect here as this means a graceful shutdown
-        client.stop()?;
+    match Arc::try_unwrap(client) {
+        Ok(Some(client)) => {
+            info!(
+                "Stopping OpAMP client for supervised agent type: {}",
+                agent_id
+            );
+            // TODO We should call disconnect here as this means a graceful shutdown
+            client.stop()?;
+        }
+        Ok(None) => {
+            info!(
+                "OpAMP client not in use for supervised agent type: {}",
+                agent_id
+            );
+        }
+        Err(_) => {
+            return Err(SubAgentError::PoisonError(
+                "Failed to stop OpAMP client".to_string(),
+            ));
+        }
     }
+
     Ok(())
 }
