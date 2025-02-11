@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
@@ -7,7 +9,7 @@ use opamp_client::StartedClient;
 
 pub fn on_health<C>(
     health: HealthWithStartTime,
-    maybe_opamp_client: Option<&C>,
+    maybe_opamp_client: Arc<Option<C>>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
     agent_id: AgentID,
     agent_type: AgentTypeFQN,

@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use crate::event::channel::EventPublisher;
-use crate::event::SubAgentInternalEvent;
+use crate::event::{SubAgentEvent, SubAgentInternalEvent};
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::health::health_checker::HealthCheckerError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
+use opamp_client::StartedClient;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -22,29 +25,44 @@ pub enum SupervisorStarterError {
     BuildError(#[from] SubAgentBuilderError),
 }
 
-pub trait SupervisorStarter {
+pub trait SupervisorStarter<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     type SupervisorStopper: SupervisorStopper;
 
     fn start(
         self,
+        maybe_opamp_client: Arc<Option<C>>,
+        sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::sync::Arc;
+
     use crate::event::channel::EventPublisher;
-    use crate::event::SubAgentInternalEvent;
+    use crate::event::{SubAgentEvent, SubAgentInternalEvent};
     use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use mockall::mock;
+    use opamp_client::StartedClient;
 
     mock! {
-        pub SupervisorStarter {}
+            pub SupervisorStarter<C> {}
 
-         impl SupervisorStarter for SupervisorStarter{
-             type SupervisorStopper = MockSupervisorStopper;
-              fn start(self,sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<MockSupervisorStopper, SupervisorStarterError>;
+             impl<C> SupervisorStarter<C>
+             for SupervisorStarter<C>
+    where
+        C: StartedClient + Send + Sync + 'static,
+             {
+                 type SupervisorStopper = MockSupervisorStopper;
+                  fn start<'a>(self,
+            maybe_opamp_client: Arc<Option<C>>,
+            sub_agent_publisher: EventPublisher<SubAgentEvent>,
+                    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<MockSupervisorStopper, SupervisorStarterError>;
+            }
         }
-    }
 }

@@ -22,6 +22,7 @@ use crate::{
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
+use opamp_client::StartedClient;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -134,7 +135,7 @@ where
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
-            maybe_opamp_client,
+            Arc::new(maybe_opamp_client),
             supervisor_assembler,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
@@ -162,8 +163,11 @@ impl SupervisortBuilderOnHost {
     }
 }
 
-impl SupervisorBuilder for SupervisortBuilderOnHost {
-    type SupervisorStarter = NotStartedSupervisorOnHost;
+impl<C> SupervisorBuilder<C> for SupervisortBuilderOnHost
+where
+    C: StartedClient + Send + Sync + 'static,
+{
+    type SupervisorStarter = NotStartedSupervisorOnHost<C>;
 
     fn build_supervisor(
         &self,

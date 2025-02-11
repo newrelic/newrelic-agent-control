@@ -5,6 +5,7 @@ use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use opamp_client::StartedClient;
+use std::marker::PhantomData;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, warn};
@@ -23,20 +24,23 @@ pub enum SupervisorAssemblerError {
 /// to ensure that the Supervisor for the Sub Agent can be built.
 /// If it succeeds, it will use the environment specific SupervisorBuilder
 /// to actually build and return the Supervisor.
-pub struct SupervisorAssembler<HR, B, A> {
+pub struct SupervisorAssembler<HR, B, A, C> {
     hash_repository: Arc<HR>,
     supervisor_builder: B,
     agent_id: AgentID,
     agent_cfg: SubAgentConfig,
     effective_agent_assembler: Arc<A>,
     environment: Environment,
+
+    phantom_opamp: PhantomData<C>,
 }
 
-impl<HR, B, A> SupervisorAssembler<HR, B, A>
+impl<HR, B, A, C> SupervisorAssembler<HR, B, A, C>
 where
     HR: HashRepository + Send + Sync + 'static,
-    B: SupervisorBuilder,
+    B: SupervisorBuilder<C>,
     A: EffectiveAgentsAssembler,
+    C: StartedClient + Send + Sync + 'static,
 {
     pub fn new(
         hash_repository: Arc<HR>,
@@ -53,16 +57,14 @@ where
             agent_cfg,
             effective_agent_assembler,
             environment,
+            phantom_opamp: PhantomData,
         }
     }
 
-    pub fn assemble_supervisor<C>(
+    pub fn assemble_supervisor(
         &self,
         maybe_opamp_client: &Option<C>,
-    ) -> Result<B::SupervisorStarter, SupervisorAssemblerError>
-    where
-        C: StartedClient + Send + Sync + 'static,
-    {
+    ) -> Result<B::SupervisorStarter, SupervisorAssemblerError> {
         // Attempt to retrieve the hash
         let hash = self
             .hash_repository
@@ -150,8 +152,12 @@ mod tests {
     //Follow the same approach as before the refactor
     type AssemblerForTesting = SupervisorAssembler<
         MockHashRepositoryMock,
-        MockSupervisorBuilder<MockSupervisorStarter>,
+        MockSupervisorBuilder<
+            MockSupervisorStarter<MockStartedOpAMPClientMock>,
+            MockStartedOpAMPClientMock,
+        >,
         MockEffectiveAgentAssemblerMock,
+        MockStartedOpAMPClientMock,
     >;
 
     type OpampClientForTest = MockStartedOpAMPClientMock;
@@ -189,8 +195,12 @@ mod tests {
             supervisor_starter
                 .expect_start()
                 .times(0..=1) // at most once
-                .with(predicate::always())
-                .return_once(|_| Ok(supervisor_stopper));
+                .with(
+                    predicate::always(),
+                    predicate::always(),
+                    predicate::always(),
+                )
+                .return_once(|_, _, _| Ok(supervisor_stopper));
 
             let mut supervisor_builder = MockSupervisorBuilder::new();
             supervisor_builder

@@ -43,12 +43,5 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentInternalEvent {
     StopRequested,
-    AgentHealthInfo(HealthWithStartTime),
     AgentVersionInfo(AgentVersion),
-}
-
-impl From<HealthWithStartTime> for SubAgentInternalEvent {
-    fn from(health: HealthWithStartTime) -> Self {
-        Self::AgentHealthInfo(health)
-    }
 }

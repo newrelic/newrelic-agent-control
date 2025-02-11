@@ -7,10 +7,13 @@ use super::tools::{
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
-use newrelic_agent_control::agent_control::config::{default_group_version_kinds, AgentTypeFQN};
 use newrelic_agent_control::agent_type::runtime_config;
 use newrelic_agent_control::k8s::annotations::Annotations;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
+use newrelic_agent_control::{
+    agent_control::config::{default_group_version_kinds, AgentTypeFQN},
+    opamp::client_builder::OpAMPClientBuilder,
+};
 use newrelic_agent_control::{
     agent_control::{config::AgentID, defaults::AGENT_CONTROL_ID},
     agent_type::runtime_config::K8sObject,
@@ -29,6 +32,7 @@ use newrelic_agent_control::{
     },
     k8s::labels::Labels,
 };
+use opamp_client::{http::StartedHttpClient, Client, StartedClient};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 // Setup AgentControlConfigLoader mock
@@ -51,6 +55,54 @@ mock! {
 
 const GC_TEST_INTERVAL: Duration = Duration::from_secs(1);
 
+struct MyClient {}
+
+impl Client for MyClient {
+    fn set_agent_description(
+        &self,
+        description: opamp_client::opamp::proto::AgentDescription,
+    ) -> opamp_client::ClientResult<()> {
+        todo!()
+    }
+
+    fn get_agent_description(
+        &self,
+    ) -> opamp_client::ClientResult<opamp_client::opamp::proto::AgentDescription> {
+        todo!()
+    }
+
+    fn set_health(
+        &self,
+        health: opamp_client::opamp::proto::ComponentHealth,
+    ) -> opamp_client::ClientResult<()> {
+        todo!()
+    }
+
+    fn update_effective_config(&self) -> opamp_client::ClientResult<()> {
+        todo!()
+    }
+
+    fn set_remote_config_status(
+        &self,
+        status: opamp_client::opamp::proto::RemoteConfigStatus,
+    ) -> opamp_client::ClientResult<()> {
+        todo!()
+    }
+
+    fn set_custom_capabilities(
+        &self,
+        custom_capabilities: opamp_client::opamp::proto::CustomCapabilities,
+    ) -> opamp_client::ClientResult<()> {
+        todo!()
+    }
+}
+
+impl StartedClient for MyClient {
+    fn stop(self) -> opamp_client::StartedClientResult<()> {
+        Ok(())
+    }
+}
+
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_garbage_collector_cleans_removed_agent_resources() {
@@ -66,7 +118,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let resource_name = "test-different-from-agent-id";
     let secret_name = "test-secret-name";
 
-    let s = NotStartedSupervisorK8s::new(
+    let s = NotStartedSupervisorK8s::<MyClient>::new(
         agent_id.clone(),
         agent_fqn.clone(),
         k8s_client.clone(),
