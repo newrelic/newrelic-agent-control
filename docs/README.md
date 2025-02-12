@@ -18,7 +18,7 @@ The controlled observability agents will still send their **Metrics, Events, Log
 
 ##### Creates observability workloads
 
-Receiving instructions from either static configuration or from FC, AC will create **workloads** for the specified observability agents of the fleet covering the customer's observability needs. On traditional servers, these workloads will usually be simply **processes and configurations** for the installed agents. On Kubernetes, these will be the appropriate and equivalent **Kubernetes resources**, usually in the form of a [Helm release](https://helm.sh/docs/glossary/#release).
+Receiving instructions from either static configuration or from FC, AC will create **workloads** for the specified observability agents of the fleet covering the customer's observability needs. On traditional servers, these workloads will usually be simply **processes with their configurations** for the installed agents, as Operating System threads spawned by AC. On Kubernetes, these will be the appropriate and equivalent **Kubernetes resources**, usually in the form of a [Helm release](https://helm.sh/docs/glossary/#release).
 
 ##### Manages the workload configurations
 
@@ -33,6 +33,8 @@ Besides creating, modifying and deleting these workloads, AC is also capable of 
 The communication between AC and FC is done over HTTPS and is generally compliant with the [Open Agent Management Protocol (OpAMP)](https://github.com/open-telemetry/opamp-spec), which is, on their own words:
 
 > [...] a network protocol for remote management of large fleets of data collection Agents.
+
+We maintain our own Rust library for OpAMP clients on a separate repository: [`opamp-rs`](https://github.com/newrelic/opamp-rs).
 
 From the point of view of OpAMP, AC is also an agent. That's why, even though each workload will have its own OpAMP communication channel when managed by AC, we commonly refer to the various observability workloads that AC can manage as **sub-agents**.
 
@@ -100,7 +102,7 @@ For the standard installation of Agent Control, either on-host or Kubernetes, he
 
 ### Developing Agent Control
 
-For setting up a development version of AC, go to [`DEVELOPMENT.md`](./DEVELOPMENT.md).
+For details related to developing for AC, like setting up the developer environment, some implementation details, troubleshooting, etc, go to [`DEVELOPMENT.md`](./DEVELOPMENT.md).
 
 ### Integrating with Agent Control
 
