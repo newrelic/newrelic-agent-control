@@ -118,7 +118,7 @@ make tilt-up
 
 See [diagnose issues with agent control logging](https://docs-preview.newrelic.com/docs/new-relic-agent-control#debug).
 
-### OpAMP Capabilities
+### Disable Fleet Control
 
 Users can disable remote management just by commenting the `fleet_control` section in the Agent Control configuration file.
 
