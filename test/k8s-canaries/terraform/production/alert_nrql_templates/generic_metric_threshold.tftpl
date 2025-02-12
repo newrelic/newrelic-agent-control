@@ -1,0 +1,9 @@
+SELECT max(${metric})
+FROM ${sample}
+WHERE (
+  clusterName = '${cluster_name}'
+  AND `label.app.kubernetes.io/name` = 'agent-control'
+  %{ for k, v in wheres }
+  AND ${k}='${v}'
+  %{ endfor }
+)

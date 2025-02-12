@@ -137,6 +137,8 @@ jobs:
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
       cluster_name: Agent_Control_Canaries_Production-Cluster
+      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk0ZTAxZi05NTUyLTczOWYtYTVjYS1iZjRhZDU5NThjMzY" # production
+      is_staging: false
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

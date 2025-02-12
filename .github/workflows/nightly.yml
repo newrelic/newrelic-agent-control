@@ -100,6 +100,8 @@ jobs:
     with:
       image-tag: nightly
       cluster_name: Agent_Control_Canaries_Staging-Cluster
+      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk0ZTAwMy03NGEyLTdiZTEtODk5NS0zZjgyN2E0MjBlMjA" # staging
+      is_staging: true
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
