@@ -255,6 +255,7 @@ Either the first time it runs, using static configs or when already running and 
 4. Once the sub-agent is deployed:
     - Perform regular health checks.
     - Restart it if it crashes, according to the configured restart policy (for on-host).
+    - Assure that the resources match the ones defined in the agent-type (for k8s).
 5. If Fleet Control is enabled, the supervisor will listen for incoming remote configs different from the one currently in use:
     - When receiving one, the supervisor will stop its workload and restart from step 1 again.
     - If an empty config is passed it means that this agent should be retired, so the supervisor will just stop its workload and exit.
