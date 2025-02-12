@@ -81,6 +81,6 @@ module "alerts" {
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
   ]
-  region       = "US"
+  region       = "Staging" # To change to US when production is stable
   cluster_name = "Agent_Control_Canaries_Production"
 }
