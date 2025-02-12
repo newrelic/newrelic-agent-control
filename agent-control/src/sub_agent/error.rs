@@ -51,6 +51,8 @@ pub enum SubAgentError {
     ConfigValidatorError(#[from] ConfigValidatorError),
     #[error("SignatureValidator error: `{0}`")]
     SignatureValidatorError(#[from] SignatureValidatorError),
+    #[error("Error stopping opamp client: `{0}`")]
+    StoppingOpampClient(String),
 }
 
 #[derive(Error, Debug)]

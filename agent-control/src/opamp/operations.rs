@@ -110,8 +110,8 @@ pub fn stop_opamp_client<C: StartedClient>(
     client: Arc<Option<C>>,
     agent_id: &AgentID,
 ) -> Result<(), SubAgentError> {
-    match Arc::try_unwrap(client) {
-        Ok(Some(client)) => {
+    match Arc::into_inner(client) {
+        Some(Some(client)) => {
             info!(
                 "Stopping OpAMP client for supervised agent type: {}",
                 agent_id
@@ -119,14 +119,14 @@ pub fn stop_opamp_client<C: StartedClient>(
             // TODO We should call disconnect here as this means a graceful shutdown
             client.stop()?;
         }
-        Ok(None) => {
+        Some(None) => {
             info!(
                 "OpAMP client not in use for supervised agent type: {}",
                 agent_id
             );
         }
-        Err(_) => {
-            return Err(SubAgentError::PoisonError(
+        None => {
+            return Err(SubAgentError::StoppingOpampClient(
                 "Failed to stop OpAMP client".to_string(),
             ));
         }
