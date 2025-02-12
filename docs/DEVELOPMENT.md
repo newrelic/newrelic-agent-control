@@ -178,21 +178,51 @@ $ curl localhost:51200/status | jq
 
 ## Testing
 
-Running the tests
-
-Only for the feature on-host:
+### General
 
 ```sh
-cargo test --features "onhost" -- --skip as_root
+cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
 ```
 
-Only for the feature k8s:
+We have `Makefile`s containing targets for testing. [Inspect them](../agent-control/Makefile) for more details.
+
+### Feature `onhost`
+
+Running tests for the agent control lib excluding root-required tests (on-host)
 
 ```sh
-cargo test --features "k8s"
+make -C agent-control test/onhost
 ```
 
-Passing the flag `--features "onhost, k8s"` will throw a compilation error, there is a special feature `ci`, that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
+Run tests agent control integration tests excluding root-required tests.
+
+```sh
+make -C agent-control test/onhost/integration
+```
+
+#### Tests that require root user
+
+Running tests that require root user can be not straight-forward, as the Rust toolchain installers like `rustup` tend to not install them globally on a system, so doing `sudo cargo` won't work. An easy way to run the root-required tests is spinning up a container where the user is root and running them there with:
+
+```sh
+make -C agent-control test/onhost/root
+```
+
+### Feature `k8s`
+
+Running basic tests, not requiring an existing Kubernetes cluster.
+
+```sh
+make -C agent-control test/k8s
+```
+
+#### Tests that require an existing Kubernetes cluster
+
+```sh
+make -C agent-control test/k8s/integration
+```
+
+Attempting to use the `onhost` and `k8s` features at the same time (`cargo --features "onhost, k8s" ...`) will throw a compilation error, there is a special feature `ci`, that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
 
 ## Coverage
 
