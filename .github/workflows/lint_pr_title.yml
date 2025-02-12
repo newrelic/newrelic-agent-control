@@ -21,4 +21,4 @@ jobs:
           npm i @commitlint/config-conventional
 
       - name: Validate PR title
-        run: echo ${{ github.event.pull_request.title }} | npx commitlint --extends @commitlint/config-conventional
+        run: echo "${{ github.event.pull_request.title }}" | npx commitlint --extends @commitlint/config-conventional
