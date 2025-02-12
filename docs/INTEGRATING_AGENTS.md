@@ -10,7 +10,9 @@ We recommend that you read the following sections, but at any time feel free to 
 
 ### Agent Type Metadata
 
-Contains top-level fields for the name of the agent and the definition (not the agent!) version.
+Contains top-level fields for the name of the agent type, with a namespace, and the version.
+
+The version used here is not the version of your agent, but **the version of the agent type definition**. For example, at the time of writing this we may use `version: 0.1.0` for our Infrastructure Agent definition, but the version of the actual Infrastructure Agent binary that AC ends up running as sub-agent would be the most recent one (`1.60.1`).
 
 Agent Types are versioned to ensure compatibility with a given configuration values (no breaking changes, see below). As of now, we maintain only one version per agent type and use a fixed `0.1.0` value for it because these definitions are not easily visible to FC, but FC needs to know what are the agent types and their versions to make the metadata visible on New Relic's UI. As of now **we prohibit pushing breaking changes for these definitions, and any exceptions to this need to be validated at least by both AC and FC teams**.
 
