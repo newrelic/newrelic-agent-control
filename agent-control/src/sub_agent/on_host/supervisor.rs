@@ -234,12 +234,12 @@ where
             let init_health = Healthy::new(String::default());
             let _ = on_health(
                 HealthWithStartTime::new(init_health.into(), supervisor_start_time),
-                            maybe_opamp_client.clone(),
-                                    sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_fqn.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                maybe_opamp_client.clone(),
+                sub_agent_publisher.clone(),
+                self.agent_id.clone(),
+                self.agent_fqn.clone(),
+            )
+            .inspect_err(|e| error!(error = %e, select_arm = "start_process_thread", "processing health message"));
 
             let exit_code = start_command(not_started_command, pid_guard)
                 .inspect_err(|err| {
@@ -292,13 +292,12 @@ where
                     );
 
                     let _ = on_health(
-                HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                            maybe_opamp_client.clone(),
-                                    sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_fqn.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                        maybe_opamp_client.clone(),
+                        sub_agent_publisher.clone(),
+                        self.agent_id.clone(),
+                        self.agent_fqn.clone(),
+                    ).inspect_err(|e| error!(error = %e, select_arm = "restart_policy_broken", "processing health message"));
                 }
                 break;
             }
@@ -351,13 +350,15 @@ where
             exit_status.to_string(),
         );
         let _ = on_health(
-                HealthWithStartTime::new(unhealthy.into(), start_time),
-                            maybe_opamp_client.clone(),
-                                    sub_agent_publisher.clone(),
-                                    agent_id.clone(),
-                                    agent_type,
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+            HealthWithStartTime::new(unhealthy.into(), start_time),
+            maybe_opamp_client.clone(),
+            sub_agent_publisher.clone(),
+            agent_id.clone(),
+            agent_type,
+        )
+        .inspect_err(
+            |e| error!(error = %e, select_arm = "handle_termination", "processing health message"),
+        );
         error!(
             %agent_id,
             supervisor = bin,

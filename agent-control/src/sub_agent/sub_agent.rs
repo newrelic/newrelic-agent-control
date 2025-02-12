@@ -241,7 +241,7 @@ where
                                     self.agent_id.clone(),
                                     self.agent_cfg.agent_type.clone(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                                .inspect_err(|e| error!(error = %e, select_arm = "start_supervisor", "processing health message"));
             })
     }
 

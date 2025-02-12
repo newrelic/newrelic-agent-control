@@ -42,27 +42,27 @@ pub fn run_async_sync_bridge(
             },
             recv(&sub_agent_consumer.as_ref()) -> suba_event_res => {
                 if let Err(err) = suba_event_res {
-                            debug!(
-                                error_msg = %err,
-                                "status server bridge channel closed"
-                            );
-                            return;
+                    debug!(
+                        error_msg = %err,
+                        "status server bridge channel closed"
+                    );
+                    return;
                 };
 
                 let sub_agent_event = suba_event_res.expect("Error already handled");
-                            match &sub_agent_event {
-                                SubAgentEvent::SubAgentHealthInfo(agent_id, _, health) => {
-                                    log_health_info(agent_id, is_healthy, health.clone().into());
-                                    is_healthy = health.is_healthy();
-                                }
-                            }
-                            let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
-                                error!(
-                                    error_msg = %err,
-                                    "cannot forward agent control event"
-                                );
-                            });
+                match &sub_agent_event {
+                    SubAgentEvent::SubAgentHealthInfo(agent_id, _, health) => {
+                        log_health_info(agent_id, is_healthy, health.clone().into());
+                        is_healthy = health.is_healthy();
+                    }
                 }
+                let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
+                    error!(
+                        error_msg = %err,
+                        "cannot forward agent control event"
+                    );
+                });
+            }
         }
     })
 }

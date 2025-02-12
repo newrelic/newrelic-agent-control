@@ -235,13 +235,12 @@ where
         });
 
         let _ = on_health(
-                                    health.clone(),
-                            maybe_opamp_client.clone(),
-                                    sub_agent_publisher.clone(),
-                                    agent_id_clone.clone(),
-                                    agent_type.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+            health.clone(),
+            maybe_opamp_client.clone(),
+            sub_agent_publisher.clone(),
+            agent_id_clone.clone(),
+            agent_type.clone(),
+        ).inspect_err(|e| error!(error = %e, select_arm = "spawn_health_checker", "processing health message"));
 
         // Check the cancellation signal
         if stop_consumer.is_cancelled(interval.into()) {
