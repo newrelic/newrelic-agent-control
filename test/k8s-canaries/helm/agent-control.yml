@@ -1,7 +1,7 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
 agent-control-deployment:
   image:
-    imagePullPolicy: Always
+    pullPolicy: Always
   config:
     agentControl:
       content:
