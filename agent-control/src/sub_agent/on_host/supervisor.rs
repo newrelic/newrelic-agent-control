@@ -42,7 +42,10 @@ pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
 }
 
-pub struct NotStartedSupervisorOnHost<C> {
+pub struct NotStartedSupervisorOnHost<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     pub(super) agent_id: AgentID,
     pub(super) agent_fqn: AgentTypeFQN,
     pub(super) ctx: Context<bool>,

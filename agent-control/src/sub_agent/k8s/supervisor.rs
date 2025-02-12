@@ -30,7 +30,10 @@ use tracing::{debug, error, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 
-pub struct NotStartedSupervisorK8s<C> {
+pub struct NotStartedSupervisorK8s<C>
+where
+    C: StartedClient + Send + Sync + 'static,
+{
     agent_id: AgentID,
     agent_fqn: AgentTypeFQN,
     k8s_client: Arc<SyncK8sClient>,
