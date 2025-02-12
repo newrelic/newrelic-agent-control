@@ -1,3 +1,4 @@
+use crate::common::agent_control::K8S_GC_INTERVAL;
 use crate::k8s::tools::agent_control::BAR_CR_AGENT_TYPE_PATH;
 use crate::k8s::tools::k8s_api::check_config_map_exist;
 use crate::k8s::tools::test_crd::{create_crd, delete_crd, Foo};
@@ -20,6 +21,7 @@ use kube::{Api, CustomResource, CustomResourceExt};
 use newrelic_agent_control::agent_control::config::AgentID;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::ops::Add;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -77,8 +79,12 @@ agents:
         Ok(())
     });
 
-    // Asserts the agent resources are garbage collected
+    // This function is used to wait for the k8s garbage collector to run.
+    // It is used in tests to ensure that the garbage collector has run before checking the state of the system.
+    // This is a HACK until we address the GC refactor.
+    std::thread::sleep(K8S_GC_INTERVAL.add(Duration::from_millis(100)));
 
+    // Asserts the agent resources are garbage collected
     server.set_config_response(
         instance_id.clone(),
         ConfigResponse::from(

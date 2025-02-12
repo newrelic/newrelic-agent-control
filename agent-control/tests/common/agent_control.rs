@@ -11,6 +11,8 @@ use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
 use std::sync::Arc;
 use std::time::Duration;
 
+pub const K8S_GC_INTERVAL: Duration = Duration::from_secs(5);
+
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
 /// Take into account that some of the logic from main is not present here.
 pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedAgentControl {
@@ -30,8 +32,8 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
 
         let agent_control_config = config_storer.load().unwrap();
 
-        let opamp_poll_interval = Duration::from_secs(2);
-        let garbage_collector_interval = Duration::from_secs(1);
+        let opamp_poll_interval = Duration::from_secs(10);
+        let garbage_collector_interval = K8S_GC_INTERVAL;
         // TODO - Temporal solution until https://new-relic.atlassian.net/browse/NR-343594 is done.
         // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
         // before the GC process it, the resources will never be collected.
