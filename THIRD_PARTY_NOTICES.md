@@ -800,20 +800,6 @@ Distributed under the following license(s):
 * Zlib
 
 
-## foreign-types https://crates.io/crates/foreign-types
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## foreign-types-shared https://crates.io/crates/foreign-types-shared
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## form_urlencoded https://crates.io/crates/form_urlencoded
 
 Distributed under the following license(s):
@@ -1039,13 +1025,6 @@ Distributed under the following license(s):
 
 
 ## hyper-timeout https://crates.io/crates/hyper-timeout
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## hyper-tls https://crates.io/crates/hyper-tls
 
 Distributed under the following license(s):
 * MIT
@@ -1465,13 +1444,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## native-tls https://crates.io/crates/native-tls
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## nix https://crates.io/crates/nix
 
 Distributed under the following license(s):
@@ -1551,30 +1523,11 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## openssl https://crates.io/crates/openssl
-
-Distributed under the following license(s):
-* Apache-2.0
-
-
-## openssl-macros https://crates.io/crates/openssl-macros
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## openssl-probe https://crates.io/crates/openssl-probe
 
 Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## openssl-sys https://crates.io/crates/openssl-sys
-
-Distributed under the following license(s):
-* MIT
 
 
 ## opentelemetry-semantic-conventions https://crates.io/crates/opentelemetry-semantic-conventions
@@ -2192,20 +2145,6 @@ Distributed under the following license(s):
 * MIT
 
 
-## system-configuration https://crates.io/crates/system-configuration
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## system-configuration-sys https://crates.io/crates/system-configuration-sys
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
 ## tempfile https://crates.io/crates/tempfile
 
 Distributed under the following license(s):
@@ -2280,12 +2219,6 @@ Distributed under the following license(s):
 
 
 ## tokio-macros https://crates.io/crates/tokio-macros
-
-Distributed under the following license(s):
-* MIT
-
-
-## tokio-native-tls https://crates.io/crates/tokio-native-tls
 
 Distributed under the following license(s):
 * MIT
@@ -2551,13 +2484,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 * Apache-2.0
 * MIT
-
-
-## vcpkg https://crates.io/crates/vcpkg
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
 
 ## version_check https://crates.io/crates/version_check
