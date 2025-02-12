@@ -243,7 +243,7 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
 
-Internally, AC uses [Flux](https://fluxcd.io) to manage the lifecycle of the created resources.
+[Flux](https://fluxcd.io) is expected to be installed in the cluster to manage Flux resources.
 
 ## Applying configurations
 
