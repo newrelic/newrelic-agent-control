@@ -1,4 +1,7 @@
-use crate::common::runtime::{block_on, tokio_runtime};
+use crate::common::{
+    retry::retry,
+    runtime::{block_on, tokio_runtime},
+};
 
 use super::tools::{
     k8s_env::K8sEnv,
@@ -189,8 +192,15 @@ agents:
 
     // Expect that the current_agent and secret to be removed on the second call.
     gc.collect().unwrap();
-    block_on(api_foo.get(resource_name)).expect_err("CR should be removed");
-    block_on(api_secret.get(secret_name)).expect_err("Secret should be removed");
+    retry(60, Duration::from_secs(1), || {
+        if block_on(api_foo.get(resource_name)).is_ok() {
+            return Err("CR should be removed".into());
+        };
+        if block_on(api_secret.get(secret_name)).is_ok() {
+            return Err("Secret should be removed".into());
+        };
+        Ok(())
+    });
     assert_ne!(
         agent_instance_id,
         instance_id_getter.get(agent_id).unwrap(),
