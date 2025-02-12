@@ -179,7 +179,7 @@ agents: {{}}
         .expect_err("should have failure before timeout")
         .assert()
         .failure()
-        .stdout(predicate::str::is_match(r".*ERROR.*errors happened creating headers.*").unwrap());
+        .stdout(predicate::str::is_match(r".*ERROR.*could not build auth headers.*").unwrap());
 }
 
 fn cmd_agent_control(config_path: PathBuf) -> Command {

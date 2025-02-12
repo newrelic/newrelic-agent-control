@@ -103,7 +103,6 @@ pub(crate) mod tests {
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
     };
-    use std::thread;
 
     use super::*;
 
@@ -224,6 +223,7 @@ pub(crate) mod tests {
         // Until we refactor these tests (and find a better solution for this pattern) we'll
         // spawn a thread with the publisher, just not to be dropped in the test
         // TL;DR: Let the OpAMP Publisher leave for Duration
+        #[cfg(feature = "onhost")]
         pub fn should_build_and_start_and_run(
             &mut self,
             agent_id: AgentID,
@@ -231,6 +231,7 @@ pub(crate) mod tests {
             client: MockStartedOpAMPClientMock,
             run_for: Duration,
         ) {
+            use std::thread;
             self.expect_build_and_start()
                 .withf(move |publisher, _sub_agent_id, _start_settings| {
                     let publisher = publisher.clone();

@@ -1,5 +1,5 @@
 //! AWS EC2 instance id detector implementation
-use super::http_client::AWSHttpClientUreq;
+use super::http_client::AWSHttpClientReqwest;
 use super::metadata::AWSMetadata;
 use crate::cloud::http_client::{HttpClient, HttpClientError, DEFAULT_CLIENT_TIMEOUT};
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
@@ -19,17 +19,19 @@ pub struct AWSDetector<C: HttpClient> {
     http_client: C,
 }
 
-impl AWSDetector<AWSHttpClientUreq> {
+impl AWSDetector<AWSHttpClientReqwest> {
     /// Returns a new instance of AWSDetector
-    pub fn new(metadata_endpoint: String, token_endpoint: String) -> Self {
-        Self {
-            http_client: AWSHttpClientUreq::new(
-                metadata_endpoint,
-                token_endpoint,
-                TTL_TOKEN_DEFAULT,
-                DEFAULT_CLIENT_TIMEOUT,
-            ),
-        }
+    pub fn try_new(
+        metadata_endpoint: String,
+        token_endpoint: String,
+    ) -> Result<Self, HttpClientError> {
+        let http_client = AWSHttpClientReqwest::try_new(
+            metadata_endpoint,
+            token_endpoint,
+            TTL_TOKEN_DEFAULT,
+            DEFAULT_CLIENT_TIMEOUT,
+        )?;
+        Ok(Self { http_client })
     }
 }
 
