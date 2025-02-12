@@ -17,6 +17,7 @@ scenarios:
 
       # Generate some traffic
       - kubectl wait --for=condition=Ready --all pods --timeout 5m
+      - sleep 60
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292
