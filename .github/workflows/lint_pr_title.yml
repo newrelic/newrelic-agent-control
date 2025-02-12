@@ -1,0 +1,24 @@
+name: Lint PR title
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+
+jobs:
+  commitlint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install commitlint with default config
+        run: |
+          npm i @commitlint/cli
+          npm i @commitlint/config-conventional
+
+      - name: Validate PR title
+        run: echo ${{ github.event.pull_request.title }} | npx commitlint --extends @commitlint/config-conventional
