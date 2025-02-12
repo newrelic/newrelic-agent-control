@@ -23,11 +23,12 @@ use tracing::warn;
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
 /// environment.
 #[derive(Debug, PartialEq, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentTypeDefinition {
     #[serde(flatten)]
     pub metadata: AgentMetadata,
     pub variables: AgentTypeVariables,
-    #[serde(default, flatten)]
+    #[serde(flatten)]
     pub runtime_config: Runtime,
 }
 

@@ -7,15 +7,42 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct Runtime {
     pub deployment: Deployment,
 }
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Deployment {
     pub on_host: Option<OnHost>,
     pub k8s: Option<K8s>,
+}
+
+impl<'de> Deserialize<'de> for Deployment {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct DeploymentInner {
+            #[serde(default)]
+            on_host: Option<OnHost>,
+            #[serde(default)]
+            k8s: Option<K8s>,
+        }
+        // Deployment cannot have both fields empty
+        let DeploymentInner { on_host, k8s } = DeploymentInner::deserialize(deserializer)?;
+
+        if on_host.is_none() && k8s.is_none() {
+            Err(serde::de::Error::custom(
+                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+            ))
+        } else {
+            Ok(Deployment { on_host, k8s })
+        }
+    }
 }
 
 /// The definition for an on-host supervisor.
@@ -170,5 +197,25 @@ deployment:
         );
 
         assert_eq!("test", &k8s.objects["cr4"].metadata.clone().name);
+    }
+
+    #[test]
+    fn test_empty_runtime_deserialization() {
+        let rtc = serde_yaml::from_str::<Runtime>("deployment: {}");
+        assert!(rtc.is_err_and(|e| {
+            e.to_string().contains(
+                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+            )
+        }));
+
+        let rtc = serde_yaml::from_str::<Runtime>("deployment: ");
+        assert!(rtc.is_err_and(|e| {
+            e.to_string().contains(
+                "field `deployment` must have at least one of the fields `on_host` or `k8s`",
+            )
+        }));
+
+        let rtc = serde_yaml::from_str::<Runtime>("");
+        assert!(rtc.is_err_and(|e| e.to_string().contains("missing field `deployment`")));
     }
 }
