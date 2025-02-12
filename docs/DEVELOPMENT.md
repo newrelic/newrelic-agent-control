@@ -120,7 +120,33 @@ See [diagnose issues with agent control logging](https://docs-preview.newrelic.c
 
 ### Disable Fleet Control
 
-Users can disable remote management just by commenting the `fleet_control` section in the Agent Control configuration file.
+Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/config.yaml` (on-host):
+
+```yaml
+# fleet_control:
+#   endpoint: https://opamp.service.newrelic.com/v1/opamp
+#   headers:
+#     api-key: API_KEY_HERE
+#   fleet_id: FLEET_ID_HERE
+#   auth_config:
+#     token_url: PLACEHOLDER
+#     client_id: PLACEHOLDER
+#     provider: PLACEHOLDER
+#     private_key_path: PLACEHOLDER
+```
+
+Or by placing `enabled: false` under the `fleet_control` section in the Agent Control configuration values (k8s):
+
+```yaml
+# For K8s, inside the Helm values:
+agent-control-deployment:
+  image:
+    imagePullPolicy: Always
+  config:
+    fleet_control:
+      enabled: false
+  # ...
+```
 
 ### Agent Control Health
 
