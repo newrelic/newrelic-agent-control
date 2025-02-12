@@ -32,7 +32,7 @@ pub struct SupervisorAssembler<HR, B, A, C> {
     effective_agent_assembler: Arc<A>,
     environment: Environment,
 
-    phantom_opamp: PhantomData<C>,
+    phantom_opamp_client: PhantomData<C>,
 }
 
 impl<HR, B, A, C> SupervisorAssembler<HR, B, A, C>
@@ -57,7 +57,7 @@ where
             agent_cfg,
             effective_agent_assembler,
             environment,
-            phantom_opamp: PhantomData,
+            phantom_opamp_client: PhantomData,
         }
     }
 

@@ -37,7 +37,7 @@ pub struct NotStartedSupervisorK8s<C> {
     k8s_config: runtime_config::K8s,
     interval: Duration,
 
-    phantom_data: PhantomData<C>,
+    phantom_opamp_client: PhantomData<C>,
 }
 
 impl<C> SupervisorStarter<C> for NotStartedSupervisorK8s<C>
@@ -86,7 +86,7 @@ where
             k8s_config,
             agent_fqn,
             interval: Duration::from_secs(OBJECTS_SUPERVISOR_INTERVAL_SECONDS),
-            phantom_data: PhantomData,
+            phantom_opamp_client: PhantomData,
         }
     }
 
@@ -371,7 +371,7 @@ pub mod tests {
             agent_fqn,
             k8s_client: Arc::new(mock_client),
             k8s_config: Default::default(),
-            phantom_data: PhantomData,
+            phantom_opamp_client: PhantomData,
         };
 
         let started_thread_context =

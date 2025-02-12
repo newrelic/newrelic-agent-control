@@ -51,7 +51,7 @@ pub struct NotStartedSupervisorOnHost<C> {
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
 
-    pub(super) phantom_data: PhantomData<C>,
+    pub(super) phantom_opamp_client: PhantomData<C>,
 }
 
 impl<C> SupervisorStarter<C> for NotStartedSupervisorOnHost<C>
@@ -129,7 +129,7 @@ where
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
-            phantom_data: PhantomData,
+            phantom_opamp_client: PhantomData,
         }
     }
 
