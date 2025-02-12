@@ -17,9 +17,11 @@ scenarios:
 
       # Generate some traffic
       - kubectl wait --for=condition=Ready --all pods --timeout 5m
-      - sleep 60
+      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080; do echo 'Python not ready yet. Retrying...';sleep 5;done"
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-python -c ${SCENARIO_TAG}-python -- wget -qO /dev/null 127.0.0.1:8080
+      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000; do echo 'Node not ready yet. Retrying...';sleep 5;done"
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-node -c ${SCENARIO_TAG}-node -- wget -qO /dev/null 127.0.0.1:3000
+      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292; do echo 'Ruby not ready yet. Retrying...';sleep 5;done"
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292
       # dotnet image does not have wget available, we use one from a different pod
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
