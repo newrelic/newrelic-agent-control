@@ -124,10 +124,10 @@ Users can disable remote management just by commenting the `fleet_control` secti
 
 ### Agent Control Health
 
-There is a service that ultimately exposes the /status endpoint for Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
+There is a service that ultimately exposes a `/status` endpoint for Agent Control itself. This service performs a series of checks to determine the output (both in HTTP status code and message):
 
-- Reachability of OpAMP endpoint (if OpAMP is enabled at all).
-- Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned in the section above.
+- Reachability of Fleet Control endpoint (if Fleet Control is enabled at all).
+- Active agents and health of each one, in the same form as used by the OpAMP protocol, mentioned when discussing [sub-agent health](./INTEGRATING_AGENTS.md#health-status).
 
 ```json
 {
@@ -165,7 +165,16 @@ server:
     #port: 51200
 ```
 
-For Kubernetes, the status endpoint is enabled by default.
+For Kubernetes, the status endpoint is enabled by default. You can access this easily by performing a Kubernetes port-forward, using the following commands **on separate shells**:
+
+```console
+$ kubectl port-forward ac-agent-control-6558446569-rtwh4 -n newrelic 51200:51200
+Forwarding from 127.0.0.1:51200 -> 51200
+Forwarding from [::1]:51200 -> 51200
+
+$ curl localhost:51200/status | jq
+# ... contents will appear here formatted and highlighted
+```
 
 ## Testing
 
