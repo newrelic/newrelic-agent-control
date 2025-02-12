@@ -78,7 +78,7 @@ module "alerts" {
       sample        = "K8sContainerSample"
       threshold     = 0
       duration      = 600
-      operator      = "above"
+      operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
   ]
