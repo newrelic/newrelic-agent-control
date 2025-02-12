@@ -165,7 +165,7 @@ server:
     #port: 51200
 ```
 
-For Kubernetes, the status endpoint is enabled by default. You can access this easily by performing a Kubernetes port-forward, using the following commands **on separate shells**:
+For Kubernetes, the status endpoint is enabled by default. You can access this easily by performing a Kubernetes [port-forward](https://kubernetes.io/docs/tasks/access-application-cluster/port-forward-access-application-cluster/), using the following commands **on separate shells**:
 
 ```console
 $ kubectl port-forward ac-agent-control-6558446569-rtwh4 -n newrelic 51200:51200
