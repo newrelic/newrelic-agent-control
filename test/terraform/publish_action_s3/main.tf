@@ -85,7 +85,11 @@ resource "aws_iam_policy" "s3_full_access_policy" {
     Statement = [
       {
         Effect = "Allow",
-        Action = "s3:*",
+        Action = [
+          "s3:PutObject",
+          "s3:ListBucket",
+          "s3:GetObject"
+        ],
         Resource = [
           "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}",
           "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}/*"
