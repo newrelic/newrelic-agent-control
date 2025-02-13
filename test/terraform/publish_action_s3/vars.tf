@@ -8,7 +8,7 @@ variable "region" {
 variable "my_bucket_name" {
   description = "The name of the S3 bucket"
   type        = string
-  default     = "agent-control-publish-action-testing"
+  default     = "agent-control-package-repository-testing"
 }
 
 variable "vpc_id" {

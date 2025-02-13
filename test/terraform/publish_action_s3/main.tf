@@ -26,7 +26,11 @@ resource "aws_s3_bucket_policy" "my_bucket_policy" {
       {
         Effect = "Allow"
         Principal = "*"
-        Action = "s3:*"
+        Action = [
+          "s3:PutObject",
+          "s3:ListBucket",
+          "s3:GetObject"
+        ],
         Resource = [
           "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}",
           "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}/*"
@@ -57,58 +61,11 @@ resource "aws_vpc_endpoint" "s3" {
 }
 
 #################################################################################
-# Role and policy so EC2 can write into the S3
+# README for the bucket
 #################################################################################
-resource "aws_iam_role" "ec2_s3_access" {
-  name = "ec2_s3_access_role"
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        },
-        Action = "sts:AssumeRole"
-      }
-    ]
-  })
-}
-
-resource "aws_iam_policy" "s3_full_access_policy" {
-  name        = "s3_full_access_policy"
-  description = "Policy to allow full access to S3 bucket"
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Effect = "Allow",
-        Action = [
-          "s3:PutObject",
-          "s3:ListBucket",
-          "s3:GetObject"
-        ],
-        Resource = [
-          "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}",
-          "arn:aws:s3:::${aws_s3_bucket.my_bucket.id}/*"
-        ]
-      }
-    ]
-  })
-}
-
-# Attach the Policy to the Role
-resource "aws_iam_role_policy_attachment" "attach_s3_write_policy" {
-  role       = aws_iam_role.ec2_s3_access.name
-  policy_arn = aws_iam_policy.s3_full_access_policy.arn
-}
-
-#################################################################################
-# EC2 instance profile to be attached to ec2 instances to write into the bucket
-#################################################################################
-resource "aws_iam_instance_profile" "ec2_instance_profile" {
-  name = "ec2_s3_instance_profile"
-  role = aws_iam_role.ec2_s3_access.name
+resource "aws_s3_object" "example" {
+  bucket = aws_s3_bucket.my_bucket.id
+  key    = "README.md" # The name of the file in the bucket
+  content = "This bucket is meant to be used to test the download.newrelic.com repository (currently publish action)"
 }
