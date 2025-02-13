@@ -1,25 +1,14 @@
 use super::certificate::Certificate;
-use crate::http::tls::root_store_with_native_certs;
+use reqwest::blocking::Client;
+use reqwest::tls::TlsInfo;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
-use rustls::pki_types::ServerName;
-use rustls::ClientConfig;
-use rustls::ClientConnection;
-use rustls::Stream;
-use std::io::Write;
-use std::net::SocketAddr;
-use std::net::TcpStream;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
 use thiserror::Error;
 use tracing::log::error;
 use url::Url;
 
 pub type DerCertificateBytes = Vec<u8>;
-pub type ConnectionTimeout = Duration;
-
-const HEAD_REQUEST: &str = "HEAD / HTTP/1.1\r\n";
 
 #[derive(Error, Debug)]
 pub enum CertificateFetcherError {
@@ -29,16 +18,14 @@ pub enum CertificateFetcherError {
     CertificateFetch(String),
 }
 pub enum CertificateFetcher {
-    Https(Url, ConnectionTimeout),
+    Https(Url, Client),
     PemFile(PathBuf),
 }
 
 impl CertificateFetcher {
     pub fn fetch(&self) -> Result<Certificate, CertificateFetcherError> {
         let cert = match self {
-            CertificateFetcher::Https(url, connection_timeout) => {
-                CertificateFetcher::fetch_https(url, connection_timeout)?
-            }
+            CertificateFetcher::Https(url, client) => CertificateFetcher::fetch_https(url, client)?,
             CertificateFetcher::PemFile(pem_file_path) => {
                 CertificateFetcher::fetch_file(pem_file_path)?
             }
@@ -49,100 +36,23 @@ impl CertificateFetcher {
 
     fn fetch_https(
         url: &Url,
-        connection_timeout: &ConnectionTimeout,
+        client: &Client,
     ) -> Result<DerCertificateBytes, CertificateFetcherError> {
-        let root_store_with_native_certs = root_store_with_native_certs()
-            .map_err(|e| CertificateFetcherError::FetchClientBuild(e.to_string()))?;
-        let config = ClientConfig::builder()
-            .with_root_certificates(root_store_with_native_certs)
-            .with_no_client_auth();
-
-        // Server where the certificate is fetched from. The server name is used to validate the certificate by the client.
-        let server_name = CertificateFetcher::server_name(url)?;
-
-        let mut conn: ClientConnection = ClientConnection::new(Arc::new(config), server_name)
-            .map_err(|e| {
-                CertificateFetcherError::FetchClientBuild(format!(
-                    "creating ClientConnection: {}",
-                    e
-                ))
-            })?;
-
-        // Url can resolve to multiple addresses, try each one until we get a certificate
-        let addrs = url.socket_addrs(|| None).map_err(|e| {
-            CertificateFetcherError::FetchClientBuild(format!("creating address from url: {}", e))
+        let response = client.head(url.as_ref()).send().map_err(|e| {
+            CertificateFetcherError::CertificateFetch(format!("fetching certificate: {}", e))
         })?;
+        let tls_info = response.extensions().get::<TlsInfo>().ok_or(
+            CertificateFetcherError::CertificateFetch("missing tls information".to_string()),
+        )?;
 
-        let mut last_error = None;
-        for addr in addrs {
-            match CertificateFetcher::fetch_certificate_from_address(
-                &addr,
-                &mut conn,
-                connection_timeout,
-            ) {
-                Ok(cert) => return Ok(cert),
-                Err(e) => {
-                    error!("error fetching certificate from address: {}", e);
-                    last_error = Some(e);
-                }
-            }
-        }
-        Err(last_error.unwrap_or_else(|| {
-            CertificateFetcherError::CertificateFetch(
-                "could not resolve to any address".to_string(),
-            )
-        }))
-    }
-
-    fn fetch_certificate_from_address(
-        addr: &SocketAddr,
-        conn: &mut ClientConnection,
-        connection_timeout: &ConnectionTimeout,
-    ) -> Result<DerCertificateBytes, CertificateFetcherError> {
-        let mut stream = TcpStream::connect_timeout(addr, *connection_timeout).map_err(|e| {
-            CertificateFetcherError::CertificateFetch(format!("to connect to address: {}", e))
-        })?;
-        let mut tls = Stream::new(conn, &mut stream);
-        // send a simple HTTP request just to establish the connection so TLS handshake can happen,
-        // and the ClientConnection can get the peer certificates.
-        tls.write_all(HEAD_REQUEST.as_bytes()).map_err(|e| {
-            CertificateFetcherError::CertificateFetch(format!("establishing tls connection: {}", e))
-        })?;
-
-        let certificates_chain =
-            conn.peer_certificates()
-                .ok_or(CertificateFetcherError::CertificateFetch(
-                    "missing peer certificates".into(),
-                ))?;
-
-        // First certificate in the chain is the leaf certificate, which is the one used to sign the config.
         let leaf_cert_der =
-            certificates_chain
-                .first()
+            tls_info
+                .peer_certificate()
                 .ok_or(CertificateFetcherError::CertificateFetch(
-                    "missing leaf certificate".into(),
+                    "missing leaf certificates".into(),
                 ))?;
 
-        Ok(leaf_cert_der.as_ref().to_vec())
-    }
-
-    fn server_name<'a>(url: &Url) -> Result<ServerName<'a>, CertificateFetcherError> {
-        let domain = url
-            .domain()
-            .ok_or(CertificateFetcherError::FetchClientBuild(format!(
-                "parsing domain {}",
-                url
-            )))?;
-
-        let server_name = ServerName::try_from(domain)
-            .map_err(|e| {
-                CertificateFetcherError::FetchClientBuild(format!(
-                    "parsing ServerName from domain {}: {}",
-                    url, e
-                ))
-            })?
-            .to_owned();
-        Ok(server_name)
+        Ok(leaf_cert_der.to_vec())
     }
 
     fn fetch_file(pem_file_path: &PathBuf) -> Result<DerCertificateBytes, CertificateFetcherError> {
@@ -158,10 +68,17 @@ impl CertificateFetcher {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
+    use crate::http::config::HttpConfig;
+    use crate::http::proxy::ProxyConfig;
+    use crate::http::reqwest::try_build_reqwest_client;
     use crate::http::tls::install_rustls_default_crypto_provider;
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use assert_matches::assert_matches;
+
+    const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
     #[test]
     fn test_https_fetcher() {
@@ -173,12 +90,18 @@ mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let _ = CertificateFetcher::Https(
-                    Url::parse(self.url).unwrap(),
-                    Duration::from_secs(10),
+                let http_config = HttpConfig::new(
+                    DEFAULT_CLIENT_TIMEOUT,
+                    DEFAULT_CLIENT_TIMEOUT,
+                    ProxyConfig::default(),
                 )
-                .fetch()
-                .unwrap_or_else(|err| panic!("fetching cert err '{}', case: '{}'", err, self.name));
+                .with_tls_info();
+                let client = try_build_reqwest_client(http_config).unwrap();
+                let _ = CertificateFetcher::Https(Url::parse(self.url).unwrap(), client)
+                    .fetch()
+                    .unwrap_or_else(|err| {
+                        panic!("fetching cert err '{}', case: '{}'", err, self.name)
+                    });
             }
         }
         let test_cases = vec![
@@ -206,12 +129,16 @@ mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let err = CertificateFetcher::Https(
-                    Url::parse(self.url).unwrap(),
-                    Duration::from_secs(10),
+                let http_config = HttpConfig::new(
+                    DEFAULT_CLIENT_TIMEOUT,
+                    DEFAULT_CLIENT_TIMEOUT,
+                    ProxyConfig::default(),
                 )
-                .fetch()
-                .expect_err(format!("error is expected, case: {}", self.name).as_str());
+                .with_tls_info();
+                let client = try_build_reqwest_client(http_config).unwrap();
+                let err = CertificateFetcher::Https(Url::parse(self.url).unwrap(), client)
+                    .fetch()
+                    .expect_err(format!("error is expected, case: {}", self.name).as_str());
 
                 assert_matches!(err, CertificateFetcherError::CertificateFetch(_));
             }

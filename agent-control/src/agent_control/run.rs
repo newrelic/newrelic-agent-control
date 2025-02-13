@@ -14,6 +14,9 @@ use crate::event::{
 use crate::http::proxy::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
+use crate::opamp::remote_config::validators::signature::validator::{
+    build_signature_validator, SignatureValidator,
+};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -69,6 +72,7 @@ pub struct AgentControlRunner {
     opamp_poll_interval: Duration,
     agent_control_publisher: EventPublisher<AgentControlEvent>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    signature_validator: SignatureValidator,
     base_paths: BasePaths,
     #[cfg(feature = "k8s")]
     k8s_config: super::config::K8sConfig,
@@ -135,6 +139,12 @@ impl AgentControlRunner {
                 .join(DYNAMIC_AGENT_TYPE_FILENAME),
         );
 
+        let signature_validator = config
+            .opamp
+            .map(|fleet_config| build_signature_validator(fleet_config.signature_validation))
+            .transpose()?
+            .unwrap_or(SignatureValidator::Noop);
+
         Ok(AgentControlRunner {
             _http_server_runner,
             runtime,
@@ -149,6 +159,7 @@ impl AgentControlRunner {
             agent_control_publisher,
             sub_agent_publisher,
             base_paths: config.base_paths,
+            signature_validator,
         })
     }
 }
