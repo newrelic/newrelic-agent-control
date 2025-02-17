@@ -18,9 +18,18 @@ Before submitting an Issue, please search for similar ones in the
 2. Increase the version numbers in any examples files and the README.md to the new version that this Pull Request would represent. The versioning scheme we use is [SemVer](http://semver.org/).
 3. You may merge the Pull Request in once you have the sign-off of two other developers, or if you do not have permission to do that, you may request the second reviewer to merge it for you.
 
+Following our best practices right from the start will accelerate the review process and help get your PR merged quicker.
+
+When updates to your PR are requested, please add new commits and do not squash the history. This will make it easier to identify new changes. The PR will be squashed anyway when it is merged.
+
+For fast feedback, please `@`-mention maintainers.
+
+Please make sure you test your changes before you push them. Once pushed, a GitHub Action will run across your changes and do some initial checks and linting. These checks can take a while, but we nonetheless require them to pass before we even continue reviewing your changes.
+
+And do NOT forget to update documentation! Check the contents of the [`docs`](./docs) directory and apply changes as required. To quickly locate potential places that might need updating, search for expressions like "currently" or "as of now".
+
 ## Contributor License Agreement
 
-Keep in mind that when you submit your Pull Request, you'll need to sign the CLA via the click-through using CLA-Assistant. If you'd like to execute our corporate CLA, or if you have any questions, please drop us an email at opensource@newrelic.com.
+Keep in mind that when you submit your Pull Request, you'll need to sign the CLA via the click-through using CLA-Assistant. If you'd like to execute our corporate CLA, or if you have any questions, please drop us an email at <opensource@newrelic.com>.
 
-For more information about CLAs, please check out Alex Russell’s excellent post,
-[“Why Do I Need to Sign This?”](https://infrequently.org/2008/06/why-do-i-need-to-sign-this/).
+For more information about CLAs, please check out Alex Russell’s excellent post, [“Why Do I Need to Sign This?”](https://infrequently.org/2008/06/why-do-i-need-to-sign-this/).

@@ -1,6 +1,6 @@
 # Delete remote configuration
 
-Since there is no specific field to delete a remote configuration in the [ServerToAgent message](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#servertoagent-message), we use a config entry with empty content to do so. In other words, In order to remove a remote configuration and make an agent going back to local or default, the `AgentToServer` from OpAMP will contain a remote configuration config entry with **empty** content. 
+Since there is no specific field to delete a remote configuration in the [ServerToAgent message](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#servertoagent-message), we use a config entry with empty content to do so. In other words, In order to remove a remote configuration and make an agent going back to local or default, the `AgentToServer` from OpAMP will contain a remote configuration config entry with **empty** content.
 
 ```json
 {
