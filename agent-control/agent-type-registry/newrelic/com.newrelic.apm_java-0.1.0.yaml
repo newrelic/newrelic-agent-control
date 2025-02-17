@@ -19,14 +19,14 @@ variables:
       default: { }
       required: false
     env:
-      description: "environment variables to pass to java agent"
+      description: "environment variables to pass to Java agent"
       type: yaml
-      default: []
+      default: [ ]
       required: false
     health_env:
       description: "environment variables to pass to health sidecar"
       type: yaml
-      default: []
+      default: [ ]
       required: false
     health_version:
       description: "health sidecar image version"
