@@ -33,4 +33,6 @@ And do NOT forget to update documentation! Check the contents of the `docs` dire
 
 [Place an '[x]' (no spaces) in all applicable fields. Please remove unrelated fields.]
 
+- [ ] Provided a meaningful title following conventional commit style.
+- [ ] Included a detailed description for the PR.
 - [ ] Documentation under `docs` is aligned with the change.
