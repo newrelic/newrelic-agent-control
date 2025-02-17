@@ -194,7 +194,7 @@ Instructions to actually run the sub-agent process. It is composed of the follow
 - `args`: Command line arguments passed to the executable. This is a string.
 - `env`: A key-value mapping of environment variables and their respective values. Strings.
 - `restart_policy`: How the sub-agent should behave if it ends execution. If this policy limits are exceeded the sub-agent will be marked as unhealthy (see [Health status](#health-status) below) and not restarted anymore. Accepts the following fields:
-  - `restart_exit_codes`: An array of numbers matching the exit codes where the restart policy will be applied. Any exit code not on this list won't trigger a restart. If not provided, the process will be restarted on non-successful codes[^2].
+  - `restart_exit_codes`: An array of numbers matching the exit codes where the restart policy will be applied. Any exit code not on this list won't trigger a restart. If not provided, the process will be restarted on non-successful codes.
   - `backoff_strategy`: Timing-related configuration for the restart, to prevent wasteful crash-loops. Accepts the following values:
     - `type`: either `fixed`, `linear` or `exponential`.
     - `backoff_delay`: Time between restarts. This is a time string in the form of `10s`, `1h`, etc.
@@ -473,21 +473,17 @@ flowchart TB
     class APM central
     class S central
 
-    FC -->|1\. adds Operator config to| AC
-    AC -->|2\. creates resources of| KO
-    KO -->|3\. defines for all languages| I
-    FC -->|4\. adds APM agent config to| AC
-    AC -->|5\. adds| I
-    KO -->|6\. injects| APM & S
+    FC -->|1 - adds Operator config to| AC
+    AC -->|2 - creates resources of| KO
+    KO -->|3 - defines for all languages| I
+    FC -->|4 - adds APM agent config to| AC
+    AC -->|5 - adds| I
+    KO -->|6 - injects| APM & S
     APM -->|injects agent| UA
     UA -->|writes health| S 
-    KO -->|7\. monitors| S
-    KO -->|8\. updates status| I
+    KO -->|7 - monitors| S
+    KO -->|8 - updates status| I
     AC -->|manages| KO
     AC -->|monitors health| I & KO
     AC -->|applies remote configs| I & KO
 ```
-
-[^1]: TBD: Are `file` and `map[string]file` even supported in **Kubernetes**? If so, how and where are the files persisted, and how are the resulting files mounted in the containers? If these are not files at all but configmaps or secrets, is the type name appropriate?
-
-[^2]: Confirm this.
