@@ -195,11 +195,6 @@ mod tests {
             supervisor_starter
                 .expect_start()
                 .times(0..=1) // at most once
-                .with(
-                    predicate::always(),
-                    predicate::always(),
-                    predicate::always(),
-                )
                 .return_once(|_, _, _| Ok(supervisor_stopper));
 
             let mut supervisor_builder = MockSupervisorBuilder::new();
