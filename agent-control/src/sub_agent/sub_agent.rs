@@ -224,24 +224,24 @@ where
         SupervisorStarterError,
     > {
         not_started_supervisor
-            .start(self.maybe_opamp_client.clone(), self.sub_agent_publisher.clone(), self.sub_agent_internal_publisher.clone())
-            .inspect_err(|err| {
-                let msg = "starting the resources supervisor failed for agent";
-                error!(%err, msg);
+        .start(self.maybe_opamp_client.clone(), self.sub_agent_publisher.clone(), self.sub_agent_internal_publisher.clone())
+        .inspect_err(|err| {
+            let msg = "starting the resources supervisor failed for agent";
+            error!(%err, msg);
 
-                let last_error = format!("{msg}: {err}");
-                let health = HealthWithStartTime::new(
-                    Unhealthy::new(String::default(), last_error).into(),
-                    SystemTime::now(),
-                );
-                          let _ = on_health(
-                                    health.clone(),
-                                    self.maybe_opamp_client.clone(),
-                                    self.sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_cfg.agent_type.clone(),
-                                )
-                                .inspect_err(|e| error!(error = %e, select_arm = "start_supervisor", "processing health message"));
+            let last_error = format!("{msg}: {err}");
+            let health = HealthWithStartTime::new(
+                Unhealthy::new(String::default(), last_error).into(),
+                SystemTime::now(),
+            );
+            let _ = on_health(
+                health.clone(),
+                self.maybe_opamp_client.clone(),
+                self.sub_agent_publisher.clone(),
+                self.agent_id.clone(),
+                self.agent_cfg.agent_type.clone(),
+                )
+                .inspect_err(|e| error!(error = %e, select_arm = "start_supervisor", "processing health message"));
             })
     }
 
