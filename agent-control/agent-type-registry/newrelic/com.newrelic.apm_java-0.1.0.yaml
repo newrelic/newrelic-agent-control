@@ -8,12 +8,12 @@ variables:
       type: string
       default: "latest"
       required: false
-    pod_label_selector:
+    podLabelSelector:
       description: "Pod label selector"
       type: yaml
       default: { }
       required: false
-    namespace_label_selector:
+    namespaceLabelSelector:
       description: "Namespace label selector"
       type: yaml
       default: { }
@@ -51,5 +51,5 @@ deployment:
           healthAgent:
             image: newrelic/k8s-apm-agent-health-sidecar:${nr-var:health_version}
             env: ${nr-var:health_env}
-          podLabelSelector: ${nr-var:pod_label_selector}
-          namespaceLabelSelector: ${nr-var:namespace_label_selector}
+          podLabelSelector: ${nr-var:podLabelSelector}
+          namespaceLabelSelector: ${nr-var:namespaceLabelSelector}

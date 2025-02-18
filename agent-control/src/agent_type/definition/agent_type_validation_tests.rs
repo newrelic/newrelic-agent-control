@@ -48,9 +48,9 @@ static AGENT_TYPE_APM_DOTNET: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-string"
-                pod_label_selector:
+                podLabelSelector:
                     yaml: object
-                namespace_label_selector:
+                namespaceLabelSelector:
                     yaml: object
                 env:
                     - SOME_VAR: "some-value"
@@ -73,9 +73,9 @@ static AGENT_TYPE_APM_JAVA: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-string"
-                pod_label_selector:
+                podLabelSelector:
                     yaml: object
-                namespace_label_selector:
+                namespaceLabelSelector:
                     yaml: object
                 env:
                     - SOME_VAR: "some-value"
@@ -98,9 +98,9 @@ static AGENT_TYPE_APM_NODE: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-string"
-                pod_label_selector:
+                podLabelSelector:
                     yaml: object
-                namespace_label_selector:
+                namespaceLabelSelector:
                     yaml: object
                 env:
                     - SOME_VAR: "some-value"
@@ -123,9 +123,9 @@ static AGENT_TYPE_APM_PYTHON: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-string"
-                pod_label_selector:
+                podLabelSelector:
                     yaml: object
-                namespace_label_selector:
+                namespaceLabelSelector:
                     yaml: object
                 env:
                     - SOME_VAR: "some-value"
@@ -148,9 +148,9 @@ static AGENT_TYPE_APM_RUBY: LazyLock<AgentTypeValuesTestCase> =
                     "check all value types are correct",
                     r#"
                 version: "some-string"
-                pod_label_selector:
+                podLabelSelector:
                     yaml: object
-                namespace_label_selector:
+                namespaceLabelSelector:
                     yaml: object
                 env:
                     - SOME_VAR: "some-value"

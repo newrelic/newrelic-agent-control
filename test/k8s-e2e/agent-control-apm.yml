@@ -17,7 +17,7 @@ agent-control-deployment:
       java-agent:
         type: newrelic/com.newrelic.apm_java:0.1.0
         content:
-          pod_label_selector:
+          podLabelSelector:
             matchExpressions:
               - key: "app"
                 operator: "In"
@@ -25,7 +25,7 @@ agent-control-deployment:
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
-          pod_label_selector:
+          podLabelSelector:
             matchExpressions:
               - key: "app"
                 operator: "In"
@@ -33,7 +33,7 @@ agent-control-deployment:
       node-agent:
         type: newrelic/com.newrelic.apm_node:0.1.0
         content:
-          pod_label_selector:
+          podLabelSelector:
             matchExpressions:
               - key: "app"
                 operator: "In"
@@ -41,7 +41,7 @@ agent-control-deployment:
       ruby-agent:
         type: newrelic/com.newrelic.apm_ruby:0.1.0
         content:
-          pod_label_selector:
+          podLabelSelector:
             matchExpressions:
               - key: "app"
                 operator: "In"
@@ -49,7 +49,7 @@ agent-control-deployment:
       dotnet-agent:
         type: newrelic/com.newrelic.apm_dotnet:0.1.0
         content:
-          pod_label_selector:
+          podLabelSelector:
             matchExpressions:
               - key: "app"
                 operator: "In"
