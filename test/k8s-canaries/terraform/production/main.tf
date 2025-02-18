@@ -82,5 +82,5 @@ module "alerts" {
     },
   ]
   region       = "Staging" # To change to US when production is stable
-  cluster_name = "Agent_Control_Canaries_Production"
+  cluster_name = "Agent_Control_Canaries_Production-Cluster"
 }

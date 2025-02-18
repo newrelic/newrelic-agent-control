@@ -83,6 +83,6 @@ module "alerts" {
     },
   ]
   region       = "Staging"
-  cluster_name = "Agent_Control_Canaries_Staging"
+  cluster_name = "Agent_Control_Canaries_Staging-Cluster"
 }
 
