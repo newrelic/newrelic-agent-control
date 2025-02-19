@@ -1,0 +1,104 @@
+---
+
+- name: Install Agent Control and add basic configuration (Infra Agent)
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: no
+
+  vars:
+    # Pre-release version of the agent control is used by default
+    repository_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
+    fleet_id: MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1MzdiNC05M2RkLTdmY2YtODJiOS1jYzU0NGE3NTQxODI
+    agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
+    agent_control_private_key: /etc/newrelic-agent-control/priv.key
+
+  tasks:
+
+  - name: Wait for host connection
+    ansible.builtin.wait_for_connection:
+      delay: 10
+      timeout: 300
+
+  - name: Gather facts
+    setup:
+
+  - name: Install Agent Control
+    vars:
+      repo_endpoint: "{{ repository_endpoint }}"
+      package_version: ""
+    include_role:
+      name: newrelic-agent-control
+
+  - name: Register agent control version
+    command: "/usr/bin/newrelic-agent-control --version"
+    register: version
+
+  - name: Debug agent control version
+    debug:
+      var: version.stdout
+
+  - name: Import the L2 private key from env-var
+    copy:
+      dest: "{{ agent_control_private_key }}"
+      # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+      content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
+  - name: Setup AC config
+    include_role:
+      name: edit_yaml_config
+    vars:
+      config_path: "/etc/newrelic-agent-control/config.yaml"
+      update_config:
+        log:
+          level: debug
+        agents:
+          infra:
+            agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+        fleet_control:
+          fleet_id: "{{ fleet_id }}"
+          endpoint: "https://opamp.staging-service.newrelic.com/v1/opamp"
+          headers:
+            api-key: "{{ nr_license_key }}"
+          auth_config:
+            token_url: "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
+            client_id: "{{ system_identity_client_id }}"
+            provider: local
+            private_key_path: "{{ agent_control_private_key }}"
+      
+  - name: Infra Agent config folder
+    file:
+      path: /etc/newrelic-agent-control/fleet/agents.d/infra/values/
+      state: directory
+
+  - name: Infra Agent config file
+    copy:
+      dest: /etc/newrelic-agent-control/fleet/agents.d/infra/values/values.yaml
+      # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+      content: |
+        config_agent: |+
+          staging: true
+          status_server_enabled: true
+          status_server_port: 18003
+          license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}
+
+  - name: Add license to service
+    shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
+
+  - name: Restart Agent Control
+    include_role:
+      name: caos.ansible_roles.service_status
+    vars:
+      service_name: "newrelic-agent-control"
+      action: "restart"
+
+  - name: Wait for Infra Agent to start
+    pause:
+      seconds: 30
+
+  - name: Assert Agent Control and Infra Agent are running
+    include_role:
+      name: caos.ansible_roles.assert_process_running
+    vars:
+      processes_running:
+        - "^/usr/bin/newrelic-agent-control"
+        - "^/usr/bin/newrelic-infra"

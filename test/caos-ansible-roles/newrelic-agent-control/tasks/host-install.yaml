@@ -1,10 +1,17 @@
 ---
 
+# Avoid recursion error due to the repo_endpoint being called
+# exactly the same as in the included role.
+# Error: original message: recursive loop detected in template string: {{ repo_endpoint }}. maximum recursion depth exceeded
+- name: Set temporary repo endpoint variable
+  set_fact:
+    temp_repo_endpoint: "{{ repo_endpoint }}"
+
 - name: setup Newrelic repository
   include_role:
     name: caos.ansible_roles.nr_repo_setup
   vars:
-    repo_endpoint: "{{ repo_endpoint }}"
+    repo_endpoint: "{{ temp_repo_endpoint }}"
 
 - name: install package
   include_role:
