@@ -21,7 +21,17 @@ variables:
     env:
       description: "environment variables to pass to Ruby agent"
       type: yaml
-      default: []
+      default: [ ]
+      required: false
+    health_env:
+      description: "environment variables to pass to health sidecar"
+      type: yaml
+      default: [ ]
+      required: false
+    health_version:
+      description: "health sidecar image version"
+      type: string
+      default: "latest"
       required: false
 deployment:
   k8s:
@@ -38,5 +48,8 @@ deployment:
             language: ruby
             image: newrelic/newrelic-ruby-init:${nr-var:version}
             env: ${nr-var:env}
+          healthAgent:
+            image: newrelic/k8s-apm-agent-health-sidecar:${nr-var:health_version}
+            env: ${nr-var:health_env}
           podLabelSelector: ${nr-var:pod_label_selector}
           namespaceLabelSelector: ${nr-var:namespace_label_selector}
