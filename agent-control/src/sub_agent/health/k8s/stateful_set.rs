@@ -6,7 +6,7 @@ use crate::sub_agent::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
+use k8s_openapi::api::apps::v1::StatefulSet;
 use std::sync::Arc;
 
 /// Represents a health checker for the StatefulSets or a release.
@@ -56,60 +56,12 @@ impl K8sHealthStatefulSet {
             .as_ref()
             .ok_or_else(|| utils::missing_field_error(sts, &name, ".status"))?;
 
-        let partition = Self::partition(spec).unwrap_or(0);
         let replicas = spec.replicas.unwrap_or(1);
-
-        let expected_replicas = replicas - partition;
-
-        let generation = sts
-            .metadata
-            .generation
-            .ok_or_else(|| utils::missing_field_error(sts, &name, ".metadata.generation"))?;
-        let Some(observed_generation) = status.observed_generation else {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                "StatefulSet `{name}` is so new that it has no `observed_generation` status yet"
-            ),
-            )
-            .into());
-        };
-
-        if observed_generation != generation {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "StatefulSet `{name}` not ready: observed_generation not matching generation"
-                ),
-            )
-            .into());
-        }
-
-        if status.observed_generation != sts.metadata.generation {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "StatefulSet `{name}` not ready: observed_generation not matching generation"
-                ),
-            )
-            .into());
-        }
-
-        let updated_replicas = status
-            .updated_replicas
-            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status.updatedReplicas"))?;
-        if updated_replicas < expected_replicas {
-            return Ok(Unhealthy::new(String::default(),format!(
-                        "StatefulSet `{}` not ready: updated_replicas `{}` fewer than expected_replicas `{}`",
-                        name,
-                        updated_replicas,
-                        expected_replicas,
-                    )).into());
-        }
 
         let ready_replicas = status
             .ready_replicas
             .ok_or_else(|| utils::missing_field_error(sts, &name, ".status.readyReplicas"))?;
+
         if replicas != ready_replicas {
             return Ok(Unhealthy::new(
                 String::default(),
@@ -121,26 +73,7 @@ impl K8sHealthStatefulSet {
             .into());
         }
 
-        // TODO: should we fail if `status.current_revision` and/or `status.update_revision` are None?
-        if partition == 0 && status.current_revision != status.update_revision {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "StatefulSet `{name}` not ready: current_revision not matching update_revision",
-                ),
-            )
-            .into());
-        }
-
         Ok(Healthy::new(String::default()).into())
-    }
-
-    /// Gets the partition from the stateful_set spec.
-    fn partition(spec: &StatefulSetSpec) -> Option<i32> {
-        spec.update_strategy
-            .as_ref()
-            .and_then(|update_strategy| update_strategy.rolling_update.as_ref())
-            .and_then(|rolling_update| rolling_update.partition)
     }
 }
 
@@ -152,16 +85,13 @@ mod tests {
         k8s::client::MockSyncK8sClient, sub_agent::health::k8s::health_checker::LABEL_RELEASE_FLUX,
     };
     use assert_matches::assert_matches;
-    use k8s_openapi::api::apps::v1::{
-        RollingUpdateStatefulSetStrategy, StatefulSetStatus, StatefulSetUpdateStrategy,
-    };
+    use k8s_openapi::api::apps::v1::{StatefulSetSpec, StatefulSetStatus};
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 
     /// Returns a [ObjectMeta] valid for for health-check
-    fn stateful_set_meta(name: &str, generation: Option<i64>) -> ObjectMeta {
+    fn stateful_set_meta(name: &str) -> ObjectMeta {
         ObjectMeta {
             name: Some(name.into()),
-            generation,
             ..Default::default()
         }
     }
@@ -179,15 +109,8 @@ mod tests {
     }
 
     /// Returns a [StatefulSetSpec] given the partition and replicas.
-    fn stateful_set_spec(partition: i32, replicas: i32) -> StatefulSetSpec {
+    fn stateful_set_spec(replicas: i32) -> StatefulSetSpec {
         StatefulSetSpec {
-            update_strategy: Some(StatefulSetUpdateStrategy {
-                rolling_update: Some(RollingUpdateStatefulSetStrategy {
-                    partition: Some(partition),
-                    ..Default::default()
-                }),
-                ..Default::default()
-            }),
             replicas: Some(replicas),
             ..Default::default()
         }
@@ -214,79 +137,33 @@ mod tests {
 
         let test_cases = [
             TestCase {
-                name: "Observed generation and matching generation don't match",
+                name: "Ready replicas matches expected replicas",
                 sts: StatefulSet {
-                    metadata: stateful_set_meta("name", Some(42)),
-                    spec: Some(StatefulSetSpec::default()),
-                    status: Some(stateful_set_status()),
-                },
-                expected: Unhealthy::new(String::default(),"StatefulSet `name` not ready: observed_generation not matching generation".into()).into()
-            },
-            TestCase {
-                name: "Updated replicas fewer than expected",
-                sts: StatefulSet {
-                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
-                    spec: Some(stateful_set_spec(3, 5)),
+                    metadata: stateful_set_meta("name"),
+                    spec: Some(stateful_set_spec(5)),
                     status: Some(StatefulSetStatus {
-                        updated_replicas: Some(1),
-                        ..stateful_set_status()
-                    }),
-                },
-                expected: Unhealthy::new(String::default(),"StatefulSet `name` not ready: updated_replicas `1` fewer than expected_replicas `2`".into()).into(),
-            },
-            TestCase {
-                name: "Not ready and ready replicas not matching",
-                sts: StatefulSet {
-                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
-                    spec: Some(stateful_set_spec(3, 5)),
-                    status: Some(StatefulSetStatus {
-                        updated_replicas: Some(2),
-                        ready_replicas: Some(1),
-                        ..stateful_set_status()
-                    }),
-                },
-                expected: Unhealthy::new(String::default(),"StatefulSet `name` not ready: replicas `5` different from ready_replicas `1`".into()).into(),
-            },
-            TestCase {
-                name: "Current and update revision not matching when partition is 0",
-                sts: StatefulSet {
-                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
-                    spec: Some(StatefulSetSpec::default()), // partition defaults to 0 when not defined
-                    status: Some(StatefulSetStatus {
-                        current_revision: Some("r1".to_string()),
-                        update_revision: Some("r2".to_string()),
-                        ..stateful_set_status()
-                    }),
-                },
-                expected: Unhealthy::new(String::default(),"StatefulSet `name` not ready: current_revision not matching update_revision".into()).into(),
-            },
-            TestCase {
-                name: "Healthy with not matching current and update revision",
-                sts: StatefulSet {
-                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
-                    spec: Some(stateful_set_spec(3, 5)),
-                    status: Some(StatefulSetStatus {
-                        updated_replicas: Some(2),
                         ready_replicas: Some(5),
-                        current_revision: Some("r1".to_string()),
-                        update_revision: Some("r2".to_string()),
-                        ..stateful_set_status()
+                        ..Default::default()
                     }),
                 },
                 expected: Healthy::default().into(),
             },
             TestCase {
-                name: "Healthy when partition is 0",
+                name: "Ready replicas is lower than expected replicas",
                 sts: StatefulSet {
-                    metadata: stateful_set_meta("name", stateful_set_status().observed_generation),
-                    spec: Some(StatefulSetSpec::default()), // partition and replicas default to 0 and 1
+                    metadata: stateful_set_meta("name"),
+                    spec: Some(stateful_set_spec(5)),
                     status: Some(StatefulSetStatus {
-                        updated_replicas: Some(1),
-                        ready_replicas: Some(1),
-                        ..stateful_set_status()
+                        ready_replicas: Some(4),
+                        ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Unhealthy::new(
+                    String::default(),
+                    "StatefulSet `name` not ready: replicas `5` different from ready_replicas `4`"
+                        .into(),
+                )
+                .into(),
             },
         ];
 
@@ -336,7 +213,7 @@ mod tests {
             TestCase {
                 name: "Invalid object, no spec",
                 sts: StatefulSet {
-                    metadata: stateful_set_meta("name", None),
+                    metadata: stateful_set_meta("name"),
                     spec: None,
                     status: Some(stateful_set_status()),
                 },
@@ -345,28 +222,16 @@ mod tests {
             TestCase {
                 name: "Invalid object, no status",
                 sts: StatefulSet {
-                    metadata: stateful_set_meta("name", None),
+                    metadata: stateful_set_meta("name"),
                     spec: Some(StatefulSetSpec::default()),
                     status: None,
                 },
                 err_check_fn: TestCase::assert_missing_field,
             },
             TestCase {
-                name: "Invalid object, no .status.updatedReplicas",
-                sts: StatefulSet {
-                    metadata: stateful_set_meta("name", None),
-                    spec: Some(StatefulSetSpec::default()),
-                    status: Some(StatefulSetStatus {
-                        updated_replicas: None,
-                        ..stateful_set_status()
-                    }),
-                },
-                err_check_fn: TestCase::assert_missing_field,
-            },
-            TestCase {
                 name: "Invalid object, no .status.readyReplicas",
                 sts: StatefulSet {
-                    metadata: stateful_set_meta("name", None),
+                    metadata: stateful_set_meta("name"),
                     spec: Some(StatefulSetSpec::default()),
                     status: Some(StatefulSetStatus {
                         ready_replicas: None,
@@ -388,7 +253,7 @@ mod tests {
         let healthy_matching = StatefulSet {
             metadata: ObjectMeta {
                 labels: Some([(LABEL_RELEASE_FLUX.to_string(), release_name.to_string())].into()),
-                ..stateful_set_meta("name", stateful_set_status().observed_generation)
+                ..stateful_set_meta("name")
             },
             spec: Some(StatefulSetSpec::default()),
             status: Some(StatefulSetStatus {
