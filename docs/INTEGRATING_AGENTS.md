@@ -377,15 +377,15 @@ AC will attempt to retrieve the `status` field of the Helm release object. Insid
 
 ##### StatefulSets
 
-For [StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/), AC will set healthy if their observed generation matches the generation specified in its metadata, if the expected number of updated replicas is up, if all the replicas are ready, and if the current revision matches the update revision.
+For [StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/), AC will set healthy whenever the number of replicas matches the number of ready replicas.
 
 ##### DaemonSets
 
-With [DaemonSets](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/), a similar check to StatefulSet is performed. The health check will evaluate if the number of pods is the desired one, if no pods are unavailable, and in the case the DaemonSet upses the rolling update strategy, if all pods are running the latest version.
+With [DaemonSets](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/), the health check will evaluate if the number of pods is the desired one, if no pods are unavailable, and in the case the DaemonSet upses the rolling update strategy, if all pods are running the latest version.
 
 ##### Deployment
 
-For [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), AC will retrieve the active [ReplicaSet](https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/) and evaluate if the deployment is not paused, if the replicas available are over the minimum (for example, during a rolling update a number of replicas will be off), and if the ready replicas match the expected number.
+For [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), AC will set healthy whenever there is no unavailable replicas.
 
 #### Instrumentation CR
 
