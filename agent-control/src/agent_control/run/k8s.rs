@@ -76,6 +76,8 @@ impl AgentControlRunner {
             "cluster.name".to_string(),
             self.k8s_config.cluster_name.clone().into(),
         );
+        let additional_identifying_attributes =
+            agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
 
         let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
             k8s_store.clone(),
@@ -89,6 +91,26 @@ impl AgentControlRunner {
                 self.opamp_poll_interval,
             )
         });
+
+        // Build and start AC OpAMP client
+        let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
+            .as_ref()
+            .map(|builder| {
+                build_opamp_with_channel(
+                    builder,
+                    &instance_id_getter,
+                    &AgentIdentity::new_agent_control_identity(),
+                    additional_identifying_attributes,
+                    non_identifying_attributes,
+                )
+            })
+            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+            .transpose()?
+            .map(|(client, consumer)| (Some(client), Some(consumer)))
+            .unwrap_or_default();
+
+        // Disable startup check for sub-agents OpAMP client builder
+        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir);
 
@@ -125,25 +147,6 @@ impl AgentControlRunner {
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
         );
-
-        let additional_identifying_attributes =
-            agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
-
-        let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
-            .as_ref()
-            .map(|builder| {
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
-                    additional_identifying_attributes,
-                    non_identifying_attributes,
-                )
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
 
         let gcc = NotStartedK8sGarbageCollector::new(
             config_storer.clone(),

@@ -1,5 +1,4 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
-use crate::agent_control::config::AgentControlConfigError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;

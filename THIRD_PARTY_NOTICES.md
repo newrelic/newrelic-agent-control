@@ -1517,7 +1517,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.28
+## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1739,7 +1739,7 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.28
+## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30
 
 Distributed under the following license(s):
 * Apache-2.0
@@ -1817,6 +1817,8 @@ Distributed under the following license(s):
 ## ring https://crates.io/crates/ring
 
 Distributed under the following license(s):
+* Apache-2.0
+* ISC
 
 
 ## rle-decode-fast https://crates.io/crates/rle-decode-fast
@@ -2611,6 +2613,13 @@ Distributed under the following license(s):
 
 
 ## windows-core https://crates.io/crates/windows-core
+
+Distributed under the following license(s):
+* MIT
+* Apache-2.0
+
+
+## windows-link https://crates.io/crates/windows-link
 
 Distributed under the following license(s):
 * MIT
