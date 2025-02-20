@@ -18,9 +18,9 @@ use url::Url;
 use super::certificate_fetcher::CertificateFetcher;
 use super::certificate_store::CertificateStore;
 
-const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://csec.nr-data.net/";
+const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
 const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
-const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = false;
+const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 
 type ErrorMessage = String;
 #[derive(Error, Debug)]

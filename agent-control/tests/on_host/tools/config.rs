@@ -48,7 +48,6 @@ fleet_control:
   endpoint: {}
   signature_validation: 
     certificate_pem_file_path: {}
-    enabled: true
 agents: {}
 {}
 "#,
