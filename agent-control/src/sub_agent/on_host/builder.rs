@@ -1,6 +1,5 @@
 use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
-use crate::agent_type::environment::Environment;
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
@@ -8,7 +7,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
@@ -27,64 +26,61 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct OnHostSubAgentBuilder<'a, O, I, HR, A, Y, S>
+pub struct OnHostSubAgentBuilder<'a, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
-    A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     hash_repository: Arc<HR>,
-    effective_agent_assembler: Arc<A>,
-    logging_path: PathBuf,
     yaml_config_repository: Arc<Y>,
     signature_validator: Arc<S>,
+    supervisor_assembler: Arc<SA>,
 }
 
-impl<'a, O, I, HR, A, Y, S> OnHostSubAgentBuilder<'a, O, I, HR, A, Y, S>
+impl<'a, O, I, HR, Y, S, SA> OnHostSubAgentBuilder<'a, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
-    A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
         hash_repository: Arc<HR>,
-        effective_agent_assembler: Arc<A>,
-        logging_path: PathBuf,
         yaml_config_repository: Arc<Y>,
         signature_validator: Arc<S>,
+        supervisor_assembler: Arc<SA>,
     ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
             hash_repository,
-            effective_agent_assembler,
-            logging_path,
             yaml_config_repository,
             signature_validator,
+            supervisor_assembler,
         }
     }
 }
 
-impl<O, I, HR, A, Y, S> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, A, Y, S>
+impl<O, I, HR, Y, S, SA> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
     HR: HashRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator + Send + Sync + 'static,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, A, SupervisortBuilderOnHost, HR, Y, S>;
+    type NotStartedSubAgent = SubAgent<O::Client, HR, Y, S, SA>;
 
     fn build(
         &self,
@@ -122,20 +118,11 @@ where
             self.signature_validator.clone(),
         );
 
-        let supervisor_assembler = SupervisorAssembler::new(
-            self.hash_repository.clone(),
-            SupervisortBuilderOnHost::new(self.logging_path.clone()),
-            agent_id.clone(),
-            sub_agent_config.clone(),
-            self.effective_agent_assembler.clone(),
-            Environment::OnHost,
-        );
-
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
             maybe_opamp_client,
-            supervisor_assembler,
+            self.supervisor_assembler.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             pub_sub(),
@@ -205,22 +192,19 @@ mod tests {
         default_capabilities, default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME,
         OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
     };
-    use crate::agent_type::environment::Environment;
-    use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
     use crate::opamp::instance_id::InstanceID;
-    use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use nix::unistd::gethostname;
-    use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::Failed;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
     };
@@ -233,6 +217,7 @@ mod tests {
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
@@ -252,12 +237,9 @@ mod tests {
 
         let agent_control_id = AgentID::new_agent_control_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
-        let final_agent =
-            on_host_final_agent(sub_agent_id.clone(), sub_agent_config.agent_type.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
-        started_client.should_set_any_remote_config_status(1);
-        started_client.should_update_effective_config(2);
+        started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
@@ -274,37 +256,32 @@ mod tests {
         instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let hash = Hash::new("a-hash".to_string());
-            Ok(Some(hash))
-        });
-        hash_repository_mock
-            .expect_save()
-            .times(1)
-            .returning(|_, _| Ok(()));
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler.should_assemble_agent(
-            &sub_agent_id,
-            &sub_agent_config,
-            &Environment::OnHost,
-            final_agent,
-            1,
-        );
+        let hash_repository_mock = MockHashRepositoryMock::new();
 
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let signature_validator = MockRemoteConfigValidatorMock::new();
 
+        let mut started_supervisor = MockSupervisorStopper::new();
+        started_supervisor.should_stop();
+
+        let mut stopped_supervisor = MockSupervisorStarter::new();
+        stopped_supervisor.should_start(sub_agent_internal_publisher.clone(), started_supervisor);
+
+        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+            stopped_supervisor,
+            sub_agent_id.clone(),
+            sub_agent_config.clone(),
+        );
+
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(hash_repository_mock),
-            Arc::new(effective_agent_assembler),
-            PathBuf::default(),
             Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         on_host_builder
@@ -315,15 +292,17 @@ mod tests {
             .unwrap();
     }
 
+    //TODO This test doesn't make any sense here (probably it doesn't make sense to exist at all)
     #[traced_test]
     #[test]
     fn test_subagent_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = MockHashRepositoryMock::new();
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
@@ -343,20 +322,12 @@ mod tests {
 
         let agent_control_id = AgentID::new_agent_control_id();
         let sub_agent_id = AgentID::new("infra-agent").unwrap();
-        let final_agent =
-            on_host_final_agent(sub_agent_id.clone(), sub_agent_config.agent_type.clone());
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
-        // failed conf should be reported
-        started_client.should_set_remote_config_status(RemoteConfigStatus {
-            error_message: "this is an error message".to_string(),
-            status: Failed as i32,
-            last_remote_config_hash: "a-hash".as_bytes().to_vec(),
-        });
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
@@ -369,31 +340,31 @@ mod tests {
             Duration::from_millis(10),
         );
 
-        effective_agent_assembler.should_assemble_agent(
-            &sub_agent_id,
-            &sub_agent_config,
-            &Environment::OnHost,
-            final_agent,
-            1,
-        );
-
-        // return a failed hash
-        let failed_hash =
-            Hash::failed("a-hash".to_string(), "this is an error message".to_string());
-        hash_repository_mock.should_get_hash(&sub_agent_id, failed_hash);
-
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
         let signature_validator = MockRemoteConfigValidatorMock::new();
+
+        let mut started_supervisor = MockSupervisorStopper::new();
+        started_supervisor.should_stop();
+
+        let mut stopped_supervisor = MockSupervisorStarter::new();
+        stopped_supervisor.should_start(sub_agent_internal_publisher.clone(), started_supervisor);
+
+        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+            stopped_supervisor,
+            sub_agent_id.clone(),
+            sub_agent_config.clone(),
+        );
+
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(hash_repository_mock),
-            Arc::new(effective_agent_assembler),
-            PathBuf::default(),
             Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         let sub_agent = on_host_builder
@@ -404,26 +375,6 @@ mod tests {
     }
 
     // HELPERS
-    #[cfg(test)]
-    fn on_host_final_agent(agent_id: AgentID, agent_fqn: AgentTypeFQN) -> EffectiveAgent {
-        use crate::agent_type::definition::TemplateableValue;
-
-        EffectiveAgent::new(
-            agent_id,
-            agent_fqn,
-            Runtime {
-                deployment: Deployment {
-                    on_host: Some(OnHost {
-                        executable: None,
-                        enable_file_logging: TemplateableValue::new(false),
-                        health: None,
-                    }),
-                    k8s: None,
-                },
-            },
-        )
-    }
-
     fn infra_agent_default_start_settings(
         hostname: &str,
         agent_control_instance_id: InstanceID,

@@ -1,6 +1,5 @@
 use crate::agent_control::config::{AgentID, K8sConfig, SubAgentConfig};
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
-use crate::agent_type::environment::Environment;
 use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
 #[cfg_attr(test, mockall_double::double)]
@@ -9,7 +8,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
@@ -25,69 +24,66 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::debug;
 
-pub struct K8sSubAgentBuilder<'a, O, I, HR, A, Y, S>
+pub struct K8sSubAgentBuilder<'a, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
-    A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     hash_repository: Arc<HR>,
-    k8s_client: Arc<SyncK8sClient>,
-    effective_agent_assembler: Arc<A>,
     k8s_config: K8sConfig,
     yaml_config_repository: Arc<Y>,
     signature_validator: Arc<S>,
+    supervisor_assembler: Arc<SA>,
 }
 
-impl<'a, O, I, HR, A, Y, S> K8sSubAgentBuilder<'a, O, I, HR, A, Y, S>
+impl<'a, O, I, HR, Y, S, SA> K8sSubAgentBuilder<'a, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     HR: HashRepository,
-    A: EffectiveAgentsAssembler,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
     // TODO refactor this new function
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_builder: Option<&'a O>,
         instance_id_getter: &'a I,
-        k8s_client: Arc<SyncK8sClient>,
         hash_repository: Arc<HR>,
-        effective_agent_assembler: Arc<A>,
         k8s_config: K8sConfig,
         yaml_config_repository: Arc<Y>,
         signature_validator: Arc<S>,
+        supervisor_assembler: Arc<SA>,
     ) -> Self {
         Self {
             opamp_builder,
             instance_id_getter,
             hash_repository,
-            k8s_client,
-            effective_agent_assembler,
             k8s_config,
             yaml_config_repository,
             signature_validator,
+            supervisor_assembler,
         }
     }
 }
 
-impl<O, I, HR, A, Y, S> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, A, Y, S>
+impl<O, I, HR, Y, S, SA> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, HR, Y, S, SA>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
     HR: HashRepository + Send + Sync + 'static,
-    A: EffectiveAgentsAssembler + Send + Sync + 'static,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator + Send + Sync + 'static,
+    SA: SupervisorAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, A, SupervisorBuilderK8s, HR, Y, S>;
+    type NotStartedSubAgent = SubAgent<O::Client, HR, Y, S, SA>;
 
     fn build(
         &self,
@@ -120,9 +116,6 @@ where
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
-        let supervisor_builder =
-            SupervisorBuilderK8s::new(self.k8s_client.clone(), self.k8s_config.clone());
-
         let remote_config_handler = RemoteConfigHandler::new(
             agent_id.clone(),
             sub_agent_config.clone(),
@@ -131,20 +124,11 @@ where
             self.signature_validator.clone(),
         );
 
-        let supervisor_assembler = SupervisorAssembler::new(
-            self.hash_repository.clone(),
-            supervisor_builder,
-            agent_id.clone(),
-            sub_agent_config.clone(),
-            self.effective_agent_assembler.clone(),
-            Environment::K8s,
-        );
-
         Ok(SubAgent::new(
             agent_id,
             sub_agent_config.clone(),
             maybe_opamp_client,
-            supervisor_assembler,
+            self.supervisor_assembler.clone(),
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             pub_sub(),
@@ -223,7 +207,8 @@ pub mod tests {
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilderMock,
@@ -245,9 +230,6 @@ pub mod tests {
                 .unwrap(),
         };
 
-        // instance K8s client mock
-        let mock_client = MockSyncK8sClient::default();
-
         let (opamp_builder, instance_id_getter, hash_repository_mock) =
             k8s_agent_get_common_mocks(sub_agent_config.clone(), agent_id.clone(), false);
 
@@ -258,20 +240,18 @@ pub mod tests {
             ..Default::default()
         };
 
-        let assembler = MockEffectiveAgentAssemblerMock::new();
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
-
         let signature_validator = MockRemoteConfigValidatorMock::new();
+        let supervisor_assembler = MockSupervisorAssemblerMock::<MockSupervisorStarter>::new();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            Arc::new(mock_client),
             Arc::new(hash_repository_mock),
-            Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -288,9 +268,6 @@ pub mod tests {
                 .unwrap(),
         };
 
-        // instance K8s client mock
-        let mock_client = MockSyncK8sClient::default();
-
         let (opamp_builder, instance_id_getter, hash_repository_mock) =
             k8s_agent_get_common_mocks(sub_agent_config.clone(), agent_id.clone(), true);
 
@@ -301,20 +278,18 @@ pub mod tests {
             ..Default::default()
         };
 
-        let assembler = MockEffectiveAgentAssemblerMock::new();
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
-
         let signature_validator = MockRemoteConfigValidatorMock::new();
+        let supervisor_assembler = MockSupervisorAssemblerMock::<MockSupervisorStarter>::new();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
-            Arc::new(mock_client),
             Arc::new(hash_repository_mock),
-            Arc::new(assembler),
             k8s_config,
             Arc::new(remote_values_repo),
             Arc::new(signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         let (application_event_publisher, _) = pub_sub();

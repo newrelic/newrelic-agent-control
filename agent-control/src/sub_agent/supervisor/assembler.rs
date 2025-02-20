@@ -4,6 +4,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
+use crate::sub_agent::supervisor::starter::SupervisorStarter;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
@@ -18,21 +19,31 @@ pub enum SupervisorAssemblerError {
     SupervisorBuildError(String),
 }
 
+pub trait SupervisorAssembler {
+    type SupervisorStarter: SupervisorStarter;
+    fn assemble_supervisor<C>(
+        &self,
+        maybe_opamp_client: &Option<C>,
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
+    ) -> Result<Self::SupervisorStarter, SupervisorAssemblerError>
+    where
+        C: StartedClient + Send + Sync + 'static;
+}
+
 /// SupervisorAssembler is an orchestrator to generate a Supervisor
 /// It will use the EffectiveAgentAssembler and the HashRepository
 /// to ensure that the Supervisor for the Sub Agent can be built.
 /// If it succeeds, it will use the environment specific SupervisorBuilder
 /// to actually build and return the Supervisor.
-pub struct SupervisorAssembler<HR, B, A> {
+pub struct SupervisorAssemblerImpl<HR, B, A> {
     hash_repository: Arc<HR>,
     supervisor_builder: B,
-    agent_id: AgentID,
-    agent_cfg: SubAgentConfig,
     effective_agent_assembler: Arc<A>,
     environment: Environment,
 }
 
-impl<HR, B, A> SupervisorAssembler<HR, B, A>
+impl<HR, B, A> SupervisorAssemblerImpl<HR, B, A>
 where
     HR: HashRepository + Send + Sync + 'static,
     B: SupervisorBuilder,
@@ -41,24 +52,31 @@ where
     pub fn new(
         hash_repository: Arc<HR>,
         supervisor_builder: B,
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
         effective_agent_assembler: Arc<A>,
         environment: Environment,
     ) -> Self {
         Self {
             hash_repository,
             supervisor_builder,
-            agent_id,
-            agent_cfg,
             effective_agent_assembler,
             environment,
         }
     }
+}
 
-    pub fn assemble_supervisor<C>(
+impl<HR, B, A> SupervisorAssembler for SupervisorAssemblerImpl<HR, B, A>
+where
+    HR: HashRepository + Send + Sync + 'static,
+    B: SupervisorBuilder,
+    A: EffectiveAgentsAssembler,
+{
+    type SupervisorStarter = B::SupervisorStarter;
+
+    fn assemble_supervisor<C>(
         &self,
         maybe_opamp_client: &Option<C>,
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
     ) -> Result<B::SupervisorStarter, SupervisorAssemblerError>
     where
         C: StartedClient + Send + Sync + 'static,
@@ -66,32 +84,32 @@ where
         // Attempt to retrieve the hash
         let hash = self
             .hash_repository
-            .get(&self.agent_id)
-            .inspect_err(|e| debug!(%self.agent_id, err = %e, "failed to get hash from repository"))
+            .get(&agent_id)
+            .inspect_err(|e| debug!(%agent_id, err = %e, "failed to get hash from repository"))
             .unwrap_or_default();
 
         if hash.is_none() {
-            debug!(%self.agent_id, "no previous remote config found");
+            debug!(%agent_id, "no previous remote config found");
         }
 
         // Assemble the new agent
-        let effective_agent_result = self.effective_agent_assembler.assemble_agent(
-            &self.agent_id,
-            &self.agent_cfg,
-            &self.environment,
-        );
+        let effective_agent_result =
+            self.effective_agent_assembler
+                .assemble_agent(&agent_id, &agent_cfg, &self.environment);
 
         match effective_agent_result {
             Err(e) => {
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if !hash.is_failed() {
                         hash.fail(e.to_string());
-                        _ = self.hash_repository.save(&self.agent_id, &hash).inspect_err(|e| error!(%self.agent_id, err = %e, "failed to save hash to repository"));
+                        _ = self.hash_repository.save(&agent_id, &hash).inspect_err(
+                            |e| error!(%agent_id, err = %e, "failed to save hash to repository"),
+                        );
                     }
                     _ = OpampRemoteConfigStatus::Error(e.to_string())
                         .report(opamp_client, &hash)
                         .inspect_err(
-                            |e| error!(%self.agent_id, %e, "error reporting remote config status"),
+                            |e| error!(%agent_id, %e, "error reporting remote config status"),
                         );
                 }
                 Err(SupervisorAssemblerError::AgentAssembleError(e.to_string()))
@@ -99,19 +117,27 @@ where
             Ok(effective_agent) => {
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if hash.is_applying() {
-                        debug!(%self.agent_id, "applying remote config");
+                        debug!(%agent_id, "applying remote config");
                         hash.apply();
-                        _ = self.hash_repository.save(&self.agent_id, &hash).inspect_err(|e| error!(%self.agent_id, err = %e, "failed to save hash to repository"));
+                        _ = self.hash_repository.save(&agent_id, &hash).inspect_err(
+                            |e| error!(%agent_id, err = %e, "failed to save hash to repository"),
+                        );
                         _ = opamp_client.update_effective_config().inspect_err(
-                            |e| error!(%self.agent_id, %e, "effective config update failed"),
+                            |e| error!(%agent_id, %e, "effective config update failed"),
                         );
-                        _ = OpampRemoteConfigStatus::Applied.report(opamp_client, &hash).inspect_err(
-                            |e| error!(%self.agent_id, %e, "error reporting remote config status"),
-                        );
+                        _ = OpampRemoteConfigStatus::Applied
+                            .report(opamp_client, &hash)
+                            .inspect_err(
+                                |e| error!(%agent_id, %e, "error reporting remote config status"),
+                            );
                     }
                     if let Some(err) = hash.error_message() {
-                        warn!(%self.agent_id, err = %err, "remote config failed. Building with previous stored config");
-                        _ = OpampRemoteConfigStatus::Error(err).report(opamp_client, &hash).inspect_err(|e| error!(%self.agent_id, %e, "error reporting remote config status"));
+                        warn!(%agent_id, err = %err, "remote config failed. Building with previous stored config");
+                        _ = OpampRemoteConfigStatus::Error(err)
+                            .report(opamp_client, &hash)
+                            .inspect_err(
+                                |e| error!(%agent_id, %e, "error reporting remote config status"),
+                            );
                     }
                 }
                 let supervisor = self
@@ -126,7 +152,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use crate::agent_control::config::{AgentID, AgentTypeFQN, SubAgentConfig};
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
@@ -138,17 +164,60 @@ mod tests {
     use crate::sub_agent::effective_agents_assembler::{
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
-    use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
+    use crate::sub_agent::supervisor::assembler::{
+        SupervisorAssembler, SupervisorAssemblerError, SupervisorAssemblerImpl,
+    };
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
+    use crate::sub_agent::supervisor::starter::SupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
+    use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
+    use opamp_client::StartedClient;
     use predicates::prelude::predicate;
     use std::sync::Arc;
 
+    //Mock implementation for tests
+    mock! {
+        pub SupervisorAssemblerMock<A> where A: SupervisorStarter + 'static {}
+
+        impl<A> SupervisorAssembler for SupervisorAssemblerMock<A> where A:SupervisorStarter+ 'static{
+            type SupervisorStarter = A;
+
+            fn assemble_supervisor<C>(
+                &self,
+                maybe_opamp_client: &Option<C>,
+                agent_id: AgentID,
+                agent_cfg: SubAgentConfig,
+            ) -> Result<A, SupervisorAssemblerError>
+            where
+                C: StartedClient + Send + Sync + 'static;
+        }
+    }
+
+    impl MockSupervisorAssemblerMock<MockSupervisorStarter> {
+        pub fn should_assemble<C>(
+            &mut self,
+            starter: MockSupervisorStarter,
+            agent_id: AgentID,
+            agent_cfg: SubAgentConfig,
+        ) where
+            C: StartedClient + Send + Sync + 'static,
+        {
+            self.expect_assemble_supervisor::<C>()
+                .with(
+                    predicate::always(),
+                    predicate::eq(agent_id),
+                    predicate::eq(agent_cfg),
+                )
+                .once()
+                .return_once(|_, _, _| Ok(starter));
+        }
+    }
+
     //Follow the same approach as before the refactor
-    type AssemblerForTesting = SupervisorAssembler<
+    type AssemblerForTesting = SupervisorAssemblerImpl<
         MockHashRepositoryMock,
         MockSupervisorBuilder<MockSupervisorStarter>,
         MockEffectiveAgentAssemblerMock,
@@ -156,13 +225,8 @@ mod tests {
 
     type OpampClientForTest = MockStartedOpAMPClientMock;
 
-    impl Default for AssemblerForTesting {
-        fn default() -> Self {
-            let agent_id = AgentID::new("some-agent-id").unwrap();
-            let agent_cfg = SubAgentConfig {
-                agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-            };
-
+    impl AssemblerForTesting {
+        fn test_assembler(agent_id: AgentID, agent_cfg: SubAgentConfig) -> Self {
             let mut hash_repository = MockHashRepositoryMock::default();
             hash_repository
                 .expect_get()
@@ -202,11 +266,9 @@ mod tests {
 
             let hash_repository_ref = Arc::new(hash_repository);
 
-            SupervisorAssembler::new(
+            SupervisorAssemblerImpl::new(
                 hash_repository_ref,
                 supervisor_builder,
-                agent_id.clone(),
-                agent_cfg.clone(),
                 Arc::new(effective_agent_assembler),
                 Environment::OnHost,
             )
@@ -231,8 +293,13 @@ mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_some_hash_ok_eff_agent() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_cfg = SubAgentConfig {
+            agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        };
         //  create a default assembler
-        let mut assembler = AssemblerForTesting::default();
+        let mut assembler =
+            AssemblerForTesting::test_assembler(agent_id.clone(), agent_cfg.clone());
 
         // Modify expectations for this test
         // Expected calls on the hash repository
@@ -240,8 +307,8 @@ mod tests {
         let mut applied_hash = hash.clone();
         applied_hash.apply();
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(&assembler.agent_id, hash);
-        hash_repository.should_save_hash(&assembler.agent_id, &applied_hash);
+        hash_repository.should_get_hash(&agent_id, hash);
+        hash_repository.should_save_hash(&agent_id, &applied_hash);
 
         assembler.hash_repository = Arc::new(hash_repository);
 
@@ -257,7 +324,9 @@ mod tests {
         started_opamp_client.should_update_effective_config(1);
         let maybe_opamp_client = Some(started_opamp_client);
 
-        assert!(assembler.assemble_supervisor(&maybe_opamp_client).is_ok());
+        assert!(assembler
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
+            .is_ok());
     }
 
     /// `maybe_opamp_client == Some(_)`
@@ -265,14 +334,19 @@ mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_err_hash_ok_eff_agent() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_cfg = SubAgentConfig {
+            agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        };
         //  create a default assembler
-        let mut assembler = AssemblerForTesting::default();
+        let mut assembler =
+            AssemblerForTesting::test_assembler(agent_id.clone(), agent_cfg.clone());
 
         // Modify expectations for this test
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_return_error_on_get(
-            &assembler.agent_id,
+            &agent_id,
             HashRepositoryError::LoadError(String::from("random error loading")),
         );
 
@@ -281,7 +355,9 @@ mod tests {
         // Expected calls on the opamp client
         let maybe_opamp_client = Some(OpampClientForTest::new());
 
-        assert!(assembler.assemble_supervisor(&maybe_opamp_client).is_ok());
+        assert!(assembler
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
+            .is_ok());
     }
 
     /// `maybe_opamp_client == Some(_)`
@@ -333,11 +409,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -345,7 +419,7 @@ mod tests {
         let maybe_opamp_client = Some(opamp_client);
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_err());
     }
 
@@ -383,11 +457,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -395,7 +467,7 @@ mod tests {
         let maybe_opamp_client = Some(opamp_client);
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_ok());
     }
 
@@ -438,11 +510,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -450,7 +520,7 @@ mod tests {
         let maybe_opamp_client = Some(opamp_client);
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_err());
     }
 
@@ -487,11 +557,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -499,7 +567,7 @@ mod tests {
         let maybe_opamp_client: Option<OpampClientForTest> = None;
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_ok());
     }
 
@@ -535,11 +603,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -547,7 +613,7 @@ mod tests {
         let maybe_opamp_client: Option<OpampClientForTest> = None;
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_ok());
     }
 
@@ -589,11 +655,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -601,7 +665,7 @@ mod tests {
         let maybe_opamp_client: Option<OpampClientForTest> = None;
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_err());
     }
 
@@ -642,11 +706,9 @@ mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssembler::new(
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
             hash_repository_ref,
             supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
@@ -654,7 +716,7 @@ mod tests {
         let maybe_opamp_client: Option<OpampClientForTest> = None;
 
         assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client)
+            .assemble_supervisor(&maybe_opamp_client, agent_id, agent_cfg)
             .is_err());
     }
 

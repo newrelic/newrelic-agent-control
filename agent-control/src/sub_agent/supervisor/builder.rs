@@ -5,6 +5,7 @@ use crate::sub_agent::supervisor::starter::SupervisorStarter;
 pub trait SupervisorBuilder {
     type SupervisorStarter: SupervisorStarter;
 
+    //TODO this method should return a SupervisorBuilderError
     fn build_supervisor(
         &self,
         effective_agent: EffectiveAgent,

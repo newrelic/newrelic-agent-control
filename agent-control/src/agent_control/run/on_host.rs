@@ -7,6 +7,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::AgentControl;
+use crate::agent_type::environment::Environment;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -15,6 +16,8 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
+use crate::sub_agent::supervisor::assembler::SupervisorAssemblerImpl;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
@@ -104,14 +107,20 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
+        let supervisor_assembler = SupervisorAssemblerImpl::new(
+            sub_agent_hash_repository.clone(),
+            SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
+            agents_assembler,
+            Environment::OnHost,
+        );
+
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             sub_agent_hash_repository,
-            agents_assembler,
-            self.base_paths.log_dir.join(SUB_AGENT_DIR),
             yaml_config_repository.clone(),
             Arc::new(self.signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
