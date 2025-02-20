@@ -2101,12 +2101,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 
-## spin https://crates.io/crates/spin
-
-Distributed under the following license(s):
-* MIT
-
-
 ## stable_deref_trait https://crates.io/crates/stable_deref_trait
 
 Distributed under the following license(s):
