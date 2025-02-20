@@ -3,7 +3,7 @@ use super::{
     error::K8sError,
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
-use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::entry::Entry;
@@ -136,11 +136,6 @@ impl SyncK8sClient {
     /// Returns the deployment list using the corresponding reflector.
     pub fn list_deployment(&self) -> Vec<Arc<Deployment>> {
         self.async_client.reflectors.deployment.list()
-    }
-
-    /// Returns the replica_set list using the corresponding reflector.
-    pub fn list_replica_set(&self) -> Vec<Arc<ReplicaSet>> {
-        self.async_client.reflectors.replica_set.list()
     }
 }
 
@@ -466,7 +461,6 @@ pub(crate) mod tests {
                 s if s.contains("test_name_create") => ApiServerVerifier::get_create_resource(),
                 s if s.contains("/deployments") => ApiServerVerifier::get_deployment_data(),
                 s if s.contains("/daemonsets") => ApiServerVerifier::get_daemonset_data(),
-                s if s.contains("/replicasets") => ApiServerVerifier::get_replicaset_data(),
                 s if s.contains("/statefulsets") => ApiServerVerifier::get_statefulset_data(),
                 _ => ApiServerVerifier::get_not_found(),
             };
@@ -604,20 +598,6 @@ pub(crate) mod tests {
             serde_json::json!(
                 {
                     "kind": "StatefulSetList",
-                    "apiVersion": "apps/v1",
-                    "metadata": {
-                        "resourceVersion": "123456",
-                        "continue": ""
-                    },
-                    "items": []
-                }
-            )
-        }
-
-        fn get_replicaset_data() -> serde_json::Value {
-            serde_json::json!(
-                {
-                    "kind": "ReplicaSetList",
                     "apiVersion": "apps/v1",
                     "metadata": {
                         "resourceVersion": "123456",
