@@ -217,7 +217,6 @@ mod tests {
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let sub_agent_config = SubAgentConfig {
@@ -297,7 +296,6 @@ mod tests {
     #[test]
     fn test_subagent_should_report_failed_config() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();

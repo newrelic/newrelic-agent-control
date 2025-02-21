@@ -242,9 +242,8 @@ pub mod tests {
     use crate::agent_control::config::{
         helmrelease_v2_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
     };
-    use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
-    use crate::agent_type::runtime_config::{Deployment, K8sObject, Runtime};
+    use crate::agent_type::runtime_config::K8sObject;
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
@@ -252,15 +251,9 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
-    use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
