@@ -15,7 +15,9 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{
@@ -106,15 +108,20 @@ impl AgentControlRunner {
             Environment::K8s,
         );
 
+        let remote_config_handler = AgentRemoteConfigHandler::new(
+            Arc::new(ConfigValidator::default()),
+            hash_repository.clone(),
+            yaml_config_repository.clone(),
+            Arc::new(self.signature_validator),
+        );
+
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
-            hash_repository.clone(),
             self.k8s_config.clone(),
-            yaml_config_repository.clone(),
-            Arc::new(self.signature_validator),
             Arc::new(supervisor_assembler),
+            Arc::new(remote_config_handler),
         );
 
         let additional_identifying_attributes =

@@ -15,7 +15,9 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
@@ -114,13 +116,18 @@ impl AgentControlRunner {
             Environment::OnHost,
         );
 
-        let sub_agent_builder = OnHostSubAgentBuilder::new(
-            opamp_client_builder.as_ref(),
-            &instance_id_getter,
+        let remote_config_handler = AgentRemoteConfigHandler::new(
+            Arc::new(ConfigValidator::default()),
             sub_agent_hash_repository,
             yaml_config_repository.clone(),
             Arc::new(self.signature_validator),
+        );
+
+        let sub_agent_builder = OnHostSubAgentBuilder::new(
+            opamp_client_builder.as_ref(),
+            &instance_id_getter,
             Arc::new(supervisor_assembler),
+            Arc::new(remote_config_handler),
         );
 
         let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
@@ -142,6 +149,7 @@ impl AgentControlRunner {
             .transpose()?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
+
         AgentControl::new(
             maybe_client,
             agent_control_hash_repository,

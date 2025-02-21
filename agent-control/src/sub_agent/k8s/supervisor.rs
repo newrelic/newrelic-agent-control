@@ -251,6 +251,7 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
+    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandlerMock;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
@@ -513,18 +514,8 @@ pub mod tests {
             .expect_get()
             .with(predicate::eq(agent_id.clone()))
             .return_const(Ok(None));
-        let remote_values_repo = MockYAMLConfigRepositoryMock::default();
 
-        let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
-
-        let signature_validator = MockRemoteConfigValidatorMock::new();
-        let remote_config_handler = RemoteConfigHandler::new(
-            agent_id.clone(),
-            agent_cfg.clone(),
-            hash_repository_ref.clone(),
-            Arc::new(remote_values_repo),
-            Arc::new(signature_validator),
-        );
+        let remote_config_handler = MockRemoteConfigHandlerMock::new();
 
         let agent_id_clone = agent_id.clone();
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
@@ -555,7 +546,7 @@ pub mod tests {
                 sub_agent_internal_publisher.clone(),
                 sub_agent_internal_consumer,
             ),
-            remote_config_handler,
+            Arc::new(remote_config_handler),
         )
         .run();
 

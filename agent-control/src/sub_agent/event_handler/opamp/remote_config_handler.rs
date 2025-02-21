@@ -26,96 +26,45 @@ pub enum RemoteConfigHandlerError {
     HashAndValuesStore(ErrorMessage),
 }
 
-pub struct RemoteConfigHandler<R, Y, S> {
+pub trait RemoteConfigHandler {
+    fn handle<C>(
+        &self,
+        opamp_client: &C,
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
+        config: &mut RemoteConfig,
+    ) -> Result<(), RemoteConfigHandlerError>
+    where
+        C: StartedClient + Send + Sync + 'static;
+}
+
+pub struct AgentRemoteConfigHandler<R, Y, S> {
     // TODO: `ConfigValidator` could also implement `RemoteConfigValidator`. We may want to consider abstracting it
     // as well and implementing some sort of composite validator.
-    config_validator: ConfigValidator,
+    config_validator: Arc<ConfigValidator>,
     signature_validator: Arc<S>,
-    agent_id: AgentID,
-    agent_cfg: SubAgentConfig,
     sub_agent_remote_config_hash_repository: Arc<R>,
     remote_values_repo: Arc<Y>,
 }
 
-impl<R, Y, S> RemoteConfigHandler<R, Y, S>
+impl<R, Y, S> AgentRemoteConfigHandler<R, Y, S>
 where
     R: HashRepository,
     Y: YAMLConfigRepository,
     S: RemoteConfigValidator,
 {
     pub fn new(
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
+        config_validator: Arc<ConfigValidator>,
         sub_agent_remote_config_hash_repository: Arc<R>,
         remote_values_repo: Arc<Y>,
         signature_validator: Arc<S>,
     ) -> Self {
-        RemoteConfigHandler {
-            config_validator: ConfigValidator::default(),
-            agent_id,
-            agent_cfg,
+        AgentRemoteConfigHandler {
+            config_validator,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
             signature_validator,
         }
-    }
-
-    /// remote_config_handler handles the remote config received by the omamp client
-    /// It will
-    /// * validate and persist the configuration
-    /// * communicate to FM config status (applying first, applied if correct, error if failed)
-    pub fn handle<C>(
-        &self,
-        opamp_client: &C,
-        config: &mut RemoteConfig,
-    ) -> Result<(), RemoteConfigHandlerError>
-    where
-        C: StartedClient + Send + Sync + 'static,
-    {
-        debug!(
-            agent_id = self.agent_id.to_string(),
-            select_arm = "sub_agent_opamp_consumer",
-            "remote config received"
-        );
-
-        // Errors here will cause the sub-agent to continue running with the previous configuration.
-        // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
-        // "Applied" was never reported.
-        if let Err(e) = self
-            .config_validator
-            .validate(&self.agent_cfg.agent_type, config)
-        {
-            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating remote config with regexes");
-            Self::report_error(opamp_client, config, e.to_string())?;
-            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
-        }
-
-        if let Err(e) = self
-            .signature_validator
-            .validate(&self.agent_cfg.agent_type, config)
-        {
-            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error validating signature of remote config");
-            Self::report_error(opamp_client, config, e.to_string())?;
-            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
-        }
-
-        OpampRemoteConfigStatus::Applying
-            .report(opamp_client, &config.hash)
-            .map_err(|e| {
-                RemoteConfigHandlerError::StatusReporting(
-                    Status::from("applying"),
-                    Hash::from(&config.hash.get()),
-                    e.to_string(),
-                )
-            })?;
-
-        if let Err(e) = self.store_remote_config_hash_and_values(config) {
-            // log the error as it might be that we return a different error
-            error!(error = %e, agent_id = %self.agent_id, hash = &config.hash.get(), "error storing remote config");
-            Self::report_error(opamp_client, config, e.to_string())?;
-            return Err(RemoteConfigHandlerError::HashAndValuesStore(e.to_string()));
-        }
-        Ok(())
     }
 
     fn report_error<C>(
@@ -169,6 +118,73 @@ where
     }
 }
 
+impl<R, Y, S> RemoteConfigHandler for AgentRemoteConfigHandler<R, Y, S>
+where
+    R: HashRepository,
+    Y: YAMLConfigRepository,
+    S: RemoteConfigValidator,
+{
+    /// remote_config_handler handles the remote config received by the omamp client
+    /// It will
+    /// * validate and persist the configuration
+    /// * communicate to FM config status (applying first, applied if correct, error if failed)
+    fn handle<C>(
+        &self,
+        opamp_client: &C,
+        agent_id: AgentID,
+        agent_cfg: SubAgentConfig,
+        config: &mut RemoteConfig,
+    ) -> Result<(), RemoteConfigHandlerError>
+    where
+        C: StartedClient + Send + Sync + 'static,
+    {
+        debug!(
+            agent_id = agent_id.to_string(),
+            select_arm = "sub_agent_opamp_consumer",
+            "remote config received"
+        );
+
+        // Errors here will cause the sub-agent to continue running with the previous configuration.
+        // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
+        // "Applied" was never reported.
+        if let Err(e) = self
+            .config_validator
+            .validate(&agent_cfg.agent_type, config)
+        {
+            error!(error = %e, agent_id = %agent_id, hash = &config.hash.get(), "error validating remote config with regexes");
+            Self::report_error(opamp_client, config, e.to_string())?;
+            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
+        }
+
+        if let Err(e) = self
+            .signature_validator
+            .validate(&agent_cfg.agent_type, config)
+        {
+            error!(error = %e, agent_id = %agent_id, hash = &config.hash.get(), "error validating signature of remote config");
+            Self::report_error(opamp_client, config, e.to_string())?;
+            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
+        }
+
+        OpampRemoteConfigStatus::Applying
+            .report(opamp_client, &config.hash)
+            .map_err(|e| {
+                RemoteConfigHandlerError::StatusReporting(
+                    Status::from("applying"),
+                    Hash::from(&config.hash.get()),
+                    e.to_string(),
+                )
+            })?;
+
+        if let Err(e) = self.store_remote_config_hash_and_values(config) {
+            // log the error as it might be that we return a different error
+            error!(error = %e, agent_id = %agent_id, hash = &config.hash.get(), "error storing remote config");
+            Self::report_error(opamp_client, config, e.to_string())?;
+            return Err(RemoteConfigHandlerError::HashAndValuesStore(e.to_string()));
+        }
+        Ok(())
+    }
+}
+
 fn process_remote_config(
     remote_config: &RemoteConfig,
 ) -> Result<Option<YAMLConfig>, SubAgentError> {
@@ -179,4 +195,51 @@ fn process_remote_config(
     }
 
     Ok(Some(YAMLConfig::try_from(remote_config_value.to_string())?))
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::{RemoteConfigHandler, RemoteConfigHandlerError};
+    use crate::agent_control::config::{AgentID, SubAgentConfig};
+    use crate::opamp::remote_config::RemoteConfig;
+    use mockall::mock;
+    use opamp_client::StartedClient;
+    use predicates::prelude::predicate;
+
+    mock! {
+        pub RemoteConfigHandlerMock {}
+
+        impl RemoteConfigHandler for RemoteConfigHandlerMock{
+            fn handle<C>(
+                &self,
+                opamp_client: &C,
+                agent_id: AgentID,
+                agent_cfg: SubAgentConfig,
+                config: &mut RemoteConfig
+            ) -> Result<(), RemoteConfigHandlerError>
+            where
+                C: StartedClient + Send + Sync + 'static;
+        }
+    }
+
+    impl MockRemoteConfigHandlerMock {
+        pub fn should_handle<C>(
+            &mut self,
+            agent_id: AgentID,
+            agent_cfg: SubAgentConfig,
+            config: RemoteConfig,
+        ) where
+            C: StartedClient + Send + Sync + 'static,
+        {
+            self.expect_handle()
+                .once()
+                .with(
+                    predicate::always(), // we cannot eq opamo client
+                    predicate::eq(agent_id),
+                    predicate::eq(agent_cfg),
+                    predicate::eq(config),
+                )
+                .return_once(|_: &C, _, _, _| Ok(()));
+        }
+    }
 }
