@@ -266,7 +266,7 @@ mod tests {
         started_supervisor.should_stop();
 
         let mut stopped_supervisor = MockSupervisorStarter::new();
-        stopped_supervisor.should_start(sub_agent_internal_publisher.clone(), started_supervisor);
+        stopped_supervisor.should_start(started_supervisor);
 
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
@@ -348,7 +348,7 @@ mod tests {
         started_supervisor.should_stop();
 
         let mut stopped_supervisor = MockSupervisorStarter::new();
-        stopped_supervisor.should_start(sub_agent_internal_publisher.clone(), started_supervisor);
+        stopped_supervisor.should_start(started_supervisor);
 
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(

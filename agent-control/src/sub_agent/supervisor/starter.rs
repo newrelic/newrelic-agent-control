@@ -52,7 +52,6 @@ pub(crate) mod tests {
     impl MockSupervisorStarter {
         pub fn should_start(
             &mut self,
-            _sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
             stopper: MockSupervisorStopper,
         ) {
             self.expect_start()
