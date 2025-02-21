@@ -50,10 +50,7 @@ pub(crate) mod tests {
     }
 
     impl MockSupervisorStarter {
-        pub fn should_start(
-            &mut self,
-            stopper: MockSupervisorStopper,
-        ) {
+        pub fn should_start(&mut self, stopper: MockSupervisorStopper) {
             self.expect_start()
                 .with(predicate::always()) // we cannot do eq with a publisher
                 .once()

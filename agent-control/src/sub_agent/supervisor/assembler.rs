@@ -165,7 +165,7 @@ pub mod tests {
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
     use crate::sub_agent::supervisor::assembler::{
-        SupervisorAssembler, SupervisorAssemblerError, AgentSupervisorAssembler,
+        AgentSupervisorAssembler, SupervisorAssembler, SupervisorAssemblerError,
     };
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
