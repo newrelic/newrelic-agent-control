@@ -17,7 +17,7 @@ use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
-use crate::sub_agent::supervisor::assembler::SupervisorAssemblerImpl;
+use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{
     agent_control::error::AgentError,
     opamp::{
@@ -99,7 +99,7 @@ impl AgentControlRunner {
         let supervisor_builder =
             SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository.clone(),
             supervisor_builder,
             agents_assembler,

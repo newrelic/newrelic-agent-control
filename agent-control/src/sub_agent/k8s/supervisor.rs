@@ -257,7 +257,7 @@ pub mod tests {
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
-    use crate::sub_agent::supervisor::assembler::SupervisorAssemblerImpl;
+    use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;

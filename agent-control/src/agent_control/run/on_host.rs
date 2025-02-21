@@ -17,7 +17,7 @@ use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
-use crate::sub_agent::supervisor::assembler::SupervisorAssemblerImpl;
+use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
@@ -107,7 +107,7 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             sub_agent_hash_repository.clone(),
             SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
             agents_assembler,

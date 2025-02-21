@@ -344,7 +344,7 @@ pub mod tests {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
-    use crate::sub_agent::supervisor::assembler::SupervisorAssemblerImpl;
+    use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
@@ -638,7 +638,7 @@ pub mod tests {
             Arc::new(signature_validator),
         );
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),

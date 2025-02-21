@@ -36,14 +36,14 @@ pub trait SupervisorAssembler {
 /// to ensure that the Supervisor for the Sub Agent can be built.
 /// If it succeeds, it will use the environment specific SupervisorBuilder
 /// to actually build and return the Supervisor.
-pub struct SupervisorAssemblerImpl<HR, B, A> {
+pub struct AgentSupervisorAssembler<HR, B, A> {
     hash_repository: Arc<HR>,
     supervisor_builder: B,
     effective_agent_assembler: Arc<A>,
     environment: Environment,
 }
 
-impl<HR, B, A> SupervisorAssemblerImpl<HR, B, A>
+impl<HR, B, A> AgentSupervisorAssembler<HR, B, A>
 where
     HR: HashRepository + Send + Sync + 'static,
     B: SupervisorBuilder,
@@ -64,7 +64,7 @@ where
     }
 }
 
-impl<HR, B, A> SupervisorAssembler for SupervisorAssemblerImpl<HR, B, A>
+impl<HR, B, A> SupervisorAssembler for AgentSupervisorAssembler<HR, B, A>
 where
     HR: HashRepository + Send + Sync + 'static,
     B: SupervisorBuilder,
@@ -165,7 +165,7 @@ pub mod tests {
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
     use crate::sub_agent::supervisor::assembler::{
-        SupervisorAssembler, SupervisorAssemblerError, SupervisorAssemblerImpl,
+        SupervisorAssembler, SupervisorAssemblerError, AgentSupervisorAssembler,
     };
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
@@ -217,7 +217,7 @@ pub mod tests {
     }
 
     //Follow the same approach as before the refactor
-    type AssemblerForTesting = SupervisorAssemblerImpl<
+    type AssemblerForTesting = AgentSupervisorAssembler<
         MockHashRepositoryMock,
         MockSupervisorBuilder<MockSupervisorStarter>,
         MockEffectiveAgentAssemblerMock,
@@ -266,7 +266,7 @@ pub mod tests {
 
             let hash_repository_ref = Arc::new(hash_repository);
 
-            SupervisorAssemblerImpl::new(
+            AgentSupervisorAssembler::new(
                 hash_repository_ref,
                 supervisor_builder,
                 Arc::new(effective_agent_assembler),
@@ -409,7 +409,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -457,7 +457,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -510,7 +510,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -557,7 +557,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -603,7 +603,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -655,7 +655,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
@@ -706,7 +706,7 @@ pub mod tests {
 
         let hash_repository_ref = Arc::new(hash_repository);
 
-        let supervisor_assembler = SupervisorAssemblerImpl::new(
+        let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
