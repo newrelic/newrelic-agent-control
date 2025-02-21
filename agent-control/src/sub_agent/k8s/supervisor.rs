@@ -242,9 +242,8 @@ pub mod tests {
     use crate::agent_control::config::{
         helmrelease_v2_type_meta, AgentID, AgentTypeFQN, SubAgentConfig,
     };
-    use crate::agent_type::environment::Environment;
     use crate::agent_type::health_config::K8sHealthConfig;
-    use crate::agent_type::runtime_config::{Deployment, K8sObject, Runtime};
+    use crate::agent_type::runtime_config::K8sObject;
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentEvent;
     use crate::k8s::error::K8sError;
@@ -252,12 +251,9 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
-    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
-    use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
@@ -511,24 +507,6 @@ pub mod tests {
         let agent_cfg = SubAgentConfig {
             agent_type: agent_fqn.clone(),
         };
-        let k8s_config = k8s_sample_runtime_config(true);
-        let runtime_config = Runtime {
-            deployment: Deployment {
-                k8s: Some(k8s_config),
-                ..Default::default()
-            },
-        };
-        let effective_agent =
-            EffectiveAgent::new(agent_id.clone(), agent_fqn.clone(), runtime_config.clone());
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler.should_assemble_agent(
-            &agent_id,
-            &agent_cfg,
-            &Environment::K8s,
-            effective_agent,
-            1,
-        );
 
         let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
         sub_agent_remote_config_hash_repository
@@ -536,20 +514,6 @@ pub mod tests {
             .with(predicate::eq(agent_id.clone()))
             .return_const(Ok(None));
         let remote_values_repo = MockYAMLConfigRepositoryMock::default();
-
-        let agent_id_clone = agent_id.clone();
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::always())
-            .returning(move |_| {
-                Ok(NotStartedSupervisorK8s::new(
-                    agent_id_clone.clone(),
-                    agent_fqn.clone(),
-                    mocked_client.clone(),
-                    k8s_obj.clone(),
-                ))
-            });
 
         let hash_repository_ref = Arc::new(sub_agent_remote_config_hash_repository);
 
@@ -562,20 +526,29 @@ pub mod tests {
             Arc::new(signature_validator),
         );
 
-        let supervisor_assembler = SupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            agent_id.clone(),
-            agent_cfg.clone(),
-            Arc::new(effective_agent_assembler),
-            Environment::K8s,
-        );
+        let agent_id_clone = agent_id.clone();
+        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        supervisor_assembler
+            .expect_assemble_supervisor()
+            .with(
+                predicate::always(),
+                predicate::eq(agent_id.clone()),
+                predicate::eq(agent_cfg.clone()),
+            )
+            .returning(move |_: &Option<MockStartedOpAMPClientMock>, _, _| {
+                Ok(NotStartedSupervisorK8s::new(
+                    agent_id_clone.clone(),
+                    agent_fqn.clone(),
+                    mocked_client.clone(),
+                    k8s_obj.clone(),
+                ))
+            });
 
         SubAgent::new(
-            AgentID::new(TEST_AGENT_ID).unwrap(),
-            agent_cfg.clone(),
+            agent_id,
+            agent_cfg,
             none_mock_opamp_client(),
-            supervisor_assembler,
+            Arc::new(supervisor_assembler),
             sub_agent_publisher,
             None,
             (

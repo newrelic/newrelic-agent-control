@@ -17,4 +17,10 @@ pub(crate) mod tests {
         fn stop(self) -> Result<(), ThreadContextStopperError>;
         }
     }
+
+    impl MockSupervisorStopper {
+        pub fn should_stop(&mut self) {
+            self.expect_stop().once().return_once(|| Ok(()));
+        }
+    }
 }

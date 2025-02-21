@@ -38,6 +38,7 @@ pub(crate) mod tests {
     use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use mockall::mock;
+    use predicates::prelude::predicate;
 
     mock! {
         pub SupervisorStarter {}
@@ -45,6 +46,15 @@ pub(crate) mod tests {
          impl SupervisorStarter for SupervisorStarter{
              type SupervisorStopper = MockSupervisorStopper;
               fn start(self,sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>) -> Result<MockSupervisorStopper, SupervisorStarterError>;
+        }
+    }
+
+    impl MockSupervisorStarter {
+        pub fn should_start(&mut self, stopper: MockSupervisorStopper) {
+            self.expect_start()
+                .with(predicate::always()) // we cannot do eq with a publisher
+                .once()
+                .return_once(|_| Ok(stopper));
         }
     }
 }

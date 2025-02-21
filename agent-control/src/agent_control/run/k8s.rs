@@ -7,6 +7,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::AgentControl;
+use crate::agent_type::environment::Environment;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -15,6 +16,8 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
+use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
+use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{
     agent_control::error::AgentError,
     opamp::{
@@ -93,16 +96,25 @@ impl AgentControlRunner {
 
         let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
 
+        let supervisor_builder =
+            SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
+
+        let supervisor_assembler = AgentSupervisorAssembler::new(
+            hash_repository.clone(),
+            supervisor_builder,
+            agents_assembler,
+            Environment::K8s,
+        );
+
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
-            k8s_client.clone(),
             hash_repository.clone(),
-            agents_assembler,
             self.k8s_config.clone(),
             yaml_config_repository.clone(),
             Arc::new(self.signature_validator),
+            Arc::new(supervisor_assembler),
         );
 
         let additional_identifying_attributes =
