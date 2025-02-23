@@ -1,5 +1,5 @@
 use super::certificate::Certificate;
-use reqwest::blocking::Client;
+use crate::http::client::HttpClient;
 use reqwest::tls::TlsInfo;
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
@@ -18,7 +18,7 @@ pub enum CertificateFetcherError {
     CertificateFetch(String),
 }
 pub enum CertificateFetcher {
-    Https(Url, Client),
+    Https(Url, HttpClient),
     PemFile(PathBuf),
 }
 
@@ -36,9 +36,19 @@ impl CertificateFetcher {
 
     fn fetch_https(
         url: &Url,
-        client: &Client,
+        client: &HttpClient,
     ) -> Result<DerCertificateBytes, CertificateFetcherError> {
-        let response = client.head(url.as_ref()).send().map_err(|e| {
+        let request = http::Request::builder()
+            .uri(url.as_ref())
+            .method("HEAD")
+            .body(Vec::default())
+            .map_err(|err| {
+                CertificateFetcherError::CertificateFetch(format!(
+                    "error building request: {}",
+                    err
+                ))
+            })?;
+        let response = client.send(request).map_err(|e| {
             CertificateFetcherError::CertificateFetch(format!("fetching certificate: {}", e))
         })?;
         let tls_info = response.extensions().get::<TlsInfo>().ok_or(
@@ -72,8 +82,7 @@ mod tests {
 
     use super::*;
     use crate::http::config::HttpConfig;
-    use crate::http::proxy::ProxyConfig;
-    use crate::http::reqwest::try_build_reqwest_client;
+    use crate::http::config::ProxyConfig;
     use crate::http::tls::install_rustls_default_crypto_provider;
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use assert_matches::assert_matches;
@@ -96,7 +105,7 @@ mod tests {
                     ProxyConfig::default(),
                 )
                 .with_tls_info();
-                let client = try_build_reqwest_client(http_config).unwrap();
+                let client = HttpClient::new(http_config).unwrap();
                 let _ = CertificateFetcher::Https(Url::parse(self.url).unwrap(), client)
                     .fetch()
                     .unwrap_or_else(|err| {
@@ -135,7 +144,7 @@ mod tests {
                     ProxyConfig::default(),
                 )
                 .with_tls_info();
-                let client = try_build_reqwest_client(http_config).unwrap();
+                let client = HttpClient::new(http_config).unwrap();
                 let err = CertificateFetcher::Https(Url::parse(self.url).unwrap(), client)
                     .fetch()
                     .expect_err(format!("error is expected, case: {}", self.name).as_str());

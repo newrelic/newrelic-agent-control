@@ -11,7 +11,7 @@ use crate::event::{
     channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, SubAgentEvent,
 };
-use crate::http::proxy::ProxyConfig;
+use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::remote_config::validators::signature::validator::{
