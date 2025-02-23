@@ -3,13 +3,13 @@ use http::{HeaderMap, HeaderValue};
 use std::sync::Arc;
 use std::time::Duration;
 
-use super::client::ReqwestOpAMPClient;
+use super::client::HttpOpAMPClient;
 use crate::agent_control::config::OpAMPClientConfig;
+use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
-use crate::http::proxy::ProxyConfig;
-use crate::http::reqwest::{try_build_reqwest_client, ReqwestBuildError};
+use crate::http::config::ProxyConfig;
 use nr_auth::TokenRetriever;
-use opamp_client::http::http_client::HttpClient;
+use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 
 /// Default client timeout is 30 seconds
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -21,7 +21,7 @@ pub enum HttpClientBuilderError {
 }
 
 pub trait HttpClientBuilder {
-    type Client: HttpClient + Send + Sync + 'static;
+    type Client: OpampHttpClient + Send + Sync + 'static;
 
     fn build(&self) -> Result<Self::Client, HttpClientBuilderError>;
 }
@@ -66,7 +66,7 @@ impl<T> HttpClientBuilder for OpAMPHttpClientBuilder<T>
 where
     T: TokenRetriever + Send + Sync + 'static,
 {
-    type Client = ReqwestOpAMPClient<T>;
+    type Client = HttpOpAMPClient<T>;
 
     /// Build the HTTP Client. It will contain a Token Retriever, so in all
     /// post requests a Token will be retrieved from Identity System Service
@@ -77,22 +77,17 @@ where
             DEFAULT_CLIENT_TIMEOUT,
             self.proxy_config.clone(),
         );
-        let client = try_build_reqwest_client(http_config)?;
         let url = self.opamp_config.endpoint.clone();
         let headers = self.headers();
+        let client = HttpClient::new(http_config)?;
         let token_retriever = self.token_retriever.clone();
 
-        Ok(ReqwestOpAMPClient::new(
-            client,
-            url,
-            headers,
-            token_retriever,
-        ))
+        Ok(HttpOpAMPClient::new(client, url, headers, token_retriever))
     }
 }
 
-impl From<ReqwestBuildError> for HttpClientBuilderError {
-    fn from(err: ReqwestBuildError) -> Self {
+impl From<HttpBuildError> for HttpClientBuilderError {
+    fn from(err: HttpBuildError) -> Self {
         Self::BuildingError(err.to_string())
     }
 }
@@ -124,7 +119,7 @@ pub(crate) mod tests {
     // Mock the HttpClient
     mock! {
         pub HttpClientMock {}
-        impl HttpClient for HttpClientMock {
+        impl OpampHttpClient for HttpClientMock {
             fn post(&self, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }

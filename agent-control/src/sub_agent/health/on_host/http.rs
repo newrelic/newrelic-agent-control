@@ -1,13 +1,11 @@
-use crate::agent_type::health_config::{HealthCheckTimeout, HttpHealth};
-use crate::http::reqwest::{
-    reqwest_builder_with_timeout, try_build_response, ReqwestResponseError,
-};
+use crate::agent_type::health_config::HttpHealth;
+use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
 use crate::sub_agent::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use http::{HeaderName, HeaderValue, Request, Response};
 use std::collections::HashMap;
-use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
 use url::Url;
@@ -29,38 +27,42 @@ pub trait HttpClient {
         &self,
         path: &str,
         headers: &HashMap<String, String>,
-    ) -> Result<http::Response<Vec<u8>>, HttpClientError>;
+    ) -> Result<Response<Vec<u8>>, HttpClientError>;
 }
 
-/// An implementation of the `HttpClient` trait using the reqwest library.
-impl HttpClient for reqwest::blocking::Client {
+impl HttpClient for InnerClient {
     fn get(
         &self,
         path: &str,
         headers: &HashMap<String, String>,
-    ) -> Result<http::Response<Vec<u8>>, HttpClientError> {
-        let mut req = self.get(path);
+    ) -> Result<Response<Vec<u8>>, HttpClientError> {
+        let mut request_builder = Request::builder().method("GET").uri(path);
 
-        for (header_name, header_value) in headers {
-            req = req.header(header_name.as_str(), header_value.as_str());
+        for (key, value) in headers {
+            let header_name: HeaderName = key
+                .parse::<HeaderName>()
+                .map_err(|err| HttpResponseError::BuildingRequest(err.to_string()))?;
+            let header_value: HeaderValue = value
+                .parse::<HeaderValue>()
+                .map_err(|err| HttpResponseError::BuildingRequest(err.to_string()))?;
+            request_builder = request_builder.header(header_name, header_value);
         }
 
-        let res = req
-            .send()
-            .map_err(|err| HttpClientError::HttpClientError(err.to_string()))?;
+        let request = request_builder
+            .body(Vec::new())
+            .map_err(|err| HttpResponseError::BuildingRequest(err.to_string()))?;
 
-        Ok(try_build_response(res)?)
+        Ok(self.send(request)?)
     }
 }
-
-impl From<ReqwestResponseError> for HttpClientError {
-    fn from(err: ReqwestResponseError) -> Self {
-        Self::HttpClientError(err.to_string())
+impl From<HttpResponseError> for HttpClientError {
+    fn from(err: HttpResponseError) -> Self {
+        HttpClientError::HttpClientError(err.to_string())
     }
 }
 
 /// The `HttpHealthChecker` is in charge of calling its client and parsing the health status
-pub struct HttpHealthChecker<C = reqwest::blocking::Client>
+pub struct HttpHealthChecker<C = InnerClient>
 where
     C: HttpClient,
 {
@@ -71,9 +73,9 @@ where
     start_time: StartTime,
 }
 
-impl HttpHealthChecker<reqwest::blocking::Client> {
+impl HttpHealthChecker<InnerClient> {
     pub(crate) fn new(
-        timeout: HealthCheckTimeout,
+        client: InnerClient,
         http_config: HttpHealth,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
@@ -92,13 +94,6 @@ impl HttpHealthChecker<reqwest::blocking::Client> {
 
         let headers = http_config.headers;
         let healthy_status_codes = http_config.healthy_status_codes;
-
-        let client_timeout = Duration::from(timeout);
-        let client = reqwest_builder_with_timeout(client_timeout, client_timeout)
-            .build()
-            .map_err(|err| {
-                HealthCheckerError::Generic(format!("could not build the http client: {err}"))
-            })?;
 
         Ok(Self {
             client,
@@ -150,7 +145,7 @@ pub(crate) mod tests {
     mock! {
         pub HttpClientMock {}
         impl HttpClient for HttpClientMock {
-            fn get(&self, path: &str, headers: &HashMap<String, String>) -> Result<http::Response<Vec<u8>>, HttpClientError>;
+            fn get(&self, path: &str, headers: &HashMap<String, String>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
 
