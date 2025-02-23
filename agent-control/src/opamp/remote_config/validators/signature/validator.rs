@@ -2,9 +2,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::agent_control::config::AgentTypeFQN;
+use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::proxy::ProxyConfig;
-use crate::http::reqwest::try_build_reqwest_client;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
@@ -62,7 +62,7 @@ pub fn build_signature_validator(
         )
         .with_tls_info();
 
-        let client = try_build_reqwest_client(http_config)
+        let client = HttpClient::new(http_config)
             .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
         CertificateFetcher::Https(config.certificate_server_url, client)

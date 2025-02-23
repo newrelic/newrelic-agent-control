@@ -1,7 +1,5 @@
 use crate::agent_type::health_config::{HealthCheckTimeout, HttpHealth};
-use crate::http::reqwest::{
-    reqwest_builder_with_timeout, try_build_response, ReqwestResponseError,
-};
+use crate::http::client::{reqwest_builder_with_timeout, try_build_response, HttpResponseError};
 use crate::sub_agent::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -54,8 +52,8 @@ impl HttpClient for reqwest::blocking::Client {
     }
 }
 
-impl From<ReqwestResponseError> for HttpClientError {
-    fn from(err: ReqwestResponseError) -> Self {
+impl From<HttpResponseError> for HttpClientError {
+    fn from(err: HttpResponseError) -> Self {
         Self::HttpClientError(err.to_string())
     }
 }

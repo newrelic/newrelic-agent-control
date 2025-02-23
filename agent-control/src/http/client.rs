@@ -1,6 +1,11 @@
 //! # Helpers to build a reqwest blocking client and handle responses and handle responses
-use super::config::HttpConfig;
+use crate::http::config::HttpConfig;
+use http::Request;
 use nix::NixPath;
+use nr_auth::http_client::HttpClient as OauthHttpClient;
+use nr_auth::http_client::HttpClientError as OauthHttpClientError;
+use opamp_client::http::HttpClientError as OpampHttpClientError;
+use reqwest::tls::TlsInfo;
 use reqwest::{
     blocking::{Client, ClientBuilder, Response},
     Certificate, Proxy,
@@ -15,74 +20,138 @@ use std::{
 use tracing::warn;
 
 const CERT_EXTENSION: &str = "pem";
+#[derive(Debug, Clone)]
+pub struct HttpClient {
+    client: Client,
+}
+impl HttpClient {
+    /// Builds a reqwest blocking client according to the provided configuration.
+    pub fn new(config: HttpConfig) -> Result<Self, HttpBuildError> {
+        let mut builder = reqwest_builder_with_timeout(config.timeout, config.conn_timeout);
+
+        if config.tls_info {
+            builder = builder.tls_info(true);
+        }
+
+        let proxy_config = config.proxy;
+        let proxy_url = proxy_config.url_as_string();
+        if !proxy_url.is_empty() {
+            let proxy = Proxy::all(proxy_url).map_err(|err| {
+                HttpBuildError::ClientBuilder(format!("invalid proxy url: {err}"))
+            })?;
+            builder = builder.proxy(proxy);
+            for cert in
+                certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())?
+            {
+                builder = builder.add_root_certificate(cert)
+            }
+        }
+
+        let client = builder
+            .build()
+            .map_err(|err| HttpBuildError::ClientBuilder(err.to_string()))?;
+        Ok(Self { client })
+    }
+
+    pub fn send(
+        &self,
+        request: Request<Vec<u8>>,
+    ) -> Result<http::Response<Vec<u8>>, HttpResponseError> {
+        let req_body: Vec<u8> = request.body().to_vec();
+        let req = self
+            .client
+            .request(request.method().into(), request.uri().to_string().as_str())
+            .headers(request.headers().clone())
+            .body(req_body);
+
+        let res = req
+            .send()
+            .map_err(|err| HttpResponseError::TransportError(err.to_string()))?;
+
+        try_build_response(res)
+    }
+}
 
 #[derive(thiserror::Error, Debug)]
-pub enum ReqwestResponseError {
+pub enum HttpResponseError {
     #[error("could read response body: {0}")]
     ReadingResponse(String),
     #[error("could build response: {0}")]
     BuildingResponse(String),
+    #[error("could build request: {0}")]
+    BuildingRequest(String),
+    #[error("`{0}`")]
+    TransportError(String),
+    #[error("Status code: `{0}` Canonical reason: `{1}`")]
+    UnsuccessfulResponse(u16, String),
 }
-
-impl From<ReqwestResponseError> for nr_auth::http_client::HttpClientError {
-    fn from(err: ReqwestResponseError) -> Self {
-        Self::InvalidResponse(err.to_string())
+impl From<HttpResponseError> for OpampHttpClientError {
+    fn from(err: HttpResponseError) -> Self {
+        match err {
+            HttpResponseError::TransportError(msg) => OpampHttpClientError::TransportError(msg),
+            HttpResponseError::UnsuccessfulResponse(code, reason) => {
+                OpampHttpClientError::UnsuccessfulResponse(code, reason)
+            }
+            HttpResponseError::BuildingRequest(msg)
+            | HttpResponseError::BuildingResponse(msg)
+            | HttpResponseError::ReadingResponse(msg) => OpampHttpClientError::HTTPBodyError(msg),
+        }
     }
 }
 
-impl From<ReqwestResponseError> for opamp_client::http::HttpClientError {
-    fn from(err: ReqwestResponseError) -> Self {
-        Self::HTTPBodyError(err.to_string())
+impl OauthHttpClient for HttpClient {
+    fn send(&self, req: Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>, OauthHttpClientError> {
+        self.send(req)
+            .map_err(|err| OauthHttpClientError::TransportError(err.to_string()))
+    }
+}
+
+impl From<HttpResponseError> for OauthHttpClientError {
+    fn from(err: HttpResponseError) -> Self {
+        match err {
+            HttpResponseError::TransportError(msg) => OauthHttpClientError::TransportError(msg),
+            HttpResponseError::UnsuccessfulResponse(code, reason) => {
+                OauthHttpClientError::UnsuccessfulResponse(code, reason)
+            }
+            HttpResponseError::BuildingRequest(msg)
+            | HttpResponseError::BuildingResponse(msg)
+            | HttpResponseError::ReadingResponse(msg) => OauthHttpClientError::InvalidResponse(msg),
+        }
     }
 }
 
 /// Helper to build a [http::Response<Vec<u8>>] from a reqwest's blocking response.
 /// It includes status, version and body. Headers are not included but they could be added if needed.
-pub fn try_build_response(res: Response) -> Result<http::Response<Vec<u8>>, ReqwestResponseError> {
+pub fn try_build_response(res: Response) -> Result<http::Response<Vec<u8>>, HttpResponseError> {
     let status = res.status();
     let version = res.version();
+
+    let tls_info = res.extensions().get::<TlsInfo>().cloned();
+
     let body: Vec<u8> = res
         .bytes()
-        .map_err(|err| ReqwestResponseError::ReadingResponse(err.to_string()))?
+        .map_err(|err| HttpResponseError::ReadingResponse(err.to_string()))?
         .into();
-    http::Response::builder()
-        .status(status)
-        .version(version)
+
+    let mut response_builder = http::Response::builder().status(status).version(version);
+
+    if let Some(tls_info) = tls_info {
+        response_builder = response_builder.extension(tls_info);
+    }
+
+    let response = response_builder
         .body(body)
-        .map_err(|err| ReqwestResponseError::BuildingResponse(err.to_string()))
+        .map_err(|err| HttpResponseError::BuildingResponse(err.to_string()))?;
+
+    Ok(response)
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum ReqwestBuildError {
+pub enum HttpBuildError {
     #[error("could not build the reqwest client: {0}")]
     ClientBuilder(String),
     #[error("could not load certificates from {path}: {err}")]
     CertificateError { path: String, err: String },
-}
-
-/// Builds a reqwest blocking client according to the provided configuration.
-pub fn try_build_reqwest_client(config: HttpConfig) -> Result<Client, ReqwestBuildError> {
-    let mut builder = reqwest_builder_with_timeout(config.timeout, config.conn_timeout);
-
-    if config.tls_info {
-        builder = builder.tls_info(true);
-    }
-
-    let proxy_config = config.proxy;
-    let proxy_url = proxy_config.url_as_string();
-    if !proxy_url.is_empty() {
-        let proxy = Proxy::all(proxy_url)
-            .map_err(|err| ReqwestBuildError::ClientBuilder(format!("invalid proxy url: {err}")))?;
-        builder = builder.proxy(proxy);
-        for cert in certs_from_paths(proxy_config.ca_bundle_file(), proxy_config.ca_bundle_dir())? {
-            builder = builder.add_root_certificate(cert)
-        }
-    }
-
-    let client = builder
-        .build()
-        .map_err(|err| ReqwestBuildError::ClientBuilder(err.to_string()))?;
-    Ok(client)
 }
 
 /// Returns a reqwest [ClientBuilder] with the default setup for Agent Control and the provider timeout values.
@@ -98,7 +167,7 @@ pub fn reqwest_builder_with_timeout(timeout: Duration, conn_timeout: Duration) -
 fn certs_from_paths(
     ca_bundle_file: &Path,
     ca_bundle_dir: &Path,
-) -> Result<Vec<Certificate>, ReqwestBuildError> {
+) -> Result<Vec<Certificate>, HttpBuildError> {
     let mut certs = Vec::new();
     // Certs from bundle file
     certs.extend(certs_from_file(ca_bundle_file)?);
@@ -110,7 +179,7 @@ fn certs_from_paths(
 }
 
 /// Returns all certs bundled in the file corresponding to the provided path.
-fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, ReqwestBuildError> {
+fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, HttpBuildError> {
     if path.is_empty() {
         return Ok(Vec::new());
     }
@@ -124,7 +193,7 @@ fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, ReqwestBuildError> {
 }
 
 /// Returns all paths to be considered to load certificates under the provided directory path.
-fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, ReqwestBuildError> {
+fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, HttpBuildError> {
     if dir_path.is_empty() {
         return Ok(Vec::new());
     }
@@ -144,9 +213,9 @@ fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, ReqwestBuildErro
     Ok(paths.collect())
 }
 
-/// Helper to build a [ReqwestBuildError::CertificateError] more concisely.
-fn certificate_error<E: Display>(path: &Path, err: E) -> ReqwestBuildError {
-    ReqwestBuildError::CertificateError {
+/// Helper to build a [HttpBuildError::CertificateError] more concisely.
+fn certificate_error<E: Display>(path: &Path, err: E) -> HttpBuildError {
+    HttpBuildError::CertificateError {
         path: path.to_string_lossy().into(),
         err: err.to_string(),
     }
@@ -167,11 +236,13 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use http::StatusCode;
+    use httpmock::Method::GET;
     use httpmock::MockServer;
     use std::fs::File;
     use std::io::Write;
     use std::time::Duration;
     use tempfile::tempdir;
+    use url::Url;
 
     const INVALID_TESTING_CERT: &str =
         "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";
@@ -205,9 +276,10 @@ mod tests {
             Duration::from_secs(3),
             ProxyConfig::from_url(proxy_server.base_url()),
         );
-        let agent = try_build_reqwest_client(config)
+        let agent = HttpClient::new(config)
             .unwrap_or_else(|e| panic!("Unexpected error building the client {e}"));
         let resp = agent
+            .client
             .get(target_server.url("/path").as_str())
             .send()
             .unwrap_or_else(|e| panic!("Error performing request: {e}"));
@@ -229,12 +301,12 @@ mod tests {
         let ca_bundle_file = PathBuf::from("non-existing.pem");
         let ca_bundle_dir = PathBuf::default();
         let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, ReqwestBuildError::CertificateError { .. });
+        assert_matches!(err, HttpBuildError::CertificateError { .. });
 
         let ca_bundle_file = PathBuf::default();
         let ca_bundle_dir = PathBuf::from("non-existing-dir.pem");
         let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, ReqwestBuildError::CertificateError { .. });
+        assert_matches!(err, HttpBuildError::CertificateError { .. });
     }
 
     #[test]
@@ -246,7 +318,7 @@ mod tests {
 
         let ca_bundle_dir = PathBuf::default();
         let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, ReqwestBuildError::CertificateError { .. });
+        assert_matches!(err, HttpBuildError::CertificateError { .. });
     }
 
     #[test]
@@ -270,7 +342,7 @@ mod tests {
 
         let ca_bundle_file = PathBuf::default();
         let err = certs_from_paths(&ca_bundle_file, &ca_bundle_dir).unwrap_err();
-        assert_matches!(err, ReqwestBuildError::CertificateError { .. });
+        assert_matches!(err, HttpBuildError::CertificateError { .. });
     }
 
     #[test]
@@ -297,5 +369,82 @@ mod tests {
         let ca_bundle_file = PathBuf::default();
         let certificates = certs_from_paths(&ca_bundle_file, ca_bundle_dir).unwrap();
         assert_eq!(certificates.len(), 1);
+    }
+
+    // This test seems to be testing the reqwest library, but it is useful to detect particular behaviors of the
+    // underlying libraries. Context: some libraries, such as ureq, return an error if any response has a status code
+    // not in the 2XX range and the client implementation needs to handle that properly.
+    #[test]
+    fn test_http_client() {
+        struct TestCase {
+            name: &'static str,
+            status_code: u16,
+        }
+
+        impl TestCase {
+            fn run(self) {
+                let path = "/";
+                let mock_server = MockServer::start();
+                let req_mock = mock_server.mock(|when, then| {
+                    when.path(path).method(GET);
+                    then.status(self.status_code).body(self.name);
+                });
+
+                let http_config = HttpConfig::new(
+                    Duration::from_secs(3),
+                    Duration::from_secs(3),
+                    Default::default(),
+                );
+                let url: Url = mock_server.url(path).parse().unwrap_or_else(|err| {
+                    panic!(
+                        "could not parse the mock-server url: {} - {}",
+                        err, self.name
+                    )
+                });
+                let reqwest_client = HttpClient::new(http_config).unwrap_or_else(|err| {
+                    panic!(
+                        "unexpected error building the reqwest client {} - {}",
+                        err, self.name
+                    )
+                });
+
+                let request = Request::builder()
+                    .uri(url.as_str())
+                    .method("GET")
+                    .body(Vec::new())
+                    .unwrap();
+
+                let res = reqwest_client.send(request).unwrap();
+
+                req_mock.assert_calls(1);
+                assert_eq!(
+                    res.status(),
+                    self.status_code,
+                    "not expected status code in {}",
+                    self.name
+                );
+                assert_eq!(
+                    *res.body(),
+                    self.name.to_string().as_bytes().to_vec(),
+                    "not expected body code in {}",
+                    self.name
+                );
+            }
+        }
+        let test_cases = [
+            TestCase {
+                name: "OK",
+                status_code: 200,
+            },
+            TestCase {
+                name: "Not found",
+                status_code: 404,
+            },
+            TestCase {
+                name: "Server error",
+                status_code: 500,
+            },
+        ];
+        test_cases.into_iter().for_each(|tc| tc.run());
     }
 }
