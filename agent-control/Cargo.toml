@@ -104,6 +104,7 @@ name = "newrelic-config-migrate"
 path = "src/bin/config_migrate.rs"
 
 [features]
+default =["k8s"]
 onhost = []
 k8s = [
   "dep:kube",
