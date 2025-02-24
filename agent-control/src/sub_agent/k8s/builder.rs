@@ -77,7 +77,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!(
-            agent_id = agent_identity.id().to_string(),
+            agent_id = agent_identity.id.to_string(),
             "building subAgent"
         );
 
@@ -90,7 +90,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn().version().into(),
+                        agent_identity.fqn.version().into(),
                     )]),
                     HashMap::from([(
                         CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
@@ -198,10 +198,10 @@ pub mod tests {
 
     #[test]
     fn k8s_agent_build_success() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        );
+        ));
 
         let (opamp_builder, instance_id_getter) =
             k8s_agent_get_common_mocks(agent_identity.clone(), false);
@@ -232,10 +232,10 @@ pub mod tests {
 
     #[test]
     fn k8s_agent_error_building_opamp() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        );
+        ));
 
         let (opamp_builder, instance_id_getter) =
             k8s_agent_get_common_mocks(agent_identity.clone(), true);
@@ -268,10 +268,10 @@ pub mod tests {
 
     #[test]
     fn supervisor_build_ok() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        );
+        ));
 
         let effective_agent = EffectiveAgent::new(
             agent_identity,
@@ -294,10 +294,10 @@ pub mod tests {
 
     #[test]
     fn supervisor_build_fails_for_invalid_k8s_object_kind() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
-        );
+        ));
 
         let effective_agent = EffectiveAgent::new(
             agent_identity,
@@ -350,10 +350,10 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            agent_identity.fqn(),
+            &agent_identity.fqn,
             HashMap::from([(
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.fqn().version().into(),
+                agent_identity.fqn.version().into(),
             )]),
             HashMap::from([
                 (
@@ -371,7 +371,7 @@ pub mod tests {
                 .expect_build_and_start()
                 .with(
                     predicate::always(),
-                    predicate::eq(agent_identity.id().clone()),
+                    predicate::eq(agent_identity.id.clone()),
                     predicate::eq(start_settings),
                 )
                 .once()
@@ -382,7 +382,7 @@ pub mod tests {
                 });
         } else {
             opamp_builder.should_build_and_start(
-                agent_identity.id().clone(),
+                agent_identity.id.clone(),
                 start_settings,
                 started_client,
             );
@@ -390,7 +390,7 @@ pub mod tests {
 
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(agent_identity.id(), instance_id.clone());
+        instance_id_getter.should_get(&agent_identity.id, instance_id.clone());
         instance_id_getter.should_get(&AgentID::new_agent_control_id(), instance_id);
 
         (opamp_builder, instance_id_getter)

@@ -119,8 +119,8 @@ pub(super) struct SubAgentStatus {
 impl SubAgentStatus {
     pub fn with_identity(agent_identity: AgentIdentity) -> Self {
         Self {
-            agent_id: agent_identity.id().clone(),
-            agent_type: agent_identity.fqn().clone(),
+            agent_id: agent_identity.id,
+            agent_type: agent_identity.fqn,
             healthy: false,
             last_error: None,
             status: String::default(),

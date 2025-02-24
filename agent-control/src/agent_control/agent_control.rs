@@ -147,13 +147,14 @@ where
             sub_agents
                 .iter()
                 .map(|(agent_id, sub_agent_config)| {
-                    let agent_identity = AgentIdentity::from((agent_id, sub_agent_config));
+                    let agent_identity =
+                        AgentIdentity::from((agent_id, &sub_agent_config.agent_type));
                     // FIXME: we force OK(agent) but we need to check also agent not assembled when
                     // on first stat because it can be a crash after a remote_config_change
                     let not_started_agent = self
                         .sub_agent_builder
                         .build(&agent_identity, self.sub_agent_publisher.clone())?;
-                    Ok((agent_identity.id().clone(), not_started_agent))
+                    Ok((agent_identity.id, not_started_agent))
                 })
                 .collect::<Result<HashMap<_, _>, SubAgentBuilderError>>()?,
         ))
@@ -171,7 +172,7 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        running_sub_agents.stop_remove(agent_identity.id())?;
+        running_sub_agents.stop_remove(&agent_identity.id)?;
 
         self.create_sub_agent(agent_identity, running_sub_agents)
     }
@@ -185,7 +186,7 @@ where
         >,
     ) -> Result<(), AgentError> {
         running_sub_agents.insert(
-            agent_identity.id().clone(),
+            agent_identity.id.clone(),
             self.sub_agent_builder
                 .build(agent_identity, self.sub_agent_publisher.clone())?
                 .run(),
@@ -316,7 +317,7 @@ where
             .agents
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
-                let agent_identity = AgentIdentity::from((agent_id, agent_config));
+                let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
                 // recreates an existent sub agent if the configuration has changed
                 match old_agent_control_dynamic_config.agents.get(agent_id) {
                     Some(old_sub_agent_config) => {

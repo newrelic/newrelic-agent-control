@@ -61,10 +61,10 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let agent_identity = AgentIdentity::new(
+    let agent_identity = AgentIdentity::from((
         AgentID::new("sub-agent").unwrap(),
         AgentTypeFQN::try_from("ns/test:1.2.3").unwrap(),
-    );
+    ));
 
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
@@ -136,7 +136,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     );
 
     // Creates Instance ID CM correctly tagged.
-    let agent_instance_id = instance_id_getter.get(agent_identity.id()).unwrap();
+    let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
 
     let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
     let config = format!(
@@ -145,8 +145,8 @@ agents:
   {}:
     agent_type: {}
 "#,
-        agent_identity.id(),
-        agent_identity.fqn()
+        agent_identity.id,
+        agent_identity.fqn
     );
     let mut seq = Sequence::new();
 
@@ -190,7 +190,7 @@ agents:
     block_on(api_secret.get(secret_name)).expect("Secret should exist");
     assert_eq!(
         agent_instance_id,
-        instance_id_getter.get(agent_identity.id()).unwrap(),
+        instance_id_getter.get(&agent_identity.id).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 
@@ -207,7 +207,7 @@ agents:
     });
     assert_ne!(
         agent_instance_id,
-        instance_id_getter.get(agent_identity.id()).unwrap(),
+        instance_id_getter.get(&agent_identity.id).unwrap(),
         "Expects the new Instance ID is generated after the CM removal"
     );
 }

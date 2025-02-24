@@ -73,14 +73,14 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
     match sub_agent_event {
         SubAgentEvent::SubAgentHealthInfo(agent_identity, health) => {
             if health.is_healthy() {
-                debug!(agent_id = %agent_identity.id(), agent_type = %agent_identity.fqn(), "status_http_server event_processor sub_agent_became_healthy");
+                debug!(agent_id = %agent_identity.id, agent_type = %agent_identity.fqn, "status_http_server event_processor sub_agent_became_healthy");
             } else {
-                debug!(error_msg = health.last_error(), agent_id = %agent_identity.id(), agent_type = %agent_identity.fqn(), "status_http_server event_processor sub_agent_became_unhealthy");
+                debug!(error_msg = health.last_error(), agent_id = %agent_identity.id, agent_type = %agent_identity.fqn, "status_http_server event_processor sub_agent_became_unhealthy");
             }
 
             status
                 .sub_agents
-                .entry(agent_identity.id().clone())
+                .entry(agent_identity.id.clone())
                 .or_insert_with(|| SubAgentStatus::with_identity(agent_identity))
                 .update_health(health);
         }
@@ -197,10 +197,10 @@ mod tests {
                 _name: "Sub Agent first healthy event should add it to the list",
                 agent_control_event: None,
                 sub_agent_event: Some(SubAgentHealthInfo(
-                    AgentIdentity::new(
+                    AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    ),
+                    )),
                     HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
                 )),
                 current_status: Arc::new(RwLock::new(Status {
@@ -229,10 +229,10 @@ mod tests {
                 _name: "Sub Agent first unhealthy event should add it to the list",
                 agent_control_event: None,
                 sub_agent_event: Some(SubAgentHealthInfo(
-                    AgentIdentity::new(
+                    AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    ),
+                    )),
                     HealthWithStartTime::new(
                         Unhealthy::default()
                             .with_last_error("this is an error message".to_string())
@@ -266,10 +266,10 @@ mod tests {
                 _name: "Sub Agent second unhealthy event should change existing one",
                 agent_control_event: None,
                 sub_agent_event: Some(SubAgentHealthInfo(
-                    AgentIdentity::new(
+                    AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                    ),
+                    )),
                     HealthWithStartTime::new(
                         Unhealthy::default()
                             .with_last_error("this is an error message".to_string())

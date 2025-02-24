@@ -51,7 +51,7 @@ pub struct EffectiveAgent {
 
 impl Display for EffectiveAgent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.agent_identity.id().to_string())
+        f.write_str(&self.agent_identity.id.to_string())
     }
 }
 
@@ -134,20 +134,20 @@ where
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
-        let agent_type_definition = self.registry.get(agent_identity.fqn())?;
+        let agent_type_definition = self.registry.get(&agent_identity.fqn)?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
         // Load the values
         let values = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
-            agent_identity.id(),
+            &agent_identity.id,
             &agent_type.get_capabilities(),
         )?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
-            agent_id: agent_identity.id().get(),
+            agent_id: agent_identity.id.get(),
         };
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
@@ -155,7 +155,7 @@ where
         let environment_variables = retrieve_env_var_variables();
 
         let runtime_config = self.renderer.render(
-            agent_identity.id(),
+            &agent_identity.id,
             agent_type,
             values,
             attributes,
@@ -213,7 +213,7 @@ pub fn build_agent_type(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::config::{AgentID, AgentTypeFQN};
     use crate::agent_control::defaults::default_capabilities;
     use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
@@ -301,10 +301,10 @@ pub(crate) mod tests {
         let mut renderer = MockRendererMock::new();
 
         // Objects
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "ns/some_fqn:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+        ));
         let environment = Environment::OnHost;
         let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
             name: "some_fqn".into(),
@@ -314,19 +314,19 @@ pub(crate) mod tests {
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let values = YAMLConfig::default();
 
-        let attributes = testing_agent_attributes(agent_identity.id());
+        let attributes = testing_agent_attributes(&agent_identity.id);
         let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
 
         sub_agent_values_repo.should_load_remote(
-            agent_identity.id(),
+            &agent_identity.id,
             default_capabilities(),
             &values,
         );
         renderer.should_render(
-            agent_identity.id(),
+            &agent_identity.id,
             &agent_type,
             &values,
             &attributes,
@@ -355,10 +355,10 @@ pub(crate) mod tests {
         let renderer = MockRendererMock::new();
 
         // Objects
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some_fqn:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some_fqn:0.0.1").unwrap(),
+        ));
 
         //Expectations
         registry.should_not_get("namespace/some_fqn:0.0.1".to_string());
@@ -386,10 +386,10 @@ pub(crate) mod tests {
         let renderer = MockRendererMock::new();
 
         // Objects
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "ns/some_fqn:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+        ));
         let environment = Environment::OnHost;
         let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
             name: "some_fqn".into(),
@@ -399,7 +399,7 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_not_load_remote(agent_identity.id(), default_capabilities());
+        sub_agent_values_repo.should_not_load_remote(&agent_identity.id, default_capabilities());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,

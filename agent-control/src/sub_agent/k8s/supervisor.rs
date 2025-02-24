@@ -55,7 +55,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         ];
 
         Ok(StartedSupervisorK8s {
-            agent_id: self.agent_identity.id().clone(),
+            agent_id: self.agent_identity.id,
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
     }
@@ -92,11 +92,11 @@ impl NotStartedSupervisorK8s {
             kind: k8s_obj.kind.clone(),
         };
 
-        let mut labels = Labels::new(self.agent_identity.id());
+        let mut labels = Labels::new(&self.agent_identity.id);
         // Merge default labels with the ones coming from the config with default labels taking precedence.
         labels.append_extra_labels(&k8s_obj.metadata.labels);
 
-        let annotations = Annotations::new_agent_fqn_annotation(self.agent_identity.fqn());
+        let annotations = Annotations::new_agent_fqn_annotation(&self.agent_identity.fqn);
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
@@ -121,7 +121,7 @@ impl NotStartedSupervisorK8s {
         &self,
         resources: Arc<Vec<DynamicObject>>,
     ) -> StartedThreadContext {
-        let agent_id = self.agent_identity.id().clone();
+        let agent_id = self.agent_identity.id.clone();
         let k8s_client = self.k8s_client.clone();
         let interval = self.interval;
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
@@ -138,11 +138,11 @@ impl NotStartedSupervisorK8s {
         };
 
         NotStartedThreadContext::new(
-            self.agent_identity.id().clone(),
+            self.agent_identity.id.clone(),
             "k8s objects supervisor",
             callback,
         )
-        .start()
+            .start()
     }
 
     pub fn start_health_check(
@@ -153,19 +153,19 @@ impl NotStartedSupervisorK8s {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
-            debug!(agent_id = %self.agent_identity.id(), "health checks are disabled for this agent");
+            debug!(agent_id = %self.agent_identity.id, "health checks are disabled for this agent");
             return Ok(None);
         };
 
         let Some(k8s_health_checker) =
             SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
-            warn!(agent_id = %self.agent_identity.id(), "health-check cannot start even if it is enabled there are no compatible k8s resources");
+            warn!(agent_id = %self.agent_identity.id, "health-check cannot start even if it is enabled there are no compatible k8s resources");
             return Ok(None);
         };
 
         let started_thread_context = spawn_health_checker(
-            self.agent_identity.id().clone(),
+            self.agent_identity.id.clone(),
             k8s_health_checker,
             sub_agent_internal_publisher,
             health_config.interval,
@@ -182,12 +182,12 @@ impl NotStartedSupervisorK8s {
     ) -> Option<StartedThreadContext> {
         let k8s_version_checker = K8sAgentVersionChecker::checked_new(
             self.k8s_client.clone(),
-            self.agent_identity.id(),
+            &self.agent_identity.id,
             resources,
         )?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id().clone(),
+            self.agent_identity.id.clone(),
             k8s_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
@@ -197,7 +197,7 @@ impl NotStartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     fn apply_resources<'a>(
         agent_id: &AgentID,
-        resources: impl Iterator<Item = &'a DynamicObject>,
+        resources: impl Iterator<Item=&'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
     ) -> Result<(), SupervisorStarterError> {
         debug!(%agent_id, "applying k8s objects if changed");
@@ -278,19 +278,19 @@ pub mod tests {
 
     #[test]
     fn test_build_dynamic_objects() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("test").unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-        );
+        ));
 
         let mut mock_k8s_client = MockSyncK8sClient::default();
         mock_k8s_client
             .expect_default_namespace()
             .return_const(TEST_NAMESPACE.to_string());
 
-        let mut labels = Labels::new(agent_identity.id());
+        let mut labels = Labels::new(&agent_identity.id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
-        let annotations = Annotations::new_agent_fqn_annotation(agent_identity.fqn());
+        let annotations = Annotations::new_agent_fqn_annotation(&agent_identity.fqn);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {
@@ -326,10 +326,10 @@ pub mod tests {
     #[test]
     fn test_k8s_objects_supervisor() {
         let interval = Duration::from_millis(250);
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("test").unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-        );
+        ));
         let apply_issue = "some issue";
 
         // The first apply call is OK, the second fails
@@ -456,10 +456,10 @@ pub mod tests {
         config: runtime_config::K8s,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
     ) -> NotStartedSupervisorK8s {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
-        );
+        ));
 
         let mut mock_client = MockSyncK8sClient::default();
         mock_client
@@ -481,10 +481,10 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
 
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
             AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
-        );
+        ));
 
         let mut k8s_obj = k8s_sample_runtime_config(true);
         k8s_obj.health = Some(K8sHealthConfig {
@@ -511,7 +511,7 @@ pub mod tests {
         let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
         sub_agent_remote_config_hash_repository
             .expect_get()
-            .with(predicate::eq(agent_identity.id().clone()))
+            .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
         let remote_config_handler = MockRemoteConfigHandlerMock::new();
@@ -541,7 +541,7 @@ pub mod tests {
             ),
             Arc::new(remote_config_handler),
         )
-        .run();
+            .run();
 
         let timeout = Duration::from_secs(3);
 

@@ -119,7 +119,7 @@ where
             let mut is_healthy = false;
 
             debug!(
-                agent_id = %self.identity.id(),
+                agent_id = %self.identity.id,
                 "runtime started"
             );
 
@@ -157,15 +157,15 @@ where
                                 match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config){
                                     Err(error) =>{
                                         error!(%error,
-                                            agent_id = %self.identity.id(),
+                                            agent_id = %self.identity.id,
                                             "error handling remote config"
                                         )
                                     },
                                     Ok(())  =>{
-                                        info!(agent_id = %self.identity.id(), "Applying remote config");
+                                        info!(agent_id = %self.identity.id, "Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
-                                        stop_supervisor(self.identity.id(), supervisor);
+                                        stop_supervisor(&self.identity.id, supervisor);
 
                                         supervisor = self.assemble_and_start_supervisor();
                                     }
@@ -182,12 +182,12 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(self.identity.id(), supervisor);
+                                stop_supervisor(&self.identity.id, supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
-                                Self::log_health_info(self.identity.id(), is_healthy, health.clone().into());
+                                Self::log_health_info(&self.identity.id, is_healthy, health.clone().into());
                                 let _ = on_health(
                                     health.clone(),
                                     self.maybe_opamp_client.as_ref(),
@@ -209,7 +209,7 @@ where
                 }
             }
 
-            stop_opamp_client(self.maybe_opamp_client, self.identity.id())
+            stop_opamp_client(self.maybe_opamp_client, &self.identity.id)
         })
     }
 
@@ -254,7 +254,7 @@ where
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client,self.identity.clone())
             .inspect_err(
-                |e| error!(agent_id = %self.identity.id(), agent_type=%self.identity.fqn(), error = %e,"cannot assemble supervisor"),
+                |e| error!(agent_id = %self.identity.id, agent_type=%self.identity.fqn, error = %e,"cannot assemble supervisor"),
             )
             .ok();
 
@@ -317,6 +317,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
@@ -405,10 +406,10 @@ pub mod tests {
 
     impl Default for SubAgentForTesting {
         fn default() -> Self {
-            let agent_identity = AgentIdentity::new(
+            let agent_identity = AgentIdentity::from((
                 AgentID::new("some-agent-id").unwrap(),
-                "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-            );
+                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            ));
 
             let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
             let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
@@ -416,7 +417,7 @@ pub mod tests {
             let mut hash_repository = MockHashRepositoryMock::default();
             hash_repository
                 .expect_get()
-                .with(predicate::eq(agent_identity.id().clone()))
+                .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
 
             let remote_config_handler = MockRemoteConfigHandlerMock::new();
@@ -476,10 +477,10 @@ pub mod tests {
 
     #[test]
     fn test_run_remote_config() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
@@ -495,7 +496,7 @@ pub mod tests {
         )]));
 
         let remote_config =
-            RemoteConfig::new(agent_identity.id().clone(), hash.clone(), Some(config_map));
+            RemoteConfig::new(agent_identity.id.clone(), hash.clone(), Some(config_map));
 
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         opamp_client

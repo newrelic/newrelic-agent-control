@@ -63,14 +63,14 @@ where
 {
     let (opamp_publisher, opamp_consumer) = pub_sub();
     let start_settings = start_settings(
-        instance_id_getter.get(agent_identity.id())?,
-        agent_identity.fqn(),
+        instance_id_getter.get(&agent_identity.id)?,
+        &agent_identity.fqn,
         additional_identifying_attributes,
         non_identifying_attributes,
     );
     let started_opamp_client = opamp_builder.build_and_start(
         opamp_publisher,
-        agent_identity.id().clone(),
+        agent_identity.id.clone(),
         start_settings,
     )?;
 

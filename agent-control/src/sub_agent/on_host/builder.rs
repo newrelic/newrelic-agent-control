@@ -73,7 +73,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!(
-            agent_id = agent_identity.id().to_string(),
+            agent_id = agent_identity.id.to_string(),
             "building subAgent"
         );
 
@@ -86,7 +86,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn().version().into(),
+                        agent_identity.fqn.version().into(),
                     )]),
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
@@ -134,9 +134,8 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
         debug!(
-            "Building Executable supervisors {}:{}",
-            effective_agent.get_agent_identity().fqn(),
-            effective_agent.get_agent_identity().id()
+            "Building Executable supervisors {}",
+            effective_agent.get_agent_identity(),
         );
 
         let on_host = effective_agent.get_onhost_config()?.clone();
@@ -195,12 +194,10 @@ mod tests {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("infra-agent").unwrap(),
-            "newrelic/com.newrelic.infrastructure:0.0.2"
-                .try_into()
-                .unwrap(),
-        );
+            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+        ));
 
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
@@ -209,7 +206,7 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            agent_identity.fqn(),
+            &agent_identity.fqn,
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
@@ -222,14 +219,14 @@ mod tests {
         // TODO: We should discuss if this is a valid approach once we refactor the unit tests
         // Build an OpAMP Client and let it run so the publisher is not dropped
         opamp_builder.should_build_and_start_and_run(
-            agent_identity.id().clone(),
+            agent_identity.id.clone(),
             start_settings_infra,
             started_client,
             Duration::from_millis(10),
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(agent_identity.id(), sub_agent_instance_id.clone());
+        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
         let mut started_supervisor = MockSupervisorStopper::new();
@@ -273,12 +270,10 @@ mod tests {
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("infra-agent").unwrap(),
-            "newrelic/com.newrelic.infrastructure:0.0.2"
-                .try_into()
-                .unwrap(),
-        );
+            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+        ));
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
 
@@ -286,13 +281,13 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            agent_identity.fqn(),
+            &agent_identity.fqn,
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(agent_identity.id(), sub_agent_instance_id.clone());
+        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -302,7 +297,7 @@ mod tests {
         // TODO: We should discuss if this is a valid approach once we refactor the unit tests
         // Build an OpAMP Client and let it run so the publisher is not dropped
         opamp_builder.should_build_and_start_and_run(
-            agent_identity.id().clone(),
+            agent_identity.id.clone(),
             start_settings_infra,
             started_client,
             Duration::from_millis(10),

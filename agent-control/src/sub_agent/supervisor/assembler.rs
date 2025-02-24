@@ -82,12 +82,12 @@ where
         // Attempt to retrieve the hash
         let hash = self
             .hash_repository
-            .get(agent_identity.id())
-            .inspect_err(|e| debug!(agent_id = %agent_identity.id(), err = %e, "failed to get hash from repository"))
+            .get(&agent_identity.id)
+            .inspect_err(|e| debug!(agent_id = %agent_identity.id, err = %e, "failed to get hash from repository"))
             .unwrap_or_default();
 
         if hash.is_none() {
-            debug!(agent_id = %agent_identity.id(), "no previous remote config found");
+            debug!(agent_id = %agent_identity.id, "no previous remote config found");
         }
 
         // Assemble the new agent
@@ -100,14 +100,14 @@ where
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if !hash.is_failed() {
                         hash.fail(e.to_string());
-                        _ = self.hash_repository.save(agent_identity.id(), &hash).inspect_err(
-                            |e| error!(agent_id = %agent_identity.id(), err = %e, "failed to save hash to repository"),
+                        _ = self.hash_repository.save(&agent_identity.id, &hash).inspect_err(
+                            |e| error!(agent_id = %agent_identity.id, err = %e, "failed to save hash to repository"),
                         );
                     }
                     _ = OpampRemoteConfigStatus::Error(e.to_string())
                         .report(opamp_client, &hash)
                         .inspect_err(
-                            |e| error!(agent_id = %agent_identity.id(), %e, "error reporting remote config status"),
+                            |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
                         );
                 }
                 Err(SupervisorAssemblerError::AgentAssembleError(e.to_string()))
@@ -115,26 +115,26 @@ where
             Ok(effective_agent) => {
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if hash.is_applying() {
-                        debug!(agent_id = %agent_identity.id(), "applying remote config");
+                        debug!(agent_id = %agent_identity.id, "applying remote config");
                         hash.apply();
-                        _ = self.hash_repository.save(agent_identity.id(), &hash).inspect_err(
-                            |e| error!(agent_id = %agent_identity.id(), err = %e, "failed to save hash to repository"),
+                        _ = self.hash_repository.save(&agent_identity.id, &hash).inspect_err(
+                            |e| error!(agent_id = %agent_identity.id, err = %e, "failed to save hash to repository"),
                         );
                         _ = opamp_client.update_effective_config().inspect_err(
-                            |e| error!(agent_id = %agent_identity.id(), %e, "effective config update failed"),
+                            |e| error!(agent_id = %agent_identity.id, %e, "effective config update failed"),
                         );
                         _ = OpampRemoteConfigStatus::Applied
                             .report(opamp_client, &hash)
                             .inspect_err(
-                                |e| error!(agent_id = %agent_identity.id(), %e, "error reporting remote config status"),
+                                |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
                             );
                     }
                     if let Some(err) = hash.error_message() {
-                        warn!(agent_id = %agent_identity.id(), err = %err, "remote config failed. Building with previous stored config");
+                        warn!(agent_id = %agent_identity.id, err = %err, "remote config failed. Building with previous stored config");
                         _ = OpampRemoteConfigStatus::Error(err)
                             .report(opamp_client, &hash)
                             .inspect_err(
-                                |e| error!(agent_id = %agent_identity.id(), %e, "error reporting remote config status"),
+                                |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
                             );
                     }
                 }
@@ -151,7 +151,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::config::{AgentID, AgentTypeFQN};
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -223,7 +223,7 @@ pub mod tests {
             let mut hash_repository = MockHashRepositoryMock::default();
             hash_repository
                 .expect_get()
-                .with(predicate::eq(agent_identity.id().clone()))
+                .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
 
             let effective_agent = final_agent(agent_identity.clone());
@@ -285,10 +285,10 @@ pub mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_some_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
 
@@ -298,8 +298,8 @@ pub mod tests {
         let mut applied_hash = hash.clone();
         applied_hash.apply();
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(agent_identity.id(), hash);
-        hash_repository.should_save_hash(agent_identity.id(), &applied_hash);
+        hash_repository.should_get_hash(&agent_identity.id, hash);
+        hash_repository.should_save_hash(&agent_identity.id, &applied_hash);
 
         assembler.hash_repository = Arc::new(hash_repository);
 
@@ -325,10 +325,10 @@ pub mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_err_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
 
@@ -336,7 +336,7 @@ pub mod tests {
         // Expected calls on the hash repository
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_return_error_on_get(
-            agent_identity.id(),
+            &agent_identity.id,
             HashRepositoryError::LoadError(String::from("random error loading")),
         );
 
@@ -355,10 +355,10 @@ pub mod tests {
     /// `effective_agent_res == Err(_)`
     #[test]
     fn test_assemble_supervisor_from_some_hash_err_eff_agent() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let mut hash = Hash::new("some_hash".to_string());
         hash.fail("error assembling agents: `a random error happened!`".to_string());
@@ -370,7 +370,7 @@ pub mod tests {
         };
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(agent_identity.id(), hash);
+        hash_repository.should_get_hash(&agent_identity.id, hash);
 
         let effective_agent = final_agent(agent_identity.clone());
 
@@ -418,13 +418,13 @@ pub mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_none_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(agent_identity.id());
+        hash_repository.should_not_get_hash(&agent_identity.id);
 
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
@@ -466,13 +466,13 @@ pub mod tests {
     /// `effective_agent_res == Err(_)`
     #[test]
     fn test_assemble_supervisor_from_none_hash_err_eff_agent() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(agent_identity.id());
+        hash_repository.should_not_get_hash(&agent_identity.id);
 
         let effective_agent = final_agent(agent_identity.clone());
 
@@ -519,14 +519,14 @@ pub mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_ok_eff_agent_no_opamp() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let hash = Hash::new("some_hash".to_string());
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(agent_identity.id(), hash);
+        hash_repository.should_get_hash(&agent_identity.id, hash);
 
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
@@ -566,13 +566,13 @@ pub mod tests {
     /// `effective_agent_res == Ok(_)`
     #[test]
     fn test_assemble_supervisor_from_ok_eff_agent_no_opamp_no_hash() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(agent_identity.id());
+        hash_repository.should_not_get_hash(&agent_identity.id);
 
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
@@ -612,14 +612,14 @@ pub mod tests {
     /// `effective_agent_res == Err(_)`
     #[test]
     fn test_assemble_supervisor_from_err_eff_agent_no_opamp() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let hash = Hash::new("some_hash".to_string());
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(agent_identity.id(), hash);
+        hash_repository.should_get_hash(&agent_identity.id, hash);
 
         let effective_agent = final_agent(agent_identity.clone());
 
@@ -664,13 +664,13 @@ pub mod tests {
     /// `effective_agent_res == Err(_)`
     #[test]
     fn test_assemble_supervisor_from_err_eff_agent_no_opamp_no_hash() {
-        let agent_identity = AgentIdentity::new(
+        let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
-        );
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(agent_identity.id());
+        hash_repository.should_not_get_hash(&agent_identity.id);
 
         let effective_agent = final_agent(agent_identity.clone());
 
