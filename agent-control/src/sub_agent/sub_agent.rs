@@ -71,7 +71,7 @@ where
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
 {
-    pub(super) agent_identity: AgentIdentity,
+    pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
     pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
@@ -100,7 +100,7 @@ where
         remote_config_handler: Arc<R>,
     ) -> Self {
         Self {
-            agent_identity,
+            identity: agent_identity,
             maybe_opamp_client,
             supervisor_assembler,
             sub_agent_publisher,
@@ -119,7 +119,7 @@ where
             let mut is_healthy = false;
 
             debug!(
-                agent_id = %self.agent_identity.id(),
+                agent_id = %self.identity.id(),
                 "runtime started"
             );
 
@@ -154,18 +154,18 @@ where
                                     continue;
                                 };
 
-                                match self.remote_config_handler.handle(opamp_client,self.agent_identity.clone(),&mut config){
+                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config){
                                     Err(error) =>{
                                         error!(%error,
-                                            agent_id = %self.agent_identity.id(),
+                                            agent_id = %self.identity.id(),
                                             "error handling remote config"
                                         )
                                     },
                                     Ok(())  =>{
-                                        info!(agent_id = %self.agent_identity.id(), "Applying remote config");
+                                        info!(agent_id = %self.identity.id(), "Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
-                                        stop_supervisor(self.agent_identity.id(), supervisor);
+                                        stop_supervisor(self.identity.id(), supervisor);
 
                                         supervisor = self.assemble_and_start_supervisor();
                                     }
@@ -182,17 +182,17 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(self.agent_identity.id(), supervisor);
+                                stop_supervisor(self.identity.id(), supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
-                                Self::log_health_info(self.agent_identity.id(), is_healthy, health.clone().into());
+                                Self::log_health_info(self.identity.id(), is_healthy, health.clone().into());
                                 let _ = on_health(
                                     health.clone(),
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
-                                    self.agent_identity.clone(),
+                                    self.identity.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
                                 is_healthy = health.is_healthy()
@@ -209,7 +209,7 @@ where
                 }
             }
 
-            stop_opamp_client(self.maybe_opamp_client, self.agent_identity.id())
+            stop_opamp_client(self.maybe_opamp_client, self.identity.id())
         })
     }
 
@@ -252,9 +252,9 @@ where
     ) -> Option<<SA::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
         let stopped_supervisor = self
             .supervisor_assembler
-            .assemble_supervisor(&self.maybe_opamp_client,self.agent_identity.clone())
+            .assemble_supervisor(&self.maybe_opamp_client,self.identity.clone())
             .inspect_err(
-                |e| error!(agent_id = %self.agent_identity.id(), agent_type=%self.agent_identity.fqn(), error = %e,"cannot assemble supervisor"),
+                |e| error!(agent_id = %self.identity.id(), agent_type=%self.identity.fqn(), error = %e,"cannot assemble supervisor"),
             )
             .ok();
 
