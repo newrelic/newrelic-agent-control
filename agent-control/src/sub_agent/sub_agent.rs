@@ -87,7 +87,6 @@ where
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
 {
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         agent_identity: AgentIdentity,
         maybe_opamp_client: Option<C>,

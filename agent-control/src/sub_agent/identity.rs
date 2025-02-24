@@ -1,5 +1,4 @@
 use crate::agent_control::config::{AgentID, AgentTypeFQN, SubAgentConfig};
-use crate::agent_type::agent_metadata::AgentMetadata;
 use std::fmt::{Display, Formatter};
 
 // This could be SubAgentIdentity
