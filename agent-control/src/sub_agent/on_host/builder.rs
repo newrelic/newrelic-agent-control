@@ -1,4 +1,3 @@
-use crate::agent_control::config::{AgentID, SubAgentConfig};
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::context::Context;
 use crate::event::channel::{pub_sub, EventPublisher};
@@ -7,6 +6,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
@@ -69,11 +69,13 @@ where
 
     fn build(
         &self,
-        agent_id: AgentID,
-        sub_agent_config: &SubAgentConfig,
+        agent_identity: &AgentIdentity,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        debug!(agent_id = agent_id.to_string(), "building subAgent");
+        debug!(
+            agent_id = agent_identity.id().to_string(),
+            "building subAgent"
+        );
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
@@ -81,11 +83,10 @@ where
                 build_sub_agent_opamp(
                     builder,
                     self.instance_id_getter,
-                    agent_id.clone(),
-                    &sub_agent_config.agent_type,
+                    agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        sub_agent_config.agent_type.version().into(),
+                        agent_identity.fqn().version().into(),
                     )]),
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
@@ -96,8 +97,7 @@ where
             .unwrap_or_default();
 
         Ok(SubAgent::new(
-            agent_id,
-            sub_agent_config.clone(),
+            agent_identity.clone(),
             maybe_opamp_client,
             self.supervisor_assembler.clone(),
             sub_agent_publisher,
@@ -133,9 +133,11 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         &self,
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
-        let agent_id = effective_agent.get_agent_id().clone();
-        let agent_type = effective_agent.get_agent_type().clone();
-        debug!("Building CR supervisors {}:{}", agent_type, agent_id);
+        debug!(
+            "Building Executable supervisors {}:{}",
+            effective_agent.get_agent_identity().fqn(),
+            effective_agent.get_agent_identity().id()
+        );
 
         let on_host = effective_agent.get_onhost_config()?.clone();
 
@@ -149,8 +151,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         });
 
         let executable_supervisors = NotStartedSupervisorOnHost::new(
-            agent_id,
-            agent_type,
+            effective_agent.get_agent_identity().clone(),
             maybe_exec,
             Context::new(),
             on_host.health,
@@ -164,7 +165,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+    use crate::agent_control::config::{AgentID, AgentTypeFQN};
     use crate::agent_control::defaults::{
         default_capabilities, default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME,
         OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
@@ -194,10 +195,12 @@ mod tests {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
+        let agent_identity = AgentIdentity::new(
+            AgentID::new("infra-agent").unwrap(),
+            "newrelic/com.newrelic.infrastructure:0.0.2"
+                .try_into()
                 .unwrap(),
-        };
+        );
 
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
@@ -206,11 +209,10 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &sub_agent_config,
+            agent_identity.fqn(),
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
-        let sub_agent_id = AgentID::new("infra-agent").unwrap();
 
         let mut started_client = MockStartedOpAMPClientMock::new();
         started_client.should_update_effective_config(1);
@@ -220,14 +222,14 @@ mod tests {
         // TODO: We should discuss if this is a valid approach once we refactor the unit tests
         // Build an OpAMP Client and let it run so the publisher is not dropped
         opamp_builder.should_build_and_start_and_run(
-            sub_agent_id.clone(),
+            agent_identity.id().clone(),
             start_settings_infra,
             started_client,
             Duration::from_millis(10),
         );
 
         let mut instance_id_getter = MockInstanceIDGetterMock::new();
-        instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
+        instance_id_getter.should_get(agent_identity.id(), sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
         let mut started_supervisor = MockSupervisorStopper::new();
@@ -239,8 +241,7 @@ mod tests {
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
             stopped_supervisor,
-            sub_agent_id.clone(),
-            sub_agent_config.clone(),
+            agent_identity.clone(),
         );
 
         let remote_config_handler = MockRemoteConfigHandlerMock::new();
@@ -253,7 +254,7 @@ mod tests {
         );
 
         on_host_builder
-            .build(sub_agent_id, &sub_agent_config, opamp_publisher)
+            .build(&agent_identity, opamp_publisher)
             .unwrap()
             .run()
             .stop()
@@ -272,10 +273,12 @@ mod tests {
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let sub_agent_config = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
+        let agent_identity = AgentIdentity::new(
+            AgentID::new("infra-agent").unwrap(),
+            "newrelic/com.newrelic.infrastructure:0.0.2"
+                .try_into()
                 .unwrap(),
-        };
+        );
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
 
@@ -283,14 +286,13 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &sub_agent_config,
+            agent_identity.fqn(),
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
-        let sub_agent_id = AgentID::new("infra-agent").unwrap();
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&sub_agent_id, sub_agent_instance_id.clone());
+        instance_id_getter.should_get(agent_identity.id(), sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -300,7 +302,7 @@ mod tests {
         // TODO: We should discuss if this is a valid approach once we refactor the unit tests
         // Build an OpAMP Client and let it run so the publisher is not dropped
         opamp_builder.should_build_and_start_and_run(
-            sub_agent_id.clone(),
+            agent_identity.id().clone(),
             start_settings_infra,
             started_client,
             Duration::from_millis(10),
@@ -315,8 +317,7 @@ mod tests {
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
             stopped_supervisor,
-            sub_agent_id.clone(),
-            sub_agent_config.clone(),
+            agent_identity.clone(),
         );
 
         let remote_config_handler = MockRemoteConfigHandlerMock::new();
@@ -330,7 +331,7 @@ mod tests {
         );
 
         let sub_agent = on_host_builder
-            .build(sub_agent_id, &sub_agent_config, opamp_publisher)
+            .build(&agent_identity, opamp_publisher)
             .expect("Subagent build should be OK");
         let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
         started_sub_agent.stop().unwrap();
@@ -341,20 +342,17 @@ mod tests {
         hostname: &str,
         agent_control_instance_id: InstanceID,
         sub_agent_instance_id: InstanceID,
-        agent_config: &SubAgentConfig,
+        agent_fqn: &AgentTypeFQN,
     ) -> StartSettings {
         let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
-            (
-                OPAMP_SERVICE_NAME.to_string(),
-                agent_config.agent_type.name().into(),
-            ),
+            (OPAMP_SERVICE_NAME.to_string(), agent_fqn.name().into()),
             (
                 OPAMP_SERVICE_NAMESPACE.to_string(),
-                agent_config.agent_type.namespace().into(),
+                agent_fqn.namespace().into(),
             ),
             (
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_config.agent_type.version().into(),
+                agent_fqn.version().into(),
             ),
         ]);
         StartSettings {

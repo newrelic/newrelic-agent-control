@@ -12,5 +12,6 @@ pub mod version;
 
 pub use sub_agent::*;
 pub(crate) mod event_handler;
+pub mod identity;
 #[allow(clippy::module_inception)]
 mod sub_agent;

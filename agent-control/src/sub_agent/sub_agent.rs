@@ -1,4 +1,6 @@
-use crate::agent_control::config::{AgentID, SubAgentConfig};
+use super::error::SubAgentStopError;
+use super::health::health_checker::Health;
+use crate::agent_control::config::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::operations::stop_opamp_client;
@@ -7,6 +9,7 @@ use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::RemoteConfigHandler;
 use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -18,9 +21,6 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
-
-use super::error::SubAgentStopError;
-use super::health::health_checker::Health;
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -43,8 +43,7 @@ pub trait SubAgentBuilder {
     type NotStartedSubAgent: NotStartedSubAgent;
     fn build(
         &self,
-        agent_id: AgentID,
-        sub_agent_config: &SubAgentConfig,
+        agent_identity: &AgentIdentity,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
@@ -72,8 +71,7 @@ where
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
 {
-    pub(super) agent_id: AgentID,
-    pub(super) agent_cfg: SubAgentConfig,
+    pub(super) agent_identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
     pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
@@ -91,8 +89,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        agent_id: AgentID,
-        agent_cfg: SubAgentConfig,
+        agent_identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
         supervisor_assembler: Arc<SA>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -104,8 +101,7 @@ where
         remote_config_handler: Arc<R>,
     ) -> Self {
         Self {
-            agent_id,
-            agent_cfg,
+            agent_identity,
             maybe_opamp_client,
             supervisor_assembler,
             sub_agent_publisher,
@@ -124,7 +120,7 @@ where
             let mut is_healthy = false;
 
             debug!(
-                agent_id = %self.agent_id,
+                agent_id = %self.agent_identity.id(),
                 "runtime started"
             );
 
@@ -159,18 +155,18 @@ where
                                     continue;
                                 };
 
-                                match self.remote_config_handler.handle(opamp_client,self.agent_id.clone(),self.agent_cfg.clone(), &mut config){
+                                match self.remote_config_handler.handle(opamp_client,self.agent_identity.clone(),&mut config){
                                     Err(error) =>{
                                         error!(%error,
-                                            agent_id = %self.agent_id,
+                                            agent_id = %self.agent_identity.id(),
                                             "error handling remote config"
                                         )
                                     },
                                     Ok(())  =>{
-                                        info!(agent_id = %self.agent_id, "Applying remote config");
+                                        info!(agent_id = %self.agent_identity.id(), "Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
-                                        stop_supervisor(&self.agent_id, supervisor);
+                                        stop_supervisor(self.agent_identity.id(), supervisor);
 
                                         supervisor = self.assemble_and_start_supervisor();
                                     }
@@ -187,18 +183,17 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(&self.agent_id, supervisor);
+                                stop_supervisor(self.agent_identity.id(), supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
-                                Self::log_health_info(&self.agent_id, is_healthy, health.clone().into());
+                                Self::log_health_info(self.agent_identity.id(), is_healthy, health.clone().into());
                                 let _ = on_health(
                                     health.clone(),
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
-                                    self.agent_id.clone(),
-                                    self.agent_cfg.agent_type.clone(),
+                                    self.agent_identity.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
                                 is_healthy = health.is_healthy()
@@ -215,7 +210,7 @@ where
                 }
             }
 
-            stop_opamp_client(self.maybe_opamp_client, &self.agent_id)
+            stop_opamp_client(self.maybe_opamp_client, self.agent_identity.id())
         })
     }
 
@@ -258,9 +253,9 @@ where
     ) -> Option<<SA::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
         let stopped_supervisor = self
             .supervisor_assembler
-            .assemble_supervisor(&self.maybe_opamp_client,self.agent_id.clone(),self.agent_cfg.clone())
+            .assemble_supervisor(&self.maybe_opamp_client,self.agent_identity.clone())
             .inspect_err(
-                |e| error!(agent_id = %self.agent_id, agent_type=%self.agent_cfg.agent_type, error = %e,"cannot assemble supervisor"),
+                |e| error!(agent_id = %self.agent_identity.id(), agent_type=%self.agent_identity.fqn(), error = %e,"cannot assemble supervisor"),
             )
             .ok();
 
@@ -323,8 +318,6 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
-    use crate::agent_type::runtime_config::{OnHost, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
@@ -383,8 +376,7 @@ pub mod tests {
 
             fn build(
                 &self,
-                agent_id: AgentID,
-                sub_agent_config: &SubAgentConfig,
+                agent_identity: &AgentIdentity,
                 sub_agent_publisher: EventPublisher<SubAgentEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
@@ -394,7 +386,7 @@ pub mod tests {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _, _| {
+            self.expect_build().times(times).returning(|_, _| {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
@@ -414,10 +406,10 @@ pub mod tests {
 
     impl Default for SubAgentForTesting {
         fn default() -> Self {
-            let agent_id = AgentID::new("some-agent-id").unwrap();
-            let agent_cfg = SubAgentConfig {
-                agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-            };
+            let agent_identity = AgentIdentity::new(
+                AgentID::new("some-agent-id").unwrap(),
+                "namespace/some-agent-type:0.0.1".try_into().unwrap(),
+            );
 
             let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
             let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
@@ -425,7 +417,7 @@ pub mod tests {
             let mut hash_repository = MockHashRepositoryMock::default();
             hash_repository
                 .expect_get()
-                .with(predicate::eq(agent_id.clone()))
+                .with(predicate::eq(agent_identity.id().clone()))
                 .return_const(Ok(None));
 
             let remote_config_handler = MockRemoteConfigHandlerMock::new();
@@ -439,13 +431,11 @@ pub mod tests {
             let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
             supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
                 stopped_supervisor,
-                agent_id.clone(),
-                agent_cfg.clone(),
+                agent_identity.clone(),
             );
 
             SubAgent::new(
-                agent_id,
-                agent_cfg,
+                agent_identity,
                 None,
                 Arc::new(supervisor_assembler),
                 sub_agent_publisher,
@@ -487,10 +477,10 @@ pub mod tests {
 
     #[test]
     fn test_run_remote_config() {
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_cfg = SubAgentConfig {
-            agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        };
+        let agent_identity = AgentIdentity::new(
+            AgentID::new("some-agent-id").unwrap(),
+            "namespace/some-agent-type:0.0.1".try_into().unwrap(),
+        );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
@@ -505,7 +495,8 @@ pub mod tests {
             "some_item: some_value".to_string(),
         )]));
 
-        let remote_config = RemoteConfig::new(agent_id.clone(), hash.clone(), Some(config_map));
+        let remote_config =
+            RemoteConfig::new(agent_identity.id().clone(), hash.clone(), Some(config_map));
 
         let mut opamp_client = MockStartedOpAMPClientMock::new();
         opamp_client
@@ -527,15 +518,13 @@ pub mod tests {
 
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
             stopped_supervisor,
-            agent_id.clone(),
-            agent_cfg.clone(),
+            agent_identity.clone(),
         );
 
         // Receive a remote config
         let mut remote_config_handler = MockRemoteConfigHandlerMock::new();
         remote_config_handler.should_handle::<MockStartedOpAMPClientMock>(
-            agent_id.clone(),
-            agent_cfg.clone(),
+            agent_identity.clone(),
             remote_config.clone(),
         );
 
@@ -548,13 +537,11 @@ pub mod tests {
 
         supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
             stopped_supervisor,
-            agent_id.clone(),
-            agent_cfg.clone(),
+            agent_identity.clone(),
         );
 
         let sub_agent = SubAgent::new(
-            agent_id,
-            agent_cfg,
+            agent_identity,
             Some(opamp_client),
             Arc::new(supervisor_assembler),
             sub_agent_publisher,

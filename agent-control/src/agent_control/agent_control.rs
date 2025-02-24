@@ -1,4 +1,4 @@
-use super::config::{AgentControlDynamicConfig, AgentID, SubAgentConfig, SubAgentsMap};
+use super::config::{AgentControlDynamicConfig, AgentID, SubAgentsMap};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
@@ -16,6 +16,7 @@ use crate::opamp::{
 };
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{
     collection::{NotStartedSubAgents, StartedSubAgents},
     error::SubAgentBuilderError,
@@ -146,14 +147,13 @@ where
             sub_agents
                 .iter()
                 .map(|(agent_id, sub_agent_config)| {
+                    let agent_identity = AgentIdentity::from((agent_id, sub_agent_config));
                     // FIXME: we force OK(agent) but we need to check also agent not assembled when
                     // on first stat because it can be a crash after a remote_config_change
-                    let not_started_agent = self.sub_agent_builder.build(
-                        agent_id.clone(),
-                        sub_agent_config,
-                        self.sub_agent_publisher.clone(),
-                    )?;
-                    Ok((agent_id.clone(), not_started_agent))
+                    let not_started_agent = self
+                        .sub_agent_builder
+                        .build(&agent_identity, self.sub_agent_publisher.clone())?;
+                    Ok((agent_identity.id().clone(), not_started_agent))
                 })
                 .collect::<Result<HashMap<_, _>, SubAgentBuilderError>>()?,
         ))
@@ -166,30 +166,28 @@ where
     //  * Run the Sub Agent and add it to the Running Sub Agents
     pub(super) fn recreate_sub_agent(
         &self,
-        agent_id: AgentID,
-        sub_agent_config: &SubAgentConfig,
+        agent_identity: &AgentIdentity,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        running_sub_agents.stop_remove(&agent_id)?;
+        running_sub_agents.stop_remove(agent_identity.id())?;
 
-        self.create_sub_agent(agent_id, sub_agent_config, running_sub_agents)
+        self.create_sub_agent(agent_identity, running_sub_agents)
     }
 
     // runs and adds into the sub_agents collection the given agent
     fn create_sub_agent(
         &self,
-        agent_id: AgentID,
-        sub_agent_config: &SubAgentConfig,
+        agent_identity: &AgentIdentity,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
         running_sub_agents.insert(
-            agent_id.clone(),
+            agent_identity.id().clone(),
             self.sub_agent_builder
-                .build(agent_id, sub_agent_config, self.sub_agent_publisher.clone())?
+                .build(agent_identity, self.sub_agent_publisher.clone())?
                 .run(),
         );
 
@@ -318,6 +316,7 @@ where
             .agents
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
+                let agent_identity = AgentIdentity::from((agent_id, agent_config));
                 // recreates an existent sub agent if the configuration has changed
                 match old_agent_control_dynamic_config.agents.get(agent_id) {
                     Some(old_sub_agent_config) => {
@@ -326,11 +325,11 @@ where
                         }
 
                         info!("Recreating SubAgent {}", agent_id);
-                        self.recreate_sub_agent(agent_id.clone(), agent_config, running_sub_agents)
+                        self.recreate_sub_agent(&agent_identity, running_sub_agents)
                     }
                     None => {
                         info!("Creating SubAgent {}", agent_id);
-                        self.create_sub_agent(agent_id.clone(), agent_config, running_sub_agents)
+                        self.create_sub_agent(&agent_identity, running_sub_agents)
                     }
                 }
             })?;

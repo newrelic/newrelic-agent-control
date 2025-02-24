@@ -13,6 +13,7 @@ use mockall::{mock, Sequence};
 use newrelic_agent_control::agent_control::config::{default_group_version_kinds, AgentTypeFQN};
 use newrelic_agent_control::agent_type::runtime_config;
 use newrelic_agent_control::k8s::annotations::Annotations;
+use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::{
     agent_control::{config::AgentID, defaults::AGENT_CONTROL_ID},
@@ -60,8 +61,10 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let agent_id = &AgentID::new("sub-agent").unwrap();
-    let agent_fqn = AgentTypeFQN::try_from("ns/test:1.2.3").unwrap();
+    let agent_identity = AgentIdentity::new(
+        AgentID::new("sub-agent").unwrap(),
+        AgentTypeFQN::try_from("ns/test:1.2.3").unwrap(),
+    );
 
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
@@ -70,8 +73,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let secret_name = "test-secret-name";
 
     let s = NotStartedSupervisorK8s::new(
-        agent_id.clone(),
-        agent_fqn.clone(),
+        agent_identity.clone(),
         k8s_client.clone(),
         runtime_config::K8s {
             objects: HashMap::from([
@@ -134,15 +136,17 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     );
 
     // Creates Instance ID CM correctly tagged.
-    let agent_instance_id = instance_id_getter.get(agent_id).unwrap();
+    let agent_instance_id = instance_id_getter.get(agent_identity.id()).unwrap();
 
     let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
     let config = format!(
         r#"
 agents:
-  {agent_id}:
-    agent_type: {agent_fqn}
-"#
+  {}:
+    agent_type: {}
+"#,
+        agent_identity.id(),
+        agent_identity.fqn()
     );
     let mut seq = Sequence::new();
 
@@ -186,7 +190,7 @@ agents:
     block_on(api_secret.get(secret_name)).expect("Secret should exist");
     assert_eq!(
         agent_instance_id,
-        instance_id_getter.get(agent_id).unwrap(),
+        instance_id_getter.get(agent_identity.id()).unwrap(),
         "Expects the Instance ID keeps the same since is get from the CM"
     );
 
@@ -203,7 +207,7 @@ agents:
     });
     assert_ne!(
         agent_instance_id,
-        instance_id_getter.get(agent_id).unwrap(),
+        instance_id_getter.get(agent_identity.id()).unwrap(),
         "Expects the new Instance ID is generated after the CM removal"
     );
 }

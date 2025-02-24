@@ -6,6 +6,7 @@ use super::{
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
+use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::config::{AgentID, AgentTypeFQN},
     event::{
@@ -24,8 +25,7 @@ use tracing::info;
 pub fn build_sub_agent_opamp<OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
-    agent_id: AgentID,
-    agent_type: &AgentTypeFQN,
+    agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
@@ -44,8 +44,7 @@ where
     build_opamp_with_channel(
         opamp_builder,
         instance_id_getter,
-        agent_id.clone(),
-        agent_type,
+        agent_identity,
         additional_identifying_attributes,
         non_identifying_attributes,
     )
@@ -54,8 +53,7 @@ where
 pub fn build_opamp_with_channel<OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
-    agent_id: AgentID,
-    agent_type: &AgentTypeFQN,
+    agent_identity: &AgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
@@ -65,13 +63,16 @@ where
 {
     let (opamp_publisher, opamp_consumer) = pub_sub();
     let start_settings = start_settings(
-        instance_id_getter.get(&agent_id)?,
-        agent_type,
+        instance_id_getter.get(agent_identity.id())?,
+        agent_identity.fqn(),
         additional_identifying_attributes,
         non_identifying_attributes,
     );
-    let started_opamp_client =
-        opamp_builder.build_and_start(opamp_publisher, agent_id, start_settings)?;
+    let started_opamp_client = opamp_builder.build_and_start(
+        opamp_publisher,
+        agent_identity.id().clone(),
+        start_settings,
+    )?;
 
     Ok((started_opamp_client, opamp_consumer))
 }

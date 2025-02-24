@@ -1,9 +1,9 @@
 pub mod cancellation;
 pub mod channel;
-use crate::agent_control::config::AgentTypeFQN;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::version::version_checker::AgentVersion;
 use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfig};
 
@@ -31,12 +31,12 @@ pub enum AgentControlEvent {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
-    SubAgentHealthInfo(AgentID, AgentTypeFQN, HealthWithStartTime),
+    SubAgentHealthInfo(AgentIdentity, HealthWithStartTime),
 }
 
 impl SubAgentEvent {
-    pub fn new(health: HealthWithStartTime, id: AgentID, agent_type: AgentTypeFQN) -> Self {
-        Self::SubAgentHealthInfo(id, agent_type, health)
+    pub fn new(health: HealthWithStartTime, agent_identity: AgentIdentity) -> Self {
+        Self::SubAgentHealthInfo(agent_identity, health)
     }
 }
 

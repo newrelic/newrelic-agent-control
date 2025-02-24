@@ -1,4 +1,3 @@
-use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
 use crate::agent_control::defaults::{
@@ -18,6 +17,7 @@ use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
@@ -136,8 +136,7 @@ impl AgentControlRunner {
                 build_opamp_with_channel(
                     builder,
                     &instance_id_getter,
-                    AgentID::new_agent_control_id(),
-                    &AgentTypeFQN::new_agent_control_fqn(),
+                    &AgentIdentity::new_agent_control_identity(),
                     HashMap::from([(
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
