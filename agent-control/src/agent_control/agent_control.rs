@@ -3,6 +3,7 @@ use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
+use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
@@ -30,7 +31,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
-pub struct AgentControl<S, O, HR, SL>
+pub struct AgentControl<S, O, HR, SL, DV>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -38,6 +39,7 @@ where
         + AgentControlDynamicConfigLoader
         + AgentControlDynamicConfigDeleter,
     S: SubAgentBuilder,
+    DV: DynamicConfigValidator,
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
@@ -49,9 +51,10 @@ where
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+    dynamic_config_validator: DV,
 }
 
-impl<S, O, HR, SL> AgentControl<S, O, HR, SL>
+impl<S, O, HR, SL, DV> AgentControl<S, O, HR, SL, DV>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -59,6 +62,7 @@ where
     SL: AgentControlDynamicConfigStorer
         + AgentControlDynamicConfigLoader
         + AgentControlDynamicConfigDeleter,
+    DV: DynamicConfigValidator,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -70,6 +74,7 @@ where
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+        dynamic_config_validator: DV,
     ) -> Self {
         Self {
             opamp_client,
@@ -83,6 +88,7 @@ where
             sub_agent_publisher,
             application_event_consumer,
             agent_control_opamp_consumer,
+            dynamic_config_validator,
         }
     }
 
@@ -283,6 +289,13 @@ where
             AgentControlDynamicConfig::try_from(remote_config_value)?
         };
 
+        debug!(
+            "Performing validation for Agent Control remote configuration: {}",
+            remote_config_value
+        );
+        self.dynamic_config_validator
+            .validate(&agent_control_dynamic_config)?;
+
         self.apply_remote_agent_control_config_agents(
             old_agent_control_dynamic_config,
             agent_control_dynamic_config,
@@ -398,7 +411,10 @@ mod tests {
         AgentControlDynamicConfig, AgentID, AgentTypeFQN, SubAgentConfig,
     };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
+    use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
+    use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::AgentControl;
+    use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::channel::pub_sub;
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -420,6 +436,7 @@ mod tests {
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut started_client = MockStartedOpAMPClientMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
         started_client.should_set_healthy();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
@@ -449,6 +466,7 @@ mod tests {
             sub_agent_publisher,
             application_event_consumer,
             Some(opamp_consumer),
+            dynamic_config_validator,
         );
 
         application_event_publisher
@@ -465,6 +483,8 @@ mod tests {
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
         let sub_agents_config = sub_agents_default_config();
+
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
 
         // Agent Control OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -499,6 +519,7 @@ mod tests {
             sub_agent_publisher,
             application_event_consumer,
             Some(opamp_consumer),
+            dynamic_config_validator,
         );
 
         application_event_publisher
@@ -523,6 +544,12 @@ mod tests {
             .returning(|_| Ok(()));
         started_client.should_update_effective_config(2);
         started_client.should_stop(1);
+
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         sub_agents_config_store
@@ -581,6 +608,7 @@ mod tests {
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
                 agent.run()
             }
@@ -622,6 +650,8 @@ agents:
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
@@ -641,6 +671,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
                 agent.process_events(sub_agents)
             }
@@ -675,6 +706,8 @@ agents:
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
@@ -693,6 +726,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
                 agent.process_events(sub_agents)
             }
@@ -730,6 +764,12 @@ agents:
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
         // it should build three times (2 + 1 + 1)
         sub_agent_builder.should_build(3);
+
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(2)
+            .returning(|_| Ok(()));
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         // all agents on first load
@@ -787,6 +827,7 @@ agents:
             sub_agent_publisher,
             pub_sub().1,
             Some(opamp_consumer),
+            dynamic_config_validator,
         );
 
         let sub_agents = agent_control.build_sub_agents(&sub_agents_config);
@@ -840,6 +881,79 @@ agents:
         running_sub_agents.stop()
     }
 
+    #[test]
+    fn create_sub_agent_wrong_agent_type_from_remote_config() {
+        // Sub Agents
+        let sub_agents_config = sub_agents_default_config().agents;
+
+        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        sub_agent_builder.should_build(2);
+
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| {
+                Err(DynamicConfigValidatorError::from(
+                    AgentRepositoryError::NotFound("not found".to_string()),
+                ))
+            });
+
+        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        // all agents on first load
+        sub_agents_config_store
+            .expect_load()
+            .times(1)
+            .returning(|| Ok(sub_agents_default_config()));
+
+        let hash_repository_mock = MockHashRepositoryMock::new();
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
+
+        // Create the Agent Control and rub Sub Agents
+        let agent_control = AgentControl::new(
+            None::<MockStartedOpAMPClientMock>,
+            Arc::new(hash_repository_mock),
+            sub_agent_builder,
+            Arc::new(sub_agents_config_store),
+            agent_control_publisher,
+            sub_agent_publisher,
+            pub_sub().1,
+            Some(opamp_consumer),
+            dynamic_config_validator,
+        );
+
+        let sub_agents = agent_control.build_sub_agents(&sub_agents_config);
+
+        let mut running_sub_agents = sub_agents.unwrap().run();
+
+        // just one agent, it should remove the infra-agent
+        let remote_config = RemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            Hash::new("a-hash".to_string()),
+            Some(ConfigurationMap::new(HashMap::from([(
+                "".to_string(),
+                r#"
+agents:
+  nrdot:
+    agent_type: newrelic/invented-agent-type:0.0.1
+
+"#
+                .to_string(),
+            )]))),
+        );
+
+        assert_eq!(running_sub_agents.len(), 2);
+
+        let apply_remote = agent_control
+            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents);
+
+        assert!(apply_remote.is_err());
+
+        running_sub_agents.stop();
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////
     // Agent Control Events tests
     ////////////////////////////////////////////////////////////////////////////////////
@@ -862,6 +976,12 @@ agents:
             .returning(|_| Ok(()));
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
 
         // load local config
         let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
@@ -915,6 +1035,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
 
                 agent.process_events(sub_agents);
@@ -961,6 +1082,8 @@ agents:
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+
         let mut remote_config_hash = Hash::new("a-hash".to_string());
         remote_config_hash.fail(String::from("some error message"));
 
@@ -986,6 +1109,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
 
                 agent.process_events(sub_agents);
@@ -1029,6 +1153,8 @@ agents:
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+
         // the running sub agents
         let sub_agents = StartedSubAgents::from(HashMap::default());
 
@@ -1048,6 +1174,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
 
                 agent.process_events(sub_agents);
@@ -1091,6 +1218,12 @@ agents:
             .returning(|_| Ok(()));
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
 
         let agent_id = AgentID::new("infra-agent").unwrap();
 
@@ -1149,6 +1282,7 @@ agents:
                     sub_agent_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    dynamic_config_validator,
                 );
 
                 agent.process_events(sub_agents);

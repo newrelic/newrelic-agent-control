@@ -5,6 +5,7 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
+use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
     sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
 };
 
-impl<S, O, HR, SL> AgentControl<S, O, HR, SL>
+impl<S, O, HR, SL, DV> AgentControl<S, O, HR, SL, DV>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -21,6 +22,7 @@ where
     SL: AgentControlDynamicConfigStorer
         + AgentControlDynamicConfigLoader
         + AgentControlDynamicConfigDeleter,
+    DV: DynamicConfigValidator,
 {
     // Agent Control on remote config
     // Configuration will be reported as applying to OpAMP
@@ -71,6 +73,7 @@ mod tests {
             agent_control::AgentControl,
             config::{AgentControlDynamicConfig, AgentID, SubAgentConfig},
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
+            config_validator::tests::MockDynamicConfigValidatorMock,
         },
         event::channel::pub_sub,
         opamp::{
@@ -108,6 +111,7 @@ mod tests {
                 "invalid_yaml_content:{}".to_string(),
             )]))),
         );
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
 
         //Expectations
 
@@ -145,6 +149,7 @@ mod tests {
             sub_agent_publisher,
             pub_sub().1,
             Some(opamp_consumer),
+            dynamic_config_validator,
         );
 
         agent_control
@@ -183,6 +188,7 @@ mod tests {
                 "agents: {}".to_string(),
             )]))),
         );
+        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
 
         //Expectations
 
@@ -223,6 +229,11 @@ mod tests {
         let (agent_control_publisher, _agent_control_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
+
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
@@ -233,6 +244,7 @@ mod tests {
             sub_agent_publisher,
             pub_sub().1,
             Some(opamp_consumer),
+            dynamic_config_validator,
         );
 
         agent_control

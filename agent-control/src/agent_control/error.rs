@@ -1,4 +1,5 @@
 use super::config::AgentControlConfigError;
+use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister::PersistError;
@@ -103,4 +104,7 @@ pub enum AgentError {
     #[cfg(feature = "onhost")]
     #[error("failed to initialize the identifiers provider: `{0}`")]
     InitializeIdentifiersProvider(#[from] instance_id::IdentifiersProviderError),
+
+    #[error("agent control remote config validation error: `{0}`")]
+    RemoteConfigValidatorError(#[from] DynamicConfigValidatorError),
 }

@@ -105,7 +105,7 @@ where
     D: YAMLConfigRepository,
     Y: Renderer,
 {
-    registry: R,
+    registry: Arc<R>,
     yaml_config_repository: Arc<D>,
     renderer: Y,
 }
@@ -117,7 +117,7 @@ where
 {
     pub fn new(
         yaml_config_repository: Arc<Y>,
-        registry: EmbeddedRegistry,
+        registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
@@ -279,7 +279,7 @@ pub(crate) mod tests {
     {
         pub fn new_for_testing(registry: R, remote_values_repo: D, renderer: N) -> Self {
             Self {
-                registry,
+                registry: Arc::new(registry),
                 yaml_config_repository: Arc::new(remote_values_repo),
                 renderer,
             }

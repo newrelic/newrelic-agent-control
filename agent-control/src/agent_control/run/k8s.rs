@@ -1,6 +1,7 @@
 use crate::agent_control::config::{AgentID, AgentTypeFQN, K8sConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
+use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
@@ -92,7 +93,7 @@ impl AgentControlRunner {
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),
-            self.agent_type_registry,
+            self.agent_type_registry.clone(),
             template_renderer,
         ));
 
@@ -152,6 +153,9 @@ impl AgentControlRunner {
         );
         let _started_gcc = gcc.start();
 
+        let dynamic_config_validator =
+            RegistryDynamicConfigValidator::new(self.agent_type_registry);
+
         AgentControl::new(
             maybe_client,
             hash_repository,
@@ -161,6 +165,7 @@ impl AgentControlRunner {
             self.sub_agent_publisher,
             self.application_event_consumer,
             maybe_opamp_consumer,
+            dynamic_config_validator,
         )
         .run()
     }

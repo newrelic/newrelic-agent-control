@@ -66,7 +66,7 @@ pub struct AgentControlRunConfig {
 /// Fields are public just for testing. The object is destroyed right after is deleted,
 /// Therefore, we should be worried of any tampering after its creation.
 pub struct AgentControlRunner {
-    agent_type_registry: EmbeddedRegistry,
+    agent_type_registry: Arc<EmbeddedRegistry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
     opamp_poll_interval: Duration,
@@ -132,12 +132,12 @@ impl AgentControlRunner {
             config.opamp.clone(),
         );
 
-        let agent_type_registry = EmbeddedRegistry::new(
+        let agent_type_registry = Arc::new(EmbeddedRegistry::new(
             config
                 .base_paths
                 .local_dir
                 .join(DYNAMIC_AGENT_TYPE_FILENAME),
-        );
+        ));
 
         let signature_validator = config
             .opamp
