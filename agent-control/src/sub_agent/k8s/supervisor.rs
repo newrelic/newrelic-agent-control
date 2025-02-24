@@ -142,7 +142,7 @@ impl NotStartedSupervisorK8s {
             "k8s objects supervisor",
             callback,
         )
-            .start()
+        .start()
     }
 
     pub fn start_health_check(
@@ -197,7 +197,7 @@ impl NotStartedSupervisorK8s {
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     fn apply_resources<'a>(
         agent_id: &AgentID,
-        resources: impl Iterator<Item=&'a DynamicObject>,
+        resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
     ) -> Result<(), SupervisorStarterError> {
         debug!(%agent_id, "applying k8s objects if changed");
@@ -541,7 +541,7 @@ pub mod tests {
             ),
             Arc::new(remote_config_handler),
         )
-            .run();
+        .run();
 
         let timeout = Duration::from_secs(3);
 

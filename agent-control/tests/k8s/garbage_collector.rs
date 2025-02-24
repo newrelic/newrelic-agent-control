@@ -145,8 +145,7 @@ agents:
   {}:
     agent_type: {}
 "#,
-        agent_identity.id,
-        agent_identity.fqn
+        agent_identity.id, agent_identity.fqn
     );
     let mut seq = Sequence::new();
 
