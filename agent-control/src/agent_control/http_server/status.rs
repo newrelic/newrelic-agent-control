@@ -2,6 +2,7 @@ use crate::agent_control::config::{AgentID, AgentTypeFQN};
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::identity::AgentIdentity;
 use serde::Serialize;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -116,10 +117,10 @@ pub(super) struct SubAgentStatus {
 }
 
 impl SubAgentStatus {
-    pub fn with_id_and_type(agent_id: AgentID, agent_type: AgentTypeFQN) -> Self {
+    pub fn with_identity(agent_identity: AgentIdentity) -> Self {
         Self {
-            agent_id,
-            agent_type,
+            agent_id: agent_identity.id,
+            agent_type: agent_identity.fqn,
             healthy: false,
             last_error: None,
             status: String::default(),

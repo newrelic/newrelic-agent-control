@@ -22,6 +22,7 @@ mod tests {
     use crate::agent_control::http_server::status_handler::status_handler;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+    use crate::sub_agent::identity::AgentIdentity;
     use actix_web::body::MessageBody;
     use actix_web::test::TestRequest;
     use actix_web::web::Data;
@@ -35,10 +36,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_handler_without_optional_fields() {
         // Given there is a healthy Sub Agent registered
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
-        let mut sub_agent_status =
-            SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
+        let agent_identity = AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
+        let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
 
         let start_time = SystemTime::UNIX_EPOCH;
 
@@ -47,7 +49,7 @@ mod tests {
             start_time,
         ));
 
-        let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
+        let sub_agents = HashMap::from([(agent_identity.id, sub_agent_status)]);
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())
@@ -79,10 +81,11 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_handler() {
         // Given there is a healthy Sub Agent registered
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let agent_type = AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap();
-        let mut sub_agent_status =
-            SubAgentStatus::with_id_and_type(agent_id.clone(), agent_type.clone());
+        let agent_identity = AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
+        let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
         sub_agent_status.update_health(HealthWithStartTime::new(
             Unhealthy::default()
                 .with_last_error("some error".to_string())
@@ -90,7 +93,7 @@ mod tests {
             SystemTime::UNIX_EPOCH,
         ));
 
-        let sub_agents = HashMap::from([(agent_id.clone(), sub_agent_status)]);
+        let sub_agents = HashMap::from([(agent_identity.id, sub_agent_status)]);
 
         let mut st = Status::default()
             .with_sub_agents(sub_agents.into())

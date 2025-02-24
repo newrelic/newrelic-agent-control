@@ -1,4 +1,4 @@
-use crate::agent_control::config::{AgentID, AgentTypeFQN};
+use crate::agent_control::config::AgentID;
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
@@ -8,6 +8,7 @@ use crate::sub_agent::health::health_checker::{publish_health_event, spawn_healt
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -40,8 +41,7 @@ pub struct StartedSupervisorOnHost {
 }
 
 pub struct NotStartedSupervisorOnHost {
-    pub(super) agent_id: AgentID,
-    pub(super) agent_fqn: AgentTypeFQN,
+    pub(super) agent_identity: AgentIdentity,
     pub(super) ctx: Context<bool>,
     pub(crate) maybe_exec: Option<ExecutableData>,
     pub(super) log_to_file: bool,
@@ -57,7 +57,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
-        let agent_id = self.agent_id.clone();
+        let agent_id = self.agent_identity.id.clone();
 
         let thread_contexts = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -102,15 +102,13 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 
 impl NotStartedSupervisorOnHost {
     pub fn new(
-        agent_id: AgentID,
-        agent_fqn: AgentTypeFQN,
+        agent_identity: AgentIdentity,
         maybe_exec: Option<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
-            agent_id,
-            agent_fqn,
+            agent_identity,
             ctx,
             maybe_exec,
             log_to_file: false,
@@ -135,7 +133,7 @@ impl NotStartedSupervisorOnHost {
         if let Some(health_config) = &self.health_config {
             let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
             let started_thread_context = spawn_health_checker(
-                self.agent_id.clone(),
+                self.agent_identity.id.clone(),
                 health_checker,
                 sub_agent_internal_publisher,
                 health_config.interval,
@@ -143,7 +141,7 @@ impl NotStartedSupervisorOnHost {
             );
             return Ok(Some(started_thread_context));
         }
-        debug!(%self.agent_id, "health checks are disabled for this agent");
+        debug!(agent_id = %self.agent_identity.id, "health checks are disabled for this agent");
         Ok(None)
     }
 
@@ -152,10 +150,10 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Option<StartedThreadContext> {
         let onhost_version_checker =
-            OnHostAgentVersionChecker::checked_new(self.agent_fqn.clone())?;
+            OnHostAgentVersionChecker::checked_new(self.agent_identity.fqn.clone())?;
 
         Some(spawn_version_checker(
-            self.agent_id.clone(),
+            self.agent_identity.id.clone(),
             onhost_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
@@ -174,10 +172,10 @@ impl NotStartedSupervisorOnHost {
             current_pid.clone(),
             self.ctx.clone(),
             shutdown_ctx.clone(),
-            self.agent_id.clone(),
+            self.agent_identity.id.clone(),
         );
 
-        let agent_id_clone = self.agent_id.clone();
+        let agent_id_clone = self.agent_identity.id.clone();
         let executable_data_clone = executable_data.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
@@ -193,7 +191,7 @@ impl NotStartedSupervisorOnHost {
             // before the process was started.
             if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                 debug!(
-                    agent_id = self.agent_id.to_string(),
+                    agent_id = self.agent_identity.id.to_string(),
                     supervisor = executable_data_clone.bin,
                     msg = "supervisor stopped before starting the process"
                 );
@@ -201,7 +199,7 @@ impl NotStartedSupervisorOnHost {
             }
 
             info!(
-                agent_id = self.agent_id.to_string(),
+                agent_id = self.agent_identity.id.to_string(),
                 supervisor = executable_data_clone.bin,
                 msg = "starting supervisor process"
             );
@@ -223,7 +221,7 @@ impl NotStartedSupervisorOnHost {
             let exit_code = start_command(not_started_command, pid_guard)
                 .inspect_err(|err| {
                     error!(
-                        agent_id = self.agent_id.to_string(),
+                        agent_id = self.agent_identity.id.to_string(),
                         supervisor = executable_data_clone.bin,
                         "error while launching supervisor process: {}",
                         err
@@ -233,7 +231,7 @@ impl NotStartedSupervisorOnHost {
                     handle_termination(
                         exit_status,
                         &internal_event_publisher,
-                        &self.agent_id,
+                        &self.agent_identity.id,
                         executable_data_clone.bin.to_string(),
                         supervisor_start_time,
                     )
@@ -243,7 +241,7 @@ impl NotStartedSupervisorOnHost {
             // most probably reason why process has been exited.
             if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                 info!(
-                    agent_id = self.agent_id.to_string(),
+                    agent_id = self.agent_identity.id.to_string(),
                     supervisor = executable_data_clone.bin,
                     msg = "supervisor has been stopped and process terminated"
                 );
@@ -261,7 +259,7 @@ impl NotStartedSupervisorOnHost {
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
-                    warn!("supervisor for {} won't restart anymore due to having exceeded its restart policy", self.agent_id);
+                    warn!("supervisor for {} won't restart anymore due to having exceeded its restart policy", self.agent_identity.id);
 
                     let unhealthy = Unhealthy::new(
                         String::default(),
@@ -276,7 +274,7 @@ impl NotStartedSupervisorOnHost {
                 break;
             }
 
-            info!("restarting supervisor for {}...", self.agent_id);
+            info!("restarting supervisor for {}...", self.agent_identity.id);
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
@@ -290,7 +288,7 @@ impl NotStartedSupervisorOnHost {
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
         //TODO extract to to a builder so we can mock it
         CommandOSNotStarted::new(
-            self.agent_id.clone(),
+            self.agent_identity.id.clone(),
             executable_data,
             self.log_to_file,
             self.logging_path.clone(),
@@ -393,6 +391,7 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
@@ -424,9 +423,13 @@ pub mod tests {
 
                 let any_exit_code = vec![];
 
-                let supervisor = NotStartedSupervisorOnHost::new(
+                let agent_identity = AgentIdentity::from((
                     self.agent_id.to_owned().try_into().unwrap(),
                     AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+                ));
+
+                let supervisor = NotStartedSupervisorOnHost::new(
+                    agent_identity,
                     Some(self.executable.with_restart_policy(RestartPolicy::new(
                         BackoffStrategy::Fixed(backoff),
                         any_exit_code,
@@ -526,13 +529,13 @@ pub mod tests {
             .with_args(vec!["x".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-            Some(exec),
-            Context::new(),
-            None,
-        );
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -558,13 +561,13 @@ pub mod tests {
             .with_args(vec!["x".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-            Some(exec),
-            Context::new(),
-            None,
-        );
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -589,13 +592,13 @@ pub mod tests {
             .with_args(vec!["hello!".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-            Some(exec),
-            Context::new(),
-            None,
-        );
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -637,13 +640,13 @@ pub mod tests {
             .with_args(vec!["".to_owned()])
             .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
 
-        let agent = NotStartedSupervisorOnHost::new(
+        let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
             AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
-            Some(exec),
-            Context::new(),
-            None,
-        );
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
