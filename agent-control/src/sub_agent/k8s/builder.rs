@@ -137,11 +137,7 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
         effective_agent: EffectiveAgent,
     ) -> Result<Self::SupervisorStarter, SubAgentBuilderError> {
         let agent_identity = effective_agent.get_agent_identity();
-        debug!(
-            "Building supervisors {}:{}",
-            agent_identity.fqn(),
-            agent_identity.id()
-        );
+        debug!("Building supervisors {}", agent_identity,);
 
         let k8s_objects = effective_agent.get_k8s_config()?;
 
