@@ -1,5 +1,5 @@
 # Include Ansible dependencies common installation strategy
-include ../Ansible.common
+include test/Ansible.common
 
 TERRAFORM_DIR := ./terraform
 ANSIBLE_FOLDER := ./ansible

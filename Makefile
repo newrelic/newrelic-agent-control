@@ -22,6 +22,7 @@ $(addsuffix -clean,$(TARGETS)):
 # 		     Static targets 			 #
 ##########################################
 include test/k8s-canaries/Makefile
+include test/onhost-canaries/Makefile
 
 help:
 	@echo "## Available targets:"
