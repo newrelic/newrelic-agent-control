@@ -1,3 +1,4 @@
+pub mod ac_sysinfo;
 pub mod agent_control;
 pub mod agent_type;
 pub mod cli;

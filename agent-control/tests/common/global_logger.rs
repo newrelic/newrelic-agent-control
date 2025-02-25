@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Once;
 
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_LOG_DIR;
+use newrelic_agent_control::cli::SelfInstrumentationProviders;
 use newrelic_agent_control::logging::config::LoggingConfig;
 
 static INIT_LOGGER: Once = Once::new();
@@ -16,7 +17,10 @@ insecure_fine_grained_level: "newrelic_agent_control=debug,opamp_client=info,off
         .unwrap();
 
         logging_config
-            .try_init(PathBuf::from(AGENT_CONTROL_LOG_DIR))
+            .try_init(
+                PathBuf::from(AGENT_CONTROL_LOG_DIR),
+                &SelfInstrumentationProviders::default(),
+            )
             .unwrap();
     });
 }

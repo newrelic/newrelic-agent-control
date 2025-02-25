@@ -1,3 +1,4 @@
+use newrelic_agent_control::ac_sysinfo;
 #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
 use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
@@ -32,6 +33,8 @@ fn main() {
             exit(0);
         }
     };
+
+    ac_sysinfo::retrieve_usage_data();
 
     if let Err(e) = _main(agent_control_config) {
         error!(
@@ -76,6 +79,10 @@ fn _main(agent_control_config: AgentControlCliConfig) -> Result<(), Box<dyn Erro
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
     AgentControlRunner::new(agent_control_config.run_config, application_event_consumer)?.run()?;
+
+    agent_control_config
+        .self_instrumentation_providers
+        .shutdown()?;
 
     info!("exiting gracefully");
     Ok(())

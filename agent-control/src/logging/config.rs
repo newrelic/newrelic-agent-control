@@ -1,5 +1,9 @@
+use crate::cli::SelfInstrumentationProviders;
+
 use super::file_logging::FileLoggingConfig;
 use super::format::LoggingFormat;
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_appender_tracing::layer;
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
 use std::path::PathBuf;
@@ -9,6 +13,7 @@ use tracing::debug;
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::filter::Directive;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
@@ -56,7 +61,11 @@ pub type FileLoggerGuard = Option<WorkerGuard>;
 
 impl LoggingConfig {
     /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(&self, default_dir: PathBuf) -> Result<Option<WorkerGuard>, LoggingError> {
+    pub fn try_init(
+        &self,
+        default_dir: PathBuf,
+        self_instrumentation_providers: &SelfInstrumentationProviders,
+    ) -> Result<Option<WorkerGuard>, LoggingError> {
         let target = self.format.target;
         let timestamp_fmt = self.format.timestamp.0.clone();
 
@@ -85,12 +94,27 @@ impl LoggingConfig {
             .fmt_fields(PrettyFields::new())
             .with_filter(self.logging_filter()?);
 
+        // Self-instrumentation layers
+        let otel_traces_layer = self_instrumentation_providers.traces_provider().map(|p| {
+            tracing_opentelemetry::layer()
+                .with_tracer(p.tracer("agent-control-self-instrumentation"))
+        });
+        let otel_metrics_layer = self_instrumentation_providers
+            .metrics_provider()
+            .map(|p| MetricsLayer::new(p.clone()));
+        let otel_logs_layer = self_instrumentation_providers
+            .logs_provider()
+            .map(layer::OpenTelemetryTracingBridge::new);
+
         // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
         // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
         // while always producing a `Subscriber` of the same type.
         let subscriber = tracing_subscriber::Registry::default()
             .with(console_layer)
-            .with(file_layer);
+            .with(file_layer)
+            .with(otel_traces_layer)
+            .with(otel_metrics_layer)
+            .with(otel_logs_layer);
 
         #[cfg(feature = "tokio-console")]
         let subscriber = subscriber.with(console_subscriber::spawn());

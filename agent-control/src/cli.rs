@@ -14,14 +14,106 @@ use crate::{
 };
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
-use std::sync::Arc;
+use opentelemetry::global;
+use opentelemetry_sdk::error::OTelSdkResult;
+use opentelemetry_sdk::logs::SdkLoggerProvider;
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::Resource;
+use std::sync::{Arc, LazyLock};
 use thiserror::Error;
 use tracing::info;
+
+static RESOURCE: LazyLock<Resource> = LazyLock::new(|| {
+    Resource::builder()
+        .with_service_name("agent-control-self-instrumentation")
+        .build()
+});
 
 /// Represents all the data structures that can be created from the CLI
 pub struct AgentControlCliConfig {
     pub run_config: AgentControlRunConfig,
     pub file_logger_guard: FileLoggerGuard,
+    pub self_instrumentation_providers: SelfInstrumentationProviders,
+}
+
+#[derive(Default)]
+pub struct SelfInstrumentationProviders {
+    traces_provider: Option<SdkTracerProvider>,
+    metrics_provider: Option<SdkMeterProvider>,
+    logs_provider: Option<SdkLoggerProvider>,
+}
+
+impl SelfInstrumentationProviders {
+    pub fn with_traces(self) -> Self {
+        // This exporter below just prints to stdout, so the logging will be crowded between
+        // tracing logs and these ones.
+        // The idea is to this to actually be the OTLP exporter over HTTP.
+        // See `opentelemetry_otlp` crate for details.
+        let exporter = opentelemetry_stdout::SpanExporter::default();
+        let provider = SdkTracerProvider::builder()
+            .with_batch_exporter(exporter)
+            .with_resource(RESOURCE.clone())
+            .build();
+        global::set_tracer_provider(provider.clone());
+        Self {
+            traces_provider: Some(provider),
+            ..self
+        }
+    }
+
+    pub fn with_metrics(self) -> Self {
+        let exporter = opentelemetry_stdout::MetricExporter::default();
+        let provider = SdkMeterProvider::builder()
+            .with_periodic_exporter(exporter)
+            .with_resource(RESOURCE.clone())
+            .build();
+        global::set_meter_provider(provider.clone());
+        Self {
+            metrics_provider: Some(provider),
+            ..self
+        }
+    }
+
+    pub fn with_logs(self) -> Self {
+        let exporter = opentelemetry_stdout::LogExporter::default();
+        let provider = SdkLoggerProvider::builder()
+            .with_batch_exporter(exporter)
+            .with_resource(RESOURCE.clone())
+            .build();
+        Self {
+            logs_provider: Some(provider),
+            ..self
+        }
+    }
+
+    pub fn metrics_provider(&self) -> Option<&SdkMeterProvider> {
+        self.metrics_provider.as_ref()
+    }
+
+    pub fn traces_provider(&self) -> Option<&SdkTracerProvider> {
+        self.traces_provider.as_ref()
+    }
+
+    pub fn logs_provider(&self) -> Option<&SdkLoggerProvider> {
+        self.logs_provider.as_ref()
+    }
+
+    pub fn shutdown(self) -> OTelSdkResult {
+        self.traces_provider
+            .as_ref()
+            .map(SdkTracerProvider::shutdown)
+            .transpose()?;
+        self.metrics_provider
+            .as_ref()
+            .map(SdkMeterProvider::shutdown)
+            .transpose()?;
+        self.logs_provider
+            .as_ref()
+            .map(SdkLoggerProvider::shutdown)
+            .transpose()?;
+        Ok(())
+    }
 }
 
 #[derive(Debug, Error)]
@@ -109,9 +201,15 @@ impl Cli {
                 )
             })?;
 
+        // Create this depending on the config
+        let self_instrumentation_providers = SelfInstrumentationProviders::default()
+            .with_traces()
+            .with_metrics()
+            .with_logs();
+
         let file_logger_guard = agent_control_config
             .log
-            .try_init(base_paths.log_dir.clone())?;
+            .try_init(base_paths.log_dir.clone(), &self_instrumentation_providers)?;
         info!("{}", binary_metadata());
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
@@ -144,6 +242,7 @@ impl Cli {
         let cli_config = AgentControlCliConfig {
             run_config,
             file_logger_guard,
+            self_instrumentation_providers,
         };
 
         Ok(CliCommand::InitAgentControl(cli_config))
