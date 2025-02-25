@@ -6,6 +6,7 @@ authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+license-file.workspace = true
 default-run = "newrelic-agent-control"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
