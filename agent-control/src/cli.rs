@@ -15,6 +15,7 @@ use crate::{
 use clap::Parser;
 use one_shot_operation::OneShotCommand;
 use opentelemetry::global;
+use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 use opentelemetry_sdk::metrics::SdkMeterProvider;
@@ -46,11 +47,11 @@ pub struct SelfInstrumentationProviders {
 
 impl SelfInstrumentationProviders {
     pub fn with_traces(self) -> Self {
-        // This exporter below just prints to stdout, so the logging will be crowded between
-        // tracing logs and these ones.
-        // The idea is to this to actually be the OTLP exporter over HTTP.
-        // See `opentelemetry_otlp` crate for details.
-        let exporter = opentelemetry_stdout::SpanExporter::default();
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
+            .with_endpoint("https://otlp.nr-data.net")
+            .build()
+            .expect("Could not build HTTP exporter");
         let provider = SdkTracerProvider::builder()
             .with_batch_exporter(exporter)
             .with_resource(RESOURCE.clone())
@@ -63,7 +64,11 @@ impl SelfInstrumentationProviders {
     }
 
     pub fn with_metrics(self) -> Self {
-        let exporter = opentelemetry_stdout::MetricExporter::default();
+        let exporter = opentelemetry_otlp::MetricExporter::builder()
+            .with_http()
+            .with_endpoint("https://otlp.nr-data.net")
+            .build()
+            .expect("Could not build HTTP exporter");
         let provider = SdkMeterProvider::builder()
             .with_periodic_exporter(exporter)
             .with_resource(RESOURCE.clone())
@@ -76,7 +81,11 @@ impl SelfInstrumentationProviders {
     }
 
     pub fn with_logs(self) -> Self {
-        let exporter = opentelemetry_stdout::LogExporter::default();
+        let exporter = opentelemetry_otlp::LogExporter::builder()
+            .with_http()
+            .with_endpoint("https://otlp.nr-data.net")
+            .build()
+            .expect("Could not build HTTP exporter");
         let provider = SdkLoggerProvider::builder()
             .with_batch_exporter(exporter)
             .with_resource(RESOURCE.clone())
