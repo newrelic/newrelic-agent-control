@@ -1,0 +1,29 @@
+# Cluster and License info is set with "--set" in the e2e-spec file
+agent-control-deployment:
+  verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
+  config:
+    fleet_control:
+      enabled: true
+      fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTUzY2RkLTU1MWEtN2Y3NS1iZDhmLWI0YjA0Yzg5MmNhMQ
+      auth:
+        secret:
+          create: false
+          name: "sys-identity" 
+    agentControl:
+      content:
+        log:
+          level: debug
+    subAgents:
+      infra:
+        type: newrelic/com.newrelic.infrastructure:0.1.0
+        content:
+          chart_version: "*" # Use latest
+          chart_values:
+            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+              customAttributes:
+                cluster_name: ${nr-env:NR_CLUSTER_NAME}
+                config_origin: local
+            nri-metadata-injection:
+              # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
+              # together with the gateway
+              enabled: false

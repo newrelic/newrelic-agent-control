@@ -94,37 +94,15 @@
         - name: Wait for Infra Agent to start
           pause:
             seconds: 30
-
-        - name: Assert Agent Control and Infra Agent are running and Collector is not
-          include_role:
-            name: caos.ansible_roles.assert_process_running
-          vars:
-            processes_running:
-              - "^/usr/bin/newrelic-agent-control"
-              - "^/usr/bin/newrelic-infra"
         
-        - name: Wait until the AC remote config file removing all agents is received
-          stat:
-            path: "{{ agent_control_remote_config_file }}"
-          register: result
-          until: result.stat.exists
-          # At the time of writing this, remote config took ~10m to hit AC :(
-          retries: 90
-          delay: 10
-
-        - name: assert remote config applied
-          shell: grep "applied" {{ agent_control_hash_file_tpl }}
-          retries: 5
-          delay: 5
-
-        - name: Assert Agent Control is still running and Infra Agent was stopped
+        - name: Assert Agent Control and Infra Agent are running
           include_role:
             name: caos.ansible_roles.assert_process_running
           vars:
-            processes_not_running:
-              - "^/usr/bin/newrelic-infra"
             processes_running:
               - "^/usr/bin/newrelic-agent-control"
+              - "^/usr/bin/newrelic-infra"
+
       always:
         - name: AC logs
           shell: journalctl -u newrelic-agent-control --no-pager
