@@ -23,7 +23,6 @@ regex = { workspace = true }
 futures = { version = "0.3.31", optional = true }
 tokio = { version = "1.41.1", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.4.1", optional = true }
-uuid = { version = "1.8.0", features = ["serde", "v7"] }
 duration-str = "0.13.0"
 konst = { workspace = true }
 http = { workspace = true }
@@ -37,7 +36,7 @@ base64 = { version = "0.22.1" }
 # New Relic dependencies (private external repos)
 # IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
 nr-auth = { git = "ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git", tag = "0.0.3" }
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.27", default-features = false }
+opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.28", default-features = false }
 # local dependencies
 fs = { path = "../fs" }
 

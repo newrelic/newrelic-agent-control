@@ -8,6 +8,7 @@ use newrelic_agent_control::opamp::remote_config::signature::{
 };
 use newrelic_agent_control::opamp::remote_config::validators::signature::public_key_fingerprint;
 use opamp_client::opamp;
+use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
 use rcgen::{CertificateParams, KeyPair, PKCS_ED25519};
 use std::path::PathBuf;
@@ -238,7 +239,9 @@ impl Drop for FakeServer {
 async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> HttpResponse {
     tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
-    let instance_id = InstanceID::try_from(message.clone().instance_uid).unwrap();
+    let instance_id: InstanceID = InstanceUid::try_from(message.clone().instance_uid)
+        .unwrap()
+        .into();
 
     // Store the health status
     if let Some(health) = message.clone().health {

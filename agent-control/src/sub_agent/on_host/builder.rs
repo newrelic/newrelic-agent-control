@@ -351,7 +351,7 @@ mod tests {
             ),
         ]);
         StartSettings {
-            instance_id: sub_agent_instance_id.into(),
+            instance_uid: sub_agent_instance_id.into(),
             capabilities: default_capabilities(),
             custom_capabilities: Some(default_sub_agent_custom_capabilities()),
             agent_description: AgentDescription {

@@ -343,7 +343,8 @@ pub mod tests {
         agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilderMock, MockInstanceIDGetterMock) {
-        let instance_id = InstanceID::try_from("018FCA0670A879689D04fABDDE189B8C").unwrap();
+        let instance_id: InstanceID =
+            serde_yaml::from_str("018FCA0670A879689D04fABDDE189B8C").unwrap();
 
         // opamp builder mock
         let started_client = MockStartedOpAMPClientMock::new();
