@@ -21,7 +21,7 @@ module "alerts" {
       name          = "CPU usage (cores)"
       metric        = "cpuUsedCores"
       sample        = "K8sContainerSample"
-      threshold     = 1
+      threshold     = 0.06 # +50% of observed value https://staging.onenr.io/0VRVAJrmJwa
       duration      = 3600
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
@@ -30,7 +30,7 @@ module "alerts" {
       name          = "Memory usage (bytes)"
       metric        = "memoryWorkingSetBytes"
       sample        = "K8sContainerSample"
-      threshold     = 10000000 # 10 MB
+      threshold     = 14000000 # 14 MB, +25% of observed value https://staging.onenr.io/0dQeV0JdVwe
       duration      = 600
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
@@ -60,15 +60,6 @@ module "alerts" {
       sample        = "K8sContainerSample"
       threshold     = 0
       duration      = 600
-      operator      = "below_or_equals"
-      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
-    },
-    {
-      name          = "Storage usage (bytes)"
-      metric        = "fsUsedBytes"
-      sample        = "K8sContainerSample"
-      threshold     = 0
-      duration      = 3600
       operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
     },
