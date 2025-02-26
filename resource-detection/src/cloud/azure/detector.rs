@@ -29,7 +29,7 @@ impl AzureDetector<HttpClientReqwest> {
         );
 
         let http_client =
-            HttpClientReqwest::try_new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, Some(headers))?;
+            HttpClientReqwest::try_new(metadata_endpoint, Some(headers))?;
 
         Ok(Self { http_client })
     }
