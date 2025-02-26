@@ -8,7 +8,6 @@
   vars:
     # Pre-release version of the agent control is used by default
     repository_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
-    fleet_id: MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1MzdiNC05M2RkLTdmY2YtODJiOS1jYzU0NGE3NTQxODI
     agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
     agent_control_private_key: /etc/newrelic-agent-control/priv.key
 
@@ -50,20 +49,14 @@
       config_path: "/etc/newrelic-agent-control/config.yaml"
       update_config:
         log:
-          level: debug
+          level: info
         agents:
           infra:
             agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-        fleet_control:
-          fleet_id: "{{ fleet_id }}"
-          endpoint: "https://opamp.staging-service.newrelic.com/v1/opamp"
-          headers:
-            api-key: "{{ nr_license_key }}"
-          auth_config:
-            token_url: "https://system-identity-oauth.staging-service.newrelic.com/oauth2/token"
-            client_id: "{{ system_identity_client_id }}"
-            provider: local
-            private_key_path: "{{ agent_control_private_key }}"
+          prometheus:
+            agent_type: "newrelic/com.newrelic.prometheus:0.1.0"
+          logs:
+            agent_type: "newrelic/io.fluentbit:0.1.0"
       
   - name: Infra Agent config folder
     file:
