@@ -1,4 +1,4 @@
-TERRAFORM_DIR := ./terraform
+TERRAFORM_DIR ?= ./terraform
 HELM_DIR := ./helm
 AWS_REGION := us-east-2
 .DEFAULT_GOAL := all
