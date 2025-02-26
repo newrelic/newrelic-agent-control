@@ -6,6 +6,7 @@ use crate::cloud::http_client::{
 use crate::cloud::GCP_INSTANCE_ID;
 use crate::{DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
+use reqwest::blocking::Client;
 use thiserror::Error;
 
 /// Default GCP instance metadata endpoint.
@@ -22,14 +23,17 @@ const HEADER_VALUE: &str = "Google";
 
 impl GCPDetector<HttpClientReqwest> {
     /// Returns a new instance of GCPDetector
-    pub fn try_new(metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn try_new(
+        http_client: Client,
+        metadata_endpoint: String,
+    ) -> Result<Self, HttpClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
             HEADER_VALUE.parse().expect("constant valid value"),
         );
         let http_client =
-            HttpClientReqwest::try_new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, Some(headers))?;
+            HttpClientReqwest::try_new(http_client, metadata_endpoint, Some(headers))?;
 
         Ok(Self { http_client })
     }

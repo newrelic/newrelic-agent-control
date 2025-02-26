@@ -5,6 +5,7 @@ use crate::cloud::http_client::{
 };
 use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
+use reqwest::blocking::Client;
 use thiserror::Error;
 
 /// The default Azure instance metadata endpoint.
@@ -21,7 +22,10 @@ const HEADER_VALUE: &str = "true";
 
 impl AzureDetector<HttpClientReqwest> {
     /// Returns a new instance of AzureDetector
-    pub fn try_new(metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn try_new(
+        http_client: Client,
+        metadata_endpoint: String,
+    ) -> Result<Self, HttpClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
@@ -29,7 +33,7 @@ impl AzureDetector<HttpClientReqwest> {
         );
 
         let http_client =
-            HttpClientReqwest::try_new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, Some(headers))?;
+            HttpClientReqwest::try_new(http_client, metadata_endpoint, Some(headers))?;
 
         Ok(Self { http_client })
     }

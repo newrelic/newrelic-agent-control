@@ -38,7 +38,7 @@ pub struct SyncK8sClient {
     runtime: Arc<Runtime>,
 }
 
-#[cfg_attr(test, mockall::automock)]
+#[cfg_attr(test)]
 impl SyncK8sClient {
     pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {

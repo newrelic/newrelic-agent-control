@@ -42,17 +42,10 @@ pub struct HttpClientReqwest {
 impl HttpClientReqwest {
     /// Builds a new [HttpClientReqwest] instance
     pub fn try_new(
+        client: Client,
         url: String,
-        timeout: Duration,
         headers: Option<HeaderMap>,
     ) -> Result<Self, HttpClientError> {
-        let client = Client::builder()
-            .use_rustls_tls() // Use rust-tls backend
-            .tls_built_in_native_certs(true) // Load system (native) certificates with rust-tls
-            .connect_timeout(timeout)
-            .timeout(timeout)
-            .build()
-            .map_err(|err| HttpClientError::BuildingError(err.to_string()))?;
         Ok(Self {
             client,
             url,

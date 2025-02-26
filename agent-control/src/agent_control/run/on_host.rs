@@ -33,6 +33,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
+use crate::http::client::HttpClient;
 
 impl AgentControlRunner {
     pub fn run(self) -> Result<(), AgentError> {
@@ -60,6 +61,8 @@ impl AgentControlRunner {
             .as_ref()
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
+
+        HttpClient::new()
 
         let identifiers_provider = IdentifiersProvider::try_new()?
             .with_host_id(config.host_id.clone())

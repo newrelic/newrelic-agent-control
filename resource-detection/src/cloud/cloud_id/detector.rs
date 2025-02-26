@@ -1,4 +1,6 @@
 //! Aggregation cloud instance id detector implementation
+
+use reqwest::Client;
 use thiserror::Error;
 use tracing::warn;
 
@@ -12,6 +14,7 @@ use crate::cloud::{
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
 };
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use reqwest::blocking::Client;
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
@@ -29,15 +32,20 @@ impl
 {
     /// Returns a new instance of CloudIdDetector
     pub fn try_new(
+        http_client: Client,
         aws_metadata_endpoint: String,
         aws_token_endpoint: String,
         azure_metadata_endpoint: String,
         gcp_metadata_endpoint: String,
     ) -> Result<Self, HttpClientError> {
         Ok(Self {
-            aws_detector: AWSDetector::try_new(aws_metadata_endpoint, aws_token_endpoint)?,
-            azure_detector: AzureDetector::try_new(azure_metadata_endpoint)?,
-            gcp_detector: GCPDetector::try_new(gcp_metadata_endpoint)?,
+            aws_detector: AWSDetector::try_new(
+                http_client,
+                aws_metadata_endpoint,
+                aws_token_endpoint,
+            )?,
+            azure_detector: AzureDetector::try_new(http_client, azure_metadata_endpoint)?,
+            gcp_detector: GCPDetector::try_new(http_client, gcp_metadata_endpoint)?,
         })
     }
 }

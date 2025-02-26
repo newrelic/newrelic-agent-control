@@ -1,4 +1,5 @@
 use crate::opamp::instance_id::on_host::storer::StorerError;
+use reqwest::blocking::Client;
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
 };
@@ -15,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 use tracing::error;
+use crate::http::client::HttpClient;
 
 #[derive(Default, Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Identifiers {
@@ -63,10 +65,11 @@ pub struct IdentifiersProvider<
 }
 
 impl IdentifiersProvider {
-    pub fn try_new() -> Result<Self, IdentifiersProviderError> {
+    pub fn try_new(http_client: HttpClient) -> Result<Self, IdentifiersProviderError> {
         Ok(Self {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::try_new(
+                http_client,
                 AWS_IPV4_METADATA_ENDPOINT.to_string(),
                 AWS_IPV4_METADATA_TOKEN_ENDPOINT.to_string(),
                 AZURE_IPV4_METADATA_ENDPOINT.to_string(),

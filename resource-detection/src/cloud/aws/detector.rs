@@ -4,6 +4,7 @@ use super::metadata::AWSMetadata;
 use crate::cloud::http_client::{HttpClient, HttpClientError, DEFAULT_CLIENT_TIMEOUT};
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 use std::time::Duration;
+use reqwest::blocking::Client;
 use thiserror::Error;
 
 /// The default AWS instance metadata endpoint.
@@ -22,10 +23,12 @@ pub struct AWSDetector<C: HttpClient> {
 impl AWSDetector<AWSHttpClientReqwest> {
     /// Returns a new instance of AWSDetector
     pub fn try_new(
+        http_client: Client,
         metadata_endpoint: String,
         token_endpoint: String,
     ) -> Result<Self, HttpClientError> {
         let http_client = AWSHttpClientReqwest::try_new(
+            http_client,
             metadata_endpoint,
             token_endpoint,
             TTL_TOKEN_DEFAULT,

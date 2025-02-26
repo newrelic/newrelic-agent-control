@@ -17,17 +17,12 @@ pub struct AWSHttpClientReqwest {
 impl AWSHttpClientReqwest {
     /// Returns a new instance of AWSHttpClientReqwest
     pub fn try_new(
+        http_client: Client,
         metadata_endpoint: String,
         token_endpoint: String,
         token_ttl: Duration,
         timeout: Duration,
     ) -> Result<Self, HttpClientError> {
-        let http_client = Client::builder()
-            .use_rustls_tls() // Use rust-tls backend
-            .tls_built_in_native_certs(true) // Load system (native) certificates with rust-tls
-            .connect_timeout(timeout)
-            .timeout(timeout)
-            .build()?;
         Ok(Self {
             http_client,
             metadata_endpoint,

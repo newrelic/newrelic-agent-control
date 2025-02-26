@@ -11,6 +11,9 @@ use reqwest::{
     blocking::{Client, ClientBuilder, Response as BlockingResponse},
     Certificate, Proxy,
 };
+use resource_detection::cloud::http_client::{
+    HttpClient as CloudClient, HttpClientError as CloudHttpClientError,
+};
 use std::{
     fmt::Display,
     fs::File,
@@ -113,6 +116,18 @@ impl OauthHttpClient for HttpClient {
             .map_err(|err| OauthHttpClientError::TransportError(err.to_string()))?;
 
         Ok(response)
+    }
+}
+
+impl CloudClient for HttpClient {
+    fn get(&self) -> Result<http::Response<Vec<u8>>, HttpResponseError> {
+        Ok(self.send(Request::default())?)
+    }
+}
+
+impl From<HttpResponseError> for CloudHttpClientError {
+    fn from(err: HttpResponseError) -> Self {
+        CloudHttpClientError::TransportError(err.to_string())
     }
 }
 
