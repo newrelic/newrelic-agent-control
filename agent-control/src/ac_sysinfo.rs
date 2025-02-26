@@ -30,6 +30,9 @@ pub fn retrieve_usage_data() {
 
         let uptime_seconds = startup_time.elapsed().as_secs();
 
+        // The special attributes used here (monotonic_counter and histogram) are translated into
+        // OTel metrics via the crate `tracing_opentelemetry`. Of course, this is still a `warn`
+        // log line, so it will appear in the logs as expected.
         warn!(
             monotonic_counter.uptime_seconds = uptime_seconds,
             agent.name = "agent-control",
@@ -62,13 +65,16 @@ pub fn retrieve_usage_data() {
     });
 }
 
-// The attribute macro should automatically create a span
+// The attribute macro should automatically create a span, can be customized (level, etc)
+// This is possible by using the `tracing` feature `attributes`, and is converted to an OTel
+// trace via the crate `tracing_opentelemetry`
 #[instrument]
 fn wait_for_cpu() {
     thread::sleep(MINIMUM_CPU_UPDATE_INTERVAL);
 }
 
-// This emit span should create a span manually. If the macro above is sufficient we should go for it.
+// This emit_span creates a span manually. This does not require `tracing_opentelemetry`.
+// it's creating the OTel span directly by accessing the configured tracer provider via `global`.
 fn emit_span() {
     let scope = InstrumentationScope::builder("agent-control-manual-span")
         .with_version("v1")
@@ -86,6 +92,8 @@ fn emit_span() {
     })
 }
 
+// This emit metrics creates the OTel metrics directly, without using `tracing_opentelemetry`.
+// Does so by accessing the configured meter provider via `global`.
 fn emit_metrics() {
     let meter = global::meter("agent-control-metrics");
     let c = meter.u64_counter("example-counter").build();
@@ -163,6 +171,7 @@ fn emit_metrics() {
     );
 }
 
+// Logs work normally thanks to the logging bridge layer configured in the `tracing` initialization.
 fn emit_log() {
     error!(name: "my-event-name", target: "my-system", event_id = 20, user_name = "otel", user_email = "otel@opentelemetry.io");
 }
