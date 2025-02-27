@@ -16,7 +16,8 @@ pub enum K8sError {
     #[error("cannot start a k8s reader `{0}`")]
     ReflectorWriterDropped(#[from] kube::runtime::reflector::store::WriterDropped),
 
-    #[error("cannot post object `{0}`")]
+    // We need to add the debug info since the string representation of CommitError hide the source of the error
+    #[error("cannot post object `{0:?}`")]
     CommitError(#[from] api::entry::CommitError),
 
     #[error("the kind of the cr is missing")]
