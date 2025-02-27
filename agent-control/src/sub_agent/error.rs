@@ -15,12 +15,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum SubAgentError {
-    #[error("error creating Sub Agent: `{0}`")]
-    ErrorCreatingSubAgent(String),
-    #[error("Sub Agent `{0}` already exists")]
-    AgentAlreadyExists(String),
-    #[error("Sub Agent `{0}` not found")]
-    AgentNotFound(String),
     #[error("system time error: `{0}`")]
     SystemTimeError(#[from] SystemTimeError),
     #[error("OpAMP client error: `{0}`")]
@@ -33,8 +27,7 @@ pub enum SubAgentError {
     NotStartedOpampClientError(#[from] NotStartedClientError),
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
-    #[error("agent control config error: `{0}`")]
-    AgentControlConfigError(#[from] AgentControlConfigError),
+
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("sub agent yaml config repository error: `{0}`")]
@@ -45,8 +38,6 @@ pub enum SubAgentError {
     RemoteConfigError(#[from] RemoteConfigError),
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
-    #[error("Error handling thread: `{0}`")]
-    PoisonError(String),
     #[error("ConfigValidator error: `{0}`")]
     ConfigValidatorError(#[from] ConfigValidatorError),
     #[error("SignatureValidator error: `{0}`")]
@@ -63,12 +54,8 @@ pub enum SubAgentBuilderError {
     RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
-    #[error("OpAMP client error: `{0}`")]
-    OpampClientError(#[from] ClientError),
     #[error("unsupported K8s object: `{0}`")]
     UnsupportedK8sObject(String),
-    #[error("Invalid configuration: `{0}`")]
-    ConfigError(String),
 }
 
 #[derive(Error, Debug)]
