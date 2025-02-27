@@ -8,6 +8,7 @@ authors = ["The New Relic Agent Control Team"]
 edition = "2021"
 publish = false
 rust-version = "1.85.0"
+license-file = "./LICENSE.md"
 
 [workspace.dependencies]
 serde_json = "1.0.138"
@@ -35,7 +36,12 @@ semver = "1.0.23"
 chrono = "0.4"
 jsonwebtoken = "9.3.0"
 # reqwest's default-features enables default-tls and we are not including it since we are using rustls only.
-reqwest = { version="0.12.11", default-features = false, features = ["blocking", "rustls-tls", "rustls-tls-native-roots", "socks"] }
+reqwest = { version = "0.12.11", default-features = false, features = [
+  "blocking",
+  "rustls-tls",
+  "rustls-tls-native-roots",
+  "socks",
+] }
 
 [profile.release]
 # remove debug symbols from the release binary
