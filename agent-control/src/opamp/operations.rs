@@ -95,7 +95,7 @@ pub fn start_settings(
     identifying_attributes.extend(additional_identifying_attributes);
 
     StartSettings {
-        instance_id: instance_id.into(),
+        instance_uid: instance_id.into(),
         capabilities: agent_fqn.get_capabilities(),
         custom_capabilities: agent_fqn.get_custom_capabilities(),
         agent_description: AgentDescription {

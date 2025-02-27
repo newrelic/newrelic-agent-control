@@ -3094,7 +3094,6 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "url",
- "uuid",
  "webpki",
  "x509-parser",
 ]
@@ -3214,8 +3213,8 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 
 [[package]]
 name = "opamp-client"
-version = "0.0.27"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.27#43700460e4da36e2f5d2adcb685d32f931dc505e"
+version = "0.0.28"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.28#3af9ceb8c78a0e5e3fcdfbf44e2770de6b8a42e3"
 dependencies = [
  "crossbeam",
  "http 1.2.0",
@@ -3224,7 +3223,7 @@ dependencies = [
  "proto",
  "thiserror 2.0.11",
  "tracing",
- "url",
+ "uuid",
 ]
 
 [[package]]
@@ -3599,7 +3598,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.27#43700460e4da36e2f5d2adcb685d32f931dc505e"
+source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.28#3af9ceb8c78a0e5e3fcdfbf44e2770de6b8a42e3"
 dependencies = [
  "prost",
  "prost-build",

@@ -86,7 +86,7 @@ pub mod tests {
     use crate::opamp::instance_id::storer::tests::MockInstanceIDStorerMock;
     use crate::opamp::instance_id::StorerError;
     use mockall::{mock, predicate};
-    use opamp_client::operation::settings::StartSettings;
+    use opamp_client::operation::instance_uid::InstanceUid;
 
     mock! {
         pub InstanceIDGetterMock {}
@@ -259,14 +259,13 @@ pub mod tests {
     fn test_uuid() {
         let uuid_as_str = "018FF38D01B37796B2C81C8069BC6ADF";
         // Crete InstanceID from string
-        let id = InstanceID::try_from(uuid_as_str).unwrap();
-        // Convert instanceID to OpAMP Proto bytes
-        let start_settings = StartSettings {
-            instance_id: id.clone().into(),
-            ..Default::default()
-        };
-        let id_from_bytes: InstanceID = start_settings.instance_id.clone().try_into().unwrap();
-
+        let id: InstanceID = serde_yaml::from_str(uuid_as_str).unwrap();
+        // Convert instanceID to OpAMP instanceUid
+        let instance_uid = InstanceUid::from(id.clone());
+        // Get the instanceID back from the corresponding bytes
+        let id_from_bytes: InstanceID = InstanceUid::try_from(Vec::<u8>::from(instance_uid))
+            .unwrap()
+            .into();
         assert_eq!(id, id_from_bytes);
         assert_eq!(uuid_as_str, format!("{}", id_from_bytes));
     }
