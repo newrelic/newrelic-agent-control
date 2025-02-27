@@ -37,8 +37,8 @@ impl<'de> Deserialize<'de> for InstanceID {
 }
 
 impl From<InstanceUid> for InstanceID {
-    fn from(val: InstanceUid) -> Self {
-        Self(val)
+    fn from(value: InstanceUid) -> Self {
+        Self(value)
     }
 }
 
