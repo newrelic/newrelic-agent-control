@@ -47,6 +47,15 @@ jobs:
         with:
           components: rustfmt
           toolchain: ${{ env.RUST_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
       - name: Check code formatting
         run: cargo fmt --check
 
@@ -84,6 +93,16 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
+          
       - name: cargo clippy (${{ matrix.flag }})
         run: cargo clippy --workspace ${{ matrix.flag }} --tests -- -D clippy::all
 
@@ -110,6 +129,17 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
+          
       - name: Create on-host documentation
         run: cargo doc --no-deps --features=onhost --package newrelic_agent_control
         env:
@@ -143,6 +173,17 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
+          
       - name: Check security and licensing
         run: cargo install --locked cargo-deny && cargo deny check
       - name: Ensure that third party notices is up to date
