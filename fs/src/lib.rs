@@ -1,3 +1,5 @@
+#![warn(missing_docs)]
+
 pub mod directory_manager;
 pub mod file_reader;
 pub mod file_renamer;
