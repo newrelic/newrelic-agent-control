@@ -16,7 +16,6 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
-use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
 use crate::sub_agent::identity::AgentIdentity;
@@ -111,7 +110,6 @@ impl AgentControlRunner {
         );
 
         let remote_config_handler = AgentRemoteConfigHandler::new(
-            Arc::new(ConfigValidator::default()),
             hash_repository.clone(),
             yaml_config_repository.clone(),
             Arc::new(self.signature_validator),

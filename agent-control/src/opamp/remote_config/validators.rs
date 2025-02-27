@@ -1,7 +1,6 @@
 use super::RemoteConfig;
 use crate::agent_control::config::AgentTypeFQN;
 use std::fmt::Display;
-pub mod regexes;
 pub mod signature;
 
 /// Represents a validator for config remote

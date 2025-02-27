@@ -1,6 +1,5 @@
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
-use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{RemoteConfig, RemoteConfigError};
 use crate::sub_agent::error::SubAgentError;
@@ -38,9 +37,6 @@ pub trait RemoteConfigHandler {
 }
 
 pub struct AgentRemoteConfigHandler<R, Y, S> {
-    // TODO: `ConfigValidator` could also implement `RemoteConfigValidator`. We may want to consider abstracting it
-    // as well and implementing some sort of composite validator.
-    config_validator: Arc<ConfigValidator>,
     signature_validator: Arc<S>,
     sub_agent_remote_config_hash_repository: Arc<R>,
     remote_values_repo: Arc<Y>,
@@ -53,13 +49,11 @@ where
     S: RemoteConfigValidator,
 {
     pub fn new(
-        config_validator: Arc<ConfigValidator>,
         sub_agent_remote_config_hash_repository: Arc<R>,
         remote_values_repo: Arc<Y>,
         signature_validator: Arc<S>,
     ) -> Self {
         AgentRemoteConfigHandler {
-            config_validator,
             sub_agent_remote_config_hash_repository,
             remote_values_repo,
             signature_validator,
@@ -141,15 +135,6 @@ where
             select_arm = "sub_agent_opamp_consumer",
             "remote config received"
         );
-
-        // Errors here will cause the sub-agent to continue running with the previous configuration.
-        // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
-        // "Applied" was never reported.
-        if let Err(e) = self.config_validator.validate(&agent_identity.fqn, config) {
-            error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error validating remote config with regexes");
-            Self::report_error(opamp_client, config, e.to_string())?;
-            return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
-        }
 
         if let Err(e) = self
             .signature_validator
