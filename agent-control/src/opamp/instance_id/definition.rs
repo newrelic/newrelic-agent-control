@@ -36,27 +36,27 @@ impl<'de> Deserialize<'de> for InstanceID {
     }
 }
 
-impl From<InstanceID> for InstanceUid {
-    fn from(val: InstanceID) -> Self {
-        val.0
-    }
-}
-
 impl From<InstanceUid> for InstanceID {
     fn from(val: InstanceUid) -> Self {
         Self(val)
     }
 }
 
-impl From<InstanceID> for Vec<u8> {
-    fn from(value: InstanceID) -> Self {
-        value.0.into()
-    }
-}
-
 impl Display for InstanceID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl From<InstanceID> for InstanceUid {
+    fn from(value: InstanceID) -> Self {
+        value.0
+    }
+}
+
+impl From<InstanceID> for Vec<u8> {
+    fn from(value: InstanceID) -> Self {
+        value.0.into()
     }
 }
 
