@@ -1,0 +1,24 @@
+description: E2E Test fleet control
+
+custom_test_key: cluster_name
+
+scenarios:
+  - description: Deploy all infra agents
+    before:
+      - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-fleet-control.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+    after:
+      - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=infra --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/name=newrelic-logging --all-containers --prefix=true
+      - kubectl get secrets --show-labels
+      - kubectl get all -o wide
+      - kubectl get helmrelease
+      - kubectl get helmchart
+      - helm list -a -A
+      - cd ../../ && tilt down
+    tests:
+      nrqls:
+        # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
+        - query: "FROM K8sClusterSample SELECT * WHERE `config_origin` = 'remote'"
