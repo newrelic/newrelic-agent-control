@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 //! Representations of entities.
 //!
 //! A [Resource] is an immutable representation of the entity producing
@@ -6,6 +5,8 @@
 //! running in a container on Kubernetes has a Pod name, it is in a namespace
 //! and possibly is part of a Deployment which also has a name. All three of
 //! these attributes can be included in the `Resource`.
+
+#![warn(missing_docs)]
 
 use std::collections::HashMap;
 

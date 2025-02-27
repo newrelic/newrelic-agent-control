@@ -1,4 +1,3 @@
-#![warn(missing_docs)]
 #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
 use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
