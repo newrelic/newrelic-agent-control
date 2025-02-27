@@ -1,6 +1,5 @@
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
-use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
@@ -15,6 +14,7 @@ use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::validators::dynamic_config::RegistryDynamicConfigValidator;
 use crate::opamp::remote_config::validators::regexes::ConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;

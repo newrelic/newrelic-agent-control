@@ -1,22 +1,10 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
+use crate::agent_type::agent_type_registry::AgentRegistry;
+use crate::opamp::remote_config::validators::{
+    DynamicConfigValidator, DynamicConfigValidatorError,
+};
 use std::ops::Deref;
 use std::sync::Arc;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum DynamicConfigValidatorError {
-    #[error("`{0}`")]
-    AgentRepositoryError(#[from] AgentRepositoryError),
-}
-
-/// Represents a validator for dynamic config
-pub trait DynamicConfigValidator {
-    fn validate(
-        &self,
-        dynamic_config: &AgentControlDynamicConfig,
-    ) -> Result<(), DynamicConfigValidatorError>;
-}
 
 pub struct RegistryDynamicConfigValidator<R: AgentRegistry> {
     agent_type_registry: Arc<R>,
@@ -53,19 +41,7 @@ pub mod tests {
     use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use mockall::mock;
     use semver::Version;
-
-    mock! {
-        pub DynamicConfigValidatorMock {}
-
-        impl DynamicConfigValidator for DynamicConfigValidatorMock {
-            fn validate(
-                &self,
-                dynamic_config: &AgentControlDynamicConfig,
-            ) -> Result<(), DynamicConfigValidatorError>;
-        }
-    }
 
     #[test]
     fn test_existing_agent_type_validation() {

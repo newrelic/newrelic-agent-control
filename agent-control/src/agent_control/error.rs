@@ -1,5 +1,4 @@
 use super::config::AgentControlConfigError;
-use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister::PersistError;
@@ -7,6 +6,7 @@ use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::instance_id;
+use crate::opamp::remote_config::validators::DynamicConfigValidatorError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};

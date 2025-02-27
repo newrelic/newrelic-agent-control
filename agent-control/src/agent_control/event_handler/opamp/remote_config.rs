@@ -5,8 +5,8 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
-use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
+use crate::opamp::remote_config::validators::DynamicConfigValidator;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
     agent_control::{agent_control::AgentControl, error::AgentError},
@@ -68,12 +68,12 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::opamp::remote_config::validators::tests::MockDynamicConfigValidatorMock;
     use crate::{
         agent_control::{
             agent_control::AgentControl,
             config::{AgentControlDynamicConfig, AgentID, SubAgentConfig},
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
-            config_validator::tests::MockDynamicConfigValidatorMock,
         },
         event::channel::pub_sub,
         opamp::{

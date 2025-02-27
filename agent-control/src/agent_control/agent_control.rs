@@ -3,13 +3,13 @@ use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
-use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
 };
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
+use crate::opamp::remote_config::validators::DynamicConfigValidator;
 use crate::opamp::{
     hash_repository::HashRepository,
     remote_config::hash::Hash,
@@ -411,8 +411,6 @@ mod tests {
         AgentControlDynamicConfig, AgentID, AgentTypeFQN, SubAgentConfig,
     };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
-    use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
-    use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::AgentControl;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::channel::pub_sub;
@@ -420,6 +418,8 @@ mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::validators::tests::MockDynamicConfigValidatorMock;
+    use crate::opamp::remote_config::validators::DynamicConfigValidatorError;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
