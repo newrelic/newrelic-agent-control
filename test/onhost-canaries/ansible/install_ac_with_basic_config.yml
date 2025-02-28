@@ -7,7 +7,7 @@
 
   vars:
     # Pre-release version of the agent control is used by default
-    repository_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
+    repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
     agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
     agent_control_private_key: /etc/newrelic-agent-control/priv.key
 
@@ -23,7 +23,7 @@
 
   - name: Install Agent Control
     vars:
-      repo_endpoint: "{{ repository_endpoint }}"
+      repo_endpoint: "{{ repo_endpoint }}"
       package_version: ""
     include_role:
       name: newrelic-agent-control
