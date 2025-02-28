@@ -42,7 +42,7 @@ locals {
       ami             = "ami-0884d2865dbe9de4b"
       subnet          = "subnet-00aa02e6d991b478e"
       security_groups = ["sg-04ae18f8c34a11d38"]
-      key_name        = "agent-control-onhost-canary"
+      key_name        = "caos-dev-arm"
       instance_type   = "t3a.small"
       username        = "ubuntu"
       platform        = "linux"
@@ -62,8 +62,8 @@ module "agent_control-canary-env-provisioner" {
   ec2_filters        = ""
   nr_license_key     = var.license_key
   otlp_endpoint      = "staging-otlp.nr-data.net:4317"
-  pvt_key            = "~/.ssh/agent-control-onhost-canary"
-  ssh_pub_key        = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDEFBzUKr55kli9C71lM4w/8E4B/u4ZZLCEyzHznlFOt agent-control-onhost-canary"
+  pvt_key            = "~/.ssh/caos-dev-arm.cer"
+  ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
   ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repository_endpoint=${var.repository_endpoint} ../ansible/install_ac_with_basic_config.yml"

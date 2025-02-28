@@ -29,33 +29,37 @@ That has a little inconvenient, `terraform init` will fail because the state cha
 
 1. Get AWS access for terminal
 
-Log-in to the aws cli and export the AWS_PROFILE env variable for terraform to have access.
+    Log-in to the aws cli and export the AWS_PROFILE env variable for terraform to have access.
 
-```bash
-aws sso login --profile "profile name"
-export AWS_PROFILE="profile name"
-```
+    ```bash
+    aws sso login --profile "profile name"
+    export AWS_PROFILE="profile name"
+    ```
 
 2. Prepare S3 and DynamodDB for terraform states
 
-Follow the instructions in [infra_setup](terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
+    Follow the instructions in [infra_setup](terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
 
-3. Create canaries
+3. Configure the SSH key
+
+    You need to have `~/.ssh/caos-dev-arm.cer`. You can get it from AWS Secrets Manager.
+
+4. Create canaries
 
     If you are executing it from the root folder of the project, you will have to modify the `TERRAFORM_DIR` and `ANSIBLE_FOLDER` environment variables to point to the correct location. Otherwise, you don't need to explicitly set them.
 
     To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment variable with "staging" or "production".
 
-```bash
-TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
-```
+    ```bash
+    TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
+    ```
 
 That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the config files.
 Apart from `terraform-plan` and `terraform-apply` make targets, we also have `terraform-destroy` in case we need to remove the canaries. 
 
 ## Usage on pipelines
 
-In that case, we will use fargate runner to execute make targets. The commands will be very similar, but remember that secrets come from AWS.
+In that case, we will use fargate runner to execute make targets. The commands will be very similar, but remember that secrets come from AWS. It will also add the ssh key into the instance.
 
 Example for terraform plan:
 

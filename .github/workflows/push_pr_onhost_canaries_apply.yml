@@ -33,10 +33,6 @@ jobs:
           GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
-      # If the infrastructure is not already created, this step will fail.
-      # The main.tf file inside test/onhost-canaries uses a hardcoded value for the path
-      # where it expects to find the ssh private key.
-      # This key is not stored in the repo, nor in github secrets.
       - name: Sync onhost staging canary
         uses: newrelic/fargate-runner-action@main
         with:
