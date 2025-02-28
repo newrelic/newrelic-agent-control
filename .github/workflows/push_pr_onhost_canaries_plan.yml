@@ -1,3 +1,5 @@
+name: 🐤 Plan onhost canaries infrastructure changes
+
 permissions:
   id-token: write
   contents: read
@@ -8,7 +10,6 @@ on:
 concurrency:
   group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
   cancel-in-progress: false
-name: plan onhost canaries changes
 
 jobs:
   infra:
