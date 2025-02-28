@@ -167,16 +167,6 @@ jobs:
           account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
           api_key: ${{ secrets.AC_PROD_E2E_API_KEY }}
           license_key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-    
-  # TODO this step has been failing and needs to be fixed https://new-relic.atlassian.net/jira/software/c/projects/NR/boards/61?selectedIssue=NR-351307
-  #  canaries:
-  #    uses: ./.github/workflows/component_canaries.yml
-  #    needs: [ molecule-packaging-tests ]
-  #    with:
-  #      TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-  #    secrets:
-  #      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-  #      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
@@ -208,13 +198,3 @@ jobs:
 
       - id: previous_tag_step
         run: ./.github/workflows/scripts/previous_version.sh ${{ inputs.TAG }} >> "$GITHUB_OUTPUT"
-
-  # TODO The creation of the canaries is commented out right now
-  #  prune-previous-canaries:
-  #    needs: get_previous_tag
-  #    uses: ./.github/workflows/component_canaries_prune.yaml
-  #    with:
-  #      TAG: ${{ needs.get_previous_tag.outputs.previous_tag }}
-  #    secrets:
-  #      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-  #      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
