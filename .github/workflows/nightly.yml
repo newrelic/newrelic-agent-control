@@ -154,10 +154,11 @@ jobs:
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
   onhost_canaries:
-    uses: ./.github/workflows/component_onhost_canaries_update.yml
+    uses: ./.github/workflows/component_onhost_canaries_operation.yml
     needs: [ build-image ]
     with:
       environment: staging
+      operation: apply
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
