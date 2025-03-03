@@ -14,38 +14,46 @@ all:
 .PHONY: test/k8s-canaries/terraform-plan
 test/k8s-canaries/terraform-plan:
 ifndef CANARY_DIR
-	@echo "CANARY_DIR variable must be provided to know which canary to terraform-plan"
+	@echo "CANARY_DIR missing"
 	exit 1
 endif
 ifndef NEW_RELIC_ACCOUNT_ID
-	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/k8s-canaries/terraform-plan"
+	@echo "NEW_RELIC_ACCOUNT_ID missing"
 	exit 1
 endif
 ifndef NEW_RELIC_API_KEY
-	@echo "NEW_RELIC_API_KEY variable must be provided for test/k8s-canaries/terraform-plan"
+	@echo "NEW_RELIC_API_KEY missing"
+	exit 1
+endif
+ifndef SLACK_WEBHOOK_URL
+	@echo SLACK_WEBHOOK_URL missing"
 	exit 1
 endif
 	@terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) plan \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)"
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)"
 
 .PHONY: test/k8s-canaries/terraform-apply
 test/k8s-canaries/terraform-apply:
 ifndef CANARY_DIR
-	@echo "CANARY_DIR variable must be provided to know which canary to terraform-apply"
+	@echo "CANARY_DIR missing"
 	exit 1
 endif
 ifndef NEW_RELIC_ACCOUNT_ID
-	@echo "NEW_RELIC_ACCOUNT_ID variable must be provided for test/k8s-canaries/terraform-plan"
+	@echo "NEW_RELIC_ACCOUNT_ID missing"
 	exit 1
 endif
 ifndef NEW_RELIC_API_KEY
-	@echo "NEW_RELIC_API_KEY variable must be provided for test/k8s-canaries/terraform-plan"
+	@echo "NEW_RELIC_API_KEY missing"
+	exit 1
+endif
+ifndef SLACK_WEBHOOK_URL
+	@echo SLACK_WEBHOOK_URL missing"
 	exit 1
 endif
 	@terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) init && \
 	terraform -chdir=$(TERRAFORM_DIR)/$(CANARY_DIR) apply -auto-approve \
-	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)"
+	-var="api_key=$(NEW_RELIC_API_KEY)" -var="account_id=$(NEW_RELIC_ACCOUNT_ID)" -var="slack_webhook_url=$(SLACK_WEBHOOK_URL)"
 
 .PHONY: test/k8s-canaries/update-kubeconfig-from-aws
 test/k8s-canaries/update-kubeconfig-from-aws:
@@ -58,11 +66,11 @@ endif
 .PHONY: test/k8s-canaries/set-persistent-system-identity
 test/k8s-canaries/set-persistent-system-identity:
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
 	exit 1
 endif
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
-	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY missing"
 	exit 1
 endif
 	@kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
@@ -76,24 +84,24 @@ endif
 .PHONY: test/k8s-canaries/helm-upgrade
 test/k8s-canaries/helm-upgrade: test/k8s-canaries/update-kubeconfig-from-aws test/k8s-canaries/set-persistent-system-identity
 ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
 ifndef CLUSTER_NAME
-	@echo "CLUSTER_NAME variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "CLUSTER_NAME missing"
 	exit 1
 endif
 ifndef IMAGE_TAG
-	@echo "IMAGE_TAG variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "IMAGE_TAG missing"
 	exit 1
 endif
 ifndef FLEET_ID
-	@echo "FLEET_ID variable must be provided for test/k8s-canaries/helm-upgrade"
+	@echo "FLEET_ID missing"
 	exit 1
 endif
 ifneq ($(IS_STAGING),true)
 ifneq ($(IS_STAGING),false)
-	@echo "IS_STAGING variable must be either 'true' or 'false' for test/k8s-canaries/helm-upgrade. Got '$(IS_STAGING)'"
+	@echo "IS_STAGING variable must be either 'true' or 'false'. Got '$(IS_STAGING)'"
 	exit 1
 endif
 endif

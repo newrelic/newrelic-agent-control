@@ -12,6 +12,48 @@ locals {
   ]
 }
 
+resource "newrelic_workflow" workflow {
+  name                  = var.cluster_name
+  muting_rules_handling = "NOTIFY_ALL_ISSUES"
+
+  issues_filter {
+    name = "Issue Filter"
+    type = "FILTER"
+    predicate {
+      attribute = "labels.policyIds"
+      operator  = "EXACTLY_MATCHES"
+      values    = [newrelic_alert_policy.alert_k8s_canary.id]
+    }
+  }
+
+  destination {
+    channel_id = newrelic_notification_channel.channel.id
+  }
+}
+
+
+resource newrelic_notification_channel channel {
+  name = var.cluster_name
+  type = "WEBHOOK"
+  destination_id = newrelic_notification_destination.destination.id
+  product        = "IINT"
+
+  property {
+    key = "payload"
+    value = "{\"text\": \":warning: ${var.cluster_name} Alert @hero\"}"
+  }
+}
+
+resource "newrelic_notification_destination" "destination" {
+  name = "SlackWebhook"
+  type = "WEBHOOK"
+
+  property {
+    key = "url"
+    value = var.slack_webhook_url
+  }
+}
+
 # Uncomment this to "debug" the generated structure
 #output test {
 #  value = local.policies_with_display_names
