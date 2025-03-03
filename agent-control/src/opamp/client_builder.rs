@@ -44,6 +44,7 @@ where
     effective_config_loader_builder: B,
     http_client_builder: C,
     poll_interval: Duration,
+    disable_startup_check: bool,
 }
 
 impl<C, B> DefaultOpAMPClientBuilder<C, B>
@@ -60,6 +61,14 @@ where
             effective_config_loader_builder,
             http_client_builder,
             poll_interval,
+            disable_startup_check: false,
+        }
+    }
+
+    pub fn with_startup_check_disabled(self) -> Self {
+        Self {
+            disable_startup_check: true,
+            ..self
         }
     }
 }
@@ -86,11 +95,12 @@ where
         let callbacks =
             AgentCallbacks::new(agent_id.clone(), opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client, callbacks, start_settings)?;
-        let started_client = not_started_client
-            .with_interval(self.poll_interval)
-            .start()?;
+        let mut not_started_client = not_started_client.with_interval(self.poll_interval);
+        if self.disable_startup_check {
+            not_started_client = not_started_client.with_startup_check_disabled();
+        }
         info!(%agent_id,"OpAMP client started");
-        Ok(started_client)
+        Ok(not_started_client.start()?)
     }
 }
 

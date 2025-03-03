@@ -99,6 +99,28 @@ impl AgentControlRunner {
                 self.opamp_poll_interval,
             )
         });
+        // Build and start AC OpAMP client
+        let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
+            .as_ref()
+            .map(|builder| {
+                build_opamp_with_channel(
+                    builder,
+                    &instance_id_getter,
+                    &AgentIdentity::new_agent_control_identity(),
+                    HashMap::from([(
+                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+                        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
+                    )]),
+                    non_identifying_attributes,
+                )
+            })
+            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
+            .transpose()?
+            .map(|(client, consumer)| (Some(client), Some(consumer)))
+            .unwrap_or_default();
+
+        // Disable startup check for sub-agents OpAMP client builder
+        let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir.clone())
             .with_config_persister(ConfigurationPersisterFile::new(&self.base_paths.remote_dir))
@@ -130,25 +152,6 @@ impl AgentControlRunner {
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
         );
-
-        let (maybe_client, maybe_sa_opamp_consumer) = opamp_client_builder
-            .as_ref()
-            .map(|builder| {
-                build_opamp_with_channel(
-                    builder,
-                    &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
-                    HashMap::from([(
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-                        DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
-                    )]),
-                    non_identifying_attributes,
-                )
-            })
-            // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
-            .map(|(client, consumer)| (Some(client), Some(consumer)))
-            .unwrap_or_default();
 
         let dynamic_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
