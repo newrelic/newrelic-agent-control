@@ -55,6 +55,10 @@ module "agent_control_infra" {
     },
     ####
     {
+      "name" : "SLACK_WEBHOOK_URL",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_super-secret-agent-slack-webhook}"
+    },
+    {
       "name" : "SSH_KEY",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}"
     },
@@ -88,6 +92,7 @@ module "agent_control_infra" {
             ],
             "Resource" : [
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_super-secret-agent-slack-webhook}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}",

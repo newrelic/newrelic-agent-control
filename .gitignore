@@ -21,6 +21,7 @@ ci/terraform/caos.auto.tfvars
 *.tfstate.*
 *.auto.tfvars
 **/.terraform.lock.hcl
+*.tfvars
 
 # Inventories for pkg testing, canaries...
 test/**/inventory.*

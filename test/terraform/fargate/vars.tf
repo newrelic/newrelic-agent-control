@@ -58,6 +58,10 @@ variable "secret_name_system_identity_private_key" {
   default = "canaries/system_identity_private_key-G5vwsz"
 }
 
+variable "secret_name_super-secret-agent-slack-webhook" {
+  default = "super-secret-agent-slack-webhook-WsH2yK"
+}
+
 ####
 
 variable "secret_name_ssh" {

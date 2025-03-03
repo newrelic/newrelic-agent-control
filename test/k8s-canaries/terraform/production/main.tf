@@ -9,11 +9,13 @@ module "eks_cluster" {
 
 variable "account_id" {}
 variable "api_key" {}
+variable "slack_webhook_url" {}
 module "alerts" {
   source = "../modules/nr_alerts"
 
   api_key         = var.api_key
   account_id      = var.account_id
+  slack_webhook_url = var.slack_webhook_url
   policies_prefix = "Agent Control canaries metric monitoring"
   conditions = [
     {

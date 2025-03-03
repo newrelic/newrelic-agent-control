@@ -26,6 +26,10 @@ variable "policies_prefix" {
   default = "[Staging] Agent Control canaries metric monitoring"
 }
 
+variable "slack_webhook_url" {
+  description = "Slack webhook where New Relic will send alerts"
+}
+
 # conditions should follow next structure:
 #[
 # {
