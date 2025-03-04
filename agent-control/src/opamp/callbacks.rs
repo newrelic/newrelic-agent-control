@@ -1,7 +1,7 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
 use crate::opamp::remote_config::signature::Signatures;
 use crate::opamp::remote_config::{hash::Hash, ConfigurationMap, RemoteConfig};
-use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfigError};
+use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfigError};
 use crate::{
     event::{
         channel::{EventPublisher, EventPublisherError},

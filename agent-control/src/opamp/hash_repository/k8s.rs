@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::k8s;
 use crate::k8s::store::K8sStore;
 use crate::k8s::store::STORE_KEY_OPAMP_DATA_CONFIG_HASH;

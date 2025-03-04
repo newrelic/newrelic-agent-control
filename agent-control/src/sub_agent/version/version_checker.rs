@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -100,7 +100,7 @@ pub(crate) fn publish_version_event(
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;

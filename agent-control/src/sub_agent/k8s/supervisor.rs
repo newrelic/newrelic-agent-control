@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config;
 use crate::agent_type::runtime_config::K8sObject;
 use crate::agent_type::version_config::VersionCheckerInterval;
@@ -241,7 +241,8 @@ impl SupervisorStopper for StartedSupervisorK8s {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::{helmrelease_v2_type_meta, AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::{helmrelease_v2_type_meta, AgentTypeFQN};
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::K8sObject;
     use crate::event::channel::pub_sub;

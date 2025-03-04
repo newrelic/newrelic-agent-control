@@ -205,7 +205,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
         SignatureData, Signatures, ECDSA_P256_SHA256, ED25519,

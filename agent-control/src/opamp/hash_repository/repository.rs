@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::hash::Hash;
 
 #[derive(thiserror::Error, Debug, Clone)]

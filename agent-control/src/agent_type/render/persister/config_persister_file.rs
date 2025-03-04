@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::agent_type::variable::kind::Kind;
@@ -175,7 +175,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
     use crate::agent_type::definition::AgentType;
     use crate::agent_type::environment::Environment;

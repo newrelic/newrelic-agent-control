@@ -71,7 +71,8 @@ mod tests {
     use crate::{
         agent_control::{
             agent_control::AgentControl,
-            config::{AgentControlDynamicConfig, AgentID, SubAgentConfig},
+            agent_id::AgentID,
+            config::{AgentControlDynamicConfig, SubAgentConfig},
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
             config_validator::tests::MockDynamicConfigValidatorMock,
         },

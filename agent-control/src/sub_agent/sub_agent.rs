@@ -1,6 +1,6 @@
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::operations::stop_opamp_client;

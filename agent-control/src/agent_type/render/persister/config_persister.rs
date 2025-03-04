@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use thiserror::Error;
 
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::variable::definition::VariableDefinition;
 use fs::directory_manager::DirectoryManagementError;
 use fs::writer_file::WriteError;
@@ -34,7 +34,7 @@ pub trait ConfigurationPersister {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::variable::definition::VariableDefinition;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,

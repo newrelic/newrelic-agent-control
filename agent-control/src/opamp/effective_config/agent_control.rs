@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use thiserror::Error;
 
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::values::yaml_config::YAMLConfig;
@@ -122,7 +122,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::opamp::effective_config::agent_control::AgentControlEffectiveConfigLoader;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;

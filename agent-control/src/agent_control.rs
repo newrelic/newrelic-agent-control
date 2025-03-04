@@ -6,6 +6,7 @@ pub(super) mod event_handler;
 pub use agent_control::*;
 #[allow(clippy::module_inception)]
 mod agent_control;
+pub mod agent_id;
 pub mod config_validator;
 pub mod http_server;
 pub mod pid_cache;

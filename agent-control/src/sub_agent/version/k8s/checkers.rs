@@ -1,6 +1,5 @@
-use crate::agent_control::config::{
-    helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta, AgentID,
-};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::sub_agent::version::k8s::helmrelease::HelmReleaseVersionChecker;

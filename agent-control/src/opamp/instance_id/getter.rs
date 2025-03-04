@@ -1,5 +1,5 @@
 use super::{GetterError, Identifiers, InstanceID};
-use crate::{agent_control::config::AgentID, opamp::instance_id::storer::InstanceIDStorer};
+use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tracing::debug;

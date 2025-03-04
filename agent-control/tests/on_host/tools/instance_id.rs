@@ -1,7 +1,7 @@
 use crate::common::retry::retry;
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::SUB_AGENT_DIR;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::opamp::instance_id::storer::InstanceIDStorer;

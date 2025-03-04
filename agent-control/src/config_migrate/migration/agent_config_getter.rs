@@ -70,9 +70,8 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::agent_control::config::{
-        AgentControlDynamicConfig, AgentID, AgentTypeFQN, SubAgentConfig,
-    };
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
     use mockall::mock;
     use std::collections::HashMap;
 

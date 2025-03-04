@@ -107,7 +107,7 @@ pub(crate) mod tests {
 
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::{
-        agent_control::config::AgentID,
+        agent_control::agent_id::AgentID,
         event::channel::pub_sub,
         opamp::{
             client_builder::{

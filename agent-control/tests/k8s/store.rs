@@ -3,7 +3,7 @@ use crate::k8s::tools::agent_control::{create_config_map, create_local_config_ma
 use crate::k8s::tools::k8s_env::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,

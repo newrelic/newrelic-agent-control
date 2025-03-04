@@ -16,7 +16,7 @@ use newrelic_agent_control::k8s::annotations::Annotations;
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::{
-    agent_control::{config::AgentID, defaults::AGENT_CONTROL_ID},
+    agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},
     agent_type::runtime_config::K8sObject,
     k8s::{
         client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,

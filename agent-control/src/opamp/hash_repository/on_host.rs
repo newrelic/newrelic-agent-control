@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::opamp::hash_repository::repository::{HashRepository, HashRepositoryError};
 use crate::opamp::remote_config::hash::Hash;
 use fs::directory_manager::DirectoryManagementError;
@@ -147,7 +147,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::values::file::FILE_PERMISSIONS;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::directory_manager::DirectoryManager;

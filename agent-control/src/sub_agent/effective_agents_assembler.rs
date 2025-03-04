@@ -213,7 +213,8 @@ pub fn build_agent_type(
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::default_capabilities;
     use crate::agent_type::agent_metadata::AgentMetadata;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;

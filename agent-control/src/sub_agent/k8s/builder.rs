@@ -171,7 +171,8 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
     use crate::event::channel::pub_sub;

@@ -5,7 +5,7 @@ use crate::on_host::tools::config::{create_agent_control_config, create_file};
 use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use std::time::Duration;

@@ -1,7 +1,8 @@
+use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::defaults::{
-    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_ID,
-    AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
+    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
+    AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
 };
 use crate::http::proxy::ProxyConfig;
 use crate::logging::config::LoggingConfig;
@@ -16,29 +17,37 @@ use opamp_client::opamp::proto::CustomCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::ops::Deref;
-use std::path::Path;
 use std::{collections::HashMap, fmt::Display};
 use thiserror::Error;
 use url::Url;
 
-const AGENT_ID_MAX_LENGTH: usize = 32;
+/// AgentControlConfig represents the configuration for the agent control.
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub struct AgentControlConfig {
+    #[serde(default)]
+    pub log: LoggingConfig,
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
-#[serde(try_from = "String")]
-pub struct AgentID(String);
+    #[serde(default)]
+    pub host_id: String,
 
-#[derive(Error, Debug)]
-pub enum AgentTypeError {
-    #[error("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
-    InvalidAgentID,
-    #[error("AgentID '{0}' is reserved")]
-    InvalidAgentIDUsesReservedOne(String),
-    #[error("AgentType must have a valid namespace")]
-    InvalidAgentTypeNamespace,
-    #[error("AgentType must have a valid name")]
-    InvalidAgentTypeName,
-    #[error("AgentType must have a valid version")]
-    InvalidAgentTypeVersion,
+    /// this is the only part of the config that can be changed with opamp.
+    #[serde(flatten)]
+    pub dynamic: AgentControlDynamicConfig,
+
+    /// fleet_control contains the OpAMP client configuration
+    pub fleet_control: Option<OpAMPClientConfig>,
+
+    // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
+    // the struct definition and usage. Making it optional should work no matter what features are enabled.
+    /// k8s is a map containing the kubernetes-specific settings
+    #[serde(default)]
+    pub k8s: Option<K8sConfig>,
+
+    #[serde(default)]
+    pub server: ServerConfig,
+
+    #[serde(default)]
+    pub proxy: ProxyConfig,
 }
 
 #[derive(Error, Debug)]
@@ -59,70 +68,6 @@ pub enum AgentControlConfigError {
     RemoteConfigError(#[from] RemoteConfigError),
     #[error("remote config error: `{0}`")]
     IOError(#[from] std::io::Error),
-}
-
-impl TryFrom<String> for AgentID {
-    type Error = AgentTypeError;
-    fn try_from(str: String) -> Result<Self, Self::Error> {
-        if str.eq(AGENT_CONTROL_ID) {
-            return Err(AgentTypeError::InvalidAgentIDUsesReservedOne(
-                AGENT_CONTROL_ID.to_string(),
-            ));
-        }
-
-        if AgentID::check_string(&str) {
-            Ok(AgentID(str))
-        } else {
-            Err(AgentTypeError::InvalidAgentID)
-        }
-    }
-}
-
-impl AgentID {
-    pub fn new(str: &str) -> Result<Self, AgentTypeError> {
-        Self::try_from(str.to_string())
-    }
-    // For agent control ID we need to skip validation
-    pub fn new_agent_control_id() -> Self {
-        Self(AGENT_CONTROL_ID.to_string())
-    }
-    pub fn get(&self) -> String {
-        String::from(&self.0)
-    }
-    pub fn is_agent_control_id(&self) -> bool {
-        self.0.eq(AGENT_CONTROL_ID)
-    }
-    /// Checks if a string reference has valid format to build an [AgentID].
-    /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),
-    /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
-    fn check_string(s: &str) -> bool {
-        s.len() <= AGENT_ID_MAX_LENGTH
-            && s.starts_with(|c: char| c.is_ascii_alphabetic())
-            && s.ends_with(|c: char| c.is_ascii_alphanumeric())
-            && s.chars()
-                .all(|c| c.eq(&'-') || c.is_ascii_digit() || c.is_ascii_lowercase())
-    }
-}
-
-impl Deref for AgentID {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<Path> for AgentID {
-    fn as_ref(&self) -> &Path {
-        // TODO: define how AgentID should be converted to a Path here.
-        Path::new(&self.0)
-    }
-}
-
-impl Display for AgentID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
-    }
 }
 
 /// AgentControlDynamicConfig represents the dynamic part of the agentControl config.
@@ -165,33 +110,14 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     }
 }
 
-/// AgentControlConfig represents the configuration for the agent control.
-#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
-pub struct AgentControlConfig {
-    #[serde(default)]
-    pub log: LoggingConfig,
-
-    #[serde(default)]
-    pub host_id: String,
-
-    /// this is the only part of the config that can be changed with opamp.
-    #[serde(flatten)]
-    pub dynamic: AgentControlDynamicConfig,
-
-    /// fleet_control contains the OpAMP client configuration
-    pub fleet_control: Option<OpAMPClientConfig>,
-
-    // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
-    // the struct definition and usage. Making it optional should work no matter what features are enabled.
-    /// k8s is a map containing the kubernetes-specific settings
-    #[serde(default)]
-    pub k8s: Option<K8sConfig>,
-
-    #[serde(default)]
-    pub server: ServerConfig,
-
-    #[serde(default)]
-    pub proxy: ProxyConfig,
+#[derive(Error, Debug)]
+pub enum AgentTypeError {
+    #[error("AgentType must have a valid namespace")]
+    InvalidAgentTypeNamespace,
+    #[error("AgentType must have a valid name")]
+    InvalidAgentTypeName,
+    #[error("AgentType must have a valid version")]
+    InvalidAgentTypeVersion,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
@@ -228,6 +154,21 @@ impl AgentTypeFQN {
             "{}/{}:{}",
             AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION
         ))
+    }
+
+    pub(crate) fn get_capabilities(&self) -> Capabilities {
+        //TODO: We should move this to EffectiveAgent
+        default_capabilities()
+    }
+
+    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
+        //TODO: We should move this to EffectiveAgent
+        if self.eq(&AgentTypeFQN::new_agent_control_fqn()) {
+            // Agent_Control does not have custom capabilities for now
+            return None;
+        }
+
+        Some(default_sub_agent_custom_capabilities())
     }
 }
 
@@ -384,23 +325,6 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     ]
 }
 
-impl AgentTypeFQN {
-    pub(crate) fn get_capabilities(&self) -> Capabilities {
-        //TODO: We should move this to EffectiveAgent
-        default_capabilities()
-    }
-
-    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
-        //TODO: We should move this to EffectiveAgent
-        if self.eq(&AgentTypeFQN::new_agent_control_fqn()) {
-            // Agent_Control does not have custom capabilities for now
-            return None;
-        }
-
-        Some(default_sub_agent_custom_capabilities())
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
 
@@ -549,30 +473,6 @@ agents: {}
         }
     }
 
-    #[test]
-    fn agent_id_validator() {
-        assert!(AgentID::try_from("ab".to_string()).is_ok());
-        assert!(AgentID::try_from("a01b".to_string()).is_ok());
-        assert!(AgentID::try_from("a-1-b".to_string()).is_ok());
-        assert!(AgentID::try_from("a-1".to_string()).is_ok());
-        assert!(AgentID::try_from("a".repeat(32)).is_ok());
-
-        assert!(AgentID::try_from("A".to_string()).is_err());
-        assert!(AgentID::try_from("1a".to_string()).is_err());
-        assert!(AgentID::try_from("a".repeat(33)).is_err());
-        assert!(AgentID::try_from("abc012-".to_string()).is_err());
-        assert!(AgentID::try_from("-abc012".to_string()).is_err());
-        assert!(AgentID::try_from("-".to_string()).is_err());
-        assert!(AgentID::try_from("a.b".to_string()).is_err());
-        assert!(AgentID::try_from("a*b".to_string()).is_err());
-        assert!(AgentID::try_from("abc012/".to_string()).is_err());
-        assert!(AgentID::try_from("/abc012".to_string()).is_err());
-        assert!(AgentID::try_from("abc/012".to_string()).is_err());
-        assert!(AgentID::try_from("aBc012".to_string()).is_err());
-        assert!(AgentID::try_from("京bc012".to_string()).is_err());
-        assert!(AgentID::try_from("s京123-12".to_string()).is_err());
-        assert!(AgentID::try_from("agent-control-①".to_string()).is_err());
-    }
     #[test]
     fn agent_type_fqn_validator() {
         assert!(AgentTypeFQN::try_from("ns/aa:1.1.3").is_ok());

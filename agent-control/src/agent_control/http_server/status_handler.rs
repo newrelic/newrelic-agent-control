@@ -17,7 +17,8 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::http_server::status::{Status, SubAgentStatus};
     use crate::agent_control::http_server::status_handler::status_handler;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};

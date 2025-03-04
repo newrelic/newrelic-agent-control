@@ -186,7 +186,8 @@ pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
 
 #[cfg(test)]
 pub(super) mod tests {
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::regexes::{ConfigValidator, ConfigValidatorError};

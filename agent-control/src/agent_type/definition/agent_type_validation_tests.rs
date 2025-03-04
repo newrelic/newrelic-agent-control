@@ -9,7 +9,7 @@
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::{
-    agent_control::config::AgentID,
+    agent_control::agent_id::AgentID,
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,

@@ -2,7 +2,7 @@
 use super::client::SyncK8sClient;
 use super::labels::Labels;
 use super::Error;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use std::sync::{Arc, RwLock};
 
 /// The prefixes for the ConfigMap name.
@@ -114,7 +114,7 @@ impl K8sStore {
 pub mod tests {
     use super::{K8sStore, StoreKey};
     use super::{CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX};
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
