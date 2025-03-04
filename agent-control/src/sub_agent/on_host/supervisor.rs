@@ -4,7 +4,11 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::health::health_checker::{publish_health_event, spawn_health_checker};
+use crate::http::client::HttpClient;
+use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::sub_agent::health::health_checker::{
+    publish_health_event, spawn_health_checker, HealthCheckerError,
+};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -27,7 +31,7 @@ use crate::utils::threads::spawn_named_thread;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use std::{
     sync::{Arc, Mutex},
     thread::JoinHandle,
@@ -131,7 +135,15 @@ impl NotStartedSupervisorOnHost {
     ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
         if let Some(health_config) = &self.health_config {
-            let health_checker = OnHostHealthChecker::try_new(health_config.clone(), start_time)?;
+            let client_timeout = Duration::from(health_config.clone().timeout);
+            let http_config =
+                HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
+            let http_client = HttpClient::new(http_config).map_err(|err| {
+                HealthCheckerError::Generic(format!("could not build the http client: {err}"))
+            })?;
+
+            let health_checker =
+                OnHostHealthChecker::try_new(http_client, health_config.clone(), start_time)?;
             let started_thread_context = spawn_health_checker(
                 self.agent_identity.id.clone(),
                 health_checker,

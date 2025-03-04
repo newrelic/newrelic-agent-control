@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-
 use crate::agent_type::health_config::{OnHostHealthCheck, OnHostHealthConfig};
+use crate::http::client::HttpClient;
 use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use std::path::PathBuf;
 
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
@@ -14,14 +14,13 @@ pub enum OnHostHealthChecker {
 
 impl OnHostHealthChecker {
     pub fn try_new(
+        http_client: HttpClient,
         health_config: OnHostHealthConfig,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
-        let timeout = health_config.timeout;
-
         match health_config.check {
             OnHostHealthCheck::HttpHealth(http_config) => Ok(OnHostHealthChecker::Http(
-                HttpHealthChecker::new(timeout, http_config, start_time)?,
+                HttpHealthChecker::new(http_client, http_config, start_time)?,
             )),
             OnHostHealthCheck::FileHealth(file_config) => Ok(OnHostHealthChecker::File(
                 FileHealthChecker::new(PathBuf::from(file_config.path)),

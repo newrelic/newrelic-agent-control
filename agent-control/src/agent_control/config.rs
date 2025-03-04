@@ -4,7 +4,7 @@ use crate::agent_control::defaults::{
     default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
     AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
 };
-use crate::http::proxy::ProxyConfig;
+use crate::http::config::ProxyConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
