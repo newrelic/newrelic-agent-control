@@ -1,19 +1,30 @@
-use crate::agent_control::config::AgentTypeError;
 use semver::Version;
 use serde::{Deserialize, Deserializer};
 use std::fmt::{Display, Formatter};
+use thiserror::Error;
 
 const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
 const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 
+#[derive(Error, Debug)]
+pub enum AgentTypeIDError {
+    #[error("AgentType must have a valid namespace")]
+    InvalidNamespace,
+    #[error("AgentType must have a valid name")]
+    InvalidName,
+    #[error("AgentType must have a valid version")]
+    InvalidVersion,
+}
+
+/// Holds agent type metadata that uniquely identifies an agent type.
 #[derive(Debug, PartialEq, Clone)]
-pub struct AgentMetadata {
+pub struct AgentTypeID {
     pub name: String,
     pub namespace: String,
     pub version: Version,
 }
 
-impl AgentMetadata {
+impl AgentTypeID {
     fn check_string(s: &str) -> bool {
         s.len() >= NAME_NAMESPACE_MIN_LENGTH
             && s.len() <= NAME_NAMESPACE_MAX_LENGTH
@@ -29,13 +40,13 @@ impl AgentMetadata {
     }
 }
 
-impl Display for AgentMetadata {
+impl Display for AgentTypeID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}:{}", self.namespace, self.name, self.version)
     }
 }
 
-impl<'de> Deserialize<'de> for AgentMetadata {
+impl<'de> Deserialize<'de> for AgentTypeID {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -50,16 +61,17 @@ impl<'de> Deserialize<'de> for AgentMetadata {
             version: Version,
         }
 
+        // TODO add a explicit validation for version and use InvalidVersion error
         let intermediate_spec = IntermediateAgentMetadata::deserialize(deserializer)?;
 
         if !Self::check_string(intermediate_spec.name.as_str()) {
-            return Err(Error::custom(AgentTypeError::InvalidAgentTypeName));
+            return Err(Error::custom(AgentTypeIDError::InvalidName));
         }
         if !Self::check_string(intermediate_spec.namespace.as_str()) {
-            return Err(Error::custom(AgentTypeError::InvalidAgentTypeNamespace));
+            return Err(Error::custom(AgentTypeIDError::InvalidNamespace));
         }
 
-        Ok(AgentMetadata {
+        Ok(AgentTypeID {
             name: intermediate_spec.name,
             namespace: intermediate_spec.namespace,
             version: intermediate_spec.version,
@@ -78,7 +90,7 @@ version: 0.1.0-alpha.1
 "#;
     #[test]
     fn test_correct_agent_type_metadata() {
-        let actual = serde_yaml::from_str::<AgentMetadata>(EXAMPLE_CORRECT_METADATA).unwrap();
+        let actual = serde_yaml::from_str::<AgentTypeID>(EXAMPLE_CORRECT_METADATA).unwrap();
 
         assert_eq!("nrdot_special-with-all.characters", actual.name);
         assert_eq!("newrelic_special-with-all.characters", actual.namespace);
@@ -93,7 +105,7 @@ version: 0.1.0-alpha.1
         }
         impl TestCase {
             fn run(self) {
-                let actual = serde_yaml::from_str::<AgentMetadata>(self.metadata);
+                let actual = serde_yaml::from_str::<AgentTypeID>(self.metadata);
 
                 assert!(actual.is_err(), "{}", self.name)
             }

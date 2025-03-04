@@ -200,7 +200,7 @@ pub fn build_agent_type(
         .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
 
     Ok(AgentType::new(
-        definition.metadata,
+        definition.agent_type_id,
         merged_variables,
         runtime_config,
     ))
@@ -216,7 +216,7 @@ pub(crate) mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::defaults::default_capabilities;
-    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::render::renderer::tests::MockRendererMock;
@@ -307,7 +307,7 @@ pub(crate) mod tests {
             AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
             name: "some_fqn".into(),
             version: Version::parse("0.0.1").unwrap(),
             namespace: "ns".into(),
@@ -392,7 +392,7 @@ pub(crate) mod tests {
             AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
             name: "some_fqn".into(),
             version: Version::parse("0.0.1").unwrap(),
             namespace: "ns".into(),

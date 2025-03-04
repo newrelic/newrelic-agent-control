@@ -493,8 +493,9 @@ fn all_agent_types_covered_by_tests() {
         "Expected the same amount of agent types in the registry and in the test cases"
     );
 
-    let agent_type_names_from_registry =
-        registry_items.iter().map(|item| item.metadata.to_string());
+    let agent_type_names_from_registry = registry_items
+        .iter()
+        .map(|item| item.agent_type_id.to_string());
     let agent_type_names_from_test_cases = test_cases
         .iter()
         .map(|case| case.agent_type)

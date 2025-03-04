@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::agent_metadata::AgentMetadata;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::definition::{AgentType, VariableTree};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::opamp::remote_config::ConfigurationMap;
@@ -41,7 +41,7 @@ where
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // TODO this gets removed after refactor PR. Is only used for capabilities has_remote.
         let fake_agent_type = AgentType::new(
-            AgentMetadata {
+            AgentTypeID {
                 name: "".into(),
                 namespace: "".into(),
                 version: Version::new(0, 0, 0),

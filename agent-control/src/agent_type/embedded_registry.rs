@@ -57,7 +57,7 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentRepositoryError> {
-        let metadata = definition.metadata.to_string();
+        let metadata = definition.agent_type_id.to_string();
         if self.0.contains_key(&metadata) {
             return Err(AgentRepositoryError::AlreadyExists(metadata));
         }
@@ -99,7 +99,7 @@ pub mod tests {
     use assert_matches::assert_matches;
     use semver::Version;
 
-    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::agent_type_id::AgentTypeID;
 
     use super::*;
 
@@ -134,7 +134,7 @@ pub mod tests {
 
         // The expected key for each definition should be the metadata string
         for (key, definition) in registry.0.iter() {
-            assert_eq!(key.to_string(), definition.metadata.to_string())
+            assert_eq!(key.to_string(), definition.agent_type_id.to_string())
         }
 
         let registry_nonexistent_dynamic =
@@ -148,12 +148,12 @@ pub mod tests {
     #[test]
     fn test_get() {
         let definitions = vec![
-            AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+            AgentTypeDefinition::empty_with_metadata(AgentTypeID {
                 name: "agent-1".into(),
                 version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
             }),
-            AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+            AgentTypeDefinition::empty_with_metadata(AgentTypeID {
                 name: "agent-2".into(),
                 version: Version::parse("0.0.0").unwrap(),
                 namespace: "ns".into(),
@@ -175,7 +175,7 @@ pub mod tests {
     fn test_insert_duplicate() {
         let mut registry = EmbeddedRegistry::default();
 
-        let definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+        let definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
             name: "agent".into(),
             version: Version::parse("0.0.0").unwrap(),
             namespace: "ns".into(),

@@ -5,7 +5,7 @@
 //! See [`Agent::template_with`] for a flowchart of the dataflow that ends in the final, enriched structure.
 
 use super::{
-    agent_metadata::AgentMetadata,
+    agent_type_id::AgentTypeID,
     error::AgentTypeError,
     restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries},
     runtime_config::{Args, Runtime},
@@ -26,7 +26,7 @@ use tracing::warn;
 #[serde(deny_unknown_fields)]
 pub struct AgentTypeDefinition {
     #[serde(flatten)]
-    pub metadata: AgentMetadata,
+    pub agent_type_id: AgentTypeID,
     pub variables: AgentTypeVariables,
     #[serde(flatten)]
     pub runtime_config: Runtime,
@@ -48,7 +48,7 @@ pub struct AgentTypeVariables {
 /// This is the final representation of the agent type once it has been parsed (first into a [`AgentTypeDefinition`]), and it is aware of the corresponding environment.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentType {
-    pub metadata: AgentMetadata,
+    pub agent_type_id: AgentTypeID,
     pub variables: VariableTree,
     pub runtime_config: Runtime,
     capabilities: Capabilities,
@@ -204,9 +204,9 @@ impl Templateable for TemplateableValue<MaxRetries> {
 }
 
 impl AgentType {
-    pub fn new(metadata: AgentMetadata, variables: VariableTree, runtime_config: Runtime) -> Self {
+    pub fn new(metadata: AgentTypeID, variables: VariableTree, runtime_config: Runtime) -> Self {
         Self {
-            metadata,
+            agent_type_id: metadata,
             variables,
             runtime_config,
             capabilities: default_capabilities(), // TODO: can capabilities be set in AgentTypeDefinition?
@@ -215,7 +215,7 @@ impl AgentType {
 
     // TODO: AgentTypeFQN should not exist and always use the metadata display.
     pub fn agent_type(&self) -> AgentTypeFQN {
-        self.metadata
+        self.agent_type_id
             .to_string()
             .as_str()
             .try_into()
@@ -374,9 +374,9 @@ pub mod tests {
 
     impl AgentTypeDefinition {
         /// This helper returns an [AgentTypeDefinition] including only the provided metadata
-        pub fn empty_with_metadata(metadata: AgentMetadata) -> Self {
+        pub fn empty_with_metadata(metadata: AgentTypeID) -> Self {
             Self {
-                metadata,
+                agent_type_id: metadata,
                 variables: AgentTypeVariables {
                     common: VariableTree::default(),
                     k8s: VariableTree::default(),
@@ -482,9 +482,9 @@ restart_policy:
     fn test_basic_agent_parsing() {
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
-        assert_eq!("nrdot", agent.metadata.name);
-        assert_eq!("newrelic", agent.metadata.namespace);
-        assert_eq!("0.0.1", agent.metadata.version.to_string());
+        assert_eq!("nrdot", agent.agent_type_id.name);
+        assert_eq!("newrelic", agent.agent_type_id.namespace);
+        assert_eq!("0.0.1", agent.agent_type_id.version.to_string());
 
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 
@@ -522,9 +522,9 @@ deployment:
 
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_TYPE_NO_EXECUTABLES).unwrap();
 
-        assert_eq!("no-exec", agent.metadata.name);
-        assert_eq!("newrelic", agent.metadata.namespace);
-        assert_eq!("0.0.1", agent.metadata.version.to_string());
+        assert_eq!("no-exec", agent.agent_type_id.name);
+        assert_eq!("newrelic", agent.agent_type_id.namespace);
+        assert_eq!("0.0.1", agent.agent_type_id.version.to_string());
         assert!(agent
             .runtime_config
             .deployment

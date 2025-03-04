@@ -50,7 +50,7 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use mockall::mock;
@@ -71,7 +71,7 @@ pub mod tests {
     fn test_existing_agent_type_validation() {
         let mut registry = MockAgentRegistryMock::new();
 
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
             name: "some_fqn".into(),
             version: Version::parse("0.0.1").unwrap(),
             namespace: "ns".into(),
