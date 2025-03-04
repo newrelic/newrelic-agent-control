@@ -18,9 +18,9 @@ pub struct AgentID(String);
 #[derive(Error, Debug)]
 pub enum AgentIDError {
     #[error("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
-    InvalidAgentID,
+    InvalidFormat,
     #[error("AgentID '{0}' is reserved")]
-    InvalidAgentIDUsesReservedOne(String),
+    Reserved(String),
 }
 
 impl AgentID {
@@ -53,15 +53,13 @@ impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
     fn try_from(str: String) -> Result<Self, Self::Error> {
         if str.eq(AGENT_CONTROL_ID) {
-            return Err(AgentIDError::InvalidAgentIDUsesReservedOne(
-                AGENT_CONTROL_ID.to_string(),
-            ));
+            return Err(AgentIDError::Reserved(AGENT_CONTROL_ID.to_string()));
         }
 
         if AgentID::is_valid_format(&str) {
             Ok(AgentID(str))
         } else {
-            Err(AgentIDError::InvalidAgentID)
+            Err(AgentIDError::InvalidFormat)
         }
     }
 }
