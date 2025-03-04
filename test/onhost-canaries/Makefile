@@ -42,7 +42,8 @@ endif
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
 	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/onhost-canaries/terraform-apply"
 	exit 1
-endif 
+endif
+# This env var is required to install agent control with ansible, not to build the infrastructure
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
 	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/onhost-canaries/terraform-apply"
 	exit 1
@@ -66,7 +67,8 @@ endif
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
 	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/onhost-canaries/terraform-destroy"
 	exit 1
-endif 
+endif
+# This env var is required to install agent control with ansible, not to build the infrastructure
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
 	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/onhost-canaries/terraform-destroy"
 	exit 1
