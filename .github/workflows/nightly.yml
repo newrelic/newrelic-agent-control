@@ -153,6 +153,15 @@ jobs:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
+  onhost_canaries:
+    uses: ./.github/workflows/component_onhost_canaries_update.yml
+    needs: [ build-image ]
+    with:
+      environment: staging
+    secrets:
+      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+
   notify-failure:
     if: ${{ always() && failure() }}
     needs: [ onhost-e2e, k8s_canaries, security-image, security-source-code, build-image, build-packages, k8s-e2e-tests ]
