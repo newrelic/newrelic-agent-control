@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::IDENTIFIERS_FILENAME;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
@@ -136,7 +136,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};

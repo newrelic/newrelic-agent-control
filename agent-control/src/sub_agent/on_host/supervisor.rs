@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;

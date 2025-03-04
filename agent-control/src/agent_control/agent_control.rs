@@ -1,4 +1,5 @@
-use super::config::{AgentControlDynamicConfig, AgentID, SubAgentsMap};
+use super::agent_id::AgentID;
+use super::config::{AgentControlDynamicConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
@@ -407,9 +408,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::{
-        AgentControlDynamicConfig, AgentID, AgentTypeFQN, SubAgentConfig,
-    };
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;

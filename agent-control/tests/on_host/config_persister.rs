@@ -1,5 +1,5 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
 use newrelic_agent_control::agent_type::environment::Environment;
 use newrelic_agent_control::agent_type::render::persister::config_persister::ConfigurationPersister;

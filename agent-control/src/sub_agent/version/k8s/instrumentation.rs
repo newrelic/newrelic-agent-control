@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;

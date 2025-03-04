@@ -12,7 +12,7 @@ use tracing_subscriber::{
     FmtSubscriber,
 };
 
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 
 pub(crate) struct FileSystemLoggers {
     out: FileLogger,

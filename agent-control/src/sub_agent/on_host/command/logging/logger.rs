@@ -1,5 +1,5 @@
 use super::file_logger::FileLogger;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::utils::threads::spawn_named_thread;
 use std::{sync::mpsc::Receiver, thread::JoinHandle};
 use tracing::{debug, info};

@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
 use tracing::debug;
@@ -62,7 +62,7 @@ pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
 }
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
     use mockall::{mock, predicate};

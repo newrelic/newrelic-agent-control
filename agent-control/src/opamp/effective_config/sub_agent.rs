@@ -2,7 +2,7 @@ use semver::Version;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::agent_metadata::AgentMetadata;
 use crate::agent_type::definition::{AgentType, VariableTree};
 use crate::agent_type::runtime_config::{Deployment, Runtime};
@@ -78,7 +78,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;

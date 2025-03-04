@@ -80,7 +80,7 @@ impl LogBroadcaster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
     use mockall::predicate::*;
     use mockall::{mock, Sequence};

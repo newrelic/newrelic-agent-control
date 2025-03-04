@@ -11,7 +11,8 @@ use crate::on_host::tools::custom_agent_type::{
     get_agent_type_custom, get_agent_type_without_executables,
 };
 use crate::on_host::tools::instance_id::get_instance_id;
-use newrelic_agent_control::agent_control::config::{AgentControlDynamicConfig, AgentID};
+use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::config::AgentControlDynamicConfig;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, VALUES_DIR,
     VALUES_FILENAME,

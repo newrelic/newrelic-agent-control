@@ -1,4 +1,5 @@
-use crate::agent_control::config::{AgentID, AgentTypeFQN};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::config::AgentTypeFQN;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
@@ -217,7 +218,8 @@ impl Status {
 pub mod tests {
     use url::Url;
 
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::http_server::status::{
         AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };

@@ -1,5 +1,6 @@
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{
-    AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig, AgentID,
+    AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
 use crate::agent_control::config_storer::loader_storer::{
     AgentControlConfigLoader, AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
@@ -135,7 +136,7 @@ impl From<YAMLConfigRepositoryError> for AgentControlConfigError {
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::config::{
-        AgentControlConfig, AgentID, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig,
+        AgentControlConfig, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig,
     };
     use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
     use crate::values::file::YAMLConfigRepositoryFile;

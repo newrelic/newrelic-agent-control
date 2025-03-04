@@ -1,4 +1,5 @@
-use crate::agent_control::{config::AgentID, defaults::GENERATED_FOLDER_NAME};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
 use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
 use crate::agent_type::{
     agent_attributes::AgentAttributes,

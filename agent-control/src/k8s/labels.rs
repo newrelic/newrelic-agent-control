@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use std::collections::BTreeMap;
 
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
@@ -61,7 +61,7 @@ pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{Labels, AGENT_ID_LABEL_KEY, MANAGED_BY_KEY, MANAGED_BY_VAL};
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use std::collections::BTreeMap;
 
     #[test]

@@ -1,5 +1,5 @@
 use super::with_start_time::StartTime;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};

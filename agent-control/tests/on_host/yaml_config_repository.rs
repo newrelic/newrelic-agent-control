@@ -1,5 +1,5 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::values::file::{
     concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile,
 };

@@ -11,7 +11,7 @@ use crate::k8s::tools::agent_control::{
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
 };
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
     HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,

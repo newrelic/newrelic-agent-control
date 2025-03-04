@@ -1,7 +1,7 @@
 use super::agent_control::AgentControlEffectiveConfigLoader;
 use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use std::sync::Arc;

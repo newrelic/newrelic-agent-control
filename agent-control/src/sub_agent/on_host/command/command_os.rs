@@ -1,7 +1,5 @@
-use crate::agent_control::{
-    config::AgentID,
-    defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX},
-};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use std::{
     path::PathBuf,

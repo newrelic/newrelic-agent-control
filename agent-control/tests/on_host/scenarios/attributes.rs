@@ -7,7 +7,7 @@ use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::create_agent_control_config;
 use crate::on_host::tools::instance_id::get_instance_id;
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, FQN_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,

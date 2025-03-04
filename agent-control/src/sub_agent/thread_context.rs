@@ -3,7 +3,7 @@ use std::thread::JoinHandle;
 use tracing::{error, info};
 
 use crate::{
-    agent_control::config::AgentID,
+    agent_control::agent_id::AgentID,
     event::{
         cancellation::CancellationMessage,
         channel::{pub_sub, EventConsumer, EventPublisher, EventPublisherError},
@@ -113,7 +113,7 @@ pub mod tests {
     use std::time::Duration;
 
     use crate::{
-        agent_control::config::AgentID,
+        agent_control::agent_id::AgentID,
         event::{cancellation::CancellationMessage, channel::EventConsumer},
         sub_agent::thread_context::NotStartedThreadContext,
     };

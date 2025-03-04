@@ -18,7 +18,7 @@ use crate::{
     k8s::tools::agent_control::FOO_CR_AGENT_TYPE_PATH,
 };
 use kube::{Api, CustomResource, CustomResourceExt};
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;

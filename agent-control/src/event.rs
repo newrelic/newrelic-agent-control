@@ -5,7 +5,7 @@ use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::version::version_checker::AgentVersion;
-use crate::{agent_control::config::AgentID, opamp::remote_config::RemoteConfig};
+use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfig};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpAMPEvent {

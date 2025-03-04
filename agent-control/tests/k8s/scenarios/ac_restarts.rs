@@ -10,7 +10,7 @@ use crate::k8s::tools::agent_control::{
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use newrelic_agent_control::agent_control::config::AgentID;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
 use std::time::Duration;
 use tempfile::tempdir;
 

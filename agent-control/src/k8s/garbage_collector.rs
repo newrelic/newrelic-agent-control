@@ -1,5 +1,6 @@
 use super::labels::{Labels, AGENT_ID_LABEL_KEY};
-use crate::agent_control::config::{AgentID, AgentTypeFQN, SubAgentsMap};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::config::{AgentTypeFQN, SubAgentsMap};
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::event::cancellation::CancellationMessage;
@@ -228,9 +229,10 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::NotStartedK8sGarbageCollector;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::{
-        default_group_version_kinds, AgentControlDynamicConfig, AgentID, AgentTypeFQN,
-        SubAgentConfig, SubAgentsMap,
+        default_group_version_kinds, AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig,
+        SubAgentsMap,
     };
     use crate::agent_control::config_storer::loader_storer::MockAgentControlDynamicConfigLoader;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;

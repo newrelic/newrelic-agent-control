@@ -104,7 +104,8 @@ mod tests {
 
     use url::Url;
 
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::http_server::status::{
         AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };

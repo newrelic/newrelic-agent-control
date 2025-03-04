@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
@@ -215,7 +215,7 @@ pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf
 #[cfg(test)]
 pub mod tests {
     use super::{concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile};
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{

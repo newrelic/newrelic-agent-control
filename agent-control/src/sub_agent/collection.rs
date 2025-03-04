@@ -1,5 +1,5 @@
 use super::{error::SubAgentCollectionError, NotStartedSubAgent, StartedSubAgent};
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use std::collections::HashMap;
 use tracing::{debug, error, info};
 
@@ -79,7 +79,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::AgentID;
+    use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::StartedSubAgent;
     use std::collections::HashMap;

@@ -8,7 +8,8 @@ use crate::agent_control::defaults::{
 };
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
-    agent_control::config::{AgentID, AgentTypeFQN},
+    agent_control::agent_id::AgentID,
+    agent_control::config::AgentTypeFQN,
     event::{
         channel::{pub_sub, EventConsumer},
         OpAMPEvent,

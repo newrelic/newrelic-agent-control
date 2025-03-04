@@ -1,7 +1,7 @@
 use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
-use crate::agent_control::config::AgentID;
+use crate::agent_control::agent_id::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
 use crate::opamp::instance_id;

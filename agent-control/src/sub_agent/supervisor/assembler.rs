@@ -151,7 +151,8 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::{AgentID, AgentTypeFQN};
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;

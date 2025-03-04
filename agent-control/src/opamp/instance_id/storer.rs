@@ -1,5 +1,5 @@
 use super::StorerError;
-use crate::{agent_control::config::AgentID, opamp::instance_id::getter::DataStored};
+use crate::{agent_control::agent_id::AgentID, opamp::instance_id::getter::DataStored};
 
 pub trait InstanceIDStorer {
     fn set(&self, agent_id: &AgentID, data: &DataStored) -> Result<(), StorerError>;
