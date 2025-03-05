@@ -5,7 +5,7 @@ The purpose of this tool is to create the EKS Clusters to run our canaries.
 
 - Log-in to the aws cli and export the AWS_PROFILE env variable for terraform to have access.
 - A user with IAM policy creation and security rights needs to be used to run cluster creation.
-- Follow the instructions in [infra_setup](terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
+- Follow the instructions in [states_setup](../terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
 - Once the state bucket is created, [staging](terraform/staging/README.md) defines the steps to create the staging K8s Cluster.
 - Any new Cluster we want to create will need a new root module similar to the Staging one.
 

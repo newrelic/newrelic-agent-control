@@ -38,7 +38,7 @@ That has a little inconvenient, `terraform init` will fail because the state cha
 
 2. Prepare S3 and DynamodDB for terraform states
 
-    Follow the instructions in [infra_setup](terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
+    Follow the instructions in [states_setup](../terraform/states_setup/README.md) in order to create the S3 bucket and DynamoDB used to save the terraform states for the canaries.
 
 3. Configure the SSH key
 

@@ -1,4 +1,4 @@
-name: 📞 Onhost canaries update
+name: 📞 Onhost canaries operation
 
 on:
   workflow_call:
@@ -11,14 +11,19 @@ on:
     inputs:
       environment:
         required: true
-        type: string
+        type: enum
+        enum: [staging, production]
+      operation:
+        required: true
+        type: enum
+        enum: [plan, apply] 
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  infra:
+  update-version:
     name: Prepare infra
 
     runs-on: ubuntu-latest
@@ -40,11 +45,11 @@ jobs:
           GIT_BRANCH="${GIT_BRANCH#refs/tags/}"
           echo "GIT_BRANCH=$GIT_BRANCH" >> "$GITHUB_ENV"
 
-      - name: Sync onhost staging canary
+      - name: Execute operation
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=${{ inputs.environment }} test/onhost-canaries/terraform-apply"
+          container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=${{ inputs.environment }} test/onhost-canaries/terraform-${{ inputs.operation }}"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

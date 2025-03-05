@@ -1,3 +1,5 @@
+name: 🐤 Apply k8s canaries infrastructure changes
+
 permissions:
   id-token: write
   contents: read
@@ -10,7 +12,6 @@ on:
 concurrency:
   group: "${{ github.workflow }}-${{ github.head_ref || github.run_id }}"
   cancel-in-progress: false
-name: terraform apply k8s canaries
 
 jobs:
   infra:
