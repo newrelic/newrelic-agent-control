@@ -36,7 +36,7 @@ impl AgentTypeID {
         &self.version
     }
 
-    fn is_valid(s: &str) -> bool {
+    fn has_valid_format(s: &str) -> bool {
         s.len() >= NAME_NAMESPACE_MIN_LENGTH
             && s.len() <= NAME_NAMESPACE_MAX_LENGTH
             && s.starts_with(|c: char| c.is_ascii_alphabetic())
@@ -86,7 +86,7 @@ impl TryFrom<&str> for AgentTypeID {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let namespace: String = value.chars().take_while(|&i| i != '/').collect();
-        if !AgentTypeID::is_valid(namespace.as_str()) {
+        if !AgentTypeID::has_valid_format(namespace.as_str()) {
             return Err(AgentTypeIDError::InvalidNamespace);
         }
 
@@ -96,7 +96,7 @@ impl TryFrom<&str> for AgentTypeID {
             .skip(1)
             .take_while(|&i| i != ':')
             .collect();
-        if !AgentTypeID::is_valid(name.as_str()) {
+        if !AgentTypeID::has_valid_format(name.as_str()) {
             return Err(AgentTypeIDError::InvalidName);
         }
 
@@ -130,10 +130,10 @@ impl<'de> Deserialize<'de> for AgentTypeID {
 
         let intermediate_spec = IntermediateAgentMetadata::deserialize(deserializer)?;
 
-        if !Self::is_valid(intermediate_spec.name.as_str()) {
+        if !Self::has_valid_format(intermediate_spec.name.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidName));
         }
-        if !Self::is_valid(intermediate_spec.namespace.as_str()) {
+        if !Self::has_valid_format(intermediate_spec.namespace.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidNamespace));
         }
 
