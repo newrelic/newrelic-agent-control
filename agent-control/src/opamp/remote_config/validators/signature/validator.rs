@@ -1,3 +1,4 @@
+use crate::agent_control::defaults::get_custom_capabilities;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
@@ -168,7 +169,7 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
     ) -> Result<(), SignatureValidatorError> {
         // custom capabilities are got from the agent-type (currently hard-coded)
         // If the capability is not set, no validation is performed
-        if !agent_type_id.get_custom_capabilities().is_some_and(|c| {
+        if !get_custom_capabilities(agent_type_id).is_some_and(|c| {
             c.capabilities
                 .contains(&SIGNATURE_CUSTOM_CAPABILITY.to_string())
         }) {
@@ -212,6 +213,7 @@ mod tests {
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use crate::opamp::remote_config::ConfigurationMap;
+    use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
 
     #[test]
@@ -427,7 +429,7 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test".to_string()),
             None,
         );
-        let agent_type = AgentTypeID::new_agent_control_id();
+        let agent_type = AgentIdentity::new_agent_control_identity().fqn;
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
         assert!(signature_validator.validate(&agent_type, &rc).is_ok());
     }

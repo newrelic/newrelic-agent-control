@@ -1,13 +1,7 @@
-use opamp_client::opamp::proto::CustomCapabilities;
 use semver::Version;
 use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
-
-use crate::agent_control::defaults::{
-    default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE,
-    AGENT_CONTROL_VERSION,
-};
 
 const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
 const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
@@ -32,17 +26,6 @@ pub struct AgentTypeID {
 }
 
 impl AgentTypeID {
-    // TODO this is a temporary solution to avoid a bigger refactor but we should consider
-    //  moving this to a more appropriate place
-    pub fn new_agent_control_id() -> Self {
-        Self {
-            namespace: AGENT_CONTROL_NAMESPACE.to_string(),
-            name: AGENT_CONTROL_TYPE.to_string(),
-            // TODO unwrap
-            version: Version::parse(AGENT_CONTROL_VERSION).unwrap(),
-        }
-    }
-
     pub fn namespace(&self) -> &str {
         &self.namespace
     }
@@ -51,15 +34,6 @@ impl AgentTypeID {
     }
     pub fn version(&self) -> &Version {
         &self.version
-    }
-
-    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
-        if self.eq(&Self::new_agent_control_id()) {
-            // Agent_Control does not have custom capabilities for now
-            return None;
-        }
-
-        Some(default_sub_agent_custom_capabilities())
     }
 
     fn is_valid(s: &str) -> bool {
@@ -76,6 +50,7 @@ impl AgentTypeID {
             })
     }
 
+    /// Deserializes an AgentTypeID from a fully qualified name string using the TryFrom<str> implementation.
     pub fn deserialize_fqn<'de, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -85,6 +60,7 @@ impl AgentTypeID {
         AgentTypeID::try_from(s.as_ref()).map_err(serde::de::Error::custom)
     }
 
+    /// Serializes an AgentTypeID to a fully qualified name string using the Display implementation.
     pub fn serialize_fqn<S>(agent_type_id: &AgentTypeID, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

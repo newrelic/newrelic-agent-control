@@ -59,6 +59,8 @@ pub fn onhost_sub_agent_versions() -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::sub_agent::identity::AgentIdentity;
+
     use super::*;
 
     use assert_matches::assert_matches;
@@ -82,7 +84,7 @@ mod tests {
         let test_cases = [
             TestCase {
                 name: "Version cannot be computed for the superAgent",
-                agent_type_fqn: AgentTypeID::new_agent_control_id(),
+                agent_type_fqn: AgentIdentity::new_agent_control_identity().fqn,
                 check: |name, result| {
                     assert!(result.is_none(), "{name}",);
                 },
