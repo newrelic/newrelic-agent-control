@@ -1,6 +1,6 @@
 # Third Party Notices
 
-The New Relic AgentControl uses source code from third
+New Relic Agent Control uses source code from third
 party libraries which carry
 their own copyright notices and license terms. These notices are provided
 below.
@@ -11,2830 +11,2326 @@ or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
 can be found at https://github.com/newrelic/newrelic-agent-control.
-
-## actix-codec https://crates.io/crates/actix-codec
+## actix-codec <https://crates.io/crates/actix-codec>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-http https://crates.io/crates/actix-http
+## actix-http <https://crates.io/crates/actix-http>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-macros https://crates.io/crates/actix-macros
+## actix-macros <https://crates.io/crates/actix-macros>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-router https://crates.io/crates/actix-router
+## actix-router <https://crates.io/crates/actix-router>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-rt https://crates.io/crates/actix-rt
+## actix-rt <https://crates.io/crates/actix-rt>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-server https://crates.io/crates/actix-server
+## actix-server <https://crates.io/crates/actix-server>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-service https://crates.io/crates/actix-service
+## actix-service <https://crates.io/crates/actix-service>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-utils https://crates.io/crates/actix-utils
+## actix-utils <https://crates.io/crates/actix-utils>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-web https://crates.io/crates/actix-web
+## actix-web <https://crates.io/crates/actix-web>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## actix-web-codegen https://crates.io/crates/actix-web-codegen
+## actix-web-codegen <https://crates.io/crates/actix-web-codegen>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## addr2line https://crates.io/crates/addr2line
+## addr2line <https://crates.io/crates/addr2line>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## adler2 https://crates.io/crates/adler2
+## adler2 <https://crates.io/crates/adler2>
 
 Distributed under the following license(s):
+
 * 0BSD
 * MIT
 * Apache-2.0
-
-
-## adler32 https://crates.io/crates/adler32
+## adler32 <https://crates.io/crates/adler32>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## ahash https://crates.io/crates/ahash
+## ahash <https://crates.io/crates/ahash>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## aho-corasick https://crates.io/crates/aho-corasick
+## aho-corasick <https://crates.io/crates/aho-corasick>
 
 Distributed under the following license(s):
+
 * Unlicense
 * MIT
-
-
-## alloc-no-stdlib https://crates.io/crates/alloc-no-stdlib
+## alloc-no-stdlib <https://crates.io/crates/alloc-no-stdlib>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
-
-
-## alloc-stdlib https://crates.io/crates/alloc-stdlib
+## alloc-stdlib <https://crates.io/crates/alloc-stdlib>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
-
-
-## allocator-api2 https://crates.io/crates/allocator-api2
+## allocator-api2 <https://crates.io/crates/allocator-api2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## android-tzdata https://crates.io/crates/android-tzdata
+## android-tzdata <https://crates.io/crates/android-tzdata>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## android_system_properties https://crates.io/crates/android_system_properties
+## android_system_properties <https://crates.io/crates/android_system_properties>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anstream https://crates.io/crates/anstream
+## anstream <https://crates.io/crates/anstream>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anstyle https://crates.io/crates/anstyle
+## anstyle <https://crates.io/crates/anstyle>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anstyle-parse https://crates.io/crates/anstyle-parse
+## anstyle-parse <https://crates.io/crates/anstyle-parse>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anstyle-query https://crates.io/crates/anstyle-query
+## anstyle-query <https://crates.io/crates/anstyle-query>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anstyle-wincon https://crates.io/crates/anstyle-wincon
+## anstyle-wincon <https://crates.io/crates/anstyle-wincon>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## anyhow https://crates.io/crates/anyhow
+## anyhow <https://crates.io/crates/anyhow>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## arraydeque https://crates.io/crates/arraydeque
+## arraydeque <https://crates.io/crates/arraydeque>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## arrayvec https://crates.io/crates/arrayvec
+## arrayvec <https://crates.io/crates/arrayvec>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## asn1-rs https://crates.io/crates/asn1-rs
+## asn1-rs <https://crates.io/crates/asn1-rs>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## asn1-rs-derive https://crates.io/crates/asn1-rs-derive
+## asn1-rs-derive <https://crates.io/crates/asn1-rs-derive>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## asn1-rs-impl https://crates.io/crates/asn1-rs-impl
+## asn1-rs-impl <https://crates.io/crates/asn1-rs-impl>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## async-broadcast https://crates.io/crates/async-broadcast
+## async-broadcast <https://crates.io/crates/async-broadcast>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## async-stream https://crates.io/crates/async-stream
+## async-stream <https://crates.io/crates/async-stream>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## async-stream-impl https://crates.io/crates/async-stream-impl
+## async-stream-impl <https://crates.io/crates/async-stream-impl>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## async-trait https://crates.io/crates/async-trait
+## async-trait <https://crates.io/crates/async-trait>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## atomic-waker https://crates.io/crates/atomic-waker
+## atomic-waker <https://crates.io/crates/atomic-waker>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## autocfg https://crates.io/crates/autocfg
+## autocfg <https://crates.io/crates/autocfg>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## aws-lc-rs https://crates.io/crates/aws-lc-rs
+## aws-lc-rs <https://crates.io/crates/aws-lc-rs>
 
 Distributed under the following license(s):
+
 * ISC
 * Apache-2.0
-
-
-## aws-lc-sys https://crates.io/crates/aws-lc-sys
+## aws-lc-sys <https://crates.io/crates/aws-lc-sys>
 
 Distributed under the following license(s):
+
 * ISC
 * Apache-2.0
 * OpenSSL
-
-
-## axum https://crates.io/crates/axum
+## axum <https://crates.io/crates/axum>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## axum-core https://crates.io/crates/axum-core
+## axum-core <https://crates.io/crates/axum-core>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## backoff https://crates.io/crates/backoff
+## backoff <https://crates.io/crates/backoff>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## backtrace https://crates.io/crates/backtrace
+## backtrace <https://crates.io/crates/backtrace>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## base64 https://crates.io/crates/base64
+## base64 <https://crates.io/crates/base64>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## bindgen https://crates.io/crates/bindgen
+## bindgen <https://crates.io/crates/bindgen>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
-
-
-## bitflags https://crates.io/crates/bitflags
+## bitflags <https://crates.io/crates/bitflags>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## block-buffer https://crates.io/crates/block-buffer
+## block-buffer <https://crates.io/crates/block-buffer>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## brotli https://crates.io/crates/brotli
+## brotli <https://crates.io/crates/brotli>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
 * MIT
-
-
-## brotli-decompressor https://crates.io/crates/brotli-decompressor
+## brotli-decompressor <https://crates.io/crates/brotli-decompressor>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
 * MIT
-
-
-## bstr https://crates.io/crates/bstr
+## bumpalo <https://crates.io/crates/bumpalo>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## bumpalo https://crates.io/crates/bumpalo
+## byteorder <https://crates.io/crates/byteorder>
 
 Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
-
-## byteorder https://crates.io/crates/byteorder
-
-Distributed under the following license(s):
 * Unlicense
 * MIT
-
-
-## bytes https://crates.io/crates/bytes
+## bytes <https://crates.io/crates/bytes>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## bytestring https://crates.io/crates/bytestring
+## bytestring <https://crates.io/crates/bytestring>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## cc https://crates.io/crates/cc
+## cc <https://crates.io/crates/cc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## cexpr https://crates.io/crates/cexpr
+## cexpr <https://crates.io/crates/cexpr>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## cfg-if https://crates.io/crates/cfg-if
+## cfg-if <https://crates.io/crates/cfg-if>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## cfg_aliases https://crates.io/crates/cfg_aliases
+## cfg_aliases <https://crates.io/crates/cfg_aliases>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## chrono https://crates.io/crates/chrono
+## chrono <https://crates.io/crates/chrono>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## clang-sys https://crates.io/crates/clang-sys
+## clang-sys <https://crates.io/crates/clang-sys>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## clap https://crates.io/crates/clap
+## clap <https://crates.io/crates/clap>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## clap_builder https://crates.io/crates/clap_builder
+## clap_builder <https://crates.io/crates/clap_builder>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## clap_derive https://crates.io/crates/clap_derive
+## clap_derive <https://crates.io/crates/clap_derive>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## clap_lex https://crates.io/crates/clap_lex
+## clap_lex <https://crates.io/crates/clap_lex>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## cmake https://crates.io/crates/cmake
+## cmake <https://crates.io/crates/cmake>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## colorchoice https://crates.io/crates/colorchoice
+## colorchoice <https://crates.io/crates/colorchoice>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## concurrent-queue https://crates.io/crates/concurrent-queue
+## concurrent-queue <https://crates.io/crates/concurrent-queue>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## config https://crates.io/crates/config
+## config <https://crates.io/crates/config>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## console-api https://crates.io/crates/console-api
+## console-api <https://crates.io/crates/console-api>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## console-subscriber https://crates.io/crates/console-subscriber
+## console-subscriber <https://crates.io/crates/console-subscriber>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## const_panic https://crates.io/crates/const_panic
+## const_panic <https://crates.io/crates/const_panic>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## convert_case https://crates.io/crates/convert_case
+## convert_case <https://crates.io/crates/convert_case>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## cookie https://crates.io/crates/cookie
+## cookie <https://crates.io/crates/cookie>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## core-foundation https://crates.io/crates/core-foundation
+## core-foundation <https://crates.io/crates/core-foundation>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## core-foundation-sys https://crates.io/crates/core-foundation-sys
+## core-foundation-sys <https://crates.io/crates/core-foundation-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## core2 https://crates.io/crates/core2
+## core2 <https://crates.io/crates/core2>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## cpufeatures https://crates.io/crates/cpufeatures
+## cpufeatures <https://crates.io/crates/cpufeatures>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crc32fast https://crates.io/crates/crc32fast
+## crc32fast <https://crates.io/crates/crc32fast>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam https://crates.io/crates/crossbeam
+## crossbeam <https://crates.io/crates/crossbeam>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam-channel https://crates.io/crates/crossbeam-channel
+## crossbeam-channel <https://crates.io/crates/crossbeam-channel>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam-deque https://crates.io/crates/crossbeam-deque
+## crossbeam-deque <https://crates.io/crates/crossbeam-deque>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam-epoch https://crates.io/crates/crossbeam-epoch
+## crossbeam-epoch <https://crates.io/crates/crossbeam-epoch>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam-queue https://crates.io/crates/crossbeam-queue
+## crossbeam-queue <https://crates.io/crates/crossbeam-queue>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crossbeam-utils https://crates.io/crates/crossbeam-utils
+## crossbeam-utils <https://crates.io/crates/crossbeam-utils>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## crypto-common https://crates.io/crates/crypto-common
+## crypto-common <https://crates.io/crates/crypto-common>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## ctrlc https://crates.io/crates/ctrlc
+## ctrlc <https://crates.io/crates/ctrlc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## darling https://crates.io/crates/darling
+## darling <https://crates.io/crates/darling>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## darling_core https://crates.io/crates/darling_core
+## darling_core <https://crates.io/crates/darling_core>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## darling_macro https://crates.io/crates/darling_macro
+## darling_macro <https://crates.io/crates/darling_macro>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## dary_heap https://crates.io/crates/dary_heap
+## dary_heap <https://crates.io/crates/dary_heap>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## data-encoding https://crates.io/crates/data-encoding
+## data-encoding <https://crates.io/crates/data-encoding>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## der-parser https://crates.io/crates/der-parser
+## der-parser <https://crates.io/crates/der-parser>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## deranged https://crates.io/crates/deranged
+## deranged <https://crates.io/crates/deranged>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## derive_more https://crates.io/crates/derive_more
+## derive_more <https://crates.io/crates/derive_more>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## difflib https://crates.io/crates/difflib
+## difflib <https://crates.io/crates/difflib>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## digest https://crates.io/crates/digest
+## digest <https://crates.io/crates/digest>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## displaydoc https://crates.io/crates/displaydoc
+## displaydoc <https://crates.io/crates/displaydoc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## downcast https://crates.io/crates/downcast
+## downcast <https://crates.io/crates/downcast>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## dunce https://crates.io/crates/dunce
+## dunce <https://crates.io/crates/dunce>
 
 Distributed under the following license(s):
+
 * CC0-1.0
 * MIT-0
 * Apache-2.0
-
-
-## duration-str https://crates.io/crates/duration-str
+## duration-str <https://crates.io/crates/duration-str>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## dyn-clone https://crates.io/crates/dyn-clone
+## dyn-clone <https://crates.io/crates/dyn-clone>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## educe https://crates.io/crates/educe
+## educe <https://crates.io/crates/educe>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## either https://crates.io/crates/either
+## either <https://crates.io/crates/either>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## encoding_rs https://crates.io/crates/encoding_rs
+## encoding_rs <https://crates.io/crates/encoding_rs>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
 * BSD-3-Clause
-
-
-## enum-ordinalize https://crates.io/crates/enum-ordinalize
+## enum-ordinalize <https://crates.io/crates/enum-ordinalize>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## enum-ordinalize-derive https://crates.io/crates/enum-ordinalize-derive
+## enum-ordinalize-derive <https://crates.io/crates/enum-ordinalize-derive>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## equivalent https://crates.io/crates/equivalent
+## equivalent <https://crates.io/crates/equivalent>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## errno https://crates.io/crates/errno
+## errno <https://crates.io/crates/errno>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## event-listener https://crates.io/crates/event-listener
+## event-listener <https://crates.io/crates/event-listener>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## event-listener-strategy https://crates.io/crates/event-listener-strategy
+## event-listener-strategy <https://crates.io/crates/event-listener-strategy>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## fastrand https://crates.io/crates/fastrand
+## fastrand <https://crates.io/crates/fastrand>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## fixedbitset https://crates.io/crates/fixedbitset
+## fixedbitset <https://crates.io/crates/fixedbitset>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## flate2 https://crates.io/crates/flate2
+## flate2 <https://crates.io/crates/flate2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## float-cmp https://crates.io/crates/float-cmp
+## float-cmp <https://crates.io/crates/float-cmp>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## fnv https://crates.io/crates/fnv
+## fnv <https://crates.io/crates/fnv>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## foldhash https://crates.io/crates/foldhash
+## foldhash <https://crates.io/crates/foldhash>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## form_urlencoded https://crates.io/crates/form_urlencoded
+## form_urlencoded <https://crates.io/crates/form_urlencoded>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## fragile https://crates.io/crates/fragile
+## fragile <https://crates.io/crates/fragile>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## futures https://crates.io/crates/futures
+## futures <https://crates.io/crates/futures>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-channel https://crates.io/crates/futures-channel
+## futures-channel <https://crates.io/crates/futures-channel>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-core https://crates.io/crates/futures-core
+## futures-core <https://crates.io/crates/futures-core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-executor https://crates.io/crates/futures-executor
+## futures-executor <https://crates.io/crates/futures-executor>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-io https://crates.io/crates/futures-io
+## futures-io <https://crates.io/crates/futures-io>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-macro https://crates.io/crates/futures-macro
+## futures-macro <https://crates.io/crates/futures-macro>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-sink https://crates.io/crates/futures-sink
+## futures-sink <https://crates.io/crates/futures-sink>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-task https://crates.io/crates/futures-task
+## futures-task <https://crates.io/crates/futures-task>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## futures-util https://crates.io/crates/futures-util
+## futures-util <https://crates.io/crates/futures-util>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## generic-array https://crates.io/crates/generic-array
+## generic-array <https://crates.io/crates/generic-array>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## getrandom https://crates.io/crates/getrandom
+## getrandom <https://crates.io/crates/getrandom>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## gimli https://crates.io/crates/gimli
+## gimli <https://crates.io/crates/gimli>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## glob https://crates.io/crates/glob
+## glob <https://crates.io/crates/glob>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## globset https://crates.io/crates/globset
+## h2 <https://crates.io/crates/h2>
 
 Distributed under the following license(s):
-* Unlicense
+
 * MIT
-
-
-## globwalk https://crates.io/crates/globwalk
+## hashbrown <https://crates.io/crates/hashbrown>
 
 Distributed under the following license(s):
-* MIT
 
-
-## h2 https://crates.io/crates/h2
-
-Distributed under the following license(s):
-* MIT
-
-
-## hashbrown https://crates.io/crates/hashbrown
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## hashlink https://crates.io/crates/hashlink
+## hashlink <https://crates.io/crates/hashlink>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## hdrhistogram https://crates.io/crates/hdrhistogram
+## hdrhistogram <https://crates.io/crates/hdrhistogram>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## heck https://crates.io/crates/heck
+## heck <https://crates.io/crates/heck>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## home https://crates.io/crates/home
+## home <https://crates.io/crates/home>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## hostname https://crates.io/crates/hostname
+## hostname <https://crates.io/crates/hostname>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## http https://crates.io/crates/http
+## http <https://crates.io/crates/http>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## http-body https://crates.io/crates/http-body
+## http-body <https://crates.io/crates/http-body>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## http-body-util https://crates.io/crates/http-body-util
+## http-body-util <https://crates.io/crates/http-body-util>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## http-serde https://crates.io/crates/http-serde
+## http-serde <https://crates.io/crates/http-serde>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## httparse https://crates.io/crates/httparse
+## httparse <https://crates.io/crates/httparse>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## httpdate https://crates.io/crates/httpdate
+## httpdate <https://crates.io/crates/httpdate>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## humantime https://crates.io/crates/humantime
+## humantime <https://crates.io/crates/humantime>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## hyper https://crates.io/crates/hyper
+## hyper <https://crates.io/crates/hyper>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## hyper-rustls https://crates.io/crates/hyper-rustls
+## hyper-rustls <https://crates.io/crates/hyper-rustls>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * ISC
 * MIT
-
-
-## hyper-timeout https://crates.io/crates/hyper-timeout
+## hyper-timeout <https://crates.io/crates/hyper-timeout>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## hyper-util https://crates.io/crates/hyper-util
+## hyper-util <https://crates.io/crates/hyper-util>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## iana-time-zone https://crates.io/crates/iana-time-zone
+## iana-time-zone <https://crates.io/crates/iana-time-zone>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## iana-time-zone-haiku https://crates.io/crates/iana-time-zone-haiku
+## iana-time-zone-haiku <https://crates.io/crates/iana-time-zone-haiku>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## icu_collections https://crates.io/crates/icu_collections
+## icu_collections <https://crates.io/crates/icu_collections>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_locid https://crates.io/crates/icu_locid
+## icu_locid <https://crates.io/crates/icu_locid>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_locid_transform https://crates.io/crates/icu_locid_transform
+## icu_locid_transform <https://crates.io/crates/icu_locid_transform>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_locid_transform_data https://crates.io/crates/icu_locid_transform_data
+## icu_locid_transform_data <https://crates.io/crates/icu_locid_transform_data>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_normalizer https://crates.io/crates/icu_normalizer
+## icu_normalizer <https://crates.io/crates/icu_normalizer>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_normalizer_data https://crates.io/crates/icu_normalizer_data
+## icu_normalizer_data <https://crates.io/crates/icu_normalizer_data>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_properties https://crates.io/crates/icu_properties
+## icu_properties <https://crates.io/crates/icu_properties>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_properties_data https://crates.io/crates/icu_properties_data
+## icu_properties_data <https://crates.io/crates/icu_properties_data>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_provider https://crates.io/crates/icu_provider
+## icu_provider <https://crates.io/crates/icu_provider>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## icu_provider_macros https://crates.io/crates/icu_provider_macros
+## icu_provider_macros <https://crates.io/crates/icu_provider_macros>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## ident_case https://crates.io/crates/ident_case
+## ident_case <https://crates.io/crates/ident_case>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## idna https://crates.io/crates/idna
+## idna <https://crates.io/crates/idna>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## idna_adapter https://crates.io/crates/idna_adapter
+## idna_adapter <https://crates.io/crates/idna_adapter>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## ignore https://crates.io/crates/ignore
+## impl-more <https://crates.io/crates/impl-more>
 
 Distributed under the following license(s):
-* Unlicense
-* MIT
 
-
-## impl-more https://crates.io/crates/impl-more
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## indexmap https://crates.io/crates/indexmap
+## indexmap <https://crates.io/crates/indexmap>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## instant https://crates.io/crates/instant
+## instant <https://crates.io/crates/instant>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
-
-
-## ipnet https://crates.io/crates/ipnet
+## ipnet <https://crates.io/crates/ipnet>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## is_terminal_polyfill https://crates.io/crates/is_terminal_polyfill
+## is_terminal_polyfill <https://crates.io/crates/is_terminal_polyfill>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## itertools https://crates.io/crates/itertools
+## itertools <https://crates.io/crates/itertools>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## itoa https://crates.io/crates/itoa
+## itoa <https://crates.io/crates/itoa>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## jobserver https://crates.io/crates/jobserver
+## jobserver <https://crates.io/crates/jobserver>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## js-sys https://crates.io/crates/js-sys
+## js-sys <https://crates.io/crates/js-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## json-patch https://crates.io/crates/json-patch
+## json-patch <https://crates.io/crates/json-patch>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## json5 https://crates.io/crates/json5
+## json5 <https://crates.io/crates/json5>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## jsonpath-rust https://crates.io/crates/jsonpath-rust
+## jsonpath-rust <https://crates.io/crates/jsonpath-rust>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## jsonptr https://crates.io/crates/jsonptr
+## jsonptr <https://crates.io/crates/jsonptr>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## jsonwebtoken https://crates.io/crates/jsonwebtoken
+## jsonwebtoken <https://crates.io/crates/jsonwebtoken>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## k8s-openapi https://crates.io/crates/k8s-openapi
+## k8s-openapi <https://crates.io/crates/k8s-openapi>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## konst https://crates.io/crates/konst
+## konst <https://crates.io/crates/konst>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## konst_kernel https://crates.io/crates/konst_kernel
+## konst_kernel <https://crates.io/crates/konst_kernel>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## konst_proc_macros https://crates.io/crates/konst_proc_macros
+## konst_proc_macros <https://crates.io/crates/konst_proc_macros>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## kube https://crates.io/crates/kube
+## kube <https://crates.io/crates/kube>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## kube-client https://crates.io/crates/kube-client
+## kube-client <https://crates.io/crates/kube-client>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## kube-core https://crates.io/crates/kube-core
+## kube-core <https://crates.io/crates/kube-core>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## kube-derive https://crates.io/crates/kube-derive
+## kube-derive <https://crates.io/crates/kube-derive>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## kube-runtime https://crates.io/crates/kube-runtime
+## kube-runtime <https://crates.io/crates/kube-runtime>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## language-tags https://crates.io/crates/language-tags
+## language-tags <https://crates.io/crates/language-tags>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## lazy_static https://crates.io/crates/lazy_static
+## lazy_static <https://crates.io/crates/lazy_static>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## lazycell https://crates.io/crates/lazycell
+## lazycell <https://crates.io/crates/lazycell>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## libc https://crates.io/crates/libc
+## libc <https://crates.io/crates/libc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## libflate https://crates.io/crates/libflate
+## libflate <https://crates.io/crates/libflate>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## libflate_lz77 https://crates.io/crates/libflate_lz77
+## libflate_lz77 <https://crates.io/crates/libflate_lz77>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## libloading https://crates.io/crates/libloading
+## libloading <https://crates.io/crates/libloading>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## linux-raw-sys https://crates.io/crates/linux-raw-sys
+## linux-raw-sys <https://crates.io/crates/linux-raw-sys>
 
 Distributed under the following license(s):
+
 * Apache-2.0 WITH LLVM-exception
 * Apache-2.0
 * MIT
-
-
-## litemap https://crates.io/crates/litemap
+## litemap <https://crates.io/crates/litemap>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## local-channel https://crates.io/crates/local-channel
+## local-channel <https://crates.io/crates/local-channel>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## local-waker https://crates.io/crates/local-waker
+## local-waker <https://crates.io/crates/local-waker>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## lock_api https://crates.io/crates/lock_api
+## lock_api <https://crates.io/crates/lock_api>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## log https://crates.io/crates/log
+## log <https://crates.io/crates/log>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## matchers https://crates.io/crates/matchers
+## matchers <https://crates.io/crates/matchers>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## matchit https://crates.io/crates/matchit
+## matchit <https://crates.io/crates/matchit>
 
 Distributed under the following license(s):
+
 * MIT
 * BSD-3-Clause
-
-
-## memchr https://crates.io/crates/memchr
+## memchr <https://crates.io/crates/memchr>
 
 Distributed under the following license(s):
+
 * Unlicense
 * MIT
-
-
-## mime https://crates.io/crates/mime
+## mime <https://crates.io/crates/mime>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## minimal-lexical https://crates.io/crates/minimal-lexical
+## minimal-lexical <https://crates.io/crates/minimal-lexical>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## miniz_oxide https://crates.io/crates/miniz_oxide
+## miniz_oxide <https://crates.io/crates/miniz_oxide>
 
 Distributed under the following license(s):
+
 * MIT
 * Zlib
 * Apache-2.0
-
-
-## mio https://crates.io/crates/mio
+## mio <https://crates.io/crates/mio>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## mockall https://crates.io/crates/mockall
+## mockall <https://crates.io/crates/mockall>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## mockall_derive https://crates.io/crates/mockall_derive
+## mockall_derive <https://crates.io/crates/mockall_derive>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## multimap https://crates.io/crates/multimap
+## multimap <https://crates.io/crates/multimap>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## nix https://crates.io/crates/nix
+## nix <https://crates.io/crates/nix>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## nom https://crates.io/crates/nom
+## nom <https://crates.io/crates/nom>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## normalize-line-endings https://crates.io/crates/normalize-line-endings
+## normalize-line-endings <https://crates.io/crates/normalize-line-endings>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## nu-ansi-term https://crates.io/crates/nu-ansi-term
+## nu-ansi-term <https://crates.io/crates/nu-ansi-term>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## num-bigint https://crates.io/crates/num-bigint
+## num-bigint <https://crates.io/crates/num-bigint>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## num-conv https://crates.io/crates/num-conv
+## num-conv <https://crates.io/crates/num-conv>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## num-integer https://crates.io/crates/num-integer
+## num-integer <https://crates.io/crates/num-integer>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## num-traits https://crates.io/crates/num-traits
+## num-traits <https://crates.io/crates/num-traits>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## object https://crates.io/crates/object
+## object <https://crates.io/crates/object>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## oid-registry https://crates.io/crates/oid-registry
+## oid-registry <https://crates.io/crates/oid-registry>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## once_cell https://crates.io/crates/once_cell
+## once_cell <https://crates.io/crates/once_cell>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## opamp-client git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30
+## opamp-client <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## openssl-probe https://crates.io/crates/openssl-probe
+## openssl-probe <https://crates.io/crates/openssl-probe>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## opentelemetry-semantic-conventions https://crates.io/crates/opentelemetry-semantic-conventions
+## opentelemetry-semantic-conventions <https://crates.io/crates/opentelemetry-semantic-conventions>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## ordered-float https://crates.io/crates/ordered-float
+## ordered-float <https://crates.io/crates/ordered-float>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## overload https://crates.io/crates/overload
+## overload <https://crates.io/crates/overload>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## parking https://crates.io/crates/parking
+## parking <https://crates.io/crates/parking>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## parking_lot https://crates.io/crates/parking_lot
+## parking_lot <https://crates.io/crates/parking_lot>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## parking_lot_core https://crates.io/crates/parking_lot_core
+## parking_lot_core <https://crates.io/crates/parking_lot_core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## paste https://crates.io/crates/paste
+## paste <https://crates.io/crates/paste>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pathdiff https://crates.io/crates/pathdiff
+## pathdiff <https://crates.io/crates/pathdiff>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pem https://crates.io/crates/pem
+## pem <https://crates.io/crates/pem>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## percent-encoding https://crates.io/crates/percent-encoding
+## percent-encoding <https://crates.io/crates/percent-encoding>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pest https://crates.io/crates/pest
+## pest <https://crates.io/crates/pest>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pest_derive https://crates.io/crates/pest_derive
+## pest_derive <https://crates.io/crates/pest_derive>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pest_generator https://crates.io/crates/pest_generator
+## pest_generator <https://crates.io/crates/pest_generator>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pest_meta https://crates.io/crates/pest_meta
+## pest_meta <https://crates.io/crates/pest_meta>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## petgraph https://crates.io/crates/petgraph
+## petgraph <https://crates.io/crates/petgraph>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pin-project https://crates.io/crates/pin-project
+## pin-project <https://crates.io/crates/pin-project>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## pin-project-internal https://crates.io/crates/pin-project-internal
+## pin-project-internal <https://crates.io/crates/pin-project-internal>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## pin-project-lite https://crates.io/crates/pin-project-lite
+## pin-project-lite <https://crates.io/crates/pin-project-lite>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## pin-utils https://crates.io/crates/pin-utils
+## pin-utils <https://crates.io/crates/pin-utils>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## pkg-config https://crates.io/crates/pkg-config
+## pkg-config <https://crates.io/crates/pkg-config>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## powerfmt https://crates.io/crates/powerfmt
+## powerfmt <https://crates.io/crates/powerfmt>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## ppv-lite86 https://crates.io/crates/ppv-lite86
+## ppv-lite86 <https://crates.io/crates/ppv-lite86>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## predicates https://crates.io/crates/predicates
+## predicates <https://crates.io/crates/predicates>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## predicates-core https://crates.io/crates/predicates-core
+## predicates-core <https://crates.io/crates/predicates-core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## predicates-tree https://crates.io/crates/predicates-tree
+## predicates-tree <https://crates.io/crates/predicates-tree>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## prettyplease https://crates.io/crates/prettyplease
+## prettyplease <https://crates.io/crates/prettyplease>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## proc-macro2 https://crates.io/crates/proc-macro2
+## proc-macro2 <https://crates.io/crates/proc-macro2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## prost https://crates.io/crates/prost
+## prost <https://crates.io/crates/prost>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## prost-build https://crates.io/crates/prost-build
+## prost-build <https://crates.io/crates/prost-build>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## prost-derive https://crates.io/crates/prost-derive
+## prost-derive <https://crates.io/crates/prost-derive>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## prost-types https://crates.io/crates/prost-types
+## prost-types <https://crates.io/crates/prost-types>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## proto git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30
+## proto <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## quote https://crates.io/crates/quote
+## quote <https://crates.io/crates/quote>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rand https://crates.io/crates/rand
+## rand <https://crates.io/crates/rand>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rand_chacha https://crates.io/crates/rand_chacha
+## rand_chacha <https://crates.io/crates/rand_chacha>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rand_core https://crates.io/crates/rand_core
+## rand_core <https://crates.io/crates/rand_core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## redox_syscall https://crates.io/crates/redox_syscall
+## redox_syscall <https://crates.io/crates/redox_syscall>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## regex https://crates.io/crates/regex
+## regex <https://crates.io/crates/regex>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## regex-automata https://crates.io/crates/regex-automata
+## regex-automata <https://crates.io/crates/regex-automata>
 
 Distributed under the following license(s):
-* Unlicense
-* MIT
 
-
-## regex-lite https://crates.io/crates/regex-lite
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## regex-syntax https://crates.io/crates/regex-syntax
+## regex-lite <https://crates.io/crates/regex-lite>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## reqwest https://crates.io/crates/reqwest
+## regex-syntax <https://crates.io/crates/regex-syntax>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## ring https://crates.io/crates/ring
+## reqwest <https://crates.io/crates/reqwest>
 
 Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+## ring <https://crates.io/crates/ring>
+
+Distributed under the following license(s):
+
 * Apache-2.0
 * ISC
-
-
-## rle-decode-fast https://crates.io/crates/rle-decode-fast
+## rle-decode-fast <https://crates.io/crates/rle-decode-fast>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## ron https://crates.io/crates/ron
+## ron <https://crates.io/crates/ron>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rust_decimal https://crates.io/crates/rust_decimal
+## rust_decimal <https://crates.io/crates/rust_decimal>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## rustc-demangle https://crates.io/crates/rustc-demangle
+## rustc-demangle <https://crates.io/crates/rustc-demangle>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rustc-hash https://crates.io/crates/rustc-hash
+## rustc-hash <https://crates.io/crates/rustc-hash>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## rustc_version https://crates.io/crates/rustc_version
+## rustc_version <https://crates.io/crates/rustc_version>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rusticata-macros https://crates.io/crates/rusticata-macros
+## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rustix https://crates.io/crates/rustix
+## rustix <https://crates.io/crates/rustix>
 
 Distributed under the following license(s):
+
 * Apache-2.0 WITH LLVM-exception
 * Apache-2.0
 * MIT
-
-
-## rustls https://crates.io/crates/rustls
+## rustls <https://crates.io/crates/rustls>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * ISC
 * MIT
-
-
-## rustls-native-certs https://crates.io/crates/rustls-native-certs
+## rustls-native-certs <https://crates.io/crates/rustls-native-certs>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * ISC
 * MIT
-
-
-## rustls-pemfile https://crates.io/crates/rustls-pemfile
+## rustls-pemfile <https://crates.io/crates/rustls-pemfile>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * ISC
 * MIT
-
-
-## rustls-pki-types https://crates.io/crates/rustls-pki-types
+## rustls-pki-types <https://crates.io/crates/rustls-pki-types>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## rustls-webpki https://crates.io/crates/rustls-webpki
+## rustls-webpki <https://crates.io/crates/rustls-webpki>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## rustversion https://crates.io/crates/rustversion
+## rustversion <https://crates.io/crates/rustversion>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## ryu https://crates.io/crates/ryu
+## ryu <https://crates.io/crates/ryu>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * BSL-1.0
-
-
-## same-file https://crates.io/crates/same-file
+## schannel <https://crates.io/crates/schannel>
 
 Distributed under the following license(s):
-* Unlicense
+
 * MIT
-
-
-## schannel https://crates.io/crates/schannel
+## schemars <https://crates.io/crates/schemars>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## schemars https://crates.io/crates/schemars
+## schemars_derive <https://crates.io/crates/schemars_derive>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## schemars_derive https://crates.io/crates/schemars_derive
+## scopeguard <https://crates.io/crates/scopeguard>
 
 Distributed under the following license(s):
-* MIT
 
-
-## scopeguard https://crates.io/crates/scopeguard
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## secrecy https://crates.io/crates/secrecy
+## secrecy <https://crates.io/crates/secrecy>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## security-framework https://crates.io/crates/security-framework
+## security-framework <https://crates.io/crates/security-framework>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## security-framework-sys https://crates.io/crates/security-framework-sys
+## security-framework-sys <https://crates.io/crates/security-framework-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## semver https://crates.io/crates/semver
+## semver <https://crates.io/crates/semver>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde https://crates.io/crates/serde
+## serde <https://crates.io/crates/serde>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde-value https://crates.io/crates/serde-value
+## serde-value <https://crates.io/crates/serde-value>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## serde_derive https://crates.io/crates/serde_derive
+## serde_derive <https://crates.io/crates/serde_derive>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde_derive_internals https://crates.io/crates/serde_derive_internals
+## serde_derive_internals <https://crates.io/crates/serde_derive_internals>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde_json https://crates.io/crates/serde_json
+## serde_json <https://crates.io/crates/serde_json>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde_spanned https://crates.io/crates/serde_spanned
+## serde_spanned <https://crates.io/crates/serde_spanned>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde_urlencoded https://crates.io/crates/serde_urlencoded
+## serde_urlencoded <https://crates.io/crates/serde_urlencoded>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## serde_yaml https://crates.io/crates/serde_yaml
+## serde_yaml <https://crates.io/crates/serde_yaml>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## sha1 https://crates.io/crates/sha1
+## sha1 <https://crates.io/crates/sha1>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## sha2 https://crates.io/crates/sha2
+## sha2 <https://crates.io/crates/sha2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## sharded-slab https://crates.io/crates/sharded-slab
+## sharded-slab <https://crates.io/crates/sharded-slab>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## shlex https://crates.io/crates/shlex
+## shlex <https://crates.io/crates/shlex>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## signal-hook-registry https://crates.io/crates/signal-hook-registry
+## signal-hook-registry <https://crates.io/crates/signal-hook-registry>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## simple_asn1 https://crates.io/crates/simple_asn1
+## simple_asn1 <https://crates.io/crates/simple_asn1>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## slab https://crates.io/crates/slab
+## slab <https://crates.io/crates/slab>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## smallvec https://crates.io/crates/smallvec
+## smallvec <https://crates.io/crates/smallvec>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## socket2 https://crates.io/crates/socket2
+## socket2 <https://crates.io/crates/socket2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## stable_deref_trait https://crates.io/crates/stable_deref_trait
+## stable_deref_trait <https://crates.io/crates/stable_deref_trait>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## strsim https://crates.io/crates/strsim
+## strsim <https://crates.io/crates/strsim>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## subtle https://crates.io/crates/subtle
+## subtle <https://crates.io/crates/subtle>
 
 Distributed under the following license(s):
+
 * BSD-3-Clause
-
-
-## syn https://crates.io/crates/syn
+## syn <https://crates.io/crates/syn>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## sync_wrapper https://crates.io/crates/sync_wrapper
+## sync_wrapper <https://crates.io/crates/sync_wrapper>
 
 Distributed under the following license(s):
+
 * Apache-2.0
-
-
-## synstructure https://crates.io/crates/synstructure
+## synstructure <https://crates.io/crates/synstructure>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tempfile https://crates.io/crates/tempfile
+## tempfile <https://crates.io/crates/tempfile>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## tera https://crates.io/crates/tera
+## termtree <https://crates.io/crates/termtree>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## termtree https://crates.io/crates/termtree
+## thiserror <https://crates.io/crates/thiserror>
 
 Distributed under the following license(s):
-* MIT
 
-
-## thiserror https://crates.io/crates/thiserror
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## thiserror-impl https://crates.io/crates/thiserror-impl
+## thiserror-impl <https://crates.io/crates/thiserror-impl>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## thread_local https://crates.io/crates/thread_local
+## thread_local <https://crates.io/crates/thread_local>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## time https://crates.io/crates/time
+## time <https://crates.io/crates/time>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## time-core https://crates.io/crates/time-core
+## time-core <https://crates.io/crates/time-core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## time-macros https://crates.io/crates/time-macros
+## time-macros <https://crates.io/crates/time-macros>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## tinystr https://crates.io/crates/tinystr
+## tinystr <https://crates.io/crates/tinystr>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## tokio https://crates.io/crates/tokio
+## tokio <https://crates.io/crates/tokio>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tokio-macros https://crates.io/crates/tokio-macros
+## tokio-macros <https://crates.io/crates/tokio-macros>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tokio-rustls https://crates.io/crates/tokio-rustls
+## tokio-rustls <https://crates.io/crates/tokio-rustls>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## tokio-socks https://crates.io/crates/tokio-socks
+## tokio-socks <https://crates.io/crates/tokio-socks>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tokio-stream https://crates.io/crates/tokio-stream
+## tokio-stream <https://crates.io/crates/tokio-stream>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tokio-util https://crates.io/crates/tokio-util
+## tokio-util <https://crates.io/crates/tokio-util>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## toml https://crates.io/crates/toml
+## toml <https://crates.io/crates/toml>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## toml_datetime https://crates.io/crates/toml_datetime
+## toml_datetime <https://crates.io/crates/toml_datetime>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## toml_edit https://crates.io/crates/toml_edit
+## toml_edit <https://crates.io/crates/toml_edit>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## tonic https://crates.io/crates/tonic
+## tonic <https://crates.io/crates/tonic>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tower https://crates.io/crates/tower
+## tower <https://crates.io/crates/tower>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tower-http https://crates.io/crates/tower-http
+## tower-http <https://crates.io/crates/tower-http>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tower-layer https://crates.io/crates/tower-layer
+## tower-layer <https://crates.io/crates/tower-layer>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tower-service https://crates.io/crates/tower-service
+## tower-service <https://crates.io/crates/tower-service>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing https://crates.io/crates/tracing
+## tracing <https://crates.io/crates/tracing>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing-appender https://crates.io/crates/tracing-appender
+## tracing-appender <https://crates.io/crates/tracing-appender>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing-attributes https://crates.io/crates/tracing-attributes
+## tracing-attributes <https://crates.io/crates/tracing-attributes>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing-core https://crates.io/crates/tracing-core
+## tracing-core <https://crates.io/crates/tracing-core>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing-log https://crates.io/crates/tracing-log
+## tracing-log <https://crates.io/crates/tracing-log>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## tracing-subscriber https://crates.io/crates/tracing-subscriber
+## tracing-subscriber <https://crates.io/crates/tracing-subscriber>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## try-lock https://crates.io/crates/try-lock
+## try-lock <https://crates.io/crates/try-lock>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## typenum https://crates.io/crates/typenum
+## typenum <https://crates.io/crates/typenum>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## typewit https://crates.io/crates/typewit
+## typewit <https://crates.io/crates/typewit>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## typewit_proc_macros https://crates.io/crates/typewit_proc_macros
+## typewit_proc_macros <https://crates.io/crates/typewit_proc_macros>
 
 Distributed under the following license(s):
+
 * Zlib
-
-
-## ucd-trie https://crates.io/crates/ucd-trie
+## ucd-trie <https://crates.io/crates/ucd-trie>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## unic-char-property https://crates.io/crates/unic-char-property
+## unicode-ident <https://crates.io/crates/unicode-ident>
 
 Distributed under the following license(s):
-* MIT
-* Apache-2.0
 
-
-## unic-char-range https://crates.io/crates/unic-char-range
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## unic-common https://crates.io/crates/unic-common
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## unic-segment https://crates.io/crates/unic-segment
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## unic-ucd-segment https://crates.io/crates/unic-ucd-segment
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## unic-ucd-version https://crates.io/crates/unic-ucd-version
-
-Distributed under the following license(s):
-* MIT
-* Apache-2.0
-
-
-## unicode-ident https://crates.io/crates/unicode-ident
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
 * Unicode-3.0
-
-
-## unicode-segmentation https://crates.io/crates/unicode-segmentation
+## unicode-segmentation <https://crates.io/crates/unicode-segmentation>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## unsafe-libyaml https://crates.io/crates/unsafe-libyaml
+## unsafe-libyaml <https://crates.io/crates/unsafe-libyaml>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## untrusted https://crates.io/crates/untrusted
+## untrusted <https://crates.io/crates/untrusted>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## ureq https://crates.io/crates/ureq
+## ureq <https://crates.io/crates/ureq>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## url https://crates.io/crates/url
+## url <https://crates.io/crates/url>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## utf16_iter https://crates.io/crates/utf16_iter
+## utf16_iter <https://crates.io/crates/utf16_iter>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## utf8_iter https://crates.io/crates/utf8_iter
+## utf8_iter <https://crates.io/crates/utf8_iter>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## utf8parse https://crates.io/crates/utf8parse
+## utf8parse <https://crates.io/crates/utf8parse>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## uuid https://crates.io/crates/uuid
+## uuid <https://crates.io/crates/uuid>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## value-bag https://crates.io/crates/value-bag
+## value-bag <https://crates.io/crates/value-bag>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## version_check https://crates.io/crates/version_check
+## version_check <https://crates.io/crates/version_check>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## walkdir https://crates.io/crates/walkdir
+## want <https://crates.io/crates/want>
 
 Distributed under the following license(s):
-* Unlicense
+
 * MIT
-
-
-## want https://crates.io/crates/want
+## wasi <https://crates.io/crates/wasi>
 
 Distributed under the following license(s):
-* MIT
 
-
-## wasi https://crates.io/crates/wasi
-
-Distributed under the following license(s):
 * Apache-2.0 WITH LLVM-exception
 * Apache-2.0
 * MIT
-
-
-## wasm-bindgen https://crates.io/crates/wasm-bindgen
+## wasm-bindgen <https://crates.io/crates/wasm-bindgen>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## wasm-bindgen-backend https://crates.io/crates/wasm-bindgen-backend
+## wasm-bindgen-backend <https://crates.io/crates/wasm-bindgen-backend>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## wasm-bindgen-futures https://crates.io/crates/wasm-bindgen-futures
+## wasm-bindgen-futures <https://crates.io/crates/wasm-bindgen-futures>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## wasm-bindgen-macro https://crates.io/crates/wasm-bindgen-macro
+## wasm-bindgen-macro <https://crates.io/crates/wasm-bindgen-macro>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## wasm-bindgen-macro-support https://crates.io/crates/wasm-bindgen-macro-support
+## wasm-bindgen-macro-support <https://crates.io/crates/wasm-bindgen-macro-support>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## wasm-bindgen-shared https://crates.io/crates/wasm-bindgen-shared
+## wasm-bindgen-shared <https://crates.io/crates/wasm-bindgen-shared>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## web-sys https://crates.io/crates/web-sys
+## web-sys <https://crates.io/crates/web-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## webpki https://crates.io/crates/webpki
+## webpki <https://crates.io/crates/webpki>
 
 Distributed under the following license(s):
+
 * ISC
-
-
-## webpki-roots https://crates.io/crates/webpki-roots
+## webpki-roots <https://crates.io/crates/webpki-roots>
 
 Distributed under the following license(s):
+
 * MPL-2.0
-
-
-## which https://crates.io/crates/which
+## which <https://crates.io/crates/which>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## winapi https://crates.io/crates/winapi
+## winapi <https://crates.io/crates/winapi>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## winapi-i686-pc-windows-gnu https://crates.io/crates/winapi-i686-pc-windows-gnu
+## winapi-i686-pc-windows-gnu <https://crates.io/crates/winapi-i686-pc-windows-gnu>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## winapi-util https://crates.io/crates/winapi-util
+## winapi-x86_64-pc-windows-gnu <https://crates.io/crates/winapi-x86_64-pc-windows-gnu>
 
 Distributed under the following license(s):
-* Unlicense
-* MIT
 
-
-## winapi-x86_64-pc-windows-gnu https://crates.io/crates/winapi-x86_64-pc-windows-gnu
-
-Distributed under the following license(s):
 * MIT
 * Apache-2.0
-
-
-## windows https://crates.io/crates/windows
+## windows <https://crates.io/crates/windows>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-core https://crates.io/crates/windows-core
+## windows-core <https://crates.io/crates/windows-core>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-link https://crates.io/crates/windows-link
+## windows-link <https://crates.io/crates/windows-link>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-registry https://crates.io/crates/windows-registry
+## windows-registry <https://crates.io/crates/windows-registry>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-result https://crates.io/crates/windows-result
+## windows-result <https://crates.io/crates/windows-result>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-strings https://crates.io/crates/windows-strings
+## windows-strings <https://crates.io/crates/windows-strings>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-sys https://crates.io/crates/windows-sys
+## windows-sys <https://crates.io/crates/windows-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows-targets https://crates.io/crates/windows-targets
+## windows-targets <https://crates.io/crates/windows-targets>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_aarch64_gnullvm https://crates.io/crates/windows_aarch64_gnullvm
+## windows_aarch64_gnullvm <https://crates.io/crates/windows_aarch64_gnullvm>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_aarch64_msvc https://crates.io/crates/windows_aarch64_msvc
+## windows_aarch64_msvc <https://crates.io/crates/windows_aarch64_msvc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_i686_gnu https://crates.io/crates/windows_i686_gnu
+## windows_i686_gnu <https://crates.io/crates/windows_i686_gnu>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_i686_gnullvm https://crates.io/crates/windows_i686_gnullvm
+## windows_i686_gnullvm <https://crates.io/crates/windows_i686_gnullvm>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_i686_msvc https://crates.io/crates/windows_i686_msvc
+## windows_i686_msvc <https://crates.io/crates/windows_i686_msvc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_x86_64_gnu https://crates.io/crates/windows_x86_64_gnu
+## windows_x86_64_gnu <https://crates.io/crates/windows_x86_64_gnu>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_x86_64_gnullvm https://crates.io/crates/windows_x86_64_gnullvm
+## windows_x86_64_gnullvm <https://crates.io/crates/windows_x86_64_gnullvm>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## windows_x86_64_msvc https://crates.io/crates/windows_x86_64_msvc
+## windows_x86_64_msvc <https://crates.io/crates/windows_x86_64_msvc>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## winnow https://crates.io/crates/winnow
+## winnow <https://crates.io/crates/winnow>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## wit-bindgen-rt https://crates.io/crates/wit-bindgen-rt
+## wit-bindgen-rt <https://crates.io/crates/wit-bindgen-rt>
 
 Distributed under the following license(s):
+
 * Apache-2.0 WITH LLVM-exception
 * Apache-2.0
 * MIT
-
-
-## write16 https://crates.io/crates/write16
+## write16 <https://crates.io/crates/write16>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## writeable https://crates.io/crates/writeable
+## writeable <https://crates.io/crates/writeable>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## x509-parser https://crates.io/crates/x509-parser
+## x509-parser <https://crates.io/crates/x509-parser>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## yaml-rust2 https://crates.io/crates/yaml-rust2
+## yaml-rust2 <https://crates.io/crates/yaml-rust2>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## yoke https://crates.io/crates/yoke
+## yoke <https://crates.io/crates/yoke>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## yoke-derive https://crates.io/crates/yoke-derive
+## yoke-derive <https://crates.io/crates/yoke-derive>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## zerocopy https://crates.io/crates/zerocopy
+## zerocopy <https://crates.io/crates/zerocopy>
 
 Distributed under the following license(s):
+
 * BSD-2-Clause
 * Apache-2.0
 * MIT
-
-
-## zerocopy-derive https://crates.io/crates/zerocopy-derive
+## zerocopy-derive <https://crates.io/crates/zerocopy-derive>
 
 Distributed under the following license(s):
+
 * BSD-2-Clause
 * Apache-2.0
 * MIT
-
-
-## zerofrom https://crates.io/crates/zerofrom
+## zerofrom <https://crates.io/crates/zerofrom>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## zerofrom-derive https://crates.io/crates/zerofrom-derive
+## zerofrom-derive <https://crates.io/crates/zerofrom-derive>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## zeroize https://crates.io/crates/zeroize
+## zeroize <https://crates.io/crates/zeroize>
 
 Distributed under the following license(s):
+
 * Apache-2.0
 * MIT
-
-
-## zerovec https://crates.io/crates/zerovec
+## zerovec <https://crates.io/crates/zerovec>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## zerovec-derive https://crates.io/crates/zerovec-derive
+## zerovec-derive <https://crates.io/crates/zerovec-derive>
 
 Distributed under the following license(s):
+
 * Unicode-3.0
-
-
-## zstd https://crates.io/crates/zstd
+## zstd <https://crates.io/crates/zstd>
 
 Distributed under the following license(s):
+
 * MIT
-
-
-## zstd-safe https://crates.io/crates/zstd-safe
+## zstd-safe <https://crates.io/crates/zstd-safe>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-## zstd-sys https://crates.io/crates/zstd-sys
+## zstd-sys <https://crates.io/crates/zstd-sys>
 
 Distributed under the following license(s):
+
 * MIT
 * Apache-2.0
-
-
-
