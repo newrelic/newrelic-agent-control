@@ -41,11 +41,7 @@ where
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // TODO this gets removed after refactor PR. Is only used for capabilities has_remote.
         let fake_agent_type = AgentType::new(
-            AgentTypeID {
-                name: "".into(),
-                namespace: "".into(),
-                version: Version::new(0, 0, 0),
-            },
+            AgentTypeID::try_from("namespace/name:0.0.1").unwrap(),
             VariableTree::default(),
             Runtime {
                 deployment: Deployment::default(),

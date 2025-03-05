@@ -109,12 +109,12 @@ pub(crate) mod tests {
         let test_cases = vec![
             TestCase {
                 name: "get only two matching between versions",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_fqn: AgentTypeID::try_from(
                     "newrelic/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
                 next: Some(
-                    AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
+                    AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
                 ),
                 agents_cfg: r#"
 agents:
@@ -132,7 +132,7 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
@@ -141,7 +141,7 @@ agents:
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
@@ -152,7 +152,7 @@ agents:
             },
             TestCase {
                 name: "get all three matching since version",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_fqn: AgentTypeID::try_from(
                     "newrelic/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),
@@ -173,7 +173,7 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
@@ -182,7 +182,7 @@ agents:
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
@@ -191,7 +191,7 @@ agents:
                         (
                             AgentID::new("infra-agent-c").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:1.0.3",
                                 )
                                 .unwrap(),
@@ -232,7 +232,7 @@ agents:
         let test_cases = vec![
             TestCase {
                 name: "error no agents higher or equal to version",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_fqn: AgentTypeID::try_from(
                     "newrelic/com.newrelic.infrastructure:0.1.0",
                 )
                 .unwrap(),
@@ -249,7 +249,7 @@ agents:
             },
             TestCase {
                 name: "error no agents of namespace",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_fqn: AgentTypeID::try_from(
                     "francisco-partners/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),

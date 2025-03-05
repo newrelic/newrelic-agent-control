@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::AgentTypeFQN;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
@@ -107,7 +108,8 @@ impl OpAMPStatus {
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub(super) struct SubAgentStatus {
     agent_id: AgentID,
-    agent_type: AgentTypeFQN,
+    #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
+    agent_type: AgentTypeID,
     healthy: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
@@ -223,6 +225,7 @@ pub mod tests {
     use crate::agent_control::http_server::status::{
         AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::{LastErrorCode, LastErrorMessage};
 
     impl Status {
@@ -251,7 +254,7 @@ pub mod tests {
     impl SubAgentStatus {
         pub fn new(
             agent_id: AgentID,
-            agent_type: AgentTypeFQN,
+            agent_type: AgentTypeID,
             status: String,
             healthy: bool,
             last_error: Option<String>,

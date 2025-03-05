@@ -437,7 +437,7 @@ pub mod tests {
 
                 let agent_identity = AgentIdentity::from((
                     self.agent_id.to_owned().try_into().unwrap(),
-                    AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+                    AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
                 ));
 
                 let supervisor = NotStartedSupervisorOnHost::new(
@@ -543,7 +543,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -575,7 +575,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -606,7 +606,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -654,7 +654,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =

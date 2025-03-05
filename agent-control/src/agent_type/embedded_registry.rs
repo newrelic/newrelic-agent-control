@@ -148,16 +148,12 @@ pub mod tests {
     #[test]
     fn test_get() {
         let definitions = vec![
-            AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-                name: "agent-1".into(),
-                version: Version::parse("0.0.0").unwrap(),
-                namespace: "ns".into(),
-            }),
-            AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-                name: "agent-2".into(),
-                version: Version::parse("0.0.0").unwrap(),
-                namespace: "ns".into(),
-            }),
+            AgentTypeDefinition::empty_with_metadata(
+                AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap(),
+            ),
+            AgentTypeDefinition::empty_with_metadata(
+                AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap(),
+            ),
         ];
 
         let registry = EmbeddedRegistry::try_new(definitions.clone()).unwrap();
@@ -175,11 +171,9 @@ pub mod tests {
     fn test_insert_duplicate() {
         let mut registry = EmbeddedRegistry::default();
 
-        let definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-            name: "agent".into(),
-            version: Version::parse("0.0.0").unwrap(),
-            namespace: "ns".into(),
-        });
+        let definition = AgentTypeDefinition::empty_with_metadata(
+            AgentTypeID::try_from("ns/agent:0.0.0").unwrap(),
+        );
         let duplicate = definition.clone();
 
         assert!(registry.insert(definition).is_ok());

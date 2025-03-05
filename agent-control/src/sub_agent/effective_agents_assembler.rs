@@ -134,7 +134,7 @@ where
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
-        let agent_type_definition = self.registry.get(&agent_identity.fqn)?;
+        let agent_type_definition = self.registry.get(&agent_identity.fqn.to_string())?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
@@ -304,14 +304,11 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("ns/some_fqn:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-            name: "some_fqn".into(),
-            version: Version::parse("0.0.1").unwrap(),
-            namespace: "ns".into(),
-        });
+        let agent_type_definition =
+            AgentTypeDefinition::empty_with_metadata("ns/some_fqn:0.0.1".try_into().unwrap());
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let values = YAMLConfig::default();
 
@@ -358,7 +355,7 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some_fqn:0.0.1").unwrap(),
         ));
 
         //Expectations
@@ -389,14 +386,12 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("ns/some_fqn:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-            name: "some_fqn".into(),
-            version: Version::parse("0.0.1").unwrap(),
-            namespace: "ns".into(),
-        });
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(
+            AgentTypeID::try_from("ns/some_fqn:0.0.1").unwrap(),
+        );
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);

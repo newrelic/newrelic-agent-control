@@ -3,6 +3,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentTypeFQN, SubAgentsMap};
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{pub_sub, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
@@ -186,7 +187,7 @@ where
         match active_config.get(&AgentID::new(agent_id.as_str())?) {
             None => Ok(true),
             Some(config) => {
-                let fqn = AgentTypeFQN::try_from(
+                let fqn = AgentTypeID::try_from(
                     annotations::get_agent_fqn_value(&annotations)
                         .ok_or(MissingAnnotations())?
                         .as_str(),
@@ -236,6 +237,7 @@ pub(crate) mod tests {
     };
     use crate::agent_control::config_storer::loader_storer::MockAgentControlDynamicConfigLoader;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::k8s::annotations::Annotations;
     use crate::k8s::client::MockSyncK8sClient;
     #[mockall_double::double]
@@ -347,7 +349,7 @@ pub(crate) mod tests {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
                         Annotations::new_agent_fqn_annotation(
-                            &AgentTypeFQN::try_from("ns/unknown:1.2.3").unwrap(),
+                            &AgentTypeID::try_from("ns/unknown:1.2.3").unwrap(),
                         )
                         .get(),
                     ),
@@ -361,7 +363,7 @@ pub(crate) mod tests {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
                         Annotations::new_agent_fqn_annotation(
-                            &AgentTypeFQN::try_from("ns/test-fqn:1.2.3").unwrap(),
+                            &AgentTypeID::try_from("ns/test-fqn:1.2.3").unwrap(),
                         )
                         .get(),
                     ),
@@ -474,7 +476,7 @@ pub(crate) mod tests {
             agents: HashMap::from([(
                 AgentID::new(agent_id).unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                    agent_type: AgentTypeID::try_from("namespace/test:0.0.1").unwrap(),
                 },
             )]),
         }

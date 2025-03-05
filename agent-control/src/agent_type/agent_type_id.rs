@@ -1,31 +1,72 @@
+use opamp_client::opamp::proto::CustomCapabilities;
+use opamp_client::operation::capabilities::Capabilities;
 use semver::Version;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
+
+use crate::agent_control::defaults::{
+    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
+    AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
+};
 
 const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
 const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum AgentTypeIDError {
-    #[error("AgentType must have a valid namespace")]
+    #[error("Invalid AgentType namespace")]
     InvalidNamespace,
-    #[error("AgentType must have a valid name")]
+    #[error("Invalid AgentType name")]
     InvalidName,
-    #[error("AgentType must have a valid version")]
+    #[error("Invalid AgentType version")]
     InvalidVersion,
 }
 
 /// Holds agent type metadata that uniquely identifies an agent type.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentTypeID {
-    pub name: String,
-    pub namespace: String,
-    pub version: Version,
+    name: String,
+    namespace: String,
+    version: Version,
 }
 
 impl AgentTypeID {
-    fn check_string(s: &str) -> bool {
+    pub fn new_agent_control_id() -> Self {
+        Self {
+            namespace: AGENT_CONTROL_NAMESPACE.to_string(),
+            name: AGENT_CONTROL_TYPE.to_string(),
+            // TODO unwrap
+            version: Version::parse(AGENT_CONTROL_VERSION).unwrap(),
+        }
+    }
+
+    pub fn namespace(&self) -> &str {
+        &self.namespace
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn version(&self) -> &Version {
+        &self.version
+    }
+
+    pub(crate) fn get_capabilities(&self) -> Capabilities {
+        //TODO: We should move this to EffectiveAgent
+        default_capabilities()
+    }
+
+    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
+        //TODO: We should move this to EffectiveAgent
+        if self.eq(&&Self::new_agent_control_id()) {
+            // Agent_Control does not have custom capabilities for now
+            return None;
+        }
+
+        Some(default_sub_agent_custom_capabilities())
+    }
+
+    fn is_valid(s: &str) -> bool {
         s.len() >= NAME_NAMESPACE_MIN_LENGTH
             && s.len() <= NAME_NAMESPACE_MAX_LENGTH
             && s.starts_with(|c: char| c.is_ascii_alphabetic())
@@ -38,11 +79,65 @@ impl AgentTypeID {
                     || c.is_ascii_lowercase()
             })
     }
+
+    pub fn deserialize_fqn<'de, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s: String = Deserialize::deserialize(deserializer)?;
+
+        AgentTypeID::try_from(s.as_ref()).map_err(serde::de::Error::custom)
+    }
+
+    pub fn serialize_fqn<S>(agent_type_id: &AgentTypeID, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let fqn = agent_type_id.to_string();
+        serializer.serialize_str(fqn.as_str())
+    }
 }
 
+/// String representation of the AgentTypeID in the form of fully qualified name.
+/// Example: `newrelic/nrdot:0.1.0`
 impl Display for AgentTypeID {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}:{}", self.namespace, self.name, self.version)
+    }
+}
+
+/// Converts from a fully quilified name to an AgentTypeID.
+/// The fully qualified name must be in the format `<namespace>/<name>:<version>`.
+/// Example: `newrelic/nrdot:0.1.0`
+impl TryFrom<&str> for AgentTypeID {
+    type Error = AgentTypeIDError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let namespace: String = value.chars().take_while(|&i| i != '/').collect();
+        if !AgentTypeID::is_valid(namespace.as_str()) {
+            return Err(AgentTypeIDError::InvalidNamespace);
+        }
+
+        let name: String = value
+            .chars()
+            .skip_while(|&i| i != '/')
+            .skip(1)
+            .take_while(|&i| i != ':')
+            .collect();
+        if !AgentTypeID::is_valid(name.as_str()) {
+            return Err(AgentTypeIDError::InvalidName);
+        }
+
+        let version_str: String = value.chars().skip_while(|&i| i != ':').skip(1).collect();
+
+        let version =
+            Version::parse(version_str.as_str()).map_err(|_| AgentTypeIDError::InvalidVersion)?;
+
+        Ok(Self {
+            name,
+            namespace,
+            version,
+        })
     }
 }
 
@@ -58,23 +153,25 @@ impl<'de> Deserialize<'de> for AgentTypeID {
         struct IntermediateAgentMetadata {
             name: String,
             namespace: String,
-            version: Version,
+            version: String,
         }
 
-        // TODO add a explicit validation for version and use InvalidVersion error
         let intermediate_spec = IntermediateAgentMetadata::deserialize(deserializer)?;
 
-        if !Self::check_string(intermediate_spec.name.as_str()) {
+        if !Self::is_valid(intermediate_spec.name.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidName));
         }
-        if !Self::check_string(intermediate_spec.namespace.as_str()) {
+        if !Self::is_valid(intermediate_spec.namespace.as_str()) {
             return Err(Error::custom(AgentTypeIDError::InvalidNamespace));
         }
+
+        let version = Version::parse(intermediate_spec.version.as_str())
+            .map_err(|_| Error::custom(AgentTypeIDError::InvalidVersion))?;
 
         Ok(AgentTypeID {
             name: intermediate_spec.name,
             namespace: intermediate_spec.namespace,
-            version: intermediate_spec.version,
+            version,
         })
     }
 }
@@ -83,14 +180,16 @@ impl<'de> Deserialize<'de> for AgentTypeID {
 mod tests {
     use super::*;
 
-    const EXAMPLE_CORRECT_METADATA: &str = r#"
+    #[test]
+    fn test_correct_agent_type_metadata() {
+        let actual = serde_yaml::from_str::<AgentTypeID>(
+            r#"
 name: nrdot_special-with-all.characters
 namespace: newrelic_special-with-all.characters
 version: 0.1.0-alpha.1
-"#;
-    #[test]
-    fn test_correct_agent_type_metadata() {
-        let actual = serde_yaml::from_str::<AgentTypeID>(EXAMPLE_CORRECT_METADATA).unwrap();
+"#,
+        )
+        .unwrap();
 
         assert_eq!("nrdot_special-with-all.characters", actual.name);
         assert_eq!("newrelic_special-with-all.characters", actual.namespace);
@@ -188,5 +287,73 @@ version: 0.1.0
         for test_case in test_cases {
             test_case.run();
         }
+    }
+
+    #[test]
+    fn try_from_fqn_str() {
+        let agent_id = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
+        assert_eq!(agent_id.name, "aa");
+        assert_eq!(agent_id.namespace, "ns");
+        assert_eq!(agent_id.version.to_string(), "1.1.3".to_string());
+
+        assert_eq!(
+            AgentTypeID::try_from("aa").unwrap_err(),
+            AgentTypeIDError::InvalidName
+        );
+
+        assert_eq!(
+            AgentTypeID::try_from("aa:1.1.3").unwrap_err(),
+            AgentTypeIDError::InvalidNamespace
+        );
+
+        assert_eq!(
+            AgentTypeID::try_from("ns/-").unwrap_err(),
+            AgentTypeIDError::InvalidName
+        );
+
+        assert_eq!(
+            AgentTypeID::try_from("ns/aa:").unwrap_err(),
+            AgentTypeIDError::InvalidVersion
+        );
+
+        assert_eq!(
+            AgentTypeID::try_from("ns/:1.1.3").unwrap_err(),
+            AgentTypeIDError::InvalidName
+        );
+
+        assert_eq!(
+            AgentTypeID::try_from("/:").unwrap_err(),
+            AgentTypeIDError::InvalidNamespace
+        );
+    }
+
+    #[test]
+    fn fqn_serialize_deserialize() {
+        #[derive(Debug, Deserialize, Serialize)]
+        struct Foo {
+            #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
+            #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
+            agent_type_id: AgentTypeID,
+        }
+
+        let fqn = "agent_type_id: ns/aa:1.0.0\n";
+
+        let foo: Foo = serde_yaml::from_str(fqn).unwrap();
+
+        assert_eq!(foo.agent_type_id.name, "aa");
+        assert_eq!(foo.agent_type_id.namespace, "ns");
+        assert_eq!(foo.agent_type_id.version.to_string(), "1.0.0".to_string());
+
+        assert_eq!(serde_yaml::to_string(&foo).unwrap(), fqn);
+
+        let foo: Result<Foo, serde_yaml::Error> = serde_yaml::from_str(
+            r#"
+agent_type_id: namespace/name:invalid_version
+"#,
+        );
+        assert!(foo
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid AgentType version"));
     }
 }

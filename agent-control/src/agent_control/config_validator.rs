@@ -41,7 +41,7 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
             .try_for_each(|sub_agent_cfg| {
                 let _ = self
                     .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.deref())?;
+                    .get(sub_agent_cfg.agent_type.to_string().as_str())?;
                 Ok(())
             })
     }
@@ -71,11 +71,8 @@ pub mod tests {
     fn test_existing_agent_type_validation() {
         let mut registry = MockAgentRegistryMock::new();
 
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentTypeID {
-            name: "some_fqn".into(),
-            version: Version::parse("0.0.1").unwrap(),
-            namespace: "ns".into(),
-        });
+        let agent_type_definition =
+            AgentTypeDefinition::empty_with_metadata("ns/some_fqn:0.0.1".try_into().unwrap());
 
         //Expectations
         registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);

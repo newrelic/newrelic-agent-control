@@ -18,9 +18,9 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
     use crate::agent_control::http_server::status::{Status, SubAgentStatus};
     use crate::agent_control::http_server::status_handler::status_handler;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
@@ -39,7 +39,7 @@ mod tests {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
 
@@ -84,7 +84,7 @@ mod tests {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
         sub_agent_status.update_health(HealthWithStartTime::new(

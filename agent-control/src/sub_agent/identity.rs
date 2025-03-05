@@ -1,33 +1,33 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::AgentTypeFQN;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::{Display, Formatter};
 
 // This could be SubAgentIdentity
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentIdentity {
     pub id: AgentID,
-    pub fqn: AgentTypeFQN,
+    pub fqn: AgentTypeID,
 }
 
 impl AgentIdentity {
     pub fn new_agent_control_identity() -> Self {
         Self::from((
             AgentID::new_agent_control_id(),
-            AgentTypeFQN::new_agent_control_fqn(),
+            AgentTypeID::new_agent_control_id(),
         ))
     }
 }
 
-impl From<(AgentID, AgentTypeFQN)> for AgentIdentity {
-    fn from(value: (AgentID, AgentTypeFQN)) -> Self {
+impl From<(AgentID, AgentTypeID)> for AgentIdentity {
+    fn from(value: (AgentID, AgentTypeID)) -> Self {
         AgentIdentity {
             id: value.0,
             fqn: value.1,
         }
     }
 }
-impl From<(&AgentID, &AgentTypeFQN)> for AgentIdentity {
-    fn from(value: (&AgentID, &AgentTypeFQN)) -> Self {
+impl From<(&AgentID, &AgentTypeID)> for AgentIdentity {
+    fn from(value: (&AgentID, &AgentTypeID)) -> Self {
         AgentIdentity {
             id: value.0.clone(),
             fqn: value.1.clone(),

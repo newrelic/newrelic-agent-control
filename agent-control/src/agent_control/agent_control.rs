@@ -414,6 +414,7 @@ mod tests {
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::AgentControl;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::channel::pub_sub;
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
@@ -785,7 +786,7 @@ agents:
                 Ok(HashMap::from([(
                     AgentID::new("nrdot").unwrap(),
                     SubAgentConfig {
-                        agent_type: AgentTypeFQN::try_from(
+                        agent_type: AgentTypeID::try_from(
                             "newrelic/io.opentelemetry.collector:0.0.1",
                         )
                         .unwrap(),
@@ -1231,7 +1232,7 @@ agents:
         let sub_agents_config = AgentControlDynamicConfig::from(HashMap::from([(
             agent_id.clone(),
             SubAgentConfig {
-                agent_type: AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
             },
         )]));
         sub_agents_config_store.should_load(&sub_agents_config);
@@ -1322,16 +1323,14 @@ agents:
             (
                 AgentID::new("infra-agent").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
-                        "newrelic/com.newrelic.infrastructure:0.0.1",
-                    )
-                    .unwrap(),
+                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                        .unwrap(),
                 },
             ),
             (
                 AgentID::new("nrdot").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("newrelic/io.opentelemetry.collector:0.0.1")
+                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
                         .unwrap(),
                 },
             ),

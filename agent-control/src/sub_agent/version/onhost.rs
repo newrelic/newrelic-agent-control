@@ -89,7 +89,7 @@ mod tests {
             },
             TestCase {
                 name: "infrastructure agent version is computed correctly ",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_fqn: AgentTypeID::try_from(
                     "newrelic/com.newrelic.infrastructure:0.1.0",
                 )
                 .unwrap(),

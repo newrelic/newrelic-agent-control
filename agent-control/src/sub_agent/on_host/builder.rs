@@ -197,7 +197,7 @@ mod tests {
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
             AgentID::new("infra-agent").unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
         let sub_agent_instance_id = InstanceID::create();
@@ -273,7 +273,7 @@ mod tests {
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
             AgentID::new("infra-agent").unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();

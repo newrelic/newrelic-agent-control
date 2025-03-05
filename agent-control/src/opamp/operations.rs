@@ -6,6 +6,7 @@ use super::{
 use crate::agent_control::defaults::{
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
@@ -81,7 +82,7 @@ where
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
 pub fn start_settings(
     instance_id: InstanceID,
-    agent_fqn: &AgentTypeFQN,
+    agent_fqn: &AgentTypeID,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> StartSettings {

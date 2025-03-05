@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentIDError;
 use crate::agent_control::config::{AgentControlConfigError, AgentTypeError};
+use crate::agent_type::agent_type_id::AgentTypeIDError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
 
@@ -66,8 +67,8 @@ pub enum GarbageCollectorK8sError {
     #[error("garbage collector fetched resources without required annotations")]
     MissingAnnotations(),
 
-    #[error("unable to parse AgentType: `{0}`")]
-    ParsingAgentType(#[from] AgentTypeError),
+    #[error("unable to parse AgentTypeID: `{0}`")]
+    ParsingAgentType(#[from] AgentTypeIDError),
 
     #[error("unable to parse AgentID: `{0}`")]
     ParsingAgentId(#[from] AgentIDError),

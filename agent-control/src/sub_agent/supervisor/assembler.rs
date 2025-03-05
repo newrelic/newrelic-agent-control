@@ -153,6 +153,7 @@ where
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::AgentTypeFQN;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -288,7 +289,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_some_hash_ok_eff_agent() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
@@ -328,7 +329,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_err_hash_ok_eff_agent() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
@@ -358,7 +359,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_some_hash_err_eff_agent() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let mut hash = Hash::new("some_hash".to_string());
@@ -421,7 +422,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_none_hash_ok_eff_agent() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -469,7 +470,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_none_hash_err_eff_agent() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -522,7 +523,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_ok_eff_agent_no_opamp() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let hash = Hash::new("some_hash".to_string());
@@ -569,7 +570,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_ok_eff_agent_no_opamp_no_hash() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let mut hash_repository = MockHashRepositoryMock::new();
@@ -615,7 +616,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_err_eff_agent_no_opamp() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let hash = Hash::new("some_hash".to_string());
@@ -667,7 +668,7 @@ pub mod tests {
     fn test_assemble_supervisor_from_err_eff_agent_no_opamp_no_hash() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let mut hash_repository = MockHashRepositoryMock::new();

@@ -4,6 +4,7 @@ use crate::agent_control::defaults::{
     default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
     AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
 };
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::config::ProxyConfig;
 use crate::logging::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -200,7 +201,9 @@ impl TryFrom<&str> for AgentTypeFQN {
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct SubAgentConfig {
-    pub agent_type: AgentTypeFQN, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
+    #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
+    pub agent_type: AgentTypeID, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
 }
 
 #[derive(Debug, PartialEq, Serialize, Clone)]
@@ -474,18 +477,6 @@ agents: {}
     }
 
     #[test]
-    fn agent_type_fqn_validator() {
-        assert!(AgentTypeFQN::try_from("ns/aa:1.1.3").is_ok());
-
-        assert!(AgentTypeFQN::try_from("aa").is_err());
-        assert!(AgentTypeFQN::try_from("aa:1.1.3").is_err());
-        assert!(AgentTypeFQN::try_from("ns/-").is_err());
-        assert!(AgentTypeFQN::try_from("ns/aa:").is_err());
-        assert!(AgentTypeFQN::try_from("ns/:1.1.3").is_err());
-        assert!(AgentTypeFQN::try_from("/:").is_err());
-    }
-
-    #[test]
     fn basic_parse() {
         assert!(serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
         assert!(
@@ -535,68 +526,6 @@ agents: {}
             .unwrap_err()
             .to_string()
             .contains("k8s: missing field"));
-    }
-
-    #[test]
-    fn test_agent_type_fqn() {
-        let fqn: AgentTypeFQN = "newrelic/nrdot:0.1.0".try_into().unwrap();
-        assert_eq!(fqn.namespace(), "newrelic");
-        assert_eq!(fqn.name(), "nrdot");
-        assert_eq!(fqn.version(), "0.1.0");
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_no_version() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "newrelic/nrdot".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_no_name() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "newrelic/:0.1.0".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_no_namespace() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/nrdot:0.1.0".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_no_namespace_no_version() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/nrdot".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_no_namespace_no_name() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/:0.1.0".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_namespace_separator() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "/".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_empty_string() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_only_version_separator() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = ":".try_into();
-        assert!(fqn.is_err());
-    }
-
-    #[test]
-    fn bad_agent_type_fqn_only_word() {
-        let fqn: Result<AgentTypeFQN, AgentTypeError> = "only_namespace".try_into();
-        assert!(fqn.is_err());
     }
 
     #[test]

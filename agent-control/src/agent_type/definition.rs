@@ -482,9 +482,9 @@ restart_policy:
     fn test_basic_agent_parsing() {
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
 
-        assert_eq!("nrdot", agent.agent_type_id.name);
-        assert_eq!("newrelic", agent.agent_type_id.namespace);
-        assert_eq!("0.0.1", agent.agent_type_id.version.to_string());
+        assert_eq!("nrdot", agent.agent_type_id.name());
+        assert_eq!("newrelic", agent.agent_type_id.namespace());
+        assert_eq!("0.0.1", agent.agent_type_id.version().to_string());
 
         let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
 
@@ -522,9 +522,9 @@ deployment:
 
         let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_TYPE_NO_EXECUTABLES).unwrap();
 
-        assert_eq!("no-exec", agent.agent_type_id.name);
-        assert_eq!("newrelic", agent.agent_type_id.namespace);
-        assert_eq!("0.0.1", agent.agent_type_id.version.to_string());
+        assert_eq!("no-exec", agent.agent_type_id.name());
+        assert_eq!("newrelic", agent.agent_type_id.namespace());
+        assert_eq!("0.0.1", agent.agent_type_id.version().to_string());
         assert!(agent
             .runtime_config
             .deployment
