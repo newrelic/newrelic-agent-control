@@ -97,7 +97,6 @@ impl EmbeddedRegistry {
 #[cfg(test)]
 pub mod tests {
     use assert_matches::assert_matches;
-    use semver::Version;
 
     use crate::agent_type::agent_type_id::AgentTypeID;
 

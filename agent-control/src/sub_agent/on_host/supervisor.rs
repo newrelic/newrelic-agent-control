@@ -403,7 +403,7 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+    
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;

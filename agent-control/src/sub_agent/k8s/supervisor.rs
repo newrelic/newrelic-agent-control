@@ -242,7 +242,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{helmrelease_v2_type_meta, AgentTypeFQN};
+    use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::K8sObject;

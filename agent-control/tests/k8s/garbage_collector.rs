@@ -15,8 +15,7 @@ use newrelic_agent_control::k8s::annotations::Annotations;
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::{
-    agent_control::config::{default_group_version_kinds, AgentTypeFQN},
-    agent_type::agent_type_id::AgentTypeID,
+    agent_control::config::default_group_version_kinds, agent_type::agent_type_id::AgentTypeID,
 };
 use newrelic_agent_control::{
     agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},

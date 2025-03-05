@@ -106,7 +106,7 @@ impl
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
+    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
     use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
     use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
     use crate::config_migrate::migration::config::MigrationAgentConfig;

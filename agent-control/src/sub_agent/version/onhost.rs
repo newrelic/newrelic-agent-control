@@ -1,4 +1,4 @@
-use crate::agent_control::config::AgentTypeFQN;
+
 use crate::agent_control::defaults::{
     FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
@@ -60,7 +60,7 @@ pub fn onhost_sub_agent_versions() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+    
     use assert_matches::assert_matches;
 
     #[test]

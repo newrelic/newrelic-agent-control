@@ -409,7 +409,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
+    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;

@@ -11,7 +11,6 @@ use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
-    agent_control::config::AgentTypeFQN,
     event::{
         channel::{pub_sub, EventConsumer},
         OpAMPEvent,

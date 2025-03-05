@@ -152,7 +152,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
+    
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};

@@ -1,9 +1,5 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
-use crate::agent_control::defaults::{
-    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
-    AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
-};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::config::ProxyConfig;
 use crate::logging::config::LoggingConfig;
@@ -14,11 +10,8 @@ use crate::values::yaml_config::YAMLConfig;
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
-use opamp_client::opamp::proto::CustomCapabilities;
-use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Deserializer, Serialize};
-use std::ops::Deref;
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 use thiserror::Error;
 use url::Url;
 
@@ -111,99 +104,11 @@ impl TryFrom<YAMLConfig> for AgentControlDynamicConfig {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum AgentTypeError {
-    #[error("AgentType must have a valid namespace")]
-    InvalidAgentTypeNamespace,
-    #[error("AgentType must have a valid name")]
-    InvalidAgentTypeName,
-    #[error("AgentType must have a valid version")]
-    InvalidAgentTypeVersion,
-}
-
-#[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
-pub struct AgentTypeFQN(String);
-
-impl Deref for AgentTypeFQN {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AgentTypeFQN {
-    pub fn namespace(&self) -> String {
-        self.0.chars().take_while(|&i| i != '/').collect()
-    }
-
-    pub fn name(&self) -> String {
-        self.0
-            .chars()
-            .skip_while(|&i| i != '/')
-            .skip(1)
-            .take_while(|&i| i != ':')
-            .collect()
-    }
-
-    pub fn version(&self) -> String {
-        self.0.chars().skip_while(|&i| i != ':').skip(1).collect()
-    }
-
-    pub fn new_agent_control_fqn() -> Self {
-        AgentTypeFQN(format!(
-            "{}/{}:{}",
-            AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION
-        ))
-    }
-
-    pub(crate) fn get_capabilities(&self) -> Capabilities {
-        //TODO: We should move this to EffectiveAgent
-        default_capabilities()
-    }
-
-    pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
-        //TODO: We should move this to EffectiveAgent
-        if self.eq(&AgentTypeFQN::new_agent_control_fqn()) {
-            // Agent_Control does not have custom capabilities for now
-            return None;
-        }
-
-        Some(default_sub_agent_custom_capabilities())
-    }
-}
-
-impl Display for AgentTypeFQN {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
-    }
-}
-
-impl TryFrom<&str> for AgentTypeFQN {
-    type Error = AgentTypeError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let agent_type_fqn = AgentTypeFQN(value.to_string());
-
-        if agent_type_fqn.namespace().is_empty() {
-            return Err(AgentTypeError::InvalidAgentTypeNamespace);
-        }
-        if agent_type_fqn.name().is_empty() {
-            return Err(AgentTypeError::InvalidAgentTypeName);
-        }
-        if agent_type_fqn.version().is_empty() {
-            return Err(AgentTypeError::InvalidAgentTypeVersion);
-        }
-
-        Ok(agent_type_fqn)
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct SubAgentConfig {
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
-    pub agent_type: AgentTypeID, // FQN of the agent type, ex: newrelic/nrdot:0.1.0
+    pub agent_type: AgentTypeID,
 }
 
 #[derive(Debug, PartialEq, Serialize, Clone)]

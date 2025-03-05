@@ -12,7 +12,7 @@ use super::{
     runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
     variable::definition::{VariableDefinition, VariableDefinitionTree},
 };
-use crate::agent_control::config::AgentTypeFQN;
+
 use crate::agent_control::defaults::default_capabilities;
 use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
@@ -211,15 +211,6 @@ impl AgentType {
             runtime_config,
             capabilities: default_capabilities(), // TODO: can capabilities be set in AgentTypeDefinition?
         }
-    }
-
-    // TODO: AgentTypeFQN should not exist and always use the metadata display.
-    pub fn agent_type(&self) -> AgentTypeFQN {
-        self.agent_type_id
-            .to_string()
-            .as_str()
-            .try_into()
-            .expect("incorrect AgentType metadata")
     }
 
     pub fn get_variables(&self) -> Variables {

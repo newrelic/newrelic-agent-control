@@ -1,13 +1,12 @@
 use opamp_client::opamp::proto::CustomCapabilities;
-use opamp_client::operation::capabilities::Capabilities;
 use semver::Version;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{Deserialize, Deserializer, Serializer};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
 
 use crate::agent_control::defaults::{
-    default_capabilities, default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE,
-    AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
+    default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE,
+    AGENT_CONTROL_VERSION,
 };
 
 const NAME_NAMESPACE_MIN_LENGTH: usize = 1;
@@ -24,6 +23,7 @@ pub enum AgentTypeIDError {
 }
 
 /// Holds agent type metadata that uniquely identifies an agent type.
+/// Data can be represented as a fully qualified name in the format `<namespace>/<name>:<version>`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AgentTypeID {
     name: String,
@@ -32,6 +32,8 @@ pub struct AgentTypeID {
 }
 
 impl AgentTypeID {
+    // TODO this is a temporary solution to avoid a bigger refactor but we should consider
+    //  moving this to a more appropriate place
     pub fn new_agent_control_id() -> Self {
         Self {
             namespace: AGENT_CONTROL_NAMESPACE.to_string(),
@@ -172,6 +174,8 @@ impl<'de> Deserialize<'de> for AgentTypeID {
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
+
     use super::*;
 
     #[test]

@@ -1,6 +1,4 @@
-use crate::agent_control::config::{
-    AgentControlConfigError, AgentControlDynamicConfig, AgentTypeFQN,
-};
+use crate::agent_control::config::{AgentControlConfigError, AgentControlDynamicConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
 use semver::{Version, VersionReq};
 use thiserror::Error;
@@ -71,7 +69,7 @@ where
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
+    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
     use mockall::mock;
     use std::collections::HashMap;
 
@@ -109,10 +107,8 @@ pub(crate) mod tests {
         let test_cases = vec![
             TestCase {
                 name: "get only two matching between versions",
-                agent_type_fqn: AgentTypeID::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.0.1",
-                )
-                .unwrap(),
+                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                    .unwrap(),
                 next: Some(
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
                 ),
@@ -152,10 +148,8 @@ agents:
             },
             TestCase {
                 name: "get all three matching since version",
-                agent_type_fqn: AgentTypeID::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.0.1",
-                )
-                .unwrap(),
+                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                    .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
@@ -232,10 +226,8 @@ agents:
         let test_cases = vec![
             TestCase {
                 name: "error no agents higher or equal to version",
-                agent_type_fqn: AgentTypeID::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.1.0",
-                )
-                .unwrap(),
+                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
+                    .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:

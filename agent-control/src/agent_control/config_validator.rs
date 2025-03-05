@@ -1,6 +1,5 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
-use std::ops::Deref;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -50,11 +49,9 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use mockall::mock;
-    use semver::Version;
 
     mock! {
         pub DynamicConfigValidatorMock {}

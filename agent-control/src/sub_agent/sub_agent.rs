@@ -317,7 +317,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;

@@ -215,7 +215,7 @@ pub fn build_agent_type(
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
+
     use crate::agent_control::defaults::default_capabilities;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
@@ -226,7 +226,6 @@ pub(crate) mod tests {
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
-    use semver::Version;
 
     mock! {
         pub(crate) EffectiveAgentAssemblerMock {}

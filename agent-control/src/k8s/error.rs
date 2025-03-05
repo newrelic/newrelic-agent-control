@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentIDError;
-use crate::agent_control::config::{AgentControlConfigError, AgentTypeError};
+use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_type::agent_type_id::AgentTypeIDError;
 use kube::core::gvk::ParseGroupVersionError;
 use kube::{api, config::KubeconfigError};
