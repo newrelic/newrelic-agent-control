@@ -51,14 +51,8 @@ impl AgentTypeID {
         &self.version
     }
 
-    pub(crate) fn get_capabilities(&self) -> Capabilities {
-        //TODO: We should move this to EffectiveAgent
-        default_capabilities()
-    }
-
     pub(crate) fn get_custom_capabilities(&self) -> Option<CustomCapabilities> {
-        //TODO: We should move this to EffectiveAgent
-        if self.eq(&&Self::new_agent_control_id()) {
+        if self.eq(&Self::new_agent_control_id()) {
             // Agent_Control does not have custom capabilities for now
             return None;
         }

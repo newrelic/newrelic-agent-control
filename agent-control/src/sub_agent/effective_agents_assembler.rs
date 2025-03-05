@@ -1,3 +1,4 @@
+use crate::agent_control::defaults::default_capabilities;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -142,7 +143,7 @@ where
         let values = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
             &agent_identity.id,
-            &agent_type.get_capabilities(),
+            &default_capabilities(),
         )?;
 
         // Build the agent attributes
