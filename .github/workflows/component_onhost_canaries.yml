@@ -11,12 +11,10 @@ on:
     inputs:
       environment:
         required: true
-        type: enum
-        enum: [staging, production]
+        type: string
       operation:
         required: true
-        type: enum
-        enum: [plan, apply] 
+        type: string
 
 permissions:
   id-token: write
