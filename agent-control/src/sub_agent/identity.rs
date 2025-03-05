@@ -1,9 +1,6 @@
-use opamp_client::opamp::proto::CustomCapabilities;
-
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
-    default_sub_agent_custom_capabilities, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE,
-    AGENT_CONTROL_VERSION,
+    AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::{Display, Formatter};
@@ -12,7 +9,7 @@ use std::fmt::{Display, Formatter};
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentIdentity {
     pub id: AgentID,
-    pub fqn: AgentTypeID,
+    pub agent_type_id: AgentTypeID,
 }
 
 impl AgentIdentity {
@@ -36,7 +33,7 @@ impl From<(AgentID, AgentTypeID)> for AgentIdentity {
     fn from(value: (AgentID, AgentTypeID)) -> Self {
         AgentIdentity {
             id: value.0,
-            fqn: value.1,
+            agent_type_id: value.1,
         }
     }
 }
@@ -44,14 +41,14 @@ impl From<(&AgentID, &AgentTypeID)> for AgentIdentity {
     fn from(value: (&AgentID, &AgentTypeID)) -> Self {
         AgentIdentity {
             id: value.0.clone(),
-            fqn: value.1.clone(),
+            agent_type_id: value.1.clone(),
         }
     }
 }
 
 impl Display for AgentIdentity {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.fqn, self.id)
+        write!(f, "{}:{}", self.agent_type_id, self.id)
     }
 }
 

@@ -73,9 +73,9 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
     match sub_agent_event {
         SubAgentEvent::SubAgentHealthInfo(agent_identity, health) => {
             if health.is_healthy() {
-                debug!(agent_id = %agent_identity.id, agent_type = %agent_identity.fqn, "status_http_server event_processor sub_agent_became_healthy");
+                debug!(agent_id = %agent_identity.id, agent_type = %agent_identity.agent_type_id, "status_http_server event_processor sub_agent_became_healthy");
             } else {
-                debug!(error_msg = health.last_error(), agent_id = %agent_identity.id, agent_type = %agent_identity.fqn, "status_http_server event_processor sub_agent_became_unhealthy");
+                debug!(error_msg = health.last_error(), agent_id = %agent_identity.id, agent_type = %agent_identity.agent_type_id, "status_http_server event_processor sub_agent_became_unhealthy");
             }
 
             status

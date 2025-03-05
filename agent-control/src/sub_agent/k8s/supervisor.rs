@@ -96,7 +96,8 @@ impl NotStartedSupervisorK8s {
         // Merge default labels with the ones coming from the config with default labels taking precedence.
         labels.append_extra_labels(&k8s_obj.metadata.labels);
 
-        let annotations = Annotations::new_agent_fqn_annotation(&self.agent_identity.fqn);
+        let annotations =
+            Annotations::new_agent_type_id_annotation(&self.agent_identity.agent_type_id);
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
@@ -292,7 +293,7 @@ pub mod tests {
 
         let mut labels = Labels::new(&agent_identity.id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
-        let annotations = Annotations::new_agent_fqn_annotation(&agent_identity.fqn);
+        let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {

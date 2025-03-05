@@ -83,7 +83,7 @@ pub(crate) mod tests {
     fn load_agents_of_type_between_versions() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeID,
+            agent_type_id: AgentTypeID,
             next: Option<AgentTypeID>,
             agents_cfg: &'static str,
             expected: AgentControlDynamicConfig,
@@ -97,7 +97,7 @@ pub(crate) mod tests {
 
                 let config_getter = AgentConfigGetter::new(config_loader);
                 let actual = config_getter
-                    .get_agents_of_type_between_versions(self.agent_type_fqn, self.next);
+                    .get_agents_of_type_between_versions(self.agent_type_id, self.next);
 
                 assert!(actual.is_ok());
                 assert_eq!(actual.unwrap(), self.expected, "{}", self.name);
@@ -106,7 +106,7 @@ pub(crate) mod tests {
         let test_cases = vec![
             TestCase {
                 name: "get only two matching between versions",
-                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
                     .unwrap(),
                 next: Some(
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
@@ -147,7 +147,7 @@ agents:
             },
             TestCase {
                 name: "get all three matching since version",
-                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
                     .unwrap(),
                 next: None,
                 agents_cfg: r#"
@@ -204,7 +204,7 @@ agents:
     fn load_agents_of_type_error() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeID,
+            agent_type_id: AgentTypeID,
             next: Option<AgentTypeID>,
             agents_cfg: &'static str,
         }
@@ -217,7 +217,7 @@ agents:
 
                 let config_getter = AgentConfigGetter::new(config_loader);
                 let actual = config_getter
-                    .get_agents_of_type_between_versions(self.agent_type_fqn, self.next);
+                    .get_agents_of_type_between_versions(self.agent_type_id, self.next);
 
                 assert!(actual.is_err(), "{}", self.name)
             }
@@ -225,7 +225,7 @@ agents:
         let test_cases = vec![
             TestCase {
                 name: "error no agents higher or equal to version",
-                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
                     .unwrap(),
                 next: None,
                 agents_cfg: r#"
@@ -240,7 +240,7 @@ agents:
             },
             TestCase {
                 name: "error no agents of namespace",
-                agent_type_fqn: AgentTypeID::try_from(
+                agent_type_id: AgentTypeID::try_from(
                     "francisco-partners/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),

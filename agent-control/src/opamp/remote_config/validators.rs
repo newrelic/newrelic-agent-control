@@ -27,7 +27,7 @@ pub mod tests {
 
             fn validate(
                 &self,
-                agent_type_fqn: &AgentTypeID,
+                agent_type_id: &AgentTypeID,
                 remote_config: &RemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
         }

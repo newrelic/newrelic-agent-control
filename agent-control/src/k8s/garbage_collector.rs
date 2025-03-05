@@ -187,12 +187,12 @@ where
         match active_config.get(&AgentID::new(agent_id.as_str())?) {
             None => Ok(true),
             Some(config) => {
-                let fqn = AgentTypeID::try_from(
-                    annotations::get_agent_fqn_value(&annotations)
+                let agent_type_id = AgentTypeID::try_from(
+                    annotations::get_agent_type_id_value(&annotations)
                         .ok_or(MissingAnnotations())?
                         .as_str(),
                 )?;
-                Ok(config.agent_type != fqn)
+                Ok(config.agent_type != agent_type_id)
             }
         }
     }
@@ -347,7 +347,7 @@ pub(crate) mod tests {
                 ObjectMeta {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
-                        Annotations::new_agent_fqn_annotation(
+                        Annotations::new_agent_type_id_annotation(
                             &AgentTypeID::try_from("ns/unknown:1.2.3").unwrap(),
                         )
                         .get(),
@@ -361,7 +361,7 @@ pub(crate) mod tests {
                 ObjectMeta {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
-                        Annotations::new_agent_fqn_annotation(
+                        Annotations::new_agent_type_id_annotation(
                             &AgentTypeID::try_from("ns/test-fqn:1.2.3").unwrap(),
                         )
                         .get(),

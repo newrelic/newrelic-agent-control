@@ -9,7 +9,7 @@ use crate::on_host::tools::config::create_agent_control_config;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_NAMESPACE, FQN_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY,
+    AGENT_CONTROL_NAMESPACE, AGENT_TYPE_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
     OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
@@ -118,7 +118,7 @@ fn test_attributes_from_an_existing_agent_type() {
   test-agent:
     agent_type: "{}/{}:0.1.0"
 "#,
-        AGENT_CONTROL_NAMESPACE, FQN_NAME_INFRA_AGENT
+        AGENT_CONTROL_NAMESPACE, AGENT_TYPE_NAME_INFRA_AGENT
     );
 
     create_agent_control_config(
@@ -147,7 +147,7 @@ fn test_attributes_from_an_existing_agent_type() {
         ),
         (
             OPAMP_SERVICE_NAME,
-            Value::StringValue(FQN_NAME_INFRA_AGENT.to_string()),
+            Value::StringValue(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
         ),
         (
             OPAMP_SERVICE_VERSION,

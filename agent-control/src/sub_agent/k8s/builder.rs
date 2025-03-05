@@ -90,7 +90,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn.version().to_string().into(),
+                        agent_identity.agent_type_id.version().to_string().into(),
                     )]),
                     HashMap::from([(
                         CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
@@ -353,10 +353,10 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            &agent_identity.fqn,
+            &agent_identity.agent_type_id,
             HashMap::from([(
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.fqn.version().to_string().into(),
+                agent_identity.agent_type_id.version().to_string().into(),
             )]),
             HashMap::from([
                 (

@@ -147,7 +147,7 @@ agents:
   {}:
     agent_type: {}
 "#,
-        agent_identity.id, agent_identity.fqn
+        agent_identity.id, agent_identity.agent_type_id
     );
     let mut seq = Sequence::new();
 
@@ -320,7 +320,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "not-deleted",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_fqn_annotation(fqn).get()),
+        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
     ));
 
     block_on(create_foo_cr(
@@ -344,7 +344,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "old-fqn",
         Some(Labels::new(agent_id).get()),
-        Some(Annotations::new_agent_fqn_annotation(fqn_old).get()),
+        Some(Annotations::new_agent_type_id_annotation(fqn_old).get()),
     ));
 
     block_on(create_foo_cr(
@@ -352,7 +352,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test_ns.as_str(),
         "id-unknown",
         Some(Labels::new(agent_id_unknonw).get()),
-        Some(Annotations::new_agent_fqn_annotation(fqn).get()),
+        Some(Annotations::new_agent_type_id_annotation(fqn).get()),
     ));
 
     let k8s_client =

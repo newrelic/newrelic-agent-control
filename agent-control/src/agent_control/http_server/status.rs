@@ -123,7 +123,7 @@ impl SubAgentStatus {
     pub fn with_identity(agent_identity: AgentIdentity) -> Self {
         Self {
             agent_id: agent_identity.id,
-            agent_type: agent_identity.fqn,
+            agent_type: agent_identity.agent_type_id,
             healthy: false,
             last_error: None,
             status: String::default(),
@@ -221,7 +221,7 @@ pub mod tests {
     use url::Url;
 
     use crate::agent_control::agent_id::AgentID;
-    
+
     use crate::agent_control::http_server::status::{
         AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };

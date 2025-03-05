@@ -71,7 +71,7 @@ pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
 }
 
 pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<CustomCapabilities> {
-    if agent_type_id.eq(&AgentIdentity::new_agent_control_identity().fqn) {
+    if agent_type_id.eq(&AgentIdentity::new_agent_control_identity().agent_type_id) {
         // Agent_Control does not have custom capabilities for now
         return None;
     }
@@ -79,8 +79,8 @@ pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<Cus
     Some(default_sub_agent_custom_capabilities())
 }
 
-pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
-pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
+pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
+pub const AGENT_TYPE_NAME_NRDOT: &str = "io.opentelemetry.collector";
 
 #[cfg(test)]
 pub(crate) mod tests {

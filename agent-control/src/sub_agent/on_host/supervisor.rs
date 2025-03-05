@@ -162,7 +162,7 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Option<StartedThreadContext> {
         let onhost_version_checker =
-            OnHostAgentVersionChecker::checked_new(self.agent_identity.fqn.clone())?;
+            OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
             self.agent_identity.id.clone(),

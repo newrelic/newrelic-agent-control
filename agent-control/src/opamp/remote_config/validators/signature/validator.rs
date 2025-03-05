@@ -429,7 +429,7 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test".to_string()),
             None,
         );
-        let agent_type = AgentIdentity::new_agent_control_identity().fqn;
+        let agent_type = AgentIdentity::new_agent_control_identity().agent_type_id;
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
         assert!(signature_validator.validate(&agent_type, &rc).is_ok());
     }

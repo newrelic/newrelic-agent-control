@@ -69,16 +69,16 @@ pub mod tests {
         let mut registry = MockAgentRegistryMock::new();
 
         let agent_type_definition =
-            AgentTypeDefinition::empty_with_metadata("ns/some_fqn:0.0.1".try_into().unwrap());
+            AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
 
         //Expectations
-        registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
 
         let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(
             r#"
 agents:
   some-agent:
-    agent_type: ns/some_fqn:0.0.1
+    agent_type: ns/name:0.0.1
 "#,
         )
         .unwrap();

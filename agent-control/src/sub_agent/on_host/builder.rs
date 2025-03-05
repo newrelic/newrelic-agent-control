@@ -86,7 +86,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn.version().to_string().into(),
+                        agent_identity.agent_type_id.version().to_string().into(),
                     )]),
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
@@ -208,7 +208,7 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &agent_identity.fqn,
+            &agent_identity.agent_type_id,
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
@@ -283,7 +283,7 @@ mod tests {
             &hostname,
             agent_control_instance_id.clone(),
             sub_agent_instance_id.clone(),
-            &agent_identity.fqn,
+            &agent_identity.agent_type_id,
         );
 
         let agent_control_id = AgentID::new_agent_control_id();
