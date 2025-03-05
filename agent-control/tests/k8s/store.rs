@@ -184,13 +184,13 @@ fn k8s_sa_config_map() {
     let agents_cfg_local = r#"
 agents:
   infra-agent-a:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-c:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-d:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
 "#
     .to_string();
 
@@ -210,11 +210,11 @@ agents:
     let agents_cfg = r#"
 agents:
   infra-agent-a:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   infra-agent-b:
-    agent_type: "com.newrelic.infrastructure:0.0.2"
+    agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   not-infra-agent:
-    agent_type: "io.opentelemetry.collector:0.1.0"
+    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 "#;
     assert!(store_sa
         .store(&from_str::<YAMLConfig>(agents_cfg).unwrap())

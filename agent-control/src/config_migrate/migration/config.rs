@@ -156,6 +156,7 @@ impl MigrationConfig {
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct MigrationAgentConfig {
+    #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
     pub agent_type_fqn: AgentTypeID,
     pub files_map: FilesMap,
     pub dirs_map: DirsMap,
