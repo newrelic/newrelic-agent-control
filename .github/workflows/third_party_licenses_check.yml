@@ -13,6 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Give GitHub Actions access to private crates
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
+            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
+
       - uses: newrelic/rust-licenses-noticer@v0.1.0
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
