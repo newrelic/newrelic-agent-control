@@ -175,86 +175,105 @@ version: 0.1.0-alpha.1
         struct TestCase {
             name: &'static str,
             metadata: &'static str,
+            expected_error: AgentTypeIDError,
         }
         impl TestCase {
             fn run(self) {
-                let actual = serde_yaml::from_str::<AgentTypeID>(self.metadata);
+                let actual_err =
+                    serde_yaml::from_str::<AgentTypeID>(self.metadata).expect_err(self.name);
 
-                assert!(actual.is_err(), "{}", self.name)
+                assert!(
+                    actual_err
+                        .to_string()
+                        .eq(self.expected_error.to_string().as_str()),
+                    "TestCase: {} Expected error: {:?}, got: {:?}",
+                    self.name,
+                    self.expected_error,
+                    actual_err
+                );
             }
         }
         let test_cases = vec![
             TestCase {
-                name: "error no name",
+                name: "emtpy name",
+                expected_error: AgentTypeIDError::InvalidName,
                 metadata: r#"
-name:
-namespace: newrelic
-version: 0.1.0
-"#,
+            name:
+            namespace: newrelic
+            version: 0.1.0
+            "#,
             },
             TestCase {
-                name: "error no namespace",
+                name: "empty namespace",
+                expected_error: AgentTypeIDError::InvalidNamespace,
                 metadata: r#"
-name: nrdot
-namespace:
-version: 0.1.0
-"#,
+            name: nrdot
+            namespace:
+            version: 0.1.0
+            "#,
             },
             TestCase {
-                name: "error no version",
+                name: "emtpy version",
+                expected_error: AgentTypeIDError::InvalidVersion,
                 metadata: r#"
-name: nrdot
-namespace: newrelic
-version:
-"#,
+            name: nrdot
+            namespace: newrelic
+            version:
+            "#,
             },
             TestCase {
                 name: "error wrong version 1",
+                expected_error: AgentTypeIDError::InvalidVersion,
                 metadata: r#"
-name: nrdot
-namespace: newrelic
-version: 0
-"#,
+            name: nrdot
+            namespace: newrelic
+            version: 0
+            "#,
             },
             TestCase {
                 name: "error wrong version 2",
+                expected_error: AgentTypeIDError::InvalidVersion,
                 metadata: r#"
-name: nrdot
-namespace: newrelic
-version: adsf
-"#,
+            name: nrdot
+            namespace: newrelic
+            version: adsf
+            "#,
             },
             TestCase {
-                name: "error wrong values on name",
+                name: "invalid characters on name",
+                expected_error: AgentTypeIDError::InvalidName,
                 metadata: r#"
-name: nrdot:
-namespace: newrelic
-version: 0.1.0
-"#,
+            name: invalid/slash
+            namespace: newrelic
+            version: 0.1.0
+            "#,
             },
             TestCase {
-                name: "error wrong values on namespace",
+                name: "invalid characters on namespace",
+                expected_error: AgentTypeIDError::InvalidNamespace,
                 metadata: r#"
-name: nrdot
-namespace: newrelic/
-version: 0.1.0
-"#,
+            name: nrdot
+            namespace: invalid/slash
+            version: 0.1.0
+            "#,
             },
             TestCase {
-                name: "error name exceeding allowed number of chars",
+                name: "name exceeding allowed number of chars",
+                expected_error: AgentTypeIDError::InvalidName,
                 metadata: r#"
-name: test_test_test_test_test_test_test_test_test_test_test_test_test_test
-namespace: newrelic/
-version: 0.1.0
-"#,
+            name: test_test_test_test_test_test_test_test_test_test_test_test_test_test
+            namespace: newrelic
+            version: 0.1.0
+            "#,
             },
             TestCase {
-                name: "error namespace exceeding allowed number of chars",
+                name: "namespace exceeding allowed number of chars",
+                expected_error: AgentTypeIDError::InvalidNamespace,
                 metadata: r#"
-name: nrdot
-namespace: test_test_test_test_test_test_test_test_test_test_test_test_test_test/
-version: 0.1.0
-"#,
+            name: nrdot
+            namespace: test_test_test_test_test_test_test_test_test_test_test_test_test_test
+            version: 0.1.0
+            "#,
             },
         ];
 
