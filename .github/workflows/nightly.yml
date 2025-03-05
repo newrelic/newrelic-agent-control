@@ -155,7 +155,7 @@ jobs:
 
   onhost_canaries:
     uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ build-image ]
+    needs: [ build-packages ]
     with:
       environment: staging
       operation: apply
