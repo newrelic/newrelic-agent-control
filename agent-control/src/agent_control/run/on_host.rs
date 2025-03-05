@@ -11,6 +11,8 @@ use crate::agent_type::environment::Environment;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
+use crate::http::client::HttpClient;
+use crate::http::config::HttpConfig;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -60,10 +62,15 @@ impl AgentControlRunner {
             .as_ref()
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
+        //TODO IMPLENENT ME CORRECTLY
+        let azure_http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let gcp_http_client = HttpClient::new(HttpConfig::default()).unwrap();
+        let aws_http_client = HttpClient::new(HttpConfig::default()).unwrap();
 
-        let identifiers_provider = IdentifiersProvider::try_new()?
-            .with_host_id(config.host_id.clone())
-            .with_fleet_id(fleet_id);
+        let identifiers_provider =
+            IdentifiersProvider::try_new(azure_http_client, aws_http_client, gcp_http_client)?
+                .with_host_id(config.host_id.clone())
+                .with_fleet_id(fleet_id);
 
         let identifiers = identifiers_provider
             .provide()

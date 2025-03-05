@@ -1,10 +1,8 @@
 //! Azure EC2 instance id detector implementation
 use super::metadata::AzureMetadata;
-use crate::cloud::http_client::{
-    HttpClient, HttpClientError, HttpClientReqwest, DEFAULT_CLIENT_TIMEOUT,
-};
+use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
-use http::HeaderMap;
+use http::{HeaderMap, Request};
 use thiserror::Error;
 
 /// The default Azure instance metadata endpoint.
@@ -14,24 +12,27 @@ pub const AZURE_IPV4_METADATA_ENDPOINT: &str =
 /// The `AzureDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct AzureDetector<C: HttpClient> {
     http_client: C,
+    metadata_endpoint: String,
+    headers: HeaderMap,
 }
 
 const HEADER_KEY: &str = "Metadata";
 const HEADER_VALUE: &str = "true";
 
-impl AzureDetector<HttpClientReqwest> {
+impl<C: HttpClient> AzureDetector<C> {
     /// Returns a new instance of AzureDetector
-    pub fn try_new(metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn try_new(http_client: C, metadata_endpoint: String) -> Result<Self, HttpClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
             HEADER_VALUE.parse().expect("constant valid value"),
         );
 
-        let http_client =
-            HttpClientReqwest::try_new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, Some(headers))?;
-
-        Ok(Self { http_client })
+        Ok(Self {
+            http_client,
+            metadata_endpoint,
+            headers,
+        })
     }
 }
 
@@ -54,10 +55,12 @@ where
     C: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
-        let response = self
-            .http_client
-            .get()
-            .map_err(AzureDetectorError::HttpError)?;
+        let mut request = Request::builder()
+            .method("GET")
+            .uri(&self.metadata_endpoint)
+            .body(Vec::new())?;
+        request.headers_mut().extend(self.headers.clone());
+        let response = self.http_client.send(request)?;
 
         // return error if status code is not within 200-299.
         if !response.status().is_success() {
@@ -90,13 +93,15 @@ mod tests {
     use assert_matches::assert_matches;
 
     #[test]
-    fn http_client_error() {
+    fn http_client_error_ppp() {
         let mut client_mock = MockHttpClientMock::new();
         let error = HttpClientError::TransportError(String::from("some error"));
-        client_mock.should_not_get(error);
+        client_mock.should_not_send(error);
 
         let detector = AzureDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let detect_error = detector.detect().unwrap_err();
@@ -111,7 +116,7 @@ mod tests {
     #[test]
     fn invalid_response_code() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(
+        client_mock.should_send(
             http::Response::builder()
                 .status(503)
                 .body("".as_bytes().to_vec())
@@ -120,6 +125,8 @@ mod tests {
 
         let detector = AzureDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let detect_error = detector.detect().unwrap_err();
@@ -133,7 +140,7 @@ mod tests {
     #[test]
     fn error_on_deserializing() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(
+        client_mock.should_send(
             http::Response::builder()
                 .status(200)
                 .body("bad:json".as_bytes().to_vec())
@@ -142,6 +149,8 @@ mod tests {
 
         let detector = AzureDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let detect_error = detector.detect().unwrap_err();
@@ -156,7 +165,7 @@ mod tests {
     fn detect_azure_metadata_from_windows_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=windows
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(
+        client_mock.should_send(
             http::Response::builder()
                 .status(200)
                 .body(WINDOWS_VM_RESPONSE.as_bytes().to_vec())
@@ -165,6 +174,8 @@ mod tests {
 
         let detector = AzureDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let identifiers = detector.detect().unwrap();
@@ -179,7 +190,7 @@ mod tests {
     fn detect_azure_metadata_from_linux_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.should_get(
+        client_mock.should_send(
             http::Response::builder()
                 .status(200)
                 .body(LINUX_VM_RESPONSE.as_bytes().to_vec())
@@ -188,6 +199,8 @@ mod tests {
 
         let detector = AzureDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let identifiers = detector.detect().unwrap();
@@ -207,7 +220,7 @@ mod tests {
         },
         "hostGroup": {
           "id": "testHostGroupId"
-        }, 
+        },
         "extendedLocation": {
             "type": "edgeZone",
             "name": "microsoftlosangeles"
@@ -231,7 +244,7 @@ mod tests {
             "publisher": "planPublisher"
         },
         "platformFaultDomain": "36",
-        "platformSubFaultDomain": "",        
+        "platformSubFaultDomain": "",
         "platformUpdateDomain": "42",
         "priority": "Regular",
         "publicKeys": [{

@@ -1,12 +1,12 @@
+use crate::http::client::HttpClient;
 use crate::opamp::instance_id::on_host::storer::StorerError;
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
 };
-use resource_detection::cloud::aws::http_client::AWSHttpClientReqwest;
 use resource_detection::cloud::azure::detector::{AzureDetector, AZURE_IPV4_METADATA_ENDPOINT};
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::{GCPDetector, GCP_IPV4_METADATA_ENDPOINT};
-use resource_detection::cloud::http_client::{HttpClientError, HttpClientReqwest};
+use resource_detection::cloud::http_client::HttpClientError;
 use resource_detection::cloud::CLOUD_INSTANCE_ID;
 use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
@@ -48,9 +48,9 @@ pub enum IdentifiersProviderError {
 pub struct IdentifiersProvider<
     D = SystemDetector,
     D2 = CloudIdDetector<
-        AWSDetector<AWSHttpClientReqwest>,
-        AzureDetector<HttpClientReqwest>,
-        GCPDetector<HttpClientReqwest>,
+        AWSDetector<HttpClient>,
+        AzureDetector<HttpClient>,
+        GCPDetector<HttpClient>,
     >,
 > where
     D: Detector,
@@ -63,10 +63,17 @@ pub struct IdentifiersProvider<
 }
 
 impl IdentifiersProvider {
-    pub fn try_new() -> Result<Self, IdentifiersProviderError> {
+    pub fn try_new(
+        azure_http_client: HttpClient,
+        aws_http_client: HttpClient,
+        gcp_http_client: HttpClient,
+    ) -> Result<Self, IdentifiersProviderError> {
         Ok(Self {
             system_detector: SystemDetector::default(),
             cloud_id_detector: CloudIdDetector::try_new(
+                azure_http_client,
+                aws_http_client,
+                gcp_http_client,
                 AWS_IPV4_METADATA_ENDPOINT.to_string(),
                 AWS_IPV4_METADATA_TOKEN_ENDPOINT.to_string(),
                 AZURE_IPV4_METADATA_ENDPOINT.to_string(),
