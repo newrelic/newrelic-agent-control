@@ -1,0 +1,18 @@
+permissions:
+  contents: read
+on:
+  push:
+# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+name: ⚖️ Third party licenses
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: newrelic/rust-licenses-noticer@v0.1.0
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl

@@ -11,20 +11,19 @@ or by e-mailing [open-source@newrelic.com](mailto:open-source@newrelic.com).
 
 For any licenses that require the disclosure of source code, the source code
 can be found at https://github.com/newrelic/newrelic-agent-control.
-
 {% for dep, licenseObj in dependencies %}
 {%- if dep is containing("newrelic_agent_control") %}{% continue %}{% endif -%}
 {%- if dep is containing("resource-detection") %}{% continue %}{% endif -%}
 {%- if dep is containing("fs") %}{% continue %}{% endif -%}
 {%- if dep is containing("nr-auth") %}{% continue %}{% endif -%}
-{%- if dep is containing("license") %}{% continue %}{% endif -%}
 {%- if dep is containing("config-migrate") %}{% continue %}{% endif -%}
-## {{ dep | split(pat=" ") | first }} {{ dep | split(pat=" ") | last | replace(from="registry+https://github.com/rust-lang/crates.io-index", to="https://crates.io/crates/" ~ dep | split(pat=" ") | first ) }}
+## {{ dep | split(pat=" ") | first }} <{{ dep | split(pat=" ") | last }}>
 
 Distributed under the following license(s):
+
 {% for key, licenses in licenseObj -%}
 {% for license in licenses -%}
 * {{ license }}
-{% endfor %}
-{% endfor %}
-{% endfor %}
+{% endfor -%}
+{%- endfor -%}
+{%- endfor -%}

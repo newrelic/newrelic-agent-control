@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["agent-control", "resource-detection", "fs", "license"]
+members = ["agent-control", "resource-detection", "fs"]
 
 [workspace.package]
 authors = ["The New Relic Agent Control Team"]
