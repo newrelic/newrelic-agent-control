@@ -172,7 +172,7 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    
+
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
