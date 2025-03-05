@@ -1,9 +1,10 @@
-ANSIBLE_FOLDER ?= $(CURDIR)
+ANSIBLE_FOLDER := $(CURDIR)
 
-export REQUIREMENTS_FILE ?= $(ANSIBLE_FOLDER)/requirements.yml
-export ROLES_PATH:=$(ANSIBLE_FOLDER)/roles
-export COLLECTIONS_PATH:=$(ANSIBLE_FOLDER)/collections
+export REQUIREMENTS_FILE := $(ANSIBLE_FOLDER)/requirements.yml
+export ROLES_PATH := $(ANSIBLE_FOLDER)/roles
+export COLLECTIONS_PATH := $(ANSIBLE_FOLDER)/collections
 export CROWDSTRIKE_ROLE_PULL_KEY := $(HOME)/.ssh/crowdstrike_ansible_role_key
+
 
 $(ROLES_PATH) $(COLLECTIONS_PATH):
 	@mkdir -p $@
