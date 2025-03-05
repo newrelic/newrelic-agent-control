@@ -195,7 +195,7 @@ version: 0.1.0-alpha.1
         }
         let test_cases = vec![
             TestCase {
-                name: "emtpy name",
+                name: "empty name",
                 expected_error: AgentTypeIDError::InvalidName,
                 metadata: r#"
             name:
@@ -213,7 +213,7 @@ version: 0.1.0-alpha.1
             "#,
             },
             TestCase {
-                name: "emtpy version",
+                name: "empty version",
                 expected_error: AgentTypeIDError::InvalidVersion,
                 metadata: r#"
             name: nrdot
