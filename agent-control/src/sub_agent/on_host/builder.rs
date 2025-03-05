@@ -86,7 +86,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn.version().into(),
+                        agent_identity.fqn.version().to_string().into(),
                     )]),
                     HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
                 )
@@ -165,11 +165,12 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    
+
     use crate::agent_control::defaults::{
         default_capabilities, default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME,
         OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
     };
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilderMock;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -338,7 +339,7 @@ mod tests {
         hostname: &str,
         agent_control_instance_id: InstanceID,
         sub_agent_instance_id: InstanceID,
-        agent_fqn: &AgentTypeFQN,
+        agent_fqn: &AgentTypeID,
     ) -> StartSettings {
         let identifying_attributes = HashMap::<String, DescriptionValueType>::from([
             (OPAMP_SERVICE_NAME.to_string(), agent_fqn.name().into()),
@@ -348,7 +349,7 @@ mod tests {
             ),
             (
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_fqn.version().into(),
+                agent_fqn.version().to_string().into(),
             ),
         ]);
         StartSettings {

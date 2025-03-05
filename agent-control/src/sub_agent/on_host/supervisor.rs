@@ -403,7 +403,8 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    
+
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
@@ -419,6 +420,8 @@ pub mod tests {
     #[traced_test]
     fn test_supervisor_gracefully_shutdown() {
         use tracing_test::internal::logs_with_scope_contain;
+
+        use crate::agent_type::agent_type_id::AgentTypeID;
 
         struct TestCase {
             name: &'static str,

@@ -1,6 +1,7 @@
 use crate::agent_control::config::{AgentControlConfigError, AgentControlDynamicConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
-use semver::{Version, VersionReq};
+use crate::agent_type::agent_type_id::AgentTypeID;
+use semver::VersionReq;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -32,8 +33,8 @@ where
     }
     pub fn get_agents_of_type_between_versions(
         &self,
-        agent_type_min: AgentTypeFQN,
-        agent_type_max: Option<AgentTypeFQN>,
+        agent_type_min: AgentTypeID,
+        agent_type_max: Option<AgentTypeID>,
     ) -> Result<AgentControlDynamicConfig, ConversionError> {
         let mut agent_control_dynamic_config = self.sub_agents_config_loader.load()?;
         let agent_type_namespace = agent_type_min.namespace();
@@ -48,11 +49,9 @@ where
             VersionReq::parse(format!("{}{}", version_req_min, version_req_max).as_str())?;
 
         for agent in agent_control_dynamic_config.agents.clone() {
-            let agent_version = Version::parse(agent.1.agent_type.version().as_str()).unwrap();
-
             if agent.1.agent_type.namespace() != agent_type_namespace
                 || agent.1.agent_type.name() != agent_type_name
-                || !version_req.matches(&agent_version)
+                || !version_req.matches(agent.1.agent_type.version())
             {
                 agent_control_dynamic_config.agents.remove(&agent.0);
             }
@@ -84,8 +83,8 @@ pub(crate) mod tests {
     fn load_agents_of_type_between_versions() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeFQN,
-            next: Option<AgentTypeFQN>,
+            agent_type_fqn: AgentTypeID,
+            next: Option<AgentTypeID>,
             agents_cfg: &'static str,
             expected: AgentControlDynamicConfig,
         }
@@ -205,8 +204,8 @@ agents:
     fn load_agents_of_type_error() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeFQN,
-            next: Option<AgentTypeFQN>,
+            agent_type_fqn: AgentTypeID,
+            next: Option<AgentTypeID>,
             agents_cfg: &'static str,
         }
         impl TestCase {

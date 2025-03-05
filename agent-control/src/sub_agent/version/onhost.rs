@@ -1,7 +1,7 @@
-
 use crate::agent_control::defaults::{
     FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use tracing::error;
 
@@ -15,7 +15,7 @@ pub struct OnHostAgentVersionChecker {
 }
 
 impl OnHostAgentVersionChecker {
-    pub fn checked_new(agent_type_fqn: AgentTypeFQN) -> Option<Self> {
+    pub fn checked_new(agent_type_fqn: AgentTypeID) -> Option<Self> {
         match retrieve_version(&agent_type_fqn) {
             Ok(agent_version) => Some(Self { agent_version }),
             Err(e) => {
@@ -32,8 +32,8 @@ impl VersionChecker for OnHostAgentVersionChecker {
     }
 }
 
-fn retrieve_version(agent_type_fqn: &AgentTypeFQN) -> Result<AgentVersion, VersionCheckError> {
-    match agent_type_fqn.name().as_str() {
+fn retrieve_version(agent_type_fqn: &AgentTypeID) -> Result<AgentVersion, VersionCheckError> {
+    match agent_type_fqn.name() {
         FQN_NAME_INFRA_AGENT => Ok(AgentVersion::new(
             NEWRELIC_INFRA_AGENT_VERSION.to_string(),
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
@@ -60,14 +60,14 @@ pub fn onhost_sub_agent_versions() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     use assert_matches::assert_matches;
 
     #[test]
     fn test_agent_version_checker_build() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeFQN,
+            agent_type_fqn: AgentTypeID,
             check: fn(&'static str, Option<OnHostAgentVersionChecker>),
         }
 
@@ -82,17 +82,15 @@ mod tests {
         let test_cases = [
             TestCase {
                 name: "Version cannot be computed for the superAgent",
-                agent_type_fqn: AgentTypeFQN::new_agent_control_fqn(),
+                agent_type_fqn: AgentTypeID::new_agent_control_id(),
                 check: |name, result| {
                     assert!(result.is_none(), "{name}",);
                 },
             },
             TestCase {
                 name: "infrastructure agent version is computed correctly ",
-                agent_type_fqn: AgentTypeID::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.1.0",
-                )
-                .unwrap(),
+                agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
+                    .unwrap(),
                 check: |name, result| {
                     let r = result.unwrap();
                     assert_matches!(
