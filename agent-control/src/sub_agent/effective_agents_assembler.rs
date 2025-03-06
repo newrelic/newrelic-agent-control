@@ -1,3 +1,4 @@
+use crate::agent_control::defaults::default_capabilities;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
@@ -134,7 +135,9 @@ where
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
-        let agent_type_definition = self.registry.get(&agent_identity.fqn)?;
+        let agent_type_definition = self
+            .registry
+            .get(&agent_identity.agent_type_id.to_string())?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
 
@@ -142,7 +145,7 @@ where
         let values = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
             &agent_identity.id,
-            &agent_type.get_capabilities(),
+            &default_capabilities(),
         )?;
 
         // Build the agent attributes
@@ -200,7 +203,7 @@ pub fn build_agent_type(
         .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
 
     Ok(AgentType::new(
-        definition.metadata,
+        definition.agent_type_id,
         merged_variables,
         runtime_config,
     ))
@@ -214,9 +217,9 @@ pub fn build_agent_type(
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
+
     use crate::agent_control::defaults::default_capabilities;
-    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::render::renderer::tests::MockRendererMock;
@@ -225,7 +228,6 @@ pub(crate) mod tests {
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
-    use semver::Version;
 
     mock! {
         pub(crate) EffectiveAgentAssemblerMock {}
@@ -304,14 +306,11 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
-            name: "some_fqn".into(),
-            version: Version::parse("0.0.1").unwrap(),
-            namespace: "ns".into(),
-        });
+        let agent_type_definition =
+            AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
         let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
         let values = YAMLConfig::default();
 
@@ -319,7 +318,7 @@ pub(crate) mod tests {
         let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations
-        registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
 
         sub_agent_values_repo.should_load_remote(
             &agent_identity.id,
@@ -358,11 +357,11 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/name:0.0.1").unwrap(),
         ));
 
         //Expectations
-        registry.should_not_get("namespace/some_fqn:0.0.1".to_string());
+        registry.should_not_get("namespace/name:0.0.1".to_string());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
@@ -374,7 +373,7 @@ pub(crate) mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "error assembling agents: `agent type `namespace/some_fqn:0.0.1` not found`",
+            "error assembling agents: `agent type `namespace/name:0.0.1` not found`",
             result.unwrap_err().to_string()
         );
     }
@@ -389,17 +388,15 @@ pub(crate) mod tests {
         // Objects
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("ns/some_fqn:0.0.1").unwrap(),
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
-            name: "some_fqn".into(),
-            version: Version::parse("0.0.1").unwrap(),
-            namespace: "ns".into(),
-        });
+        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(
+            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
+        );
 
         //Expectations
-        registry.should_get("ns/some_fqn:0.0.1".to_string(), &agent_type_definition);
+        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_not_load_remote(&agent_identity.id, default_capabilities());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(

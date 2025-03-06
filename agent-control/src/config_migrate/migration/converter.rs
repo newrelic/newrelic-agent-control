@@ -54,7 +54,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
     ) -> Result<HashMap<String, AgentValueSpec>, ConversionError> {
         let agent_type_definition = self
             .agent_registry
-            .get(&migration_agent_config.get_agent_type_fqn())?;
+            .get(&migration_agent_config.get_agent_type_fqn().to_string())?;
 
         let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost)?;
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();

@@ -57,7 +57,7 @@ impl EmbeddedRegistry {
     }
 
     fn insert(&mut self, definition: AgentTypeDefinition) -> Result<(), AgentRepositoryError> {
-        let metadata = definition.metadata.to_string();
+        let metadata = definition.agent_type_id.to_string();
         if self.0.contains_key(&metadata) {
             return Err(AgentRepositoryError::AlreadyExists(metadata));
         }
@@ -97,9 +97,8 @@ impl EmbeddedRegistry {
 #[cfg(test)]
 pub mod tests {
     use assert_matches::assert_matches;
-    use semver::Version;
 
-    use crate::agent_type::agent_metadata::AgentMetadata;
+    use crate::agent_type::agent_type_id::AgentTypeID;
 
     use super::*;
 
@@ -134,7 +133,7 @@ pub mod tests {
 
         // The expected key for each definition should be the metadata string
         for (key, definition) in registry.0.iter() {
-            assert_eq!(key.to_string(), definition.metadata.to_string())
+            assert_eq!(key.to_string(), definition.agent_type_id.to_string())
         }
 
         let registry_nonexistent_dynamic =
@@ -148,16 +147,12 @@ pub mod tests {
     #[test]
     fn test_get() {
         let definitions = vec![
-            AgentTypeDefinition::empty_with_metadata(AgentMetadata {
-                name: "agent-1".into(),
-                version: Version::parse("0.0.0").unwrap(),
-                namespace: "ns".into(),
-            }),
-            AgentTypeDefinition::empty_with_metadata(AgentMetadata {
-                name: "agent-2".into(),
-                version: Version::parse("0.0.0").unwrap(),
-                namespace: "ns".into(),
-            }),
+            AgentTypeDefinition::empty_with_metadata(
+                AgentTypeID::try_from("ns/agent-1:0.0.0").unwrap(),
+            ),
+            AgentTypeDefinition::empty_with_metadata(
+                AgentTypeID::try_from("ns/agent-2:0.0.0").unwrap(),
+            ),
         ];
 
         let registry = EmbeddedRegistry::try_new(definitions.clone()).unwrap();
@@ -175,11 +170,9 @@ pub mod tests {
     fn test_insert_duplicate() {
         let mut registry = EmbeddedRegistry::default();
 
-        let definition = AgentTypeDefinition::empty_with_metadata(AgentMetadata {
-            name: "agent".into(),
-            version: Version::parse("0.0.0").unwrap(),
-            namespace: "ns".into(),
-        });
+        let definition = AgentTypeDefinition::empty_with_metadata(
+            AgentTypeID::try_from("ns/agent:0.0.0").unwrap(),
+        );
         let duplicate = definition.clone();
 
         assert!(registry.insert(definition).is_ok());

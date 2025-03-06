@@ -135,10 +135,9 @@ impl From<YAMLConfigRepositoryError> for AgentControlConfigError {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::agent_control::config::{
-        AgentControlConfig, AgentTypeFQN, OpAMPClientConfig, SubAgentConfig,
-    };
+    use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig, SubAgentConfig};
     use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::values::file::YAMLConfigRepositoryFile;
     use serial_test::serial;
     use std::path::PathBuf;
@@ -175,7 +174,7 @@ fleet_control:
             dynamic: HashMap::from([(
                 AgentID::new("rolldice").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
+                    agent_type: AgentTypeID::try_from(
                         "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),
@@ -221,7 +220,7 @@ fleet_control:
             dynamic: HashMap::from([(
                 AgentID::new("rolldice1").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
+                    agent_type: AgentTypeID::try_from(
                         "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),
@@ -269,7 +268,7 @@ agents:
             dynamic: HashMap::from([(
                 AgentID::new("rolldice2").unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
+                    agent_type: AgentTypeID::try_from(
                         "namespace/com.newrelic.infrastructure:0.0.2",
                     )
                     .unwrap(),

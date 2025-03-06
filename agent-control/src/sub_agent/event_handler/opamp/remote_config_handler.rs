@@ -145,7 +145,10 @@ where
         // Errors here will cause the sub-agent to continue running with the previous configuration.
         // The supervisor won't be recreated, and Fleet will send the same configuration again as the status
         // "Applied" was never reported.
-        if let Err(e) = self.config_validator.validate(&agent_identity.fqn, config) {
+        if let Err(e) = self
+            .config_validator
+            .validate(&agent_identity.agent_type_id, config)
+        {
             error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error validating remote config with regexes");
             Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
@@ -153,7 +156,7 @@ where
 
         if let Err(e) = self
             .signature_validator
-            .validate(&agent_identity.fqn, config)
+            .validate(&agent_identity.agent_type_id, config)
         {
             error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error validating signature of remote config");
             Self::report_error(opamp_client, config, e.to_string())?;

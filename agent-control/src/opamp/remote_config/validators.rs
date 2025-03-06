@@ -1,5 +1,5 @@
 use super::RemoteConfig;
-use crate::agent_control::config::AgentTypeFQN;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::Display;
 pub mod regexes;
 pub mod signature;
@@ -9,7 +9,7 @@ pub trait RemoteConfigValidator {
     type Err: Display;
     fn validate(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type_id: &AgentTypeID,
         remote_config: &RemoteConfig,
     ) -> Result<(), Self::Err>;
 }
@@ -27,7 +27,7 @@ pub mod tests {
 
             fn validate(
                 &self,
-                agent_type_fqn: &AgentTypeFQN,
+                agent_type_id: &AgentTypeID,
                 remote_config: &RemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
         }

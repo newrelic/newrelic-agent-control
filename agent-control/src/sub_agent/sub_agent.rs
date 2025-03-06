@@ -254,7 +254,7 @@ where
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client,self.identity.clone())
             .inspect_err(
-                |e| error!(agent_id = %self.identity.id, agent_type=%self.identity.fqn, error = %e,"cannot assemble supervisor"),
+                |e| error!(agent_id = %self.identity.id, agent_type=%self.identity.agent_type_id, error = %e,"cannot assemble supervisor"),
             )
             .ok();
 
@@ -317,7 +317,8 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
@@ -408,7 +409,7 @@ pub mod tests {
         fn default() -> Self {
             let agent_identity = AgentIdentity::from((
                 AgentID::new("some-agent-id").unwrap(),
-                AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
             ));
 
             let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
@@ -479,7 +480,7 @@ pub mod tests {
     fn test_run_remote_config() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("some-agent-id").unwrap(),
-            AgentTypeFQN::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();

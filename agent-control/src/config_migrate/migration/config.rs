@@ -1,4 +1,3 @@
-use crate::agent_control::config::AgentTypeFQN;
 use regex::Regex;
 use serde::Deserialize;
 use serde_yaml::Error;
@@ -8,6 +7,8 @@ use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::error;
+
+use crate::agent_type::agent_type_id::AgentTypeID;
 
 pub const FILE_SEPARATOR: &str = ".";
 // Used to replace temporarily the . separator on files to not treat them as leafs on the hashmap
@@ -89,12 +90,12 @@ impl Hash for AgentTypeFieldFQN {
 
 pub struct FileMap {
     pub file_path: FilePath,
-    pub agent_type_fqn: AgentTypeFQN,
+    pub agent_type_fqn: AgentTypeID,
 }
 
 pub struct DirMap {
     pub file_path: FilePath,
-    pub agent_type_fqn: AgentTypeFQN,
+    pub agent_type_fqn: AgentTypeID,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -155,14 +156,15 @@ impl MigrationConfig {
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct MigrationAgentConfig {
-    pub agent_type_fqn: AgentTypeFQN,
+    #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
+    pub agent_type_fqn: AgentTypeID,
     pub files_map: FilesMap,
     pub dirs_map: DirsMap,
-    pub next: Option<AgentTypeFQN>,
+    pub next: Option<AgentTypeID>,
 }
 
 impl MigrationAgentConfig {
-    pub(crate) fn get_agent_type_fqn(&self) -> AgentTypeFQN {
+    pub(crate) fn get_agent_type_fqn(&self) -> AgentTypeID {
         self.agent_type_fqn.clone()
     }
 }
@@ -189,7 +191,8 @@ impl MigrationAgentConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::config::AgentTypeFQN;
+
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::config_migrate::migration::config::{DirInfo, FilePath, MigrationConfig};
     use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
 
@@ -273,7 +276,7 @@ configs:
                 .try_into()
                 .unwrap(),
         ];
-        let expected_next_fqns_in_order: Vec<Option<AgentTypeFQN>> = vec![
+        let expected_next_fqns_in_order: Vec<Option<AgentTypeID>> = vec![
             None,
             Some("newrelic/com.newrelic.another:1.0.0".try_into().unwrap()),
             None,

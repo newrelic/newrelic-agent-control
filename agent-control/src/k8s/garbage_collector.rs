@@ -1,8 +1,9 @@
 use super::labels::{Labels, AGENT_ID_LABEL_KEY};
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config::{AgentTypeFQN, SubAgentsMap};
+use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{pub_sub, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
@@ -186,12 +187,12 @@ where
         match active_config.get(&AgentID::new(agent_id.as_str())?) {
             None => Ok(true),
             Some(config) => {
-                let fqn = AgentTypeFQN::try_from(
-                    annotations::get_agent_fqn_value(&annotations)
+                let agent_type_id = AgentTypeID::try_from(
+                    annotations::get_agent_type_id_value(&annotations)
                         .ok_or(MissingAnnotations())?
                         .as_str(),
                 )?;
-                Ok(config.agent_type != fqn)
+                Ok(config.agent_type != agent_type_id)
             }
         }
     }
@@ -231,11 +232,11 @@ pub(crate) mod tests {
     use super::NotStartedK8sGarbageCollector;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::{
-        default_group_version_kinds, AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig,
-        SubAgentsMap,
+        default_group_version_kinds, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap,
     };
     use crate::agent_control::config_storer::loader_storer::MockAgentControlDynamicConfigLoader;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::k8s::annotations::Annotations;
     use crate::k8s::client::MockSyncK8sClient;
     #[mockall_double::double]
@@ -346,8 +347,8 @@ pub(crate) mod tests {
                 ObjectMeta {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
-                        Annotations::new_agent_fqn_annotation(
-                            &AgentTypeFQN::try_from("ns/unknown:1.2.3").unwrap(),
+                        Annotations::new_agent_type_id_annotation(
+                            &AgentTypeID::try_from("ns/unknown:1.2.3").unwrap(),
                         )
                         .get(),
                     ),
@@ -360,8 +361,8 @@ pub(crate) mod tests {
                 ObjectMeta {
                     labels: Some(Labels::new(&AgentID::new("test-id").unwrap()).get()),
                     annotations: Some(
-                        Annotations::new_agent_fqn_annotation(
-                            &AgentTypeFQN::try_from("ns/test-fqn:1.2.3").unwrap(),
+                        Annotations::new_agent_type_id_annotation(
+                            &AgentTypeID::try_from("ns/test-fqn:1.2.3").unwrap(),
                         )
                         .get(),
                     ),
@@ -474,7 +475,7 @@ pub(crate) mod tests {
             agents: HashMap::from([(
                 AgentID::new(agent_id).unwrap(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from("namespace/test:0.0.1").unwrap(),
+                    agent_type: AgentTypeID::try_from("namespace/test:0.0.1").unwrap(),
                 },
             )]),
         }

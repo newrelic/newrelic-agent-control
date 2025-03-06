@@ -1,8 +1,7 @@
-use crate::agent_control::config::{
-    AgentControlConfigError, AgentControlDynamicConfig, AgentTypeFQN,
-};
+use crate::agent_control::config::{AgentControlConfigError, AgentControlDynamicConfig};
 use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
-use semver::{Version, VersionReq};
+use crate::agent_type::agent_type_id::AgentTypeID;
+use semver::VersionReq;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -34,8 +33,8 @@ where
     }
     pub fn get_agents_of_type_between_versions(
         &self,
-        agent_type_min: AgentTypeFQN,
-        agent_type_max: Option<AgentTypeFQN>,
+        agent_type_min: AgentTypeID,
+        agent_type_max: Option<AgentTypeID>,
     ) -> Result<AgentControlDynamicConfig, ConversionError> {
         let mut agent_control_dynamic_config = self.sub_agents_config_loader.load()?;
         let agent_type_namespace = agent_type_min.namespace();
@@ -50,11 +49,9 @@ where
             VersionReq::parse(format!("{}{}", version_req_min, version_req_max).as_str())?;
 
         for agent in agent_control_dynamic_config.agents.clone() {
-            let agent_version = Version::parse(agent.1.agent_type.version().as_str()).unwrap();
-
             if agent.1.agent_type.namespace() != agent_type_namespace
                 || agent.1.agent_type.name() != agent_type_name
-                || !version_req.matches(&agent_version)
+                || !version_req.matches(agent.1.agent_type.version())
             {
                 agent_control_dynamic_config.agents.remove(&agent.0);
             }
@@ -71,7 +68,7 @@ where
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
+    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
     use mockall::mock;
     use std::collections::HashMap;
 
@@ -86,8 +83,8 @@ pub(crate) mod tests {
     fn load_agents_of_type_between_versions() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeFQN,
-            next: Option<AgentTypeFQN>,
+            agent_type_id: AgentTypeID,
+            next: Option<AgentTypeID>,
             agents_cfg: &'static str,
             expected: AgentControlDynamicConfig,
         }
@@ -100,7 +97,7 @@ pub(crate) mod tests {
 
                 let config_getter = AgentConfigGetter::new(config_loader);
                 let actual = config_getter
-                    .get_agents_of_type_between_versions(self.agent_type_fqn, self.next);
+                    .get_agents_of_type_between_versions(self.agent_type_id, self.next);
 
                 assert!(actual.is_ok());
                 assert_eq!(actual.unwrap(), self.expected, "{}", self.name);
@@ -109,12 +106,10 @@ pub(crate) mod tests {
         let test_cases = vec![
             TestCase {
                 name: "get only two matching between versions",
-                agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.0.1",
-                )
-                .unwrap(),
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                    .unwrap(),
                 next: Some(
-                    AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
+                    AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:1.0.0").unwrap(),
                 ),
                 agents_cfg: r#"
 agents:
@@ -132,7 +127,7 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
@@ -141,7 +136,7 @@ agents:
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
@@ -152,10 +147,8 @@ agents:
             },
             TestCase {
                 name: "get all three matching since version",
-                agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.0.1",
-                )
-                .unwrap(),
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                    .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
@@ -173,7 +166,7 @@ agents:
                         (
                             AgentID::new("infra-agent-a").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
                                 )
                                 .unwrap(),
@@ -182,7 +175,7 @@ agents:
                         (
                             AgentID::new("infra-agent-b").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
                                 )
                                 .unwrap(),
@@ -191,7 +184,7 @@ agents:
                         (
                             AgentID::new("infra-agent-c").unwrap(),
                             SubAgentConfig {
-                                agent_type: AgentTypeFQN::try_from(
+                                agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:1.0.3",
                                 )
                                 .unwrap(),
@@ -211,8 +204,8 @@ agents:
     fn load_agents_of_type_error() {
         struct TestCase {
             name: &'static str,
-            agent_type_fqn: AgentTypeFQN,
-            next: Option<AgentTypeFQN>,
+            agent_type_id: AgentTypeID,
+            next: Option<AgentTypeID>,
             agents_cfg: &'static str,
         }
         impl TestCase {
@@ -224,7 +217,7 @@ agents:
 
                 let config_getter = AgentConfigGetter::new(config_loader);
                 let actual = config_getter
-                    .get_agents_of_type_between_versions(self.agent_type_fqn, self.next);
+                    .get_agents_of_type_between_versions(self.agent_type_id, self.next);
 
                 assert!(actual.is_err(), "{}", self.name)
             }
@@ -232,10 +225,8 @@ agents:
         let test_cases = vec![
             TestCase {
                 name: "error no agents higher or equal to version",
-                agent_type_fqn: AgentTypeFQN::try_from(
-                    "newrelic/com.newrelic.infrastructure:0.1.0",
-                )
-                .unwrap(),
+                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
+                    .unwrap(),
                 next: None,
                 agents_cfg: r#"
 agents:
@@ -249,7 +240,7 @@ agents:
             },
             TestCase {
                 name: "error no agents of namespace",
-                agent_type_fqn: AgentTypeFQN::try_from(
+                agent_type_id: AgentTypeID::try_from(
                     "francisco-partners/com.newrelic.infrastructure:0.0.1",
                 )
                 .unwrap(),

@@ -1,4 +1,6 @@
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
+use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
 use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
@@ -68,8 +70,17 @@ pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
     }
 }
 
-pub const FQN_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
-pub const FQN_NAME_NRDOT: &str = "io.opentelemetry.collector";
+pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<CustomCapabilities> {
+    if agent_type_id.eq(&AgentIdentity::new_agent_control_identity().agent_type_id) {
+        // Agent_Control does not have custom capabilities for now
+        return None;
+    }
+
+    Some(default_sub_agent_custom_capabilities())
+}
+
+pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
+pub const AGENT_TYPE_NAME_NRDOT: &str = "io.opentelemetry.collector";
 
 #[cfg(test)]
 pub(crate) mod tests {

@@ -1,7 +1,5 @@
-use std::path::PathBuf;
-use std::time::Duration;
-
-use crate::agent_control::config::AgentTypeFQN;
+use crate::agent_control::defaults::get_custom_capabilities;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
@@ -10,6 +8,8 @@ use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
 use nix::NixPath;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::time::Duration;
 use thiserror::Error;
 use tracing::log::error;
 use tracing::{info, warn};
@@ -138,11 +138,11 @@ impl RemoteConfigValidator for SignatureValidator {
 
     fn validate(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type_id: &AgentTypeID,
         remote_config: &RemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
-            SignatureValidator::Validator(v) => v.validate(agent_type_fqn, remote_config),
+            SignatureValidator::Validator(v) => v.validate(agent_type_id, remote_config),
             SignatureValidator::Noop => Ok(()),
         }
     }
@@ -164,12 +164,12 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 
     fn validate(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type_id: &AgentTypeID,
         remote_config: &RemoteConfig,
     ) -> Result<(), SignatureValidatorError> {
         // custom capabilities are got from the agent-type (currently hard-coded)
         // If the capability is not set, no validation is performed
-        if !agent_type_fqn.get_custom_capabilities().is_some_and(|c| {
+        if !get_custom_capabilities(agent_type_id).is_some_and(|c| {
             c.capabilities
                 .contains(&SIGNATURE_CUSTOM_CAPABILITY.to_string())
         }) {
@@ -206,12 +206,14 @@ mod tests {
 
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
         SignatureData, Signatures, ECDSA_P256_SHA256, ED25519,
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use crate::opamp::remote_config::ConfigurationMap;
+    use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
 
     #[test]
@@ -325,7 +327,7 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test_payload".to_string()),
             None,
         );
-        let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+        let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
 
         let noop_validator = SignatureValidator::Noop;
 
@@ -344,7 +346,7 @@ certificate_pem_file_path: /path/to/file
 
         impl TestCase {
             fn run(self) {
-                let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+                let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
                 let test_signer = TestSigner::new();
 
                 let signature_validator = CertificateSignatureValidator::new(
@@ -427,7 +429,7 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test".to_string()),
             None,
         );
-        let agent_type = AgentTypeFQN::new_agent_control_fqn();
+        let agent_type = AgentIdentity::new_agent_control_identity().agent_type_id;
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
         assert!(signature_validator.validate(&agent_type, &rc).is_ok());
     }
@@ -458,7 +460,7 @@ certificate_pem_file_path: /path/to/file
             test_signer.key_id(),
         ));
 
-        let agent_type = AgentTypeFQN::try_from("ns/aa:1.1.3").unwrap();
+        let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
 
         assert!(signature_validator
             .validate(&agent_type, &remote_config)

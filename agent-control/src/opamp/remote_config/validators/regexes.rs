@@ -1,5 +1,5 @@
-use crate::agent_control::config::AgentTypeFQN;
-use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
+use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::remote_config::RemoteConfig;
 use regex::Regex;
 use std::collections::HashMap;
@@ -36,7 +36,7 @@ impl ConfigValidator {
         Ok(Self {
             rules: HashMap::from([
                 (
-                    AgentTypeFQNName(FQN_NAME_INFRA_AGENT.to_string()),
+                    AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
                     vec![
                         Regex::new(REGEX_COMMAND_FIELD)?,
                         Regex::new(REGEX_EXEC_FIELD)?,
@@ -45,7 +45,7 @@ impl ConfigValidator {
                     ],
                 ),
                 (
-                    AgentTypeFQNName(FQN_NAME_NRDOT.to_string()),
+                    AgentTypeFQNName(AGENT_TYPE_NAME_NRDOT.to_string()),
                     vec![Regex::new(REGEX_IMAGE_REPOSITORY)?],
                 ),
             ]),
@@ -56,13 +56,13 @@ impl ConfigValidator {
 
     pub fn validate(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type_id: &AgentTypeID,
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigValidatorError> {
         // This config will fail further on the event processor.
         if let Ok(raw_config) = remote_config.get_unique() {
-            self.validate_regex_rules(agent_type_fqn, raw_config)?;
-            self.validate_nrdot_endpoint(agent_type_fqn, raw_config)?;
+            self.validate_regex_rules(agent_type_id, raw_config)?;
+            self.validate_nrdot_endpoint(agent_type_id, raw_config)?;
         }
 
         Ok(())
@@ -70,15 +70,15 @@ impl ConfigValidator {
 
     fn validate_regex_rules(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type_id: &AgentTypeID,
         raw_config: &str,
     ) -> Result<(), ConfigValidatorError> {
-        let agent_type_fqn_name = AgentTypeFQNName(agent_type_fqn.name());
-        if !self.rules.contains_key(&agent_type_fqn_name) {
+        let agent_type_name = AgentTypeFQNName(agent_type_id.name().to_string());
+        if !self.rules.contains_key(&agent_type_name) {
             return Ok(());
         }
 
-        for regex in self.rules[&agent_type_fqn_name].iter() {
+        for regex in self.rules[&agent_type_name].iter() {
             if regex.is_match(raw_config) {
                 return Err(ConfigValidatorError::InvalidConfig);
             }
@@ -90,11 +90,11 @@ impl ConfigValidator {
     /// Validates all 'endpoint' in the nrdot config contains a valid newrelic otel endpoint.
     fn validate_nrdot_endpoint(
         &self,
-        agent_type_fqn: &AgentTypeFQN,
+        agent_type: &AgentTypeID,
         raw_config: &str,
     ) -> Result<(), ConfigValidatorError> {
         // this rule applies only to nrdot agents
-        if !agent_type_fqn.name().eq(FQN_NAME_NRDOT) {
+        if !agent_type.name().eq(AGENT_TYPE_NAME_NRDOT) {
             return Ok(());
         }
 
@@ -187,8 +187,8 @@ pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
 #[cfg(test)]
 pub(super) mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
-    use crate::agent_control::defaults::{FQN_NAME_INFRA_AGENT, FQN_NAME_NRDOT};
+    use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::regexes::{ConfigValidator, ConfigValidatorError};
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
@@ -240,9 +240,10 @@ pub(super) mod tests {
             )]))),
         );
         let validator = ConfigValidator::default();
-        let agent_type_fqn =
-            AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str())
-                .unwrap();
+        let agent_type_fqn = AgentTypeID::try_from(
+            format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+        )
+        .unwrap();
         let validation_result = validator.validate(&agent_type_fqn, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
@@ -269,7 +270,7 @@ pub(super) mod tests {
                 );
 
                 let agent_type_fqn =
-                    AgentTypeFQN::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
+                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
 
                 let validator = ConfigValidator::default();
 
@@ -602,7 +603,7 @@ config: |
     fn test_invalid_configs_are_blocked() {
         struct TestCase {
             _name: &'static str,
-            agent_type: AgentTypeFQN,
+            agent_type: AgentTypeID,
             config: &'static str,
         }
         impl TestCase {
@@ -658,12 +659,13 @@ config: |
     // Helpers
     ///////////////////////////////////////////////////////
 
-    fn infra_agent() -> AgentTypeFQN {
-        AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_INFRA_AGENT).as_str()).unwrap()
+    fn infra_agent() -> AgentTypeID {
+        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str())
+            .unwrap()
     }
 
-    fn nrdot() -> AgentTypeFQN {
-        AgentTypeFQN::try_from(format!("newrelic/{}:0.0.1", FQN_NAME_NRDOT).as_str()).unwrap()
+    fn nrdot() -> AgentTypeID {
+        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str()).unwrap()
     }
 
     fn remote_config(config: &str) -> RemoteConfig {

@@ -96,7 +96,8 @@ impl NotStartedSupervisorK8s {
         // Merge default labels with the ones coming from the config with default labels taking precedence.
         labels.append_extra_labels(&k8s_obj.metadata.labels);
 
-        let annotations = Annotations::new_agent_fqn_annotation(&self.agent_identity.fqn);
+        let annotations =
+            Annotations::new_agent_type_id_annotation(&self.agent_identity.agent_type_id);
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
@@ -242,7 +243,8 @@ impl SupervisorStopper for StartedSupervisorK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{helmrelease_v2_type_meta, AgentTypeFQN};
+    use crate::agent_control::config::helmrelease_v2_type_meta;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::health_config::K8sHealthConfig;
     use crate::agent_type::runtime_config::K8sObject;
     use crate::event::channel::pub_sub;
@@ -281,7 +283,7 @@ pub mod tests {
     fn test_build_dynamic_objects() {
         let agent_identity = AgentIdentity::from((
             AgentID::new("test").unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let mut mock_k8s_client = MockSyncK8sClient::default();
@@ -291,7 +293,7 @@ pub mod tests {
 
         let mut labels = Labels::new(&agent_identity.id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
-        let annotations = Annotations::new_agent_fqn_annotation(&agent_identity.fqn);
+        let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
 
         let expected = DynamicObject {
             types: Some(TypeMeta {
@@ -329,7 +331,7 @@ pub mod tests {
         let interval = Duration::from_millis(250);
         let agent_identity = AgentIdentity::from((
             AgentID::new("test").unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
         let apply_issue = "some issue";
 
@@ -459,7 +461,7 @@ pub mod tests {
     ) -> NotStartedSupervisorK8s {
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
+            AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
         let mut mock_client = MockSyncK8sClient::default();
@@ -484,7 +486,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from(TEST_GENT_FQN).unwrap(),
+            AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
         let mut k8s_obj = k8s_sample_runtime_config(true);

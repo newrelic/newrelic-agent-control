@@ -1,18 +1,19 @@
-use crate::agent_control::config::AgentTypeFQN;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use std::collections::BTreeMap;
 
-const AGENT_FQN_ANNOTATION_KEY: &str = "newrelic.io/agent-type-fqn";
+const AGENT_TYPE_ID_ANNOTATION_KEY: &str = "newrelic.io/agent-type-id";
 
 /// Collection of annotations used to identify agent control resources.
 #[derive(PartialEq, Default)]
 pub struct Annotations(BTreeMap<String, String>);
 
 impl Annotations {
-    pub fn new_agent_fqn_annotation(agent_type: &AgentTypeFQN) -> Self {
+    pub fn new_agent_type_id_annotation(agent_type: &AgentTypeID) -> Self {
         let mut annotations = Self::default();
-        annotations
-            .0
-            .insert(AGENT_FQN_ANNOTATION_KEY.to_string(), agent_type.to_string());
+        annotations.0.insert(
+            AGENT_TYPE_ID_ANNOTATION_KEY.to_string(),
+            agent_type.to_string(),
+        );
         annotations
     }
 
@@ -21,6 +22,6 @@ impl Annotations {
     }
 }
 
-pub fn get_agent_fqn_value(annotations: &BTreeMap<String, String>) -> Option<&String> {
-    annotations.get(AGENT_FQN_ANNOTATION_KEY)
+pub fn get_agent_type_id_value(annotations: &BTreeMap<String, String>) -> Option<&String> {
+    annotations.get(AGENT_TYPE_ID_ANNOTATION_KEY)
 }

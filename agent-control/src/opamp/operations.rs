@@ -4,12 +4,13 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    default_capabilities, get_custom_capabilities, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
-    agent_control::config::AgentTypeFQN,
     event::{
         channel::{pub_sub, EventConsumer},
         OpAMPEvent,
@@ -65,7 +66,7 @@ where
     let (opamp_publisher, opamp_consumer) = pub_sub();
     let start_settings = start_settings(
         instance_id_getter.get(&agent_identity.id)?,
-        &agent_identity.fqn,
+        &agent_identity.agent_type_id,
         additional_identifying_attributes,
         non_identifying_attributes,
     );
@@ -81,15 +82,15 @@ where
 /// Builds the OpAMP StartSettings corresponding to the provided arguments for any sub agent and agent control.
 pub fn start_settings(
     instance_id: InstanceID,
-    agent_fqn: &AgentTypeFQN,
+    agent_type_id: &AgentTypeID,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> StartSettings {
     let mut identifying_attributes = HashMap::from([
-        (OPAMP_SERVICE_NAME.to_string(), agent_fqn.name().into()),
+        (OPAMP_SERVICE_NAME.to_string(), agent_type_id.name().into()),
         (
             OPAMP_SERVICE_NAMESPACE.to_string(),
-            agent_fqn.namespace().into(),
+            agent_type_id.namespace().into(),
         ),
     ]);
 
@@ -97,8 +98,8 @@ pub fn start_settings(
 
     StartSettings {
         instance_uid: instance_id.into(),
-        capabilities: agent_fqn.get_capabilities(),
-        custom_capabilities: agent_fqn.get_custom_capabilities(),
+        capabilities: default_capabilities(),
+        custom_capabilities: get_custom_capabilities(agent_type_id),
         agent_description: AgentDescription {
             identifying_attributes,
             non_identifying_attributes,

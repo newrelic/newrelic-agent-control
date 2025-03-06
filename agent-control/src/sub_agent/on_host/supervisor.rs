@@ -162,7 +162,7 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Option<StartedThreadContext> {
         let onhost_version_checker =
-            OnHostAgentVersionChecker::checked_new(self.agent_identity.fqn.clone())?;
+            OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
             self.agent_identity.id.clone(),
@@ -403,7 +403,8 @@ fn wait_for_termination(
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::config::AgentTypeFQN;
+
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::sub_agent::health::health_checker::Healthy;
@@ -419,6 +420,8 @@ pub mod tests {
     #[traced_test]
     fn test_supervisor_gracefully_shutdown() {
         use tracing_test::internal::logs_with_scope_contain;
+
+        use crate::agent_type::agent_type_id::AgentTypeID;
 
         struct TestCase {
             name: &'static str,
@@ -437,7 +440,7 @@ pub mod tests {
 
                 let agent_identity = AgentIdentity::from((
                     self.agent_id.to_owned().try_into().unwrap(),
-                    AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+                    AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
                 ));
 
                 let supervisor = NotStartedSupervisorOnHost::new(
@@ -543,7 +546,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -575,7 +578,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -606,7 +609,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =
@@ -654,7 +657,7 @@ pub mod tests {
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
-            AgentTypeFQN::try_from("ns/test:0.1.2").unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
         let agent =

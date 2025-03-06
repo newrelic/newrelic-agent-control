@@ -106,7 +106,8 @@ impl
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, AgentTypeFQN, SubAgentConfig};
+    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
     use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
     use crate::config_migrate::migration::config::MigrationAgentConfig;
@@ -124,19 +125,15 @@ mod tests {
             (
                 agent_a.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
-                        "newrelic/com.newrelic.infrastructure:0.0.2",
-                    )
-                    .unwrap(),
+                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
+                        .unwrap(),
                 },
             ),
             (
                 agent_b.clone(),
                 SubAgentConfig {
-                    agent_type: AgentTypeFQN::try_from(
-                        "newrelic/com.newrelic.infrastructure:0.0.2",
-                    )
-                    .unwrap(),
+                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
+                        .unwrap(),
                 },
             ),
         ]);
@@ -175,7 +172,7 @@ mod tests {
         let migrator = ConfigMigrator::new(config_converter, agent_config_getter, values_persister);
 
         let agent_config_mapping = MigrationAgentConfig {
-            agent_type_fqn: AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+            agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
                 .unwrap(),
             files_map: Default::default(),
             dirs_map: Default::default(),

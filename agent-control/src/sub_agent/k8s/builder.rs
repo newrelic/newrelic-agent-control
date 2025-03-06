@@ -90,7 +90,7 @@ where
                     agent_identity,
                     HashMap::from([(
                         OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.fqn.version().into(),
+                        agent_identity.agent_type_id.version().to_string().into(),
                     )]),
                     HashMap::from([(
                         CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
@@ -172,8 +172,9 @@ impl SupervisorBuilder for SupervisorBuilderK8s {
 pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::AgentTypeFQN;
+
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -201,7 +202,7 @@ pub mod tests {
     fn k8s_agent_build_success() {
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
         let (opamp_builder, instance_id_getter) =
@@ -235,7 +236,7 @@ pub mod tests {
     fn k8s_agent_error_building_opamp() {
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
         let (opamp_builder, instance_id_getter) =
@@ -271,7 +272,7 @@ pub mod tests {
     fn supervisor_build_ok() {
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
         let effective_agent = EffectiveAgent::new(
@@ -297,7 +298,7 @@ pub mod tests {
     fn supervisor_build_fails_for_invalid_k8s_object_kind() {
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
-            AgentTypeFQN::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
         let effective_agent = EffectiveAgent::new(
@@ -352,10 +353,10 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilderMock::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            &agent_identity.fqn,
+            &agent_identity.agent_type_id,
             HashMap::from([(
                 OPAMP_SERVICE_VERSION.to_string(),
-                agent_identity.fqn.version().into(),
+                agent_identity.agent_type_id.version().to_string().into(),
             )]),
             HashMap::from([
                 (
