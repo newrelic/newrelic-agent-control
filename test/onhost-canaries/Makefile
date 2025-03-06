@@ -2,7 +2,7 @@
 include test/Ansible.common
 
 TERRAFORM_DIR ?= ./terraform
-ANSIBLE_FOLDER ?= ./ansible
+ONHOST_ANSIBLE_FOLDER ?= ./ansible
 
 .DEFAULT_GOAL := all
 
@@ -75,7 +75,7 @@ ifndef SLACK_WEBHOOK_URL
 	@echo SLACK_WEBHOOK_URL missing"
 	exit 1
 endif
-	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ANSIBLE_FOLDER)/set_ansible_env.sh
+	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
 	TF_VAR_system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
 	TF_VAR_license_key=${NR_LICENSE_KEY} \

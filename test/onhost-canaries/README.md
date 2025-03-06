@@ -51,7 +51,7 @@ That has a little inconvenient, `terraform init` will fail because the state cha
     To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment variable with "staging" or "production".
 
     ```bash
-    TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
+    TERRAFORM_DIR=test/onhost-canaries/terraform ONHOST_ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
     ```
 
 That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the config files.
@@ -77,6 +77,6 @@ Example for terraform apply:
 - name: Plan onhost staging canary changes
   uses: newrelic/fargate-runner-action@main
   with:
-    container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging test/onhost-canaries/terraform-apply"
+    container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ONHOST_ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging test/onhost-canaries/terraform-apply"
     etc: ...
 ```
