@@ -408,7 +408,7 @@ agents: {}
         assert!(actual
             .unwrap_err()
             .to_string()
-            .contains("AgentID must contain 32 characters at most, contain alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"))
+            .contains("AgentID must contain 32 characters at most, contain lowercase alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"))
     }
 
     #[test]
