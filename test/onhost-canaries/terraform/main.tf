@@ -1,16 +1,3 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 5.48"
-    }
-  }
-}
-
-provider "aws" {
-  region = "us-east-2"
-}
-
 variable "system_identity_client_id" {
   description = "NR System Identity Client ID"
   type = string
@@ -54,6 +41,16 @@ locals {
       }
     }
   }
+
+  // To setup the alerts, we need to know the hostnames of the instances.
+  // One option would be to wait for the ansible inventory to be created, but then
+  // terraform won't be able to show all the resources that the apply operation
+  // will create.
+  // We decided to recompute the hostnames here as the "env-provisioner" module does.
+  // If env-provisioner changes the way it computes the hostnames, we need to change
+  // it here too. However, terraform plan will properly list all the resources that
+  // will be created and we can spot any problems with the hostnames.
+  hostnames = [for k, v in local.ec2_otels : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
 }
 
 module "agent_control-canary-env-provisioner" {
@@ -68,4 +65,95 @@ module "agent_control-canary-env-provisioner" {
   inventory_output   = var.inventory_output
   ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} ../ansible/install_ac_with_basic_config.yml"
   ec2_otels          = local.ec2_otels
+}
+
+
+variable "account_id" {
+  description = "New Relic Account ID"
+  type = string
+}
+variable "api_key" {
+  description = "New Relic API Key"
+  type = string
+}
+
+variable "slack_webhook_url" {
+  description = "Slack Webhook URL where alerts notifications will be sent"
+  type = string
+}
+
+variable "nr_region" {
+  description = "New Relic Region"
+  type = string
+}
+
+module "alerts" {
+  source = "../../terraform/modules/nr_alerts"
+
+  for_each = toset(local.hostnames)
+
+  api_key    = var.api_key
+  account_id = var.account_id
+  slack_webhook_url = var.slack_webhook_url
+
+  policies_prefix = "Agent Control canaries metric monitoring"
+
+  region = var.nr_region
+  instance_id = each.value
+  conditions = [
+    {
+      name = "CPU usage (percentage)"
+      metric = "cpuPercent"
+      sample = "ProcessSample"
+      threshold = 0.06
+      duration = 3600
+      operator = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name = "CPU usage (percentage)"
+      metric = "cpuPercent"
+      sample = "ProcessSample"
+      threshold = 0
+      duration = 3600
+      operator = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name = "Memory usage (bytes)"
+      metric = "memoryResidentSizeBytes"
+      sample = "ProcessSample"
+      threshold = 14000000
+      duration = 600
+      operator = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name = "Memory usage (bytes)"
+      metric = "memoryResidentSizeBytes"
+      sample = "ProcessSample"
+      threshold = 0
+      duration = 600
+      operator = "below_or_equals"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name = "Disk usage (read bytes)"
+      metric = "ioTotalReadBytes"
+      sample = "ProcessSample"
+      threshold = 500000
+      duration = 600
+      operator = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+    {
+      name = "Disk usage (written bytes)"
+      metric = "ioTotalWriteBytes"
+      sample = "ProcessSample"
+      threshold = 10000
+      duration = 600
+      operator = "above"
+      template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
+    },
+  ]
 }

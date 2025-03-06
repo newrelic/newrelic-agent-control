@@ -1,0 +1,9 @@
+SELECT max(${metric})
+FROM ${sample}
+WHERE (
+  hostname = '${instance_id}'
+  AND processDisplayName = 'newrelic-agent-control'
+  %{ for k, v in wheres }
+  AND ${k}='${v}'
+  %{ endfor }
+)
