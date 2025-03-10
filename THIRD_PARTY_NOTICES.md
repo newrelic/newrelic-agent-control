@@ -551,6 +551,11 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+## derive_more-impl <https://crates.io/crates/derive_more-impl>
+
+Distributed under the following license(s):
+
+* MIT
 ## difflib <https://crates.io/crates/difflib>
 
 Distributed under the following license(s):
@@ -1269,7 +1274,7 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-## opamp-client <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30>
+## opamp-client <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31>
 
 Distributed under the following license(s):
 
@@ -1458,7 +1463,7 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * Apache-2.0
-## proto <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.30>
+## proto <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31>
 
 Distributed under the following license(s):
 
@@ -1557,12 +1562,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * MIT
-## rustc_version <https://crates.io/crates/rustc_version>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 ## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
 Distributed under the following license(s):
@@ -1986,6 +1985,12 @@ Distributed under the following license(s):
 * Apache-2.0
 * Unicode-3.0
 ## unicode-segmentation <https://crates.io/crates/unicode-segmentation>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+## unicode-xid <https://crates.io/crates/unicode-xid>
 
 Distributed under the following license(s):
 
