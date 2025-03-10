@@ -16,6 +16,7 @@ can be found at https://github.com/newrelic/newrelic-agent-control.
 {%- if dep is matching("resource-detection") %}{% continue %}{% endif -%}
 {%- if dep is matching("fs") %}{% continue %}{% endif -%}
 {%- if dep is matching("nr-auth") %}{% continue %}{% endif -%}
+{%- if dep is matching("opamp-rs") %}{% continue %}{% endif -%}
 {%- if dep is matching("config-migrate") %}{% continue %}{% endif -%}
 ## {{ dep | split(pat=" ") | first }} <{{ dep | split(pat=" ") | last }}>
 
