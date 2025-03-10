@@ -149,14 +149,14 @@ jobs:
         env:
           RUSTDOCFLAGS: --cfg docsrs
 
-  licenses:
-    name: Validate third party libraries
+  third-party-notices-check:
     runs-on: ubuntu-latest
+    name: ⚖️ Check third party licenses
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          submodules: true
+
       - name: Give GitHub Actions access to private crates
         uses: webfactory/ssh-agent@v0.8.0
         with:
@@ -183,8 +183,10 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
-          
-      - name: Check security and licensing
-        run: cargo install --locked cargo-deny && cargo deny check
-      - name: Ensure that third party notices is up to date
-        run: make -C license third-party-notices-check
+
+      - name: Fetch dependencies
+        run: cargo fetch
+
+      - uses: newrelic/rust-licenses-noticer@v1
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl
