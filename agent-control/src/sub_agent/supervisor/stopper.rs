@@ -1,4 +1,4 @@
-use crate::sub_agent::thread_context::ThreadContextStopperError;
+use crate::utils::thread_context::ThreadContextStopperError;
 
 pub trait SupervisorStopper {
     fn stop(self) -> Result<(), ThreadContextStopperError>;
@@ -7,7 +7,7 @@ pub trait SupervisorStopper {
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-    use crate::sub_agent::thread_context::ThreadContextStopperError;
+    use crate::utils::thread_context::ThreadContextStopperError;
     use mockall::mock;
 
     mock! {

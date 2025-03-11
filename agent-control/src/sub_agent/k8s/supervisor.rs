@@ -15,19 +15,20 @@ use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
-};
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::thread_context::{
+    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
+const SUPERVISOR_THREAD_NAME: &str = "k8s objects supervisor";
 
 pub struct NotStartedSupervisorK8s {
     agent_identity: AgentIdentity,
@@ -138,12 +139,11 @@ impl NotStartedSupervisorK8s {
             }
         };
 
-        NotStartedThreadContext::new(
-            self.agent_identity.id.clone(),
-            "k8s objects supervisor",
-            callback,
-        )
-        .start()
+        info!(
+            agent_id = self.agent_identity.id.to_string(),
+            "{} started", SUPERVISOR_THREAD_NAME
+        );
+        NotStartedThreadContext::new(SUPERVISOR_THREAD_NAME, callback).start()
     }
 
     pub fn start_health_check(
@@ -221,14 +221,17 @@ impl SupervisorStopper for StartedSupervisorK8s {
         // OnK8s this does not delete directly the CR. It will be the garbage collector doing so if needed.
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let thread_name = thread_context.get_thread_name().to_string();
-            let result = thread_context.stop().inspect_err(|err| {
-                error!(
-                    agent_id = %self.agent_id,
-                    %err,
-                    "Error stopping {} thread", thread_name
-                )
-            });
+            let thread_name = thread_context.thread_name().to_string();
+            let result = thread_context
+                .stop()
+                .inspect(|_| info!(agent_id = %self.agent_id, "{} stopped", thread_name))
+                .inspect_err(|error_msg| {
+                    error!(
+                        agent_id = %self.agent_id,
+                        %error_msg,
+                        "Error stopping {} thread", thread_name
+                    )
+                });
 
             if result.is_err() && stop_result.is_ok() {
                 stop_result = result;
@@ -419,7 +422,7 @@ pub mod tests {
         assert!(!started
             .thread_contexts
             .iter()
-            .any(|thread_contexts| thread_contexts.get_thread_name() == "k8s health checker"));
+            .any(|thread_contexts| thread_contexts.thread_name() == "k8s health checker"));
     }
 
     fn k8s_object() -> K8sObject {

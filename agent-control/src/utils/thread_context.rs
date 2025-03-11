@@ -1,9 +1,8 @@
 use std::thread::JoinHandle;
 
-use tracing::{error, info};
+// use tracing::error;
 
 use crate::{
-    agent_control::agent_id::AgentID,
     event::{
         cancellation::CancellationMessage,
         channel::{pub_sub, EventConsumer, EventPublisher, EventPublisherError},
@@ -16,7 +15,6 @@ where
     F: FnOnce(EventConsumer<CancellationMessage>) -> T + Send + 'static,
     T: Send + 'static,
 {
-    agent_id: AgentID,
     thread_name: String,
     callback: F,
 }
@@ -26,20 +24,17 @@ where
     F: FnOnce(EventConsumer<CancellationMessage>) -> T + Send + 'static,
     T: Send + 'static,
 {
-    pub fn new<S: Into<String>>(agent_id: AgentID, thread_name: S, callback: F) -> Self {
+    pub fn new<S: Into<String>>(thread_name: S, callback: F) -> Self {
         Self {
-            agent_id,
             thread_name: thread_name.into(),
             callback,
         }
     }
 
     pub fn start(self) -> StartedThreadContext {
-        info!(agent_id = %self.agent_id, "{} started", self.thread_name);
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
         StartedThreadContext::new(
-            self.agent_id,
             self.thread_name.clone(),
             stop_publisher,
             spawn_named_thread(&self.thread_name, move || {
@@ -50,7 +45,6 @@ where
 }
 
 pub struct StartedThreadContext {
-    agent_id: AgentID,
     thread_name: String,
     stop_publisher: EventPublisher<CancellationMessage>,
     join_handle: JoinHandle<()>,
@@ -76,20 +70,18 @@ impl StartedThreadContext {
     /// There are exceptions to this rule. Some threads don't use the mechanism of the `stop_publisher`.
     /// In those cases, the channel will still be created but not used inside the thread.
     pub fn new(
-        agent_id: AgentID,
         thread_name: String,
         stop_publisher: EventPublisher<()>,
         join_handle: JoinHandle<()>,
     ) -> Self {
         Self {
-            agent_id,
             thread_name,
             stop_publisher,
             join_handle,
         }
     }
 
-    pub fn get_thread_name(&self) -> &str {
+    pub fn thread_name(&self) -> &str {
         &self.thread_name
     }
 
@@ -102,7 +94,6 @@ impl StartedThreadContext {
                     .to_string(),
             )
         })?;
-        info!(agent_id = %self.agent_id, "{} stopped", self.thread_name);
 
         Ok(())
     }
@@ -112,13 +103,9 @@ impl StartedThreadContext {
 pub mod tests {
     use std::time::Duration;
 
-    use crate::{
-        agent_control::agent_id::AgentID,
-        event::{cancellation::CancellationMessage, channel::EventConsumer},
-        sub_agent::thread_context::NotStartedThreadContext,
-    };
+    use crate::event::{cancellation::CancellationMessage, channel::EventConsumer};
 
-    use super::StartedThreadContext;
+    use super::{NotStartedThreadContext, StartedThreadContext};
 
     impl StartedThreadContext {
         pub fn is_thread_finished(&self) -> bool {
@@ -128,15 +115,13 @@ pub mod tests {
 
     #[test]
     fn test_thread_context_start_stop() {
-        let agent_id = AgentID::new("test-agent").unwrap();
         let thread_name = "test-thread";
         let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
             if stop_consumer.is_cancelled(Duration::default()) {
                 break;
             }
         };
-        let not_started_thread_context =
-            NotStartedThreadContext::new(agent_id, thread_name, callback);
+        let not_started_thread_context = NotStartedThreadContext::new(thread_name, callback);
         let started_thread_context = not_started_thread_context.start();
         assert!(!started_thread_context.is_thread_finished());
 
