@@ -10,7 +10,9 @@ use newrelic_agent_control::config_migrate::migration::defaults::NEWRELIC_INFRA_
 use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use newrelic_agent_control::logging::config::LoggingConfig;
+use newrelic_agent_control::tracing::logs::config::LoggingConfig;
+use newrelic_agent_control::tracing::logs::layers::LoggingLayersInitializer;
+use newrelic_agent_control::tracing::tracer::Tracer;
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
 use std::error::Error;
 use std::path::PathBuf;
@@ -19,7 +21,12 @@ use tracing::{debug, info, warn};
 
 fn main() -> Result<(), Box<dyn Error>> {
     // init logging singleton
-    LoggingConfig::default().try_init(PathBuf::from(AGENT_CONTROL_LOG_DIR))?;
+    let (logging_layers, _file_logger_guard) = LoggingLayersInitializer::try_init(
+        LoggingConfig::default(),
+        PathBuf::from(AGENT_CONTROL_LOG_DIR),
+    )?;
+
+    Tracer::try_init(logging_layers)?;
 
     info!("Starting config conversion tool...");
 

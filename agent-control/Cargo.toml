@@ -17,7 +17,7 @@ serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 nix = { workspace = true, features = ["signal", "user", "hostname"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
-tracing = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
 ctrlc = { version = "3.4.5", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }

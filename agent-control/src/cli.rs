@@ -7,13 +7,16 @@ mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
+use crate::tracing::logs::layers::{
+    FileLoggerGuard, LoggingLayersInitError, LoggingLayersInitializer,
+};
+use crate::tracing::tracer::{Tracer, TracerError};
 use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
     agent_control::{
         config_storer::{loader_storer::AgentControlConfigLoader, store::AgentControlConfigStore},
         run::{AgentControlRunConfig, BasePaths},
     },
-    logging::config::{FileLoggerGuard, LoggingError},
     utils::binary_metadata::binary_metadata,
 };
 use clap::Parser;
@@ -35,8 +38,11 @@ pub struct AgentControlCliConfig {
 pub enum CliError {
     /// The logging could not be initialized
     #[error("Could not initialize logging: `{0}`")]
-    LoggingInit(#[from] LoggingError),
-    /// The K8s config is missing
+    LoggingInit(#[from] LoggingLayersInitError),
+    /// The tracer could not be initialized
+    #[error("Could not initialize the tracer: `{0}`")]
+    TracerInit(#[from] TracerError),
+    /// The k8s config is missing
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
     /// The config could not be read
@@ -119,9 +125,13 @@ impl Cli {
                 )
             })?;
 
-        let file_logger_guard = agent_control_config
-            .log
-            .try_init(base_paths.log_dir.clone())?;
+        let (logging_layers, file_logger_guard) = LoggingLayersInitializer::try_init(
+            agent_control_config.log,
+            base_paths.log_dir.clone(),
+        )?;
+
+        Tracer::try_init(logging_layers)?;
+
         info!("{}", binary_metadata());
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
