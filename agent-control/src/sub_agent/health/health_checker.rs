@@ -411,7 +411,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -473,7 +473,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -535,7 +535,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());

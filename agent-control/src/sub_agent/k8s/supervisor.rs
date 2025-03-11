@@ -222,19 +222,14 @@ impl SupervisorStopper for StartedSupervisorK8s {
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
-            let result = thread_context
-                .stop()
-                .inspect(|_| info!(agent_id = %self.agent_id, "{} stopped", thread_name))
-                .inspect_err(|error_msg| {
-                    error!(
-                        agent_id = %self.agent_id,
-                        %error_msg,
-                        "Error stopping {} thread", thread_name
-                    )
-                });
-
-            if result.is_err() && stop_result.is_ok() {
-                stop_result = result;
+            match thread_context.stop_blocking() {
+                Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
+                Err(error_msg) => {
+                    error!(agent_id = %self.agent_id, %error_msg);
+                    if stop_result.is_ok() {
+                        stop_result = Err(error_msg);
+                    }
+                }
             }
         }
 
@@ -362,7 +357,7 @@ pub mod tests {
         let started_thread_context =
             supervisor.start_k8s_objects_supervisor(Arc::new(vec![dynamic_object()]));
         thread::sleep(Duration::from_millis(300)); // Sleep a bit more than one interval, two apply calls should be executed.
-        started_thread_context.stop().unwrap()
+        started_thread_context.stop_blocking().unwrap()
     }
 
     #[test]
