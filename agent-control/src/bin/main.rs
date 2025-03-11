@@ -7,7 +7,7 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::logging::config::FileLoggerGuard;
 use std::error::Error;
-use std::process::exit;
+use std::process::{exit, ExitCode};
 use tracing::{error, info, trace};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -16,7 +16,7 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 #[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
-fn main() {
+fn main() -> ExitCode {
     let cli_command = Cli::init().unwrap_or_else(|cli_error| {
         println!("Error parsing CLI arguments: {}", cli_error);
         exit(1);
@@ -33,12 +33,15 @@ fn main() {
         }
     };
 
-    if let Err(e) = _main(agent_control_config) {
-        error!(
-            "The agent control main process exited with an error: {}",
-            e.to_string()
-        );
-        exit(1);
+    match _main(agent_control_config) {
+        Err(e) => {
+            error!("The agent control main process exited with an error: {e}");
+            ExitCode::FAILURE
+        }
+        Ok(()) => {
+            info!("The agent control main process exited successfully");
+            ExitCode::SUCCESS
+        }
     }
 }
 
