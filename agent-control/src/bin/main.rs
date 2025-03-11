@@ -5,7 +5,7 @@ use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use newrelic_agent_control::logging::config::FileLoggerGuard;
+use newrelic_agent_control::tracing::logs::layers::FileLoggerGuard;
 use std::error::Error;
 use std::process::exit;
 use tracing::{error, info, trace};

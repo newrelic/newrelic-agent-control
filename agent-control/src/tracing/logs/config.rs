@@ -2,33 +2,25 @@ use super::file_logging::FileLoggingConfig;
 use super::format::LoggingFormat;
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
-use std::path::PathBuf;
 use std::str::FromStr;
 use thiserror::Error;
-use tracing::debug;
 use tracing::level_filters::LevelFilter;
 use tracing::Level;
-use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::filter::Directive;
-use tracing_subscriber::fmt::format::PrettyFields;
-use tracing_subscriber::fmt::time::ChronoLocal;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::{EnvFilter, Layer};
+use tracing_subscriber::EnvFilter;
 
 const LOGGING_ENABLED_CRATES: &[&str] = &["newrelic_agent_control", "opamp_client"];
 
 /// An enum representing possible errors during the logging initialization.
 #[derive(Error, Debug)]
-pub enum LoggingError {
-    #[error("init logging error: `{0}`")]
-    TryInitError(String),
+pub enum LoggingConfigError {
     #[error("invalid directive `{directive}` in `{field_name}`: {err}")]
     InvalidDirective {
         directive: String,
         field_name: String,
         err: String,
     },
+
     #[error("invalid logging file path: `{0}`")]
     InvalidFilePath(String),
 }
@@ -52,70 +44,20 @@ pub struct LoggingConfig {
     pub(crate) file: FileLoggingConfig,
 }
 
-pub type FileLoggerGuard = Option<WorkerGuard>;
-
 impl LoggingConfig {
-    /// Attempts to initialize the logging subscriber with the inner configuration.
-    pub fn try_init(&self, default_dir: PathBuf) -> Result<Option<WorkerGuard>, LoggingError> {
-        let target = self.format.target;
-        let timestamp_fmt = self.format.timestamp.0.clone();
-
-        // Construct the file logging layer and its worker guard, only if file logging is enabled.
-        // Note we can actually specify different settings for each layer (log level, format, etc),
-        // hence we repeat the logic here.
-        let logging_filter = self.logging_filter()?;
-        let (file_layer, guard) = self.file.clone().setup(default_dir)?.map_or(
-            Default::default(),
-            |(file_writer, guard)| {
-                let file_layer = tracing_subscriber::fmt::layer()
-                    .with_writer(file_writer)
-                    .with_ansi(false) // Disable colors for file
-                    .with_target(target)
-                    .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
-                    .fmt_fields(PrettyFields::new())
-                    .with_filter(logging_filter);
-                (Some(file_layer), Some(guard))
-            },
-        );
-
-        let console_layer = tracing_subscriber::fmt::layer()
-            .with_writer(std::io::stdout)
-            .with_target(target)
-            .with_timer(ChronoLocal::new(timestamp_fmt))
-            .fmt_fields(PrettyFields::new())
-            .with_filter(self.logging_filter()?);
-
-        // a `Layer` wrapped in an `Option` such as the above defined `file_layer` also implements
-        // the `Layer` trait. This allows individual layers to be enabled or disabled at runtime
-        // while always producing a `Subscriber` of the same type.
-        let subscriber = tracing_subscriber::Registry::default()
-            .with(console_layer)
-            .with(file_layer);
-
-        #[cfg(feature = "tokio-console")]
-        let subscriber = subscriber.with(console_subscriber::spawn());
-
-        subscriber.try_init().map_err(|_| {
-            LoggingError::TryInitError("unable to set agent global logging subscriber".to_string())
-        })?;
-
-        debug!("Logging initialized successfully");
-        Ok(guard)
-    }
-
-    fn logging_filter(&self) -> Result<EnvFilter, LoggingError> {
+    pub fn logging_filter(&self) -> Result<EnvFilter, LoggingConfigError> {
         self.insecure_logging_filter()
             .unwrap_or_else(|| self.crate_logging_filter())
     }
 
-    fn insecure_logging_filter(&self) -> Option<Result<EnvFilter, LoggingError>> {
+    fn insecure_logging_filter(&self) -> Option<Result<EnvFilter, LoggingConfigError>> {
         self.insecure_fine_grained_level
             .as_ref()
             .filter(|s| !s.is_empty())
             .map(|s| {
                 EnvFilter::builder()
                     .parse(s)
-                    .map_err(|err| LoggingError::InvalidDirective {
+                    .map_err(|err| LoggingConfigError::InvalidDirective {
                         directive: s.to_string(),
                         field_name: "insecure_fine_grained_level".to_string(),
                         err: err.to_string(),
@@ -123,7 +65,7 @@ impl LoggingConfig {
             })
     }
 
-    fn crate_logging_filter(&self) -> Result<EnvFilter, LoggingError> {
+    fn crate_logging_filter(&self) -> Result<EnvFilter, LoggingConfigError> {
         let level = self.level.as_level().to_string().to_lowercase();
 
         let mut env_filter = EnvFilter::builder()
@@ -138,10 +80,13 @@ impl LoggingConfig {
         Ok(env_filter)
     }
 
-    fn logging_directive(directive: &str, field_name: &str) -> Result<Directive, LoggingError> {
+    fn logging_directive(
+        directive: &str,
+        field_name: &str,
+    ) -> Result<Directive, LoggingConfigError> {
         directive
             .parse::<Directive>()
-            .map_err(|err| LoggingError::InvalidDirective {
+            .map_err(|err| LoggingConfigError::InvalidDirective {
                 directive: directive.to_string(),
                 field_name: field_name.to_string(),
                 err: err.to_string(),
@@ -187,7 +132,6 @@ impl Serialize for LogLevel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logging::config::LogLevel;
 
     #[test]
     fn working_logging_configurations() {
@@ -199,7 +143,8 @@ mod tests {
 
         impl TestCase {
             fn run(self) {
-                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
+                let env_filter: Result<EnvFilter, LoggingConfigError> =
+                    self.config.logging_filter();
                 assert_eq!(
                     env_filter.unwrap().to_string(),
                     self.expected.to_string(),
@@ -266,7 +211,8 @@ mod tests {
 
         impl TestCase {
             fn run(self) {
-                let env_filter: Result<EnvFilter, LoggingError> = self.config.logging_filter();
+                let env_filter: Result<EnvFilter, LoggingConfigError> =
+                    self.config.logging_filter();
                 let err = env_filter
                     .err()
                     .unwrap_or_else(|| panic!("expected err got Ok - {}", self.name));
