@@ -9,7 +9,7 @@ const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 use crate::{
     event::{
         cancellation::CancellationMessage,
-        channel::{pub_sub, EventConsumer, EventPublisher, EventPublisherError},
+        channel::{pub_sub, EventConsumer, EventPublisher},
     },
     utils::threads::spawn_named_thread,
 };

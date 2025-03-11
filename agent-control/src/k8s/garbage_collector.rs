@@ -5,7 +5,7 @@ use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfi
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{pub_sub, EventPublisher};
+use crate::event::channel::EventConsumer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::GarbageCollectorK8sError::{
@@ -14,13 +14,13 @@ use crate::k8s::error::GarbageCollectorK8sError::{
 use crate::k8s::error::{GarbageCollectorK8sError, K8sError};
 use crate::k8s::Error::MissingName;
 use crate::k8s::{annotations, labels};
-use crate::utils::threads::spawn_named_thread;
+use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::TypeMeta;
-use std::{sync::Arc, thread, time::Duration};
-use tracing::{debug, info, trace, warn};
+use std::{sync::Arc, time::Duration};
+use tracing::{debug, error, info, trace, warn};
 
-const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(10);
+const THREAD_NAME: &str = "Garbage collector";
 
 /// Responsible for cleaning resources created by the agent control that are not longer used.
 pub struct NotStartedK8sGarbageCollector<S>
@@ -37,25 +37,24 @@ where
 }
 
 pub struct K8sGarbageCollectorStarted {
-    stop_tx: EventPublisher<CancellationMessage>,
-    handle: thread::JoinHandle<()>,
-}
-
-impl K8sGarbageCollectorStarted {
-    pub fn is_finished(&self) -> bool {
-        self.handle.is_finished()
-    }
-    fn stop(&self) {
-        let _ = self.stop_tx.publish(());
-        while !self.handle.is_finished() {
-            thread::sleep(GRACEFUL_STOP_RETRY_INTERVAL)
-        }
-    }
+    thread_context: Option<StartedThreadContext>,
 }
 
 impl Drop for K8sGarbageCollectorStarted {
     fn drop(&mut self) {
-        self.stop();
+        let Some(thread_context) = self.thread_context.take() else {
+            return;
+        };
+
+        let _ = thread_context
+            .stop()
+            .inspect(|_| info!("garbage collector thread stopped"))
+            .inspect_err(|error_msg| {
+                error!(
+                    %error_msg,
+                    "Error stopping {} thread", THREAD_NAME
+                )
+            });
     }
 }
 
@@ -85,22 +84,23 @@ where
             "k8s garbage collector started, executed each {} seconds",
             self.interval.as_secs()
         );
-        let (stop_tx, stop_rx) = pub_sub();
         let interval = self.interval;
 
-        let handle = spawn_named_thread("Garbage collector", move || {
-            loop {
-                let _ = self
-                    .collect()
-                    .inspect_err(|err| warn!("executing garbage collection: {err}"));
-                if stop_rx.is_cancelled(interval) {
-                    break;
-                }
-            }
-            info!("k8s garbage collector stopped");
-        });
+        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+            let _ = self
+                .collect()
+                .inspect_err(|err| warn!("executing garbage collection: {err}"));
 
-        K8sGarbageCollectorStarted { stop_tx, handle }
+            if stop_consumer.is_cancelled(interval) {
+                break;
+            }
+        };
+
+        let thread_context = NotStartedThreadContext::new(THREAD_NAME, callback).start();
+
+        K8sGarbageCollectorStarted {
+            thread_context: Some(thread_context),
+        }
     }
 
     /// Garbage collect all resources managed by the SA associated to removed sub-agents.
@@ -250,9 +250,13 @@ pub(crate) mod tests {
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use std::collections::{BTreeMap, HashMap};
     use std::sync::Arc;
+    use std::thread::sleep;
     use std::time::Duration;
+    use tracing_test::internal::logs_with_scope_contain;
+    use tracing_test::traced_test;
 
     #[test]
+    #[traced_test]
     fn test_start_executes_collection_as_expected() {
         // Given a config loader to be initialized with one agent and then changed to another
         // during the whole life of the GC.
@@ -282,8 +286,13 @@ pub(crate) mod tests {
         std::thread::sleep(Duration::from_millis(100));
 
         // Expect the gc is correctly stopped
-        started_gc.stop();
-        assert!(started_gc.is_finished());
+        drop(started_gc);
+        // logs flush
+        sleep(Duration::from_millis(100));
+        assert!(logs_with_scope_contain(
+            "newrelic_agent_control::k8s::garbage_collector",
+            "garbage collector thread stopped",
+        ));
     }
 
     #[test]
