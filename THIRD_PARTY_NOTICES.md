@@ -1274,11 +1274,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-## opamp-client <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31>
-
-Distributed under the following license(s):
-
-* Apache-2.0
 ## openssl-probe <https://crates.io/crates/openssl-probe>
 
 Distributed under the following license(s):
@@ -1459,11 +1454,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 ## prost-types <https://crates.io/crates/prost-types>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-## proto <ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31>
 
 Distributed under the following license(s):
 
