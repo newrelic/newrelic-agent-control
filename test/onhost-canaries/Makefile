@@ -13,15 +13,15 @@ all:
 .PHONY: test/onhost-canaries/terraform-plan
 test/onhost-canaries/terraform-plan:
 ifndef ENVIRONMENT
-	@echo "ENVIRONMENT variable must be provided to know which canary to test/onhost-canaries/terraform-plan"
+	@echo "ENVIRONMENT missing"
 	exit 1
 endif
 ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/onhost-canaries/terraform-plan"
+	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/onhost-canaries/terraform-plan"
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
 	exit 1
 endif 
 ifndef NEW_RELIC_ACCOUNT_ID
@@ -33,7 +33,7 @@ ifndef NEW_RELIC_API_KEY
 	exit 1
 endif
 ifndef SLACK_WEBHOOK_URL
-	@echo SLACK_WEBHOOK_URL missing"
+	@echo "SLACK_WEBHOOK_URL missing"
 	exit 1
 endif
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
@@ -47,20 +47,20 @@ endif
 .PHONY: test/onhost-canaries/terraform-apply
 test/onhost-canaries/terraform-apply:
 ifndef ENVIRONMENT
-	@echo "ENVIRONMENT variable must be provided to know which canary to test/onhost-canaries/terraform-apply"
+	@echo "ENVIRONMENT missing"
 	exit 1
 endif
 ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/onhost-canaries/terraform-apply"
+	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/onhost-canaries/terraform-apply"
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
 	exit 1
 endif
 # This env var is required to install agent control with ansible, not to build the infrastructure
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
-	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/onhost-canaries/terraform-apply"
+	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY missing"
 	exit 1
 endif
 ifndef NEW_RELIC_ACCOUNT_ID
@@ -72,7 +72,7 @@ ifndef NEW_RELIC_API_KEY
 	exit 1
 endif
 ifndef SLACK_WEBHOOK_URL
-	@echo SLACK_WEBHOOK_URL missing"
+	@echo "SLACK_WEBHOOK_URL missing"
 	exit 1
 endif
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
@@ -87,20 +87,20 @@ endif
 .PHONY: test/onhost-canaries/terraform-destroy
 test/onhost-canaries/terraform-destroy:
 ifndef ENVIRONMENT
-	@echo "ENVIRONMENT variable must be provided to know which canary to test/onhost-canaries/terraform-destroy"
+	@echo "ENVIRONMENT missing"
 	exit 1
 endif
 ifndef NR_LICENSE_KEY
-	@echo "NR_LICENSE_KEY variable must be provided for test/onhost-canaries/terraform-destroy"
+	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
 ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID variable must be provided for test/onhost-canaries/terraform-destroy"
+	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
 	exit 1
 endif
 # This env var is required to install agent control with ansible, not to build the infrastructure
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
-	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY variable must be provided for test/onhost-canaries/terraform-destroy"
+	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY missing"
 	exit 1
 endif
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
