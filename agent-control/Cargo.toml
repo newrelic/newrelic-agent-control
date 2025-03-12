@@ -67,6 +67,16 @@ rustls = { version = "0.23.23", features = ["ring"] }
 webpki = { version = "0.22.4", features = ["alloc"] }
 x509-parser = "0.17.0"
 ring = "0.17.13"
+opentelemetry = { version = "0.28.0", features = [
+  "trace",
+] }
+opentelemetry_sdk = { version = "0.28.0", features = [
+  "trace",
+] }
+tracing-opentelemetry = "0.29.0"
+opentelemetry-otlp = { version = "0.28.0", features = ["reqwest-rustls"] }
+opentelemetry-http = { version = "0.28.0"}
+async-trait = "0.1.86"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

@@ -6,11 +6,8 @@
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
+use crate::instrumentation::tracing::{try_init_tracing, TracerBox, TracingConfig, TracingError};
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
-use crate::tracing::logs::layers::{
-    FileLoggerGuard, LoggingLayersInitError, LoggingLayersInitializer,
-};
-use crate::tracing::tracer::{Tracer, TracerError};
 use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
     agent_control::{
@@ -29,21 +26,16 @@ use tracing::info;
 pub struct AgentControlCliConfig {
     /// The configuration to run the agent control
     pub run_config: AgentControlRunConfig,
-    /// Structure that keeps the file logging active
-    pub file_logger_guard: FileLoggerGuard,
 }
 
 /// All possible errors that can happen while running the CLI.
 #[derive(Debug, Error)]
 pub enum CliError {
-    /// The logging could not be initialized
-    #[error("Could not initialize logging: `{0}`")]
-    LoggingInit(#[from] LoggingLayersInitError),
-    /// The tracer could not be initialized
-    #[error("Could not initialize the tracer: `{0}`")]
-    TracerInit(#[from] TracerError),
-    /// The k8s config is missing
+    /// Could not initialize tracer
+    #[error("Could not initialize tracer: `{0}`")]
+    TracerError(#[from] TracingError),
     #[error("k8s config missing while running on k8s ")]
+    /// K8s config is missing
     K8sConfig(),
     /// The config could not be read
     #[error("Could not read Agent Control config from `{0}`: `{1}`")]
@@ -56,7 +48,7 @@ pub enum CliError {
 /// What action was requested from the CLI?
 pub enum CliCommand {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlCliConfig),
+    InitAgentControl(AgentControlCliConfig, TracerBox),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
@@ -125,12 +117,12 @@ impl Cli {
                 )
             })?;
 
-        let (logging_layers, file_logger_guard) = LoggingLayersInitializer::try_init(
-            agent_control_config.log,
+        let tracing_config = TracingConfig::new(
             base_paths.log_dir.clone(),
-        )?;
-
-        Tracer::try_init(logging_layers)?;
+            agent_control_config.log,
+            agent_control_config.self_instrumentation,
+        );
+        let tracer = try_init_tracing(tracing_config)?;
 
         info!("{}", binary_metadata());
         info!(
@@ -161,12 +153,9 @@ impl Cli {
             garbage_collector_interval: DEFAULT_POLL_INTERVAL - std::time::Duration::from_secs(5),
         };
 
-        let cli_config = AgentControlCliConfig {
-            run_config,
-            file_logger_guard,
-        };
+        let cli_config = AgentControlCliConfig { run_config };
 
-        Ok(CliCommand::InitAgentControl(cli_config))
+        Ok(CliCommand::InitAgentControl(cli_config, tracer))
     }
 
     fn print_version(&self) -> bool {

@@ -1,11 +1,15 @@
 //! # Helpers to build a reqwest blocking client and handle responses and handle responses
+//!
 use crate::http::config::HttpConfig;
+use actix_web::web::Bytes;
+use async_trait::async_trait;
 use http::Response as HttpResponse;
 use http::{Request, Response};
 use nix::NixPath;
 use nr_auth::http_client::HttpClient as OauthHttpClient;
 use nr_auth::http_client::HttpClientError as OauthHttpClientError;
 use opamp_client::http::HttpClientError as OpampHttpClientError;
+use opentelemetry_http::HttpError;
 use reqwest::tls::TlsInfo;
 use reqwest::{
     blocking::{Client, Response as BlockingResponse},
@@ -128,6 +132,24 @@ impl From<HttpResponseError> for OauthHttpClientError {
             | HttpResponseError::BuildingResponse(msg)
             | HttpResponseError::ReadingResponse(msg) => OauthHttpClientError::InvalidResponse(msg),
         }
+    }
+}
+
+// Implements opentelemetry_http HttpClient so it can be injected to an opentelemetry_otlp exporter
+#[async_trait]
+impl opentelemetry_http::HttpClient for HttpClient {
+    async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
+        let (parts, body) = request.into_parts();
+        let vec_body = Vec::from(body);
+        let req_vec = Request::from_parts(parts, vec_body);
+
+        let response = self.send(req_vec)?;
+
+        let (parts, body) = response.into_parts();
+        let bytes_body = Bytes::from(body);
+        let resp_vec = Response::from_parts(parts, bytes_body);
+
+        Ok(resp_vec)
     }
 }
 

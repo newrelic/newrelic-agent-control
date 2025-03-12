@@ -1,5 +1,5 @@
 use crate::agent_control::defaults::AGENT_CONTROL_LOG_FILENAME;
-use crate::tracing::logs::config::LoggingConfigError;
+use crate::instrumentation::logs::config::LoggingConfigError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
