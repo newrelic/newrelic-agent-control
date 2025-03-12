@@ -60,7 +60,10 @@ where
             .uri(&self.metadata_endpoint)
             .body(Vec::new())?;
         request.headers_mut().extend(self.headers.clone());
-        let response = self.http_client.send(request)?;
+        let response = self
+            .http_client
+            .send(request)
+            .map_err(AzureDetectorError::from)?;
 
         // return error if status code is not within 200-299.
         if !response.status().is_success() {

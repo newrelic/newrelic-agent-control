@@ -1,7 +1,7 @@
 //! AWS EC2 instance id detector implementation
 
 use super::metadata::AWSMetadata;
-use crate::cloud::aws::http_client::AWSHttpClientReqwest;
+use crate::cloud::aws::http_client::AWSHttpClient;
 use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 use core::str;
@@ -18,7 +18,7 @@ const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct AWSDetector<D: HttpClient> {
-    aws_http_client: AWSHttpClientReqwest<D>,
+    aws_http_client: AWSHttpClient<D>,
 }
 
 impl<D: HttpClient> AWSDetector<D> {
@@ -28,7 +28,7 @@ impl<D: HttpClient> AWSDetector<D> {
         metadata_endpoint: String,
         token_endpoint: String,
     ) -> Result<Self, HttpClientError> {
-        let aws_http_client = AWSHttpClientReqwest::try_new(
+        let aws_http_client = AWSHttpClient::try_new(
             http_client,
             metadata_endpoint,
             token_endpoint,
@@ -47,9 +47,6 @@ pub enum AWSDetectorError {
     /// Error while deserializing endpoint metadata
     #[error("`{0}`")]
     JsonError(#[from] serde_json::Error),
-    /// Unsuccessful HTTP response.
-    #[error("Status code: `{0}` Canonical reason: `{1}`")]
-    UnsuccessfulResponse(u16, String),
 }
 impl<D> Detector for AWSDetector<D>
 where
@@ -60,20 +57,6 @@ where
             .aws_http_client
             .get()
             .map_err(AWSDetectorError::HttpError)?;
-
-        // return error if status code is not within 200-299.
-        if !response.status().is_success() {
-            return Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(
-                    response.status().as_u16(),
-                    response
-                        .status()
-                        .canonical_reason()
-                        .unwrap_or_default()
-                        .to_string(),
-                ),
-            ));
-        }
 
         let metadata: AWSMetadata =
             serde_json::from_slice(response.body()).map_err(AWSDetectorError::JsonError)?;
@@ -94,6 +77,14 @@ mod tests {
     #[test]
     fn detect_aws_metadata() {
         let mut client_mock = MockHttpClientMock::new();
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#" "#.as_bytes().to_vec())
+                .unwrap())
+        });
+
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
@@ -123,7 +114,7 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClientReqwest::try_new(
+        let aws_http_client = AWSHttpClient::try_new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -144,6 +135,14 @@ mod tests {
     #[test]
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClientMock::new();
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#" "#.as_bytes().to_vec())
+                .unwrap())
+        });
+
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(404)
@@ -151,7 +150,7 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClientReqwest::try_new(
+        let aws_http_client = AWSHttpClient::try_new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -165,15 +164,23 @@ mod tests {
 
         assert_matches!(
             result,
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, _)
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, _)
+            )))
         );
     }
 
     #[test]
     fn detect_json_error() {
         let mut client_mock = MockHttpClientMock::new();
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#" "#.as_bytes().to_vec())
+                .unwrap())
+        });
+
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
@@ -181,7 +188,7 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClientReqwest::try_new(
+        let aws_http_client = AWSHttpClient::try_new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),

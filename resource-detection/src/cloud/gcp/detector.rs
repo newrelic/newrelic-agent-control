@@ -11,8 +11,8 @@ pub const GCP_IPV4_METADATA_ENDPOINT: &str =
     "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true";
 
 /// The `GCPDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
-pub struct GCPDetector<C: HttpClient> {
-    http_client: C,
+pub struct GCPDetector<E: HttpClient> {
+    http_client: E,
     metadata_endpoint: String,
     headers: HeaderMap,
 }
@@ -20,9 +20,9 @@ pub struct GCPDetector<C: HttpClient> {
 const HEADER_KEY: &str = "Metadata-Flavor";
 const HEADER_VALUE: &str = "Google";
 
-impl<C: HttpClient> GCPDetector<C> {
+impl<E: HttpClient> GCPDetector<E> {
     /// Returns a new instance of GCPDetector
-    pub fn try_new(http_client: C, metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn try_new(http_client: E, metadata_endpoint: String) -> Result<Self, HttpClientError> {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
@@ -51,9 +51,9 @@ pub enum GCPDetectorError {
     UnsuccessfulResponse(u16, String),
 }
 
-impl<C> Detector for GCPDetector<C>
+impl<E> Detector for GCPDetector<E>
 where
-    C: HttpClient,
+    E: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
         let mut request = Request::builder()

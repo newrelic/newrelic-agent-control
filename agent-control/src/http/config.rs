@@ -5,7 +5,7 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct HttpConfig {
     pub(crate) timeout: Duration,
     pub(crate) conn_timeout: Duration,

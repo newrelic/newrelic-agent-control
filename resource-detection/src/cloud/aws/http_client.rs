@@ -7,16 +7,16 @@ pub(crate) const TOKEN_HEADER: &str = "x-aws-ec2-metadata-token";
 pub(crate) const TTL_TOKEN_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
 
 /// An implementation of the `HttpClient` trait using the reqwest library and IMDv2 auth.
-pub struct AWSHttpClientReqwest<C: HttpClient> {
-    http_client: C,
+pub struct AWSHttpClient<D: HttpClient> {
+    http_client: D,
     token_endpoint: String,
     token_ttl: Duration,
     metadata_endpoint: String,
 }
-impl<C: HttpClient> AWSHttpClientReqwest<C> {
+impl<D: HttpClient> AWSHttpClient<D> {
     /// Returns a new instance of AWSHttpClientReqwest
     pub fn try_new(
-        http_client: C,
+        http_client: D,
         metadata_endpoint: String,
         token_endpoint: String,
         token_ttl: Duration,
@@ -61,15 +61,13 @@ impl<C: HttpClient> AWSHttpClientReqwest<C> {
             HeaderValue::from_str(&token)
                 .map_err(|e| HttpClientError::BuildingError(e.to_string()))?,
         );
-        let response = self.send(request)?;
-        println!("{:?}", response);
-        Ok(response)
+        self.send(request)
     }
 }
 
-impl<C> HttpClient for AWSHttpClientReqwest<C>
+impl<D> HttpClient for AWSHttpClient<D>
 where
-    C: HttpClient,
+    D: HttpClient,
 {
     fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError> {
         let response = self.http_client.send(request)?;
@@ -88,10 +86,11 @@ where
 }
 #[cfg(test)]
 mod tests {
-    use crate::cloud::aws::http_client::AWSHttpClientReqwest;
+    use crate::cloud::aws::http_client::AWSHttpClient;
     use crate::cloud::http_client::tests::MockHttpClientMock;
     use crate::cloud::http_client::HttpClientError;
     use http::{Response, StatusCode};
+    use mockall::Sequence;
     use std::time::Duration;
 
     const TTL_TOKEN: Duration = Duration::from_secs(10);
@@ -110,7 +109,7 @@ mod tests {
             .times(1)
             .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClientReqwest::try_new(
+        let client = AWSHttpClient::try_new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -135,11 +134,21 @@ mod tests {
             .body(b"test_metadata".to_vec())
             .unwrap();
 
-        let responses = vec![Ok(token_response), Ok(metadata)];
+        let mut seq = Sequence::new();
 
-        mock_http_client.should_send_sequence(responses);
+        mock_http_client
+            .expect_send()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClientReqwest::try_new(
+        mock_http_client
+            .expect_send()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(move |_| Ok(metadata));
+
+        let client = AWSHttpClient::try_new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -164,7 +173,7 @@ mod tests {
             .times(1)
             .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClientReqwest::try_new(
+        let client = AWSHttpClient::try_new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -194,11 +203,21 @@ mod tests {
             .body(b"oo".to_vec())
             .unwrap();
 
-        let responses = vec![Ok(token_response), Ok(metadata)];
+        let mut seq = Sequence::new();
 
-        mock_http_client.should_send_sequence(responses);
+        mock_http_client
+            .expect_send()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClientReqwest::try_new(
+        mock_http_client
+            .expect_send()
+            .times(1)
+            .in_sequence(&mut seq)
+            .return_once(move |_| Ok(metadata));
+
+        let client = AWSHttpClient::try_new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
@@ -213,121 +232,4 @@ mod tests {
             assert_eq!(message, "Forbidden".to_string());
         }
     }
-    // #[test]
-    // fn test_authenticated_request() {
-    //    let client_http = Client::new();
-    //     let imds_server = MockServer::start();
-    //     let token_mock = imds_server.mock(|when, then| {
-    //         when.method("PUT")
-    //             .path("/token")
-    //             .header(TTL_TOKEN_HEADER, TTL_TOKEN.as_secs().to_string().as_str());
-    //         then.status(200).body("test_token");
-    //     });
-    //     let metadata_mock = imds_server.mock(|when, then| {
-    //         when.method("GET")
-    //             .path("/metadata")
-    //             .header(TOKEN_HEADER, "test_token");
-    //         then.status(200).body("test_metadata");
-    //     });
-    //
-    //     let http_client = AWSHttpClientReqwest::try_new(
-    //         client_http,
-    //         imds_server.url("/metadata"),
-    //         imds_server.url("/token"),
-    //         TTL_TOKEN,
-    //     )
-    //     .unwrap();
-    //
-    //     let resp = http_client.get().unwrap();
-    //
-    //     assert_eq!(resp.body(), b"test_metadata");
-    //
-    //     token_mock.assert_hits(1);
-    //     metadata_mock.assert_hits(1);
-    // }
-
-    // #[test]
-    // fn test_failed_metadata_endpoint() {
-    //     let http_client = Client::new();
-    //     let imds_server = MockServer::start();
-    //     let token_mock = imds_server.mock(|when, then| {
-    //         when.method("PUT")
-    //             .path("/token")
-    //             .header(TTL_TOKEN_HEADER, TTL_TOKEN.as_secs().to_string().as_str());
-    //         then.status(200).body("test_token");
-    //     });
-    //     let metadata_mock = imds_server.mock(|when, then| {
-    //         when.method("GET")
-    //             .path("/metadata")
-    //             .header(TOKEN_HEADER, "test_token");
-    //         then.status(401).body("test_metadata");
-    //     });
-    //     let aws_http_client = AWSHttpClientReqwest::try_new(
-    //         http_client,
-    //         imds_server.url("/metadata"),
-    //         imds_server.url("/token"),
-    //         TTL_TOKEN,
-    //     )
-    //     .unwrap();
-    //
-    //     let err = aws_http_client.get();
-    //
-    //     assert_matches!(err, HttpClientError::ResponseError(401, _));
-    //
-    //     token_mock.assert_hits(1);
-    //     metadata_mock.assert_hits(1);
-    // }
-    //
-    // #[test]
-    // fn test_fail_getting_token() {
-    //     let client_mock = MockHttpClientMock::new();
-    //     let imds_server = MockServer::start();
-    //     let token_mock = imds_server.mock(|when, then| {
-    //         when.method("PUT")
-    //             .path("/token")
-    //             .header(TTL_TOKEN_HEADER, TTL_TOKEN.as_secs().to_string().as_str());
-    //         then.status(500);
-    //     });
-    //
-    //     let http_client = AWSHttpClientReqwest::try_new(
-    //         client_mock,
-    //         imds_server.url("/metadata"),
-    //         imds_server.url("/token"),
-    //         TTL_TOKEN,
-    //     )
-    //     .unwrap();
-    //
-    //     let err = http_client.get().unwrap_err();
-    //
-    //     assert_matches!(err, HttpClientError::ResponseError(500, _));
-    //
-    //     token_mock.assert_hits(1);
-    // }
-    // #[test]
-    // fn test_fail_deserializing_token() {
-    //     let client_mock = MockHttpClientMock::new();
-    //     let imds_server = MockServer::start();
-    //     let invalid_token = vec![0x89, 0x50, 0x4E, 0x47];
-    //
-    //     let token_mock = imds_server.mock(|when, then| {
-    //         when.method("PUT")
-    //             .path("/token")
-    //             .header(TTL_TOKEN_HEADER, TTL_TOKEN.as_secs().to_string().as_str());
-    //         then.status(200).body(invalid_token);
-    //     });
-    //
-    //     let http_client = AWSHttpClientReqwest::try_new(
-    //         client_mock,
-    //         imds_server.url("/metadata"),
-    //         imds_server.url("/token"),
-    //         TTL_TOKEN,
-    //     )
-    //     .unwrap();
-    //
-    //     let err = http_client.get().unwrap_err();
-    //
-    //     assert_matches!(err, HttpClientError::TransportError(_));
-    //
-    //     token_mock.assert_hits(1);
-    // }
 }

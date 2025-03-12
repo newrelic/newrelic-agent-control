@@ -12,7 +12,7 @@ use crate::agent_type::render::persister::config_persister_file::ConfigurationPe
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::http::client::HttpClient;
-use crate::http::config::HttpConfig;
+use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -32,8 +32,10 @@ use crate::{
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
+use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{debug, info};
 
 impl AgentControlRunner {
@@ -62,13 +64,16 @@ impl AgentControlRunner {
             .as_ref()
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
-        //TODO IMPLENENT ME CORRECTLY
-        let azure_http_client = HttpClient::new(HttpConfig::default()).unwrap();
-        let gcp_http_client = HttpClient::new(HttpConfig::default()).unwrap();
-        let aws_http_client = HttpClient::new(HttpConfig::default()).unwrap();
+
+        let http_client = HttpClient::new(HttpConfig::new(
+            DEFAULT_CLIENT_TIMEOUT,
+            DEFAULT_CLIENT_TIMEOUT,
+            ProxyConfig::default(),
+        ))
+        .unwrap();
 
         let identifiers_provider =
-            IdentifiersProvider::try_new(azure_http_client, aws_http_client, gcp_http_client)?
+            IdentifiersProvider::try_new(http_client.clone(), http_client.clone(), http_client)?
                 .with_host_id(config.host_id.clone())
                 .with_fleet_id(fleet_id);
 

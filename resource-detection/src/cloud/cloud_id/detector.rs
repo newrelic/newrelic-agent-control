@@ -173,9 +173,9 @@ mod tests {
         let gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {
@@ -211,9 +211,9 @@ mod tests {
         let mut gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {
@@ -255,9 +255,9 @@ mod tests {
         let mut gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {
