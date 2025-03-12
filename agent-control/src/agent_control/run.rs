@@ -109,7 +109,7 @@ impl AgentControlRunner {
 
                 let http_builder = OpAMPHttpClientBuilder::new(
                     opamp_config.clone(),
-                    config.proxy,
+                    config.proxy.clone(),
                     token_retriever,
                 );
 
@@ -141,7 +141,9 @@ impl AgentControlRunner {
 
         let signature_validator = config
             .opamp
-            .map(|fleet_config| build_signature_validator(fleet_config.signature_validation))
+            .map(|fleet_config| {
+                build_signature_validator(fleet_config.signature_validation, config.proxy)
+            })
             .transpose()?
             .unwrap_or(SignatureValidator::Noop);
 

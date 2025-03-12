@@ -35,8 +35,11 @@ pub enum SignatureValidatorError {
 
 /// Returns a SignatureValidator wrapping a CertificateSignatureValidator if fleet_control and signature validation are
 /// enabled and a no-op validator otherwise.
+///
+/// Proxies configuration that intercept TLS traffic are not supported since the fetcher expects to connect directly to the server.
 pub fn build_signature_validator(
     config: SignatureValidatorConfig,
+    proxy_config: ProxyConfig,
 ) -> Result<SignatureValidator, SignatureValidatorError> {
     if !config.enabled {
         warn!("Remote config signature validation is disabled");
@@ -55,10 +58,11 @@ pub fn build_signature_validator(
             "Remote config signature validation is enabled, fetching certificate from: {}",
             config.certificate_server_url
         );
+
         let http_config = HttpConfig::new(
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
-            ProxyConfig::default(), // Proxy is not supported for fetching certificate
+            proxy_config,
         )
         .with_tls_info();
 
