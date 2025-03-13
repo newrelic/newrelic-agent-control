@@ -10,9 +10,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 name: coverage
-env:
-  # Allows to fetch multiple private repo crates with different deploy keys.
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
   coverage:

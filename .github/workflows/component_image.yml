@@ -15,10 +15,6 @@ on:
         type: boolean
         required: true
 
-env:
-  # Allows to fetch multiple private repo crates with different deploy keys.
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
-
 jobs:
   build-image:
     runs-on: ubuntu-latest

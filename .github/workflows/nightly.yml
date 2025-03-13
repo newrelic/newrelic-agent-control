@@ -8,10 +8,6 @@ on:
     # Scheduled to run at 4 a.m on every day-of-week from Monday through Friday.
     - cron: "0 4 * * 1-5"
 
-env:
-  # Allows to fetch multiple private repo crates with different deploy keys.
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
-
 jobs:
   build-packages:
     name: Build packages

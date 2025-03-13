@@ -10,9 +10,6 @@ concurrency:
   cancel-in-progress: true
 name: test
 
-env:
-  # Allows to fetch multiple private repo crates with different deploy keys.
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
 jobs:
   release-build:
     runs-on: ubuntu-latest

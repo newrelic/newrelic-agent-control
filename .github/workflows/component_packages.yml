@@ -11,9 +11,6 @@ on:
         description: 'tag name for the packages'
         type: string
         required: true
-env:
-  # Allows to fetch multiple private repo crates with different deploy keys.
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
   build:
