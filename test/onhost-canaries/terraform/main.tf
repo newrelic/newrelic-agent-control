@@ -1,8 +1,3 @@
-variable "system_identity_client_id" {
-  description = "NR System Identity Client ID"
-  type = string
-}
-
 variable "license_key" {
   description = "NR License Key"
   type = string
@@ -92,7 +87,7 @@ resource "null_resource" "ansible" {
   }
 
   provisioner "local-exec" {
-    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ${var.inventory_output} -e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} --private-key ~/.ssh/caos-dev-arm.cer ../ansible/install_ac_with_basic_config.yml"
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ${var.inventory_output} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} --private-key ~/.ssh/caos-dev-arm.cer ../ansible/install_ac_with_basic_config.yml"
   }
 }
 

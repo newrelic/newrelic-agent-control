@@ -20,10 +20,6 @@ ifndef NR_LICENSE_KEY
 	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
-ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
-	exit 1
-endif 
 ifndef NEW_RELIC_ACCOUNT_ID
 	@echo "NEW_RELIC_ACCOUNT_ID missing"
 	exit 1
@@ -37,7 +33,6 @@ ifndef SLACK_WEBHOOK_URL
 	exit 1
 endif
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
-	TF_VAR_system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
@@ -52,10 +47,6 @@ ifndef ENVIRONMENT
 endif
 ifndef NR_LICENSE_KEY
 	@echo "NR_LICENSE_KEY missing"
-	exit 1
-endif
-ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
 	exit 1
 endif
 # This env var is required to install agent control with ansible, not to build the infrastructure
@@ -77,7 +68,6 @@ ifndef SLACK_WEBHOOK_URL
 endif
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ONHOST_ANSIBLE_FOLDER) ANSIBLE_ENV_SCRIPT=$(ONHOST_ANSIBLE_FOLDER)/set_ansible_env.sh
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
-	TF_VAR_system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
@@ -94,17 +84,9 @@ ifndef NR_LICENSE_KEY
 	@echo "NR_LICENSE_KEY missing"
 	exit 1
 endif
-ifndef NR_SYSTEM_IDENTITY_CLIENT_ID
-	@echo "NR_SYSTEM_IDENTITY_CLIENT_ID missing"
-	exit 1
-endif
 # This env var is required to install agent control with ansible, not to build the infrastructure
 ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
 	@echo "NR_SYSTEM_IDENTITY_PRIVATE_KEY missing"
-	exit 1
-endif
-ifndef NEW_RELIC_ACCOUNT_ID
-	@echo "NEW_RELIC_ACCOUNT_ID missing"
 	exit 1
 endif
 ifndef NEW_RELIC_ACCOUNT_ID
@@ -116,7 +98,6 @@ ifndef SLACK_WEBHOOK_URL
 	exit 1
 endif
 	terraform -chdir=$(TERRAFORM_DIR) init -reconfigure -backend-config=environments/$(ENVIRONMENT)/backend.conf && \
-	TF_VAR_system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
