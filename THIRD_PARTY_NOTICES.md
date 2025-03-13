@@ -1996,12 +1996,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * ISC
-## ureq <https://crates.io/crates/ureq>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 ## url <https://crates.io/crates/url>
 
 Distributed under the following license(s):

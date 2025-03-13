@@ -36,8 +36,8 @@ chrono = { workspace = true }
 base64 = { version = "0.22.1" }
 # New Relic dependencies (private external repos)
 # IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
-nr-auth = { git = "ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git", tag = "0.0.4"}
-opamp-client = { git = "ssh://git@github.com/newrelic/opamp-rs.git", tag = "0.0.31", default-features = false }
+nr-auth = { git = "ssh://git@github.com/newrelic/newrelic-auth-rs.git", tag = "0.0.4" }
+opamp-client = { git = "ssh://git@github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.31", default-features = false }
 # local dependencies
 fs = { path = "../fs" }
 
@@ -57,7 +57,9 @@ tracing-appender = "0.2.3"
 cfg-if = "1.0.0"
 # HOST_ID and HOST_NAME attributes are experimental fields and after 0.26.0 are not included by default.
 # Check <https://github.com/open-telemetry/opentelemetry-rust/pull/2098> for details.
-opentelemetry-semantic-conventions = { version = "0.28.0", features = ["semconv_experimental"] }
+opentelemetry-semantic-conventions = { version = "0.28.0", features = [
+  "semconv_experimental",
+] }
 http-serde = "2.1.1"
 paste = "1.0"
 config = { version = "0.15.9", features = ["yaml"] }
@@ -105,12 +107,7 @@ path = "src/bin/config_migrate.rs"
 
 [features]
 onhost = []
-k8s = [
-  "dep:kube",
-  "dep:k8s-openapi",
-  "dep:either",
-  "dep:futures",
-]
+k8s = ["dep:kube", "dep:k8s-openapi", "dep:either", "dep:futures"]
 # feature ci allows calling --all-features (needed on the test pipelines) and not failing to compile
 ci = []
 # feature tokio-console allows debugging tokio tasks using tokio-console

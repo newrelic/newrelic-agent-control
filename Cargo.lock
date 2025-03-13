@@ -3127,7 +3127,7 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 [[package]]
 name = "nr-auth"
 version = "0.0.4"
-source = "git+ssh://git@github.com/newrelic/newrelic-oauth-client-rs.git?tag=0.0.4#e9f1c8aa962e276c8ce85e8e2305475b0676acee"
+source = "git+ssh://git@github.com/newrelic/newrelic-auth-rs.git?tag=0.0.4#0c9be0ff7378324fc46d3f7a42966ee0cddeaa33"
 dependencies = [
  "chrono",
  "http 1.2.0",
@@ -3136,7 +3136,6 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.12",
  "tracing",
- "ureq",
  "url",
  "uuid",
 ]
@@ -3212,7 +3211,7 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 [[package]]
 name = "opamp-client"
 version = "0.0.31"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31#f9935e657474f9fb89f8e18403b2151533b80344"
+source = "git+ssh://git@github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
 dependencies = [
  "crossbeam",
  "http 1.2.0",
@@ -3596,7 +3595,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+ssh://git@github.com/newrelic/opamp-rs.git?tag=0.0.31#f9935e657474f9fb89f8e18403b2151533b80344"
+source = "git+ssh://git@github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
 dependencies = [
  "prost",
  "prost-build",
@@ -5034,22 +5033,6 @@ name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
-
-[[package]]
-name = "ureq"
-version = "2.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "02d1a66277ed75f640d608235660df48c8e3c19f3b4edb6a263315626cc3c01d"
-dependencies = [
- "base64 0.22.1",
- "flate2",
- "log",
- "once_cell",
- "rustls",
- "rustls-pki-types",
- "url",
- "webpki-roots",
-]
 
 [[package]]
 name = "url"
