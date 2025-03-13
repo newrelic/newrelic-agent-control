@@ -37,7 +37,7 @@ base64 = { version = "0.22.1" }
 # New Relic dependencies (private external repos)
 # IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
 nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.0.4" }
-opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.31", default-features = false }
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.32" }
 # local dependencies
 fs = { path = "../fs" }
 
