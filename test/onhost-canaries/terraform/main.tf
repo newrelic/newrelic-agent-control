@@ -24,49 +24,77 @@ variable "repository_endpoint" {
 }
 
 locals {
-  ec2_instances = {
+  ec2_configs = {
     "amd64:ubuntu22.04" = {
+      metrics_attributes_id = "${var.ec2_prefix}-amd64-ubuntu22-04"
       ami             = "ami-0884d2865dbe9de4b"
       subnet          = "subnet-00aa02e6d991b478e"
       security_groups = ["sg-04ae18f8c34a11d38"]
       key_name        = "caos-dev-arm"
       instance_type   = "t3a.small"
       username        = "ubuntu"
-      platform        = "linux"
-      python          = "/usr/bin/python3"
-      // We don't install the otel collector on the onhost canaries,
-      // but the tag is required by the terraform module
-      tags = {
-        "otel_role" = "agent"
-      }
     }
   }
+  assembled_ec2 = var.ec2_prefix == "" ? local.ec2_configs : { for k, v in local.ec2_configs : format("%s%s%s", var.ec2_prefix, ":", k) => v }
 
-  // To setup the alerts, we need to know the hostnames of the instances.
-  // One option would be to wait for the ansible inventory to be created, but then
-  // terraform won't be able to show all the resources that the apply operation
-  // will create.
-  // We decided to recompute the hostnames here as the "env-provisioner" module does.
-  // If env-provisioner changes the way it computes the hostnames, we need to change
-  // it here too. However, terraform plan will properly list all the resources that
-  // will be created and we can spot any problems with the hostnames.
-  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
+  hostnames = [for k, v in local.assembled_ec2 : v.metrics_attributes_id ]
 }
 
-module "agent_control-canary-env-provisioner" {
-  source             = "git::https://github.com/newrelic-experimental/env-provisioner//terraform/otel-ec2"
-  ec2_prefix         = var.ec2_prefix
-  ec2_filters        = ""
-  nr_license_key     = var.license_key
-  otlp_endpoint      = "staging-otlp.nr-data.net:4317"
-  pvt_key            = "~/.ssh/caos-dev-arm.cer"
-  ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
-  inventory_template = "../ansible/inventory-template.tmpl"
-  inventory_output   = var.inventory_output
-  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} ../ansible/install_ac_with_basic_config.yml"
-  ec2_otels          = local.ec2_instances
+module "ec2_instances" {
+  source  = "registry.terraform.io/terraform-aws-modules/ec2-instance/aws"
+
+  for_each               = local.assembled_ec2
+
+  name                   = each.key
+  ami                    = each.value.ami
+  instance_type          = each.value.instance_type
+  key_name               = each.value.key_name
+  subnet_id              = each.value.subnet
+  vpc_security_group_ids = each.value.security_groups
 }
 
+resource "null_resource" "wait_linux" {
+
+  for_each = local.assembled_ec2
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = each.value.username
+      host        = module.ec2_instances[each.key].private_ip
+      private_key = file("~/.ssh/caos-dev-arm.cer")
+    }
+
+    inline = [
+      "echo 'connected'"
+    ]
+  }
+}
+
+resource "local_file" "AnsibleInventory" {
+  depends_on = [null_resource.wait_linux]
+
+  content = templatefile("../ansible/inventory-template.tmpl",
+    {
+      host-ids          = [for k, p in module.ec2_instances : k],
+      host-user         = [for k, p in module.ec2_instances : local.assembled_ec2[k].username],
+      host-private-ip   = [for k, p in module.ec2_instances : p.private_ip],
+      host-unique-id = [for k, p in module.ec2_instances : local.assembled_ec2[k].metrics_attributes_id],
+    }
+  )
+  filename = var.inventory_output
+}
+
+resource "null_resource" "ansible" {
+  depends_on = [local_file.AnsibleInventory]
+
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+
+  provisioner "local-exec" {
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ${var.inventory_output} -e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} --private-key ~/.ssh/caos-dev-arm.cer ../ansible/install_ac_with_basic_config.yml"
+  }
+}
 
 variable "account_id" {
   description = "New Relic Account ID"

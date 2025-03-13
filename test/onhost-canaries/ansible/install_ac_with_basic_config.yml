@@ -76,6 +76,8 @@
           status_server_enabled: true
           status_server_port: 18003
           license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}
+          custom_attributes:
+            canary_unique_id: {{ hostvars[inventory_hostname].host_unique_id }}"
 
   - name: Add license to service
     shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
