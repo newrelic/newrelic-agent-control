@@ -24,7 +24,7 @@ variable "repository_endpoint" {
 }
 
 locals {
-  ec2_otels = {
+  ec2_instances = {
     "amd64:ubuntu22.04" = {
       ami             = "ami-0884d2865dbe9de4b"
       subnet          = "subnet-00aa02e6d991b478e"
@@ -50,7 +50,7 @@ locals {
   // If env-provisioner changes the way it computes the hostnames, we need to change
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
-  hostnames = [for k, v in local.ec2_otels : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
+  hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
 }
 
 module "agent_control-canary-env-provisioner" {
@@ -64,7 +64,7 @@ module "agent_control-canary-env-provisioner" {
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
   ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} ../ansible/install_ac_with_basic_config.yml"
-  ec2_otels          = local.ec2_otels
+  ec2_otels          = local.ec2_instances
 }
 
 
