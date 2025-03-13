@@ -8,7 +8,7 @@ use nr_auth::http_client::HttpClientError as OauthHttpClientError;
 use opamp_client::http::HttpClientError as OpampHttpClientError;
 use reqwest::tls::TlsInfo;
 use reqwest::{
-    blocking::{Client, ClientBuilder, Response as BlockingResponse},
+    blocking::{Client, Response as BlockingResponse},
     Certificate, Proxy,
 };
 use std::{
@@ -16,7 +16,6 @@ use std::{
     fs::File,
     io::Read,
     path::{Path, PathBuf},
-    time::Duration,
 };
 use tracing::warn;
 

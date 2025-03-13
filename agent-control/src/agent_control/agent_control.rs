@@ -16,19 +16,15 @@ use crate::opamp::{
     remote_config::hash::Hash,
     remote_config::{RemoteConfig, RemoteConfigError},
 };
+use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::{
-    collection::{NotStartedSubAgents, StartedSubAgents},
-    error::SubAgentBuilderError,
-    NotStartedSubAgent, SubAgentBuilder,
-};
+use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
@@ -117,11 +113,7 @@ where
         info!("Starting the agents supervisor runtime");
         let sub_agents_config = self.sa_dynamic_config_store.load()?.agents;
 
-        let not_started_sub_agents = self.build_sub_agents(&sub_agents_config)?;
-
-        // RETURNS CHANNEL_TO_STOP (WHEN GRACEFUL OR CONFIG REMOVAL STOP) AND JOIN_HANDLE
-        // Run all the Sub Agents
-        let running_sub_agents = not_started_sub_agents.run();
+        let running_sub_agents = self.build_and_run_sub_agents(&sub_agents_config)?;
 
         info!("Agents supervisor runtime successfully started");
 
@@ -144,29 +136,6 @@ where
         Ok(())
     }
 
-    // load_sub_agents returns a collection of not started sub agents given the corresponding
-    // EffectiveAgents
-    fn build_sub_agents(
-        &self,
-        sub_agents: &SubAgentsMap,
-    ) -> Result<NotStartedSubAgents<S::NotStartedSubAgent>, AgentError> {
-        Ok(NotStartedSubAgents::from(
-            sub_agents
-                .iter()
-                .map(|(agent_id, sub_agent_config)| {
-                    let agent_identity =
-                        AgentIdentity::from((agent_id, &sub_agent_config.agent_type));
-                    // FIXME: we force OK(agent) but we need to check also agent not assembled when
-                    // on first stat because it can be a crash after a remote_config_change
-                    let not_started_agent = self
-                        .sub_agent_builder
-                        .build(&agent_identity, self.sub_agent_publisher.clone())?;
-                    Ok((agent_identity.id, not_started_agent))
-                })
-                .collect::<Result<HashMap<_, _>, SubAgentBuilderError>>()?,
-        ))
-    }
-
     // Recreates a Sub Agent by its agent_id meaning:
     //  * Remove and stop the existing running Sub Agent from the Running Sub Agents
     //  * Recreate the Final Agent using the Agent Type and the latest persisted config
@@ -179,13 +148,32 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        running_sub_agents.stop_remove(&agent_identity.id)?;
+        running_sub_agents.stop_and_remove(&agent_identity.id)?;
 
-        self.create_sub_agent(agent_identity, running_sub_agents)
+        self.build_and_run_sub_agent(agent_identity, running_sub_agents)
+    }
+
+    // build_sub_agents returns a collection of started sub agents given the corresponding
+    // EffectiveAgents
+    fn build_and_run_sub_agents(
+        &self,
+        sub_agents: &SubAgentsMap,
+    ) -> Result<
+        StartedSubAgents<<S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent>,
+        AgentError,
+    > {
+        let mut running_sub_agents = StartedSubAgents::default();
+
+        for (agent_id, agent_config) in sub_agents {
+            let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
+
+            self.build_and_run_sub_agent(&agent_identity, &mut running_sub_agents)?;
+        }
+        Ok(running_sub_agents)
     }
 
     // runs and adds into the sub_agents collection the given agent
-    fn create_sub_agent(
+    fn build_and_run_sub_agent(
         &self,
         agent_identity: &AgentIdentity,
         running_sub_agents: &mut StartedSubAgents<
@@ -262,7 +250,7 @@ where
         }
     }
 
-    // apply a agent control remote config
+    // apply an agent control remote config
     pub(super) fn apply_remote_agent_control_config(
         &self,
         remote_config: &RemoteConfig,
@@ -344,7 +332,7 @@ where
                     }
                     None => {
                         info!("Creating SubAgent {}", agent_id);
-                        self.create_sub_agent(&agent_identity, running_sub_agents)
+                        self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
                     }
                 }
             })?;
@@ -367,7 +355,7 @@ where
                             )
                         });
 
-                    return running_sub_agents.stop_remove(agent_id);
+                    return running_sub_agents.stop_and_remove(agent_id);
                 }
                 Ok(())
             })?;
@@ -831,9 +819,9 @@ agents:
             dynamic_config_validator,
         );
 
-        let sub_agents = agent_control.build_sub_agents(&sub_agents_config);
-
-        let mut running_sub_agents = sub_agents.unwrap().run();
+        let mut running_sub_agents = agent_control
+            .build_and_run_sub_agents(&sub_agents_config)
+            .unwrap();
 
         // just one agent, it should remove the infra-agent
         let remote_config = RemoteConfig::new(
@@ -925,9 +913,9 @@ agents:
             dynamic_config_validator,
         );
 
-        let sub_agents = agent_control.build_sub_agents(&sub_agents_config);
-
-        let mut running_sub_agents = sub_agents.unwrap().run();
+        let mut running_sub_agents = agent_control
+            .build_and_run_sub_agents(&sub_agents_config)
+            .unwrap();
 
         // just one agent, it should remove the infra-agent
         let remote_config = RemoteConfig::new(

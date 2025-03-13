@@ -1,37 +1,7 @@
-use super::{error::SubAgentCollectionError, NotStartedSubAgent, StartedSubAgent};
+use super::{error::SubAgentCollectionError, StartedSubAgent};
 use crate::agent_control::agent_id::AgentID;
 use std::collections::HashMap;
-use tracing::{debug, error, info};
-
-pub(crate) struct NotStartedSubAgents<S>(HashMap<AgentID, S>)
-where
-    S: NotStartedSubAgent;
-
-impl<S> From<HashMap<AgentID, S>> for NotStartedSubAgents<S>
-where
-    S: NotStartedSubAgent,
-{
-    fn from(value: HashMap<AgentID, S>) -> Self {
-        Self(value)
-    }
-}
-
-impl<S> NotStartedSubAgents<S>
-where
-    S: NotStartedSubAgent,
-{
-    pub(crate) fn run(self) -> StartedSubAgents<S::StartedSubAgent> {
-        let sub_agents: HashMap<AgentID, S::StartedSubAgent> = self
-            .0
-            .into_iter()
-            .map(|(id, subagent)| {
-                debug!("Running supervisor for agent {}", id);
-                (id, subagent.run())
-            })
-            .collect();
-        StartedSubAgents(sub_agents)
-    }
-}
+use tracing::{error, info};
 
 pub(crate) struct StartedSubAgents<S>(HashMap<AgentID, S>)
 where
@@ -41,7 +11,7 @@ impl<S> StartedSubAgents<S>
 where
     S: StartedSubAgent,
 {
-    pub(crate) fn stop_remove(
+    pub(crate) fn stop_and_remove(
         &mut self,
         agent_id: &AgentID,
     ) -> Result<(), SubAgentCollectionError> {
@@ -53,7 +23,7 @@ where
                 ))?;
 
         info!(%agent_id, "Stopping sub agent");
-        Self::stop_subagent(sub_agent, agent_id);
+        Self::stop_sub_agent(sub_agent, agent_id);
 
         Ok(())
     }
@@ -66,14 +36,23 @@ where
     pub(crate) fn stop(self) {
         self.0.into_iter().for_each(|(agent_id, sub_agent)| {
             info!(%agent_id, "Stopping sub agent");
-            Self::stop_subagent(sub_agent, &agent_id);
+            Self::stop_sub_agent(sub_agent, &agent_id);
         })
     }
 
-    fn stop_subagent(sub_agent: S, agent_id: &AgentID) {
+    fn stop_sub_agent(sub_agent: S, agent_id: &AgentID) {
         let _ = sub_agent
             .stop()
             .inspect_err(|err| error!(%agent_id, %err, "Error stopping sub agent"));
+    }
+}
+
+impl<S> Default for StartedSubAgents<S>
+where
+    S: StartedSubAgent,
+{
+    fn default() -> Self {
+        StartedSubAgents(HashMap::default())
     }
 }
 
@@ -99,16 +78,6 @@ pub mod tests {
     {
         fn from(value: HashMap<AgentID, S>) -> Self {
             StartedSubAgents(value)
-        }
-    }
-
-    // allow creating an empty StartedSubAgents for testing
-    impl<S> Default for StartedSubAgents<S>
-    where
-        S: StartedSubAgent,
-    {
-        fn default() -> Self {
-            StartedSubAgents(HashMap::default())
         }
     }
 }
