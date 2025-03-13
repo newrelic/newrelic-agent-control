@@ -691,7 +691,7 @@ dependencies = [
  "axum-core",
  "bytes",
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "itoa",
@@ -717,7 +717,7 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "mime",
@@ -1580,7 +1580,7 @@ checksum = "206294f947d314ea224901e0b409c25465d1014ea0c3af27baaec861061a0426"
 dependencies = [
  "deunicode",
  "dummy",
- "http 1.2.0",
+ "http 1.3.1",
  "rand 0.9.0",
  "url-escape",
 ]
@@ -1886,7 +1886,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.2.0",
+ "http 1.3.1",
  "indexmap 2.7.1",
  "slab",
  "tokio",
@@ -1952,7 +1952,7 @@ dependencies = [
  "base64 0.21.7",
  "bytes",
  "headers-core",
- "http 1.2.0",
+ "http 1.3.1",
  "httpdate",
  "mime",
  "sha1",
@@ -1964,7 +1964,7 @@ version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "54b4a22553d4242c49fddb9ba998a99962b5cc6f22cb5a3482bec22522403ce4"
 dependencies = [
- "http 1.2.0",
+ "http 1.3.1",
 ]
 
 [[package]]
@@ -2012,9 +2012,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.2.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f16ca2af56261c99fba8bac40a10251ce8188205a4c448fbb745a2e4daa76fea"
+checksum = "f4a85d31aea989eead29a3aaf9e1115a180df8282431156e533de47660892565"
 dependencies = [
  "bytes",
  "fnv",
@@ -2039,7 +2039,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1efedce1fb8e6913f23e0c92de8e62cd5b772a67e7b3946df930a62566c93184"
 dependencies = [
  "bytes",
- "http 1.2.0",
+ "http 1.3.1",
 ]
 
 [[package]]
@@ -2050,7 +2050,7 @@ checksum = "793429d76616a256bcb62c2a2ec2bed781c8307e797e2598c50010f2bee2544f"
 dependencies = [
  "bytes",
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "pin-project-lite",
 ]
@@ -2061,7 +2061,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0f056c8559e3757392c8d091e796416e4649d8e49e88b8d76df6c002f05027fd"
 dependencies = [
- "http 1.2.0",
+ "http 1.3.1",
  "serde",
 ]
 
@@ -2122,7 +2122,7 @@ dependencies = [
  "futures-timer",
  "futures-util",
  "headers",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body-util",
  "hyper 1.6.0",
  "hyper-rustls",
@@ -2182,7 +2182,7 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "h2 0.4.8",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "httparse",
  "httpdate",
@@ -2202,7 +2202,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "headers",
- "http 1.2.0",
+ "http 1.3.1",
  "hyper 1.6.0",
  "hyper-rustls",
  "hyper-util",
@@ -2220,7 +2220,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
 dependencies = [
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "hyper 1.6.0",
  "hyper-util",
  "log",
@@ -2255,7 +2255,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "hyper 1.6.0",
  "pin-project-lite",
@@ -2674,7 +2674,7 @@ dependencies = [
  "either",
  "futures",
  "home",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.6.0",
@@ -2708,7 +2708,7 @@ checksum = "97aa830b288a178a90e784d1b0f1539f2d200d2188c7b4a3146d9dc983d596f3"
 dependencies = [
  "chrono",
  "form_urlencoded",
- "http 1.2.0",
+ "http 1.3.1",
  "json-patch",
  "k8s-openapi",
  "schemars",
@@ -3054,7 +3054,7 @@ dependencies = [
  "fs",
  "futures",
  "glob",
- "http 1.2.0",
+ "http 1.3.1",
  "http-serde",
  "httpmock 0.8.0-alpha.1",
  "jsonwebtoken",
@@ -3130,7 +3130,7 @@ version = "0.0.4"
 source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.0.4#0c9be0ff7378324fc46d3f7a42966ee0cddeaa33"
 dependencies = [
  "chrono",
- "http 1.2.0",
+ "http 1.3.1",
  "jsonwebtoken",
  "serde",
  "serde_json",
@@ -3211,10 +3211,10 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 [[package]]
 name = "opamp-client"
 version = "0.0.31"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.32#dbf1cb9b1f8a3ebf4f84bc2eafa65404d3902125"
 dependencies = [
  "crossbeam",
- "http 1.2.0",
+ "http 1.3.1",
  "libflate",
  "prost",
  "proto",
@@ -3595,7 +3595,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.32#dbf1cb9b1f8a3ebf4f84bc2eafa65404d3902125"
 dependencies = [
  "prost",
  "prost-build",
@@ -3817,7 +3817,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.6.0",
@@ -3859,7 +3859,7 @@ dependencies = [
  "assert_matches",
  "bytes",
  "fs",
- "http 1.2.0",
+ "http 1.3.1",
  "httpmock 0.7.0",
  "konst",
  "mockall",
@@ -4764,7 +4764,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "h2 0.4.8",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.6.0",
@@ -4828,7 +4828,7 @@ dependencies = [
  "base64 0.22.1",
  "bitflags",
  "bytes",
- "http 1.2.0",
+ "http 1.3.1",
  "http-body 1.0.1",
  "mime",
  "pin-project-lite",
