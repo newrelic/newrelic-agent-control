@@ -22,12 +22,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - name: Give GitHub Actions access to private crates
-        uses: webfactory/ssh-agent@v0.8.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.CAOS_OAUTH_DEPLOY_KEY }}
-            ${{ secrets.CAOS_OPAMP_DEPLOY_KEY }}
 
       - name: Obtain Rust version from project
         run: |
