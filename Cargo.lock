@@ -3127,7 +3127,7 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 [[package]]
 name = "nr-auth"
 version = "0.0.4"
-source = "git+ssh://git@github.com/newrelic/newrelic-auth-rs.git?tag=0.0.4#0c9be0ff7378324fc46d3f7a42966ee0cddeaa33"
+source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.0.4#0c9be0ff7378324fc46d3f7a42966ee0cddeaa33"
 dependencies = [
  "chrono",
  "http 1.2.0",
@@ -3211,7 +3211,7 @@ checksum = "945462a4b81e43c4e3ba96bd7b49d834c6f61198356aa858733bc4acf3cbe62e"
 [[package]]
 name = "opamp-client"
 version = "0.0.31"
-source = "git+ssh://git@github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
 dependencies = [
  "crossbeam",
  "http 1.2.0",
@@ -3595,7 +3595,7 @@ dependencies = [
 [[package]]
 name = "proto"
 version = "0.1.0"
-source = "git+ssh://git@github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
+source = "git+https://github.com/newrelic/newrelic-opamp-rs.git?tag=0.0.31#08bd5c60e58a6adf65cce82a76bae10ca9efc487"
 dependencies = [
  "prost",
  "prost-build",
