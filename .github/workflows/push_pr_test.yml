@@ -110,11 +110,6 @@ jobs:
         with:
           submodules: true
 
-      - name: Apply webfactory/ssh-agent action configs to the container shh config
-        run: |
-          cat /root/.ssh/config >> /etc/ssh/ssh_config
-          ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
-
       - name: Obtain Rust version from project
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
