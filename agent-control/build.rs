@@ -1,3 +1,5 @@
+//! Build script to generate the agent type registry code, which
+//! is then made available to Agent Control at compilation time.
 use glob::glob;
 use std::env;
 use std::fs;
