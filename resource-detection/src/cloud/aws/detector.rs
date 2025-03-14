@@ -14,27 +14,17 @@ pub const AWS_IPV4_METADATA_ENDPOINT: &str =
 /// The default AWS instance metadata token endpoint.
 pub const AWS_IPV4_METADATA_TOKEN_ENDPOINT: &str = "http://169.254.169.254/latest/api/token";
 
-const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
+pub(crate) const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
-pub struct AWSDetector<D: HttpClient> {
-    aws_http_client: AWSHttpClient<D>,
+pub struct AWSDetector<C: HttpClient> {
+    aws_http_client: AWSHttpClient<C>,
 }
 
-impl<D: HttpClient> AWSDetector<D> {
+impl<C: HttpClient> AWSDetector<C> {
     /// Returns a new instance of AWSDetector
-    pub fn try_new(
-        http_client: D,
-        metadata_endpoint: String,
-        token_endpoint: String,
-    ) -> Result<Self, HttpClientError> {
-        let aws_http_client = AWSHttpClient::try_new(
-            http_client,
-            metadata_endpoint,
-            token_endpoint,
-            TTL_TOKEN_DEFAULT,
-        )?;
-        Ok(Self { aws_http_client })
+    pub fn new(aws_http_client: AWSHttpClient<C>) -> Self {
+        Self { aws_http_client }
     }
 }
 
@@ -47,16 +37,33 @@ pub enum AWSDetectorError {
     /// Error while deserializing endpoint metadata
     #[error("`{0}`")]
     JsonError(#[from] serde_json::Error),
+    /// Unsuccessful HTTP response.
+    #[error("Status code: `{0}` Canonical reason: `{1}`")]
+    UnsuccessfulResponse(u16, String),
 }
-impl<D> Detector for AWSDetector<D>
+impl<C> Detector for AWSDetector<C>
 where
-    D: HttpClient,
+    C: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
             .aws_http_client
             .get()
             .map_err(AWSDetectorError::HttpError)?;
+
+        // return error if status code is not within 200-299.
+        if !response.status().is_success() {
+            return Err(DetectError::AWSError(
+                AWSDetectorError::UnsuccessfulResponse(
+                    response.status().as_u16(),
+                    response
+                        .status()
+                        .canonical_reason()
+                        .unwrap_or_default()
+                        .to_string(),
+                ),
+            ));
+        }
 
         let metadata: AWSMetadata =
             serde_json::from_slice(response.body()).map_err(AWSDetectorError::JsonError)?;
@@ -114,13 +121,12 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClient::try_new(
+        let aws_http_client = AWSHttpClient::new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN_DEFAULT,
-        )
-        .unwrap();
+        );
 
         let detector = AWSDetector { aws_http_client };
 
@@ -139,7 +145,7 @@ mod tests {
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
-                .body(r#" "#.as_bytes().to_vec())
+                .body(r#""#.as_bytes().to_vec())
                 .unwrap())
         });
 
@@ -150,13 +156,12 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClient::try_new(
+        let aws_http_client = AWSHttpClient::new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN_DEFAULT,
-        )
-        .unwrap();
+        );
 
         let detector = AWSDetector { aws_http_client };
 
@@ -164,9 +169,9 @@ mod tests {
 
         assert_matches!(
             result,
-            Err(DetectError::AWSError(AWSDetectorError::HttpError(
-                HttpClientError::ResponseError(404, _)
-            )))
+            Err(DetectError::AWSError(
+                AWSDetectorError::UnsuccessfulResponse(404, _)
+            ))
         );
     }
 
@@ -188,13 +193,12 @@ mod tests {
                 .unwrap())
         });
 
-        let aws_http_client = AWSHttpClient::try_new(
+        let aws_http_client = AWSHttpClient::new(
             client_mock,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN_DEFAULT,
-        )
-        .unwrap();
+        );
 
         let detector = AWSDetector { aws_http_client };
 

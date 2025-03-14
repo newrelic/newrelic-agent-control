@@ -2,7 +2,8 @@
 use thiserror::Error;
 use tracing::warn;
 
-use crate::cloud::aws::detector::AWSDetector;
+use crate::cloud::aws::detector::{AWSDetector, TTL_TOKEN_DEFAULT};
+use crate::cloud::aws::http_client::AWSHttpClient;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
 use crate::cloud::http_client::{HttpClient, HttpClientError};
@@ -19,31 +20,31 @@ pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
     gcp_detector: GCP,
 }
 
-impl<C, D, E> CloudIdDetector<AWSDetector<D>, AzureDetector<C>, GCPDetector<E>>
+impl<C> CloudIdDetector<AWSDetector<C>, AzureDetector<C>, GCPDetector<C>>
 where
     C: HttpClient,
-    D: HttpClient,
-    E: HttpClient,
 {
     /// Returns a new instance of CloudIdDetector
-    pub fn try_new(
+    pub fn new(
         azure_http_client: C,
-        aws_http_client: D,
-        gpc_http_client: E,
+        aws_http_client: C,
+        gpc_http_client: C,
         aws_metadata_endpoint: String,
         aws_token_endpoint: String,
         azure_metadata_endpoint: String,
         gcp_metadata_endpoint: String,
-    ) -> Result<Self, HttpClientError> {
-        Ok(Self {
-            aws_detector: AWSDetector::try_new(
-                aws_http_client,
-                aws_metadata_endpoint,
-                aws_token_endpoint,
-            )?,
-            azure_detector: AzureDetector::try_new(azure_http_client, azure_metadata_endpoint)?,
-            gcp_detector: GCPDetector::try_new(gpc_http_client, gcp_metadata_endpoint)?,
-        })
+    ) -> Self {
+        let aws_http_client = AWSHttpClient::new(
+            aws_http_client,
+            aws_metadata_endpoint,
+            aws_token_endpoint,
+            TTL_TOKEN_DEFAULT,
+        );
+        Self {
+            aws_detector: AWSDetector::new(aws_http_client),
+            azure_detector: AzureDetector::new(azure_http_client, azure_metadata_endpoint),
+            gcp_detector: GCPDetector::new(gpc_http_client, gcp_metadata_endpoint),
+        }
     }
 }
 

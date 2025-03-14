@@ -1,4 +1,4 @@
-use http::{Error, Request, Response};
+use http::{HeaderMap, Request, Response};
 use std::time::Duration;
 use thiserror::Error;
 use tracing::error;
@@ -21,9 +21,6 @@ pub enum HttpClientError {
     /// Represents an error in the HTTP response.
     #[error("status code: `{0}`, Reason: `{1}`")]
     ResponseError(u16, String),
-    /// Error while httpError is returned
-    #[error("`{0}`")]
-    ReqwestError(#[from] Error),
 }
 
 /// The `HttpClient` trait defines the HTTP send interface to be implemented
@@ -32,6 +29,15 @@ pub trait HttpClient {
     /// Returns a `http::Response<Vec<u8>>` structure as the HTTP response or
     /// HttpClientError if an error was found.
     fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError>;
+    fn get(&self, url: String, headers: HeaderMap) -> Result<Response<Vec<u8>>, HttpClientError> {
+        let mut request = Request::builder()
+            .method("GET")
+            .uri(url)
+            .body(Vec::new())
+            .map_err(|e| HttpClientError::BuildingError(e.to_string()))?;
+        request.headers_mut().extend(headers);
+        self.send(request)
+    }
 }
 #[cfg(test)]
 pub(crate) mod tests {
@@ -49,15 +55,6 @@ pub(crate) mod tests {
     impl MockHttpClientMock {
         pub fn should_send(&mut self, response: Response<Vec<u8>>) {
             self.expect_send().once().return_once(move |_| Ok(response));
-        }
-        pub fn should_send_sequence(
-            &mut self,
-            responses: Vec<Result<Response<Vec<u8>>, HttpClientError>>,
-        ) {
-            let mut response_iter = responses.into_iter();
-            self.expect_send()
-                .times(response_iter.len())
-                .returning(move |_| response_iter.next().unwrap());
         }
         pub fn should_not_send(&mut self, error: HttpClientError) {
             self.expect_send().once().return_once(move |_| Err(error));

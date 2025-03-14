@@ -1,39 +1,40 @@
 use crate::cloud::http_client::{HttpClient, HttpClientError};
 use core::str;
-use http::{HeaderValue, Request, Response};
+use http::{HeaderMap, HeaderValue, Request, Response};
 use std::time::Duration;
 
-pub(crate) const TOKEN_HEADER: &str = "x-aws-ec2-metadata-token";
-pub(crate) const TTL_TOKEN_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
+const TOKEN_HEADER: &str = "x-aws-ec2-metadata-token";
+const TTL_TOKEN_HEADER: &str = "x-aws-ec2-metadata-token-ttl-seconds";
 
-/// An implementation of the `HttpClient` trait using the reqwest library and IMDv2 auth.
-pub struct AWSHttpClient<D: HttpClient> {
-    http_client: D,
+/// An implementation of the `HttpClient` trait.
+pub struct AWSHttpClient<C: HttpClient> {
+    http_client: C,
     token_endpoint: String,
     token_ttl: Duration,
     metadata_endpoint: String,
 }
-impl<D: HttpClient> AWSHttpClient<D> {
-    /// Returns a new instance of AWSHttpClientReqwest
-    pub fn try_new(
-        http_client: D,
+impl<C: HttpClient> AWSHttpClient<C> {
+    /// Returns a new instance of AWSHttpClient
+    pub fn new(
+        http_client: C,
         metadata_endpoint: String,
         token_endpoint: String,
         token_ttl: Duration,
-    ) -> Result<Self, HttpClientError> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             http_client,
             metadata_endpoint,
             token_endpoint,
             token_ttl,
-        })
+        }
     }
 
     fn get_token(&self) -> Result<String, HttpClientError> {
         let mut request = Request::builder()
             .method("PUT")
             .uri(&self.token_endpoint)
-            .body(Vec::new())?;
+            .body(Vec::new())
+            .map_err(|e| HttpClientError::BuildingError(e.to_string()))?;
         request.headers_mut().insert(
             TTL_TOKEN_HEADER,
             HeaderValue::from_str(self.token_ttl.as_secs().to_string().as_str())
@@ -52,22 +53,22 @@ impl<D: HttpClient> AWSHttpClient<D> {
 
     pub fn get(&self) -> Result<Response<Vec<u8>>, HttpClientError> {
         let token = self.get_token()?;
-        let mut request = Request::builder()
-            .method("GET")
-            .uri(&self.metadata_endpoint)
-            .body(Vec::new())?;
-        request.headers_mut().insert(
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
             TOKEN_HEADER,
             HeaderValue::from_str(&token)
                 .map_err(|e| HttpClientError::BuildingError(e.to_string()))?,
         );
-        self.send(request)
+
+        self.http_client
+            .get(self.metadata_endpoint.clone(), headers)
     }
 }
 
-impl<D> HttpClient for AWSHttpClient<D>
+impl<C> HttpClient for AWSHttpClient<C>
 where
-    D: HttpClient,
+    C: HttpClient,
 {
     fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError> {
         let response = self.http_client.send(request)?;
@@ -109,13 +110,12 @@ mod tests {
             .times(1)
             .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClient::try_new(
+        let client = AWSHttpClient::new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN,
-        )
-        .unwrap();
+        );
 
         assert_eq!(client.get_token().unwrap(), "test_token");
     }
@@ -148,13 +148,12 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| Ok(metadata));
 
-        let client = AWSHttpClient::try_new(
+        let client = AWSHttpClient::new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN,
-        )
-        .unwrap();
+        );
 
         assert_eq!(client.get().unwrap().body(), b"test_metadata");
     }
@@ -173,13 +172,12 @@ mod tests {
             .times(1)
             .return_once(move |_| Ok(token_response));
 
-        let client = AWSHttpClient::try_new(
+        let client = AWSHttpClient::new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN,
-        )
-        .unwrap();
+        );
 
         let result = client.get();
 
@@ -217,13 +215,12 @@ mod tests {
             .in_sequence(&mut seq)
             .return_once(move |_| Ok(metadata));
 
-        let client = AWSHttpClient::try_new(
+        let client = AWSHttpClient::new(
             mock_http_client,
             "/metadata".to_string(),
             "/token".to_string(),
             TTL_TOKEN,
-        )
-        .unwrap();
+        );
 
         let result = client.get();
 

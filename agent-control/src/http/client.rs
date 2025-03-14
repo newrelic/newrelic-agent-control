@@ -13,7 +13,6 @@ use reqwest::{
 };
 use resource_detection::cloud::http_client::HttpClient as CloudClient;
 use resource_detection::cloud::http_client::HttpClientError as CloudClientError;
-use resource_detection::cloud::http_client::HttpClientError;
 use std::{
     fmt::Display,
     fs::File,
@@ -102,7 +101,7 @@ impl From<HttpResponseError> for OpampHttpClientError {
 }
 
 impl CloudClient for HttpClient {
-    fn send(&self, request: Request<Vec<u8>>) -> Result<HttpResponse<Vec<u8>>, HttpClientError> {
+    fn send(&self, request: Request<Vec<u8>>) -> Result<HttpResponse<Vec<u8>>, CloudClientError> {
         Ok(self.send(request)?)
     }
 }

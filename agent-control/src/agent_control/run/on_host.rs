@@ -35,7 +35,6 @@ use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 use tracing::{debug, info};
 
 impl AgentControlRunner {
@@ -68,14 +67,14 @@ impl AgentControlRunner {
         let http_client = HttpClient::new(HttpConfig::new(
             DEFAULT_CLIENT_TIMEOUT,
             DEFAULT_CLIENT_TIMEOUT,
+            // The default value of proxy configuration is an empty proxy config without any rule
             ProxyConfig::default(),
         ))
-        .unwrap();
+        .map_err(|e| AgentError::HttpError(e.to_string()))?;
 
-        let identifiers_provider =
-            IdentifiersProvider::try_new(http_client.clone(), http_client.clone(), http_client)?
-                .with_host_id(config.host_id.clone())
-                .with_fleet_id(fleet_id);
+        let identifiers_provider = IdentifiersProvider::new(http_client)
+            .with_host_id(config.host_id.clone())
+            .with_fleet_id(fleet_id);
 
         let identifiers = identifiers_provider
             .provide()

@@ -9,7 +9,6 @@
 #![warn(missing_docs)]
 
 use cloud::aws::detector::AWSDetectorError;
-use http::Error;
 use std::collections::HashMap;
 use system::detector::SystemDetectorError;
 
@@ -21,7 +20,6 @@ pub mod common;
 use crate::cloud::azure::detector::AzureDetectorError;
 use crate::cloud::cloud_id::detector::CloudIdDetectorError;
 use crate::cloud::gcp::detector::GCPDetectorError;
-use crate::cloud::http_client::HttpClientError;
 pub use common::{Key, Value};
 
 /// The `Resource` struct encapsulates a detected resource as per some detection logic.
@@ -72,12 +70,6 @@ pub enum DetectError {
     /// Unsuccessful cloud detection.
     #[error("Non of the cloud API responded")]
     CloudIdError(#[from] CloudIdDetectorError),
-    /// Error while httpError is returned
-    #[error("`{0}`")]
-    HttpClientError(#[from] HttpClientError),
-    /// Error while httpError is returned
-    #[error("`{0}`")]
-    ReqwestError(#[from] Error),
 }
 
 /// The `Detect` trait defines the detection interface to be implemented

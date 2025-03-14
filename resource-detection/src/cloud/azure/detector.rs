@@ -2,7 +2,7 @@
 use super::metadata::AzureMetadata;
 use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
-use http::{HeaderMap, Request};
+use http::HeaderMap;
 use thiserror::Error;
 
 /// The default Azure instance metadata endpoint.
@@ -21,18 +21,18 @@ const HEADER_VALUE: &str = "true";
 
 impl<C: HttpClient> AzureDetector<C> {
     /// Returns a new instance of AzureDetector
-    pub fn try_new(http_client: C, metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn new(http_client: C, metadata_endpoint: String) -> Self {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
             HEADER_VALUE.parse().expect("constant valid value"),
         );
 
-        Ok(Self {
+        Self {
             http_client,
             metadata_endpoint,
             headers,
-        })
+        }
     }
 }
 
@@ -55,15 +55,10 @@ where
     C: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
-        let mut request = Request::builder()
-            .method("GET")
-            .uri(&self.metadata_endpoint)
-            .body(Vec::new())?;
-        request.headers_mut().extend(self.headers.clone());
         let response = self
             .http_client
-            .send(request)
-            .map_err(AzureDetectorError::from)?;
+            .get(self.metadata_endpoint.to_string(), self.headers.clone())
+            .map_err(|e| DetectError::AzureError(AzureDetectorError::HttpError(e)))?;
 
         // return error if status code is not within 200-299.
         if !response.status().is_success() {
@@ -96,7 +91,7 @@ mod tests {
     use assert_matches::assert_matches;
 
     #[test]
-    fn http_client_error_ppp() {
+    fn http_client_error() {
         let mut client_mock = MockHttpClientMock::new();
         let error = HttpClientError::TransportError(String::from("some error"));
         client_mock.should_not_send(error);

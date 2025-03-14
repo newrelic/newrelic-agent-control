@@ -3,6 +3,7 @@ use crate::opamp::instance_id::on_host::storer::StorerError;
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
 };
+use resource_detection::cloud::aws::http_client::AWSHttpClient;
 use resource_detection::cloud::azure::detector::{AzureDetector, AZURE_IPV4_METADATA_ENDPOINT};
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::gcp::detector::{GCPDetector, GCP_IPV4_METADATA_ENDPOINT};
@@ -56,32 +57,28 @@ pub struct IdentifiersProvider<
     D: Detector,
     D2: Detector,
 {
-    system_detector: D,
-    cloud_id_detector: D2,
-    host_id: String,
-    fleet_id: String,
+    pub system_detector: D,
+    pub cloud_id_detector: D2,
+    pub host_id: String,
+    pub fleet_id: String,
 }
 
 impl IdentifiersProvider {
-    pub fn try_new(
-        azure_http_client: HttpClient,
-        aws_http_client: HttpClient,
-        gcp_http_client: HttpClient,
-    ) -> Result<Self, IdentifiersProviderError> {
-        Ok(Self {
+    pub fn new(http_client: HttpClient) -> Self {
+        Self {
             system_detector: SystemDetector::default(),
-            cloud_id_detector: CloudIdDetector::try_new(
-                azure_http_client,
-                aws_http_client,
-                gcp_http_client,
+            cloud_id_detector: CloudIdDetector::new(
+                http_client.clone(),
+                http_client.clone(),
+                http_client,
                 AWS_IPV4_METADATA_ENDPOINT.to_string(),
                 AWS_IPV4_METADATA_TOKEN_ENDPOINT.to_string(),
                 AZURE_IPV4_METADATA_ENDPOINT.to_string(),
                 GCP_IPV4_METADATA_ENDPOINT.to_string(),
-            )?,
+            ),
             host_id: String::default(),
             fleet_id: String::default(),
-        })
+        }
     }
 }
 
@@ -96,15 +93,6 @@ where
 
     pub fn with_fleet_id(self, fleet_id: String) -> Self {
         Self { fleet_id, ..self }
-    }
-
-    pub fn new(system_detector: D, cloud_id_detector: D2) -> Self {
-        Self {
-            system_detector,
-            cloud_id_detector,
-            host_id: String::default(),
-            fleet_id: String::default(),
-        }
     }
 
     pub fn provide(&self) -> Result<Identifiers, IdentifiersProviderError> {
@@ -226,7 +214,6 @@ pub mod tests {
     const CLOUD_ID: &str = "cloud_id";
     const HOSTNAME: &str = "hostname";
     const MACHINE_ID: &str = "machine_id";
-
     fn cloud_id() -> Resource {
         Resource::new([(
             Key::from("cloud_instance_id".to_string()),
