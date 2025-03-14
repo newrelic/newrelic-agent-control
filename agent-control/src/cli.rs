@@ -1,8 +1,6 @@
 //! Command line interface for the agent control
 //!
-//! Parses the command line arguments and decides how the application runs:
-//! - Normal operation requested. Get the required config and continue.
-//! - Do an "one-shot" operation (like printing the version) and exit successfully.
+//! Parses the command line arguments and decides how the application runs as defined in [CliCommand]
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
