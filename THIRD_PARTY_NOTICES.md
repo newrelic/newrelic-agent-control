@@ -1280,7 +1280,32 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+## opentelemetry <https://crates.io/crates/opentelemetry>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+## opentelemetry-http <https://crates.io/crates/opentelemetry-http>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+## opentelemetry-otlp <https://crates.io/crates/opentelemetry-otlp>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+## opentelemetry-proto <https://crates.io/crates/opentelemetry-proto>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 ## opentelemetry-semantic-conventions <https://crates.io/crates/opentelemetry-semantic-conventions>
+
+Distributed under the following license(s):
+
+* Apache-2.0
+## opentelemetry_sdk <https://crates.io/crates/opentelemetry_sdk>
 
 Distributed under the following license(s):
 
@@ -1935,6 +1960,11 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+## tracing-opentelemetry <https://crates.io/crates/tracing-opentelemetry>
+
+Distributed under the following license(s):
+
+* MIT
 ## tracing-subscriber <https://crates.io/crates/tracing-subscriber>
 
 Distributed under the following license(s):
@@ -2087,6 +2117,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 ## web-sys <https://crates.io/crates/web-sys>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+## web-time <https://crates.io/crates/web-time>
 
 Distributed under the following license(s):
 

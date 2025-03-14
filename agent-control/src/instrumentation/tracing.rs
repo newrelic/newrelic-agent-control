@@ -13,7 +13,7 @@ use std::{path::PathBuf, time::Duration};
 use thiserror::Error;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer, Registry};
 
-/// Represents errors while setting up or shuting down tracing.
+/// Represents errors while setting up or shutting down tracing.
 #[derive(Error, Debug)]
 pub enum TracingError {
     #[error("logging config error: {0}")]

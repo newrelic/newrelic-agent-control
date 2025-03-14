@@ -8,7 +8,7 @@ use tracing_subscriber::Layer;
 
 pub type FileGuard = WorkerGuard;
 
-/// Returns the [RegistryLayer] corresponding to the standard output.
+/// Returns the [LayerBox] corresponding to the standard output.
 pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
     let target = config.format.target;
     let timestamp_fmt = config.format.timestamp.0.clone();
@@ -23,7 +23,7 @@ pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
     Ok(layer)
 }
 
-/// Returns an Option containg [RegistryLayer] corresponding to a file output and the corresponding [WorkerGuard].
+/// Returns an Optional [LayerBox] corresponding to a file output and the corresponding [WorkerGuard].
 /// The result will be None if the file logger is not enabled.
 pub fn file(
     config: &LoggingConfig,
