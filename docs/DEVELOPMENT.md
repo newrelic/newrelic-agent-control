@@ -23,7 +23,7 @@ To compile and run locally:
         agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
     ```
 
-5. Place values files in the folder `/etc/newrelic-agent-control/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
+5. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
    `agents:` list. Example:
 
     ```yaml
