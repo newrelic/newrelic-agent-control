@@ -1,6 +1,8 @@
-//! Command line interface for the agent control
+//! Command line interface for the agent control.
 //!
-//! Parses the command line arguments and decides how the application runs as defined in [CliCommand]
+//! Parses the command line arguments and decides how the application runs as defined in [CliCommand].
+#![warn(missing_docs)]
+
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
@@ -20,7 +22,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
 
-/// Represents all the data structures that can be created from the CLI
+/// Represents all the data structures that can be created from the CLI.
 pub struct AgentControlCliConfig {
     /// The configuration to run the agent control
     pub run_config: AgentControlRunConfig,
@@ -28,7 +30,7 @@ pub struct AgentControlCliConfig {
     pub file_logger_guard: FileLoggerGuard,
 }
 
-/// All possible errors that can happen while running the CLI
+/// All possible errors that can happen while running the CLI.
 #[derive(Debug, Error)]
 pub enum CliError {
     /// The logging could not be initialized
@@ -54,7 +56,7 @@ pub enum CliCommand {
     OneShot(OneShotCommand),
 }
 
-/// Command line arguments for Agent Control, as parsed by `clap`.
+/// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
@@ -81,7 +83,7 @@ pub struct Cli {
 }
 
 impl Cli {
-    /// Parses command line arguments and decides how the application runs
+    /// Parses command line arguments and decides how the application runs.
     pub fn init() -> Result<CliCommand, CliError> {
         // Get command line args
         let cli = Self::parse();

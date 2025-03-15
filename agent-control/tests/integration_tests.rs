@@ -1,6 +1,8 @@
 //! Entry point for the integration tests.
 //!
 //! Exposes modules dependent on the Cargo features: `onhost`, `k8s` or `ci`.
+#![warn(missing_docs)]
+
 // This is not used in onhost code yet, so we ignore warnings for now
 #[cfg_attr(feature = "onhost", allow(dead_code))]
 mod common;
