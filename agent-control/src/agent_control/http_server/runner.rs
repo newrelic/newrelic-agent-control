@@ -129,9 +129,7 @@ impl Drop for Runner {
     fn drop(&mut self) {
         if let Some(join_handle) = self.join_handle.take() {
             info!("waiting for status server to stop gracefully...");
-            join_handle
-                .join()
-                .expect("error waiting for server join handle")
+            let _ = join_handle.join();
         }
     }
 }
