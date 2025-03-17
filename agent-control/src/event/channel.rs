@@ -16,7 +16,7 @@ impl<E> From<Sender<E>> for EventPublisher<E> {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum EventPublisherError {
     #[error("error while publishing event: {0}")]
     SendError(String),

@@ -22,11 +22,11 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::thread_context::{
-    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
-};
 use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
 use crate::sub_agent::version::version_checker::spawn_version_checker;
+use crate::utils::thread_context::{
+    NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
+};
 use crate::utils::threads::spawn_named_thread;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -86,17 +86,15 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
-            let thread_name = thread_context.get_thread_name().to_string();
-            let result = thread_context.stop().inspect_err(|err| {
-                error!(
-                    agent_id = %self.agent_id,
-                    %err,
-                    "Error stopping {} thread", thread_name
-                )
-            });
-
-            if result.is_err() && stop_result.is_ok() {
-                stop_result = result;
+            let thread_name = thread_context.thread_name().to_string();
+            match thread_context.stop_blocking() {
+                Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
+                Err(error_msg) => {
+                    error!(agent_id = %self.agent_id, %error_msg);
+                    if stop_result.is_ok() {
+                        stop_result = Err(error_msg);
+                    }
+                }
             }
         }
 
@@ -187,7 +185,7 @@ impl NotStartedSupervisorOnHost {
             self.agent_identity.id.clone(),
         );
 
-        let agent_id_clone = self.agent_identity.id.clone();
+        let agent_id = self.agent_identity.id.clone();
         let executable_data_clone = executable_data.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
@@ -294,7 +292,8 @@ impl NotStartedSupervisorOnHost {
             });
         };
 
-        NotStartedThreadContext::new(agent_id_clone, executable_data.bin, callback).start()
+        info!(%agent_id, "{} started", executable_data.bin);
+        NotStartedThreadContext::new(executable_data.bin, callback).start()
     }
 
     pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {

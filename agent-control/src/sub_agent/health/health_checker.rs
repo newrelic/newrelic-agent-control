@@ -8,9 +8,11 @@ use crate::event::SubAgentInternalEvent;
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
-use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::time::{SystemTime, SystemTimeError};
-use tracing::{debug, error};
+use tracing::{debug, error, info};
+
+const HEALTH_CHECKER_THREAD_NAME: &str = "health checker";
 
 pub type StatusTime = SystemTime;
 
@@ -240,7 +242,8 @@ where
         }
     };
 
-    NotStartedThreadContext::new(agent_id, "health checker", callback).start()
+    info!(%agent_id, "{} started", HEALTH_CHECKER_THREAD_NAME);
+    NotStartedThreadContext::new(HEALTH_CHECKER_THREAD_NAME, callback).start()
 }
 
 pub(crate) fn publish_health_event(
@@ -408,7 +411,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -470,7 +473,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());
@@ -532,7 +535,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(health_consumer.as_ref().recv().is_err());

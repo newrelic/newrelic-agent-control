@@ -3,8 +3,10 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-use crate::sub_agent::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use tracing::{debug, error, info, warn};
+
+const VERSION_CHECKER_THREAD_NAME: &str = "version checker";
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
@@ -79,7 +81,8 @@ where
         }
     };
 
-    NotStartedThreadContext::new(agent_id, "version checker", callback).start()
+    info!(%agent_id, "{} started", VERSION_CHECKER_THREAD_NAME);
+    NotStartedThreadContext::new(VERSION_CHECKER_THREAD_NAME, callback).start()
 }
 
 pub(crate) fn publish_version_event(
@@ -161,7 +164,7 @@ pub mod tests {
         );
 
         // Check that the thread is finished
-        started_thread_context.stop().unwrap();
+        started_thread_context.stop_blocking().unwrap();
 
         // Check there are no more events
         assert!(version_consumer.as_ref().recv().is_err());

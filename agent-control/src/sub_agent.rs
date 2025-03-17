@@ -7,7 +7,6 @@ pub mod k8s;
 #[cfg(feature = "onhost")]
 pub mod on_host;
 pub mod supervisor;
-pub mod thread_context;
 pub mod version;
 
 pub use sub_agent::*;
