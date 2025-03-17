@@ -1,0 +1,53 @@
+{
+  "extends": [
+    "config:base",
+    // go dependencies and auto-merge configuration: https://github.com/newrelic/coreint-automation/blob/main/renovate-base.json5
+    "github>newrelic/coreint-automation:renovate-base.json5"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "enabledManagers": [
+    "cargo",
+    "regex"
+  ],
+  "regexManagers": [
+    {
+      // Parse bundle image version from `base_image` ARG in Dockerfile.
+      "fileMatch": [
+        "system_identity_registration/Dockerfile$"
+      ],
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "base_image=(?<depName>.+):(?<currentValue>.+)"
+      ]
+    },
+    {
+      // Parse version of embedded integrations.
+      "fileMatch": [
+        "build/embed/integrations.version$"
+      ],
+      "depNameTemplate": "newrelic/{{{integrationName}}}",
+      "datasourceTemplate": "github-releases", // Version info is fetched from GitHub.
+      "matchStrings": [
+        "(?<integrationName>.+),(?<currentValue>v.+)"
+      ]
+    }
+  ],
+  "rangeStrategy": "auto", // See <https://docs.renovatebot.com/configuration-options/#rangestrategy>
+  "prConcurrentLimit": 0,
+  "printConfig": true,
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "managers": [
+        "cargo"
+      ],
+      "updateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "minor and patch updates"
+    }
+  ],
+}

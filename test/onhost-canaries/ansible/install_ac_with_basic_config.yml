@@ -21,6 +21,10 @@
   - name: Gather facts
     setup:
 
+  - name: Configure hostname
+    include_role:
+      name: caos.ansible_roles.hostname
+
   - name: Install Agent Control
     vars:
       repo_endpoint: "{{ repo_endpoint }}"

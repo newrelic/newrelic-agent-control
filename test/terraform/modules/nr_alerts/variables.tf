@@ -18,12 +18,12 @@ variable "region" {
   }
 }
 
-variable "cluster_name" {
-  default = "Agent_Control_Canaries_Staging-Cluster"
+variable "instance_id" {
+  description = "Identifier for the instances that will be monitored (i.e. cluster name for k8s and hostname for on-host)"
 }
 
 variable "policies_prefix" {
-  default = "[Staging] Agent Control canaries metric monitoring"
+  default = ""
 }
 
 variable "slack_webhook_url" {
