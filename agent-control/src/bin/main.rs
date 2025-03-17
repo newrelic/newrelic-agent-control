@@ -7,7 +7,7 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::logging::config::FileLoggerGuard;
 use std::error::Error;
-use std::process::{exit, ExitCode};
+use std::process::ExitCode;
 use tracing::{error, info, trace};
 
 #[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
@@ -17,10 +17,11 @@ compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the 
 compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
 
 fn main() -> ExitCode {
-    let cli_command = Cli::init().unwrap_or_else(|cli_error| {
-        println!("Error parsing CLI arguments: {}", cli_error);
-        exit(1);
-    });
+    let Ok(cli_command) =
+        Cli::init().inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
+    else {
+        return ExitCode::FAILURE;
+    };
 
     let agent_control_config = match cli_command {
         // Agent Control command call instructs normal operation. Continue with required data.
@@ -29,7 +30,7 @@ fn main() -> ExitCode {
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
         CliCommand::OneShot(op) => {
             op.run_one_shot();
-            exit(0);
+            return ExitCode::SUCCESS;
         }
     };
 
@@ -59,14 +60,12 @@ fn _main(agent_control_config: AgentControlCliConfig) -> Result<(), Box<dyn Erro
 
     #[cfg(all(unix, feature = "onhost"))]
     if !nix::unistd::Uid::effective().is_root() {
-        error!("Program must run as root");
-        exit(1);
+        return Err("Program must run as root".into());
     }
 
     #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
     if let Err(err) = PIDCache::default().store(std::process::id()) {
-        error!(error_msg = %err, "Error saving main process id");
-        exit(1);
+        return Err(format!("Error saving main process id: {}", err).into());
     }
 
     install_rustls_default_crypto_provider();
