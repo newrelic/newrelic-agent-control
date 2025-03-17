@@ -63,6 +63,12 @@ mod tests {
         server_config: ServerConfig,
     }
 
+    impl From<u16> for Port {
+        fn from(value: u16) -> Self {
+            Port(value)
+        }
+    }
+
     #[test]
     fn test_deserialize_default() {
         struct Test {
