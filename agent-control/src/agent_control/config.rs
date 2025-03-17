@@ -1,13 +1,14 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::logs::config::LoggingConfig;
-use crate::instrumentation::otel::config::OtelConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfig;
+use crate::{
+    agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
+};
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
@@ -45,7 +46,7 @@ pub struct AgentControlConfig {
     pub proxy: ProxyConfig,
 
     #[serde(default)]
-    pub self_instrumentation: OtelConfig,
+    pub instrumentation: InstrumentationConfig,
 }
 
 #[derive(Error, Debug)]

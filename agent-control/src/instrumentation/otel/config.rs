@@ -1,20 +1,87 @@
+use duration_str::deserialize_duration;
+use opentelemetry_sdk::trace;
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug, time::Duration};
+use url::Url;
 
-// TODO: move to instrumentation
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+/// Default interval for exporting metrics.
+const DEFAULT_METRICS_EXPORT_INTERVAL: Duration = Duration::from_secs(60);
+/// Default maximum batch size [trace::BatchSpanProcessor] for details.
+const DEFAULT_BATCH_MAX_SIZE: usize = 512;
+/// Default scheduled delay [trace::BatchSpanProcessor] for details.
+const DEFAULT_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
+
+/// Represents the OpenTelemetry configuration
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct OtelConfig {
+    /// Metrics configuration
     #[serde(default)]
-    pub(crate) traces: bool,
-
+    pub(crate) metrics: MetricsConfig,
+    /// Traces configuration
     #[serde(default)]
-    pub(crate) metrics: bool,
-    // TODO: We should also have OTLP logs, and we should define if the config should be like this,
-    // probably we need extra configuration for metrics and traces, like interval of sending or other.
+    pub(crate) traces: TracesConfig,
+    /// OpenTelemetry HTTP endpoint to report instrumentation.
+    pub(crate) endpoint: Url,
+    /// Headers to include in every request to the OpenTelemetry endpoint
+    #[serde(default)]
+    pub(crate) headers: HashMap<String, String>,
 }
 
-impl OtelConfig {
-    pub fn enabled(&self) -> bool {
-        self.traces || self.metrics
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub(crate) struct MetricsConfig {
+    pub(crate) enabled: bool,
+    pub(crate) interval: MetricsExportInterval,
+}
+
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub(crate) struct TracesConfig {
+    pub(crate) enabled: bool,
+    pub(crate) batch_config: BatchConfig,
+}
+
+/// Type to represent the metrics export interval. It adds a default implementation to [std::time::Duration].
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct MetricsExportInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<Duration> for MetricsExportInterval {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl From<MetricsExportInterval> for Duration {
+    fn from(value: MetricsExportInterval) -> Self {
+        value.0
+    }
+}
+
+impl Default for MetricsExportInterval {
+    fn default() -> Self {
+        Self(DEFAULT_METRICS_EXPORT_INTERVAL)
+    }
+}
+
+/// Holds the batch configuration to send traces/logs telemetry data through OpenTelemetry.
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub(crate) struct BatchConfig {
+    scheduled_delay: Duration,
+    max_size: usize,
+}
+
+impl Default for BatchConfig {
+    fn default() -> Self {
+        Self {
+            scheduled_delay: DEFAULT_BATCH_SCHEDULED_DELAY,
+            max_size: DEFAULT_BATCH_MAX_SIZE,
+        }
+    }
+}
+
+impl From<&BatchConfig> for trace::BatchConfig {
+    fn from(value: &BatchConfig) -> Self {
+        trace::BatchConfigBuilder::default()
+            .with_max_export_batch_size(value.max_size)
+            .with_scheduled_delay(value.scheduled_delay)
+            .build()
     }
 }

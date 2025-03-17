@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::Once;
 
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_LOG_DIR;
+use newrelic_agent_control::instrumentation::config::InstrumentationConfig;
 use newrelic_agent_control::instrumentation::logs::config::LoggingConfig;
-use newrelic_agent_control::instrumentation::otel::config::OtelConfig;
 use newrelic_agent_control::instrumentation::tracing::{try_init_tracing, TracingConfig};
 
 static INIT_LOGGER: Once = Once::new();
@@ -20,7 +20,7 @@ insecure_fine_grained_level: "newrelic_agent_control=debug,opamp_client=info,off
         let tracing_config = TracingConfig::new(
             PathBuf::from(AGENT_CONTROL_LOG_DIR),
             logging_config,
-            OtelConfig::default(),
+            InstrumentationConfig::default(),
         );
         let _ = try_init_tracing(tracing_config).unwrap();
     });

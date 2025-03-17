@@ -120,7 +120,7 @@ impl Cli {
         let tracing_config = TracingConfig::new(
             base_paths.log_dir.clone(),
             agent_control_config.log,
-            agent_control_config.self_instrumentation,
+            agent_control_config.instrumentation,
         );
         let tracer = try_init_tracing(tracing_config)?;
 

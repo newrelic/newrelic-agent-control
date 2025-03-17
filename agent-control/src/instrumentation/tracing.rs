@@ -1,12 +1,13 @@
 //! Tools to set up a [tracing_subscriber] to report instrumentation.
 
 use super::{
+    config::InstrumentationConfig,
     logs::{
         self,
         config::{LoggingConfig, LoggingConfigError},
         layers::FileGuard,
     },
-    otel::{config::OtelConfig, providers::OtelProviders},
+    otel::providers::OtelProviders,
 };
 use crate::http::{client::HttpClient, config::HttpConfig};
 use std::{path::PathBuf, time::Duration};
@@ -41,7 +42,7 @@ pub type TracerBox = Box<dyn Tracer>;
 pub struct TracingConfig {
     logging_path: PathBuf,
     logging_config: LoggingConfig,
-    otel_config: OtelConfig,
+    instrumentation_config: InstrumentationConfig,
 }
 
 impl TracingConfig {
@@ -49,17 +50,17 @@ impl TracingConfig {
     pub fn new(
         logging_path: PathBuf,
         logging_config: LoggingConfig,
-        otel_config: OtelConfig,
+        instrumentation_config: InstrumentationConfig,
     ) -> Self {
         Self {
             logging_path,
             logging_config,
-            otel_config,
+            instrumentation_config,
         }
     }
 }
 
-/// This function allows initializing tracing corresponding to the provided configuration.
+/// This function allows initializing tracing as setup in the provided configuration.
 ///
 /// Depending on the configuration, the tracer will be shutdown on drop, therefore the corresponding
 /// instrumentation may not work as expected after it is dropped.
@@ -69,13 +70,13 @@ impl TracingConfig {
 /// # use newrelic_agent_control::instrumentation::tracing::TracingConfig;
 /// # use newrelic_agent_control::instrumentation::tracing::try_init_tracing;
 /// # use newrelic_agent_control::instrumentation::logs::config::LoggingConfig;
-/// # use newrelic_agent_control::instrumentation::otel::config::OtelConfig;
+/// # use newrelic_agent_control::instrumentation::config::InstrumentationConfig;
 /// # use std::path::PathBuf;
 ///
 /// let tracing_config = TracingConfig::new(
 ///     PathBuf::from("/some/path"),
 ///     LoggingConfig::default(),
-///     OtelConfig::default(),
+///     InstrumentationConfig::default(),
 /// );
 /// let tracer = try_init_tracing(tracing_config);
 ///
@@ -93,7 +94,7 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError
         tracer = Box::new(FileTracer::new(tracer, file_guard));
     }
 
-    if config.otel_config.enabled() {
+    if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
         // TODO: set it up and probably inject the http client
         let http_config = HttpConfig::new(
             Duration::from_secs(30),
@@ -102,12 +103,11 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError
         );
         let http_client = HttpClient::new(http_config)
             .map_err(|err| TracingError::Otel(format!("could not build the http client: {err}")))?;
-        let otel_providers =
-            OtelProviders::try_new(&config.otel_config, http_client).map_err(|err| {
-                TracingError::Otel(format!(
-                    "could not build the OpenTelemetry provideres: {err}"
-                ))
-            })?;
+        let otel_providers = OtelProviders::try_new(otel_config, http_client).map_err(|err| {
+            TracingError::Otel(format!(
+                "could not build the OpenTelemetry provideres: {err}"
+            ))
+        })?;
 
         let mut otel_layers = otel_providers.tracing_layers();
         layers.append(&mut otel_layers);
