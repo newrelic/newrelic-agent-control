@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
 
+use crate::http::config::ProxyConfig;
+
+/// Default timeout for HTTP client.
+const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default interval for exporting metrics.
 const DEFAULT_METRICS_EXPORT_INTERVAL: Duration = Duration::from_secs(60);
 /// Default maximum batch size [trace::BatchSpanProcessor] for details.
@@ -25,6 +29,18 @@ pub struct OtelConfig {
     /// Headers to include in every request to the OpenTelemetry endpoint
     #[serde(default)]
     pub(crate) headers: HashMap<String, String>,
+    /// Client timeout
+    pub(crate) client_timeout: ClientTimeout,
+    /// Client proxy configuration
+    #[serde(skip)]
+    pub(crate) proxy: ProxyConfig,
+}
+
+impl OtelConfig {
+    /// Returns a new configuration including proxy config
+    pub fn with_proxy_config(self, proxy: ProxyConfig) -> Self {
+        Self { proxy, ..self }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
@@ -37,6 +53,28 @@ pub(crate) struct MetricsConfig {
 pub(crate) struct TracesConfig {
     pub(crate) enabled: bool,
     pub(crate) batch_config: BatchConfig,
+}
+
+/// Type to represent a client timeout. It adds a default implementation to [std::time::Duration].
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl From<Duration> for ClientTimeout {
+    fn from(value: Duration) -> Self {
+        Self(value)
+    }
+}
+
+impl From<ClientTimeout> for Duration {
+    fn from(value: ClientTimeout) -> Self {
+        value.0
+    }
+}
+
+impl Default for ClientTimeout {
+    fn default() -> Self {
+        Self(DEFAULT_CLIENT_TIMEOUT)
+    }
 }
 
 /// Type to represent the metrics export interval. It adds a default implementation to [std::time::Duration].

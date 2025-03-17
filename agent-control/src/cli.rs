@@ -117,10 +117,17 @@ impl Cli {
                 )
             })?;
 
+        let proxy = agent_control_config
+            .proxy
+            .try_with_url_from_env()
+            .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
+
         let tracing_config = TracingConfig::new(
             base_paths.log_dir.clone(),
             agent_control_config.log,
-            agent_control_config.instrumentation,
+            agent_control_config
+                .instrumentation
+                .with_proxy_config(proxy.clone()),
         );
         let tracer = try_init_tracing(tracing_config)?;
 
@@ -132,10 +139,6 @@ impl Cli {
 
         let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
-        let proxy = agent_control_config
-            .proxy
-            .try_with_url_from_env()
-            .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
 
         let run_config = AgentControlRunConfig {
             opamp,

@@ -10,7 +10,7 @@ use super::{
     otel::providers::OtelProviders,
 };
 use crate::http::{client::HttpClient, config::HttpConfig};
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer, Registry};
@@ -95,17 +95,17 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        // TODO: set it up and probably inject the http client
         let http_config = HttpConfig::new(
-            Duration::from_secs(30),
-            Duration::from_secs(30),
-            Default::default(),
+            otel_config.client_timeout.clone().into(),
+            otel_config.client_timeout.clone().into(),
+            otel_config.proxy.clone(),
         );
-        let http_client = HttpClient::new(http_config)
-            .map_err(|err| TracingError::Otel(format!("could not build the http client: {err}")))?;
+        let http_client = HttpClient::new(http_config).map_err(|err| {
+            TracingError::Otel(format!("could not build the otel http client: {err}"))
+        })?;
         let otel_providers = OtelProviders::try_new(otel_config, http_client).map_err(|err| {
             TracingError::Otel(format!(
-                "could not build the OpenTelemetry provideres: {err}"
+                "could not build the OpenTelemetry providers: {err}"
             ))
         })?;
 
@@ -122,7 +122,10 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError
 }
 
 /// Implements a [Tracer] that registers a set of layers globally through [tracing_subscriber].
-pub struct SubscriberTracer {}
+///
+/// As a result, the initialization provided by this tracer is in charge of setting up tracer to be used
+/// globally.
+struct SubscriberTracer {}
 
 impl Tracer for SubscriberTracer {
     fn try_init(&self, layers: Vec<LayerBox>) -> Result<(), TracingError> {
@@ -141,7 +144,7 @@ impl Tracer for SubscriberTracer {
 
 /// Extends a [Tracer] by holding a [FileGuard] which needs to be kept while reporting instrumentation to the
 /// corresponding file.
-pub struct FileTracer {
+struct FileTracer {
     inner_tracer: Box<dyn Tracer>,
     _file_guard: FileGuard,
 }
@@ -163,7 +166,7 @@ impl Tracer for FileTracer {
 
 /// Extends a [Tracer] with [OtelProviders]. The OpenTelemetry providers will be registered globally on
 /// initialization and shut down when the instance is dropped.
-pub struct OtelTracer {
+struct OtelTracer {
     inner_tracer: Box<dyn Tracer>,
     otel_providers: Option<OtelProviders>,
 }
