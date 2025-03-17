@@ -19,7 +19,7 @@ variable "region" {
 }
 
 variable "instance_id" {
-  description = "Identifier for the instances that will be monitored"
+  description = "Identifier for the instances that will be monitored (i.e. cluster name for k8s and hostname for on-host)"
 }
 
 variable "policies_prefix" {
