@@ -102,7 +102,12 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError
         );
         let http_client = HttpClient::new(http_config)
             .map_err(|err| TracingError::Otel(format!("could not build the http client: {err}")))?;
-        let otel_providers = OtelProviders::new(&config.otel_config, http_client);
+        let otel_providers =
+            OtelProviders::try_new(&config.otel_config, http_client).map_err(|err| {
+                TracingError::Otel(format!(
+                    "could not build the OpenTelemetry provideres: {err}"
+                ))
+            })?;
 
         let mut otel_layers = otel_providers.tracing_layers();
         layers.append(&mut otel_layers);
