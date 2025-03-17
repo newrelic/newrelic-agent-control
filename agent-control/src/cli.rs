@@ -1,3 +1,8 @@
+//! Command line interface for the agent control.
+//!
+//! Parses the command line arguments and decides how the application runs as defined in [CliCommand].
+#![warn(missing_docs)]
+
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
@@ -5,7 +10,6 @@ use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
     agent_control::{
-        config::AgentControlConfigError,
         config_storer::{loader_storer::AgentControlConfigLoader, store::AgentControlConfigStore},
         run::{AgentControlRunConfig, BasePaths},
     },
@@ -18,22 +22,27 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::info;
 
-/// Represents all the data structures that can be created from the CLI
+/// Represents all the data structures that can be created from the CLI.
 pub struct AgentControlCliConfig {
+    /// The configuration to run the agent control
     pub run_config: AgentControlRunConfig,
+    /// Structure that keeps the file logging active
     pub file_logger_guard: FileLoggerGuard,
 }
 
+/// All possible errors that can happen while running the CLI.
 #[derive(Debug, Error)]
 pub enum CliError {
-    #[error("Could not read Agent Control config: `{0}`")]
-    ConfigRead(#[from] AgentControlConfigError),
+    /// The logging could not be initialized
     #[error("Could not initialize logging: `{0}`")]
     LoggingInit(#[from] LoggingError),
+    /// The K8s config is missing
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
+    /// The config could not be read
     #[error("Could not read Agent Control config from `{0}`: `{1}`")]
     LoaderError(String, String),
+    /// The configuration is invalid
     #[error("Invalid configuration: `{0}`")]
     InvalidConfig(String),
 }
@@ -47,6 +56,7 @@ pub enum CliCommand {
     OneShot(OneShotCommand),
 }
 
+/// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
 pub struct Cli {
@@ -73,7 +83,7 @@ pub struct Cli {
 }
 
 impl Cli {
-    /// Parses command line arguments and decides how the application runs
+    /// Parses command line arguments and decides how the application runs.
     pub fn init() -> Result<CliCommand, CliError> {
         // Get command line args
         let cli = Self::parse();

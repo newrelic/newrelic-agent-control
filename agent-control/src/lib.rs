@@ -1,3 +1,8 @@
+//! # Agent Control library
+//!
+//! This library provides the core functionality for Agent Control. The different binaries generated
+//! by this project will consume this library.
+
 pub mod agent_control;
 pub mod agent_type;
 pub mod cli;

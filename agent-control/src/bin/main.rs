@@ -1,3 +1,9 @@
+//! This is the entry point for both implementations of Agent Control (K8s, on-host).
+//!
+//! It implements the basic functionality of parsing the command line arguments and either
+//! performing one-shot actions or starting the main agent control process.
+#![warn(missing_docs)]
+
 #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
 use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::AgentControlRunner;
@@ -46,13 +52,16 @@ fn main() -> ExitCode {
     }
 }
 
-// This function is the actual main function, but it is separated from the main function to allow
-// propagating the errors and log them in a string format avoiding logging the error message twice.
-// If we propagate the error to the main function, the error is logged in string format and
-// in "Rust mode"
-// i.e.
-// Could not read Agent Control config from /invalid/path: error loading the agent control config: `error retrieving config: `missing field `agents```
-// Error: ConfigRead(LoadConfigError(ConfigError(missing field `agents`)))
+/// This is the actual main function.
+///
+/// It is separated from [main] to allow propagating
+/// the errors and log them in a string format, avoiding logging the error message twice.
+/// If we just propagate the error to the main function, the error is logged in string format and
+/// in "Rust mode", i.e. like this:
+/// ```sh
+/// Could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
+/// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
+/// ```
 fn _main(agent_control_config: AgentControlCliConfig) -> Result<(), Box<dyn Error>> {
     // Acquire the file logger guard (if any) for the whole duration of the program
     // Needed for remaining usages of `tracing` macros in `main`.
@@ -83,6 +92,10 @@ fn _main(agent_control_config: AgentControlCliConfig) -> Result<(), Box<dyn Erro
     Ok(())
 }
 
+/// Enables using the typical keypress (Ctrl-C) to stop the agent control process at any moment.
+///
+/// This means sending [ApplicationEvent::StopRequested] to the agent control event processor
+/// so it can release all resources.
 pub fn create_shutdown_signal_handler(
     publisher: EventPublisher<ApplicationEvent>,
 ) -> Result<(), ctrlc::Error> {

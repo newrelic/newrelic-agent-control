@@ -1,3 +1,7 @@
+//! Build script to generate the agent type registry code, which
+//! is then made available to Agent Control at compilation time.
+#![warn(missing_docs)]
+
 use glob::glob;
 use std::env;
 use std::fs;
