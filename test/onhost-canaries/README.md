@@ -51,7 +51,7 @@ That has a little inconvenient, `terraform init` will fail because the state cha
     To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment variable with "staging" or "production".
 
     ```bash
-    TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
+    TERRAFORM_DIR=test/onhost-canaries/terraform ONHOST_ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx make test/onhost-canaries/terraform-apply
     ```
 
 That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the config files.
@@ -61,22 +61,4 @@ Apart from `terraform-plan` and `terraform-apply` make targets, we also have `te
 
 In that case, we will use fargate runner to execute make targets. The commands will be very similar, but remember that secrets come from AWS. It will also add the ssh key into the instance.
 
-Example for terraform plan:
-
-```yaml
-- name: Plan onhost staging canary changes
-  uses: newrelic/fargate-runner-action@main
-  with:
-    container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ENVIRONMENT=staging test/onhost-canaries/terraform-plan"
-    etc: ...
-```
-
-Example for terraform apply:
-
-```yaml
-- name: Plan onhost staging canary changes
-  uses: newrelic/fargate-runner-action@main
-  with:
-    container_make_target: "TERRAFORM_DIR=test/onhost-canaries/terraform ANSIBLE_FOLDER=test/onhost-canaries/ansible ENVIRONMENT=staging test/onhost-canaries/terraform-apply"
-    etc: ...
-```
+Check out [component_onhost_canaries.yml](/.github/workflows/component_onhost_canaries.yml) to see real world examples.
