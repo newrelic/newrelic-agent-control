@@ -13,6 +13,7 @@ pub fn run_async_sync_bridge(
     async_suba_publisher: UnboundedSender<SubAgentEvent>,
     agent_control_consumer: EventConsumer<AgentControlEvent>,
     sub_agent_consumer: EventConsumer<SubAgentEvent>,
+    stop_rx: EventConsumer<()>,
 ) -> JoinHandle<()> {
     spawn_named_thread("Async-Sync bridge", move || loop {
         select! {
@@ -36,24 +37,28 @@ pub fn run_async_sync_bridge(
                 }
             },
             recv(&sub_agent_consumer.as_ref()) -> suba_event_res => {
-                    match suba_event_res {
-                        Ok(sub_agent_event) => {
-                            let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
-                                error!(
-                                    error_msg = %err,
-                                    "cannot forward agent control event"
-                                );
-                            });
-                        }
-                        Err(err) => {
-                            debug!(
+                match suba_event_res {
+                    Ok(sub_agent_event) => {
+                        let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
+                            error!(
                                 error_msg = %err,
-                                "status server bridge channel closed"
+                                "cannot forward agent control event"
                             );
-                            break;
-                        }
+                        });
+                    }
+                    Err(err) => {
+                        debug!(
+                            error_msg = %err,
+                            "status server bridge channel closed"
+                        );
+                        break;
                     }
                 }
+            },
+            recv(&stop_rx.as_ref()) -> _ => {
+                debug!("status server bridge stopping");
+                break;
+            }
         }
     })
 }

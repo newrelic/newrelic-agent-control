@@ -12,18 +12,34 @@ pub(super) async fn on_agent_control_event_update_status(
 ) {
     loop {
         tokio::select! {
-            Some(agent_control_event) = agent_control_event_consumer.recv() => {
-                if let AgentControlEvent::AgentControlStopped = agent_control_event {
-                    debug!("status http server agent control stopped event");
-                    break;
+            maybe_agent_control_event = agent_control_event_consumer.recv() => {
+                match maybe_agent_control_event {
+                    Some(AgentControlEvent::AgentControlStopped) => {
+                        debug!("status http server agent control stopped event");
+                        break;
+                    }
+                    Some(agent_control_event) => {
+                        update_agent_control_status(agent_control_event, status.clone()).await;
+                    }
+                    None => {
+                        debug!("agent_control_event_consumer disconnected");
+                        break;
+                    }
                 }
-                update_agent_control_status(agent_control_event, status.clone()).await;
             }
-            Some(sub_agent_event) = sub_agent_event_consumer.recv() => {
-                update_sub_agent_status(sub_agent_event, status.clone()).await;
+            maybe_sub_agent_event = sub_agent_event_consumer.recv() => {
+                match maybe_sub_agent_event {
+                    Some(sub_agent_event) => {
+                        update_sub_agent_status(sub_agent_event, status.clone()).await;
+                    }
+                    None => {
+                        debug!("sub_agent_event_consumer disconnected");
+                        break;
+                    }
+                }
             }
             else => {
-                debug!("agent_control_event_consumer and sub_agent_event_consumer disconnected");
+                debug!("unexpected condition in status http server event processor");
                 break;
             }
 
@@ -519,7 +535,6 @@ mod tests {
     async fn test_all_channels_closed() {
         let (sa_event_publisher, sa_event_consumer) = unbounded_channel::<AgentControlEvent>();
         let (suba_event_publisher, suba_event_consumer) = unbounded_channel::<SubAgentEvent>();
-
         // We drop the publisher so the channels get disconnected
         drop(sa_event_publisher);
         drop(suba_event_publisher);

@@ -70,6 +70,8 @@ pub async fn run_status_server(
     debug!("waiting for status server join handle");
     server_join_handle.await?;
 
+    debug!("status server gracefully stopped");
+
     Ok(())
 }
 

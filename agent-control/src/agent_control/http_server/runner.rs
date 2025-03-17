@@ -1,12 +1,12 @@
 use crate::agent_control::config::OpAMPClientConfig;
 use crate::agent_control::http_server::async_bridge::run_async_sync_bridge;
 use crate::agent_control::http_server::config::ServerConfig;
+use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
-use crate::utils::threads::spawn_named_thread;
+use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use crossbeam::select;
 use std::sync::Arc;
-use std::thread::JoinHandle;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
@@ -14,7 +14,7 @@ use tracing::{debug, error, info};
 /// Runner will be responsible for spawning the OS Thread for the HTTP Server
 /// and owning the JoinHandle. It controls the server stop implementing drop
 pub struct Runner {
-    join_handle: Option<JoinHandle<()>>,
+    thread_context: Option<StartedThreadContext>,
 }
 
 impl Runner {
@@ -30,21 +30,29 @@ impl Runner {
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> Self {
-        let join_handle = if config.enabled {
-            Self::spawn_server(
-                config,
-                runtime,
-                agent_control_consumer,
-                sub_agent_consumer,
-                maybe_opamp_client_config,
-            )
+        let thread_context = if config.enabled {
+            let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+                Self::spawn_server(
+                    config,
+                    runtime,
+                    agent_control_consumer,
+                    sub_agent_consumer,
+                    maybe_opamp_client_config,
+                    stop_consumer,
+                )
+            };
+            NotStartedThreadContext::new("Http server", callback).start()
         } else {
+            let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+                Self::noop_consumer_loop(agent_control_consumer, sub_agent_consumer, stop_consumer)
+            };
             // Spawn a thread with a no-action consumer to drain the channel and
             // avoid memory leaks
-            Self::spawn_noop_consumer(agent_control_consumer, sub_agent_consumer)
+            NotStartedThreadContext::new("No-action consumer", callback).start()
         };
+
         Runner {
-            join_handle: Some(join_handle),
+            thread_context: Some(thread_context),
         }
     }
 
@@ -54,47 +62,49 @@ impl Runner {
         agent_control_consumer: EventConsumer<AgentControlEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
-    ) -> JoinHandle<()> {
-        spawn_named_thread("Http server", move || {
-            // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
-            // to the Async Status Server
-            let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
-                mpsc::unbounded_channel::<AgentControlEvent>();
-            let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
-                mpsc::unbounded_channel::<SubAgentEvent>();
-            // Run an OS Thread that listens to sync channel and forwards the events
-            // to an async channel
-            let bridge_join_handle = run_async_sync_bridge(
-                async_agent_control_event_publisher,
-                async_sub_agent_event_publisher,
-                agent_control_consumer,
-                sub_agent_consumer,
-            );
+        stop_rx: EventConsumer<CancellationMessage>,
+    ) {
+        // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
+        // to the Async Status Server
+        let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
+            mpsc::unbounded_channel::<AgentControlEvent>();
+        let (async_sub_agent_event_publisher, async_sub_agent_event_consumer) =
+            mpsc::unbounded_channel::<SubAgentEvent>();
 
-            // Run the async status server
-            let _ = runtime
-                .block_on(
-                    crate::agent_control::http_server::server::run_status_server(
-                        config.clone(),
-                        async_agent_control_event_consumer,
-                        async_sub_agent_event_consumer,
-                        maybe_opamp_client_config,
-                    ),
-                )
-                .inspect_err(|err| {
-                    error!(error_msg = %err, "error running status server");
-                });
+        // Run an OS Thread that listens to sync channel and forwards the events
+        // to an async channel
+        let bridge_join_handle = run_async_sync_bridge(
+            async_agent_control_event_publisher,
+            async_sub_agent_event_publisher,
+            agent_control_consumer,
+            sub_agent_consumer,
+            stop_rx,
+        );
 
-            // Wait until the bridge is closed
-            bridge_join_handle.join().unwrap();
-        })
+        // Run the async status server
+        let _ = runtime
+            .block_on(
+                crate::agent_control::http_server::server::run_status_server(
+                    config.clone(),
+                    async_agent_control_event_consumer,
+                    async_sub_agent_event_consumer,
+                    maybe_opamp_client_config,
+                ),
+            )
+            .inspect_err(|err| {
+                error!(error_msg = %err, "error running status server");
+            });
+
+        // Wait until the bridge is closed
+        bridge_join_handle.join().unwrap();
     }
 
-    fn spawn_noop_consumer(
+    fn noop_consumer_loop(
         agent_control_consumer: EventConsumer<AgentControlEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
-    ) -> JoinHandle<()> {
-        spawn_named_thread("No-action consumer", move || loop {
+        stop_rx: EventConsumer<CancellationMessage>,
+    ) {
+        loop {
             select! {
                 recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
                     match agent_control_consumer_res {
@@ -119,19 +129,145 @@ impl Runner {
                             break;
                         }
                     }
-                }
+                },
+                recv(stop_rx.as_ref()) -> _ => {
+                    debug!("http server event drain processor stopped");
+                    break;
+                },
             }
-        })
+        }
     }
 }
 
 impl Drop for Runner {
     fn drop(&mut self) {
-        if let Some(join_handle) = self.join_handle.take() {
-            info!("waiting for status server to stop gracefully...");
-            join_handle
-                .join()
-                .expect("error waiting for server join handle")
-        }
+        info!("waiting for status server to stop gracefully...");
+
+        let Some(thread_context) = self.thread_context.take() else {
+            return;
+        };
+
+        let _ = thread_context
+            .stop()
+            .inspect(|_| debug!("status server runner thread stopped"))
+            .inspect_err(|error_msg| {
+                error!(
+                    %error_msg,
+                    "Error stopping Status Server"
+                )
+            });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    use tracing_test::internal::logs_with_scope_contain;
+    use tracing_test::traced_test;
+
+    use crate::agent_control::http_server::config::ServerConfig;
+    use crate::event::channel::pub_sub;
+    use crate::event::AgentControlEvent;
+
+    use super::Runner;
+
+    #[test]
+    #[traced_test]
+    fn test_noop_consumer_stops_gracefully_when_dropped() {
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
+        let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
+        let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let _http_server_runner = Runner::start(
+            ServerConfig::default(),
+            runtime,
+            agent_control_consumer,
+            sub_agent_consumer,
+            None,
+        );
+        drop(_http_server_runner);
+
+        // wait for logs to be flushed
+        sleep(Duration::from_millis(100));
+        assert!(logs_with_scope_contain(
+            "newrelic_agent_control::agent_control::http_server::runner",
+            "http server event drain processor stopped",
+        ));
+    }
+    #[test]
+    #[traced_test]
+    fn test_server_stops_gracefully_when_dropped() {
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
+        let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
+        let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let _http_server_runner = Runner::start(
+            ServerConfig {
+                enabled: true,
+                port: 0.into(),
+                ..Default::default()
+            },
+            runtime,
+            agent_control_consumer,
+            sub_agent_consumer,
+            None,
+        );
+        // server warm up
+        sleep(Duration::from_millis(100));
+
+        drop(_http_server_runner);
+
+        // wait for logs to be flushed
+        sleep(Duration::from_millis(100));
+        assert!(logs_with_scope_contain(
+            "newrelic_agent_control::agent_control::http_server::server",
+            "status server gracefully stopped",
+        ));
+    }
+    #[test]
+    #[traced_test]
+    fn test_server_stops_gracefully_when_external_channels_close() {
+        let runtime = Arc::new(
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .unwrap(),
+        );
+        let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
+        let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let _http_server_runner = Runner::start(
+            ServerConfig {
+                enabled: true,
+                port: 0.into(),
+                ..Default::default()
+            },
+            runtime,
+            agent_control_consumer,
+            sub_agent_consumer,
+            None,
+        );
+        // server warm up
+        sleep(Duration::from_millis(100));
+
+        drop(_agent_control_publisher);
+        drop(_sub_agent_publisher);
+
+        // wait for logs to be flushed
+        sleep(Duration::from_millis(100));
+        assert!(logs_with_scope_contain(
+            "newrelic_agent_control::agent_control::http_server::server",
+            "status server gracefully stopped",
+        ));
     }
 }
