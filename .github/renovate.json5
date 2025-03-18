@@ -10,7 +10,7 @@
   "automerge": false,
   "enabledManagers": [
     "cargo",
-    "regex"
+    "regex",
   ],
   "regexManagers": [
     {
@@ -23,8 +23,38 @@
         "base_image=(?<depName>.+):(?<currentValue>.+)"
       ]
     },
+    {
+      // Extract dependency name and version for integrations.
+      "fileMatch": [
+        "^.goreleaser.yml$"
+      ],
+      // Dependency name (org/repo format) is created from the `integrationName` named capture group in the regex below.
+      "depNameTemplate": "newrelic/infrastructure-agent",
+      "datasourceTemplate": "github-releases",
+      // Version info is fetched from GitHub.
+      "matchStrings": [
+        // Capture integration name (without `newrelic/`) and version from bundle.yaml.
+        " *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)"
+      ]
+    },
+    {
+      // Extract dependency name and version for integrations.
+      "fileMatch": [
+        "^.goreleaser.yml$"
+      ],
+      // Dependency name (org/repo format) is created from the `integrationName` named capture group in the regex below.
+      "depNameTemplate": "newrelic/nrdot-collector-releases",
+      "datasourceTemplate": "github-releases",
+      // Version info is fetched from GitHub.
+      "matchStrings": [
+        // Capture integration name (without `newrelic/`) and version from bundle.yaml.
+        " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
+      ]
+    }
+
   ],
-  "rangeStrategy": "auto", // See <https://docs.renovatebot.com/configuration-options/#rangestrategy>
+  "rangeStrategy": "auto",
+  // See <https://docs.renovatebot.com/configuration-options/#rangestrategy>
   "prConcurrentLimit": 0,
   "printConfig": true,
   "prHourlyLimit": 0,
@@ -39,5 +69,5 @@
       ],
       "groupName": "minor and patch updates"
     }
-  ],
+  ]
 }
