@@ -69,7 +69,7 @@ impl OtelProviders {
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
             .with_http_client(client)
-            .with_endpoint(config.endpoint.to_string())
+            .with_endpoint(config.traces_endpoint().to_string())
             .with_headers(config.headers.clone())
             .build()?;
 
@@ -93,7 +93,7 @@ impl OtelProviders {
         let exporter = opentelemetry_otlp::MetricExporter::builder()
             .with_http()
             .with_http_client(client)
-            .with_endpoint(config.endpoint.to_string())
+            .with_endpoint(config.metrics_endpoint().to_string())
             .with_headers(config.headers.clone())
             .build()?;
 
