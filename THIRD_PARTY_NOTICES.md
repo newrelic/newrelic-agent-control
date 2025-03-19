@@ -1489,6 +1489,13 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+## r-efi <https://crates.io/crates/r-efi>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+* LGPL-2.1-or-later
 ## rand <https://crates.io/crates/rand>
 
 Distributed under the following license(s):
@@ -2303,13 +2310,6 @@ Distributed under the following license(s):
 
 * Unicode-3.0
 ## zerocopy <https://crates.io/crates/zerocopy>
-
-Distributed under the following license(s):
-
-* BSD-2-Clause
-* Apache-2.0
-* MIT
-## zerocopy-derive <https://crates.io/crates/zerocopy-derive>
 
 Distributed under the following license(s):
 

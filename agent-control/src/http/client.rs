@@ -1,8 +1,8 @@
 //! # Helpers to build a reqwest blocking client and handle responses and handle responses
 //!
 use crate::http::config::HttpConfig;
-use actix_web::web::Bytes;
 use async_trait::async_trait;
+use bytes::Bytes;
 use http::Response as HttpResponse;
 use http::{Request, Response};
 use nix::NixPath;
