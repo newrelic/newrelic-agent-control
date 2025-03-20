@@ -15,7 +15,7 @@ use crate::{
     utils::threads::spawn_named_thread,
 };
 
-pub struct NotStartedThreadContext<F, T>
+pub struct NotStartedThreadContext<F, T = ()>
 where
     F: FnOnce(EventConsumer<CancellationMessage>) -> T + Send + 'static,
     T: Send + 'static,
@@ -36,22 +36,23 @@ where
         }
     }
 
-    pub fn start(self) -> StartedThreadContext {
+    pub fn start(self) -> StartedThreadContext<T> {
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
 
         StartedThreadContext::new(
             self.thread_name.clone(),
             stop_publisher,
-            spawn_named_thread(&self.thread_name, move || {
-                (self.callback)(stop_consumer);
-            }),
+            spawn_named_thread(&self.thread_name, move || (self.callback)(stop_consumer)),
         )
     }
 }
-pub struct StartedThreadContext {
+pub struct StartedThreadContext<T = ()>
+where
+    T: Send + 'static,
+{
     thread_name: String,
     stop_publisher: EventPublisher<CancellationMessage>,
-    join_handle: JoinHandle<()>,
+    join_handle: JoinHandle<T>,
 }
 
 #[derive(Debug, thiserror::Error, PartialEq)]
@@ -66,7 +67,10 @@ pub enum ThreadContextStopperError {
     StopTimeout { thread: String },
 }
 
-impl StartedThreadContext {
+impl<T> StartedThreadContext<T>
+where
+    T: Send + 'static,
+{
     /// Returns a new `StartedThreadContext`
     ///
     /// At this point the thread is running in the background.
@@ -79,7 +83,7 @@ impl StartedThreadContext {
     pub fn new(
         thread_name: String,
         stop_publisher: EventPublisher<()>,
-        join_handle: JoinHandle<()>,
+        join_handle: JoinHandle<T>,
     ) -> Self {
         Self {
             thread_name,
@@ -93,7 +97,7 @@ impl StartedThreadContext {
         &self.thread_name
     }
 
-    fn join_thread(self) -> Result<(), ThreadContextStopperError> {
+    fn join_thread(self) -> Result<T, ThreadContextStopperError> {
         self.join_handle
             .join()
             .map_err(|err| ThreadContextStopperError::JoinError {
@@ -107,7 +111,7 @@ impl StartedThreadContext {
 
     /// It sends a stop signal and periodically checks if the thread has finished until
     /// it timeout defined by `GRACEFUL_STOP_RETRY` * `GRACEFUL_STOP_RETRY_INTERVAL`.
-    pub fn stop(self) -> Result<(), ThreadContextStopperError> {
+    pub fn stop(self) -> Result<T, ThreadContextStopperError> {
         trace!(thread = self.thread_name, "stopping");
         if self.join_handle.is_finished() {
             trace!(thread = self.thread_name, "finished already, joining");
@@ -134,7 +138,7 @@ impl StartedThreadContext {
     }
 
     /// It sends a stop signal and waits until the thread handle is joined.
-    pub fn stop_blocking(self) -> Result<(), ThreadContextStopperError> {
+    pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
         trace!(thread = self.thread_name, "stopping");
         if self.join_handle.is_finished() {
             trace!(thread = self.thread_name, "finished already, joining");
