@@ -19,8 +19,6 @@ const DEFAULT_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
 const TRACES_SUFFIX: &str = "/v1/traces";
 /// Metrics suffix for the OpenTelemetry endpoint
 const METRICS_SUFFIX: &str = "/v1/metrics";
-/// Logs suffix for the OpenTelemetry endpoint
-const LOGS_SUFFIX: &str = "/v1/logs";
 
 /// Represents the OpenTelemetry configuration
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]

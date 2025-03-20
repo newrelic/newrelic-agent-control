@@ -1,4 +1,3 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -44,7 +43,6 @@ pub enum VersionCheckError {
 }
 
 pub(crate) fn spawn_version_checker<V>(
-    agent_id: AgentID,
     version_checker: V,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
@@ -54,14 +52,13 @@ where
 {
     // Stores if the version was retrieved in last iteration for logging purposes.
     let mut version_retrieved = false;
-    let agent_id_clone = agent_id.clone();
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
-        debug!(agent_id = %agent_id_clone, "starting to check version with the configured checker");
+        debug!("starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
             Ok(agent_data) => {
                 if !version_retrieved {
-                    info!(agent_id = %agent_id_clone, "agent version successfully checked");
+                    info!("agent version successfully checked");
                     version_retrieved = true;
                 }
 
@@ -71,7 +68,7 @@ where
                 );
             }
             Err(error) => {
-                warn!(agent_id = %agent_id_clone, %error, "failed to check agent version");
+                warn!( %error, "failed to check agent version");
                 version_retrieved = false;
             }
         }
@@ -81,7 +78,6 @@ where
         }
     };
 
-    info!(%agent_id, "{} started", VERSION_CHECKER_THREAD_NAME);
     NotStartedThreadContext::new(VERSION_CHECKER_THREAD_NAME, callback).start()
 }
 
@@ -103,7 +99,6 @@ pub(crate) fn publish_version_event(
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;
@@ -146,9 +141,7 @@ pub mod tests {
                 ))
             });
 
-        let agent_id = AgentID::new("test-agent").unwrap();
         let started_thread_context = spawn_version_checker(
-            agent_id.clone(),
             version_checker,
             version_publisher,
             Duration::from_millis(10).into(),

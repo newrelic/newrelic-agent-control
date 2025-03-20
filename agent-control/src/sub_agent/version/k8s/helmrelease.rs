@@ -32,7 +32,7 @@ impl HelmReleaseVersionChecker {
         let extractors = [from_version, from_last_deployed, from_history];
 
         for extractor in &extractors {
-            if let Some(version) = extractor(data, &self.agent_id) {
+            if let Some(version) = extractor(data) {
                 if !version.is_empty() {
                     return Ok(AgentVersion::new(
                         version,
@@ -73,7 +73,7 @@ impl VersionChecker for HelmReleaseVersionChecker {
 }
 
 //Attempt to get version from chart
-fn from_version(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
+fn from_version(helm_data: &Map<String, Value>) -> Option<String> {
     let version = helm_data
         .get("spec")?
         .get("chart")?
@@ -86,12 +86,12 @@ fn from_version(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<St
     if version.contains(LATEST_REVISION) {
         return None;
     }
-    debug!(%agent_id, %version, "version extracted from version");
+    debug!(%version, "version extracted from version");
     Some(version)
 }
 
 //Attempt to get version from last attempted deployed revision
-fn from_last_deployed(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
+fn from_last_deployed(helm_data: &Map<String, Value>) -> Option<String> {
     let version = helm_data
         .get("status")?
         .get("lastAttemptedRevision")?
@@ -102,12 +102,12 @@ fn from_last_deployed(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Opt
     if version.is_empty() {
         return None;
     }
-    debug!(%agent_id,%version, "version extracted from lastAttemptedRevision");
+    debug!("version extracted from lastAttemptedRevision");
     Some(version)
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
-fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<String> {
+fn from_history(helm_data: &Map<String, Value>) -> Option<String> {
     let helm_history = helm_data.get("status")?.get("history")?.as_array()?;
 
     let (_, version) = helm_history
@@ -125,7 +125,7 @@ fn from_history(helm_data: &Map<String, Value>, agent_id: &AgentID) -> Option<St
         })
         .max_by_key(|entry| entry.0)?;
 
-    debug!(%agent_id, %version, "version extracted from history");
+    debug!(%version, "version extracted from history");
     Some(version)
 }
 

@@ -25,7 +25,7 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "k8s objects supervisor";
@@ -123,14 +123,12 @@ impl NotStartedSupervisorK8s {
         &self,
         resources: Arc<Vec<DynamicObject>>,
     ) -> StartedThreadContext {
-        let agent_id = self.agent_identity.id.clone();
         let k8s_client = self.k8s_client.clone();
         let interval = self.interval;
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
             // Check and apply k8s objects
-            if let Err(err) = Self::apply_resources(&agent_id, resources.iter(), k8s_client.clone())
-            {
-                error!(%agent_id, %err, "K8s resources apply failed");
+            if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
+                error!(%err, "K8s resources apply failed");
             }
 
             // Check the cancellation signal
@@ -139,10 +137,6 @@ impl NotStartedSupervisorK8s {
             }
         };
 
-        info!(
-            agent_id = self.agent_identity.id.to_string(),
-            "{} started", SUPERVISOR_THREAD_NAME
-        );
         NotStartedThreadContext::new(SUPERVISOR_THREAD_NAME, callback).start()
     }
 
@@ -154,19 +148,18 @@ impl NotStartedSupervisorK8s {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
-            debug!(agent_id = %self.agent_identity.id, "health checks are disabled for this agent");
+            debug!("health checks are disabled for this agent");
             return Ok(None);
         };
 
         let Some(k8s_health_checker) =
             SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
-            warn!(agent_id = %self.agent_identity.id, "health-check cannot start even if it is enabled there are no compatible k8s resources");
+            warn!("health-check cannot start even if it is enabled there are no compatible k8s resources");
             return Ok(None);
         };
 
         let started_thread_context = spawn_health_checker(
-            self.agent_identity.id.clone(),
             k8s_health_checker,
             sub_agent_internal_publisher,
             health_config.interval,
@@ -188,7 +181,6 @@ impl NotStartedSupervisorK8s {
         )?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id.clone(),
             k8s_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
@@ -197,16 +189,15 @@ impl NotStartedSupervisorK8s {
 
     /// It applies each of the provided k8s resources to the cluster if it has changed.
     fn apply_resources<'a>(
-        agent_id: &AgentID,
         resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
     ) -> Result<(), SupervisorStarterError> {
-        debug!(%agent_id, "applying k8s objects if changed");
+        debug!("applying k8s objects if changed");
         for res in resources {
-            debug!("K8s object: {:?}", res);
+            trace!("K8s object: {:?}", res);
             k8s_client.apply_dynamic_object_if_changed(res)?;
         }
-        debug!(%agent_id, "K8s objects applied");
+        debug!("K8s objects applied");
         Ok(())
     }
 }

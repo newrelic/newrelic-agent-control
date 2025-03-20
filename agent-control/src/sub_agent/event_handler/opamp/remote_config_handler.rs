@@ -137,7 +137,6 @@ where
         C: StartedClient + Send + Sync + 'static,
     {
         debug!(
-            agent_id = agent_identity.id.to_string(),
             select_arm = "sub_agent_opamp_consumer",
             "remote config received"
         );
@@ -149,7 +148,7 @@ where
             .config_validator
             .validate(&agent_identity.agent_type_id, config)
         {
-            error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error validating remote config with regexes");
+            error!(error = %e, hash = &config.hash.get(), "error validating remote config with regexes");
             Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
         }
@@ -158,7 +157,7 @@ where
             .signature_validator
             .validate(&agent_identity.agent_type_id, config)
         {
-            error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error validating signature of remote config");
+            error!(error = %e,  hash = &config.hash.get(), "error validating signature of remote config");
             Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::ConfigValidating(e.to_string()));
         }
@@ -175,7 +174,7 @@ where
 
         if let Err(e) = self.store_remote_config_hash_and_values(config) {
             // log the error as it might be that we return a different error
-            error!(error = %e, agent_id = %agent_identity.id, hash = &config.hash.get(), "error storing remote config");
+            error!(error = %e, hash = &config.hash.get(), "error storing remote config");
             Self::report_error(opamp_client, config, e.to_string())?;
             return Err(RemoteConfigHandlerError::HashAndValuesStore(e.to_string()));
         }

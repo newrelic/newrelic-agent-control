@@ -13,6 +13,7 @@ license-file.workspace = true
 mockall = { workspace = true, optional = true }
 regex = { workspace = true }
 thiserror = { workspace = true }
+tracing = "0.1.41"
 
 [dev-dependencies]
 tempfile = { workspace = true }

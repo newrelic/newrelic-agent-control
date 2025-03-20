@@ -6,6 +6,7 @@ use std::os::unix::fs::DirBuilderExt;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use thiserror::Error;
+use tracing::instrument;
 
 #[derive(Error, Debug)]
 pub enum DirectoryManagementError {
@@ -54,6 +55,7 @@ impl DirectoryManager for DirectoryManagerFs {
         }
     }
 
+    #[instrument(skip_all, fields(path = %path.display()))]
     fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError> {
         validate_path(path)?;
 

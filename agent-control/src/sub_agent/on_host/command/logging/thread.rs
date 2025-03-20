@@ -150,11 +150,11 @@ mod tests {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 1 agent_id=agent-control",
+            "logging test 1",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "logging test 2 agent_id=agent-control",
+            "logging test 2",
         ));
     }
 
@@ -193,11 +193,11 @@ mod tests {
 
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "err logging test 1 agent_id=agent-control",
+            "err logging test 1",
         ));
         assert!(logs_with_scope_contain(
             "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
-            "err logging test 2 agent_id=agent-control",
+            "err logging test 2",
         ));
     }
 

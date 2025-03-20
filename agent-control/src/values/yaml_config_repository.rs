@@ -41,23 +41,17 @@ pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
     agent_id: &AgentID,
     capabilities: &Capabilities,
 ) -> Result<YAMLConfig, YAMLConfigRepositoryError> {
-    debug!(agent_id = agent_id.to_string(), "loading config");
+    debug!("loading config");
 
     if let Some(values_result) = config_repository.load_remote(agent_id, capabilities)? {
         return Ok(values_result);
     }
-    debug!(
-        agent_id = agent_id.to_string(),
-        "remote config not found, loading local"
-    );
+    debug!("remote config not found, loading local");
 
     if let Some(values_result) = config_repository.load_local(agent_id)? {
         return Ok(values_result);
     }
-    debug!(
-        agent_id = agent_id.to_string(),
-        "local config not found, falling back to defaults"
-    );
+    debug!("local config not found, falling back to defaults");
     Ok(YAMLConfig::default())
 }
 #[cfg(test)]

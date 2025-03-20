@@ -2,7 +2,7 @@ use std::{
     thread::{sleep, JoinHandle},
     time::Duration,
 };
-use tracing::{debug, trace};
+use tracing::{debug, info, info_span, trace};
 
 const GRACEFUL_STOP_RETRY: u16 = 10;
 const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
@@ -38,12 +38,28 @@ where
 
     pub fn start(self) -> StartedThreadContext<T> {
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
+        // Notice that this is needed in order to pass across threads
+        let s = info_span!("sub_thread", thread = &self.thread_name);
+        info!("starting {} thread", self.thread_name);
 
         StartedThreadContext::new(
             self.thread_name.clone(),
             stop_publisher,
-            spawn_named_thread(&self.thread_name, move || (self.callback)(stop_consumer)),
+            spawn_named_thread(&self.thread_name, move || {
+                let _guards = s.enter();
+                (self.callback)(stop_consumer)
+            }),
         )
+
+        // let join_handle = spawn_named_thread(&self.thread_name, {
+        //     let name = self.thread_name.clone();
+        //     move || {
+        //         info!("{} started", &name);
+        //         let _guards = s.enter();
+        //         (self.callback)(stop_consumer);
+        //     }
+        // });
+        // StartedThreadContext::new(self.thread_name, stop_publisher, join_handle)
     }
 }
 pub struct StartedThreadContext<T = ()>

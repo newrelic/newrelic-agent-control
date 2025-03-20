@@ -1,5 +1,4 @@
 use super::with_start_time::StartTime;
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -10,7 +9,7 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::time::{SystemTime, SystemTimeError};
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 const HEALTH_CHECKER_THREAD_NAME: &str = "health checker";
 
@@ -213,7 +212,6 @@ pub trait HealthChecker {
 }
 
 pub(crate) fn spawn_health_checker<H>(
-    agent_id: AgentID,
     health_checker: H,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
@@ -222,12 +220,11 @@ pub(crate) fn spawn_health_checker<H>(
 where
     H: HealthChecker + Send + 'static,
 {
-    let agent_id_clone = agent_id.clone();
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
-        debug!(agent_id = %agent_id_clone, "starting to check health with the configured checker");
+        debug!("starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!(agent_id = %agent_id_clone, last_error = %err, "the configured health check failed");
+            debug!( last_error = %err, "the configured health check failed");
             HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
         });
 
@@ -242,7 +239,6 @@ where
         }
     };
 
-    info!(%agent_id, "{} started", HEALTH_CHECKER_THREAD_NAME);
     NotStartedThreadContext::new(HEALTH_CHECKER_THREAD_NAME, callback).start()
 }
 
@@ -381,9 +377,7 @@ pub mod tests {
                 ))
             });
 
-        let agent_id = AgentID::new("test-agent").unwrap();
         let started_thread_context = spawn_health_checker(
-            agent_id.clone(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
@@ -446,10 +440,7 @@ pub mod tests {
                 ))
             });
 
-        let agent_id = AgentID::new("test-agent").unwrap();
-
         let started_thread_context = spawn_health_checker(
-            agent_id.clone(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
@@ -507,9 +498,7 @@ pub mod tests {
 
         let start_time = SystemTime::now();
 
-        let agent_id = AgentID::new("test-agent").unwrap();
         let started_thread_context = spawn_health_checker(
-            agent_id.clone(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events

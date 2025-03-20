@@ -4,6 +4,7 @@ use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
 use thiserror::Error;
+use tracing::instrument;
 
 /// The default Azure instance metadata endpoint.
 pub const AZURE_IPV4_METADATA_ENDPOINT: &str =
@@ -54,6 +55,7 @@ impl<C> Detector for AzureDetector<C>
 where
     C: HttpClient,
 {
+    #[instrument(skip_all, name = "detect_azure")]
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
             .http_client

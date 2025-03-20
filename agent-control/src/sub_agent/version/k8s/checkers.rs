@@ -59,7 +59,7 @@ impl K8sAgentVersionChecker {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
             let Some(type_meta) = object.types.clone() else {
-                warn!(%agent_id, "Skipping k8s object with unknown type {:?}", object);
+                warn!("Skipping k8s object with unknown type {:?}", object);
                 continue;
             };
             let Ok(resource_type) = (&type_meta).try_into() else {
@@ -75,7 +75,7 @@ impl K8sAgentVersionChecker {
             };
             return Some(health_checker);
         }
-        warn!(%agent_id, "Version cannot be fetched from any of the agent underlying resources, it won't be reported");
+        warn!("Version cannot be fetched from any of the agent underlying resources, it won't be reported");
         None
     }
 }

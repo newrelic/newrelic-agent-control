@@ -135,6 +135,7 @@ where
     S: DirectoryManager + Send + Sync + 'static,
     F: FileWriter + FileReader + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip_all, err)]
     fn load_local(
         &self,
         agent_id: &AgentID,
@@ -146,6 +147,7 @@ where
             .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
+    #[tracing::instrument(skip_all, err)]
     fn load_remote(
         &self,
         agent_id: &AgentID,
@@ -160,6 +162,7 @@ where
             .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
+    #[tracing::instrument(skip_all, err)]
     fn store_remote(
         &self,
         agent_id: &AgentID,
@@ -190,6 +193,7 @@ where
     // TODO Currently we are not deleting the whole folder, therefore multiple files are not supported
     // Moreover, we are also loading one file only, therefore we should review this once support is added
     // Notice that in that case we will likely need to move AgentControlConfig file to a folder
+    #[tracing::instrument(skip_all err)]
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();

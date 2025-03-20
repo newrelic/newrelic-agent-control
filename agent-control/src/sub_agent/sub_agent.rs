@@ -1,6 +1,5 @@
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
-use crate::agent_control::agent_id::AgentID;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::operations::stop_opamp_client;
@@ -20,7 +19,7 @@ use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -88,7 +87,7 @@ where
     R: RemoteConfigHandler + Send + Sync + 'static,
 {
     pub fn new(
-        agent_identity: AgentIdentity,
+        identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
         supervisor_assembler: Arc<SA>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
@@ -100,7 +99,7 @@ where
         remote_config_handler: Arc<R>,
     ) -> Self {
         Self {
-            identity: agent_identity,
+            identity,
             maybe_opamp_client,
             supervisor_assembler,
             sub_agent_publisher,
@@ -112,22 +111,21 @@ where
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
+        let s = info_span!("agent", id=%self.identity.id);
         spawn_named_thread("SubAgent runtime", move || {
-            let mut supervisor = self.assemble_and_start_supervisor();
+            let _guards = s.enter();
 
+            let mut supervisor = self.assemble_and_start_supervisor();
             // Stores the current healthy state for logging purposes.
             let mut is_healthy = false;
 
-            debug!(
-                agent_id = %self.identity.id,
-                "runtime started"
-            );
+            debug!("runtime started");
 
             Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
-            // publisher for OpAMP events and we attempt to receive them, as erroring while reading
+            // publisher for OpAMP events, and we attempt to receive them, as erroring while reading
             // from this channel will break the loop and prevent the reception of sub-agent
             // internal events if OpAMP is globally disabled in the agent-control config.
             let never_receive = EventConsumer::from(never());
@@ -156,16 +154,13 @@ where
 
                                 match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config){
                                     Err(error) =>{
-                                        error!(%error,
-                                            agent_id = %self.identity.id,
-                                            "error handling remote config"
-                                        )
+                                        error!(%error,"error handling remote config")
                                     },
                                     Ok(())  =>{
-                                        info!(agent_id = %self.identity.id, "Applying remote config");
+                                        info!("Applying remote config");
                                         // We need to restart the supervisor after we receive a new config
                                         // as we don't have hot-reloading handling implemented yet
-                                        stop_supervisor(&self.identity.id, supervisor);
+                                        stop_supervisor(supervisor);
 
                                         supervisor = self.assemble_and_start_supervisor();
                                     }
@@ -182,12 +177,12 @@ where
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                stop_supervisor(&self.identity.id, supervisor);
+                                stop_supervisor(supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
-                                Self::log_health_info(&self.identity.id, is_healthy, health.clone().into());
+                                Self::log_health_info(is_healthy, health.clone().into());
                                 let _ = on_health(
                                     health.clone(),
                                     self.maybe_opamp_client.as_ref(),
@@ -213,17 +208,21 @@ where
         })
     }
 
-    fn log_health_info(agent_id: &AgentID, was_healthy: bool, health: Health) {
+    fn log_health_info(was_healthy: bool, health: Health) {
         match health {
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
                 if !was_healthy {
-                    info!(%agent_id, "Agent is healthy");
+                    info!("Agent is healthy");
                 }
             }
             // Every time health is unhealthy
             Health::Unhealthy(unhealthy) => {
-                warn!(%agent_id, status=unhealthy.status(), last_error=unhealthy.last_error(), "agent is unhealthy");
+                warn!(
+                    status = unhealthy.status(),
+                    last_error = unhealthy.last_error(),
+                    "agent is unhealthy"
+                );
             }
         }
     }
@@ -252,10 +251,8 @@ where
     ) -> Option<<SA::SupervisorStarter as SupervisorStarter>::SupervisorStopper> {
         let stopped_supervisor = self
             .supervisor_assembler
-            .assemble_supervisor(&self.maybe_opamp_client,self.identity.clone())
-            .inspect_err(
-                |e| error!(agent_id = %self.identity.id, agent_type=%self.identity.agent_type_id, error = %e,"cannot assemble supervisor"),
-            )
+            .assemble_supervisor(&self.maybe_opamp_client, self.identity.clone())
+            .inspect_err(|e| error!(error = %e,"cannot assemble supervisor"))
             .ok();
 
         stopped_supervisor
@@ -280,17 +277,13 @@ impl StartedSubAgent for SubAgentStopper {
     }
 }
 
-pub fn stop_supervisor<S>(agent_id: &AgentID, maybe_started_supervisor: Option<S>)
+pub fn stop_supervisor<S>(maybe_started_supervisor: Option<S>)
 where
     S: SupervisorStopper,
 {
     if let Some(s) = maybe_started_supervisor {
         let _ = s.stop().inspect_err(|err| {
-            error!(
-                    agent_id = %agent_id,
-                    %err,
-                    "Error stopping k8s supervisor"
-            );
+            error!(%err,"Error stopping k8s supervisor");
         });
     }
 }
@@ -318,6 +311,7 @@ where
 pub mod tests {
     use super::*;
 
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;

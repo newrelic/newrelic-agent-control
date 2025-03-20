@@ -18,7 +18,7 @@ use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::api::TypeMeta;
 use std::{sync::Arc, time::Duration};
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 const THREAD_NAME: &str = "Garbage collector";
 
@@ -106,6 +106,7 @@ where
     /// Garbage collect all resources managed by the SA associated to removed sub-agents.
     /// Collection is stateful, only happens when the list of active agents has changed from
     /// the previous execution.
+    #[instrument(skip_all, name = "garbage_collector_collect")]
     pub fn collect(&mut self) -> Result<(), GarbageCollectorK8sError> {
         // check if current active agents differs from previous execution.
         if !self.update_active_config()? {
