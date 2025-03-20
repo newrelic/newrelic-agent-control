@@ -3,16 +3,11 @@
 agent-control-deployment:
   config:
     fleet_control:
-      enabled: true
-      fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTUzY2RkLTU1MWEtN2Y3NS1iZDhmLWI0YjA0Yzg5MmNhMQ
-      auth:
-        secret:
-          create: false
-          name: "sys-identity"
+      enabled: false
     agentControl:
       content:
         log:
-          level: debug
+          level: trace
     subAgents:
       operator:
         type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
@@ -27,6 +22,9 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "javaapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: "true"
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -35,6 +33,9 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "pythonapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: "true"
       node-agent:
         type: newrelic/com.newrelic.apm_node:0.1.0
         content:
@@ -43,6 +44,9 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "nodeapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: "true"
       ruby-agent:
         type: newrelic/com.newrelic.apm_ruby:0.1.0
         content:
@@ -51,6 +55,9 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "rubyapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: "true"
       dotnet-agent:
         type: newrelic/com.newrelic.apm_dotnet:0.1.0
         content:
@@ -59,3 +66,6 @@ agent-control-deployment:
               - key: "app"
                 operator: "In"
                 values: [ "dotneteapp" ]
+          env:
+            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
+              value: "true"
