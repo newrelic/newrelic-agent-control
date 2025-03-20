@@ -56,14 +56,14 @@ pub struct StartedThreadContext {
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ThreadContextStopperError {
-    #[error("Error sending stop signal to '{0}' thread: {1}")]
-    EventPublisherError(String, String),
+    #[error("Error sending stop signal to '{thread}' thread: {error}")]
+    EventPublisherError { thread: String, error: String },
 
-    #[error("Error joining '{0}' thread")]
-    JoinError(String),
+    #[error("Error joining '{thread}' thread: {error}")]
+    JoinError { thread: String, error: String },
 
-    #[error("Timeout waiting for '{0}' thread to finish")]
-    StopTimeout(String),
+    #[error("Timeout waiting for '{thread}' thread to finish")]
+    StopTimeout { thread: String },
 }
 
 impl StartedThreadContext {
@@ -94,13 +94,15 @@ impl StartedThreadContext {
     }
 
     fn join_thread(self) -> Result<(), ThreadContextStopperError> {
-        self.join_handle.join().map_err(|err| {
-            ThreadContextStopperError::JoinError(
-                err.downcast_ref::<&str>()
+        self.join_handle
+            .join()
+            .map_err(|err| ThreadContextStopperError::JoinError {
+                thread: self.thread_name,
+                error: err
+                    .downcast_ref::<&str>()
                     .unwrap_or(&"Unknown error")
                     .to_string(),
-            )
-        })
+            })
     }
 
     /// It sends a stop signal and periodically checks if the thread has finished until
@@ -113,10 +115,10 @@ impl StartedThreadContext {
         }
         trace!(thread = self.thread_name, "publishing stop");
         self.stop_publisher.publish(()).map_err(|err| {
-            ThreadContextStopperError::EventPublisherError(
-                self.thread_name.clone(),
-                err.to_string(),
-            )
+            ThreadContextStopperError::EventPublisherError {
+                thread: self.thread_name.clone(),
+                error: err.to_string(),
+            }
         })?;
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
@@ -126,7 +128,9 @@ impl StartedThreadContext {
             sleep(GRACEFUL_STOP_RETRY_INTERVAL);
         }
 
-        Err(ThreadContextStopperError::StopTimeout(self.thread_name))
+        Err(ThreadContextStopperError::StopTimeout {
+            thread: self.thread_name,
+        })
     }
 
     /// It sends a stop signal and waits until the thread handle is joined.
@@ -138,10 +142,10 @@ impl StartedThreadContext {
         }
         trace!(thread = self.thread_name, "publishing stop");
         self.stop_publisher.publish(()).map_err(|err| {
-            ThreadContextStopperError::EventPublisherError(
-                self.thread_name.clone(),
-                err.to_string(),
-            )
+            ThreadContextStopperError::EventPublisherError {
+                thread: self.thread_name.clone(),
+                error: err.to_string(),
+            }
         })?;
         trace!(thread = self.thread_name, "joining");
         self.join_thread()
@@ -206,18 +210,20 @@ pub mod tests {
     #[test]
     fn test_thread_context_joins_panic_thread() {
         let thread_name = "test-thread";
-        const PANIC_MESSAGE: &str = "#### EXPECTED PANIC!!! ####";
-        let callback =
-            |_stop_consumer: EventConsumer<CancellationMessage>| panic!("{PANIC_MESSAGE}");
+        let callback = |_stop_consumer: EventConsumer<CancellationMessage>| {
+            panic!("#### EXPECTED PANIC!!! ####")
+        };
 
         let started_thread_context = NotStartedThreadContext::new(thread_name, callback).start();
         // wait for the thread to panic
         sleep(Duration::from_millis(100));
-        started_thread_context
-            .stop()
-            .unwrap_err()
-            .to_string()
-            .contains(PANIC_MESSAGE);
+        assert_eq!(
+            started_thread_context.stop().unwrap_err(),
+            ThreadContextStopperError::JoinError {
+                thread: thread_name.to_string(),
+                error: "#### EXPECTED PANIC!!! ####".to_string()
+            }
+        );
     }
 
     #[test]
@@ -233,7 +239,9 @@ pub mod tests {
 
         assert_eq!(
             started_thread_context.stop().unwrap_err(),
-            ThreadContextStopperError::StopTimeout(thread_name.to_string())
+            ThreadContextStopperError::StopTimeout {
+                thread: thread_name.to_string()
+            }
         );
     }
 }
