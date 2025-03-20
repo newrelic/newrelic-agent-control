@@ -6,6 +6,28 @@ on:
   push:
     branches:
       - main
+  workflow_call:
+    inputs:
+      block_endpoint:
+        description: This endpoint should respond status 200 for the pre-release to continue.
+        required: false
+        type: string
+        default: https://newrelic.github.io/coreint-automation/automatic_release_enable
+      bot_name:
+        description: "github bot name to sign commits"
+        required: false
+        type: string
+        default: newrelic-coreint-bot
+      bot_email:
+        description: "github bot email to sign commits"
+        required: false
+        type: string
+        default: coreint-dev@newrelic.com
+    secrets:
+      bot_token:
+        description: "github token"
+        required: true
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
@@ -130,6 +152,8 @@ jobs:
   third-party-notices-check:
     runs-on: ubuntu-latest
     name: ⚖️ Check third party licenses
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -159,5 +183,19 @@ jobs:
         run: cargo fetch
 
       - uses: newrelic/rust-licenses-noticer@v1
+        id: license-verification
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
+        continue-on-error: true
+
+      - name: Correct and Update License Notices
+        if: ${{ steps.license-verification.outcome == 'failure'}}
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          make third-party-notices
+          git config user.name 'renovate'
+          git config user.email 'renovate@newrelic.com'
+          git add THIRD_PARTY_NOTICES.md
+          git commit -m "Update THIRD PARTY NOTICES due to license check failure"
+          git push -u origin ${{ github.head_ref }}
