@@ -1,0 +1,97 @@
+{
+  "extends": [
+    "config:base",
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "automerge": false,
+  "enabledManagers": [
+    "cargo",
+    "regex",
+    "gomod"
+  ],
+  "regexManagers": [
+    {
+      // Parse bundle image version from `base_image` ARG in Dockerfile.
+      "fileMatch": [
+        "system_identity_registration/Dockerfile$"
+      ],
+      "datasourceTemplate": "docker",
+      "matchStrings": [
+        "base_image=(?<depName>.+):(?<currentValue>.+)"
+      ]
+    },
+    {
+      // Extract version for embedded binary for infrastructure-agent.
+      "fileMatch": [
+        "^.goreleaser.yml$"
+      ],
+      "depNameTemplate": "newrelic/infrastructure-agent",
+      "datasourceTemplate": "github-releases",
+      // Version info is fetched from GitHub.
+      "matchStrings": [
+        // Capture en var name and version from goreleaser.yml.
+        " *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)"
+      ]
+    },
+    {
+      // Extract version for embedded binary for nrdot-collector-releases.
+      "fileMatch": [
+        "^.goreleaser.yml$"
+      ],
+      "depNameTemplate": "newrelic/nrdot-collector-releases",
+      "datasourceTemplate": "github-releases",
+      // Version info is fetched from GitHub.
+      "matchStrings": [
+        // Capture en var name and version from goreleaser.yml.
+        " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
+      ]
+    }
+  ],
+  "rangeStrategy": "auto",
+  // See <https://docs.renovatebot.com/configuration-options/#rangestrategy>
+  "prConcurrentLimit": 0,
+  "printConfig": true,
+  "prHourlyLimit": 0,
+  "packageRules": [
+    {
+      "managers": [
+        "cargo"
+      ],
+      "updateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "cargo minor and patch updates"
+    },
+    {
+      "managers": [
+        "cargo"
+      ],
+      "updateTypes": [
+        "major",
+      ],
+      "groupName": "cargo major updates"
+    },
+    {
+      "managers": [
+        "gomod"
+      ],
+      "updateTypes": [
+        "minor",
+        "patch"
+      ],
+      "groupName": "go minor and patch updates"
+    },
+    {
+      "managers": [
+        "gomod"
+      ],
+      "updateTypes": [
+        "major",
+      ],
+      "groupName": "go major updates"
+    }
+  ]
+}
