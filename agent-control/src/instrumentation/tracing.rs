@@ -5,13 +5,12 @@ use super::{
         logs::config::{LoggingConfig, LoggingConfigError},
         InstrumentationConfig,
     },
-    exporters::{
+    tracing_layers::{
         file::file,
-        otel::{config::OtelConfig, exporter::OtelExporter},
+        otel::{OtelBuildError, OtelLayersProvider},
         stdout::stdout,
     },
 };
-use crate::http::{client::HttpClient, config::HttpConfig};
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
@@ -25,25 +24,22 @@ pub enum TracingError {
     #[error("could not start tracing: {0}")]
     Init(String),
     #[error("OpenTelemetry initialization error: {0}")]
-    Otel(String),
+    Otel(#[from] OtelBuildError),
 }
 
-/// This trait represent any exporter whose resources need to be live while the application
+/// This trait represent any exporter whose resources cannot be dropped while application
 /// reports instrumentation.
-pub trait InstrumentationExporter {}
+pub trait TracingExporter {}
 
-/// Type to represent any [InstrumentationExporter] whose type will be known at runtime.
-pub type InstrumentationExporterBox = Box<dyn InstrumentationExporter>;
+/// Type to represent any [TracingExporter] whose type will be known at runtime.
+pub type InstrumentationExporterBox = Box<dyn TracingExporter>;
 
-/// Allows using a collection of instrumentation exporters as instrumentation exporter.
-impl InstrumentationExporter for Vec<InstrumentationExporterBox> {}
+/// Allows using a collection of tracing exporters as a tracing exporter.
+impl TracingExporter for Vec<InstrumentationExporterBox> {}
 
 /// Represents a registry layer to report tracing data to any destination.
 /// Check [tracing_subscriber::Layer] and [tracing_subscriber::Registry] for details.
 pub type LayerBox = Box<dyn Layer<Registry> + Send + Sync + 'static>;
-
-// TODO: move this to the corresponding module
-impl InstrumentationExporter for OtelExporter {}
 
 /// Holds the information required to set up tracing.
 pub struct TracingConfig {
@@ -84,7 +80,7 @@ impl TracingConfig {
 ///     LoggingConfig::default(),
 ///     InstrumentationConfig::default(),
 /// );
-/// let tracer = try_init_tracing(tracing_config).expect("could not initialize tracing");
+/// let _tracing_exporter = try_init_tracing(tracing_config).expect("could not initialize tracing");
 ///
 /// tracing::info!("some instrumentation");
 /// ```
@@ -99,14 +95,10 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<InstrumentationExporter
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        let otel_exporter = build_otel_exporter(otel_config)?;
-        // TODO: otel will eventually be one layer only
-        let mut otel_layers = otel_exporter.tracing_layers();
+        let layers_provider = OtelLayersProvider::try_new(otel_config)?;
+        // TODO: otel will eventually be one layer only (rebase)
+        let mut otel_layers = layers_provider.layers();
         layers.append(&mut otel_layers);
-        // TODO: explain why this is needed
-        otel_exporter.set_global();
-        // TODO: check if consuming the exporter when building the layers would be enough to properly shutdown.
-        exporters.push(Box::new(otel_exporter));
     }
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
@@ -126,22 +118,4 @@ fn try_init_tracing_subscriber(layers: Vec<LayerBox>) -> Result<(), TracingError
         .map_err(|err| TracingError::Init(format!("unable to set agent global tracer: {err}")))?;
 
     Ok(())
-}
-
-// TODO: check naming and if this belong to the otel module
-fn build_otel_exporter(otel_config: &OtelConfig) -> Result<OtelExporter, TracingError> {
-    let http_config = HttpConfig::new(
-        otel_config.client_timeout.clone().into(),
-        otel_config.client_timeout.clone().into(),
-        otel_config.proxy.clone(),
-    );
-    let http_client = HttpClient::new(http_config).map_err(|err| {
-        TracingError::Otel(format!("could not build the otel http client: {err}"))
-    })?;
-    let otel_providers = OtelExporter::try_new(otel_config, http_client).map_err(|err| {
-        TracingError::Otel(format!(
-            "could not build the OpenTelemetry providers: {err}"
-        ))
-    })?;
-    Ok(otel_providers)
 }

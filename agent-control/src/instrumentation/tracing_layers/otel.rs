@@ -1,8 +1,9 @@
-use super::config::OtelConfig;
+use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::config::HttpConfig;
+use crate::instrumentation::config::otel::OtelConfig;
 use crate::instrumentation::tracing::LayerBox;
-use opentelemetry::global;
 use opentelemetry::trace::{TraceError, TracerProvider};
-use opentelemetry_http::HttpClient;
+use opentelemetry_http::HttpClient as OtelHttpClient;
 use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::metrics::{MetricError, PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
@@ -18,29 +19,44 @@ static RESOURCE: LazyLock<Resource> =
 
 /// Enumerates the possible error building OpenTelemetry providers.
 #[derive(Debug, Error)]
-pub enum OtelExporterBuildError {
+pub enum OtelBuildError {
+    #[error("could not build the otel http client: {0}")]
+    HttpClient(#[from] HttpBuildError),
     #[error("could not build traces exporter: {0}")]
     Traces(#[from] TraceError),
     #[error("could not build metrics exporter: {0}")]
     Metrics(#[from] MetricError),
 }
 
-/// Holds the OpenTelemetry providers to report instrumentation.
+/// Holds the OpenTelemetry providers to report instrumentation. These providers will be used to
+/// build the corresponding tracing layers.
 ///
 /// The providers' shutdown will be automatically triggered when all their references are dropped.
 /// Check the providers documentation for details. Eg: [SdkTracerProvider].
-///
-// TODO: check if we should directly consume the exporter when building the layers instead of keeping a reference.
-pub struct OtelExporter {
+pub struct OtelLayersProvider {
     traces_provider: Option<SdkTracerProvider>,
     metrics_provider: Option<SdkMeterProvider>,
 }
 
-impl OtelExporter {
+impl OtelLayersProvider {
+    pub fn try_new(config: &OtelConfig) -> Result<Self, OtelBuildError> {
+        let http_config = HttpConfig::new(
+            config.client_timeout.clone().into(),
+            config.client_timeout.clone().into(),
+            config.proxy.clone(),
+        );
+        let http_client = HttpClient::new(http_config)?;
+        let otel_providers = OtelLayersProvider::try_new_with_client(config, http_client)?;
+        Ok(otel_providers)
+    }
+
     /// Builds the providers corresponding to the provided configuration.
-    pub fn try_new<C>(config: &OtelConfig, client: C) -> Result<Self, OtelExporterBuildError>
+    pub(crate) fn try_new_with_client<C>(
+        config: &OtelConfig,
+        client: C,
+    ) -> Result<Self, OtelBuildError>
     where
-        C: HttpClient + Send + Sync + Clone + 'static,
+        C: OtelHttpClient + Send + Sync + Clone + 'static,
     {
         let traces_provider = config
             .traces
@@ -63,9 +79,9 @@ impl OtelExporter {
     fn traces_provider<C>(
         client: C,
         config: &OtelConfig,
-    ) -> Result<SdkTracerProvider, OtelExporterBuildError>
+    ) -> Result<SdkTracerProvider, OtelBuildError>
     where
-        C: HttpClient + Send + Sync + 'static,
+        C: OtelHttpClient + Send + Sync + 'static,
     {
         let exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
@@ -87,9 +103,9 @@ impl OtelExporter {
     fn metrics_provider<C>(
         client: C,
         config: &OtelConfig,
-    ) -> Result<SdkMeterProvider, OtelExporterBuildError>
+    ) -> Result<SdkMeterProvider, OtelBuildError>
     where
-        C: HttpClient + Send + Sync + 'static,
+        C: OtelHttpClient + Send + Sync + 'static,
     {
         let exporter = opentelemetry_otlp::MetricExporter::builder()
             .with_http()
@@ -108,18 +124,8 @@ impl OtelExporter {
             .build())
     }
 
-    /// Set the configured providers as global providers, check [opentelemetry::global] for details.
-    pub fn set_global(&self) {
-        if let Some(traces_provider) = self.traces_provider.as_ref() {
-            global::set_tracer_provider(traces_provider.clone());
-        }
-        if let Some(metrics_provider) = self.metrics_provider.as_ref() {
-            global::set_meter_provider(metrics_provider.clone());
-        }
-    }
-
-    /// Return the layers to be used with [tracing_opentelemetry] corresponding to the enabled OpenTelemetry providers.
-    pub fn tracing_layers(&self) -> Vec<LayerBox> {
+    /// Return the layers for [tracing_subscriber] corresponding to the enabled OpenTelemetry providers.
+    pub fn layers(self) -> Vec<LayerBox> {
         let mut layers = Vec::<LayerBox>::new();
         if let Some(traces_provider) = self.traces_provider.as_ref() {
             let layer =

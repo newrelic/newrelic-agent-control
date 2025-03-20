@@ -7,18 +7,18 @@
 //! instrumentation: # application self-instrumentaiton
 //! ```
 
-use super::exporters::otel::config::OtelConfig;
 use crate::http::config::ProxyConfig;
 use serde::{Deserialize, Serialize};
 
 pub mod logs;
+pub mod otel;
 
 /// Represents the the configuration for instrumenting the application.
 /// It does not include _regular logs_ configuration, which are directly configured through the [logs]
 /// module, but it can also report logs with a different set of filtering and exporters.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct InstrumentationConfig {
-    pub(crate) opentelemetry: Option<OtelConfig>,
+    pub(crate) opentelemetry: Option<otel::OtelConfig>,
 }
 
 impl InstrumentationConfig {

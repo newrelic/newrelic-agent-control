@@ -1,3 +1,3 @@
 pub mod config;
-pub mod exporters;
 pub mod tracing;
+pub mod tracing_layers;

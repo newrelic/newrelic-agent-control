@@ -1,5 +1,5 @@
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
-use crate::instrumentation::tracing::{InstrumentationExporter, LayerBox};
+use crate::instrumentation::tracing::{LayerBox, TracingExporter};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::format::PrettyFields;
@@ -9,7 +9,7 @@ use tracing_subscriber::Layer;
 pub type FileExporter = WorkerGuard;
 
 // TODO: add comment
-impl InstrumentationExporter for FileExporter {}
+impl TracingExporter for FileExporter {}
 
 /// Returns an Optional [LayerBox] corresponding to a file output and the corresponding [WorkerGuard].
 /// The result will be None if the file logger is not enabled.
