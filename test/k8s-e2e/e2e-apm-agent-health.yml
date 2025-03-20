@@ -5,8 +5,7 @@ custom_test_key: appName
 scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
-      - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-apm-fleet-control.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-apm-agent-health.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       # we need wait and retry since the resource might me not created yet
       - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator; do sleep 5; echo waiting on operator ; done"
       - sleep 60
@@ -34,23 +33,21 @@ scenarios:
     tests:
       scripts:
         - echo 'Hit agent control health endpoint'
-        - POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep 'agent-control')
-        - if [ -z "$POD_NAME" ]; then
-        -  echo "No pod found with name starting with 'agent-control'"
-        -  exit 1
-        - fi
-        - kubectl port-forward pods/${POD_NAME} 51200 &
-        - PORT_FORWARD_PID=$!
-        - sleep 5
-        - response=$(curl -s "http://localhost:51200/status")
-        - for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
-        - agent_status=$(echo "$response" | jq -r ".sub_agents[\"${agent}\"].healthy")
-        - if [ "$agent_status" = "true" ]; then
-        -  echo "${agent} is healthy. Success."
-        - else
-        -  echo "${agent} is not healthy. Failing..."
-        -  kill $PORT_FORWARD_PID
-        -  exit 1
-        - fi
-        - done
-        - kill $PORT_FORWARD_PID
+        - POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control") &&
+          if [ -z "$POD_NAME" ]; then
+          echo "No pod found with name starting with \"agent-control\"";
+          exit 1; else echo "pod found $POD_NAME";
+          fi &&
+          kubectl port-forward pods/${POD_NAME} 51200 > /dev/null 2>&1 & PORT_FORWARD_PID=$! &&
+          sleep 5 &&
+          response=$(curl -s "http://localhost:51200/status") && echo "response ${response}" &&
+          for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
+          agent_status=$(echo "$response" | jq -r ".sub_agents[\"${agent}\"].healthy");
+          if [ "$agent_status" = "true" ]; then
+          echo "${agent} is healthy. Success.";
+          else
+          echo "${agent} is not healthy. Failing...";
+          exit 1;
+          fi;
+          done &&
+          kill $PORT_FORWARD_PID
