@@ -4,7 +4,6 @@ use opentelemetry::global;
 use opentelemetry::trace::{TraceError, TracerProvider};
 use opentelemetry_http::HttpClient;
 use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
-use opentelemetry_sdk::error::OTelSdkError;
 use opentelemetry_sdk::metrics::{MetricError, PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
 use opentelemetry_sdk::Resource;
@@ -19,25 +18,27 @@ static RESOURCE: LazyLock<Resource> =
 
 /// Enumerates the possible error building OpenTelemetry providers.
 #[derive(Debug, Error)]
-pub enum OtelProviderBuildError {
+pub enum OtelExporterBuildError {
     #[error("could not build traces exporter: {0}")]
     Traces(#[from] TraceError),
     #[error("could not build metrics exporter: {0}")]
     Metrics(#[from] MetricError),
 }
 
-/// Error shutting down the OpenTelemetry providers.
-pub type OtelShutdownError = OTelSdkError;
-
 /// Holds the OpenTelemetry providers to report instrumentation.
-pub struct OtelProviders {
+///
+/// The providers' shutdown will be automatically triggered when all their references are dropped.
+/// Check the providers documentation for details. Eg: [SdkTracerProvider].
+///
+// TODO: check if we should directly consume the exporter when building the layers instead of keeping a reference.
+pub struct OtelExporter {
     traces_provider: Option<SdkTracerProvider>,
     metrics_provider: Option<SdkMeterProvider>,
 }
 
-impl OtelProviders {
+impl OtelExporter {
     /// Builds the providers corresponding to the provided configuration.
-    pub fn try_new<C>(config: &OtelConfig, client: C) -> Result<Self, OtelProviderBuildError>
+    pub fn try_new<C>(config: &OtelConfig, client: C) -> Result<Self, OtelExporterBuildError>
     where
         C: HttpClient + Send + Sync + Clone + 'static,
     {
@@ -62,7 +63,7 @@ impl OtelProviders {
     fn traces_provider<C>(
         client: C,
         config: &OtelConfig,
-    ) -> Result<SdkTracerProvider, OtelProviderBuildError>
+    ) -> Result<SdkTracerProvider, OtelExporterBuildError>
     where
         C: HttpClient + Send + Sync + 'static,
     {
@@ -86,7 +87,7 @@ impl OtelProviders {
     fn metrics_provider<C>(
         client: C,
         config: &OtelConfig,
-    ) -> Result<SdkMeterProvider, OtelProviderBuildError>
+    ) -> Result<SdkMeterProvider, OtelExporterBuildError>
     where
         C: HttpClient + Send + Sync + 'static,
     {
@@ -115,17 +116,6 @@ impl OtelProviders {
         if let Some(metrics_provider) = self.metrics_provider.as_ref() {
             global::set_meter_provider(metrics_provider.clone());
         }
-    }
-
-    /// Shuts down the configured providers.
-    pub fn shutdown(&self) -> Result<(), OtelShutdownError> {
-        if let Some(traces_provider) = self.traces_provider.as_ref() {
-            traces_provider.shutdown()?;
-        }
-        if let Some(metrics_provider) = self.metrics_provider.as_ref() {
-            metrics_provider.shutdown()?;
-        }
-        Ok(())
     }
 
     /// Return the layers to be used with [tracing_opentelemetry] corresponding to the enabled OpenTelemetry providers.

@@ -1,7 +1,7 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use crate::http::config::ProxyConfig;
-use crate::instrumentation::logs::config::LoggingConfig;
+use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::opamp::remote_config::RemoteConfigError;
@@ -243,7 +243,7 @@ pub(crate) mod tests {
 
     use std::path::PathBuf;
 
-    use crate::instrumentation::logs::{
+    use crate::instrumentation::config::logs::{
         file_logging::{FileLoggingConfig, LogFilePath},
         format::{LoggingFormat, TimestampFormat},
     };

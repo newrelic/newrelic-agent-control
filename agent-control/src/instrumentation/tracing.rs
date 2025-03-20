@@ -1,13 +1,15 @@
 //! Tools to set up a [tracing_subscriber] to report instrumentation.
 
 use super::{
-    config::InstrumentationConfig,
-    logs::{
-        self,
-        config::{LoggingConfig, LoggingConfigError},
-        layers::FileGuard,
+    config::{
+        logs::config::{LoggingConfig, LoggingConfigError},
+        InstrumentationConfig,
     },
-    otel::providers::OtelProviders,
+    exporters::{
+        file::file,
+        otel::{config::OtelConfig, exporter::OtelExporter},
+        stdout::stdout,
+    },
 };
 use crate::http::{client::HttpClient, config::HttpConfig};
 use std::path::PathBuf;
@@ -26,17 +28,22 @@ pub enum TracingError {
     Otel(String),
 }
 
-/// Defines the behavior required to initialize a tracer.
-pub trait Tracer {
-    fn try_init(&self, layers: Vec<LayerBox>) -> Result<(), TracingError>;
-}
+/// This trait represent any exporter whose resources need to be live while the application
+/// reports instrumentation.
+pub trait InstrumentationExporter {}
+
+/// Type to represent any [InstrumentationExporter] whose type will be known at runtime.
+pub type InstrumentationExporterBox = Box<dyn InstrumentationExporter>;
+
+/// Allows using a collection of instrumentation exporters as instrumentation exporter.
+impl InstrumentationExporter for Vec<InstrumentationExporterBox> {}
 
 /// Represents a registry layer to report tracing data to any destination.
 /// Check [tracing_subscriber::Layer] and [tracing_subscriber::Registry] for details.
 pub type LayerBox = Box<dyn Layer<Registry> + Send + Sync + 'static>;
 
-/// Type to represent any [Tracer] whose type will be known at runtime.
-pub type TracerBox = Box<dyn Tracer>;
+// TODO: move this to the corresponding module
+impl InstrumentationExporter for OtelExporter {}
 
 /// Holds the information required to set up tracing.
 pub struct TracingConfig {
@@ -69,8 +76,7 @@ impl TracingConfig {
 /// ```
 /// # use newrelic_agent_control::instrumentation::tracing::TracingConfig;
 /// # use newrelic_agent_control::instrumentation::tracing::try_init_tracing;
-/// # use newrelic_agent_control::instrumentation::logs::config::LoggingConfig;
-/// # use newrelic_agent_control::instrumentation::config::InstrumentationConfig;
+/// # use newrelic_agent_control::instrumentation::config::{InstrumentationConfig, logs::config::LoggingConfig};
 /// # use std::path::PathBuf;
 ///
 /// let tracing_config = TracingConfig::new(
@@ -78,123 +84,64 @@ impl TracingConfig {
 ///     LoggingConfig::default(),
 ///     InstrumentationConfig::default(),
 /// );
-/// let tracer = try_init_tracing(tracing_config);
+/// let tracer = try_init_tracing(tracing_config).expect("could not initialize tracing");
 ///
 /// tracing::info!("some instrumentation");
 /// ```
-pub fn try_init_tracing(config: TracingConfig) -> Result<TracerBox, TracingError> {
+pub fn try_init_tracing(config: TracingConfig) -> Result<InstrumentationExporterBox, TracingError> {
     // Currently stdout output is always on, we could consider allowing to turn it off.
-    let mut layers = Vec::from([logs::layers::stdout(&config.logging_config)?]);
-    let mut tracer: Box<dyn Tracer> = Box::new(SubscriberTracer {});
+    let mut layers = Vec::from([stdout(&config.logging_config)?]);
+    let mut exporters = Vec::<InstrumentationExporterBox>::new();
 
-    if let Some((file_layer, file_guard)) =
-        logs::layers::file(&config.logging_config, config.logging_path)?
-    {
+    if let Some((file_layer, file_guard)) = file(&config.logging_config, config.logging_path)? {
         layers.push(file_layer);
-        tracer = Box::new(FileTracer::new(tracer, file_guard));
+        exporters.push(Box::new(file_guard));
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        let http_config = HttpConfig::new(
-            otel_config.client_timeout.clone().into(),
-            otel_config.client_timeout.clone().into(),
-            otel_config.proxy.clone(),
-        );
-        let http_client = HttpClient::new(http_config).map_err(|err| {
-            TracingError::Otel(format!("could not build the otel http client: {err}"))
-        })?;
-        let otel_providers = OtelProviders::try_new(otel_config, http_client).map_err(|err| {
-            TracingError::Otel(format!(
-                "could not build the OpenTelemetry providers: {err}"
-            ))
-        })?;
-
-        let mut otel_layers = otel_providers.tracing_layers();
+        let otel_exporter = build_otel_exporter(otel_config)?;
+        // TODO: otel will eventually be one layer only
+        let mut otel_layers = otel_exporter.tracing_layers();
         layers.append(&mut otel_layers);
-
-        tracer = Box::new(OtelTracer::new(tracer, otel_providers));
+        // TODO: explain why this is needed
+        otel_exporter.set_global();
+        // TODO: check if consuming the exporter when building the layers would be enough to properly shutdown.
+        exporters.push(Box::new(otel_exporter));
     }
+    try_init_tracing_subscriber(layers)?;
+    debug!("tracing_subscriber initialized successfully");
 
-    tracer.try_init(layers)?;
-    debug!("Tracer initialized successfully");
-
-    Ok(tracer)
+    Ok(Box::new(exporters))
 }
 
-/// Implements a [Tracer] that registers a set of layers globally through [tracing_subscriber].
-///
-/// As a result, the initialization provided by this tracer is in charge of setting up tracer to be used
-/// globally.
-struct SubscriberTracer {}
+/// Sets up the tracing_subscriber corresponding to the provided layers to be used globally.
+fn try_init_tracing_subscriber(layers: Vec<LayerBox>) -> Result<(), TracingError> {
+    let subscriber = tracing_subscriber::registry().with(layers);
 
-impl Tracer for SubscriberTracer {
-    fn try_init(&self, layers: Vec<LayerBox>) -> Result<(), TracingError> {
-        let subscriber = tracing_subscriber::registry().with(layers);
+    #[cfg(feature = "tokio-console")]
+    let subscriber = subscriber.with(console_subscriber::spawn());
 
-        #[cfg(feature = "tokio-console")]
-        let subscriber = subscriber.with(console_subscriber::spawn());
+    subscriber
+        .try_init()
+        .map_err(|err| TracingError::Init(format!("unable to set agent global tracer: {err}")))?;
 
-        subscriber.try_init().map_err(|err| {
-            TracingError::Init(format!("unable to set agent global tracer: {err}"))
-        })?;
-
-        Ok(())
-    }
+    Ok(())
 }
 
-/// Extends a [Tracer] by holding a [FileGuard] which needs to be kept while reporting instrumentation to the
-/// corresponding file.
-struct FileTracer {
-    inner_tracer: Box<dyn Tracer>,
-    _file_guard: FileGuard,
-}
-
-impl FileTracer {
-    fn new(tracer: TracerBox, file_guard: FileGuard) -> Self {
-        Self {
-            inner_tracer: tracer,
-            _file_guard: file_guard,
-        }
-    }
-}
-
-impl Tracer for FileTracer {
-    fn try_init(&self, layers: Vec<LayerBox>) -> Result<(), TracingError> {
-        self.inner_tracer.try_init(layers)
-    }
-}
-
-/// Extends a [Tracer] with [OtelProviders]. The OpenTelemetry providers will be registered globally on
-/// initialization and shut down when the instance is dropped.
-struct OtelTracer {
-    inner_tracer: Box<dyn Tracer>,
-    otel_providers: Option<OtelProviders>,
-}
-
-impl OtelTracer {
-    fn new(tracer: TracerBox, otel_providers: OtelProviders) -> Self {
-        Self {
-            inner_tracer: tracer,
-            otel_providers: Some(otel_providers),
-        }
-    }
-}
-
-impl Tracer for OtelTracer {
-    fn try_init(&self, layers: Vec<LayerBox>) -> Result<(), TracingError> {
-        if let Some(otel_providers) = self.otel_providers.as_ref() {
-            otel_providers.set_global()
-        }
-        self.inner_tracer.try_init(layers)
-    }
-}
-
-impl Drop for OtelTracer {
-    fn drop(&mut self) {
-        if let Some(otel_providers) = self.otel_providers.take() {
-            let _ = otel_providers.shutdown().inspect_err(
-                |err| tracing::error!(%err, "error shutting down the OpenTelemetry providers"),
-            );
-        }
-    }
+// TODO: check naming and if this belong to the otel module
+fn build_otel_exporter(otel_config: &OtelConfig) -> Result<OtelExporter, TracingError> {
+    let http_config = HttpConfig::new(
+        otel_config.client_timeout.clone().into(),
+        otel_config.client_timeout.clone().into(),
+        otel_config.proxy.clone(),
+    );
+    let http_client = HttpClient::new(http_config).map_err(|err| {
+        TracingError::Otel(format!("could not build the otel http client: {err}"))
+    })?;
+    let otel_providers = OtelExporter::try_new(otel_config, http_client).map_err(|err| {
+        TracingError::Otel(format!(
+            "could not build the OpenTelemetry providers: {err}"
+        ))
+    })?;
+    Ok(otel_providers)
 }

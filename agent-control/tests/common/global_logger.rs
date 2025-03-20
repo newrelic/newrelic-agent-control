@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::Once;
 
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_LOG_DIR;
+use newrelic_agent_control::instrumentation::config::logs::config::LoggingConfig;
 use newrelic_agent_control::instrumentation::config::InstrumentationConfig;
-use newrelic_agent_control::instrumentation::logs::config::LoggingConfig;
 use newrelic_agent_control::instrumentation::tracing::{try_init_tracing, TracingConfig};
 
 static INIT_LOGGER: Once = Once::new();

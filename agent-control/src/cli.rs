@@ -6,7 +6,9 @@
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
-use crate::instrumentation::tracing::{try_init_tracing, TracerBox, TracingConfig, TracingError};
+use crate::instrumentation::tracing::{
+    try_init_tracing, InstrumentationExporterBox, TracingConfig, TracingError,
+};
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
@@ -48,7 +50,7 @@ pub enum CliError {
 /// What action was requested from the CLI?
 pub enum CliCommand {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlCliConfig, TracerBox),
+    InitAgentControl(AgentControlCliConfig, InstrumentationExporterBox),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),

@@ -1,5 +1,5 @@
+use super::config::LoggingConfigError;
 use crate::agent_control::defaults::AGENT_CONTROL_LOG_FILENAME;
-use crate::instrumentation::logs::config::LoggingConfigError;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
@@ -12,7 +12,7 @@ pub(crate) struct FileLoggingConfig {
 }
 
 impl FileLoggingConfig {
-    pub(super) fn setup(
+    pub(crate) fn setup(
         self,
         default_dir: PathBuf,
     ) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingConfigError> {
