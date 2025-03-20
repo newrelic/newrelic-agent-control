@@ -1,8 +1,10 @@
 //! AWS EC2 instance id detector implementation
-use super::http_client::AWSHttpClientReqwest;
+
 use super::metadata::AWSMetadata;
-use crate::cloud::http_client::{HttpClient, HttpClientError, DEFAULT_CLIENT_TIMEOUT};
+use crate::cloud::aws::http_client::AWSHttpClient;
+use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use core::str;
 use std::time::Duration;
 use thiserror::Error;
 
@@ -12,26 +14,17 @@ pub const AWS_IPV4_METADATA_ENDPOINT: &str =
 /// The default AWS instance metadata token endpoint.
 pub const AWS_IPV4_METADATA_TOKEN_ENDPOINT: &str = "http://169.254.169.254/latest/api/token";
 
-const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
+pub(crate) const TTL_TOKEN_DEFAULT: Duration = Duration::from_secs(10);
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct AWSDetector<C: HttpClient> {
-    http_client: C,
+    aws_http_client: AWSHttpClient<C>,
 }
 
-impl AWSDetector<AWSHttpClientReqwest> {
+impl<C: HttpClient> AWSDetector<C> {
     /// Returns a new instance of AWSDetector
-    pub fn try_new(
-        metadata_endpoint: String,
-        token_endpoint: String,
-    ) -> Result<Self, HttpClientError> {
-        let http_client = AWSHttpClientReqwest::try_new(
-            metadata_endpoint,
-            token_endpoint,
-            TTL_TOKEN_DEFAULT,
-            DEFAULT_CLIENT_TIMEOUT,
-        )?;
-        Ok(Self { http_client })
+    pub fn new(aws_http_client: AWSHttpClient<C>) -> Self {
+        Self { aws_http_client }
     }
 }
 
@@ -48,14 +41,13 @@ pub enum AWSDetectorError {
     #[error("Status code: `{0}` Canonical reason: `{1}`")]
     UnsuccessfulResponse(u16, String),
 }
-
 impl<C> Detector for AWSDetector<C>
 where
     C: HttpClient,
 {
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
-            .http_client
+            .aws_http_client
             .get()
             .map_err(AWSDetectorError::HttpError)?;
 
@@ -92,7 +84,15 @@ mod tests {
     #[test]
     fn detect_aws_metadata() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#" "#.as_bytes().to_vec())
+                .unwrap())
+        });
+
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
                 .body(
@@ -121,9 +121,14 @@ mod tests {
                 .unwrap())
         });
 
-        let detector = AWSDetector {
-            http_client: client_mock,
-        };
+        let aws_http_client = AWSHttpClient::new(
+            client_mock,
+            "/metadata".to_string(),
+            "/token".to_string(),
+            TTL_TOKEN_DEFAULT,
+        );
+
+        let detector = AWSDetector { aws_http_client };
 
         let identifiers = detector.detect().unwrap();
 
@@ -136,16 +141,29 @@ mod tests {
     #[test]
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#""#.as_bytes().to_vec())
+                .unwrap())
+        });
+
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(404)
                 .body(r#""#.as_bytes().to_vec())
                 .unwrap())
         });
 
-        let detector = AWSDetector {
-            http_client: client_mock,
-        };
+        let aws_http_client = AWSHttpClient::new(
+            client_mock,
+            "/metadata".to_string(),
+            "/token".to_string(),
+            TTL_TOKEN_DEFAULT,
+        );
+
+        let detector = AWSDetector { aws_http_client };
 
         let result = detector.detect();
 
@@ -160,16 +178,29 @@ mod tests {
     #[test]
     fn detect_json_error() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+
+        client_mock.expect_send().once().returning(|_| {
+            Ok(http::Response::builder()
+                .status(200)
+                .body(r#" "#.as_bytes().to_vec())
+                .unwrap())
+        });
+
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
                 .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
                 .unwrap())
         });
 
-        let detector = AWSDetector {
-            http_client: client_mock,
-        };
+        let aws_http_client = AWSHttpClient::new(
+            client_mock,
+            "/metadata".to_string(),
+            "/token".to_string(),
+            TTL_TOKEN_DEFAULT,
+        );
+
+        let detector = AWSDetector { aws_http_client };
 
         let result = detector.detect();
 

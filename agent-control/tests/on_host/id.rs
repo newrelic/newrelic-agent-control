@@ -8,8 +8,11 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::http::client::HttpClient;
+use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
 use newrelic_agent_control::opamp::instance_id::IdentifiersProvider;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
+use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -40,18 +43,31 @@ fn test_aws_cloud_id() {
         then.status(200).body(fake_token);
     });
 
-    let id = IdentifiersProvider::new(
-        SystemDetector::default(),
-        CloudIdDetector::try_new(
-            fake_metadata_server.url(metadata_path),
-            fake_metadata_server.url(token_path),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        )
-        .unwrap(),
-    )
-    .provide()
+    let http_client = HttpClient::new(HttpConfig::new(
+        DEFAULT_CLIENT_TIMEOUT,
+        DEFAULT_CLIENT_TIMEOUT,
+        ProxyConfig::default(),
+    ))
     .unwrap();
+
+    let cloud_id_detector = CloudIdDetector::new(
+        http_client.clone(),
+        http_client.clone(),
+        http_client,
+        fake_metadata_server.url(metadata_path),
+        fake_metadata_server.url(token_path),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+    );
+
+    let id_providers = IdentifiersProvider {
+        system_detector: SystemDetector::default(),
+        cloud_id_detector,
+        host_id: "".to_string(),
+        fleet_id: "".to_string(),
+    };
+
+    let id = id_providers.provide().unwrap();
 
     assert_eq!(id.cloud_instance_id, instance_id);
 
@@ -74,18 +90,31 @@ fn test_azure_cloud_id() {
             .body(AZURE_VM_RESPONSE);
     });
 
-    let id = IdentifiersProvider::new(
-        SystemDetector::default(),
-        CloudIdDetector::try_new(
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            fake_metadata_server.url(metadata_path),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        )
-        .unwrap(),
-    )
-    .provide()
+    let http_client = HttpClient::new(HttpConfig::new(
+        DEFAULT_CLIENT_TIMEOUT,
+        DEFAULT_CLIENT_TIMEOUT,
+        ProxyConfig::default(),
+    ))
     .unwrap();
+
+    let cloud_id_detector = CloudIdDetector::new(
+        http_client.clone(),
+        http_client.clone(),
+        http_client,
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        fake_metadata_server.url(metadata_path),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+    );
+
+    let id_providers = IdentifiersProvider {
+        system_detector: SystemDetector::default(),
+        cloud_id_detector,
+        host_id: "".to_string(),
+        fleet_id: "".to_string(),
+    };
+
+    let id = id_providers.provide().unwrap();
 
     assert_eq!(id.cloud_instance_id, instance_id);
 
@@ -108,18 +137,31 @@ fn test_gcp_cloud_id() {
             .body(GCP_VM_RESPONSE);
     });
 
-    let id = IdentifiersProvider::new(
-        SystemDetector::default(),
-        CloudIdDetector::try_new(
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-            fake_metadata_server.url(metadata_path),
-        )
-        .unwrap(),
-    )
-    .provide()
+    let http_client = HttpClient::new(HttpConfig::new(
+        DEFAULT_CLIENT_TIMEOUT,
+        DEFAULT_CLIENT_TIMEOUT,
+        ProxyConfig::default(),
+    ))
     .unwrap();
+
+    let cloud_id_detector = CloudIdDetector::new(
+        http_client.clone(),
+        http_client.clone(),
+        http_client,
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        fake_metadata_server.url(metadata_path),
+    );
+
+    let id_providers = IdentifiersProvider {
+        system_detector: SystemDetector::default(),
+        cloud_id_detector,
+        host_id: "".to_string(),
+        fleet_id: "".to_string(),
+    };
+
+    let id = id_providers.provide().unwrap();
 
     assert_eq!(id.cloud_instance_id, instance_id);
 

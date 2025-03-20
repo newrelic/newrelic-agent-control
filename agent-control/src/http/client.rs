@@ -1,7 +1,7 @@
 //! # Helpers to build a reqwest blocking client and handle responses and handle responses
 use crate::http::config::HttpConfig;
-use http::Request;
 use http::Response as HttpResponse;
+use http::{Request, Response};
 use nix::NixPath;
 use nr_auth::http_client::HttpClient as OauthHttpClient;
 use nr_auth::http_client::HttpClientError as OauthHttpClientError;
@@ -11,6 +11,8 @@ use reqwest::{
     blocking::{Client, Response as BlockingResponse},
     Certificate, Proxy,
 };
+use resource_detection::cloud::http_client::HttpClient as CloudClient;
+use resource_detection::cloud::http_client::HttpClientError as CloudClientError;
 use std::{
     fmt::Display,
     fs::File,
@@ -98,8 +100,20 @@ impl From<HttpResponseError> for OpampHttpClientError {
     }
 }
 
+impl CloudClient for HttpClient {
+    fn send(&self, request: Request<Vec<u8>>) -> Result<HttpResponse<Vec<u8>>, CloudClientError> {
+        Ok(self.send(request)?)
+    }
+}
+
+impl From<HttpResponseError> for CloudClientError {
+    fn from(err: HttpResponseError) -> Self {
+        CloudClientError::TransportError(err.to_string())
+    }
+}
+
 impl OauthHttpClient for HttpClient {
-    fn send(&self, req: Request<Vec<u8>>) -> Result<http::Response<Vec<u8>>, OauthHttpClientError> {
+    fn send(&self, req: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, OauthHttpClientError> {
         let response = self.send(req)?;
 
         Ok(response)

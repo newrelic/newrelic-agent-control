@@ -2,11 +2,11 @@
 use thiserror::Error;
 use tracing::warn;
 
-use crate::cloud::aws::detector::AWSDetector;
-use crate::cloud::aws::http_client::AWSHttpClientReqwest;
+use crate::cloud::aws::detector::{AWSDetector, TTL_TOKEN_DEFAULT};
+use crate::cloud::aws::http_client::AWSHttpClient;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
-use crate::cloud::http_client::{HttpClientError, HttpClientReqwest};
+use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
@@ -20,25 +20,31 @@ pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
     gcp_detector: GCP,
 }
 
-impl
-    CloudIdDetector<
-        AWSDetector<AWSHttpClientReqwest>,
-        AzureDetector<HttpClientReqwest>,
-        GCPDetector<HttpClientReqwest>,
-    >
+impl<C> CloudIdDetector<AWSDetector<C>, AzureDetector<C>, GCPDetector<C>>
+where
+    C: HttpClient,
 {
     /// Returns a new instance of CloudIdDetector
-    pub fn try_new(
+    pub fn new(
+        azure_http_client: C,
+        aws_http_client: C,
+        gpc_http_client: C,
         aws_metadata_endpoint: String,
         aws_token_endpoint: String,
         azure_metadata_endpoint: String,
         gcp_metadata_endpoint: String,
-    ) -> Result<Self, HttpClientError> {
-        Ok(Self {
-            aws_detector: AWSDetector::try_new(aws_metadata_endpoint, aws_token_endpoint)?,
-            azure_detector: AzureDetector::try_new(azure_metadata_endpoint)?,
-            gcp_detector: GCPDetector::try_new(gcp_metadata_endpoint)?,
-        })
+    ) -> Self {
+        let aws_http_client = AWSHttpClient::new(
+            aws_http_client,
+            aws_metadata_endpoint,
+            aws_token_endpoint,
+            TTL_TOKEN_DEFAULT,
+        );
+        Self {
+            aws_detector: AWSDetector::new(aws_http_client),
+            azure_detector: AzureDetector::new(azure_http_client, azure_metadata_endpoint),
+            gcp_detector: GCPDetector::new(gpc_http_client, gcp_metadata_endpoint),
+        }
     }
 }
 
@@ -168,9 +174,9 @@ mod tests {
         let gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {
@@ -206,9 +212,9 @@ mod tests {
         let mut gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {
@@ -250,9 +256,9 @@ mod tests {
         let mut gcp_detector_mock = MockDetectorMock::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, "No VM Found".to_string()),
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, "No VM Found".to_string()),
+            )))
         });
 
         azure_detector_mock.expect_detect().once().returning(|| {

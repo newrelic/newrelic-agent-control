@@ -1,8 +1,6 @@
 //! GCP instance id detector implementation
 use super::metadata::GCPMetadata;
-use crate::cloud::http_client::{
-    HttpClient, HttpClientError, HttpClientReqwest, DEFAULT_CLIENT_TIMEOUT,
-};
+use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::cloud::GCP_INSTANCE_ID;
 use crate::{DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
@@ -13,25 +11,29 @@ pub const GCP_IPV4_METADATA_ENDPOINT: &str =
     "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true";
 
 /// The `GCPDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
-pub struct GCPDetector<C: HttpClient> {
-    http_client: C,
+pub struct GCPDetector<E: HttpClient> {
+    http_client: E,
+    metadata_endpoint: String,
+    headers: HeaderMap,
 }
 
 const HEADER_KEY: &str = "Metadata-Flavor";
 const HEADER_VALUE: &str = "Google";
 
-impl GCPDetector<HttpClientReqwest> {
+impl<C: HttpClient> GCPDetector<C> {
     /// Returns a new instance of GCPDetector
-    pub fn try_new(metadata_endpoint: String) -> Result<Self, HttpClientError> {
+    pub fn new(http_client: C, metadata_endpoint: String) -> Self {
         let mut headers = HeaderMap::new();
         headers.insert(
             HEADER_KEY,
             HEADER_VALUE.parse().expect("constant valid value"),
         );
-        let http_client =
-            HttpClientReqwest::try_new(metadata_endpoint, DEFAULT_CLIENT_TIMEOUT, Some(headers))?;
 
-        Ok(Self { http_client })
+        Self {
+            http_client,
+            metadata_endpoint,
+            headers,
+        }
     }
 }
 
@@ -56,8 +58,8 @@ where
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
             .http_client
-            .get()
-            .map_err(GCPDetectorError::HttpError)?;
+            .get(self.metadata_endpoint.to_string(), self.headers.clone())
+            .map_err(|e| DetectError::GCPError(GCPDetectorError::HttpError(e)))?;
 
         // return error if status code is not within 200-299.
         if !response.status().is_success() {
@@ -92,7 +94,8 @@ mod tests {
     #[test]
     fn detect_gcp_metadata() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
                 .body(
@@ -158,6 +161,8 @@ mod tests {
 
         let detector = GCPDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let identifiers = detector.detect().unwrap();
@@ -171,7 +176,7 @@ mod tests {
     #[test]
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(404)
                 .body(r#""#.as_bytes().to_vec())
@@ -180,6 +185,8 @@ mod tests {
 
         let detector = GCPDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let result = detector.detect();
@@ -195,7 +202,7 @@ mod tests {
     #[test]
     fn detect_json_error() {
         let mut client_mock = MockHttpClientMock::new();
-        client_mock.expect_get().once().returning(|| {
+        client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
                 .body(r#"{ this is an invalid json right }"#.as_bytes().to_vec())
@@ -204,6 +211,8 @@ mod tests {
 
         let detector = GCPDetector {
             http_client: client_mock,
+            metadata_endpoint: "/metadata".to_string(),
+            headers: Default::default(),
         };
 
         let result = detector.detect();

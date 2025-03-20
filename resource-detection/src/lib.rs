@@ -8,9 +8,8 @@
 
 #![warn(missing_docs)]
 
-use std::collections::HashMap;
-
 use cloud::aws::detector::AWSDetectorError;
+use std::collections::HashMap;
 use system::detector::SystemDetectorError;
 
 pub mod cloud;

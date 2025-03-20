@@ -11,6 +11,8 @@ use crate::agent_type::environment::Environment;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
+use crate::http::client::HttpClient;
+use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
@@ -30,6 +32,7 @@ use crate::{
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
 use opamp_client::operation::settings::DescriptionValueType;
+use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -61,7 +64,15 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
 
-        let identifiers_provider = IdentifiersProvider::try_new()?
+        let http_client = HttpClient::new(HttpConfig::new(
+            DEFAULT_CLIENT_TIMEOUT,
+            DEFAULT_CLIENT_TIMEOUT,
+            // The default value of proxy configuration is an empty proxy config without any rule
+            ProxyConfig::default(),
+        ))
+        .map_err(|e| AgentError::HttpError(e.to_string()))?;
+
+        let identifiers_provider = IdentifiersProvider::new(http_client)
             .with_host_id(config.host_id.clone())
             .with_fleet_id(fleet_id);
 
