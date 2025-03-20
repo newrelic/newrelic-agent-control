@@ -6,17 +6,18 @@ use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
 use tracing_subscriber::Layer;
 
-pub type FileExporter = WorkerGuard;
+pub type FileTracingExporter = WorkerGuard;
 
-// TODO: add comment
-impl TracingExporter for FileExporter {}
+// Allow using the file guard as tracing exporter in order to keep it alive while the application
+// reports instrumentation.
+impl TracingExporter for FileTracingExporter {}
 
 /// Returns an Optional [LayerBox] corresponding to a file output and the corresponding [WorkerGuard].
 /// The result will be None if the file logger is not enabled.
 pub fn file(
     config: &LoggingConfig,
     default_dir: PathBuf,
-) -> Result<Option<(LayerBox, FileExporter)>, LoggingConfigError> {
+) -> Result<Option<(LayerBox, FileTracingExporter)>, LoggingConfigError> {
     let target = config.format.target;
     let timestamp_fmt = config.format.timestamp.0.clone();
 
