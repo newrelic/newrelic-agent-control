@@ -51,43 +51,48 @@ impl OtelConfig {
         Self { proxy, ..self }
     }
 
+    /// Returns the otel endpoint to report traces to.
     pub(crate) fn traces_endpoint(&self) -> String {
-        if let Some(endpoint) = self.traces.endpoint.as_ref() {
-            endpoint.to_string()
-        } else {
-            self.endpoint
-                .join(TRACES_SUFFIX)
-                .expect("this is a bug: invalid value for TRACES_SUFFIX")
-                .to_string()
-        }
+        self.target_endpoint(TRACES_SUFFIX)
     }
 
+    /// Returns the otel endpoint to report metrics to.
     pub(crate) fn metrics_endpoint(&self) -> String {
-        if let Some(endpoint) = self.metrics.endpoint.as_ref() {
-            endpoint.to_string()
-        } else {
-            self.endpoint
-                .join(METRICS_SUFFIX)
-                .expect("this is a bug: invalid value for METRICS_SUFFIX")
-                .to_string()
-        }
+        self.target_endpoint(METRICS_SUFFIX)
     }
 
     // TODO: add logs_endpoint() method
+
+    /// Helper to get the endpoint for each data type
+    ///
+    /// # Panics
+    /// - If the suffix is not a valid suffix to append to the url
+    fn target_endpoint(&self, suffix: &str) -> String {
+        self.endpoint
+            .join(suffix)
+            .unwrap_or_else(|err| {
+                panic!("this is a bug: invalid suffix '{suffix}' for otel endpoint: {err}")
+            })
+            .to_string()
+    }
 }
 
+/// Defines the configuration setting to report metrics to OpenTelemetry
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct MetricsConfig {
+    /// Indicates if metrics are enabled or not
     pub(crate) enabled: bool,
+    /// Sets up the interval to report metrics. They are reported periodically according to it.
     pub(crate) interval: MetricsExportInterval,
-    pub(crate) endpoint: Option<Url>,
 }
 
+/// Defines the configuration settings to report traces to OpenTelemetry
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct TracesConfig {
+    /// Indicates if traces are enabled or not
     pub(crate) enabled: bool,
+    /// Traces are reported in batches, this field defines the batch configuration.
     pub(crate) batch_config: BatchConfig,
-    pub(crate) endpoint: Option<Url>,
 }
 
 /// Type to represent a client timeout. It adds a default implementation to [std::time::Duration].

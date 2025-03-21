@@ -36,8 +36,8 @@ pub enum CliError {
     /// Could not initialize tracer
     #[error("Could not initialize tracer: `{0}`")]
     TracerError(#[from] TracingError),
-    #[error("k8s config missing while running on k8s ")]
     /// K8s config is missing
+    #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
     /// The config could not be read
     #[error("Could not read Agent Control config from `{0}`: `{1}`")]
@@ -129,7 +129,7 @@ impl Cli {
             agent_control_config.log,
             agent_control_config
                 .instrumentation
-                .with_proxy_config(proxy.clone()),
+                .with_proxy_config(proxy.clone()), // The global proxy configuration also applies for instrumentation reporting.
         );
         let tracer = try_init_tracing(tracing_config)?;
 
