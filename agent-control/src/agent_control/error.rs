@@ -10,6 +10,7 @@ use crate::opamp::instance_id;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
+use crate::utils::thread_context::ThreadContextStopperError;
 use crate::values::yaml_config::YAMLConfigError;
 use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
 use fs::file_reader::FileReaderError;
@@ -20,94 +21,87 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum AgentError {
-    #[error("channel is not present in the agent initializer")]
-    ChannelExtractError,
-
     #[error("could not resolve config: `{0}`")]
-    ConfigResolveError(#[from] AgentControlConfigError),
+    ConfigResolve(#[from] AgentControlConfigError),
 
     #[error("agent repository error: `{0}`")]
-    AgentRepositoryError(#[from] AgentRepositoryError),
+    AgentRepository(#[from] AgentRepositoryError),
 
     #[error("filesystem error: `{0}`")]
-    FileSystemError(#[from] std::io::Error),
+    FileSystem(#[from] std::io::Error),
 
     #[error("error deserializing YAML: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
 
     #[error("agent type error `{0}`")]
-    AgentTypeError(#[from] AgentTypeError),
+    AgentType(#[from] AgentTypeError),
 
     #[error("`{0}`")]
-    OpAMPBuilderError(#[from] OpAMPClientBuilderError),
+    OpAMPBuilder(#[from] OpAMPClientBuilderError),
 
     #[error("file reader error: `{0}`")]
-    FileReaderError(#[from] FileReaderError),
+    FileReader(#[from] FileReaderError),
 
     #[error("`{0}`")]
-    OpAMPClientError(#[from] ClientError),
+    OpAMPClient(#[from] ClientError),
 
     #[error("`{0}`")]
-    OpAMPNotStartedClientError(#[from] NotStartedClientError),
+    OpAMPNotStartedClient(#[from] NotStartedClientError),
 
     #[error("`{0}`")]
-    OpAMPStartedClientError(#[from] StartedClientError),
+    OpAMPStartedClient(#[from] StartedClientError),
 
     #[error("error persisting agent config: `{0}`")]
-    PersistError(#[from] PersistError),
+    Persistence(#[from] PersistError),
 
     #[error("error getting agent instance id: `{0}`")]
-    GetInstanceIDError(#[from] instance_id::GetterError),
+    GetInstanceID(#[from] instance_id::GetterError),
 
     #[error("`Sub Agent error: {0}`")]
-    SubAgentError(#[from] SubAgentError),
+    SubAgent(#[from] SubAgentError),
 
     #[error("`{0}`")]
     SubAgentBuilder(#[from] SubAgentBuilderError),
 
     #[error("`{0}`")]
-    SubAgentCollectionError(#[from] SubAgentCollectionError),
+    SubAgentCollection(#[from] SubAgentCollectionError),
 
     #[error("system time error: `{0}`")]
-    SystemTimeError(#[from] SystemTimeError),
+    SystemTime(#[from] SystemTimeError),
 
     #[error("remote config hash error: `{0}`")]
-    RemoteConfigHashError(#[from] HashRepositoryError),
+    RemoteConfigHash(#[from] HashRepositoryError),
 
     #[error("effective agents assembler error: `{0}`")]
-    EffectiveAgentsAssemblerError(#[from] EffectiveAgentsAssemblerError),
+    EffectiveAgentsAssembler(#[from] EffectiveAgentsAssemblerError),
 
     #[error("remote config error: `{0}`")]
-    RemoteConfigError(#[from] RemoteConfigError),
+    RemoteConfig(#[from] RemoteConfigError),
 
     #[error("sub agent remote config error: `{0}`")]
-    SubAgentRemoteConfigError(#[from] YAMLConfigRepositoryError),
+    SubAgentRemoteConfig(#[from] YAMLConfigRepositoryError),
 
+    #[cfg(feature = "k8s")]
     #[error("External module error: `{0}`")]
     ExternalError(String),
 
     #[error("error from http client: `{0}`")]
-    HttpError(String),
+    Http(String),
 
-    #[error("k8s config missing while running on k8s ")]
-    K8sConfig(),
-
+    #[cfg(feature = "onhost")]
     #[error("required identifiers error: `{0}`")]
-    IdentifiersError(String),
-
-    #[error("invalid argument: `{0}`")]
-    InvalidArgumentError(String),
+    Identifiers(String),
 
     #[error("error publishing event: `{0}`")]
-    EventPublisherError(#[from] EventPublisherError),
+    EventPublisher(#[from] EventPublisherError),
 
     #[error("parsing remote config into YAMLConfig: `{0}`")]
-    YAMLConfigError(#[from] YAMLConfigError),
+    YAMLConfig(#[from] YAMLConfigError),
 
     #[cfg(feature = "onhost")]
     #[error("failed to initialize the identifiers provider: `{0}`")]
     InitializeIdentifiersProvider(#[from] instance_id::IdentifiersProviderError),
 
     #[error("agent control remote config validation error: `{0}`")]
-    RemoteConfigValidatorError(#[from] DynamicConfigValidatorError),
+    RemoteConfigValidator(#[from] DynamicConfigValidatorError),
 }
