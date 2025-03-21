@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
 
-use crate::http::config::ProxyConfig;
+use crate::{http::config::ProxyConfig, reporter::UptimeReporterInterval};
 
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -53,6 +53,9 @@ pub struct OtelConfig {
     /// serde serialization and deserialization.
     #[serde(skip)]
     pub(crate) proxy: ProxyConfig,
+
+    #[serde(default)]
+    pub(crate) uptime_reporter_interval: UptimeReporterInterval,
 }
 
 fn default_insecure_level() -> String {
@@ -218,6 +221,7 @@ pub(crate) mod tests {
                 headers: Default::default(),
                 client_timeout: Default::default(),
                 proxy: Default::default(),
+                uptime_reporter_interval: Default::default(),
             }
         }
     }

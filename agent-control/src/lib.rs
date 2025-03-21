@@ -10,6 +10,7 @@ pub mod context;
 pub mod event;
 pub mod http;
 pub mod opamp;
+pub mod reporter;
 pub mod sub_agent;
 pub mod utils;
 
