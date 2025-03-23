@@ -63,7 +63,7 @@ where
     DV: DynamicConfigValidator,
 {
     #[allow(clippy::too_many_arguments)]
-    pub(super) fn new(
+    pub fn new(
         opamp_client: Option<O>,
         remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
@@ -90,7 +90,7 @@ where
         }
     }
 
-    pub(super) fn run(self) -> Result<(), AgentError> {
+    pub fn run(self) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
         if let Some(opamp_client) = &self.opamp_client {
             match self.remote_config_hash_repository.get(&self.agent_id) {
