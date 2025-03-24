@@ -73,6 +73,7 @@ pub struct AgentControlRunner {
     agent_control_publisher: EventPublisher<AgentControlEvent>,
     sub_agent_publisher: EventPublisher<SubAgentEvent>,
     signature_validator: SignatureValidator,
+    #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
     #[cfg(feature = "k8s")]
     k8s_config: super::config::K8sConfig,

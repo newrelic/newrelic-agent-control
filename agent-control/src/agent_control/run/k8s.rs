@@ -112,7 +112,7 @@ impl AgentControlRunner {
         // Disable startup check for sub-agents OpAMP client builder
         let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
-        let template_renderer = TemplateRenderer::new(self.base_paths.remote_dir);
+        let template_renderer = TemplateRenderer::default();
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),

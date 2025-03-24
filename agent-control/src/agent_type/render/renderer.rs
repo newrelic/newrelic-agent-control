@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
+use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, GENERATED_FOLDER_NAME};
 use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
@@ -28,9 +28,10 @@ pub trait Renderer {
     ) -> Result<Runtime, AgentTypeError>;
 }
 
+#[derive(Debug, Default)]
 pub struct TemplateRenderer<C: ConfigurationPersister> {
     persister: Option<C>,
-    config_base_dir: PathBuf,
+    config_base_dir: Option<PathBuf>,
     sa_variables: HashMap<NamespacedVariableName, VariableDefinition>,
 }
 
@@ -61,7 +62,12 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         // If another kind with specific actions is introduced, the kind definition should be refactored to allow
         // performing additional actions when filling variables with values.
         if let Some(persister) = &self.persister {
-            let sub_agent_config_path = self.subagent_config_path(agent_id);
+            let sub_agent_config_path = self
+                .config_base_dir
+                .as_ref()
+                .unwrap_or(&PathBuf::from(AGENT_CONTROL_DATA_DIR))
+                .join(GENERATED_FOLDER_NAME)
+                .join(agent_id);
             filled_variables =
                 Self::extend_variables_file_path(sub_agent_config_path, filled_variables);
             persister.delete_agent_config(agent_id)?;
@@ -79,14 +85,6 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
 }
 
 impl<C: ConfigurationPersister> TemplateRenderer<C> {
-    pub fn new(config_base_dir: PathBuf) -> Self {
-        Self {
-            persister: None,
-            config_base_dir,
-            sa_variables: HashMap::new(),
-        }
-    }
-
     /// Adds variables to the renderer with the agent-control namespace.
     pub fn with_agent_control_variables(
         self,
@@ -105,18 +103,12 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         }
     }
 
-    pub fn with_config_persister(self, c: C) -> Self {
+    pub fn with_config_persister(self, c: C, config_base_dir: PathBuf) -> Self {
         Self {
             persister: Some(c),
+            config_base_dir: Some(config_base_dir),
             ..self
         }
-    }
-
-    // Returns the config path for a sub-agent.
-    fn subagent_config_path(&self, agent_id: &AgentID) -> PathBuf {
-        self.config_base_dir
-            .join(GENERATED_FOLDER_NAME)
-            .join(agent_id)
     }
 
     // Extends the path of all variables with the sub-agent generated config path.
@@ -186,21 +178,7 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError;
     use mockall::{mock, predicate};
-
-    fn test_data_dir() -> PathBuf {
-        PathBuf::from("/some/path")
-    }
-
-    impl<C: ConfigurationPersister> Default for TemplateRenderer<C> {
-        fn default() -> Self {
-            Self {
-                persister: None,
-                // TODO replace this
-                config_base_dir: test_data_dir(),
-                sa_variables: HashMap::new(),
-            }
-        }
-    }
+    use tempfile::TempDir;
 
     mock! {
          pub(crate) RendererMock {}
@@ -310,7 +288,8 @@ pub(crate) mod tests {
         let values = AGENT_VALUES_WITH_FILES;
         let attributes = testing_agent_attributes(&agent_id);
         // The persister should receive filled variables with the path expanded.
-        let path_as_string = test_data_dir().join(GENERATED_FOLDER_NAME).join(&agent_id);
+        let data_dir: TempDir = TempDir::new().unwrap();
+        let path_as_string = data_dir.path().join(GENERATED_FOLDER_NAME).join(&agent_id);
         let filled_variables = agent_type.fill_variables(values);
 
         let expanded_path_filled_variables =
@@ -323,7 +302,8 @@ pub(crate) mod tests {
         persister.should_delete_agent_config(&agent_id);
         persister.should_persist_agent_config(&agent_id, &expanded_path_filled_variables);
 
-        let renderer = TemplateRenderer::default().with_config_persister(persister);
+        let renderer = TemplateRenderer::default()
+            .with_config_persister(persister, data_dir.path().to_path_buf());
 
         let runtime_config = renderer
             .render(
@@ -365,7 +345,9 @@ pub(crate) mod tests {
         ));
         persister.should_not_delete_agent_config(&agent_id, err);
 
-        let renderer = TemplateRenderer::default().with_config_persister(persister);
+        let data_dir: TempDir = TempDir::new().unwrap();
+        let renderer = TemplateRenderer::default()
+            .with_config_persister(persister, data_dir.path().to_path_buf());
         let expected_error = renderer
             .render(&agent_id, agent_type, values, attributes, HashMap::new())
             .err()
@@ -391,7 +373,9 @@ pub(crate) mod tests {
         persister.should_delete_agent_config(&agent_id);
         persister.should_not_persist_agent_config(&agent_id, &filled_variables, err);
 
-        let renderer = TemplateRenderer::default().with_config_persister(persister);
+        let data_dir: TempDir = TempDir::new().unwrap();
+        let renderer = TemplateRenderer::default()
+            .with_config_persister(persister, data_dir.path().to_path_buf());
 
         let expected_error = renderer
             .render(
