@@ -128,7 +128,7 @@ impl Cli {
             .with_logging_config(agent_control_config.log)
             .with_instrumentation_config(
                 agent_control_config
-                    .instrumentation
+                    .self_instrumentation
                     .with_proxy_config(proxy.clone()),
             );
         let tracer = try_init_tracing(tracing_config)?;

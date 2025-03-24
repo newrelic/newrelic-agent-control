@@ -46,7 +46,7 @@ pub struct AgentControlConfig {
     pub proxy: ProxyConfig,
 
     #[serde(default)]
-    pub instrumentation: InstrumentationConfig,
+    pub self_instrumentation: InstrumentationConfig,
 }
 
 #[derive(Error, Debug)]
