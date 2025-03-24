@@ -27,15 +27,12 @@ pub enum TracingError {
     Otel(#[from] OtelBuildError),
 }
 
-/// This trait represent any exporter whose resources cannot be dropped while application
+/// This trait represent any instrumentation data source whose resources cannot be dropped while application
 /// reports instrumentation.
-pub trait TracingExporter {}
+pub trait TracingGuard {}
 
-/// Type to represent any [TracingExporter] whose type will be known at runtime.
-pub type InstrumentationExporterBox = Box<dyn TracingExporter>;
-
-/// Allows using a collection of tracing exporters as a tracing exporter.
-impl TracingExporter for Vec<InstrumentationExporterBox> {}
+/// Type to represent any [TracingGuard] whose type will be known at runtime.
+pub type TracingGuardBox = Box<dyn TracingGuard>;
 
 /// Represents a registry layer to report tracing data to any destination.
 /// Check [tracing_subscriber::Layer] and [tracing_subscriber::Registry] for details.
@@ -49,23 +46,38 @@ pub struct TracingConfig {
 }
 
 impl TracingConfig {
-    /// Returns a new instance.
-    pub fn new(
-        logging_path: PathBuf,
-        logging_config: LoggingConfig,
+    /// Returns tracing config the logging path set only.
+    pub fn from_logging_path(logging_path: PathBuf) -> Self {
+        Self {
+            logging_path,
+            logging_config: Default::default(),
+            instrumentation_config: Default::default(),
+        }
+    }
+
+    /// Sets logging config in a new configuration instance
+    pub fn with_logging_config(self, logging_config: LoggingConfig) -> Self {
+        Self {
+            logging_config,
+            ..self
+        }
+    }
+
+    /// Sets instrumentation config in a new configuration instance
+    pub fn with_instrumentation_config(
+        self,
         instrumentation_config: InstrumentationConfig,
     ) -> Self {
         Self {
-            logging_path,
-            logging_config,
             instrumentation_config,
+            ..self
         }
     }
 }
 
 /// This function allows initializing tracing as setup in the provided configuration.
 ///
-/// Depending on the configuration, the tracer will be shutdown on drop, therefore the corresponding
+/// Depending on the configuration, the tracer might be shutdown on drop, therefore the corresponding
 /// instrumentation may not work as expected after it is dropped.
 ///
 /// # Example:
@@ -75,23 +87,19 @@ impl TracingConfig {
 /// # use newrelic_agent_control::instrumentation::config::{InstrumentationConfig, logs::config::LoggingConfig};
 /// # use std::path::PathBuf;
 ///
-/// let tracing_config = TracingConfig::new(
-///     PathBuf::from("/some/path"),
-///     LoggingConfig::default(),
-///     InstrumentationConfig::default(),
-/// );
-/// let _tracing_exporter = try_init_tracing(tracing_config).expect("could not initialize tracing");
+/// let tracing_config = TracingConfig::from_logging_path(PathBuf::from("/some/path"));
+/// let _tracing_guard = try_init_tracing(tracing_config).expect("could not initialize tracing");
 ///
 /// tracing::info!("some instrumentation");
 /// ```
-pub fn try_init_tracing(config: TracingConfig) -> Result<InstrumentationExporterBox, TracingError> {
+pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, TracingError> {
     // Currently stdout output is always on, we could consider allowing to turn it off.
     let mut layers = Vec::from([stdout(&config.logging_config)?]);
-    let mut exporters = Vec::<InstrumentationExporterBox>::new();
+    let mut guards = Vec::<TracingGuardBox>::new();
 
     if let Some((file_layer, file_guard)) = file(&config.logging_config, config.logging_path)? {
         layers.push(file_layer);
-        exporters.push(Box::new(file_guard));
+        guards.push(Box::new(file_guard));
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
@@ -103,7 +111,7 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<InstrumentationExporter
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
 
-    Ok(Box::new(exporters))
+    Ok(guards)
 }
 
 /// Sets up the tracing_subscriber corresponding to the provided layers to be used globally.

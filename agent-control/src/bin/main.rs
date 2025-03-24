@@ -11,7 +11,7 @@ use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use newrelic_agent_control::instrumentation::tracing::InstrumentationExporterBox;
+use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
@@ -64,7 +64,7 @@ fn main() -> ExitCode {
 /// ```
 fn _main(
     agent_control_config: AgentControlCliConfig,
-    _tracer: InstrumentationExporterBox, // Needs to take ownership of the tracer as it can be shutdown on drop
+    _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(all(unix, feature = "onhost"))]
     if !nix::unistd::Uid::effective().is_root() {

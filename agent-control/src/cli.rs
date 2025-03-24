@@ -7,7 +7,7 @@ mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
 use crate::instrumentation::tracing::{
-    try_init_tracing, InstrumentationExporterBox, TracingConfig, TracingError,
+    try_init_tracing, TracingConfig, TracingError, TracingGuardBox,
 };
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::YAMLConfigRepositoryFile;
@@ -50,7 +50,7 @@ pub enum CliError {
 /// What action was requested from the CLI?
 pub enum CliCommand {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlCliConfig, InstrumentationExporterBox),
+    InitAgentControl(AgentControlCliConfig, Vec<TracingGuardBox>),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
@@ -124,13 +124,13 @@ impl Cli {
             .try_with_url_from_env()
             .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
 
-        let tracing_config = TracingConfig::new(
-            base_paths.log_dir.clone(),
-            agent_control_config.log,
-            agent_control_config
-                .instrumentation
-                .with_proxy_config(proxy.clone()), // The global proxy configuration also applies for instrumentation reporting.
-        );
+        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
+            .with_logging_config(agent_control_config.log)
+            .with_instrumentation_config(
+                agent_control_config
+                    .instrumentation
+                    .with_proxy_config(proxy.clone()),
+            );
         let tracer = try_init_tracing(tracing_config)?;
 
         info!("{}", binary_metadata());
