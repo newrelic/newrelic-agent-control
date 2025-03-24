@@ -19,11 +19,11 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer, R
 /// Represents errors while setting up or shutting down tracing.
 #[derive(Error, Debug)]
 pub enum TracingError {
-    #[error("logging config error: {0}")]
+    #[error("could not initialize logging component: {0}")]
     Logs(#[from] LoggingConfigError),
     #[error("could not start tracing: {0}")]
     Init(String),
-    #[error("OpenTelemetry initialization error: {0}")]
+    #[error("could not initialize OpenTelemetry component: {0}")]
     Otel(#[from] OtelBuildError),
 }
 
