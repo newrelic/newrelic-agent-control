@@ -7,7 +7,7 @@ use super::{
     },
     tracing_layers::{
         file::file,
-        otel::{OtelBuildError, OtelLayersProvider},
+        otel::{OtelBuildError, OtelLayers},
         stdout::stdout,
     },
 };
@@ -103,9 +103,8 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        let layers_provider = OtelLayersProvider::try_new(otel_config)?;
         // TODO: otel will eventually be one layer only (rebase)
-        let mut otel_layers = layers_provider.layers();
+        let mut otel_layers = OtelLayers::try_build(otel_config)?;
         layers.append(&mut otel_layers);
     }
     try_init_tracing_subscriber(layers)?;

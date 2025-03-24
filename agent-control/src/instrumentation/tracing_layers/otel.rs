@@ -33,21 +33,22 @@ pub enum OtelBuildError {
 ///
 /// The providers' shutdown will be automatically triggered when all their references are dropped.
 /// Check the providers documentation for details. Eg: [SdkTracerProvider].
-pub struct OtelLayersProvider {
+pub struct OtelLayers {
     traces_provider: Option<SdkTracerProvider>,
     metrics_provider: Option<SdkMeterProvider>,
 }
 
-impl OtelLayersProvider {
-    pub fn try_new(config: &OtelConfig) -> Result<Self, OtelBuildError> {
+impl OtelLayers {
+    /// Returns the [tracing_subscriber] layers corresponding to the provided configuration.
+    pub fn try_build(config: &OtelConfig) -> Result<Vec<LayerBox>, OtelBuildError> {
         let http_config = HttpConfig::new(
             config.client_timeout.clone().into(),
             config.client_timeout.clone().into(),
             config.proxy.clone(),
         );
         let http_client = HttpClient::new(http_config)?;
-        let otel_providers = OtelLayersProvider::try_new_with_client(config, http_client)?;
-        Ok(otel_providers)
+        let otel_providers = OtelLayers::try_new_with_client(config, http_client)?;
+        Ok(otel_providers.layers())
     }
 
     /// Builds the providers corresponding to the provided configuration.
