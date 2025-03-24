@@ -4,7 +4,8 @@ agent-control-deployment:
   config:
     fleet_control:
       enabled: true
-      fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTUzY2RkLTU1MWEtN2Y3NS1iZDhmLWI0YjA0Yzg5MmNhMQ
+      # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
+      fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
       auth:
         secret:
           create: false
