@@ -7,6 +7,7 @@ license_key = os.getenv('LICENSE_KEY', "")
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
+fleet_id = os.getenv('FLEET_ID', "")
 
 # build_with options:
 # cargo: No crosscompilation, faster than cross
@@ -82,6 +83,9 @@ if license_key != '':
   
 if cluster != '':
   flags_helm.append('--set=global.cluster='+cluster)
+
+if fleet_id != '':
+  flags_helm.append('--set=agent-control-deployment.config.fleet_control.fleet_id='+fleet_id)
 
 #### Installs charts
 helm_resource(

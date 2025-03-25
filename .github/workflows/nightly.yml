@@ -120,6 +120,8 @@ jobs:
           # SI L2 for AC
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
           NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+          # Fleet with name 'ac-e2e-2' ('Agent Control Canaries' prod account)
+          FLEET_ID: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
           # Tilt configs
           ARCH: amd64
           BUILD_WITH: cargo
