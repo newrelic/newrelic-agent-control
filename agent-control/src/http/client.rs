@@ -254,19 +254,34 @@ fn path_has_cert_extension(path: &Path) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use crate::http::config::ProxyConfig;
-
+pub(crate) mod tests {
     use super::*;
+    use crate::http::config::ProxyConfig;
     use assert_matches::assert_matches;
+    use async_trait::async_trait;
     use http::StatusCode;
+    use http::{Request, Response};
     use httpmock::Method::GET;
     use httpmock::MockServer;
+    use mockall::mock;
     use std::fs::File;
     use std::io::Write;
     use std::time::Duration;
     use tempfile::tempdir;
     use url::Url;
+
+    mock! {
+        #[derive(Debug)]
+        pub OtelHttpClientMock {}
+        #[async_trait]
+        impl opentelemetry_http::HttpClient for OtelHttpClientMock {
+            async fn send_bytes(&self, request:  Request<opentelemetry_http::Bytes>) -> Result<Response<opentelemetry_http::Bytes>, opentelemetry_http::HttpError>;
+        }
+
+        impl Clone for OtelHttpClientMock {
+            fn clone(&self) -> Self;
+        }
+    }
 
     const INVALID_TESTING_CERT: &str =
         "-----BEGIN CERTIFICATE-----\ninvalid!\n-----END CERTIFICATE-----";

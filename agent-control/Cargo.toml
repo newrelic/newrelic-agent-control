@@ -77,6 +77,7 @@ opentelemetry_sdk = { version = "0.28.0", features = [
 tracing-opentelemetry = "0.29.0"
 opentelemetry-otlp = { version = "0.28.0", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.28.0"}
+opentelemetry-appender-tracing = { version = "0.28.1", features = ["experimental_use_tracing_span_context"]}
 async-trait = "0.1.86"
 
 [dev-dependencies]
