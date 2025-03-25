@@ -33,9 +33,8 @@ impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
     // and custom data_dir path
     pub fn new(data_dir: &Path) -> Self {
         ConfigurationPersisterFile {
-            file_writer: LocalFile,
-            directory_manager: DirectoryManagerFs,
             generated_conf_path: PathBuf::from(data_dir).join(GENERATED_FOLDER_NAME),
+            ..Default::default()
         }
     }
 }
