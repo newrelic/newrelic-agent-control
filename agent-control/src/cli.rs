@@ -6,6 +6,9 @@
 mod one_shot_operation;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
+use crate::instrumentation::tracing::{
+    try_init_tracing, TracingConfig, TracingError, TracingGuardBox,
+};
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::YAMLConfigRepositoryFile;
 use crate::{
@@ -13,7 +16,6 @@ use crate::{
         config_storer::{loader_storer::AgentControlConfigLoader, store::AgentControlConfigStore},
         run::{AgentControlRunConfig, BasePaths},
     },
-    logging::config::{FileLoggerGuard, LoggingError},
     utils::binary_metadata::binary_metadata,
 };
 use clap::Parser;
@@ -26,17 +28,15 @@ use tracing::info;
 pub struct AgentControlCliConfig {
     /// The configuration to run the agent control
     pub run_config: AgentControlRunConfig,
-    /// Structure that keeps the file logging active
-    pub file_logger_guard: FileLoggerGuard,
 }
 
 /// All possible errors that can happen while running the CLI.
 #[derive(Debug, Error)]
 pub enum CliError {
-    /// The logging could not be initialized
-    #[error("Could not initialize logging: `{0}`")]
-    LoggingInit(#[from] LoggingError),
-    /// The K8s config is missing
+    /// Could not initialize tracer
+    #[error("Could not initialize tracer: `{0}`")]
+    TracerError(#[from] TracingError),
+    /// K8s config is missing
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
     /// The config could not be read
@@ -50,7 +50,7 @@ pub enum CliError {
 /// What action was requested from the CLI?
 pub enum CliCommand {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlCliConfig),
+    InitAgentControl(AgentControlCliConfig, Vec<TracingGuardBox>),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
@@ -119,9 +119,20 @@ impl Cli {
                 )
             })?;
 
-        let file_logger_guard = agent_control_config
-            .log
-            .try_init(base_paths.log_dir.clone())?;
+        let proxy = agent_control_config
+            .proxy
+            .try_with_url_from_env()
+            .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
+
+        let tracing_config = TracingConfig::from_logging_path(base_paths.log_dir.clone())
+            .with_logging_config(agent_control_config.log)
+            .with_instrumentation_config(
+                agent_control_config
+                    .self_instrumentation
+                    .with_proxy_config(proxy.clone()),
+            );
+        let tracer = try_init_tracing(tracing_config)?;
+
         info!("{}", binary_metadata());
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
@@ -130,10 +141,6 @@ impl Cli {
 
         let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
-        let proxy = agent_control_config
-            .proxy
-            .try_with_url_from_env()
-            .map_err(|err| CliError::InvalidConfig(err.to_string()))?;
 
         let run_config = AgentControlRunConfig {
             opamp,
@@ -151,12 +158,9 @@ impl Cli {
             garbage_collector_interval: DEFAULT_POLL_INTERVAL - std::time::Duration::from_secs(5),
         };
 
-        let cli_config = AgentControlCliConfig {
-            run_config,
-            file_logger_guard,
-        };
+        let cli_config = AgentControlCliConfig { run_config };
 
-        Ok(CliCommand::InitAgentControl(cli_config))
+        Ok(CliCommand::InitAgentControl(cli_config, tracer))
     }
 
     fn print_version(&self) -> bool {

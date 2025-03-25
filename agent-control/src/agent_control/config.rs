@@ -1,12 +1,14 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::config::ProxyConfig;
-use crate::logging::config::LoggingConfig;
+use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfig;
+use crate::{
+    agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
+};
 use http::HeaderMap;
 #[cfg(feature = "k8s")]
 use kube::api::TypeMeta;
@@ -42,6 +44,9 @@ pub struct AgentControlConfig {
 
     #[serde(default)]
     pub proxy: ProxyConfig,
+
+    #[serde(default)]
+    pub self_instrumentation: InstrumentationConfig,
 }
 
 #[derive(Error, Debug)]
@@ -238,7 +243,7 @@ pub(crate) mod tests {
 
     use std::path::PathBuf;
 
-    use crate::logging::{
+    use crate::instrumentation::config::logs::{
         file_logging::{FileLoggingConfig, LogFilePath},
         format::{LoggingFormat, TimestampFormat},
     };

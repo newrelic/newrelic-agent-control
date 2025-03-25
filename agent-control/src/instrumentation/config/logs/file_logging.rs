@@ -1,4 +1,4 @@
-use super::config::LoggingError;
+use super::config::LoggingConfigError;
 use crate::agent_control::defaults::AGENT_CONTROL_LOG_FILENAME;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -12,10 +12,10 @@ pub(crate) struct FileLoggingConfig {
 }
 
 impl FileLoggingConfig {
-    pub(super) fn setup(
+    pub(crate) fn setup(
         self,
         default_dir: PathBuf,
-    ) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingError> {
+    ) -> Result<Option<(NonBlocking, WorkerGuard)>, LoggingConfigError> {
         if !self.enabled {
             return Ok(None);
         }
@@ -44,18 +44,18 @@ impl LogFilePath {
 }
 
 impl TryFrom<PathBuf> for LogFilePath {
-    type Error = LoggingError;
+    type Error = LoggingConfigError;
 
     fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
         let parent = value
             .parent()
-            .ok_or(LoggingError::InvalidFilePath(
+            .ok_or(LoggingConfigError::InvalidFilePath(
                 "file path provided must have a valid parent directory".into(),
             ))?
             .into();
         let file_name = value
             .file_name()
-            .ok_or(LoggingError::InvalidFilePath(
+            .ok_or(LoggingConfigError::InvalidFilePath(
                 "file path provided must have a valid file name".into(),
             ))?
             .into();

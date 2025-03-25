@@ -77,7 +77,7 @@ fn debug_log_level_no_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "DEBUG.*Logging initialized successfully",
+                TIME_FORMAT.to_owned() + "DEBUG.*tracing_subscriber initialized successfully",
             )
             .unwrap(),
         )
@@ -102,7 +102,7 @@ fn trace_log_level_as_root() {
         .failure()
         .stdout(
             predicate::str::is_match(
-                TIME_FORMAT.to_owned() + "DEBUG.*Logging initialized successfully",
+                TIME_FORMAT.to_owned() + "DEBUG.*tracing_subscriber initialized successfully",
             )
             .unwrap(),
         )
