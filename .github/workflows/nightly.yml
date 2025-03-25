@@ -124,7 +124,8 @@ jobs:
           ARCH: amd64
           BUILD_WITH: cargo
         with:
-          retry_attempts: 15
+          retry_attempts: 30
+          retry_seconds: 30
           agent_enabled: false
           spec_path: test/k8s-e2e/e2e-fleet-control.yml
           account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
@@ -168,4 +169,3 @@ jobs:
       env:
         SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
         GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-

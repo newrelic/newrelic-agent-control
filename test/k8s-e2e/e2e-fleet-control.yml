@@ -22,3 +22,14 @@ scenarios:
       nrqls:
         # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "FROM K8sClusterSample SELECT * WHERE `config_origin` = 'remote'"
+        # Expected remote config (already deployed in the corresponding fleet):
+        # chart_version: "*"
+        # chart_values:
+        #   global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+        #     customAttributes:
+        #       cluster_name: ${nr-env:NR_CLUSTER_NAME}
+        #       config_origin: remote
+        #   nri-metadata-injection:
+        #     # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
+        #     # together with the gateway
+        #     enabled: false
