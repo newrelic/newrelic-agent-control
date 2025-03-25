@@ -33,6 +33,11 @@ impl<E> EventPublisher<E> {
             .send(event)
             .map_err(|err| EventPublisherError::SendError(err.to_string()))
     }
+    pub fn try_publish(&self, event: E) -> Result<(), EventPublisherError> {
+        self.0
+            .try_send(event)
+            .map_err(|err| EventPublisherError::SendError(err.to_string()))
+    }
 }
 
 impl<E> Clone for EventPublisher<E> {
