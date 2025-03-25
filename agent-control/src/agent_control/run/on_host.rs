@@ -70,7 +70,7 @@ impl AgentControlRunner {
             // The default value of proxy configuration is an empty proxy config without any rule
             ProxyConfig::default(),
         ))
-        .map_err(|e| AgentError::HttpError(e.to_string()))?;
+        .map_err(|e| AgentError::Http(e.to_string()))?;
 
         let identifiers_provider = IdentifiersProvider::new(http_client)
             .with_host_id(config.host_id.clone())
@@ -78,7 +78,7 @@ impl AgentControlRunner {
 
         let identifiers = identifiers_provider
             .provide()
-            .map_err(|e| AgentError::IdentifiersError(e.to_string()))?;
+            .map_err(|e| AgentError::Identifiers(e.to_string()))?;
         let non_identifying_attributes =
             agent_control_opamp_non_identifying_attributes(&identifiers);
         info!("Instance Identifiers: {:?}", identifiers);
