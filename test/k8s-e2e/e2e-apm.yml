@@ -40,3 +40,27 @@ scenarios:
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-node' -- comment disabling the appended testKey: "
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-ruby' -- comment disabling the appended testKey: "
         - query: "SELECT * from Metric WHERE metricName = 'newrelic.goldenmetrics.apm.application.throughput' AND appName = '${SCENARIO_TAG}-dotnet' -- comment disabling the appended testKey: "
+      scripts:
+        - |
+          POD_NAME=$(kubectl get pods --no-headers -o custom-columns=":metadata.name" | grep "agent-control")
+          if [ -z "$POD_NAME" ]; then
+              echo "No pod found with name starting with \"agent-control\""
+              exit 1
+          else
+              echo "pod found $POD_NAME"
+          fi
+          kubectl port-forward pods/${POD_NAME} 51200 > /dev/null 2>&1 &
+          PORT_FORWARD_PID=$!
+          sleep 5
+          response=$(curl -s "http://localhost:51200/status")
+          echo "response ${response}"
+          for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
+              agent_status=$(echo "$response" | jq -r ".sub_agents[\"${agent}\"].healthy")
+              if [ "$agent_status" = "true" ]; then
+                  echo "${agent} is healthy. Success."
+              else
+                  echo "${agent} is not healthy. Failing..."
+                  exit 1
+              fi
+          done
+          kill $PORT_FORWARD_PID
