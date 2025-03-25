@@ -58,6 +58,7 @@ coverage: llvm-cov
 	@mkdir -p coverage
 	@cargo llvm-cov report --$(COVERAGE_OUT_FORMAT) --output-path $(COVERAGE_OUT_FILEPATH)
 
+
 .PHONY: llvm-cov
 llvm-cov:
 	@echo "Checking if llvm-cov is installed..."
