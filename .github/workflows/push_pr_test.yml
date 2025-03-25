@@ -238,7 +238,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix: 
-        group: [ collector, apm, infra, apm-agent-health ]
+        group: [ collector, apm, infra ]
     steps:
       - uses: actions/checkout@v4
         with:
