@@ -51,6 +51,8 @@ locals {
   // it here too. However, terraform plan will properly list all the resources that
   // will be created and we can spot any problems with the hostnames.
   hostnames = [for k, v in local.ec2_instances : "${var.ec2_prefix}-${replace(k, "/[:.]/", "-")}" ]
+
+  infra_staging = var.nr_region == "Staging" ? "true" : "false"
 }
 
 module "agent_control-canary-env-provisioner" {
@@ -63,7 +65,7 @@ module "agent_control-canary-env-provisioner" {
   ssh_pub_key        = "AAAAB3NzaC1yc2EAAAADAQABAAABAQDH9C7BS2XrtXGXFFyL0pNku/Hfy84RliqvYKpuslJFeUivf5QY6Ipi8yXfXn6TsRDbdxfGPi6oOR60Fa+4cJmCo6N5g57hBS6f2IdzQBNrZr7i1I/a3cFeK6XOc1G1tQaurx7Pu+qvACfJjLXKG66tHlaVhAHd/1l2FocgFNUDFFuKS3mnzt9hKys7sB4aO3O0OdohN/0NJC4ldV8/OmeXqqfkiPWcgPx3C8bYyXCX7QJNBHKrzbX1jW51Px7SIDWFDV6kxGwpQGGBMJg/k79gjjM+jhn4fg1/VP/Fx37mAnfLqpcTfiOkzSE80ORGefQ1XfGK/Dpa3ITrzRYW8xlR caos-dev-arm"
   inventory_template = "../ansible/inventory-template.tmpl"
   inventory_output   = var.inventory_output
-  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} ../ansible/install_ac_with_basic_config.yml"
+  ansible_playbook   = "-e system_identity_client_id=${var.system_identity_client_id} -e nr_license_key=${var.license_key} -e repo_endpoint=${var.repository_endpoint} -e infra_staging=${local.infra_staging} ../ansible/install_ac_with_basic_config.yml"
   ec2_otels          = local.ec2_instances
 }
 
