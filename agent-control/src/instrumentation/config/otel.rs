@@ -188,4 +188,43 @@ mod tests {
         );
         // TODO: check logs endpoint
     }
+
+    #[test]
+    fn test_defaults() {
+        let config = otel_config_from_endpoint("https://some.endpoint:4318");
+        let default_batch_config = BatchConfig::default();
+
+        assert_eq!(default_batch_config.max_size, DEFAULT_BATCH_MAX_SIZE);
+        assert_eq!(
+            default_batch_config.scheduled_delay,
+            DEFAULT_BATCH_SCHEDULED_DELAY
+        );
+
+        assert_eq!(config.traces.batch_config, default_batch_config);
+        assert!(!config.traces.enabled);
+
+        assert!(!config.metrics.enabled);
+        assert_eq!(
+            Duration::from(config.metrics.interval),
+            DEFAULT_METRICS_EXPORT_INTERVAL
+        );
+
+        // TODO: check logging config
+
+        assert_eq!(
+            Duration::from(config.client_timeout),
+            DEFAULT_CLIENT_TIMEOUT
+        );
+    }
+
+    fn otel_config_from_endpoint(endpoint: &str) -> OtelConfig {
+        OtelConfig {
+            metrics: Default::default(),
+            traces: Default::default(),
+            endpoint: endpoint.parse().unwrap(),
+            headers: Default::default(),
+            client_timeout: Default::default(),
+            proxy: Default::default(),
+        }
+    }
 }
