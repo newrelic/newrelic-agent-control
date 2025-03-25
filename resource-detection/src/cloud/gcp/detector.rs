@@ -5,6 +5,7 @@ use crate::cloud::GCP_INSTANCE_ID;
 use crate::{DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
 use thiserror::Error;
+use tracing::instrument;
 
 /// Default GCP instance metadata endpoint.
 pub const GCP_IPV4_METADATA_ENDPOINT: &str =
@@ -55,6 +56,7 @@ impl<C> Detector for GCPDetector<C>
 where
     C: HttpClient,
 {
+    #[instrument(skip_all, name = "detect_gcp")]
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
             .http_client

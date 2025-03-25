@@ -1,17 +1,16 @@
 //! Aggregation cloud instance id detector implementation
-use thiserror::Error;
-use tracing::warn;
-
 use crate::cloud::aws::detector::{AWSDetector, TTL_TOKEN_DEFAULT};
 use crate::cloud::aws::http_client::AWSHttpClient;
 use crate::cloud::azure::detector::AzureDetector;
 use crate::cloud::gcp::detector::GCPDetector;
-use crate::cloud::http_client::{HttpClient, HttpClientError};
+use crate::cloud::http_client::HttpClient;
 use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
 };
 use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use thiserror::Error;
+use tracing::warn;
 
 /// The `AWSDetector` struct encapsulates an HTTP client used to retrieve the instance metadata.
 pub struct CloudIdDetector<AWS: Detector, AZURE: Detector, GCP: Detector> {
@@ -125,6 +124,7 @@ mod tests {
     use crate::cloud::aws::detector::AWSDetectorError;
     use crate::cloud::azure::detector::AzureDetectorError;
     use crate::cloud::gcp::detector::GCPDetectorError;
+    use crate::cloud::http_client::HttpClientError;
     use crate::cloud::CLOUD_TYPE_GCP;
     use mockall::mock;
 

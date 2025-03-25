@@ -1,6 +1,6 @@
 //! System resource detector implementation
 use fs::LocalFile;
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::{DetectError, Detector, Key, Resource, Value};
 
@@ -42,6 +42,7 @@ impl Default for SystemDetector {
 
 /// Implementing the `Detect` trait for the `SystemDetector` struct.
 impl Detector for SystemDetector {
+    #[instrument(skip_all, name = "detect_system")]
     fn detect(&self) -> Result<Resource, DetectError> {
         let mut collected_resources: Vec<(Key, Value)> = vec![];
 

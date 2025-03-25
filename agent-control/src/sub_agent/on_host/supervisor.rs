@@ -36,10 +36,9 @@ use std::{
     sync::{Arc, Mutex},
     thread::JoinHandle,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, warn};
 
 pub struct StartedSupervisorOnHost {
-    agent_id: AgentID,
     ctx: Context<bool>,
     thread_contexts: Vec<StartedThreadContext>,
 }
@@ -61,7 +60,6 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
-        let agent_id = self.agent_identity.id.clone();
 
         let thread_contexts = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -73,7 +71,6 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         ];
 
         Ok(StartedSupervisorOnHost {
-            agent_id,
             ctx,
             thread_contexts: thread_contexts.into_iter().flatten().collect(),
         })
@@ -88,9 +85,9 @@ impl SupervisorStopper for StartedSupervisorOnHost {
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
             match thread_context.stop_blocking() {
-                Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
+                Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
-                    error!(agent_id = %self.agent_id, %error_msg);
+                    error!(%error_msg);
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }
@@ -143,7 +140,6 @@ impl NotStartedSupervisorOnHost {
             let health_checker =
                 OnHostHealthChecker::try_new(http_client, health_config.clone(), start_time)?;
             let started_thread_context = spawn_health_checker(
-                self.agent_identity.id.clone(),
                 health_checker,
                 sub_agent_internal_publisher,
                 health_config.interval,
@@ -151,7 +147,7 @@ impl NotStartedSupervisorOnHost {
             );
             return Ok(Some(started_thread_context));
         }
-        debug!(agent_id = %self.agent_identity.id, "health checks are disabled for this agent");
+        debug!("health checks are disabled for this agent");
         Ok(None)
     }
 
@@ -163,7 +159,6 @@ impl NotStartedSupervisorOnHost {
             OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id.clone(),
             onhost_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
@@ -178,14 +173,8 @@ impl NotStartedSupervisorOnHost {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
-        _ = wait_for_termination(
-            current_pid.clone(),
-            self.ctx.clone(),
-            shutdown_ctx.clone(),
-            self.agent_identity.id.clone(),
-        );
+        _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
 
-        let agent_id = self.agent_identity.id.clone();
         let executable_data_clone = executable_data.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
@@ -201,7 +190,6 @@ impl NotStartedSupervisorOnHost {
             // before the process was started.
             if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                 debug!(
-                    agent_id = self.agent_identity.id.to_string(),
                     supervisor = executable_data_clone.bin,
                     msg = "supervisor stopped before starting the process"
                 );
@@ -209,7 +197,6 @@ impl NotStartedSupervisorOnHost {
             }
 
             info!(
-                agent_id = self.agent_identity.id.to_string(),
                 supervisor = executable_data_clone.bin,
                 msg = "starting supervisor process"
             );
@@ -231,10 +218,8 @@ impl NotStartedSupervisorOnHost {
             let exit_code = start_command(not_started_command, pid_guard)
                 .inspect_err(|err| {
                     error!(
-                        agent_id = self.agent_identity.id.to_string(),
                         supervisor = executable_data_clone.bin,
-                        "error while launching supervisor process: {}",
-                        err
+                        "error while launching supervisor process: {}", err
                     );
                 })
                 .map(|exit_status| {
@@ -251,7 +236,6 @@ impl NotStartedSupervisorOnHost {
             // most probably reason why process has been exited.
             if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
                 info!(
-                    agent_id = self.agent_identity.id.to_string(),
                     supervisor = executable_data_clone.bin,
                     msg = "supervisor has been stopped and process terminated"
                 );
@@ -269,7 +253,7 @@ impl NotStartedSupervisorOnHost {
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
-                    warn!("supervisor for {} won't restart anymore due to having exceeded its restart policy", self.agent_identity.id);
+                    warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
                     let unhealthy = Unhealthy::new(
                         String::default(),
@@ -284,7 +268,7 @@ impl NotStartedSupervisorOnHost {
                 break;
             }
 
-            info!("restarting supervisor for {}...", self.agent_identity.id);
+            info!("restarting supervisor");
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
@@ -292,7 +276,6 @@ impl NotStartedSupervisorOnHost {
             });
         };
 
-        info!(%agent_id, "{} started", executable_data.bin);
         NotStartedThreadContext::new(executable_data.bin, callback).start()
     }
 
@@ -375,26 +358,20 @@ fn wait_for_termination(
     current_pid: Arc<Mutex<Option<u32>>>,
     ctx: Context<bool>,
     shutdown_ctx: Context<bool>,
-    agent_id: AgentID,
 ) -> JoinHandle<()> {
+    let s = info_span!("termination_signal_listener");
     spawn_named_thread("OnHost Termination signal listener", move || {
+        let _guards = s.enter();
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
         // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
 
         if let Some(pid) = *current_pid.lock().unwrap() {
-            info!(
-                agent_id = agent_id.to_string(),
-                pid = pid,
-                msg = "stopping supervisor process"
-            );
+            info!(pid = pid, msg = "stopping supervisor process");
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
         } else {
-            info!(
-                agent_id = agent_id.to_string(),
-                msg = "stopped supervisor without process running"
-            );
+            info!(msg = "stopped supervisor without process running");
         }
     })
 }

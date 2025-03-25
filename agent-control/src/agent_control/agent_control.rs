@@ -27,7 +27,7 @@ use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, instrument, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
 where
@@ -141,6 +141,7 @@ where
     //  * Recreate the Final Agent using the Agent Type and the latest persisted config
     //  * Build a Stopped Sub Agent
     //  * Run the Sub Agent and add it to the Running Sub Agents
+    #[instrument(skip_all)]
     pub(super) fn recreate_sub_agent(
         &self,
         agent_identity: &AgentIdentity,
@@ -149,12 +150,10 @@ where
         >,
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_and_remove(&agent_identity.id)?;
-
         self.build_and_run_sub_agent(agent_identity, running_sub_agents)
     }
 
-    // build_sub_agents returns a collection of started sub agents given the corresponding
-    // EffectiveAgents
+    // build_sub_agents returns a collection of started sub agents
     fn build_and_run_sub_agents(
         &self,
         sub_agents: &SubAgentsMap,
@@ -250,6 +249,7 @@ where
         }
     }
 
+    #[instrument(skip_all)]
     // apply an agent control remote config
     pub(super) fn apply_remote_agent_control_config(
         &self,

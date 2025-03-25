@@ -21,7 +21,7 @@ use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, instrument};
 
 pub struct OnHostSubAgentBuilder<'a, O, I, SA, R>
 where
@@ -67,15 +67,13 @@ where
 {
     type NotStartedSubAgent = SubAgent<O::Client, SA, R>;
 
+    #[instrument(skip_all, fields(%agent_identity),name = "build_sub_agent")]
     fn build(
         &self,
         agent_identity: &AgentIdentity,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
-        debug!(
-            agent_id = agent_identity.id.to_string(),
-            "building subAgent"
-        );
+        debug!("building subAgent");
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder

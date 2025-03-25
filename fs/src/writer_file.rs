@@ -1,17 +1,15 @@
+use super::directory_manager::DirectoryManagementError;
+use super::utils::{validate_path, FsError};
+use super::LocalFile;
 use std::fs::Permissions;
 use std::io::Write;
-use std::path::Path;
-use std::{fs, io};
-
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::fs::PermissionsExt;
-
-use super::directory_manager::DirectoryManagementError;
-use super::utils::{validate_path, FsError};
+use std::path::Path;
+use std::{fs, io};
 use thiserror::Error;
-
-use super::LocalFile;
+use tracing::instrument;
 
 #[derive(Error, Debug)]
 pub enum WriteError {
@@ -37,6 +35,7 @@ impl FileWriter for LocalFile {
 
 impl LocalFile {
     #[cfg(target_family = "unix")]
+    #[instrument(skip_all, fields(path = %path.display()))]
     pub fn write(
         &self,
         path: &Path,

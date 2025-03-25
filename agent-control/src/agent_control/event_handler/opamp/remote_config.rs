@@ -1,6 +1,3 @@
-use opamp_client::StartedClient;
-use tracing::{error, info};
-
 use crate::agent_control::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
@@ -13,6 +10,8 @@ use crate::{
     opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
     sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
 };
+use opamp_client::StartedClient;
+use tracing::{error, info};
 
 impl<S, O, HR, SL, DV> AgentControl<S, O, HR, SL, DV>
 where
@@ -38,7 +37,7 @@ where
             unreachable!("got remote config without OpAMP being enabled");
         };
 
-        info!(agent_id=%remote_config.agent_id, "Applying remote config");
+        info!("Applying remote config");
         OpampRemoteConfigStatus::Applying.report(opamp_client, &remote_config.hash)?;
 
         match self.apply_remote_agent_control_config(&remote_config, sub_agents) {

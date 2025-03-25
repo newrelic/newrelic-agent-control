@@ -83,11 +83,11 @@ where
         let hash = self
             .hash_repository
             .get(&agent_identity.id)
-            .inspect_err(|e| debug!(agent_id = %agent_identity.id, err = %e, "failed to get hash from repository"))
+            .inspect_err(|e| debug!( err = %e, "failed to get hash from repository"))
             .unwrap_or_default();
 
         if hash.is_none() {
-            debug!(agent_id = %agent_identity.id, "no previous remote config found");
+            debug!("no previous remote config found");
         }
 
         // Assemble the new agent
@@ -100,42 +100,40 @@ where
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if !hash.is_failed() {
                         hash.fail(e.to_string());
-                        _ = self.hash_repository.save(&agent_identity.id, &hash).inspect_err(
-                            |e| error!(agent_id = %agent_identity.id, err = %e, "failed to save hash to repository"),
-                        );
+                        _ = self
+                            .hash_repository
+                            .save(&agent_identity.id, &hash)
+                            .inspect_err(|e| error!(err = %e, "failed to save hash to repository"));
                     }
                     _ = OpampRemoteConfigStatus::Error(e.to_string())
                         .report(opamp_client, &hash)
-                        .inspect_err(
-                            |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
-                        );
+                        .inspect_err(|e| error!( %e, "error reporting remote config status"));
                 }
                 Err(SupervisorAssemblerError::AgentAssembleError(e.to_string()))
             }
             Ok(effective_agent) => {
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
                     if hash.is_applying() {
-                        debug!(agent_id = %agent_identity.id, "applying remote config");
+                        debug!("applying remote config");
                         hash.apply();
-                        _ = self.hash_repository.save(&agent_identity.id, &hash).inspect_err(
-                            |e| error!(agent_id = %agent_identity.id, err = %e, "failed to save hash to repository"),
-                        );
-                        _ = opamp_client.update_effective_config().inspect_err(
-                            |e| error!(agent_id = %agent_identity.id, %e, "effective config update failed"),
-                        );
+                        _ = self
+                            .hash_repository
+                            .save(&agent_identity.id, &hash)
+                            .inspect_err(
+                                |e| error!( err = %e, "failed to save hash to repository"),
+                            );
+                        _ = opamp_client
+                            .update_effective_config()
+                            .inspect_err(|e| error!( %e, "effective config update failed"));
                         _ = OpampRemoteConfigStatus::Applied
                             .report(opamp_client, &hash)
-                            .inspect_err(
-                                |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
-                            );
+                            .inspect_err(|e| error!( %e, "error reporting remote config status"));
                     }
                     if let Some(err) = hash.error_message() {
-                        warn!(agent_id = %agent_identity.id, err = %err, "remote config failed. Building with previous stored config");
+                        warn!( err = %err, "remote config failed. Building with previous stored config");
                         _ = OpampRemoteConfigStatus::Error(err)
                             .report(opamp_client, &hash)
-                            .inspect_err(
-                                |e| error!(agent_id = %agent_identity.id, %e, "error reporting remote config status"),
-                            );
+                            .inspect_err(|e| error!( %e, "error reporting remote config status"));
                     }
                 }
                 let supervisor = self

@@ -7,6 +7,7 @@ use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value}
 use core::str;
 use std::time::Duration;
 use thiserror::Error;
+use tracing::instrument;
 
 /// The default AWS instance metadata endpoint.
 pub const AWS_IPV4_METADATA_ENDPOINT: &str =
@@ -45,6 +46,7 @@ impl<C> Detector for AWSDetector<C>
 where
     C: HttpClient,
 {
+    #[instrument(skip_all, name = "detect_aws")]
     fn detect(&self) -> Result<Resource, DetectError> {
         let response = self
             .aws_http_client

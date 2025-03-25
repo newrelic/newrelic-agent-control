@@ -37,6 +37,7 @@ impl YAMLConfigRepositoryConfigMap {
 }
 
 impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
+    #[tracing::instrument(skip_all)]
     fn load_local(
         &self,
         agent_id: &AgentID,
@@ -46,6 +47,7 @@ impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
             .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
+    #[tracing::instrument(skip_all)]
     fn load_remote(
         &self,
         agent_id: &AgentID,
@@ -60,6 +62,7 @@ impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
             .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
     }
 
+    #[tracing::instrument(skip_all)]
     fn store_remote(
         &self,
         agent_id: &AgentID,
@@ -73,6 +76,7 @@ impl YAMLConfigRepository for YAMLConfigRepositoryConfigMap {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all, err)]
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "deleting remote config");
 
