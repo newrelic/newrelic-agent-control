@@ -22,7 +22,7 @@ const DEFAULT_FILTER: &str = "newrelic_agent_control=debug,opamp_client=debug,of
 const TRACES_SUFFIX: &str = "/v1/traces";
 /// Metrics suffix for the OpenTelemetry endpoint
 const METRICS_SUFFIX: &str = "/v1/metrics";
-/// Metrics suffix for the OpenTelemetry endpoint
+/// Logs suffix for the OpenTelemetry endpoint
 const LOGS_SUFFIX: &str = "/v1/logs";
 
 /// Represents the OpenTelemetry configuration

@@ -14,7 +14,7 @@ pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
         .with_target(target)
         .with_timer(ChronoLocal::new(timestamp_fmt))
         .fmt_fields(PrettyFields::new())
-        .with_filter(config.logging_filter()?)
+        .with_filter(config.filter()?)
         .boxed();
     Ok(layer)
 }
