@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
+use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, GENERATED_FOLDER_NAME};
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::agent_type::variable::kind::Kind;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
@@ -32,13 +32,19 @@ impl ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
     // PersisterFile with defaults writer and directory manager
     // and custom data_dir path
     pub fn new(data_dir: &Path) -> Self {
-        let mut generated_conf_dir = PathBuf::from(data_dir);
-        generated_conf_dir.push(GENERATED_FOLDER_NAME);
+        ConfigurationPersisterFile {
+            generated_conf_path: PathBuf::from(data_dir).join(GENERATED_FOLDER_NAME),
+            ..Default::default()
+        }
+    }
+}
 
+impl Default for ConfigurationPersisterFile<LocalFile, DirectoryManagerFs> {
+    fn default() -> Self {
         ConfigurationPersisterFile {
             file_writer: LocalFile,
             directory_manager: DirectoryManagerFs,
-            generated_conf_path: generated_conf_dir,
+            generated_conf_path: PathBuf::from(AGENT_CONTROL_DATA_DIR).join(GENERATED_FOLDER_NAME),
         }
     }
 }
