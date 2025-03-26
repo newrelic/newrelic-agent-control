@@ -283,7 +283,7 @@ where
 {
     if let Some(s) = maybe_started_supervisor {
         let _ = s.stop().inspect_err(|err| {
-            error!(%err,"Error stopping k8s supervisor");
+            error!(%err,"error stopping supervisor");
         });
     }
 }
