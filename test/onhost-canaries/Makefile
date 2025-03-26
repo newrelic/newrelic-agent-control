@@ -17,6 +17,9 @@ ifeq ($(ENVIRONMENT), production)
 	NEW_RELIC_API_KEY = $(NEW_RELIC_PROD_API_KEY)
 	NR_SYSTEM_IDENTITY_CLIENT_ID = $(NR_PROD_SYSTEM_IDENTITY_CLIENT_ID)
 	NR_SYSTEM_IDENTITY_PRIVATE_KEY = $(NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY)
+
+# The private key is used in the ansible file, it need to be exported
+# for the subshell to use the correct value
 	export NR_SYSTEM_IDENTITY_PRIVATE_KEY
 endif
 
