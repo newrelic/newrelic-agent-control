@@ -1,4 +1,5 @@
 use duration_str::deserialize_duration;
+use opentelemetry_sdk::logs;
 use opentelemetry_sdk::trace;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, time::Duration};
@@ -14,6 +15,8 @@ const DEFAULT_METRICS_EXPORT_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_BATCH_MAX_SIZE: usize = 512;
 /// Default scheduled delay [trace::BatchSpanProcessor] for details.
 const DEFAULT_BATCH_SCHEDULED_DELAY: Duration = Duration::from_secs(30);
+/// Default insecure_level filter.
+const DEFAULT_FILTER: &str = "newrelic_agent_control=debug,opamp_client=debug,off";
 
 /// Traces suffix for the OpenTelemetry endpoint
 const TRACES_SUFFIX: &str = "/v1/traces";
@@ -29,6 +32,13 @@ pub struct OtelConfig {
     /// Traces configuration
     #[serde(default)]
     pub(crate) traces: TracesConfig,
+    /// Logs configuration
+    #[serde(default)]
+    pub(crate) logs: LogsConfig,
+    /// Filter metrics, tracer, and logs. By default [DEFAULT_FILTER] is used. This is marked as
+    /// insecure because sensitive data could be sent if some crates are not filtered like the http client.
+    #[serde(default = "default_insecure_level")]
+    pub(crate) insecure_level: String,
     /// OpenTelemetry HTTP base endpoint to report instrumentation, to send each instrumentation
     /// type, the corresponding suffix will be added [TRACES_SUFFIX], [METRICS_SUFFIX], [LOGS_SUFFIX].
     pub(crate) endpoint: Url,
@@ -41,6 +51,10 @@ pub struct OtelConfig {
     /// serde serialization and deserialization.
     #[serde(skip)]
     pub(crate) proxy: ProxyConfig,
+}
+
+fn default_insecure_level() -> String {
+    DEFAULT_FILTER.to_string()
 }
 
 impl OtelConfig {
@@ -59,7 +73,10 @@ impl OtelConfig {
         self.target_endpoint(METRICS_SUFFIX)
     }
 
-    // TODO: add logs_endpoint() method
+    /// Returns the otel endpoint to report logs to.
+    pub(crate) fn logs_endpoint(&self) -> String {
+        self.target_endpoint(LOGS_SUFFIX)
+    }
 
     /// Helper to get the endpoint for each data type
     ///
@@ -88,6 +105,15 @@ pub(crate) struct MetricsConfig {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct TracesConfig {
     /// Indicates if traces are enabled or not
+    pub(crate) enabled: bool,
+    /// Traces are reported in batches, this field defines the batch configuration.
+    pub(crate) batch_config: BatchConfig,
+}
+
+/// Defines the configuration settings to report logs to OpenTelemetry
+#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+pub(crate) struct LogsConfig {
+    /// Indicates if logs are enabled or not
     pub(crate) enabled: bool,
     /// Traces are reported in batches, this field defines the batch configuration.
     pub(crate) batch_config: BatchConfig,
@@ -161,21 +187,41 @@ impl From<&BatchConfig> for trace::BatchConfig {
             .build()
     }
 }
+impl From<&BatchConfig> for logs::BatchConfig {
+    fn from(value: &BatchConfig) -> Self {
+        logs::BatchConfigBuilder::default()
+            .with_max_export_batch_size(value.max_size)
+            .with_scheduled_delay(value.scheduled_delay)
+            .build()
+    }
+}
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
+    impl Default for OtelConfig {
+        fn default() -> Self {
+            Self::default_with_endpoint("https://fake")
+        }
+    }
+    impl OtelConfig {
+        fn default_with_endpoint(endpoint: &str) -> Self {
+            Self {
+                metrics: Default::default(),
+                traces: Default::default(),
+                logs: Default::default(),
+                insecure_level: default_insecure_level(),
+                endpoint: endpoint.parse().unwrap(),
+                headers: Default::default(),
+                client_timeout: Default::default(),
+                proxy: Default::default(),
+            }
+        }
+    }
     #[test]
     fn test_endpoints() {
-        let config = OtelConfig {
-            metrics: Default::default(),
-            traces: Default::default(),
-            endpoint: "https://some.endpoint:4318".parse().unwrap(),
-            headers: Default::default(),
-            client_timeout: Default::default(),
-            proxy: Default::default(),
-        };
+        let config = OtelConfig::default_with_endpoint("https://some.endpoint:4318");
         assert_eq!(
             config.traces_endpoint(),
             "https://some.endpoint:4318/v1/traces".to_string()
@@ -184,12 +230,15 @@ mod tests {
             config.metrics_endpoint(),
             "https://some.endpoint:4318/v1/metrics".to_string()
         );
-        // TODO: check logs endpoint
+        assert_eq!(
+            config.logs_endpoint(),
+            "https://some.endpoint:4318/v1/logs".to_string()
+        );
     }
 
     #[test]
     fn test_defaults() {
-        let config = otel_config_from_endpoint("https://some.endpoint:4318");
+        let config = OtelConfig::default_with_endpoint("https://some.endpoint:4318");
         let default_batch_config = BatchConfig::default();
 
         assert_eq!(default_batch_config.max_size, DEFAULT_BATCH_MAX_SIZE);
@@ -207,22 +256,11 @@ mod tests {
             DEFAULT_METRICS_EXPORT_INTERVAL
         );
 
-        // TODO: check logging config
+        assert!(!config.logs.enabled);
 
         assert_eq!(
             Duration::from(config.client_timeout),
             DEFAULT_CLIENT_TIMEOUT
         );
-    }
-
-    fn otel_config_from_endpoint(endpoint: &str) -> OtelConfig {
-        OtelConfig {
-            metrics: Default::default(),
-            traces: Default::default(),
-            endpoint: endpoint.parse().unwrap(),
-            headers: Default::default(),
-            client_timeout: Default::default(),
-            proxy: Default::default(),
-        }
     }
 }

@@ -103,9 +103,12 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
     }
 
     if let Some(otel_config) = config.instrumentation_config.opentelemetry.as_ref() {
-        // TODO: otel will eventually be one layer only (rebase)
-        let mut otel_layers = OtelLayers::try_build(otel_config)?;
-        layers.append(&mut otel_layers);
+        layers.push(OtelLayers::try_build(otel_config)?);
+
+        // Allows including the log information on spans that contain them when send to otlp.
+        opentelemetry::global::set_text_map_propagator(
+            opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+        );
     }
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");

@@ -1285,6 +1285,11 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * Apache-2.0
+## opentelemetry-appender-tracing <https://crates.io/crates/opentelemetry-appender-tracing>
+
+Distributed under the following license(s):
+
+* Apache-2.0
 ## opentelemetry-http <https://crates.io/crates/opentelemetry-http>
 
 Distributed under the following license(s):
