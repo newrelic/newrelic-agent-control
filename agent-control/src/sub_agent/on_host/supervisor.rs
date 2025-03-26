@@ -442,7 +442,10 @@ pub mod tests {
                 let max_duration = Duration::from_millis(100);
                 let start = Instant::now();
 
-                started_supervisor.expect("no error").stop().unwrap();
+                started_supervisor
+                    .expect("no error")
+                    .stop()
+                    .unwrap_or_else(|_| panic!("test case: {}", self.name));
 
                 let duration = start.elapsed();
 

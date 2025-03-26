@@ -5,8 +5,10 @@ use regex::Regex;
 use std::collections::HashMap;
 use thiserror::Error;
 
+use super::RemoteConfigValidator;
+
 #[derive(Error, Debug)]
-pub enum ConfigValidatorError {
+pub enum RegexValidatorError {
     #[error("Invalid config: restricted values detected")]
     InvalidConfig,
 
@@ -22,7 +24,7 @@ pub(super) struct AgentTypeFQNName(String);
 /// If getting the unique remote config fails, the validator will return as valid
 /// because we leave that kind of error handling to the store_remote_config_hash_and_values
 /// on the event_processor.
-pub struct ConfigValidator {
+pub struct RegexValidator {
     rules: HashMap<AgentTypeFQNName, Vec<Regex>>,
 
     // regex to match any endpoint field in the nrdot config
@@ -31,8 +33,25 @@ pub struct ConfigValidator {
     valid_otel_endpoint: Regex,
 }
 
-impl ConfigValidator {
-    fn try_new() -> Result<Self, ConfigValidatorError> {
+impl RemoteConfigValidator for RegexValidator {
+    type Err = RegexValidatorError;
+    fn validate(
+        &self,
+        agent_type_id: &AgentTypeID,
+        remote_config: &RemoteConfig,
+    ) -> Result<(), RegexValidatorError> {
+        // This config will fail further on the event processor.
+        if let Ok(raw_config) = remote_config.get_unique() {
+            self.validate_regex_rules(agent_type_id, raw_config)?;
+            self.validate_nrdot_endpoint(agent_type_id, raw_config)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl RegexValidator {
+    fn try_new() -> Result<Self, RegexValidatorError> {
         Ok(Self {
             rules: HashMap::from([
                 (
@@ -54,25 +73,11 @@ impl ConfigValidator {
         })
     }
 
-    pub fn validate(
-        &self,
-        agent_type_id: &AgentTypeID,
-        remote_config: &RemoteConfig,
-    ) -> Result<(), ConfigValidatorError> {
-        // This config will fail further on the event processor.
-        if let Ok(raw_config) = remote_config.get_unique() {
-            self.validate_regex_rules(agent_type_id, raw_config)?;
-            self.validate_nrdot_endpoint(agent_type_id, raw_config)?;
-        }
-
-        Ok(())
-    }
-
     fn validate_regex_rules(
         &self,
         agent_type_id: &AgentTypeID,
         raw_config: &str,
-    ) -> Result<(), ConfigValidatorError> {
+    ) -> Result<(), RegexValidatorError> {
         let agent_type_name = AgentTypeFQNName(agent_type_id.name().to_string());
         if !self.rules.contains_key(&agent_type_name) {
             return Ok(());
@@ -80,7 +85,7 @@ impl ConfigValidator {
 
         for regex in self.rules[&agent_type_name].iter() {
             if regex.is_match(raw_config) {
-                return Err(ConfigValidatorError::InvalidConfig);
+                return Err(RegexValidatorError::InvalidConfig);
             }
         }
 
@@ -92,7 +97,7 @@ impl ConfigValidator {
         &self,
         agent_type: &AgentTypeID,
         raw_config: &str,
-    ) -> Result<(), ConfigValidatorError> {
+    ) -> Result<(), RegexValidatorError> {
         // this rule applies only to nrdot agents
         if !agent_type.name().eq(AGENT_TYPE_NAME_NRDOT) {
             return Ok(());
@@ -103,7 +108,7 @@ impl ConfigValidator {
             if let Some(endpoint) = capture.get(1) {
                 // verifies that the endpoint is valid
                 if !self.valid_otel_endpoint.is_match(endpoint.as_str()) {
-                    return Err(ConfigValidatorError::InvalidConfig);
+                    return Err(RegexValidatorError::InvalidConfig);
                 }
             }
         }
@@ -112,7 +117,7 @@ impl ConfigValidator {
     }
 }
 
-impl Default for ConfigValidator {
+impl Default for RegexValidator {
     fn default() -> Self {
         // Notice that we allow an expect here since all regexes are hardcoded
         Self::try_new().expect("Failed to compile config validation regexes")
@@ -190,7 +195,8 @@ pub(super) mod tests {
     use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::validators::regexes::{ConfigValidator, ConfigValidatorError};
+    use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
+    use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use assert_matches::assert_matches;
     use std::collections::HashMap;
@@ -239,7 +245,7 @@ pub(super) mod tests {
                 content.to_string(),
             )]))),
         );
-        let validator = ConfigValidator::default();
+        let validator = RegexValidator::default();
         let agent_type_fqn = AgentTypeID::try_from(
             format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
         )
@@ -272,7 +278,7 @@ pub(super) mod tests {
                 let agent_type_fqn =
                     AgentTypeID::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
 
-                let validator = ConfigValidator::default();
+                let validator = RegexValidator::default();
 
                 let res = validator.validate(&agent_type_fqn, &remote_config);
                 assert_eq!(res.is_ok(), self.valid, "test case: {}", self.name);
@@ -584,7 +590,7 @@ config: |
 
     #[test]
     fn test_valid_configs_are_allowed() {
-        let config_validator = ConfigValidator::default();
+        let config_validator = RegexValidator::default();
 
         let config = remote_config(GOOD_INFRA_AGENT_CONFIG);
         let result = config_validator.validate(&infra_agent(), &config);
@@ -608,13 +614,13 @@ config: |
         }
         impl TestCase {
             fn run(self) {
-                let config_validator = ConfigValidator::default();
+                let config_validator = RegexValidator::default();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
                     .validate(&self.agent_type, &remote_config)
                     .unwrap_err();
 
-                assert_matches!(err, ConfigValidatorError::InvalidConfig);
+                assert_matches!(err, RegexValidatorError::InvalidConfig);
             }
         }
         let test_cases = vec![
