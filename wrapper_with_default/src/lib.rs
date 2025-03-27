@@ -11,22 +11,7 @@ pub fn wrapper_with_default(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let struct_name = input.ident;
 
-    // Get the value of the 'wrapper_default_value' attribute
-    let default_value = input
-        .attrs
-        .iter()
-        .find_map(|attr| {
-            if !attr.path().is_ident("wrapper_default_value") {
-                return None;
-            }
-            let value: Path = attr.parse_args().unwrap_or_else(|err| {
-                panic!("Expected `wrapper_default_value` to be path literal referencing to a `std::time::Duration` constant: {err}")
-            });
-            Some(value)
-        })
-        .expect("Missing attribute `wrapper_default_value`. Was `#[wrapper_default_value(...)]` set?");
-
-    // Get the type of the wrapped field
+    // Get the type of the wrapped field type
     let Data::Struct(data_struct) = input.data else {
         panic!("This macro can only be derived for structs");
     };
@@ -37,6 +22,21 @@ pub fn wrapper_with_default(input: TokenStream) -> TokenStream {
         panic!("The struct must have exactly one unnamed field");
     }
     let wrapped_type = &fields.unnamed[0].ty;
+
+    // Get the value of the 'wrapper_default_value' attribute
+    let default_value = input
+        .attrs
+        .iter()
+        .find_map(|attr| {
+            if !attr.path().is_ident("wrapper_default_value") {
+                return None;
+            }
+            let value: Path = attr.parse_args().unwrap_or_else(|err| {
+                panic!("Expected `wrapper_default_value` to be path literal referencing to a constant: {err}")
+            });
+            Some(value)
+        })
+        .expect("Missing attribute `wrapper_default_value`. Was `#[wrapper_default_value(...)]` set?");
 
     // Generate the implementation and convert it back to TokenStream
     let expanded = quote! {

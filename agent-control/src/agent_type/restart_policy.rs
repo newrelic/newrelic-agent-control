@@ -2,6 +2,7 @@ use super::{definition::TemplateableValue, error::AgentTypeError};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{str::FromStr, time::Duration};
+use wrapper_with_default::WrapperWithDefault;
 
 /// Defines the Restart Policy configuration.
 /// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
@@ -23,7 +24,8 @@ pub(super) const DEFAULT_BACKOFF_DELAY: Duration = Duration::from_secs(2);
 pub(super) const DEFAULT_BACKOFF_MAX_RETRIES: usize = 0;
 pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_secs(600);
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_BACKOFF_DELAY)]
 pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffDelay {
@@ -36,25 +38,8 @@ impl BackoffDelay {
     }
 }
 
-impl Default for BackoffDelay {
-    fn default() -> Self {
-        Self(DEFAULT_BACKOFF_DELAY)
-    }
-}
-
-impl From<Duration> for BackoffDelay {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl From<BackoffDelay> for Duration {
-    fn from(value: BackoffDelay) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL)]
 pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffLastRetryInterval {
@@ -67,44 +52,9 @@ impl BackoffLastRetryInterval {
     }
 }
 
-impl Default for BackoffLastRetryInterval {
-    fn default() -> Self {
-        Self(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL)
-    }
-}
-
-impl From<Duration> for BackoffLastRetryInterval {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl From<BackoffLastRetryInterval> for Duration {
-    fn from(value: BackoffLastRetryInterval) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_BACKOFF_MAX_RETRIES)]
 pub struct MaxRetries(usize);
-
-impl Default for MaxRetries {
-    fn default() -> Self {
-        Self(DEFAULT_BACKOFF_MAX_RETRIES)
-    }
-}
-
-impl From<usize> for MaxRetries {
-    fn from(value: usize) -> Self {
-        Self(value)
-    }
-}
-
-impl From<MaxRetries> for usize {
-    fn from(value: MaxRetries) -> Self {
-        value.0
-    }
-}
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(default)]

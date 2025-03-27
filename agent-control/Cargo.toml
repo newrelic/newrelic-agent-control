@@ -40,6 +40,7 @@ nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.0
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.33" }
 # local dependencies
 fs = { path = "../fs" }
+wrapper_with_default = { path = "../wrapper_with_default" }
 
 # OnHost subagent dependencies
 # IMPORTANT: All onhost only deps needs to be `optional = true` so they won't be compiled by default

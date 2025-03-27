@@ -6,6 +6,7 @@ use super::{
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
+use wrapper_with_default::WrapperWithDefault;
 
 const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
@@ -33,47 +34,13 @@ pub struct OnHostHealthConfig {
     pub(crate) check: OnHostHealthCheck,
 }
 
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
 pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
-impl From<HealthCheckInterval> for Duration {
-    fn from(value: HealthCheckInterval) -> Self {
-        value.0
-    }
-}
-
-impl From<Duration> for HealthCheckInterval {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl Default for HealthCheckInterval {
-    fn default() -> Self {
-        Self(DEFAULT_HEALTH_CHECK_INTERVAL)
-    }
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_HEALTH_CHECK_TIMEOUT)]
 pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
-
-impl From<HealthCheckTimeout> for Duration {
-    fn from(value: HealthCheckTimeout) -> Self {
-        value.0
-    }
-}
-
-impl From<Duration> for HealthCheckTimeout {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl Default for HealthCheckTimeout {
-    fn default() -> Self {
-        Self(DEFAULT_HEALTH_CHECK_TIMEOUT)
-    }
-}
 
 /// Enumeration representing the possible types of health checks.
 ///
