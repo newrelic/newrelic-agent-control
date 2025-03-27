@@ -2,8 +2,7 @@ use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
-use crate::opamp::remote_config::validators::regexes::ConfigValidatorError;
-use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorError;
+use crate::opamp::remote_config::validators::SupportedRemoteConfigValidatorError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::values::yaml_config::YAMLConfigError;
 use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
@@ -38,9 +37,7 @@ pub enum SubAgentError {
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
     #[error("ConfigValidator error: `{0}`")]
-    ConfigValidatorError(#[from] ConfigValidatorError),
-    #[error("SignatureValidator error: `{0}`")]
-    SignatureValidatorError(#[from] SignatureValidatorError),
+    ConfigValidatorError(#[from] SupportedRemoteConfigValidatorError),
 }
 
 #[derive(Error, Debug)]
