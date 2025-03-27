@@ -171,7 +171,7 @@ jobs:
       - name: Install cargo-machete
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-machete@0.8
+          tool: cargo-shear@1.1.11
 
       - name: Check unused dependencies
-        run: cargo machete --with-metadata
+        run: cargo shear

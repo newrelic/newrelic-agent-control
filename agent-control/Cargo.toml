@@ -124,6 +124,3 @@ ci = []
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
 # feature multiple-instances avoids checking if more than one agent-control process is running at a time
 multiple-instances = []
-
-[package.metadata.cargo-machete]
-ignored = ["glob"]
