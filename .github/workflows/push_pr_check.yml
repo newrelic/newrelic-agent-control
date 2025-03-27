@@ -162,16 +162,14 @@ jobs:
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
-  machete:
-    name: Machete dependencies
+  unused-dependencies-check:
+    name: Check unused dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install cargo-machete
-        uses: taiki-e/install-action@v2
+      - uses: taiki-e/install-action@v2
         with:
           tool: cargo-shear@1.1.11
 
-      - name: Check unused dependencies
-        run: cargo shear
+      - run: cargo shear
