@@ -148,12 +148,14 @@ deployment:
             # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
             disableWait: true
             disableWaitForJobs: true
+            disableTakeOwnership: true
             remediation:
               retries: 3
             replace: true
           upgrade:
             disableWait: true
             disableWaitForJobs: true
+            disableTakeOwnership: true
             cleanupOnFail: true
             force: true
             remediation:
@@ -162,6 +164,7 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
+            disableTakeOwnership: true
           valuesFrom:
           - kind: Secret
             name: default-values-${nr-sub:agent_id}
