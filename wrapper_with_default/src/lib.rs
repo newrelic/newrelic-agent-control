@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Path};
+use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, Path};
 
 /// Procedural derive macro to make easier the implementation of wrappers setting a default value.
 /// It automatically generates the [Default] implementation with the provided `wrapper_default_value` (which should
@@ -9,34 +9,57 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Path};
 #[proc_macro_derive(WrapperWithDefault, attributes(wrapper_default_value))]
 pub fn wrapper_with_default(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    let root_span = input.span(); // Got to improve error handling
     let struct_name = input.ident;
 
     // Get the type of the wrapped field type
     let Data::Struct(data_struct) = input.data else {
-        panic!("This macro can only be derived for structs");
+        return syn::Error::new(root_span, "This macro can only be derived for structs")
+            .to_compile_error()
+            .into();
     };
     let Fields::Unnamed(fields) = data_struct.fields else {
-        panic!("The struct must be a tuple struct and have exactly one unnamed field");
+        return syn::Error::new(
+            data_struct.struct_token.span(),
+            "This macro is only supported for structs with unnamed fields only (tuple-like)",
+        )
+        .to_compile_error()
+        .into();
     };
     if fields.unnamed.len() != 1 {
-        panic!("The struct must have exactly one unnamed field");
+        return syn::Error::new(
+            fields.span(),
+            "The struct must have exactly one unnamed field",
+        )
+        .to_compile_error()
+        .into();
     }
     let wrapped_type = &fields.unnamed[0].ty;
 
-    // Get the value of the 'wrapper_default_value' attribute
-    let default_value = input
+    // Get the value of the expected attribute
+    let Some(default_value_atrr) = input
         .attrs
         .iter()
-        .find_map(|attr| {
-            if !attr.path().is_ident("wrapper_default_value") {
-                return None;
-            }
-            let value: Path = attr.parse_args().unwrap_or_else(|err| {
-                panic!("Expected `wrapper_default_value` to be path literal referencing to a constant: {err}")
-            });
-            Some(value)
-        })
-        .expect("Missing attribute `wrapper_default_value`. Was `#[wrapper_default_value(...)]` set?");
+        .find(|attr| attr.path().is_ident("wrapper_default_value"))
+    else {
+        return syn::Error::new(
+            root_span,
+            "Missing attribute `wrapper_default_value`. Was `#[wrapper_default_value(...)]` set?",
+        )
+        .to_compile_error()
+        .into();
+    };
+
+    // Parse the value as a path since it is expected to be a constant
+    let Ok(default_value) = default_value_atrr.parse_args::<Path>() else {
+        let type_as_string = stringify!(#wrapped_type);
+        return syn::Error::new(
+            default_value_atrr.span(),
+            format!("Expected `wrapper_default_value` to be path literal referencing to a {type_as_string} constant"),
+        )
+        .to_compile_error()
+        .into();
+    };
 
     // Generate the implementation and convert it back to TokenStream
     let expanded = quote! {
