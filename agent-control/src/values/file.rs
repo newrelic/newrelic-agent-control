@@ -218,6 +218,8 @@ pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf
 
 #[cfg(test)]
 pub mod tests {
+    use rstest::*;
+
     use super::{concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile};
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
@@ -263,30 +265,48 @@ pub mod tests {
         }
     }
 
-    #[test]
-    fn test_load_when_remote_enabled() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
+    fn yaml_config_repository_file_mock(
+        remote_enabled: bool,
+    ) -> YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManagerMock> {
+        let file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::new();
         let remote_dir_path = Path::new("some/remote/path");
         let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = true;
 
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        let yaml_config_content = "some_config: true\nanother_item: false";
-
-        file_rw.should_read(
-            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
-            yaml_config_content.to_string(),
-        );
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
+        YAMLConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_dir_path,
             remote_dir_path,
             remote_enabled,
+        )
+    }
+
+    fn get_conf_path(
+        yaml_config: &YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManagerMock>,
+    ) -> &Path {
+        if yaml_config.remote_enabled {
+            &yaml_config.remote_conf_path
+        } else {
+            &yaml_config.local_conf_path
+        }
+    }
+
+    #[fixture]
+    fn agent_id() -> AgentID {
+        AgentID::new("some-agent-id").unwrap()
+    }
+
+    #[rstest]
+    #[case::remote_enabled(true)]
+    #[case::remote_disabled(false)]
+    fn test_load_with(#[case] remote_enabled: bool, agent_id: AgentID) {
+        let yaml_config_content = "some_config: true\nanother_item: false";
+
+        let mut repo = yaml_config_repository_file_mock(remote_enabled);
+        repo.file_rw.should_read(
+            concatenate_sub_agent_dir_path(get_conf_path(&repo), &agent_id).as_path(),
+            yaml_config_content.to_string(),
         );
 
         let yaml_config =
@@ -299,71 +319,19 @@ pub mod tests {
         );
     }
 
-    #[test]
-    fn test_load_when_remote_disabled() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
+    #[rstest]
+    fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local(agent_id: AgentID) {
         let yaml_config_content = "some_config: true\nanother_item: false";
 
-        file_rw.should_read(
-            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
-            yaml_config_content.to_string(),
-        );
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
-
-        assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
-        assert_eq!(
-            yaml_config.get("another_item").unwrap(),
-            &Value::Bool(false)
-        );
-    }
-
-    #[test]
-    fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = true;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        let yaml_config_content = "some_config: true\nanother_item: false";
-
-        file_rw.should_not_read_file_not_found(
-            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
+        let mut repo = yaml_config_repository_file_mock(true);
+        repo.file_rw.should_not_read_file_not_found(
+            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "some_error_message".to_string(),
         );
 
-        file_rw.should_read(
-            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
+        repo.file_rw.should_read(
+            concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
             yaml_config_content.to_string(),
-        );
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
         );
 
         let yaml_config =
@@ -376,28 +344,12 @@ pub mod tests {
         );
     }
 
-    #[test]
-    fn test_load_local_file_not_found_should_return_defaults() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        file_rw.should_not_read_file_not_found(
-            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
+    #[rstest]
+    fn test_load_local_file_not_found_should_return_defaults(agent_id: AgentID) {
+        let mut repo = yaml_config_repository_file_mock(false);
+        repo.file_rw.should_not_read_file_not_found(
+            concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
             "some message".to_string(),
-        );
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
         );
 
         let yaml_config =
@@ -406,27 +358,13 @@ pub mod tests {
         assert_eq!(yaml_config, YAMLConfig::default());
     }
 
-    #[test]
-    fn test_load_when_remote_enabled_io_error() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = true;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        file_rw.should_not_read_io_error(
-            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
-        );
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
+    #[rstest]
+    #[case::remote_enabled(true)]
+    #[case::remote_disabled(false)]
+    fn test_load_io_error(#[case] remote_enabled: bool, agent_id: AgentID) {
+        let mut repo = yaml_config_repository_file_mock(remote_enabled);
+        repo.file_rw.should_not_read_io_error(
+            concatenate_sub_agent_dir_path(get_conf_path(&repo), &agent_id).as_path(),
         );
 
         let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
@@ -436,96 +374,36 @@ pub mod tests {
         });
     }
 
-    #[test]
-    fn test_load_local_io_error() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
+    #[rstest]
+    fn test_store_remote(agent_id: AgentID) {
+        let mut repo = yaml_config_repository_file_mock(false);
 
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        file_rw.should_not_read_io_error(Path::new(
-            concatenate_sub_agent_dir_path(local_dir_path, &agent_id).as_path(),
-        ));
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
-        let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
-        let err = result.unwrap_err();
-        assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
-            assert!(s.contains("error reading contents"));
-        });
-    }
-
-    #[test]
-    fn test_store_remote() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-
-        dir_manager.should_create(
+        repo.directory_manager.should_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
         );
 
-        file_rw.should_write(
-            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
+        repo.file_rw.should_write(
+            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );
 
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         repo.store_remote(&agent_id, &yaml_config).unwrap();
     }
 
-    #[test]
-    fn test_store_remote_error_creating_dir() {
-        //Mocks
-        let file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
+    #[rstest]
+    fn test_store_remote_error_creating_dir(agent_id: AgentID) {
+        let mut repo = yaml_config_repository_file_mock(false);
 
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-
-        dir_manager.should_not_create(
+        repo.directory_manager.should_not_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let result = repo.store_remote(&agent_id, &yaml_config);
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
@@ -533,66 +411,33 @@ pub mod tests {
         });
     }
 
-    #[test]
-    fn test_store_remote_error_writing_file() {
-        //Mocks
-        let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
+    #[rstest]
+    fn test_store_remote_error_writing_file(agent_id: AgentID) {
+        let mut repo = yaml_config_repository_file_mock(false);
 
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-
-        dir_manager.should_create(
+        repo.directory_manager.should_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
             Permissions::from_mode(0o700),
         );
 
-        file_rw.should_not_write(
-            concatenate_sub_agent_dir_path(remote_dir_path, &agent_id).as_path(),
+        repo.file_rw.should_not_write(
+            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "one_item: one value\n".to_string(),
             Permissions::from_mode(0o600),
         );
 
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let result = repo.store_remote(&agent_id, &yaml_config);
-
-        assert!(result.is_err());
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("error creating file"));
         });
     }
 
-    #[test]
-    fn test_delete_remote() {
+    #[rstest]
+    fn test_delete_remote(agent_id: AgentID) {
         // TODO add a test without mocks checking actual deletion
-        //Mocks
-        let file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
-        let remote_enabled = false;
-
-        let agent_id = AgentID::new("some-agent-id").unwrap();
-
-        let repo = YAMLConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        );
-
+        let repo = yaml_config_repository_file_mock(false);
         repo.delete_remote(&agent_id).unwrap();
     }
 }
