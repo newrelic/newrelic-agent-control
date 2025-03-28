@@ -115,7 +115,6 @@ impl AgentControlRunner {
         let template_renderer = TemplateRenderer::default();
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
             self.agent_type_registry.clone(),
             template_renderer,
         ));
@@ -129,6 +128,7 @@ impl AgentControlRunner {
             hash_repository.clone(),
             supervisor_builder,
             agents_assembler.clone(),
+            yaml_config_repository.clone(),
             Environment::K8s,
         );
 

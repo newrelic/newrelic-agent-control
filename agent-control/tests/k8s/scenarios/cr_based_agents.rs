@@ -69,6 +69,14 @@ agents:
         ),
     );
 
+    // Set sub-agent remote config (there is no local config and the supervisor will not start otherwise)
+    let subagent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("foo-agent").unwrap(),
+    );
+    server.set_config_response(subagent_instance_id, "data: some-data\n".into());
+
     let api: Api<Foo> = Api::namespaced(k8s.client.clone(), &namespace);
 
     // Asserts the agent resources are created
@@ -143,6 +151,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         &AgentID::new_agent_control_id(),
     );
 
+    // Set AC remote config
     server.set_config_response(
         instance_id.clone(),
         ConfigResponse::from(
@@ -164,6 +173,14 @@ agents:
         ))?;
         Ok(())
     });
+    // Set sub-agent remote config (there is no local config and the supervisor will not start otherwise)
+    let subagent_instance_id = instance_id::get_instance_id(
+        k8s.client.clone(),
+        &namespace,
+        &AgentID::new("bar-agent").unwrap(),
+    );
+    server.set_config_response(subagent_instance_id, "data: some-data\n".into());
+
     block_on(api.get("bar-agent")).expect_err("there is no Bar CRD");
 
     // Create the CRD

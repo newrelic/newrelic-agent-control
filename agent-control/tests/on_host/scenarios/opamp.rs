@@ -143,9 +143,6 @@ agents:
     let expected_config_parsed =
         serde_yaml::from_str::<AgentControlDynamicConfig>(expected_config.as_str()).unwrap();
 
-    let subagent_instance_id =
-        get_instance_id(&AgentID::new("nr-sleep-agent").unwrap(), base_paths.clone());
-
     retry(60, Duration::from_secs(1), || {
         let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
         let remote_config =
@@ -165,7 +162,19 @@ agents:
             &agent_control_instance_id,
             remote_config,
         )?;
-        check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)?;
+        check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
+    });
+
+    let subagent_instance_id =
+        get_instance_id(&AgentID::new("nr-sleep-agent").unwrap(), base_paths.clone());
+
+    // The sub-agent waits for the remote config to be set, it cannot be empty since it would default to local
+    // which does not exist.
+    opamp_server.set_config_response(
+        subagent_instance_id.clone(),
+        ConfigResponse::from("fake_variable: value"),
+    );
+    retry(60, Duration::from_secs(1), || {
         check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
     });
 }
@@ -377,7 +386,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
-        local_dir.path().to_path_buf(),
+        remote_dir.path().to_path_buf(),
     );
 
     let base_paths = BasePaths {
@@ -402,7 +411,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     });
 }
 
-/// There is a agent control with a sub agent configured whose configuration is empty, we expect the empty configuration
+/// There is a agent control with a sub agent configured whose configuration is empty (it exists but id doesn't contain
+/// any value, if it didn't exist the supervisor would not start), we expect the empty configuration
 /// to be reported as effective configuration for the sub-agent.
 #[cfg(unix)]
 #[test]
@@ -436,8 +446,13 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         opamp_server.cert_file_path(),
     );
 
-    // And the custom-agent has no config values
+    // And the custom-agent has empty config values
     let agent_id = "nr-sleep-agent";
+    create_sub_agent_values(
+        agent_id.to_string(),
+        "".to_string(), // local empty config
+        local_dir.path().into(),
+    );
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

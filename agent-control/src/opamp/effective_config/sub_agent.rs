@@ -34,7 +34,7 @@ where
     Y: YAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
-        let values = load_remote_fallback_local(
+        let maybe_values = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
             &self.agent_id,
             &default_capabilities(),
@@ -42,6 +42,13 @@ where
         .map_err(|err| {
             LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
         })?;
+
+        let Some(values) = maybe_values else {
+            return Err(LoaderError::from(format!(
+                "there was no local nor remote configuration for {}",
+                self.agent_id
+            )));
+        };
 
         let values_string: String = values.try_into().map_err(|err| {
             LoaderError::from(format!(

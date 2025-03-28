@@ -35,6 +35,9 @@ sequenceDiagram
     Client->>-Server: AgentToServer(RemoteConfigStatus(Applied), hash=y)
 ```
 
+⚠️ **If empty remote configuration is sent and there is no local configuration, the agent's supervisor will be stopped**. The sub-agent will
+wait for a remote configuration since it cannot fallback to local when there is no local.
+
 ## ❌ RemoteConfigStatus 'UNSET' value
 
 The `UNSET` value for the  `RemoteConfigStatus` field can be a bit misleading, its name might suggest that the value is supposed to be sent when the remote configuration is deleted or removed, but according to the [specification](https://github.com/open-telemetry/opamp-spec/blob/db1e1fcf14e834469f822496f2fa1ed0512141be/specification.md#agenttoserverremote_config_status):

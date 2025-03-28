@@ -1,3 +1,4 @@
+use crate::agent_control::defaults::default_capabilities;
 use crate::agent_type::environment::Environment;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
@@ -5,6 +6,9 @@ use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::SupervisorStarter;
+use crate::values::yaml_config_repository::{
+    load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
+};
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
@@ -17,6 +21,12 @@ pub enum SupervisorAssemblerError {
 
     #[error("supervisor could not be built: `{0}`")]
     SupervisorBuildError(String),
+
+    #[error("values error: {0}")]
+    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
+
+    #[error("no configuration found")]
+    NoConfiguration,
 }
 
 pub trait SupervisorAssembler {
@@ -35,39 +45,44 @@ pub trait SupervisorAssembler {
 /// to ensure that the Supervisor for the Sub Agent can be built.
 /// If it succeeds, it will use the environment specific SupervisorBuilder
 /// to actually build and return the Supervisor.
-pub struct AgentSupervisorAssembler<HR, B, A> {
+pub struct AgentSupervisorAssembler<HR, B, A, Y> {
     hash_repository: Arc<HR>,
     supervisor_builder: B,
     effective_agent_assembler: Arc<A>,
+    yaml_config_repository: Arc<Y>,
     environment: Environment,
 }
 
-impl<HR, B, A> AgentSupervisorAssembler<HR, B, A>
+impl<HR, B, A, Y> AgentSupervisorAssembler<HR, B, A, Y>
 where
     HR: HashRepository + Send + Sync + 'static,
     B: SupervisorBuilder,
     A: EffectiveAgentsAssembler,
+    Y: YAMLConfigRepository,
 {
     pub fn new(
         hash_repository: Arc<HR>,
         supervisor_builder: B,
         effective_agent_assembler: Arc<A>,
+        yaml_config_repository: Arc<Y>,
         environment: Environment,
     ) -> Self {
         Self {
             hash_repository,
             supervisor_builder,
             effective_agent_assembler,
+            yaml_config_repository,
             environment,
         }
     }
 }
 
-impl<HR, B, A> SupervisorAssembler for AgentSupervisorAssembler<HR, B, A>
+impl<HR, B, A, Y> SupervisorAssembler for AgentSupervisorAssembler<HR, B, A, Y>
 where
     HR: HashRepository + Send + Sync + 'static,
     B: SupervisorBuilder,
     A: EffectiveAgentsAssembler,
+    Y: YAMLConfigRepository,
 {
     type SupervisorStarter = B::SupervisorStarter;
 
@@ -90,10 +105,25 @@ where
             debug!("no previous remote config found");
         }
 
+        // Load the configuration
+        let Some(yaml_config) = load_remote_fallback_local(
+            self.yaml_config_repository.as_ref(),
+            &agent_identity.id,
+            &default_capabilities(),
+        )?
+        else {
+            debug!("there is no configuration for this agent");
+            // TODO: instead of returning an error here, this method should probably receive an EffectiveAgent and
+            // _assemble_ the corresponding supervisor only if the effective-agent was successfully put together.
+            return Err(SupervisorAssemblerError::NoConfiguration);
+        };
+
         // Assemble the new agent
-        let effective_agent_result = self
-            .effective_agent_assembler
-            .assemble_agent(&agent_identity, &self.environment);
+        let effective_agent_result = self.effective_agent_assembler.assemble_agent(
+            &agent_identity,
+            yaml_config,
+            &self.environment,
+        );
 
         match effective_agent_result {
             Err(e) => {
@@ -150,6 +180,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::default_capabilities;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
@@ -169,6 +200,9 @@ pub mod tests {
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::starter::SupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
+    use crate::values::yaml_config::YAMLConfig;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use assert_matches::assert_matches;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
@@ -213,6 +247,7 @@ pub mod tests {
         MockHashRepositoryMock,
         MockSupervisorBuilder<MockSupervisorStarter>,
         MockEffectiveAgentAssemblerMock,
+        MockYAMLConfigRepositoryMock,
     >;
 
     type OpampClientForTest = MockStartedOpAMPClientMock;
@@ -225,10 +260,18 @@ pub mod tests {
                 .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
 
+            let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+            yaml_config_repository.should_load_remote(
+                &agent_identity.id,
+                default_capabilities(),
+                &YAMLConfig::default(),
+            );
+
             let effective_agent = final_agent(agent_identity.clone());
             let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
             effective_agent_assembler.should_assemble_agent(
                 &agent_identity,
+                &YAMLConfig::default(),
                 &Environment::OnHost,
                 effective_agent.clone(),
                 1,
@@ -261,6 +304,7 @@ pub mod tests {
                 hash_repository_ref,
                 supervisor_builder,
                 Arc::new(effective_agent_assembler),
+                Arc::new(yaml_config_repository),
                 Environment::OnHost,
             )
         }
@@ -371,13 +415,20 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_get_hash(&agent_identity.id, hash);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
 
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .returning(|_, _| {
+            .returning(|_, _, _| {
                 Err(
                     EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
                         "a random error happened!",
@@ -402,6 +453,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -425,6 +477,13 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_not_get_hash(&agent_identity.id);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
 
@@ -432,7 +491,7 @@ pub mod tests {
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
+            .return_once(move |_, _, _| Ok(assembled_effective_agent));
 
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
@@ -450,6 +509,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -473,13 +533,20 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_not_get_hash(&agent_identity.id);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
 
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .returning(|_, _| {
+            .returning(|_, _, _| {
                 Err(
                     EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
                         "a random error happened!",
@@ -503,6 +570,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -527,6 +595,13 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_get_hash(&agent_identity.id, hash);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
 
@@ -534,7 +609,7 @@ pub mod tests {
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
+            .return_once(move |_, _, _| Ok(assembled_effective_agent));
 
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
@@ -550,6 +625,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -573,6 +649,13 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_not_get_hash(&agent_identity.id);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
         let assembled_effective_agent = effective_agent.clone();
 
@@ -580,7 +663,7 @@ pub mod tests {
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
+            .return_once(move |_, _, _| Ok(assembled_effective_agent));
 
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
@@ -596,6 +679,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -620,13 +704,20 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_get_hash(&agent_identity.id, hash);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
 
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| {
+            .return_once(move |_, _, _| {
                 Err(
                     EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
                         "random error!",
@@ -648,6 +739,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -671,13 +763,20 @@ pub mod tests {
         let mut hash_repository = MockHashRepositoryMock::new();
         hash_repository.should_not_get_hash(&agent_identity.id);
 
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
+
         let effective_agent = final_agent(agent_identity.clone());
 
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| {
+            .return_once(move |_, _, _| {
                 Err(
                     EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
                         "random error!",
@@ -699,6 +798,7 @@ pub mod tests {
             hash_repository_ref,
             supervisor_builder,
             Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
             Environment::OnHost,
         );
 
@@ -707,6 +807,88 @@ pub mod tests {
         assert!(supervisor_assembler
             .assemble_supervisor(&maybe_opamp_client, agent_identity)
             .is_err());
+    }
+
+    #[test]
+    fn test_assemble_supervisor_yaml_values_error() {
+        let agent_identity = AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
+
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.should_not_get_hash(&agent_identity.id);
+
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_config_repository.should_not_load_remote(&agent_identity.id, default_capabilities());
+
+        let effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        let supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter> =
+            MockSupervisorBuilder::new();
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let supervisor_assembler = AgentSupervisorAssembler::new(
+            hash_repository_ref,
+            supervisor_builder,
+            Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
+            Environment::OnHost,
+        );
+
+        let maybe_opamp_client: Option<OpampClientForTest> = None;
+
+        assert!(supervisor_assembler
+            .assemble_supervisor(&maybe_opamp_client, agent_identity)
+            .is_err());
+    }
+
+    #[test]
+    fn test_assemble_supervisor_yaml_values_none() {
+        let agent_identity = AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
+
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.should_not_get_hash(&agent_identity.id);
+
+        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        // There is no local nor remote configuration
+        yaml_config_repository
+            .expect_load_remote()
+            .once()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(default_capabilities()),
+            )
+            .returning(move |_, _| Ok(None));
+        yaml_config_repository
+            .expect_load_local()
+            .once()
+            .with(predicate::eq(agent_identity.id.clone()))
+            .returning(move |_| Ok(None));
+
+        let effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        let supervisor_builder: MockSupervisorBuilder<MockSupervisorStarter> =
+            MockSupervisorBuilder::new();
+        let hash_repository_ref = Arc::new(hash_repository);
+
+        let supervisor_assembler = AgentSupervisorAssembler::new(
+            hash_repository_ref,
+            supervisor_builder,
+            Arc::new(effective_agent_assembler),
+            Arc::new(yaml_config_repository),
+            Environment::OnHost,
+        );
+
+        let maybe_opamp_client: Option<OpampClientForTest> = None;
+
+        let supervisor_result =
+            supervisor_assembler.assemble_supervisor(&maybe_opamp_client, agent_identity);
+        assert_matches!(
+            supervisor_result.err().unwrap(),
+            SupervisorAssemblerError::NoConfiguration
+        );
     }
 
     fn final_agent(agent_identity: AgentIdentity) -> EffectiveAgent {

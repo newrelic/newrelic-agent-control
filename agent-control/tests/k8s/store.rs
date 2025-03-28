@@ -122,11 +122,10 @@ fn k8s_value_repository_config_map() {
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
     let mut value_repository = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
-    let default_values = YAMLConfig::default();
     let capabilities = default_capabilities();
-    // without values the default is expected
+    // without values the none is expected
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), default_values);
+    assert!(res.unwrap().is_none());
 
     // with local values we expect some data
     block_on(create_local_config_map(
@@ -138,7 +137,7 @@ fn k8s_value_repository_config_map() {
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
 
-    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res.unwrap().unwrap(), local_values);
 
     // with remote data we expect we get local without remote
     let remote_values = YAMLConfig::try_from("test: 3".to_string()).unwrap();
@@ -146,17 +145,17 @@ fn k8s_value_repository_config_map() {
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res.unwrap().unwrap(), local_values);
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), remote_values);
+    assert_eq!(res.unwrap().unwrap(), remote_values);
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res.unwrap().unwrap(), local_values);
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
@@ -166,8 +165,8 @@ fn k8s_value_repository_config_map() {
         .unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
     let res_agent_2 = load_remote_fallback_local(&value_repository, &agent_id_2, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
-    assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
+    assert_eq!(res.unwrap().unwrap(), local_values);
+    assert_eq!(res_agent_2.unwrap().unwrap(), remote_values_agent_2);
 }
 
 #[test]

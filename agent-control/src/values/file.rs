@@ -289,8 +289,9 @@ pub mod tests {
             remote_enabled,
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+            .unwrap()
+            .unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -325,8 +326,9 @@ pub mod tests {
             remote_enabled,
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+            .unwrap()
+            .unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -366,8 +368,9 @@ pub mod tests {
             remote_enabled,
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+            .unwrap()
+            .unwrap();
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -377,7 +380,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_load_local_file_not_found_should_return_defaults() {
+    fn test_load_local_file_not_found_should_return_none() {
         //Mocks
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManagerMock::new();
@@ -403,7 +406,7 @@ pub mod tests {
         let yaml_config =
             load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
-        assert_eq!(yaml_config, YAMLConfig::default());
+        assert!(yaml_config.is_none());
     }
 
     #[test]
