@@ -1,6 +1,11 @@
 use opamp_client::operation::instance_uid::InstanceUid;
 use serde::{Deserialize, Serialize, Serializer};
-use std::{convert::TryInto, fmt::Display};
+use std::{
+    convert::TryInto,
+    fmt::{Debug, Display},
+};
+
+pub trait AsIdentifiers: PartialEq + Debug + Clone {}
 
 /// Holds an OpAMP's instance uid and easy its serialization/deserialization.
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
@@ -44,7 +49,7 @@ impl From<InstanceUid> for InstanceID {
 
 impl Display for InstanceID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        Display::fmt(&self.0, f)
     }
 }
 
@@ -61,9 +66,13 @@ impl From<InstanceID> for Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::InstanceID;
+pub mod tests {
+    use super::{AsIdentifiers, InstanceID};
     use opamp_client::operation::instance_uid::InstanceUid;
+
+    #[derive(Debug, Default, PartialEq, Clone)]
+    pub struct MockIdentifiers(pub usize);
+    impl AsIdentifiers for MockIdentifiers {}
 
     #[test]
     fn test_instance_id_serialize_deserialize() {

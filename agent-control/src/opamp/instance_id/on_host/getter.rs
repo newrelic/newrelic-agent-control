@@ -1,5 +1,6 @@
 use crate::http::client::HttpClient;
-use crate::opamp::instance_id::on_host::storer::StorerError;
+use crate::opamp::instance_id::definition::AsIdentifiers;
+
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
 };
@@ -24,6 +25,8 @@ pub struct Identifiers {
     pub host_id: String,
     pub fleet_id: String,
 }
+
+impl AsIdentifiers for Identifiers {}
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -156,17 +159,16 @@ where
     }
 }
 
-#[derive(Error, Debug)]
-pub enum GetterError {
-    #[error("failed to persist Data: `{0}`")]
-    Persisting(#[from] StorerError),
-}
+// #[derive(Error, Debug)]
+// pub enum GetterError {
+//     #[error("failed to persist Data: `{0}`")]
+//     Persisting(#[from] StorerError),
+// }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::opamp::instance_id::Identifiers;
-    use crate::opamp::instance_id::{
-        on_host::getter::IdentifiersProvider, IdentifiersProviderError,
+    use crate::opamp::instance_id::on_host::getter::{
+        Identifiers, IdentifiersProvider, IdentifiersProviderError,
     };
     use assert_matches::assert_matches;
     use mockall::mock;

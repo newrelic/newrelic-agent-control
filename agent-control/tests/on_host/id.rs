@@ -10,7 +10,6 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
-use newrelic_agent_control::opamp::instance_id::IdentifiersProvider;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
@@ -23,6 +22,7 @@ const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 #[cfg(target_family = "unix")]
 fn test_aws_cloud_id() {
     use httpmock::Method::PUT;
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
 
     use crate::on_host::consts::AWS_VM_RESPONSE;
 
@@ -77,6 +77,8 @@ fn test_aws_cloud_id() {
 #[test]
 #[cfg(target_family = "unix")]
 fn test_azure_cloud_id() {
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
+
     use crate::on_host::consts::AZURE_VM_RESPONSE;
 
     let metadata_path = "/metadata/instance";
@@ -124,6 +126,8 @@ fn test_azure_cloud_id() {
 #[test]
 #[cfg(target_family = "unix")]
 fn test_gcp_cloud_id() {
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
+
     use crate::on_host::consts::GCP_VM_RESPONSE;
 
     let metadata_path = "/metadata/instance";

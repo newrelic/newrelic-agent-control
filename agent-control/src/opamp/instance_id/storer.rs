@@ -1,22 +1,50 @@
-use super::StorerError;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::getter::DataStored};
 
-pub trait InstanceIDStorer {
-    fn set(&self, agent_id: &AgentID, data: &DataStored) -> Result<(), StorerError>;
-    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError>;
+use super::{definition::AsIdentifiers, getter::GetterError};
+
+pub trait InstanceIDStorer
+where
+    GetterError: From<Self::Error>,
+{
+    type Error;
+    type Identifiers: AsIdentifiers;
+
+    fn set(
+        &self,
+        agent_id: &AgentID,
+        data: &DataStored<Self::Identifiers>,
+    ) -> Result<(), Self::Error>;
+    fn get(&self, agent_id: &AgentID)
+        -> Result<Option<DataStored<Self::Identifiers>>, Self::Error>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use crate::opamp::instance_id::definition::tests::MockIdentifiers;
+
     use super::*;
     use mockall::mock;
+    use thiserror::Error;
+
+    #[derive(Error, Debug, PartialEq, Clone)]
+    #[error("mock getter error")]
+    pub struct MockStorerError;
+
+    impl From<MockStorerError> for GetterError {
+        fn from(_: MockStorerError) -> Self {
+            GetterError::MockGetterError
+        }
+    }
 
     mock! {
         pub InstanceIDStorerMock {}
 
         impl InstanceIDStorer for InstanceIDStorerMock {
-            fn set(&self, agent_id: &AgentID, data: &DataStored) -> Result<(), StorerError>;
-            fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError>;
+            type Error = MockStorerError;
+            type Identifiers = MockIdentifiers;
+
+            fn set(&self, agent_id: &AgentID, data: &DataStored<MockIdentifiers>) -> Result<(), MockStorerError>;
+            fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<MockIdentifiers>>, MockStorerError>;
         }
     }
 }

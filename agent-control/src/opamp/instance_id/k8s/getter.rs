@@ -1,7 +1,7 @@
-use crate::k8s;
 use crate::k8s::store::K8sStore;
+use crate::opamp::instance_id::definition::AsIdentifiers;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::k8s::storer::{Storer, StorerError};
+use crate::opamp::instance_id::k8s::storer::Storer;
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
@@ -11,6 +11,8 @@ pub struct Identifiers {
     pub cluster_name: String,
     pub fleet_id: String,
 }
+
+impl AsIdentifiers for Identifiers {}
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -27,15 +29,6 @@ pub fn get_identifiers(cluster_name: String, fleet_id: String) -> Identifiers {
         cluster_name,
         fleet_id,
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum GetterError {
-    #[error("failed to persist Data: `{0}`")]
-    Persisting(#[from] StorerError),
-
-    #[error("Initialising client: `{0}`")]
-    K8sClientInitialization(#[from] k8s::Error),
 }
 
 impl InstanceIDWithIdentifiersGetter<Storer> {

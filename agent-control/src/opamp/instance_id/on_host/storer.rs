@@ -13,6 +13,8 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tracing::debug;
 
+use super::getter::Identifiers;
+
 #[cfg(target_family = "unix")]
 const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
@@ -50,11 +52,20 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
+    type Error = StorerError;
+    type Identifiers = Identifiers;
+    fn set(
+        &self,
+        agent_id: &AgentID,
+        ds: &DataStored<Self::Identifiers>,
+    ) -> Result<(), Self::Error> {
         self.write_contents(agent_id, ds)
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
+    fn get(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<DataStored<Self::Identifiers>>, Self::Error> {
         self.read_contents(agent_id)
     }
 }
@@ -84,7 +95,11 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn write_contents(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
+    fn write_contents(
+        &self,
+        agent_id: &AgentID,
+        ds: &DataStored<Identifiers>,
+    ) -> Result<(), StorerError> {
         let dest_file = self.get_instance_id_path(agent_id);
         // Get a ref to the target file's parent directory
         let dest_dir = dest_file
@@ -105,7 +120,10 @@ where
         )?)
     }
 
-    fn read_contents(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
+    fn read_contents(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<DataStored<Identifiers>>, StorerError> {
         let dest_path = self.get_instance_id_path(agent_id);
         let file_str = match self.file_rw.read(dest_path.as_path()) {
             Ok(s) => s,
@@ -138,8 +156,10 @@ where
 mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::opamp::instance_id::getter::DataStored;
+    use crate::opamp::instance_id::on_host::getter::Identifiers;
+    use crate::opamp::instance_id::on_host::storer::Storer;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
-    use crate::opamp::instance_id::{Identifiers, InstanceID, Storer};
+    use crate::opamp::instance_id::InstanceID;
     use fs::directory_manager::mock::MockDirectoryManagerMock;
     use fs::mock::MockLocalFile;
     use mockall::predicate;
