@@ -149,6 +149,8 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use rstest::*;
+
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::environment::Environment;
@@ -266,6 +268,27 @@ pub mod tests {
         }
     }
 
+    #[fixture]
+    fn agent_identity() -> AgentIdentity {
+        AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ))
+    }
+
+    #[fixture]
+    fn final_agent(agent_identity: AgentIdentity) -> EffectiveAgent {
+        EffectiveAgent::new(
+            agent_identity,
+            Runtime {
+                deployment: Deployment {
+                    on_host: Some(OnHost::default()),
+                    k8s: None,
+                },
+            },
+        )
+    }
+
     // Tests for `assemble_supervisor` function
     // Essentially, the function defines the behavior for a certain combination
     // of the following parameters:
@@ -282,12 +305,8 @@ pub mod tests {
     /// `maybe_opamp_client == Some(_)`
     /// `hash_repository.get(agent_id)? == Some(_)`
     /// `effective_agent_res == Ok(_)`
-    #[test]
-    fn test_assemble_supervisor_from_some_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
+    #[rstest]
+    fn test_assemble_supervisor_from_some_hash_ok_eff_agent(agent_identity: AgentIdentity) {
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
 
@@ -322,12 +341,8 @@ pub mod tests {
     /// `maybe_opamp_client == Some(_)`
     /// `hash_repository.get(agent_id) fails` must not be different from the `None` cases, but we test it anyway to detect if this invariant changes
     /// `effective_agent_res == Ok(_)`
-    #[test]
-    fn test_assemble_supervisor_from_err_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
+    #[rstest]
+    fn test_assemble_supervisor_from_err_hash_ok_eff_agent(agent_identity: AgentIdentity) {
         //  create a default assembler
         let mut assembler = AssemblerForTesting::test_assembler(agent_identity.clone());
 
@@ -352,13 +367,8 @@ pub mod tests {
     /// `maybe_opamp_client == Some(_)`
     /// `hash_repository.get(agent_id)? == Some(_)`
     /// `effective_agent_res == Err(_)`
-    #[test]
-    fn test_assemble_supervisor_from_some_hash_err_eff_agent() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
+    #[rstest]
+    fn test_assemble_supervisor_from_some_hash_err_eff_agent(agent_identity: AgentIdentity) {
         let mut hash = Hash::new("some_hash".to_string());
         hash.fail("error assembling agents: `a random error happened!`".to_string());
 
@@ -412,216 +422,33 @@ pub mod tests {
             .is_err());
     }
 
-    /// `maybe_opamp_client == Some(_)`
-    /// `hash_repository.get(agent_id)? == None`
-    /// `effective_agent_res == Ok(_)`
-    #[test]
-    fn test_assemble_supervisor_from_none_hash_ok_eff_agent() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
+    fn setup_hash_repository(
+        hash: String,
+        agent_identity: AgentIdentity,
+    ) -> MockHashRepositoryMock {
         let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(&agent_identity.id);
+        if hash.is_empty() {
+            hash_repository.should_not_get_hash(&agent_identity.id);
+        } else {
+            hash_repository.should_get_hash(&agent_identity.id, Hash::new(hash));
+        }
 
-        let effective_agent = final_agent(agent_identity.clone());
-        let assembled_effective_agent = effective_agent.clone();
+        hash_repository
+    }
 
+    fn setup_effective_agent_assembler_to_return_ok(
+        effective_agent: EffectiveAgent,
+    ) -> MockEffectiveAgentAssemblerMock {
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
+            .return_once(move |_, _| Ok(effective_agent));
 
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let opamp_client = OpampClientForTest::new();
-
-        let hash_repository_ref = Arc::new(hash_repository);
-
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            Arc::new(effective_agent_assembler),
-            Environment::OnHost,
-        );
-
-        let maybe_opamp_client = Some(opamp_client);
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_ok());
-    }
-
-    /// `maybe_opamp_client == Some(_)`
-    /// `hash_repository.get(agent_id)? == None`
-    /// `effective_agent_res == Err(_)`
-    #[test]
-    fn test_assemble_supervisor_from_none_hash_err_eff_agent() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(&agent_identity.id);
-
-        let effective_agent = final_agent(agent_identity.clone());
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .returning(|_, _| {
-                Err(
-                    EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
-                        "a random error happened!",
-                    )),
-                )
-            });
-
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let opamp_client = OpampClientForTest::new();
-
-        let hash_repository_ref = Arc::new(hash_repository);
-
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            Arc::new(effective_agent_assembler),
-            Environment::OnHost,
-        );
-
-        let maybe_opamp_client = Some(opamp_client);
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_err());
     }
 
-    /// `maybe_opamp_client == None`
-    /// `hash_repository.get(agent_id)? == Some(_)
-    /// `effective_agent_res == Ok(_)`
-    #[test]
-    fn test_assemble_supervisor_from_ok_eff_agent_no_opamp() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
-        let hash = Hash::new("some_hash".to_string());
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(&agent_identity.id, hash);
-
-        let effective_agent = final_agent(agent_identity.clone());
-        let assembled_effective_agent = effective_agent.clone();
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
-
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let hash_repository_ref = Arc::new(hash_repository);
-
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            Arc::new(effective_agent_assembler),
-            Environment::OnHost,
-        );
-
-        let maybe_opamp_client: Option<OpampClientForTest> = None;
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_ok());
-    }
-
-    /// `maybe_opamp_client == None`
-    /// `hash_repository.get(agent_id)? == None
-    /// `effective_agent_res == Ok(_)`
-    #[test]
-    fn test_assemble_supervisor_from_ok_eff_agent_no_opamp_no_hash() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(&agent_identity.id);
-
-        let effective_agent = final_agent(agent_identity.clone());
-        let assembled_effective_agent = effective_agent.clone();
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
-        effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .return_once(move |_, _| Ok(assembled_effective_agent));
-
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let hash_repository_ref = Arc::new(hash_repository);
-
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            Arc::new(effective_agent_assembler),
-            Environment::OnHost,
-        );
-
-        let maybe_opamp_client: Option<OpampClientForTest> = None;
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_ok());
-    }
-
-    /// `maybe_opamp_client == None`
-    /// `hash_repository.get(agent_id)? == Some(_)
-    /// `effective_agent_res == Err(_)`
-    #[test]
-    fn test_assemble_supervisor_from_err_eff_agent_no_opamp() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
-        let hash = Hash::new("some_hash".to_string());
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_get_hash(&agent_identity.id, hash);
-
-        let effective_agent = final_agent(agent_identity.clone());
-
+    fn setup_effective_agent_assembler_to_return_err() -> MockEffectiveAgentAssemblerMock {
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
             .expect_assemble_agent()
@@ -634,90 +461,53 @@ pub mod tests {
                 )
             });
 
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let hash_repository_ref = Arc::new(hash_repository);
-
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
-            supervisor_builder,
-            Arc::new(effective_agent_assembler),
-            Environment::OnHost,
-        );
-
-        let maybe_opamp_client: Option<OpampClientForTest> = None;
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_err());
-    }
-
-    /// `maybe_opamp_client == None`
-    /// `hash_repository.get(agent_id)? == None
-    /// `effective_agent_res == Err(_)`
-    #[test]
-    fn test_assemble_supervisor_from_err_eff_agent_no_opamp_no_hash() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ));
-
-        let mut hash_repository = MockHashRepositoryMock::new();
-        hash_repository.should_not_get_hash(&agent_identity.id);
-
-        let effective_agent = final_agent(agent_identity.clone());
-
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
         effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .return_once(move |_, _| {
-                Err(
-                    EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
-                        "random error!",
-                    )),
-                )
-            });
+    }
+
+    #[rstest]
+    #[case::from_none_hash_err_eff_agent(false, Some(OpampClientForTest::new()), "")]
+    #[case::from_none_hash_ok_eff_agent(true, Some(OpampClientForTest::new()), "")]
+    #[case::from_ok_eff_agent_no_opamp(true, None, "some_hash")]
+    #[case::from_ok_eff_agent_no_opamp_no_hash(true, None, "")]
+    #[case::from_err_eff_agent_no_opamp(false, None, "some_hash")]
+    #[case::from_err_eff_agent_no_opamp_no_hash(false, None, "")]
+    fn test_assemble_supervisor(
+        #[case] should_return_effective_agent: bool,
+        #[case] maybe_opamp_client: Option<OpampClientForTest>,
+        #[case] hash: String,
+        agent_identity: AgentIdentity,
+        final_agent: EffectiveAgent,
+    ) {
+        let effective_agent_assembler = if should_return_effective_agent {
+            setup_effective_agent_assembler_to_return_ok(final_agent.clone())
+        } else {
+            setup_effective_agent_assembler_to_return_err()
+        };
 
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
             .with(predicate::function(move |e: &EffectiveAgent| {
-                e == &effective_agent
+                e == &final_agent
             }))
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
-        let hash_repository_ref = Arc::new(hash_repository);
-
+        let hash_repository = setup_hash_repository(hash.clone(), agent_identity.clone());
         let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository_ref,
+            Arc::new(hash_repository),
             supervisor_builder,
             Arc::new(effective_agent_assembler),
             Environment::OnHost,
         );
 
-        let maybe_opamp_client: Option<OpampClientForTest> = None;
-
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_err());
-    }
-
-    fn final_agent(agent_identity: AgentIdentity) -> EffectiveAgent {
-        EffectiveAgent::new(
-            agent_identity,
-            Runtime {
-                deployment: Deployment {
-                    on_host: Some(OnHost::default()),
-                    k8s: None,
-                },
-            },
-        )
+        if should_return_effective_agent {
+            assert!(supervisor_assembler
+                .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                .is_ok());
+        } else {
+            assert!(supervisor_assembler
+                .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                .is_err());
+        }
     }
 }
