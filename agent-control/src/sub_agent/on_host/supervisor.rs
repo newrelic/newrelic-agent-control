@@ -378,6 +378,8 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod tests {
+    use rstest::*;
+
     use super::*;
 
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -391,124 +393,83 @@ pub mod tests {
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
 
-    #[test]
     #[cfg(unix)]
     #[traced_test]
-    fn test_supervisor_gracefully_shutdown() {
-        use tracing_test::internal::logs_with_scope_contain;
+    #[rstest]
+    #[case::long_running_process_shutdown_after_start(
+        "long-running",
+        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        Some(Duration::from_secs(1)),
+        vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
+    #[case::fail_process_shutdown_after_start(
+        "wrong-command",
+        ExecutableData::new("wrong-command".to_owned()),
+        Some(Duration::from_secs(1)),
+        vec!["stopped supervisor without process running"])]
+    #[case::long_running_process_shutdown_before_start(
+        "long-running-before-start",
+        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        None,
+        vec!["supervisor stopped before starting the process", "stopped supervisor without process running"])]
+    fn test_supervisor_gracefully_shutdown(
+        #[case] agent_id: &str,
+        #[case] executable: ExecutableData,
+        #[case] run_warmup_time: Option<Duration>,
+        #[case] contain_logs: Vec<&'static str>,
+    ) {
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::from_secs(5))
+            .with_max_retries(1);
+        let any_exit_code = vec![];
+        let executable_data = Some(executable.with_restart_policy(RestartPolicy::new(
+            BackoffStrategy::Fixed(backoff),
+            any_exit_code,
+        )));
 
-        use crate::agent_type::agent_type_id::AgentTypeID;
+        let agent_identity = AgentIdentity::from((
+            agent_id.to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
 
-        struct TestCase {
-            name: &'static str,
-            agent_id: &'static str,
-            executable: ExecutableData,
-            run_warmup_time: Option<Duration>,
-            contain_logs: Vec<&'static str>,
+        let ctx = Context::<bool>::new();
+        if agent_id == "long-running-before-start" {
+            ctx.cancel_all(true).unwrap();
         }
-        impl TestCase {
-            fn run(self) {
-                let backoff = Backoff::new()
-                    .with_initial_delay(Duration::from_secs(5))
-                    .with_max_retries(1);
+        let supervisor =
+            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None);
 
-                let any_exit_code = vec![];
-
-                let agent_identity = AgentIdentity::from((
-                    self.agent_id.to_owned().try_into().unwrap(),
-                    AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
-                ));
-
-                let supervisor = NotStartedSupervisorOnHost::new(
-                    agent_identity,
-                    Some(self.executable.with_restart_policy(RestartPolicy::new(
-                        BackoffStrategy::Fixed(backoff),
-                        any_exit_code,
-                    ))),
-                    Context::new(),
-                    None,
-                );
-
-                let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-
-                let started_supervisor = supervisor.start(sub_agent_internal_publisher);
-
-                if let Some(duration) = self.run_warmup_time {
-                    thread::sleep(duration)
-                }
-
-                // stopping the agent should be instantaneous since terminating sleep is fast.
-                // no restarts should occur.
-                let max_duration = Duration::from_millis(100);
-                let start = Instant::now();
-
-                started_supervisor
-                    .expect("no error")
-                    .stop()
-                    .unwrap_or_else(|_| panic!("test case: {}", self.name));
-
-                let duration = start.elapsed();
-
-                // gives the `wait_for_termination` thread time to finish.
-                thread::sleep(Duration::from_secs(1));
-
-                assert!(
-                    duration < max_duration,
-                    "test case: {} \n stopping the supervisor took to much time: {:?}",
-                    self.name,
-                    duration
-                );
-
-                for log in self.contain_logs {
-                    assert!(
-                        logs_with_scope_contain(
-                            "newrelic_agent_control::sub_agent::on_host::supervisor",
-                            log,
-                        ),
-                        "log: {} test case: {}",
-                        log,
-                        self.name
-                    );
-                }
-            }
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        
+        let started_supervisor = supervisor.start(sub_agent_internal_publisher);
+        if let Some(duration) = run_warmup_time {
+            thread::sleep(duration)
         }
-        let test_cases = vec![
-            TestCase {
-                name: "long running process shutdown after start",
-                agent_id: "long-running",
-                executable: ExecutableData::new("sleep".to_owned())
-                    .with_args(vec!["10".to_owned()]),
-                run_warmup_time: Some(Duration::from_secs(1)),
-                contain_logs: vec![
-                    "stopping supervisor process",
-                    "supervisor has been stopped and process terminated",
-                ],
-            },
-            TestCase {
-                name: "fail process shutdown after start",
-                agent_id: "wrong-command",
-                executable: ExecutableData::new("wrong-command".to_owned()),
-                run_warmup_time: Some(Duration::from_secs(1)),
-                contain_logs: vec!["stopped supervisor without process running"],
-            },
-            // I found this test to be flaky whenever was being executed as first on the list.
-            // Would be hard to test this case in a reliable way. If seen this test case failing
-            // we should consider removing it, or find a way to make it more reliable.
-            TestCase {
-                name: "long running process shutdown before start",
-                agent_id: "long-running-before-start",
-                executable: ExecutableData::new("sleep".to_owned())
-                    .with_args(vec!["10".to_owned()]),
-                run_warmup_time: None,
-                contain_logs: vec![
-                    "supervisor stopped before starting the process",
-                    "stopped supervisor without process running",
-                ],
-            },
-        ];
 
-        for test_case in test_cases {
-            test_case.run();
+        // stopping the agent should be instantaneous since terminating sleep is fast.
+        // no restarts should occur.
+        let start = Instant::now();
+        started_supervisor.expect("no error").stop().unwrap();
+        let duration = start.elapsed();
+
+        // gives the `wait_for_termination` thread time to finish.
+        thread::sleep(Duration::from_secs(1));
+
+        let max_duration = Duration::from_millis(100);
+        assert!(
+            duration < max_duration,
+            "stopping the supervisor took to much time: {:?}",
+            duration
+        );
+
+        for log in contain_logs {
+            assert!(
+                tracing_test::internal::logs_with_scope_contain(
+                    "newrelic_agent_control::sub_agent::on_host::supervisor",
+                    log,
+                ),
+                "log: {}",
+                log
+            );
         }
     }
 
