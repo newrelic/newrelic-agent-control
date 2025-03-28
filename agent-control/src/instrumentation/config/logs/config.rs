@@ -38,7 +38,8 @@ pub struct LoggingConfig {
     /// external crates are disabled. Use `insecure_fine_grained_level` when you need logs from any crate.
     #[serde(default)]
     pub(crate) level: LogLevel,
-    /// When defined, it overrides `level` and it enables logs from any crate.
+    /// When defined, it overrides `level` and it enables logs from any crate. This cannot be considered secure since
+    /// external crates log fields such as HTTP headers and leak secrets.
     #[serde(default)]
     pub(crate) insecure_fine_grained_level: Option<String>,
     /// Defines options to report logs to files
