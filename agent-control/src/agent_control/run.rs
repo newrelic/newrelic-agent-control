@@ -25,9 +25,9 @@ use tokio::runtime::Runtime;
 use tracing::{debug, error};
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
-#[cfg(feature = "k8s")]
+
 pub mod k8s;
-#[cfg(feature = "onhost")]
+
 pub mod on_host;
 
 /// Structure with all base paths required to run the agent control
@@ -55,9 +55,9 @@ pub struct AgentControlRunConfig {
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
     pub proxy: ProxyConfig,
-    #[cfg(feature = "k8s")]
+
     pub k8s_config: super::config::K8sConfig,
-    #[cfg(feature = "k8s")]
+
     pub garbage_collector_interval: Duration,
 }
 
@@ -75,9 +75,9 @@ pub struct AgentControlRunner {
     signature_validator: SignatureValidator,
     #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
-    #[cfg(feature = "k8s")]
+
     k8s_config: super::config::K8sConfig,
-    #[cfg(feature = "k8s")]
+
     garbage_collector_interval: Duration,
 
     #[allow(dead_code)]
@@ -151,9 +151,9 @@ impl AgentControlRunner {
         Ok(AgentControlRunner {
             _http_server_runner,
             runtime,
-            #[cfg(feature = "k8s")]
+
             k8s_config: config.k8s_config,
-            #[cfg(feature = "k8s")]
+
             garbage_collector_interval: config.garbage_collector_interval,
             agent_type_registry,
             application_event_consumer,

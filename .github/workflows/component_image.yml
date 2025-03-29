@@ -41,8 +41,8 @@ jobs:
         env:
           AGENT_CONTROL_VERSION: ${{ inputs.image-tag }}
         run: |
-          make build-agent-control BUILD_FEATURE=k8s ARCH=arm64
-          make build-agent-control BUILD_FEATURE=k8s ARCH=amd64
+          make build-agent-control ARCH=arm64 BIN=newrelic-agent-control-k8s PKG=newrelic_agent_control
+          make build-agent-control ARCH=amd64 BIN=newrelic-agent-control-k8s PKG=newrelic_agent_control
 
       - uses: docker/setup-qemu-action@v3
 

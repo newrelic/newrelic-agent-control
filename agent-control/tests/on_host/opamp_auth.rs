@@ -183,7 +183,7 @@ agents: {{}}
 }
 
 fn cmd_agent_control(config_path: PathBuf) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
     cmd.arg("--local-dir").arg(config_path.parent().unwrap());
     cmd
 }

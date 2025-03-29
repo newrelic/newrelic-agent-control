@@ -19,8 +19,7 @@ builds:
         - cmd: sh ./build/scripts/build_binary.sh
           env:
             - ARCH={{ .Arch }}
-            - BUILD_FEATURE=onhost
-            - BIN=newrelic-agent-control
+            - BIN=newrelic-agent-control-onhost
             - AGENT_CONTROL_VERSION={{ .Version }}
             - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
@@ -28,7 +27,6 @@ builds:
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}
-            - BUILD_FEATURE=onhost
             - BIN=newrelic-agent-control
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
@@ -51,7 +49,6 @@ builds:
             - BIN=newrelic-config-migrate
             - PKG=newrelic_agent_control
             - AGENT_CONTROL_VERSION={{ .Version }}
-            - BUILD_FEATURE=onhost
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
             - ARCH={{ .Arch }}

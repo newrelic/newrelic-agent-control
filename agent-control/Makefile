@@ -14,28 +14,28 @@ onhost/cargo:
 .PHONY: test/onhost
 test/onhost:
 	@echo "testing-machine-id" > /tmp/machine-id
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=onhost --lib -- --skip as_root
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --lib -- --skip as_root
 
 .PHONY: test/onhost/integration
 test/onhost/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=onhost,multiple-instances --test integration_tests -- --skip as_root --test-threads=1
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests -- --skip as_root --test-threads=1
 
 .PHONY: test/onhost/root
 test/onhost/root:
 	@echo "testing-machine-id" > /tmp/machine-id
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=onhost --lib -- --skip no_root
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --lib -- --skip no_root --skip k8s
 
 .PHONY: test/onhost/root/integration
 test/onhost/root/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=onhost,multiple-instances --test integration_tests -- --skip no_root --test-threads=1
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests -- --skip no_root --skip k8s --test-threads=1
 
 # K8S
 
 .PHONY: test/k8s
 test/k8s:
-	cargo $(CARGO_CMD) $(PACKAGE_SA) --features=k8s --all-targets
+	cargo $(CARGO_CMD) $(PACKAGE_SA) --all-targets -- --skip on_host
 .PHONY: test/k8s/integration
 test/k8s/integration:
 	$(MAKE) -C tests/k8s

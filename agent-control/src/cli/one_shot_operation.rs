@@ -12,7 +12,7 @@ impl OneShotCommand {
         match self {
             OneShotCommand::PrintVersion => {
                 println!("{}", binary_metadata());
-                #[cfg(feature = "onhost")]
+
                 println!(
                     "{}",
                     crate::sub_agent::version::onhost::onhost_sub_agent_versions()
@@ -22,9 +22,8 @@ impl OneShotCommand {
                 println!("Printing debug info");
                 println!("CLI: {:#?}", cli);
 
-                #[cfg(feature = "onhost")]
                 println!("Feature: onhost");
-                #[cfg(feature = "k8s")]
+
                 println!("Feature: k8s");
             }
         }

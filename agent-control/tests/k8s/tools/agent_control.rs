@@ -1,6 +1,8 @@
 use super::k8s_api::check_config_map_exist;
 use crate::common::{
-    agent_control::{start_agent_control_with_custom_config, StartedAgentControl},
+    agent_control::{
+        start_agent_control_with_custom_config, AgentControlMode, StartedAgentControl,
+    },
     retry::retry,
     runtime::block_on,
 };
@@ -65,11 +67,14 @@ pub fn start_agent_control_with_testdata_config(
             file_name,
         ))
     }
-    start_agent_control_with_custom_config(BasePaths {
-        local_dir: local_dir.to_path_buf(),
-        remote_dir: local_dir.join("remote").to_path_buf(),
-        log_dir: local_dir.join("log").to_path_buf(),
-    })
+    start_agent_control_with_custom_config(
+        BasePaths {
+            local_dir: local_dir.to_path_buf(),
+            remote_dir: local_dir.join("remote").to_path_buf(),
+            log_dir: local_dir.join("log").to_path_buf(),
+        },
+        AgentControlMode::K8s,
+    )
 }
 
 /// Create a config map containing the configuration defined in the `{folder_name}/{name}` under the provided key.

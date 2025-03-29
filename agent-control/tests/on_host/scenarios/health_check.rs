@@ -1,4 +1,6 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+#[cfg(unix)]
+use crate::common::agent_control::AgentControlMode;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_file};
@@ -59,7 +61,8 @@ deployment:
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
@@ -172,7 +175,8 @@ deployment:
     };
     let base_paths = base_paths.clone();
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);

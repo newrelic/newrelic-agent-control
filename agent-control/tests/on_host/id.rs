@@ -176,6 +176,8 @@ fn test_gcp_cloud_id() {
 #[cfg(unix)]
 #[test]
 fn test_sub_sa_vars() {
+    use crate::common::agent_control::AgentControlMode;
+
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
@@ -215,7 +217,8 @@ agents:
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths);
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths, AgentControlMode::OnHost);
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command

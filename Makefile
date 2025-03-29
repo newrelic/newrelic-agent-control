@@ -36,8 +36,8 @@ BUILD_MODE ?= release
 
 .PHONY: build-agent-control 
 build-agent-control:
-	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-agent-control" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
+	@echo "Building with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="$(BIN)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
 # Cross-compilation only works from amd64 host.
 build-config-migrate:
@@ -53,8 +53,7 @@ COVERAGE_OUT_FILEPATH ?= coverage/lcov.info
 coverage: llvm-cov
 	@echo "Generating coverage report..."
 	@cargo llvm-cov clean --workspace
-	@cargo llvm-cov --no-report --locked --features=k8s --workspace --exclude config-migrate --lib
-	@cargo llvm-cov --no-report --locked --features=onhost --lib
+	@cargo llvm-cov --no-report --locked --all-features --lib
 	@mkdir -p coverage
 	@cargo llvm-cov report --$(COVERAGE_OUT_FORMAT) --output-path $(COVERAGE_OUT_FILEPATH)
 

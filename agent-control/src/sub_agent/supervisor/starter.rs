@@ -7,11 +7,9 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SupervisorStarterError {
-    #[cfg(feature = "k8s")]
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] crate::k8s::error::K8sError),
 
-    #[cfg(feature = "k8s")]
     #[error("building k8s resources: `{0}`")]
     ConfigError(String),
 

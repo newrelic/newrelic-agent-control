@@ -42,9 +42,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
 
       - name: Build k8s in release mode
-        run: cargo build --release --package newrelic_agent_control --features k8s
+        run: cargo build --release --package newrelic_agent_control --bin newrelic-agent-control-k8s
       - name: Build onhost in release mode
-        run: cargo build --release --package newrelic_agent_control --features onhost
+        run: cargo build --release --package newrelic_agent_control --bin newrelic-agent-control-onhost
 
   required:
     runs-on: ubuntu-latest
@@ -93,11 +93,8 @@ jobs:
       - name: Run tests agent control (k8s)
         run: make -C agent-control test/k8s
 
-      - name: Run documentation tests onhost
-        run: cargo test --locked --package newrelic_agent_control --features=onhost --doc
-
-      - name: Run documentation tests k8st
-        run: cargo test --locked --package newrelic_agent_control --features=k8s --doc
+      - name: Run documentation tests
+        run: cargo test --locked --package newrelic_agent_control --doc
 
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).

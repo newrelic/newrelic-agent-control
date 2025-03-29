@@ -1,4 +1,6 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+#[cfg(unix)]
+use crate::common::agent_control::AgentControlMode;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
@@ -30,6 +32,7 @@ use tempfile::tempdir;
 #[test]
 fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -50,7 +53,8 @@ fn onhost_opamp_agent_control_local_effective_config() {
     };
     let base_paths = base_paths.clone();
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
 
@@ -103,7 +107,8 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         "tests/on_host/data/trap_term_sleep_60.sh",
     );
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
@@ -187,7 +192,8 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
 
@@ -293,7 +299,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
@@ -369,7 +376,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
@@ -425,7 +433,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
@@ -509,7 +518,8 @@ status_time_unix_nano: 1725444001
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 

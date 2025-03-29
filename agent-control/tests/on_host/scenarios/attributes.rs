@@ -1,4 +1,6 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+#[cfg(unix)]
+use crate::common::agent_control::AgentControlMode;
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
@@ -54,7 +56,8 @@ fn test_attributes_from_non_existing_agent_type() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
 
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
@@ -134,7 +137,8 @@ fn test_attributes_from_an_existing_agent_type() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
     let agent_control_instance_id =

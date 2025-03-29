@@ -13,9 +13,17 @@ use std::time::Duration;
 
 pub const K8S_GC_INTERVAL: Duration = Duration::from_secs(5);
 
+pub enum AgentControlMode {
+    OnHost,
+    K8s,
+}
+
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
 /// Take into account that some of the logic from main is not present here.
-pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedAgentControl {
+pub fn start_agent_control_with_custom_config(
+    base_paths: BasePaths,
+    mode: AgentControlMode,
+) -> StartedAgentControl {
     install_rustls_default_crypto_provider();
 
     let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -45,17 +53,20 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
             http_server: agent_control_config.server,
             base_paths,
             proxy: agent_control_config.proxy,
-            #[cfg(feature = "k8s")]
-            k8s_config: agent_control_config.k8s.unwrap(),
-            #[cfg(feature = "k8s")]
+
+            k8s_config: agent_control_config.k8s.unwrap_or_default(),
+
             garbage_collector_interval,
         };
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        AgentControlRunner::new(run_config, application_event_consumer)
-            .unwrap()
-            .run()
-            .unwrap();
+        let runner = AgentControlRunner::new(run_config, application_event_consumer).unwrap();
+
+        match mode {
+            AgentControlMode::OnHost => runner.run_onhost(),
+            AgentControlMode::K8s => runner.run_k8s(),
+        }
+        .unwrap();
     });
 
     StartedAgentControl {

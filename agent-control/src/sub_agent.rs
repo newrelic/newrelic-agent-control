@@ -2,9 +2,9 @@ pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
 pub mod health;
-#[cfg(feature = "k8s")]
+
 pub mod k8s;
-#[cfg(feature = "onhost")]
+
 pub mod on_host;
 pub mod supervisor;
 pub mod version;

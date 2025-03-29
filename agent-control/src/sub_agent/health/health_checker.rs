@@ -3,7 +3,7 @@ use crate::agent_type::health_config::HealthCheckInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentInternalEvent;
-#[cfg(feature = "k8s")]
+
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
@@ -27,21 +27,21 @@ pub enum HealthCheckerError {
     Generic(String),
     #[error("system time error `{0}`")]
     SystemTime(#[from] SystemTimeError),
-    #[cfg(feature = "k8s")]
+
     #[error("{kind}/{name} misses field `{field}`")]
     MissingK8sObjectField {
         kind: String,
         name: String,
         field: String,
     },
-    #[cfg(feature = "k8s")]
+
     #[error("{kind}/{name} is invalid: {err}")]
     InvalidK8sObject {
         kind: String,
         name: String,
         err: String,
     },
-    #[cfg(feature = "k8s")]
+
     #[error("k8s error: {0}")]
     K8sError(#[from] k8s::Error),
 }
