@@ -26,4 +26,4 @@ scenarios:
         # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "FROM K8sClusterSample SELECT *"
         # Check that gateway is up and running, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "FROM K8sDeploymentSample SELECT * where deploymentName = 'gateway-deployment'"
+        - query: "FROM K8sDeploymentSample SELECT * where deploymentName = 'pipeline-control-gateway'"
