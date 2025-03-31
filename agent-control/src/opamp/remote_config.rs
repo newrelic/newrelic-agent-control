@@ -147,5 +147,3 @@ impl From<ConfigurationMap> for EffectiveConfig {
         Self { config_map }
     }
 }
-
-

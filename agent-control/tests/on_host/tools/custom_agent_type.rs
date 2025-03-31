@@ -15,11 +15,11 @@ name: com.newrelic.custom_agent
 version: 0.1.0
 variables:
   on_host:
-    backoff_delay:
-      description: "seconds until next retry if agent fails to start"
+    fake_variable:
+      description: "fake variable to verify remote configs"
       type: string
       required: false
-      default: 1s
+      default: "default"
 deployment:
   on_host:
     executable:
@@ -45,11 +45,10 @@ name: com.newrelic.custom_agent
 version: 0.1.0
 variables:
   on_host:
-    backoff_delay:
-      description: "seconds until next retry if agent fails to start"
+    fake_variable:
+      description: "fake variable to verify remote configs"
       type: string
-      required: false
-      default: 1s
+      required: true
 deployment:
   on_host:
     health:
@@ -65,4 +64,30 @@ deployment:
     write!(local_file, "{}", custom_agent_type).unwrap();
 
     "newrelic/com.newrelic.custom_agent:0.1.0".to_string()
+}
+
+pub fn get_agent_type_without_deployment(local_dir: PathBuf) -> String {
+    let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+    let mut local_file =
+        File::create(agent_type_file_path.clone()).expect("failed to create local config file");
+    write!(
+        local_file,
+        r#"
+namespace: test
+name: test
+version: 0.0.1
+variables:
+  on_host:
+    fake_variable:
+      description: "fake variable to verify remote configs"
+      type: string
+      required: true
+deployment:
+  on_host: {{}}
+"#
+    )
+    .unwrap();
+
+    "test/test:0.0.1".to_string()
 }

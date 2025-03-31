@@ -87,7 +87,7 @@ impl EffectiveAgent {
 }
 
 pub trait EffectiveAgentsAssembler {
-    /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementor is resposable for
+    /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementer is resposable for
     /// getting the AgentType and all needed values to render the Runtime config.
     fn assemble_agent(
         &self,
@@ -108,7 +108,7 @@ pub trait EffectiveAgentsAssembler {
 /// - Getting Local or Remote configs from [YAMLConfigRepository]
 /// - Rendering the [Runtime] configuration of an Agent
 ///
-/// Important: Assembling an Agent may mutate the state of external resouces by creating
+/// Important: Assembling an Agent may mutate the state of external resources by creating
 /// or removing configs when the Runtime is [Renderer].
 pub struct LocalEffectiveAgentsAssembler<R, D, Y>
 where
