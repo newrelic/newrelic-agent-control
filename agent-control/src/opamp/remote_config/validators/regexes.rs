@@ -2,6 +2,7 @@ use super::RemoteConfigValidator;
 use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::remote_config::RemoteConfig;
+use crate::sub_agent::identity::AgentIdentity;
 use regex::Regex;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -34,13 +35,13 @@ impl RemoteConfigValidator for RegexValidator {
     type Err = RegexValidatorError;
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
         if let Ok(raw_config) = remote_config.get_unique() {
-            self.validate_regex_rules(agent_type_id, raw_config)?;
-            self.validate_nrdot_repository(agent_type_id, raw_config)?;
+            self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)?;
+            self.validate_nrdot_repository(&agent_identity.agent_type_id, raw_config)?;
         }
 
         Ok(())
@@ -184,6 +185,7 @@ pub(super) mod tests {
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 
@@ -224,7 +226,7 @@ pub(super) mod tests {
                 interval: 15s
         "#;
         let remote_config = RemoteConfig::new(
-            AgentID::new("invented").unwrap(),
+            test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
@@ -232,11 +234,15 @@ pub(super) mod tests {
             )]))),
         );
         let validator = RegexValidator::default();
-        let agent_type_fqn = AgentTypeID::try_from(
-            format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
-        )
-        .unwrap();
-        let validation_result = validator.validate(&agent_type_fqn, &remote_config);
+        let agent_identity = AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+            )
+            .unwrap(),
+        };
+
+        let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
             "Invalid config: restricted values detected"
@@ -253,7 +259,7 @@ pub(super) mod tests {
         impl TestCase {
             fn run(self) {
                 let remote_config = RemoteConfig::new(
-                    AgentID::new("fake").unwrap(),
+                    test_id(),
                     Hash::new("fake".to_string()),
                     Some(ConfigurationMap::new(HashMap::from([(
                         "".to_string(),
@@ -261,12 +267,17 @@ pub(super) mod tests {
                     )]))),
                 );
 
-                let agent_type_fqn =
-                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
+                let agent_identity = AgentIdentity {
+                    id: test_id(),
+                    agent_type_id: AgentTypeID::try_from(
+                        "newrelic/io.opentelemetry.collector:9.9.9",
+                    )
+                    .unwrap(),
+                };
 
                 let validator = RegexValidator::default();
 
-                let res = validator.validate(&agent_type_fqn, &remote_config);
+                let res = validator.validate(&agent_identity, &remote_config);
                 assert_eq!(res.is_ok(), self.valid, "test case: {}", self.name);
             }
         }
@@ -576,7 +587,7 @@ config: |
     fn test_invalid_configs_are_blocked() {
         struct TestCase {
             _name: &'static str,
-            agent_type: AgentTypeID,
+            agent_identity: AgentIdentity,
             config: &'static str,
         }
         impl TestCase {
@@ -584,7 +595,7 @@ config: |
                 let config_validator = RegexValidator::default();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
-                    .validate(&self.agent_type, &remote_config)
+                    .validate(&self.agent_identity, &remote_config)
                     .unwrap_err();
 
                 assert_matches!(err, RegexValidatorError::InvalidConfig);
@@ -593,32 +604,32 @@ config: |
         let test_cases = vec![
             TestCase {
                 _name: "infra-agent config with nri-flex should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_NRI_FLEX,
             },
             TestCase {
                 _name: "infra-agent config with command should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_COMMAND,
             },
             TestCase {
                 _name: "infra-agent config with exec should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_EXEC,
             },
             TestCase {
                 _name: "infra-agent config with binary_path uppercase should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_UPPERCASE,
             },
             TestCase {
                 _name: "infra-agent config with binary_path lowercase should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_LOWERCASE,
             },
             TestCase {
                 _name: "nrdot config with image repository  should be invalid",
-                agent_type: nrdot(),
+                agent_identity: nrdot(),
                 config: CONFIG_WITH_IMAGE_REPOSITORY,
             },
         ];
@@ -631,19 +642,33 @@ config: |
     ///////////////////////////////////////////////////////
     // Helpers
     ///////////////////////////////////////////////////////
-
-    fn infra_agent() -> AgentTypeID {
-        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str())
-            .unwrap()
+    fn test_id() -> AgentID {
+        AgentID::new("test").unwrap()
     }
 
-    fn nrdot() -> AgentTypeID {
-        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str()).unwrap()
+    fn infra_agent() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+            )
+            .unwrap(),
+        }
+    }
+
+    fn nrdot() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str(),
+            )
+            .unwrap(),
+        }
     }
 
     fn remote_config(config: &str) -> RemoteConfig {
         RemoteConfig::new(
-            AgentID::new("invented").unwrap(),
+            test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),

@@ -382,7 +382,7 @@ pub(crate) mod tests {
     fn test_assemble_agents_error_on_registry() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
+        let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let renderer = MockRendererMock::new();
 
         // Objects
@@ -393,6 +393,11 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_not_get("namespace/name:0.0.1".to_string());
+        sub_agent_values_repo.should_load_remote(
+            &agent_identity.id,
+            default_capabilities(),
+            &YAMLConfig::default(),
+        );
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
             registry,
@@ -412,9 +417,7 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents_error_loading_values() {
         //Mocks
-        let mut registry = MockAgentRegistryMock::new();
         let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
-        let renderer = MockRendererMock::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -422,18 +425,14 @@ pub(crate) mod tests {
             AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(
-            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
-        );
 
         //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
         sub_agent_values_repo.should_not_load_remote(&agent_identity.id, default_capabilities());
 
         let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
+            MockAgentRegistryMock::new(),
             sub_agent_values_repo,
-            renderer,
+            MockRendererMock::new(),
         );
 
         let result = assembler.assemble_agent(&agent_identity, &environment);

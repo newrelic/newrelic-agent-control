@@ -3,8 +3,8 @@ pub mod signature;
 pub mod values;
 
 use super::RemoteConfig;
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
+use crate::sub_agent::identity::AgentIdentity;
 use regexes::RegexValidator;
 use signature::validator::SignatureValidator;
 use std::fmt::Display;
@@ -17,7 +17,7 @@ pub trait RemoteConfigValidator {
 
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), Self::Err>;
 }
@@ -40,18 +40,18 @@ where
     type Err = SupportedRemoteConfigValidatorError;
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), SupportedRemoteConfigValidatorError> {
         match self {
             Self::Signature(s) => s
-                .validate(agent_type_id, remote_config)
+                .validate(agent_identity, remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
             Self::Regex(r) => r
-                .validate(agent_type_id, remote_config)
+                .validate(agent_identity, remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
             Self::Values(v) => v
-                .validate(agent_type_id, remote_config)
+                .validate(agent_identity, remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
         }
     }
@@ -70,7 +70,7 @@ pub mod tests {
 
             fn validate(
                 &self,
-                agent_type_id: &AgentTypeID,
+                agent_identity: &AgentIdentity,
                 remote_config: &RemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
         }

@@ -1,13 +1,10 @@
-use thiserror::Error;
-
-use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::environment::Environment;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfigError;
 use std::sync::Arc;
+use thiserror::Error;
 
 use super::RemoteConfigValidator;
 
@@ -43,7 +40,7 @@ where
     type Err = ValuesValidatorError;
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), ValuesValidatorError> {
         let unique_config = remote_config
@@ -54,14 +51,7 @@ where
             .map_err(|e: YAMLConfigError| ValuesValidatorError::Validating(e.to_string()))?;
 
         self.effective_agent_assembler
-            .assemble_agent_from_values(
-                config_values,
-                &AgentIdentity {
-                    agent_type_id: agent_type_id.clone(),
-                    id: AgentID::new("todo-hack").unwrap(),
-                },
-                &self.environment,
-            )
+            .assemble_agent_from_values(config_values, agent_identity, &self.environment)
             .map_err(|err| ValuesValidatorError::InvalidConfig(err.to_string()))?;
 
         Ok(())
@@ -70,12 +60,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use assert_matches::assert_matches;
-
+    use super::ValuesValidator;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::remote_config::hash::Hash;
@@ -84,9 +70,9 @@ mod tests {
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
-    use crate::sub_agent::identity::AgentIdentity;
-
-    use super::ValuesValidator;
+    use crate::sub_agent::identity::tests::test_agent_identity;
+    use assert_matches::assert_matches;
+    use std::collections::HashMap;
 
     #[test]
     fn test_valid_config() {
@@ -96,10 +82,7 @@ mod tests {
             .once()
             .returning(|_, _, _| {
                 Ok(EffectiveAgent::new(
-                    AgentIdentity {
-                        id: AgentID::new("fake").unwrap(),
-                        agent_type_id: AgentTypeID::try_from("test/test:0.0.1").unwrap(),
-                    },
+                    test_agent_identity(),
                     Runtime {
                         deployment: Deployment {
                             on_host: None,
@@ -109,17 +92,7 @@ mod tests {
                 ))
             });
         ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
-            .validate(
-                &AgentTypeID::try_from("test/test:0.0.1").unwrap(),
-                &RemoteConfig::new(
-                    AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
-                    Some(ConfigurationMap::new(HashMap::from([(
-                        "cfg:".to_string(),
-                        "key: val".to_string(),
-                    )]))),
-                ),
-            )
+            .validate(&test_agent_identity(), &fake_remote_config())
             .unwrap()
     }
     #[test]
@@ -132,17 +105,7 @@ mod tests {
                 Err(crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError("test".into()))
             });
         let err = ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
-            .validate(
-                &AgentTypeID::try_from("test/test:0.0.1").unwrap(),
-                &RemoteConfig::new(
-                    AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
-                    Some(ConfigurationMap::new(HashMap::from([(
-                        "cfg:".to_string(),
-                        "key: val".to_string(),
-                    )]))),
-                ),
-            )
+            .validate(&test_agent_identity(), &fake_remote_config())
             .unwrap_err();
         assert_matches!(err, ValuesValidatorError::InvalidConfig(_));
     }
@@ -151,7 +114,7 @@ mod tests {
         let effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
         let err = ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
             .validate(
-                &AgentTypeID::try_from("test/test:0.0.1").unwrap(),
+                &test_agent_identity(),
                 &RemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
@@ -163,7 +126,7 @@ mod tests {
         let effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
         let err = ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
             .validate(
-                &AgentTypeID::try_from("test/test:0.0.1").unwrap(),
+                &test_agent_identity(),
                 &RemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
@@ -175,5 +138,18 @@ mod tests {
             )
             .unwrap_err();
         assert_matches!(err, ValuesValidatorError::Validating(_));
+    }
+
+    // HELPERS
+
+    fn fake_remote_config() -> RemoteConfig {
+        RemoteConfig::new(
+            AgentID::new("test").unwrap(),
+            Hash::new("test_payload".to_string()),
+            Some(ConfigurationMap::new(HashMap::from([(
+                "cfg:".to_string(),
+                "key: val".to_string(),
+            )]))),
+        )
     }
 }
