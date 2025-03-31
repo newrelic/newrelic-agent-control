@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tracing::debug;
 
-use super::{definition::AsIdentifiers, InstanceID};
+use super::{definition::InstanceIdentifiers, InstanceID};
 
 // IDGetter returns an InstanceID for a specific agentID.
 pub trait InstanceIDGetter {
@@ -94,7 +94,7 @@ where
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub struct DataStored<I: AsIdentifiers> {
+pub struct DataStored<I: InstanceIdentifiers> {
     pub instance_id: InstanceID,
     pub identifiers: I,
 }

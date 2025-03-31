@@ -1,5 +1,5 @@
 use crate::k8s::store::K8sStore;
-use crate::opamp::instance_id::definition::AsIdentifiers;
+use crate::opamp::instance_id::definition::InstanceIdentifiers;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::storer::Storer;
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ pub struct Identifiers {
     pub fleet_id: String,
 }
 
-impl AsIdentifiers for Identifiers {}
+impl InstanceIdentifiers for Identifiers {}
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {

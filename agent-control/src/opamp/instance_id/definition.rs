@@ -5,7 +5,10 @@ use std::{
     fmt::{Debug, Display},
 };
 
-pub trait AsIdentifiers: PartialEq + Debug + Clone {}
+/// A trait to be implemented by all instance identifiers. This is needed so each implementation
+/// of [`InstanceIDStorer`](super::storer::InstanceIDStorer) can explicitly define the identifiers
+/// it can perform the [`set`](super::storer::InstanceIDStorer::set) action for.
+pub trait InstanceIdentifiers: PartialEq + Debug + Clone {}
 
 /// Holds an OpAMP's instance uid and easy its serialization/deserialization.
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
@@ -67,12 +70,12 @@ impl From<InstanceID> for Vec<u8> {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{AsIdentifiers, InstanceID};
+    use super::{InstanceID, InstanceIdentifiers};
     use opamp_client::operation::instance_uid::InstanceUid;
 
     #[derive(Debug, Default, PartialEq, Clone)]
     pub struct MockIdentifiers(pub usize);
-    impl AsIdentifiers for MockIdentifiers {}
+    impl InstanceIdentifiers for MockIdentifiers {}
 
     #[test]
     fn test_instance_id_serialize_deserialize() {

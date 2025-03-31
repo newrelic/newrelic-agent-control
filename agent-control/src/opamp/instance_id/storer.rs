@@ -1,13 +1,13 @@
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::getter::DataStored};
 
-use super::{definition::AsIdentifiers, getter::GetterError};
+use super::{definition::InstanceIdentifiers, getter::GetterError};
 
 pub trait InstanceIDStorer
 where
     GetterError: From<Self::Error>,
 {
     type Error;
-    type Identifiers: AsIdentifiers;
+    type Identifiers: InstanceIdentifiers;
 
     fn set(
         &self,

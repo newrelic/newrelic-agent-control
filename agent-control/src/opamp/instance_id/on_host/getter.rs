@@ -1,5 +1,5 @@
 use crate::http::client::HttpClient;
-use crate::opamp::instance_id::definition::AsIdentifiers;
+use crate::opamp::instance_id::definition::InstanceIdentifiers;
 
 use resource_detection::cloud::aws::detector::{
     AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
@@ -26,7 +26,7 @@ pub struct Identifiers {
     pub fleet_id: String,
 }
 
-impl AsIdentifiers for Identifiers {}
+impl InstanceIdentifiers for Identifiers {}
 
 impl Display for Identifiers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
