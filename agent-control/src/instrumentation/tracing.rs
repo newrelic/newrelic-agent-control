@@ -112,10 +112,12 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
             opentelemetry_sdk::propagation::TraceContextPropagator::new(),
         );
 
-        guards.push(Box::new(UptimeReporter::start(
-            &AgentID::new_agent_control_id(),
-            otel_config.uptime_reporter_interval,
-        )));
+        if otel_config.uptime_reporter.enabled() {
+            guards.push(Box::new(UptimeReporter::start(
+                &AgentID::new_agent_control_id(),
+                otel_config.uptime_reporter.interval,
+            )));
+        }
     }
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
