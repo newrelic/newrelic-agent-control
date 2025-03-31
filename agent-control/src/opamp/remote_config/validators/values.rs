@@ -1,3 +1,5 @@
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::agent_type::environment::Environment;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
