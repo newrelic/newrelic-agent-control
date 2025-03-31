@@ -45,13 +45,15 @@ define check_env_vars
 		$(call check_env_var,NEW_RELIC_API_KEY); \
 		$(call check_env_var,NR_SYSTEM_IDENTITY_CLIENT_ID); \
 		$(call check_env_var,NR_SYSTEM_IDENTITY_PRIVATE_KEY); \
-	fi
-	if [ "$$ENVIRONMENT" = "production" ]; then \
+	elif [ "$$ENVIRONMENT" = "production" ]; then \
 		$(call check_env_var,NR_PROD_LICENSE_KEY); \
 		$(call check_env_var,NEW_RELIC_PROD_ACCOUNT_ID); \
 		$(call check_env_var,NEW_RELIC_PROD_API_KEY); \
 		$(call check_env_var,NR_PROD_SYSTEM_IDENTITY_CLIENT_ID); \
 		$(call check_env_var,NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY); \
+	else \
+		echo "ENVIRONMENT must be either 'staging' or 'production'"; \
+		exit 1; \
 	fi
 endef
 
