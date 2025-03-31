@@ -21,10 +21,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "javaapp" ]
-          env:
-            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
-              value: "true"
+                values: ["javaapp"]
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -32,10 +29,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "pythonapp" ]
-          env:
-            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
-              value: "true"
+                values: ["pythonapp"]
       node-agent:
         type: newrelic/com.newrelic.apm_node:0.1.0
         content:
@@ -43,10 +37,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "nodeapp" ]
-          env:
-            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
-              value: "true"
+                values: ["nodeapp"]
       ruby-agent:
         type: newrelic/com.newrelic.apm_ruby:0.1.0
         content:
@@ -54,10 +45,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "rubyapp" ]
-          env:
-            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
-              value: "true"
+                values: ["rubyapp"]
       dotnet-agent:
         type: newrelic/com.newrelic.apm_dotnet:0.1.0
         content:
@@ -65,7 +53,4 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "dotneteapp" ]
-          env:
-            - name: NEW_RELIC_AGENT_CONTROL_ENABLED
-              value: "true"
+                values: ["dotneteapp"]
