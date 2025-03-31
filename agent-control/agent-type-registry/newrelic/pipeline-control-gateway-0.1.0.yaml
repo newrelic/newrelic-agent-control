@@ -4,8 +4,7 @@ version: 0.1.0
 variables:
   k8s:
     chart_values:
-      # TODO once available in the newrelic repository review the chart name
-      gateway:
+      pipeline-control-gateway:
         description: "Gateway chart values"
         type: yaml
         required: false
@@ -36,8 +35,7 @@ deployment:
           # delaying the application of important updates.
           interval: 30m
           provider: generic
-          # TODO point to the newrelic repository once available
-          url: https://rnoothi.github.io/foobar
+          url: https://helm-charts.newrelic.com
       default-values:
         apiVersion: v1
         kind: Secret
@@ -60,7 +58,7 @@ deployment:
         stringData:
           # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
           values.yaml: |
-            ${nr-var:chart_values.gateway}
+            ${nr-var:chart_values.pipeline-control-gateway}
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -70,7 +68,7 @@ deployment:
           interval: 3m
           chart:
             spec:
-              chart: gateway
+              chart: pipeline-control-gateway
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
               sourceRef:
