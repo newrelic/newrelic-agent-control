@@ -182,13 +182,3 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
-
-  get_previous_tag:
-    runs-on: ubuntu-latest
-    outputs:
-      previous_tag: ${{ steps.previous_tag_step.outputs.PREVIOUS_TAG }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: previous_tag_step
-        run: ./.github/workflows/scripts/previous_version.sh ${{ inputs.TAG }} >> "$GITHUB_OUTPUT"
