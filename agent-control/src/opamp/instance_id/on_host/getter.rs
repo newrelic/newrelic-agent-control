@@ -159,12 +159,6 @@ where
     }
 }
 
-// #[derive(Error, Debug)]
-// pub enum GetterError {
-//     #[error("failed to persist Data: `{0}`")]
-//     Persisting(#[from] StorerError),
-// }
-
 #[cfg(test)]
 pub mod tests {
     use crate::opamp::instance_id::on_host::getter::{

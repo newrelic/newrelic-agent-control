@@ -296,18 +296,5 @@ pub mod tests {
 
     fn get_different_identifier() -> MockIdentifiers {
         MockIdentifiers(1)
-        // #[cfg(feature = "k8s")]
-        // return Identifiers {
-        //     cluster_name: "test".to_string(),
-        //     fleet_id: "test".to_string(),
-        // };
-
-        // #[cfg(feature = "onhost")]
-        // return Identifiers {
-        //     machine_id: "different".to_string(),
-        //     hostname: "different".to_string(),
-        //     cloud_instance_id: "different".to_string(),
-        //     ..Default::default()
-        // };
     }
 }
