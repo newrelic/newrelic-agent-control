@@ -14,6 +14,7 @@ use crate::agent_type::runtime_config::K8s;
 use crate::agent_type::runtime_config::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::identity::AgentIdentity;
+use crate::values::yaml_config::YAMLConfig;
 use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
@@ -86,13 +87,29 @@ impl EffectiveAgent {
 }
 
 pub trait EffectiveAgentsAssembler {
+    /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementor is resposable for
+    /// getting the AgentType and all needed values to render the Runtime config.
     fn assemble_agent(
         &self,
         agent_identity: &AgentIdentity,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+    /// Perform the same operation as [assemble_agent] but using a provided config [YAMLConfig].
+    fn assemble_agent_from_values(
+        &self,
+        config_values: YAMLConfig,
+        agent_identity: &AgentIdentity,
+        environment: &Environment,
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
+/// Implements [EffectiveAgentsAssembler] and is resposable for:
+/// - Getting [AgentType] from [AgentRegistry]
+/// - Getting Local or Remote configs from [YAMLConfigRepository]
+/// - Rendering the [Runtime] configuration of an Agent
+///
+/// Important: Assembling an Agent may mutate the state of external resouces by creating
+/// or removing configs when the Runtime is [Renderer].
 pub struct LocalEffectiveAgentsAssembler<R, D, Y>
 where
     R: AgentRegistry,
@@ -128,9 +145,23 @@ where
     D: YAMLConfigRepository,
     N: Renderer,
 {
-    /// Load an agent type from the registry and populate it with values
     fn assemble_agent(
         &self,
+        agent_identity: &AgentIdentity,
+        environment: &Environment,
+    ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
+        // Load the values
+        let values = load_remote_fallback_local(
+            self.yaml_config_repository.as_ref(),
+            &agent_identity.id,
+            &default_capabilities(),
+        )?;
+        self.assemble_agent_from_values(values, agent_identity, environment)
+    }
+
+    fn assemble_agent_from_values(
+        &self,
+        values: YAMLConfig,
         agent_identity: &AgentIdentity,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
@@ -140,13 +171,6 @@ where
             .get(&agent_identity.agent_type_id.to_string())?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
-
-        // Load the values
-        let values = load_remote_fallback_local(
-            self.yaml_config_repository.as_ref(),
-            &agent_identity.id,
-            &default_capabilities(),
-        )?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -238,6 +262,13 @@ pub(crate) mod tests {
                 agent_identity:&AgentIdentity,
                 environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+            fn assemble_agent_from_values(
+                &self,
+                values: YAMLConfig,
+                agent_identity:&AgentIdentity,
+                environment: &Environment,
+            ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+
         }
     }
 

@@ -17,6 +17,7 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::Identifiers;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
@@ -129,13 +130,17 @@ impl AgentControlRunner {
         let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository.clone(),
             supervisor_builder,
-            agents_assembler,
+            agents_assembler.clone(),
             Environment::K8s,
         );
 
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
+            SupportedRemoteConfigValidator::Values(ValuesValidator::new(
+                agents_assembler,
+                Environment::K8s,
+            )),
         ];
 
         let remote_config_handler = AgentRemoteConfigHandler::new(

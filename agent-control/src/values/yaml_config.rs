@@ -45,6 +45,13 @@ impl TryFrom<String> for YAMLConfig {
         Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)
     }
 }
+impl TryFrom<&str> for YAMLConfig {
+    type Error = YAMLConfigError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_str::<YAMLConfig>(value)?)
+    }
+}
 
 impl TryFrom<YAMLConfig> for String {
     type Error = YAMLConfigError;
