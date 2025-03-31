@@ -18,7 +18,7 @@ module "alerts" {
   slack_webhook_url = var.slack_webhook_url
   policies_prefix = "Agent Control canaries metric monitoring"
 
-  region       = "Staging" # To change to US when production is stable
+  region       = "US"
   instance_id = "Agent_Control_Canaries_Production-Cluster"
 
   conditions = [

@@ -1,11 +1,25 @@
 TERRAFORM_DIR ?= ./terraform
-HELM_DIR := ./helm
+HELM_DIR ?= ./helm
 AWS_REGION := us-east-2
 .DEFAULT_GOAL := all
 
 # Generate a random key to add to the helm deployment annotation
 # This way, whenever there is a helm upgrade the pod will be recreated and its image pulled, even if the tag didn't change
 DEPLOYMENT_KEY := $(shell openssl rand -base64 32 | tr -dc A-Za-z0-9 | head -c 16)
+
+# If the environment is production, overwrite the variables with the production values
+# This is useful on GHA, where both the staging and production secrets are available
+ifeq ($(CANARY_DIR), production)
+	NR_LICENSE_KEY = $(NR_PROD_LICENSE_KEY)
+	NEW_RELIC_ACCOUNT_ID = $(NEW_RELIC_PROD_ACCOUNT_ID)
+	NEW_RELIC_API_KEY = $(NEW_RELIC_PROD_API_KEY)
+	NR_SYSTEM_IDENTITY_CLIENT_ID = $(NR_PROD_SYSTEM_IDENTITY_CLIENT_ID)
+	NR_SYSTEM_IDENTITY_PRIVATE_KEY = $(NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY)
+
+# Re-export for k8s secret
+	export NR_SYSTEM_IDENTITY_CLIENT_ID
+	export NR_SYSTEM_IDENTITY_PRIVATE_KEY
+endif
 
 .PHONY: all
 all:
@@ -74,7 +88,7 @@ ifndef NR_SYSTEM_IDENTITY_PRIVATE_KEY
 	exit 1
 endif
 	@kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
-	@echo -n $$NR_SYSTEM_IDENTITY_PRIVATE_KEY > /tmp/private_key
+	@echo $$NR_SYSTEM_IDENTITY_PRIVATE_KEY > /tmp/private_key
 	@kubectl get secret sys-identity --namespace newrelic || \
     kubectl create secret generic sys-identity \
     --namespace newrelic \
