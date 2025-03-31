@@ -439,7 +439,7 @@ pub mod tests {
             NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
-        
+
         let started_supervisor = supervisor.start(sub_agent_internal_publisher);
         if let Some(duration) = run_warmup_time {
             thread::sleep(duration)
