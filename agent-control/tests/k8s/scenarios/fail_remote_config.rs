@@ -17,7 +17,6 @@ use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// TODO
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_fail_remote_config_missing_required_values() {

@@ -17,6 +17,11 @@ pub enum ValuesValidatorError {
 }
 /// Validates that a [RemoteConfig] can be rendered for a given [AgentTypeID]. Missing a
 /// required variable would be some of the performed validations done.
+///
+/// TODO: The sub-agent currently builds the effective configuration twice: once in this validator
+/// and again during the assembly process. Ideally, we should consolidate these steps to report
+/// failures directly during the agent and supervisor assembly process, eliminating the need for
+/// this validator. This approach was chosen as a trade-off for now.
 pub struct ValuesValidator<A> {
     effective_agent_assembler: Arc<A>,
     environment: Environment,
