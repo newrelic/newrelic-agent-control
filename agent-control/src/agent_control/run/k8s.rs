@@ -14,7 +14,7 @@ use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::Identifiers;
+use crate::opamp::instance_id::k8s::getter::{get_identifiers, Identifiers};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::remote_config::validators::values::ValuesValidator;
@@ -28,7 +28,6 @@ use crate::{
     agent_control::error::AgentError,
     opamp::{
         client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
-        instance_id,
     },
 };
 use crate::{
@@ -68,8 +67,7 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
 
-        let identifiers =
-            instance_id::get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
+        let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
         let mut non_identifying_attributes =

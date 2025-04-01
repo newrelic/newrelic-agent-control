@@ -1,10 +1,15 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::k8s;
-use crate::k8s::store::{K8sStore, STORE_KEY_INSTANCE_ID};
+#[cfg(feature = "k8s")]
+use crate::k8s::{
+    self,
+    store::{K8sStore, STORE_KEY_INSTANCE_ID},
+};
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use std::sync::Arc;
 use tracing::debug;
+
+use super::getter::Identifiers;
 
 pub struct Storer {
     k8s_store: Arc<K8sStore>,
@@ -20,7 +25,14 @@ pub enum StorerError {
 }
 
 impl InstanceIDStorer for Storer {
-    fn set(&self, agent_id: &AgentID, ds: &DataStored) -> Result<(), StorerError> {
+    type Error = StorerError;
+    type Identifiers = Identifiers;
+
+    fn set(
+        &self,
+        agent_id: &AgentID,
+        ds: &DataStored<Self::Identifiers>,
+    ) -> Result<(), Self::Error> {
         debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
         self.k8s_store
@@ -29,7 +41,10 @@ impl InstanceIDStorer for Storer {
         Ok(())
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored>, StorerError> {
+    fn get(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<DataStored<Self::Identifiers>>, Self::Error> {
         debug!("storer: getting Instance ID of agent_id: {}", agent_id);
 
         if let Some(data) = self

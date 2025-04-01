@@ -7,6 +7,7 @@ use newrelic_agent_control::k8s::store::{
     K8sStore, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
 };
 use newrelic_agent_control::opamp::instance_id::getter::DataStored;
+use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use std::time::Duration;
 
@@ -29,7 +30,7 @@ pub fn get_instance_id(k8s_client: Client, namespace: &str, agent_id: &AgentID) 
             .cloned()
             .ok_or(err.clone())?;
 
-        let data_stored: DataStored = serde_yaml::from_str(raw_identifiers.as_str())?;
+        let data_stored: DataStored<Identifiers> = serde_yaml::from_str(raw_identifiers.as_str())?;
 
         id = data_stored.instance_id;
 

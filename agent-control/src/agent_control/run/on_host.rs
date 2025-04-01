@@ -15,7 +15,8 @@ use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::{Identifiers, Storer};
+use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
+use crate::opamp::instance_id::on_host::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::remote_config::validators::values::ValuesValidator;
@@ -27,9 +28,8 @@ use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
-    opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
-    sub_agent::on_host::builder::OnHostSubAgentBuilder,
-    values::file::YAMLConfigRepositoryFile,
+    opamp::hash_repository::on_host::HashRepositoryFile,
+    sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::YAMLConfigRepositoryFile,
 };
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;

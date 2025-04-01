@@ -18,10 +18,10 @@ use newrelic_agent_control::k8s::store::{
 };
 use newrelic_agent_control::opamp::hash_repository::k8s::HashRepositoryConfigMap;
 use newrelic_agent_control::opamp::hash_repository::HashRepository;
-use newrelic_agent_control::opamp::instance_id::{
-    getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
-    Identifiers,
+use newrelic_agent_control::opamp::instance_id::getter::{
+    InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
+use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
 use newrelic_agent_control::opamp::remote_config::hash::Hash;
 use newrelic_agent_control::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository,
