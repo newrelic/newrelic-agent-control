@@ -19,6 +19,7 @@ on:
         required: true
         type: string
       canary_dir:
+        description: "Name of the tf directory to run the canary in. Valid values are `production` and `staging`."
         required: true
         type: string
 
