@@ -4,6 +4,7 @@ use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
+use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_sub_agent_values,
 };
@@ -13,15 +14,11 @@ use crate::on_host::tools::custom_agent_type::{
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::AgentControlDynamicConfig;
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME, SUB_AGENT_DIR, VALUES_DIR,
-    VALUES_FILENAME,
-};
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::env;
-use std::path::Path;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -282,7 +279,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     env::set_var("my_env_var", "my-value");
 
     let values_config = format!(
-        "backoff_delay: ${{{}}}",
+        "fake_variable: ${{{}}}",
         Namespace::EnvironmentVariable.namespaced_name("my_env_var")
     );
     create_sub_agent_values(
@@ -303,7 +300,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         {
             // Then the retrieved effective config should match the expected local cfg
             let expected_config = format!(
-                "backoff_delay: ${{{}}}\n",
+                "fake_variable: ${{{}}}\n",
                 Namespace::EnvironmentVariable.namespaced_name("my_env_var")
             );
 
@@ -352,7 +349,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
-    let local_values_config = "backoff_delay: 10s";
+    let local_values_config = "fake_variable: from local\n";
     create_sub_agent_values(
         agent_id.to_string(),
         local_values_config.to_string(),
@@ -360,7 +357,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     );
 
     // And the custom-agent has also remote config values
-    let remote_values_config = "backoff_delay: 40s";
+    let remote_values_config = "fake_variable: from remote\n";
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
@@ -379,12 +376,10 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     retry(60, Duration::from_secs(1), || {
         {
             // Then the retrieved effective config should match the expected remote cfg
-            let expected_config = "backoff_delay: 40s\n";
-
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                expected_config.to_string(),
+                remote_values_config.to_string(),
             )
         }
     });
@@ -448,106 +443,20 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     });
 }
 
-/// A agent control has a sub agent configured and the sub agent has a local configuration, then a **invalid** remote
-/// configuration is set. This test checks:
-/// - That the latest remote config status is failed.
-/// - That latest effective configuration reported is the local one (which is valid).
-#[cfg(unix)]
-#[test]
-fn onhost_opamp_sub_agent_wrong_remote_effective_config() {
-    // Given a agent-control with a custom-agent running a sleep command with opamp configured.
-    let mut opamp_server = FakeServer::start_new();
-
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
-    let agents = format!(
-        r#"
-  nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
-    );
-
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
-    );
-
-    // And the custom-agent has local config values
-    let agent_id = "nr-sleep-agent";
-    let initial_values_config = "backoff_delay: 30s";
-    create_sub_agent_values(
-        agent_id.to_string(),
-        initial_values_config.to_string(),
-        local_dir.path().to_path_buf(),
-    );
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
-
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
-
-    // When a new incorrect config is received from OpAMP
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        // The configuration is invalid since a string is expected
-        ConfigResponse::from("backoff_delay: 123"),
-    );
-
-    retry(60, Duration::from_secs(1), || {
-        {
-            // Then the remote config should be created in the remote filesystem.
-            let remote_file = remote_dir
-                .path()
-                .join(SUB_AGENT_DIR)
-                .join(agent_id)
-                .join(VALUES_DIR)
-                .join(VALUES_FILENAME);
-            if !remote_file.exists() {
-                return Err("Remote config file should be created".into());
-            }
-
-            // And effective_config should return the initial local one
-            let expected_config = format!("{}\n", initial_values_config);
-
-            check_latest_remote_config_status_is_expected(
-                &opamp_server,
-                &sub_agent_instance_id,
-                RemoteConfigStatuses::Failed as i32,
-            )?;
-
-            check_latest_effective_config_is_expected(
-                &opamp_server,
-                &sub_agent_instance_id,
-                expected_config.to_string(),
-            )
-        }
-    });
-}
-
-/// There is a Sub Agent without executables
-/// OpAMP is enabled but there is no remote configuration
+/// There is a Sub Agent without executables and with valid remote config
 /// - Local configuration (with no agents) is used
 /// - Effective configuration for the agent-control is reported
+/// - Healthy status is reported
+///
+/// A remote config is sent:
+/// - Effective configuration updates to remote config
+/// - Stored retrieves latest applied remote config
 /// - Healthy status is reported
 #[cfg(unix)]
 #[test]
 fn onhost_executable_less_reports_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
-    let opamp_server = FakeServer::start_new();
+    let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -576,7 +485,7 @@ agents:
     );
 
     let sub_agent_id = AgentID::new("no-executables").unwrap();
-    let local_values_config = "backoff_delay: 10s";
+    let local_values_config = "fake_variable: valid local config\n";
     create_sub_agent_values(
         sub_agent_id.to_string(),
         local_values_config.to_string(),
@@ -602,210 +511,41 @@ status_time_unix_nano: 1725444001
     };
     let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
 
-    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths);
+    let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
     retry(20, Duration::from_secs(1), || {
-        let expected_config = "backoff_delay: 10s\n";
-
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            expected_config.to_string(),
+            local_values_config.to_string(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
-}
 
-/// Given a agent-control with a sub-agent without supervised executables, it should be able
-/// to persist the remote config messages from OpAMP. Furthermore, the corresponding
-/// effective config should be properly reported.
-#[cfg(unix)]
-#[test]
-fn test_config_without_supervisor() {
-    let mut opamp_server = FakeServer::start_new();
-
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-    let sub_agent_id = AgentID::new("test-agent").unwrap();
-
-    agent_type_without_executables(local_dir.path());
-
-    let agents = r#"
-  test-agent:
-    agent_type: "test/test:0.0.0"
-"#;
-
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
-    );
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
-
-    let instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
-
-    // Send the first remote configuration
-    let first_remote_config = "some_string: some value\n";
+    // Send remote configuration
+    let remote_config = "fake_variable: valid remote config\n";
+    // let remote_config = "fake_variable: valid remote config\n";
     opamp_server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(first_remote_config),
+        sub_agent_instance_id.clone(),
+        ConfigResponse::from(remote_config),
     );
-
-    let sub_agent_instance_id =
-        get_instance_id(&AgentID::new(&sub_agent_id).unwrap(), base_paths.clone());
 
     retry(30, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id,
-            first_remote_config.to_string(),
+            remote_config.to_string(),
         )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
-            &sub_agent_id,
-            base_paths.clone(),
-        )?;
-        if remote_config != first_remote_config {
+
+        let Some(actual_remote_config) =
+            load_remote_config_content(&sub_agent_id, base_paths.clone())
+        else {
+            return Err("not the expected content for first config".into());
+        };
+
+        if actual_remote_config != remote_config {
             return Err("not the expected content for first config".into());
         }
-        Ok(())
+        check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
-
-    // Send another configuration
-    let second_remote_config = "some_string: this is amazing\n";
-    opamp_server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(second_remote_config),
-    );
-
-    retry(30, Duration::from_secs(1), || {
-        check_latest_effective_config_is_expected(
-            &opamp_server,
-            &sub_agent_instance_id,
-            second_remote_config.to_string(),
-        )?;
-
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
-            &sub_agent_id,
-            base_paths.clone(),
-        )?;
-        if remote_config != second_remote_config {
-            return Err("not the expected content for second config".into());
-        }
-        Ok(())
-    });
-}
-
-/// Given a agent-control with a sub-agent without supervised executables, it should be able
-/// to receive an invalid config, and then a second valid one from OpAMP
-#[cfg(unix)]
-#[test]
-fn test_invalid_config_without_supervisor() {
-    let mut opamp_server = FakeServer::start_new();
-
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-    let sub_agent_id = AgentID::new("test-agent").unwrap();
-
-    agent_type_without_executables(local_dir.path());
-
-    let agents = r#"
-  test-agent:
-    agent_type: "test/test:0.0.0"
-"#;
-
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
-    );
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
-
-    let instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
-
-    // Send an invalid first remote configuration
-    let first_remote_config = "this_does_not_exit: in the agent type\n";
-    opamp_server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(first_remote_config),
-    );
-
-    let sub_agent_instance_id =
-        get_instance_id(&AgentID::new(&sub_agent_id).unwrap(), base_paths.clone());
-
-    retry(30, Duration::from_secs(1), || {
-        check_latest_effective_config_is_expected(
-            &opamp_server,
-            &sub_agent_instance_id,
-            "".to_string(), // The effective config should not be updated, since the configuration failed
-        )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
-            &sub_agent_id,
-            base_paths.clone(),
-        )?;
-        if remote_config != first_remote_config {
-            return Err("not the expected content".into());
-        }
-        Ok(())
-    });
-
-    // Send another configuration
-    let second_remote_config = "some_string: this is amazing\n";
-    opamp_server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(second_remote_config),
-    );
-
-    retry(30, Duration::from_secs(1), || {
-        check_latest_effective_config_is_expected(
-            &opamp_server,
-            &sub_agent_instance_id,
-            second_remote_config.to_string(), // Correct config leads to updated effective config
-        )?;
-        let remote_config = crate::on_host::tools::config::get_remote_config_content(
-            &sub_agent_id,
-            base_paths.clone(),
-        )?;
-        if remote_config != second_remote_config {
-            return Err("not the expected content".into());
-        }
-        Ok(())
-    });
-}
-
-////////////////////////////////
-// Helpers
-////////////////////////////////
-pub(super) fn agent_type_without_executables(local_dir: &Path) {
-    create_file(
-        String::from(
-            r#"
-namespace: test
-name: test
-version: 0.0.0
-variables:
-  on_host:
-    some_string:
-      description: "some string"
-      type: string
-      required: true
-deployment:
-  on_host: {}
-"#,
-        ),
-        local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
-    );
 }

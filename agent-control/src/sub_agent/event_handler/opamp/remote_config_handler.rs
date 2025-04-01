@@ -138,7 +138,7 @@ where
         // Errors here will cause the sub-agent to continue running with the previous configuration.
         // The supervisor won't be recreated.
         for validator in &self.remote_config_validators {
-            if let Err(error_msg) = validator.validate(&agent_identity.agent_type_id, config) {
+            if let Err(error_msg) = validator.validate(&agent_identity, config) {
                 error!(%error_msg, hash = &config.hash.get(), "error validating remote config");
                 Self::report_error(opamp_client, config, error_msg.to_string())?;
                 return Err(RemoteConfigHandlerError::ConfigValidating(

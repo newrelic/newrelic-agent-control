@@ -18,6 +18,7 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::{Identifiers, Storer};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
@@ -139,7 +140,7 @@ impl AgentControlRunner {
                 ConfigurationPersisterFile::new(&self.base_paths.remote_dir),
                 self.base_paths.remote_dir.clone(),
             )
-            .with_agent_control_variables(agent_control_variables.into_iter());
+            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             yaml_config_repository.clone(),
@@ -154,9 +155,22 @@ impl AgentControlRunner {
             Environment::OnHost,
         );
 
+        // This template rendered does not include the persister to AVOID mutate any state when used to validate configs.
+        let validation_renderer = TemplateRenderer::default()
+            .with_agent_control_variables(agent_control_variables.into_iter());
+        let validation_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+            yaml_config_repository.clone(),
+            self.agent_type_registry.clone(),
+            validation_renderer,
+        ));
+
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
+            SupportedRemoteConfigValidator::Values(ValuesValidator::new(
+                validation_assembler,
+                Environment::OnHost,
+            )),
         ];
         let remote_config_handler = AgentRemoteConfigHandler::new(
             remote_config_validators,
