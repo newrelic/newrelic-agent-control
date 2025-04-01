@@ -14,6 +14,8 @@ DEPLOYMENT_KEY := $(shell openssl rand -base64 32 | tr -dc A-Za-z0-9 | head -c 1
 # If the environment is production, overwrite the variables with the production values
 # This is useful on GHA, where both the staging and production secrets are available
 ifeq ($(CANARY_DIR), production)
+	IS_STAGING = false
+
 	NR_LICENSE_KEY = $(NR_PROD_LICENSE_KEY)
 	NEW_RELIC_ACCOUNT_ID = $(NEW_RELIC_PROD_ACCOUNT_ID)
 	NEW_RELIC_API_KEY = $(NEW_RELIC_PROD_API_KEY)
@@ -23,6 +25,8 @@ ifeq ($(CANARY_DIR), production)
 # Re-export for k8s secret
 	export NR_SYSTEM_IDENTITY_CLIENT_ID
 	export NR_SYSTEM_IDENTITY_PRIVATE_KEY
+else
+	IS_STAGING = true
 endif
 
 .PHONY: all
@@ -30,10 +34,7 @@ all:
 	@echo "No default target"
 
 define check_env_var
-	if [ -z "$$$(1)" ]; then \
-		echo "$1 missing"; \
-		exit 1; \
-	fi
+	@! test -n "$$$(1)" && echo "$1 missing" && exit 1
 endef
 
 define check_tf_env_vars
@@ -103,12 +104,6 @@ endif
 	@$(call check_env_var,CLUSTER_NAME)
 	@$(call check_env_var,IMAGE_TAG)
 	@$(call check_env_var,FLEET_ID)
-ifneq ($(IS_STAGING),true)
-ifneq ($(IS_STAGING),false)
-	@echo "IS_STAGING variable must be either 'true' or 'false'. Got '$(IS_STAGING)'"
-	exit 1
-endif
-endif
 	@kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
 	@helm repo add newrelic https://helm-charts.newrelic.com
 	@helm upgrade --install ac newrelic/agent-control --devel -f $(K8S_HELM_DIR)/agent-control.yml \

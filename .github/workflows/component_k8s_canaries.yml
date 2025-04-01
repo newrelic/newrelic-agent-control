@@ -18,9 +18,9 @@ on:
       fleet_id:
         required: true
         type: string
-      is_staging:
+      canary_dir:
         required: true
-        type: boolean
+        type: string
 
 permissions:
   id-token: write
@@ -55,7 +55,7 @@ jobs:
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "FLEET_ID=${{ inputs.fleet_id }} IMAGE_TAG=${{ inputs.image-tag }} CLUSTER_NAME=${{ inputs.cluster_name }} IS_STAGING=${{ inputs.is_staging }} test/k8s-canaries/helm-upgrade"
+          container_make_target: "FLEET_ID=${{ inputs.fleet_id }} IMAGE_TAG=${{ inputs.image-tag }} CLUSTER_NAME=${{ inputs.cluster_name }} CANARY_DIR=${{ inputs.canary_dir }} test/k8s-canaries/helm-upgrade"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

@@ -168,7 +168,7 @@ jobs:
       cluster_name: Agent_Control_Canaries_Production-Cluster
       # AC US Production Account `k8s-canaries-production` fleet
       fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
-      is_staging: false
+      canary_dir: "production"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
