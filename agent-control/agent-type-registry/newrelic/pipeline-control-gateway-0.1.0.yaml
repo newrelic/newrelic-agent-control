@@ -4,7 +4,7 @@ version: 0.1.0
 variables:
   k8s:
     chart_values:
-      pipeline-control-gateway:
+      gateway:
         description: "Gateway chart values"
         type: yaml
         required: false
@@ -58,7 +58,7 @@ deployment:
         stringData:
           # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
           values.yaml: |
-            ${nr-var:chart_values.pipeline-control-gateway}
+            ${nr-var:chart_values.gateway}
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
