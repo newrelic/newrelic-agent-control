@@ -21,10 +21,6 @@ impl OneShotCommand {
             OneShotCommand::PrintDebugInfo(cli) => {
                 println!("Printing debug info");
                 println!("CLI: {:#?}", cli);
-
-                println!("Feature: onhost");
-
-                println!("Feature: k8s");
             }
         }
     }
