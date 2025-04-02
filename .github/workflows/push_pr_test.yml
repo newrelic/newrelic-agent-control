@@ -94,7 +94,7 @@ jobs:
         run: make -C agent-control test/k8s
 
       - name: Run documentation tests
-        run: cargo test --locked --package newrelic_agent_control --doc
+        run: cargo test --locked --doc
 
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
