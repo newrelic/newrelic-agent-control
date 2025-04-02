@@ -27,7 +27,7 @@ use std::sync::{Arc, Mutex};
 /// # Notes
 /// - This implementation is not optimized for high-throughput scenarios.
 /// - Broadcasters aren't notified whenever a subscriber gets disconnected.
-/// - Use with caution! this are unbounded channels!
+/// - Use with caution! these are unbounded channels!
 pub struct UnboundedBroadcast<T> {
     subscribed_senders: Arc<Mutex<Vec<Sender<T>>>>,
 }
