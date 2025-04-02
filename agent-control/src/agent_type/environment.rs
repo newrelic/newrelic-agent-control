@@ -6,6 +6,7 @@ pub enum Environment {
     OnHost,
     K8s,
 }
+
 impl fmt::Display for Environment {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
