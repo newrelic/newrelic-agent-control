@@ -58,9 +58,6 @@ jobs:
       checks: write
     strategy:
       fail-fast: false
-      matrix:
-        # newrelic_agent_control needs either onhost or k8s feature, the rest of packages can be checked also without features
-        flag: [ "--exclude='newrelic_agent_control'" ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,8 +84,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
           
-      - name: cargo clippy (${{ matrix.flag }})
-        run: cargo clippy --workspace ${{ matrix.flag }} --tests -- -D clippy::all
+      - name: cargo clippy)
+        run: cargo clippy --workspace --tests -- -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
