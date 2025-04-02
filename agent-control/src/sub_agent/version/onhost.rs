@@ -49,14 +49,6 @@ fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, Version
     }
 }
 
-pub fn onhost_sub_agent_versions() -> String {
-    format!(
-        r#"New Relic Sub Agent Versions:
-    {AGENT_TYPE_NAME_INFRA_AGENT} : {NEWRELIC_INFRA_AGENT_VERSION}
-    {AGENT_TYPE_NAME_NRDOT} : {NR_OTEL_COLLECTOR_VERSION}"#
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use crate::sub_agent::identity::AgentIdentity;

@@ -12,11 +12,6 @@ impl OneShotCommand {
         match self {
             OneShotCommand::PrintVersion => {
                 println!("{}", binary_metadata());
-
-                println!(
-                    "{}",
-                    crate::sub_agent::version::onhost::onhost_sub_agent_versions()
-                );
             }
             OneShotCommand::PrintDebugInfo(cli) => {
                 println!("Printing debug info");
