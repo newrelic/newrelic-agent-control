@@ -84,7 +84,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
           
-      - name: cargo clippy)
+      - name: cargo clippy
         run: cargo clippy --workspace --tests -- -D clippy::all
 
   doc:
