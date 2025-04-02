@@ -1,8 +1,6 @@
 use super::k8s_api::check_config_map_exist;
 use crate::common::{
-    agent_control::{
-        start_agent_control_with_custom_config, AgentControlMode, StartedAgentControl,
-    },
+    agent_control::{start_agent_control_with_custom_config, StartedAgentControl},
     retry::retry,
     runtime::block_on,
 };
@@ -12,9 +10,11 @@ use kube::{
     api::{Api, DeleteParams, PostParams},
     Client,
 };
-use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
+};
+use newrelic_agent_control::{
+    agent_control::agent_id::AgentID, agent_type::environment::Environment,
 };
 use newrelic_agent_control::{
     agent_control::run::BasePaths,
@@ -73,7 +73,7 @@ pub fn start_agent_control_with_testdata_config(
             remote_dir: local_dir.join("remote").to_path_buf(),
             log_dir: local_dir.join("log").to_path_buf(),
         },
-        AgentControlMode::K8s,
+        Environment::K8s,
     )
 }
 

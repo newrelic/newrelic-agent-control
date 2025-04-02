@@ -1,6 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 #[cfg(unix)]
-use crate::common::agent_control::AgentControlMode;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_file};
@@ -17,6 +16,8 @@ use tempfile::tempdir;
 #[cfg(unix)]
 #[test]
 fn test_file_health_without_supervisor() {
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -62,7 +63,7 @@ deployment:
         log_dir: local_dir.path().to_path_buf(),
     };
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
@@ -123,6 +124,8 @@ status_time_unix_nano: 1725444002
 #[cfg(unix)]
 #[test]
 fn test_http_health_without_supervisor() {
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let health_server = MockServer::start();
@@ -176,7 +179,7 @@ deployment:
     let base_paths = base_paths.clone();
 
     let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), AgentControlMode::OnHost);
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
