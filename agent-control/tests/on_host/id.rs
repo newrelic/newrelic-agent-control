@@ -176,7 +176,7 @@ fn test_gcp_cloud_id() {
 #[cfg(unix)]
 #[test]
 fn test_sub_sa_vars() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

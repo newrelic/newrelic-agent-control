@@ -24,7 +24,7 @@ use tempfile::tempdir;
 fn onhost_opamp_sub_agent_invalid_remote_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 
@@ -111,7 +111,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 #[cfg(unix)]
 #[test]
 fn test_invalid_config_executalbe_less_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     use crate::on_host::tools::custom_agent_type::get_agent_type_without_deployment;
 
@@ -200,7 +200,7 @@ fn test_invalid_config_executalbe_less_supervisor() {
 fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 

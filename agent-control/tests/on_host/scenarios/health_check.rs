@@ -18,7 +18,7 @@ use tempfile::tempdir;
 #[cfg(unix)]
 #[test]
 fn test_file_health_without_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let opamp_server = FakeServer::start_new();
 
@@ -127,7 +127,7 @@ status_time_unix_nano: 1725444002
 #[cfg(unix)]
 #[test]
 fn test_http_health_without_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let opamp_server = FakeServer::start_new();
 
