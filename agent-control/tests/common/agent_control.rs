@@ -1,4 +1,5 @@
 use crate::common::global_logger::init_logger;
+use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::run::{
@@ -54,7 +55,12 @@ pub fn start_agent_control_with_custom_config(
             base_paths,
             proxy: agent_control_config.proxy,
 
-            k8s_config: agent_control_config.k8s.unwrap_or_default(),
+            k8s_config: match mode {
+                AgentControlMode::OnHost => K8sConfig::default(),
+                AgentControlMode::K8s => agent_control_config
+                    .k8s
+                    .expect("K8s config must be present when running in K8s"),
+            },
 
             garbage_collector_interval,
         };
