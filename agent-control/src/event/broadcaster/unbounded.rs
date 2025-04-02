@@ -40,7 +40,10 @@ where
     pub fn subscribe(&mut self) -> Receiver<T> {
         let (tx, rx) = unbounded();
 
-        self.subscribed_senders.lock().unwrap().push(tx);
+        self.subscribed_senders
+            .lock()
+            .expect("failed to acquire the lock")
+            .push(tx);
 
         rx
     }
@@ -51,7 +54,7 @@ where
     pub fn broadcast(&self, message: T) {
         self.subscribed_senders
             .lock()
-            .unwrap()
+            .expect("failed to acquire the lock")
             .retain(|s| s.send(message.clone()).is_ok());
     }
 }
