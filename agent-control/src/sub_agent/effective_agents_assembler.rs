@@ -1,9 +1,9 @@
 use crate::agent_control::defaults::default_capabilities;
+use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;

@@ -9,13 +9,14 @@
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::{
-    agent_control::agent_id::AgentID,
+    agent_control::{agent_id::AgentID, run::Environment},
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
-        environment::Environment,
-        render::persister::config_persister_file::ConfigurationPersisterFile,
-        render::renderer::{tests::testing_agent_attributes, Renderer, TemplateRenderer},
+        render::{
+            persister::config_persister_file::ConfigurationPersisterFile,
+            renderer::{tests::testing_agent_attributes, Renderer, TemplateRenderer},
+        },
         variable::{definition::VariableDefinition, namespace::Namespace},
     },
     sub_agent::effective_agents_assembler::build_agent_type,

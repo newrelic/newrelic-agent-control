@@ -30,7 +30,7 @@ const DEFAULT_NAME: &str = "name";
 #[cfg(unix)]
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let opamp_server = FakeServer::start_new();
 
@@ -113,7 +113,7 @@ fn test_attributes_from_non_existing_agent_type() {
 #[cfg(unix)]
 #[test]
 fn test_attributes_from_an_existing_agent_type() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");

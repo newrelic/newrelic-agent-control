@@ -26,7 +26,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
 
     use std::env;
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     use crate::common::agent_control::start_agent_control_with_custom_config;
     let opamp_server = FakeServer::start_new();

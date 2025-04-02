@@ -32,7 +32,7 @@ use tempfile::tempdir;
 fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let opamp_server = FakeServer::start_new();
 
@@ -82,7 +82,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
 fn onhost_opamp_agent_control_remote_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 
@@ -177,7 +177,8 @@ agents:
 fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -257,7 +258,8 @@ non-existing: {}
 fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -336,7 +338,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 fn onhost_opamp_sub_agent_remote_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -409,7 +412,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 fn onhost_opamp_sub_agent_empty_local_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -477,7 +481,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 fn onhost_executable_less_reports_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");

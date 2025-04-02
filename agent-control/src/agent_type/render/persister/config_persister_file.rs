@@ -183,8 +183,8 @@ where
 mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
+    use crate::agent_control::run::Environment;
     use crate::agent_type::definition::AgentType;
-    use crate::agent_type::environment::Environment;
     use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
     use crate::agent_type::render::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,

@@ -18,6 +18,7 @@ use crate::opamp::remote_config::validators::signature::validator::{
     build_signature_validator, SignatureValidator,
 };
 use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,6 +30,22 @@ use tracing::{debug, error};
 pub mod k8s;
 
 pub mod on_host;
+
+/// Defines the supported deployments for agent types
+#[derive(Debug, PartialEq, Clone)]
+pub enum Environment {
+    OnHost,
+    K8s,
+}
+
+impl Display for Environment {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Environment::OnHost => write!(f, "on_host"),
+            Environment::K8s => write!(f, "k8s"),
+        }
+    }
+}
 
 /// Structure with all base paths required to run the agent control
 #[derive(Debug, Clone)]

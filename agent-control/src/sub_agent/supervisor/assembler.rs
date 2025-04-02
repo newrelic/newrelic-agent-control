@@ -1,10 +1,9 @@
-use crate::agent_type::environment::Environment;
-use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::SupervisorStarter;
+use crate::{agent_control::run::Environment, opamp::hash_repository::HashRepository};
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
@@ -150,8 +149,8 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::environment::Environment;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;

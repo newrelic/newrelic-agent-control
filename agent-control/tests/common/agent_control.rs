@@ -3,9 +3,8 @@ use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::run::{
-    AgentControlRunConfig, AgentControlRunner, BasePaths,
+    AgentControlRunConfig, AgentControlRunner, BasePaths, Environment,
 };
-use newrelic_agent_control::agent_type::environment::Environment;
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;

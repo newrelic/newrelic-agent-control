@@ -1,6 +1,6 @@
+use crate::agent_control::run::Environment;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::variable::kind::Kind;
 use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::config_migrate::migration::agent_value_spec::{
