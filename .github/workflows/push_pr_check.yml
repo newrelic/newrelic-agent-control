@@ -115,11 +115,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
           
-      - name: Create on-host documentation
-        run: cargo doc --no-deps --package newrelic_agent_control
-        env:
-          RUSTDOCFLAGS: --cfg docsrs
-      - name: Create K8s documentation
+      - name: Create documentation
         run: cargo doc --no-deps --package newrelic_agent_control
         env:
           RUSTDOCFLAGS: --cfg docsrs
