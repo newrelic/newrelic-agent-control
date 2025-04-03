@@ -1343,12 +1343,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-## paste <https://crates.io/crates/paste>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 ## pathdiff <https://crates.io/crates/pathdiff>
 
 Distributed under the following license(s):

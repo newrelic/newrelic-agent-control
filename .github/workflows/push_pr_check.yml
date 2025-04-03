@@ -161,3 +161,15 @@ jobs:
       - uses: newrelic/rust-licenses-noticer@v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+  unused-dependencies-check:
+    name: Check unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186
+        with:
+          tool: cargo-shear@1.1.11
+
+      - run: cargo shear
