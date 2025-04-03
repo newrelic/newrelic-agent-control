@@ -42,13 +42,8 @@ where
         .map_err(|err| {
             LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
         })?;
-
-        let Some(values) = maybe_values else {
-            return Err(LoaderError::from(format!(
-                "there was no local nor remote configuration for {}",
-                self.agent_id
-            )));
-        };
+        // No configuration is considered as empty effective-configuration
+        let values = maybe_values.unwrap_or_default();
 
         let values_string: String = values.try_into().map_err(|err| {
             LoaderError::from(format!(

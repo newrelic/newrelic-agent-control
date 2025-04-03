@@ -99,13 +99,8 @@ where
                 &self.agent_id, err
             ))
         })?;
-
-        let Some(config) = maybe_config else {
-            return Err(LoaderError::from(format!(
-                "there was no local nor remote configuration for {}",
-                self.agent_id
-            )));
-        };
+        // No configuration is considered as empty remote configuration
+        let config = maybe_config.unwrap_or_default();
 
         // Deserialize only effective config making sure that not default values are reported.
         let dynamic_config: AgentControlEffectiveConfig = config.try_into().map_err(|err| {
