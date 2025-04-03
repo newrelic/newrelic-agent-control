@@ -17,13 +17,13 @@ use tracing::{debug, error, warn};
 #[derive(Debug, Error)]
 pub enum SupervisorAssemblerError {
     #[error("error assembling agent: `{0}`")]
-    AgentAssembleError(String),
+    AgentsAssemble(String),
 
     #[error("supervisor could not be built: `{0}`")]
-    SupervisorBuildError(String),
+    SupervisorBuild(String),
 
     #[error("values error: {0}")]
-    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
+    YAMLConfigRepository(#[from] YAMLConfigRepositoryError),
 
     #[error("no configuration found")]
     NoConfiguration,
@@ -139,7 +139,7 @@ where
                         .report(opamp_client, &hash)
                         .inspect_err(|e| error!( %e, "error reporting remote config status"));
                 }
-                Err(SupervisorAssemblerError::AgentAssembleError(e.to_string()))
+                Err(SupervisorAssemblerError::AgentsAssemble(e.to_string()))
             }
             Ok(effective_agent) => {
                 if let (Some(mut hash), Some(opamp_client)) = (hash, maybe_opamp_client) {
@@ -169,7 +169,7 @@ where
                 let supervisor = self
                     .supervisor_builder
                     .build_supervisor(effective_agent)
-                    .map_err(|e| SupervisorAssemblerError::SupervisorBuildError(e.to_string()))?;
+                    .map_err(|e| SupervisorAssemblerError::SupervisorBuild(e.to_string()))?;
 
                 Ok(supervisor)
             }
