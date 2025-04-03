@@ -168,7 +168,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e
+      - uses: taiki-e/install-action@575f713
         with:
           tool: cargo-shear@1.1.11
 
