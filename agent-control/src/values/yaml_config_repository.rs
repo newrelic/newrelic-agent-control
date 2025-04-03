@@ -43,8 +43,8 @@ pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
 ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
     debug!("loading config");
 
-    if let Some(values_result) = config_repository.load_remote(agent_id, capabilities)? {
-        return Ok(Some(values_result));
+    if let remote @ Some(_) = config_repository.load_remote(agent_id, capabilities)? {
+        return Ok(remote);
     }
     debug!("remote config not found, loading local");
 

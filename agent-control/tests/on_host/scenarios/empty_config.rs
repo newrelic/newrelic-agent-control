@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
+use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -72,39 +73,33 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
-        {
-            // Then the retrieved effective config should match the expected remote config
-            check_latest_effective_config_is_expected(
-                &opamp_server,
-                &sub_agent_instance_id.clone(),
-                remote_values_config.to_string(),
-            )
-        }
+        // Then the retrieved effective config should match the expected remote config
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id.clone(),
+            remote_values_config.to_string(),
+        )
     });
 
     // When the config is remotely set as empty, it should fall back to local
     opamp_server.set_config_response(sub_agent_instance_id.clone(), ConfigResponse::from(""));
 
     retry(60, Duration::from_secs(1), || {
-        {
-            // The retrieved effective config should match the expected local config
-            check_latest_effective_config_is_expected(
-                &opamp_server,
-                &sub_agent_instance_id.clone(),
-                local_values_config.to_string(),
-            )
-        }
+        // The retrieved effective config should match the expected local config
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id.clone(),
+            local_values_config.to_string(),
+        )
     });
 }
 
-/// The agent-control is configured with on agent with local configuration but there is no local configuration
+/// The agent-control is configured with local configuration containing a sub-agent, but there is no local configuration
 /// for the sub-agent. The corresponding sub-agent supervisor will not start until a remote configuration is received.
 #[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_with_no_local_config() {
     // Given a agent-control with a custom-agent with opamp configured.
-
-    use opamp_client::opamp::proto::RemoteConfigStatuses;
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -146,16 +141,14 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
 
     // The supervisor will not start but the agent will be able to receive remote configurations
     retry(60, Duration::from_secs(1), || {
-        {
-            // The agent attributes should be informed even if there is no supervisor
-            let _ = opamp_server
-                .get_attributes(&sub_agent_instance_id.clone())
-                .ok_or("no attributes informed")?;
-            Ok(())
-        }
+        // The agent attributes should be informed even if there is no supervisor
+        let _ = opamp_server
+            .get_attributes(&sub_agent_instance_id.clone())
+            .ok_or("no attributes informed")?;
+        Ok(())
     });
 
-    // When the config is remotely set as empty, it should fall back to local
+    // When the config is remotely set, the sub-agent's supervisor should start
     let remote_values_config = "fake_variable: from-remote\n";
     opamp_server.set_config_response(
         sub_agent_instance_id.clone(),
@@ -163,22 +156,19 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     );
 
     retry(60, Duration::from_secs(1), || {
+        // The retrieved effective config should match the expected local config
+        let remote_config_status =
+            opamp_server.get_remote_config_status(sub_agent_instance_id.clone());
+        if remote_config_status.is_some_and(|s| matches!(s.status(), RemoteConfigStatuses::Failed))
         {
-            if let Some(status) =
-                opamp_server.get_remote_config_status(sub_agent_instance_id.clone())
-            {
-                if matches!(status.status(), RemoteConfigStatuses::Failed) {
-                    panic!("Remote config for the sub-agent should not fail");
-                }
-            }
-            // The retrieved effective config should match the expected local config
-            check_latest_effective_config_is_expected(
-                &opamp_server,
-                &sub_agent_instance_id,
-                remote_values_config.to_string(),
-            )?;
-
-            Ok(())
+            panic!("Remote config for the sub-agent should not fail");
         }
+        check_latest_effective_config_is_expected(
+            &opamp_server,
+            &sub_agent_instance_id,
+            remote_values_config.to_string(),
+        )?;
+
+        Ok(())
     });
 }
