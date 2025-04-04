@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use crate::agent_control::defaults::default_capabilities;
-use crate::agent_type::environment::Environment;
+use crate::agent_control::run::Environment;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
@@ -9,6 +11,8 @@ use crate::sub_agent::supervisor::starter::SupervisorStarter;
 use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
+use opamp_client::StartedClient;
+use thiserror::Error;
 use tracing::{debug, error, warn};
 
 #[derive(Debug, Error)]
@@ -178,6 +182,7 @@ where
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
+    use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
