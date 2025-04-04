@@ -4,7 +4,7 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
-use newrelic_agent_control::agent_control::run::AgentControlRunner;
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, Environment};
 use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
@@ -14,9 +14,11 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
+const AGENT_CONTROL_MODE: Environment = Environment::K8s;
+
 fn main() -> ExitCode {
-    let Ok(cli_command) =
-        Cli::init().inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
+    let Ok(cli_command) = Cli::init(AGENT_CONTROL_MODE)
+        .inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
     else {
         return ExitCode::FAILURE;
     };
@@ -68,7 +70,7 @@ fn _main(
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
     AgentControlRunner::new(agent_control_config.run_config, application_event_consumer)?
-        .run_k8s()?;
+        .run(AGENT_CONTROL_MODE)?;
 
     info!("exiting gracefully");
 
