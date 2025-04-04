@@ -34,7 +34,7 @@ chart_values: {}
 Agent Control will start the `nr-prometheus` agent with the remote configuration.
 
 It is important to note the difference when the Agent Control has local configuration for an agent. If we remotely added `nr-infra` back,
-it will start the corresponding agent with the known local configuration. In other words, a remote new remote config such as:
+it will start the corresponding agent with the known local configuration. In other words, a new remote config such as:
 
 ```yaml
 agents:
