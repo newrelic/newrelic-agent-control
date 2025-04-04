@@ -290,8 +290,8 @@ pub mod tests {
         );
 
         let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
-            .unwrap()
-            .unwrap();
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -327,8 +327,8 @@ pub mod tests {
         );
 
         let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
-            .unwrap()
-            .unwrap();
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -369,8 +369,8 @@ pub mod tests {
         );
 
         let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
-            .unwrap()
-            .unwrap();
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(

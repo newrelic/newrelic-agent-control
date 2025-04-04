@@ -11,6 +11,7 @@ use crate::{
     },
 };
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
+use newrelic_agent_control::agent_type::environment::Environment;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -68,7 +69,8 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
@@ -135,7 +137,8 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
     std::thread::sleep(std::time::Duration::from_secs(1));
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
 
