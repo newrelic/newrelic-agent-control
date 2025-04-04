@@ -1,5 +1,5 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
-#[cfg(unix)]
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
@@ -27,7 +27,6 @@ const DEFAULT_NAME: &str = "name";
 
 /// Given an agent type that we don't know we are going to check if the default
 /// identifying and non identifying attributes are what we expect.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
     use newrelic_agent_control::agent_control::run::Environment;
@@ -110,7 +109,6 @@ fn test_attributes_from_non_existing_agent_type() {
 /// Given an agent type that we know we are going to check if the default
 /// identifying and non identifying attributes are what we expect plus
 /// the "agent.version" related with the agent type.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_an_existing_agent_type() {
     use newrelic_agent_control::agent_control::run::Environment;

@@ -35,6 +35,7 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
 }
 
 struct AutoDropChild(std::process::Child);
+
 impl Drop for AutoDropChild {
     fn drop(&mut self) {
         self.0.kill().unwrap();

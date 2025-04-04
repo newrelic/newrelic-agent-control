@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::{opamp::FakeServer, retry::retry};
@@ -18,7 +19,6 @@ use tempfile::tempdir;
 /// $ TESTING_PROXY_URL="http://localhost:8080" TESTING_PROXY_CA_DIR=/tmp/mitmproxy TESTING_HOST_GATEWAY="host.docker.internal" cargo test --test integration_tests -- proxy_ --ignored
 /// ```
 // TODO: run this on CI
-#[cfg(unix)]
 #[ignore = "needs proxy up and running"]
 #[test]
 fn proxy_onhost_opamp_agent_control_local_effective_config() {

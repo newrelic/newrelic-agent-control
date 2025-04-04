@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use newrelic_agent_control::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use newrelic_agent_control::sub_agent::on_host::command::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::command::restart_policy::RestartPolicy;
@@ -6,7 +7,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[cfg(unix)]
 #[test]
 fn non_blocking_runner() {
     let agent_id = "sleep-test".to_string().try_into().unwrap();
