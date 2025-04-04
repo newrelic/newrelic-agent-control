@@ -51,6 +51,7 @@ impl<C: HttpClient> AWSHttpClient<C> {
         Ok(token)
     }
 
+    /// Performs the get request with the requested token header included.
     pub fn get(&self) -> Result<Response<Vec<u8>>, HttpClientError> {
         let token = self.get_token()?;
 
