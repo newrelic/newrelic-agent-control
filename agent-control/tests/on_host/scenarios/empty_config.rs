@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config,
@@ -10,15 +11,16 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
-use newrelic_agent_control::agent_control::{agent_id::AgentID, run::BasePaths};
-use newrelic_agent_control::agent_type::environment::Environment;
+use newrelic_agent_control::agent_control::{
+    agent_id::AgentID,
+    run::{BasePaths, Environment},
+};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
 
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the
 /// corresponding sub-agent. After this, the configuration is set as empty which should fall-back to local
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
@@ -98,7 +100,6 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
 /// The agent-control is configured with local configuration containing a sub-agent, but there is no local configuration
 /// for the sub-agent. The corresponding sub-agent supervisor will not start until a remote configuration is received.
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_with_no_local_config() {
     // Given a agent-control with a custom-agent with opamp configured.
