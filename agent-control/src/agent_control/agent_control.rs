@@ -27,7 +27,7 @@ use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
 where
@@ -209,6 +209,7 @@ where
             .agent_control_opamp_consumer
             .as_ref()
             .unwrap_or(&never_receive);
+        let mut remote_config_count = 0;
         loop {
             select! {
                 recv(&opamp_receiver.as_ref()) -> opamp_event_res => {
@@ -219,18 +220,22 @@ where
                         Ok(opamp_event) => {
                             match opamp_event {
                                 OpAMPEvent::RemoteConfigReceived(remote_config) => {
+                                    // Report the reception of a remote config
+                                    debug!("Received remote config.");
+                                    remote_config_count += 1;
+                                    trace!(monotonic_counter.remote_configs_received = remote_config_count);
                                     let _ = self.remote_config(remote_config, &mut sub_agents)
-                                    .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
+                                        .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
                                 }
                                 OpAMPEvent::Connected => {
                                     let _ = self.agent_control_publisher
-                                    .publish(AgentControlEvent::OpAMPConnected)
-                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connected"));
+                                        .publish(AgentControlEvent::OpAMPConnected)
+                                        .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connected"));
                                 }
                                 OpAMPEvent::ConnectFailed(error_code, error_message) => {
                                     let _ = self.agent_control_publisher
-                                    .publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
-                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connect_failed"));
+                                        .publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
+                                        .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connect_failed"));
                                 }
                             }
                         }
