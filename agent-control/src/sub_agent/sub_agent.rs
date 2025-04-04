@@ -19,7 +19,7 @@ use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
-use tracing::{debug, error, info, info_span, warn};
+use tracing::{debug, error, info, info_span, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -136,6 +136,9 @@ where
             // TODO: We should separate the loop for OpAMP events and internal events into two
             // different loops, which currently is not straight forward due to sharing structures
             // that need to be moved into thread closures.
+
+            // metric report data
+            let mut remote_config_count = 0;
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
@@ -151,8 +154,12 @@ where
                                     debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
                                     continue;
                                 };
+                                // Trace the occurrence of a remote config reception
+                                debug!("Received remote config.");
+                                remote_config_count += 1;
+                                trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config){
+                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config) {
                                     Err(error) =>{
                                         error!(%error,"error handling remote config")
                                     },
