@@ -6,7 +6,7 @@ use crate::common::attributes::{
 };
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::create_agent_control_config;
+use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -133,6 +133,7 @@ fn test_attributes_from_an_existing_agent_type() {
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

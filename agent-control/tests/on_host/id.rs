@@ -1,4 +1,4 @@
-use super::tools::config::create_file;
+use super::tools::config::{create_file, create_sub_agent_values};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
 use assert_cmd::Command;
@@ -210,6 +210,7 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

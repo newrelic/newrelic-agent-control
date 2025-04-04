@@ -56,7 +56,7 @@ where
             .map_err(|e: YAMLConfigError| ValuesValidatorError::Validating(e.to_string()))?;
 
         self.effective_agent_assembler
-            .assemble_agent_from_values(config_values, agent_identity, &self.environment)
+            .assemble_agent(agent_identity, config_values, &self.environment)
             .map_err(|err| ValuesValidatorError::InvalidConfig(err.to_string()))?;
 
         Ok(())
@@ -83,7 +83,7 @@ mod tests {
     fn test_valid_config() {
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
         effective_agent_assembler
-            .expect_assemble_agent_from_values()
+            .expect_assemble_agent()
             .once()
             .returning(|_, _, _| {
                 Ok(EffectiveAgent::new(
@@ -104,7 +104,7 @@ mod tests {
     fn test_invalid_config() {
         let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
         effective_agent_assembler
-            .expect_assemble_agent_from_values()
+            .expect_assemble_agent()
             .once()
             .returning(|_, _, _| {
                 Err(crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError("test".into()))

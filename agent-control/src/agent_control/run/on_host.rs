@@ -143,7 +143,6 @@ impl AgentControlRunner {
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
             self.agent_type_registry.clone(),
             template_renderer,
         ));
@@ -152,6 +151,7 @@ impl AgentControlRunner {
             sub_agent_hash_repository.clone(),
             SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
             agents_assembler,
+            yaml_config_repository.clone(),
             Environment::OnHost,
         );
 
@@ -159,7 +159,6 @@ impl AgentControlRunner {
         let validation_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.into_iter());
         let validation_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
             self.agent_type_registry.clone(),
             validation_renderer,
         ));

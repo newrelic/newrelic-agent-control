@@ -252,7 +252,7 @@ where
         let stopped_supervisor = self
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client, self.identity.clone())
-            .inspect_err(|e| error!(error = %e,"cannot assemble supervisor"))
+            .inspect_err(|e| warn!(error = %e,"cannot assemble supervisor"))
             .ok();
 
         stopped_supervisor

@@ -101,9 +101,12 @@ where
                 Err(err)
             }
             // Remove previously persisted values when the configuration is empty
-            Ok(None) => Ok(self
-                .remote_values_repo
-                .delete_remote(&remote_config.agent_id)?),
+            Ok(None) => {
+                debug!("empty config received, remove remote configuration to fall-back to local");
+                Ok(self
+                    .remote_values_repo
+                    .delete_remote(&remote_config.agent_id)?)
+            }
             Ok(Some(agent_values)) => Ok(self
                 .remote_values_repo
                 .store_remote(&remote_config.agent_id, &agent_values)?),
