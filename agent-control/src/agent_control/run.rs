@@ -185,8 +185,8 @@ impl AgentControlRunner {
 
     pub fn run(self, mode: Environment) -> Result<(), AgentError> {
         match mode {
-            Environment::OnHost => AgentControlRunner::run_onhost(self),
-            Environment::K8s => AgentControlRunner::run_k8s(self),
+            Environment::OnHost => self.run_onhost(),
+            Environment::K8s => self.run_k8s(),
         }
     }
 }
