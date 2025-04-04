@@ -237,7 +237,7 @@ impl Drop for FakeServer {
 }
 
 async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> HttpResponse {
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     let message = opamp::proto::AgentToServer::decode(req).unwrap();
     let instance_id: InstanceID = InstanceUid::try_from(message.clone().instance_uid)
         .unwrap()
