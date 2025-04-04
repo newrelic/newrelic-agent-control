@@ -52,7 +52,7 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
-    name:  ${{ matrix.flag }} / clippy
+    name: cargo clippy
     permissions:
       contents: read
       checks: write

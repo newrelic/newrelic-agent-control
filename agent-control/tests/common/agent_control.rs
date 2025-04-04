@@ -61,13 +61,10 @@ pub fn start_agent_control_with_custom_config(
         };
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        let runner = AgentControlRunner::new(run_config, application_event_consumer).unwrap();
-
-        match mode {
-            Environment::OnHost => runner.run_onhost(),
-            Environment::K8s => runner.run_k8s(),
-        }
-        .unwrap();
+        AgentControlRunner::new(run_config, application_event_consumer)
+            .unwrap()
+            .run(mode)
+            .unwrap();
     });
 
     // to avoid k8s GC first executions collision with the first remote configs that are set in the tests.

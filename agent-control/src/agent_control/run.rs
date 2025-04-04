@@ -3,6 +3,7 @@ use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_FILENAME,
 };
+use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -28,11 +29,10 @@ use tracing::{debug, error};
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
 pub mod k8s;
-
 pub mod on_host;
 
 /// Defines the supported deployments for agent types
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum Environment {
     OnHost,
     K8s,
@@ -181,6 +181,13 @@ impl AgentControlRunner {
             base_paths: config.base_paths,
             signature_validator,
         })
+    }
+
+    pub fn run(self, mode: Environment) -> Result<(), AgentError> {
+        match mode {
+            Environment::OnHost => self.run_onhost(),
+            Environment::K8s => self.run_k8s(),
+        }
     }
 }
 
