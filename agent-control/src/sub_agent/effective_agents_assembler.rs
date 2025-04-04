@@ -1,19 +1,18 @@
+use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
-
 use crate::agent_type::runtime_config::K8s;
-
 use crate::agent_type::runtime_config::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
+
 use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
@@ -186,7 +185,7 @@ pub fn build_agent_type(
         .variables
         .common
         .merge(specific_vars)
-        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
+        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
     Ok(AgentType::new(
         definition.agent_type_id,
@@ -240,7 +239,7 @@ pub(crate) mod tests {
                 .with(
                     predicate::eq(agent_identity.clone()),
                     predicate::eq(yaml_config.clone()),
-                    predicate::eq(environment.clone()),
+                    predicate::eq(*environment),
                 )
                 .returning(move |_, _, _| Ok(effective_agent.clone()));
         }

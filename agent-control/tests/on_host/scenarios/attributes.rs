@@ -1,5 +1,5 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
-#[cfg(unix)]
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
     OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
@@ -27,11 +27,8 @@ const DEFAULT_NAME: &str = "name";
 
 /// Given an agent type that we don't know we are going to check if the default
 /// identifying and non identifying attributes are what we expect.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
-    use newrelic_agent_control::agent_type::environment::Environment;
-
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -110,11 +107,8 @@ fn test_attributes_from_non_existing_agent_type() {
 /// Given an agent type that we know we are going to check if the default
 /// identifying and non identifying attributes are what we expect plus
 /// the "agent.version" related with the agent type.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_an_existing_agent_type() {
-    use newrelic_agent_control::agent_type::environment::Environment;
-
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

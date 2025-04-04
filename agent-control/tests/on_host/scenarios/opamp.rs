@@ -1,5 +1,5 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
-#[cfg(unix)]
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::opamp::ConfigResponse;
@@ -16,7 +16,7 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::AgentControlDynamicConfig;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::env;
@@ -27,12 +27,9 @@ use tempfile::tempdir;
 /// - Local configuration (with no agents) is used
 /// - Effective configuration for the agent-control is reported
 /// - Healthy status is reported
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
-
-    use newrelic_agent_control::agent_type::environment::Environment;
 
     let opamp_server = FakeServer::start_new();
 
@@ -77,12 +74,9 @@ fn onhost_opamp_agent_control_local_effective_config() {
 /// - The corresponding effective config is reported for the agent control
 /// - The agent control reports healthy
 /// - The subagent reports healthy
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_agent_control_remote_effective_config() {
     // Given a agent-control without agents and opamp configured.
-
-    use newrelic_agent_control::agent_type::environment::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 
@@ -181,12 +175,10 @@ agents:
 
 /// Given a agent-control whose local configuration has no agents and then a valid remote configuration with no agents
 /// and an unknown field is set. The unknown should be ignored and the corresponding effective configuration reported.
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -261,12 +253,10 @@ non-existing: {}
 /// The agent control is configured with one agent whose local configuration contains an environment variable
 /// placeholder. This test checks that the effective config is reported as expected (and it does not included
 /// the environment variable expanded).
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -340,12 +330,10 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the
 /// corresponding sub-agent. This test checks that the latest effective config reported corresponds to the remote.
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_remote_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -414,12 +402,10 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 /// There is a agent control with a sub agent configured whose configuration is empty (it exists but id doesn't contain
 /// any value, if it didn't exist the supervisor would not start), we expect the empty configuration
 /// to be reported as effective configuration for the sub-agent.
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_empty_local_effective_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -487,12 +473,10 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 /// - Effective configuration updates to remote config
 /// - Stored retrieves latest applied remote config
 /// - Healthy status is reported
-#[cfg(unix)]
 #[test]
 fn onhost_executable_less_reports_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
-    use newrelic_agent_control::agent_type::environment::Environment;
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");

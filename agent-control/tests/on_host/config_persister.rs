@@ -1,7 +1,7 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::run::Environment;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
-use newrelic_agent_control::agent_type::environment::Environment;
 use newrelic_agent_control::agent_type::render::persister::config_persister::ConfigurationPersister;
 use newrelic_agent_control::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use newrelic_agent_control::sub_agent::effective_agents_assembler::build_agent_type;

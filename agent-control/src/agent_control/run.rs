@@ -3,6 +3,7 @@ use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_FILENAME,
 };
+use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -18,6 +19,7 @@ use crate::opamp::remote_config::validators::signature::validator::{
     build_signature_validator, SignatureValidator,
 };
 use std::error::Error;
+use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,8 +29,23 @@ use tracing::{debug, error};
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
 pub mod k8s;
-
 pub mod on_host;
+
+/// Defines the supported deployments for agent types
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum Environment {
+    OnHost,
+    K8s,
+}
+
+impl Display for Environment {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        match self {
+            Environment::OnHost => write!(f, "on_host"),
+            Environment::K8s => write!(f, "k8s"),
+        }
+    }
+}
 
 /// Structure with all base paths required to run the agent control
 #[derive(Debug, Clone)]
@@ -164,6 +181,13 @@ impl AgentControlRunner {
             base_paths: config.base_paths,
             signature_validator,
         })
+    }
+
+    pub fn run(self, mode: Environment) -> Result<(), AgentError> {
+        match mode {
+            Environment::OnHost => self.run_onhost(),
+            Environment::K8s => self.run_k8s(),
+        }
     }
 }
 

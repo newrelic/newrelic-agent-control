@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
@@ -12,7 +13,6 @@ use tempfile::TempDir;
 
 /// The agent control is configured with no OpAMP and a custom agent-type to check that
 /// a process gets restarted as expected when killing it externally.
-#[cfg(unix)]
 #[test]
 fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use crate::on_host::cli::create_temp_file;

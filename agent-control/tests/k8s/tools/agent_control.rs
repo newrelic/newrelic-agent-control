@@ -13,9 +13,7 @@ use kube::{
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
 };
-use newrelic_agent_control::{
-    agent_control::agent_id::AgentID, agent_type::environment::Environment,
-};
+use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
 use newrelic_agent_control::{
     agent_control::run::BasePaths,
     k8s::store::{K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG},

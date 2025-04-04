@@ -1,5 +1,5 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
-#[cfg(unix)]
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{
@@ -10,16 +10,13 @@ use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use std::time::Duration;
 use tempfile::tempdir;
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from the file and send it to the opamp server.
-#[cfg(unix)]
 #[test]
 fn test_file_health_without_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
-
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -124,11 +121,8 @@ status_time_unix_nano: 1725444002
 
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from http endpoint and send it to the opamp server.
-#[cfg(unix)]
 #[test]
 fn test_http_health_without_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
-
     let opamp_server = FakeServer::start_new();
 
     let health_server = MockServer::start();

@@ -1,4 +1,4 @@
-use crate::agent_type::environment::Environment;
+use crate::agent_control::run::Environment;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
@@ -67,7 +67,7 @@ where
 mod tests {
     use super::ValuesValidator;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_type::environment::Environment;
+    use crate::agent_control::run::Environment;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::values::ValuesValidatorError;

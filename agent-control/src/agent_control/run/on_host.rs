@@ -5,9 +5,8 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -40,7 +39,7 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 impl AgentControlRunner {
-    pub fn run_onhost(self) -> Result<(), AgentError> {
+    pub(super) fn run_onhost(self) -> Result<(), AgentError> {
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
             Arc::new(

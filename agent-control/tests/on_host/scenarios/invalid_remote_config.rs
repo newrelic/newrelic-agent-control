@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::opamp::ConfigResponse;
@@ -9,7 +10,7 @@ use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME};
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -19,12 +20,9 @@ use tempfile::tempdir;
 /// - That the latest remote config status is failed.
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the local one (which is valid).
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_invalid_remote_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
-
-    use newrelic_agent_control::agent_type::environment::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 
@@ -108,11 +106,8 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 /// - That the latest remote config status is failed.
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the local one (which is valid).
-#[cfg(unix)]
 #[test]
 fn test_invalid_config_executalbe_less_supervisor() {
-    use newrelic_agent_control::agent_type::environment::Environment;
-
     use crate::on_host::tools::custom_agent_type::get_agent_type_without_deployment;
 
     let mut opamp_server = FakeServer::start_new();
@@ -195,12 +190,9 @@ fn test_invalid_config_executalbe_less_supervisor() {
 /// - That the latest remote config status is failed.
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the latest applied valid remote config.
-#[cfg(unix)]
 #[test]
 fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
-
-    use newrelic_agent_control::agent_type::environment::Environment;
 
     let mut opamp_server = FakeServer::start_new();
 

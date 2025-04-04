@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use super::tools::config::{create_file, create_sub_agent_values};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
@@ -19,7 +20,6 @@ use tempfile::tempdir;
 const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
 #[test]
-#[cfg(target_family = "unix")]
 fn test_aws_cloud_id() {
     use httpmock::Method::PUT;
     use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
@@ -75,7 +75,6 @@ fn test_aws_cloud_id() {
     token_mock.assert_calls(1);
 }
 #[test]
-#[cfg(target_family = "unix")]
 fn test_azure_cloud_id() {
     use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
 
@@ -124,7 +123,6 @@ fn test_azure_cloud_id() {
 }
 
 #[test]
-#[cfg(target_family = "unix")]
 fn test_gcp_cloud_id() {
     use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
 
@@ -173,10 +171,9 @@ fn test_gcp_cloud_id() {
 }
 
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
-#[cfg(unix)]
 #[test]
 fn test_sub_sa_vars() {
-    use newrelic_agent_control::agent_type::environment::Environment;
+    use newrelic_agent_control::agent_control::run::Environment;
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");

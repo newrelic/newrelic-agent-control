@@ -6,9 +6,8 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -42,7 +41,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 impl AgentControlRunner {
-    pub fn run_k8s(self) -> Result<(), AgentError> {
+    pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())
