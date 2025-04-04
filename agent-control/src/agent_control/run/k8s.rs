@@ -42,7 +42,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 impl AgentControlRunner {
-    pub fn run(self) -> Result<(), AgentError> {
+    pub fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())

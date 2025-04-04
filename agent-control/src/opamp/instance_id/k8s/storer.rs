@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-#[cfg(feature = "k8s")]
+
 use crate::k8s::{
     self,
     store::{K8sStore, STORE_KEY_INSTANCE_ID},

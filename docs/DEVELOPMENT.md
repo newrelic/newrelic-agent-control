@@ -9,8 +9,8 @@ As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program
 To compile and run locally:
 
 1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system.
-2. Run `cargo build --features onhost`
-3. `newrelic-agent-control` binary will be generated at `./target/debug/newrelic-agent-control`
+2. Run `cargo build --bin newrelic-agent-control-onhost`
+3. `newrelic-agent-control-onhost` binary will be generated at `./target/debug/newrelic-agent-control-onhost`
 4. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
 
     ```yaml
@@ -247,8 +247,6 @@ make -C agent-control test/k8s
 ```sh
 make -C agent-control test/k8s/integration
 ```
-
-Attempting to use the `onhost` and `k8s` features at the same time (`cargo --features "onhost, k8s" ...`) will throw a compilation error, there is a special feature `ci`, that needs to be enabled to allow those 2 features at the same time (since we only want them together in specific CI scenarios).
 
 ## Coverage
 

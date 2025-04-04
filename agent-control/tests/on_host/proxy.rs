@@ -15,7 +15,7 @@ use tempfile::tempdir;
 /// # Run a simple proxy
 /// $ docker run --rm --name mitmproxy -v /tmp/mitmproxy:/home/mitmproxy/.mitmproxy -p 8080:8080 mitmproxy/mitmproxy mitmdump
 /// # Execute the corresponding test
-/// $ TESTING_PROXY_URL="http://localhost:8080" TESTING_PROXY_CA_DIR=/tmp/mitmproxy TESTING_HOST_GATEWAY="host.docker.internal" cargo test --test integration_tests --features onhost -- proxy_ --ignored
+/// $ TESTING_PROXY_URL="http://localhost:8080" TESTING_PROXY_CA_DIR=/tmp/mitmproxy TESTING_HOST_GATEWAY="host.docker.internal" cargo test --test integration_tests -- proxy_ --ignored
 /// ```
 // TODO: run this on CI
 #[cfg(unix)]
@@ -25,6 +25,8 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
 
     use std::env;
+
+    use newrelic_agent_control::agent_type::environment::Environment;
 
     use crate::common::agent_control::start_agent_control_with_custom_config;
     let opamp_server = FakeServer::start_new();
@@ -62,7 +64,8 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
     };
     let base_paths = base_paths.clone();
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
 

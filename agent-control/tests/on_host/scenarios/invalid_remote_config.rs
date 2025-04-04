@@ -23,6 +23,9 @@ use tempfile::tempdir;
 #[test]
 fn onhost_opamp_sub_agent_invalid_remote_config() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
+
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -64,7 +67,8 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
@@ -107,6 +111,8 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 #[cfg(unix)]
 #[test]
 fn test_invalid_config_executalbe_less_supervisor() {
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     use crate::on_host::tools::custom_agent_type::get_agent_type_without_deployment;
 
     let mut opamp_server = FakeServer::start_new();
@@ -143,7 +149,8 @@ fn test_invalid_config_executalbe_less_supervisor() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
@@ -192,6 +199,9 @@ fn test_invalid_config_executalbe_less_supervisor() {
 #[test]
 fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // Given a agent-control with a custom-agent running a sleep command with opamp configured.
+
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -233,7 +243,8 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 

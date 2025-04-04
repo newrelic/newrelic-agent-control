@@ -148,13 +148,12 @@ impl Cli {
             http_server,
             base_paths,
             proxy,
-            #[cfg(feature = "k8s")]
-            k8s_config: agent_control_config.k8s.ok_or(CliError::K8sConfig())?,
+
+            k8s_config: agent_control_config.k8s.unwrap_or_default(),
 
             // TODO - Temporal solution until https://new-relic.atlassian.net/browse/NR-343594 is done.
             // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
             // before the GC process it, the resources will never be collected.
-            #[cfg(feature = "k8s")]
             garbage_collector_interval: DEFAULT_POLL_INTERVAL - std::time::Duration::from_secs(5),
         };
 

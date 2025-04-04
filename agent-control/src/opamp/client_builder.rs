@@ -234,7 +234,7 @@ pub(crate) mod tests {
         // Until we refactor these tests (and find a better solution for this pattern) we'll
         // spawn a thread with the publisher, just not to be dropped in the test
         // TL;DR: Let the OpAMP Publisher leave for Duration
-        #[cfg(feature = "onhost")]
+
         pub fn should_build_and_start_and_run(
             &mut self,
             agent_id: AgentID,

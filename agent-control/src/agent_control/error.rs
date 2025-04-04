@@ -7,7 +7,7 @@ use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::instance_id;
-#[cfg(feature = "onhost")]
+
 use crate::opamp::instance_id::on_host::getter::IdentifiersProviderError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
@@ -97,7 +97,6 @@ pub enum AgentError {
     #[error("parsing remote config into YAMLConfig: `{0}`")]
     YAMLConfig(#[from] YAMLConfigError),
 
-    #[cfg(feature = "onhost")]
     #[error("failed to initialize the identifiers provider: `{0}`")]
     InitializeIdentifiersProvider(#[from] IdentifiersProviderError),
 

@@ -1,4 +1,3 @@
-#[cfg(feature = "k8s")]
 use crate::k8s;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
@@ -14,15 +13,12 @@ pub trait InstanceIDGetter {
 
 #[derive(thiserror::Error, Debug)]
 pub enum GetterError {
-    #[cfg(feature = "onhost")]
     #[error("failed to persist data: `{0}`")]
     OnHostPersisting(#[from] super::on_host::storer::StorerError),
 
-    #[cfg(feature = "k8s")]
     #[error("failed to persist k8s data: `{0}`")]
     K8sPersisting(#[from] super::k8s::storer::StorerError),
 
-    #[cfg(feature = "k8s")]
     #[error("Initialising client: `{0}`")]
     K8sClientInitialization(#[from] k8s::Error),
 

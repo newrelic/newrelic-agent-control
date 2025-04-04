@@ -33,5 +33,14 @@ cross build --target "${ARCH_NAME}-unknown-linux-musl" --profile "${BUILD_MODE}"
 
 mkdir -p "bin"
 
+# Handle the cases of the two newrelic-agent-control binaries:
+# - newrelic-agent-control-k8s
+# - newrelic-agent-control-onhost
+# When any of these two is found, rename them to newrelic-agent-control
+TRIMMED_BIN="${BIN}"
+if [ "$BIN" = "newrelic-agent-control-onhost" ] || [ "$BIN" = "newrelic-agent-control-k8s" ]; then
+  TRIMMED_BIN="newrelic-agent-control"
+fi
+
 # Copy the generated binaries to the bin directory
-cp "./target/${ARCH_NAME}-unknown-linux-musl/${BUILD_OUT_DIR}/${BIN}" "./bin/${BIN}-${ARCH}"
+cp "./target/${ARCH_NAME}-unknown-linux-musl/${BUILD_OUT_DIR}/${BIN}" "./bin/${TRIMMED_BIN}-${ARCH}"

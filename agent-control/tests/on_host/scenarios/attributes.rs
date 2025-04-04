@@ -1,4 +1,5 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
+#[cfg(unix)]
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
@@ -29,6 +30,8 @@ const DEFAULT_NAME: &str = "name";
 #[cfg(unix)]
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
@@ -54,7 +57,8 @@ fn test_attributes_from_non_existing_agent_type() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
@@ -109,6 +113,8 @@ fn test_attributes_from_non_existing_agent_type() {
 #[cfg(unix)]
 #[test]
 fn test_attributes_from_an_existing_agent_type() {
+    use newrelic_agent_control::agent_type::environment::Environment;
+
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
@@ -134,7 +140,8 @@ fn test_attributes_from_an_existing_agent_type() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
     let agent_control_instance_id =

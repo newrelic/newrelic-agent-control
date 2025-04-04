@@ -1,9 +1,11 @@
 use crate::common::global_logger::init_logger;
+use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, BasePaths,
 };
+use newrelic_agent_control::agent_type::environment::Environment;
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
@@ -16,7 +18,10 @@ pub const K8S_GC_INTERVAL: Duration = Duration::from_secs(20);
 
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
 /// Take into account that some of the logic from main is not present here.
-pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedAgentControl {
+pub fn start_agent_control_with_custom_config(
+    base_paths: BasePaths,
+    mode: Environment,
+) -> StartedAgentControl {
     install_rustls_default_crypto_provider();
 
     let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -45,17 +50,25 @@ pub fn start_agent_control_with_custom_config(base_paths: BasePaths) -> StartedA
             http_server: agent_control_config.server,
             base_paths,
             proxy: agent_control_config.proxy,
-            #[cfg(feature = "k8s")]
-            k8s_config: agent_control_config.k8s.unwrap(),
-            #[cfg(feature = "k8s")]
+
+            k8s_config: match mode {
+                Environment::OnHost => K8sConfig::default(),
+                Environment::K8s => agent_control_config
+                    .k8s
+                    .expect("K8s config must be present when running in K8s"),
+            },
+
             garbage_collector_interval,
         };
 
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        AgentControlRunner::new(run_config, application_event_consumer)
-            .unwrap()
-            .run()
-            .unwrap();
+        let runner = AgentControlRunner::new(run_config, application_event_consumer).unwrap();
+
+        match mode {
+            Environment::OnHost => runner.run_onhost(),
+            Environment::K8s => runner.run_k8s(),
+        }
+        .unwrap();
     });
 
     // to avoid k8s GC first executions collision with the first remote configs that are set in the tests.
