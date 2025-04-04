@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
 use crate::opamp::hash_repository::HashRepository;
@@ -12,6 +10,7 @@ use crate::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
 };
 use opamp_client::StartedClient;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::{debug, error, warn};
 

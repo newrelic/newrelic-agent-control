@@ -7,13 +7,12 @@ use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
-
 use crate::agent_type::runtime_config::K8s;
-
 use crate::agent_type::runtime_config::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
+
 use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
