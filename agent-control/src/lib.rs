@@ -13,7 +13,6 @@ pub mod http;
 pub mod instrumentation;
 pub mod k8s;
 pub mod opamp;
-pub mod reporter;
 pub mod sub_agent;
 pub mod utils;
 pub mod values;

@@ -1,7 +1,5 @@
 //! Tools to set up a [tracing_subscriber] to report instrumentation.
 
-use crate::{agent_control::agent_id::AgentID, reporter::UptimeReporter};
-
 use super::{
     config::{
         logs::config::{LoggingConfig, LoggingConfigError},
@@ -111,13 +109,6 @@ pub fn try_init_tracing(config: TracingConfig) -> Result<Vec<TracingGuardBox>, T
         opentelemetry::global::set_text_map_propagator(
             opentelemetry_sdk::propagation::TraceContextPropagator::new(),
         );
-
-        if otel_config.uptime_reporter.enabled() {
-            guards.push(Box::new(UptimeReporter::start(
-                &AgentID::new_agent_control_id(),
-                otel_config.uptime_reporter.interval,
-            )));
-        }
     }
     try_init_tracing_subscriber(layers)?;
     debug!("tracing_subscriber initialized successfully");
