@@ -224,7 +224,7 @@ pub fn build_agent_type(
         .variables
         .common
         .merge(specific_vars)
-        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
+        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
     Ok(AgentType::new(
         definition.agent_type_id,
@@ -284,7 +284,7 @@ pub(crate) mod tests {
                 .times(times)
                 .with(
                     predicate::eq(agent_identity.clone()),
-                    predicate::eq(environment.clone()),
+                    predicate::eq(*environment),
                 )
                 .returning(move |_, _| Ok(effective_agent.clone()));
         }
