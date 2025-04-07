@@ -4,6 +4,7 @@ use opentelemetry_sdk::trace;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
+use wrapper_with_default::WrapperWithDefault;
 
 use crate::{http::config::ProxyConfig, reporter::UptimeReporterInterval};
 
@@ -125,48 +126,14 @@ pub(crate) struct LogsConfig {
 }
 
 /// Type to represent a client timeout. It adds a default implementation to [std::time::Duration].
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_CLIENT_TIMEOUT)]
 pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
-impl From<Duration> for ClientTimeout {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ClientTimeout> for Duration {
-    fn from(value: ClientTimeout) -> Self {
-        value.0
-    }
-}
-
-impl Default for ClientTimeout {
-    fn default() -> Self {
-        Self(DEFAULT_CLIENT_TIMEOUT)
-    }
-}
-
 /// Type to represent the metrics export interval. It adds a default implementation to [std::time::Duration].
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_METRICS_EXPORT_INTERVAL)]
 pub struct MetricsExportInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
-
-impl From<Duration> for MetricsExportInterval {
-    fn from(value: Duration) -> Self {
-        Self(value)
-    }
-}
-
-impl From<MetricsExportInterval> for Duration {
-    fn from(value: MetricsExportInterval) -> Self {
-        value.0
-    }
-}
-
-impl Default for MetricsExportInterval {
-    fn default() -> Self {
-        Self(DEFAULT_METRICS_EXPORT_INTERVAL)
-    }
-}
 
 /// Holds the batch configuration to send traces/logs telemetry data through OpenTelemetry.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
