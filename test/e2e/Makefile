@@ -60,17 +60,17 @@ e2e:
 # if you want to hide OK, add ANSIBLE_DISPLAY_OK_HOSTS=NO
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
 	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ansible-playbook -f $(ANSIBLE_FORKS) \
- 		-i $(ANSIBLE_INVENTORY) \
- 		--limit=$(LIMIT) \
- 		-e nr_license_key=$(NR_LICENSE_KEY) \
-        -e nr_api_key=$(NEW_RELIC_API_KEY) \
-		    -e nr_api_host=$(NEW_RELIC_API_HOST) \
-        -e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
-        -e repo_endpoint=$(REPOSITORY_ENDPOINT) \
-        -e opamp_endpoint=${OPAMP_ENDPOINT} \
-        -e package_version=${PACKAGE_VERSION} \
-        -e system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
- 		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
+		-i $(ANSIBLE_INVENTORY) \
+		--limit=$(LIMIT) \
+		-e nr_license_key=$(NR_LICENSE_KEY) \
+		-e nr_api_key=$(NEW_RELIC_API_KEY) \
+		-e nr_api_host=$(NEW_RELIC_API_HOST) \
+		-e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
+		-e repo_endpoint=$(REPOSITORY_ENDPOINT) \
+		-e opamp_endpoint=${OPAMP_ENDPOINT} \
+		-e package_version=${PACKAGE_VERSION} \
+		-e system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
+		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 
 .PHONY: clean
 clean:
