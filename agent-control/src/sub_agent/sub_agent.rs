@@ -13,7 +13,7 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
@@ -137,21 +137,21 @@ where
             // different loops, which currently is not straight forward due to sharing structures
             // that need to be moved into thread closures.
 
-            // metric report data
-            let mut remote_config_count = 0;
+            // Report uptime every 60 seconds
             let start_time = Instant::now();
+            let uptime_report_ticker = tick(Duration::from_secs(60));
+            // Count the received remote configs during execution
+            let mut remote_config_count = 0;
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "channel closed");
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "OpAMPEvent channel closed");
                                 break;
                             }
 
                             Ok(OpAMPEvent::RemoteConfigReceived(mut config)) => {
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "OpAMPEvent RemoteConfigReceived");
                                 // This branch only makes sense with a valid OpAMP client
                                 let Some(opamp_client) = &self.maybe_opamp_client else {
                                     debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
@@ -176,42 +176,34 @@ where
                                     }
                                 }
                             },
-                            Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "OpAMPEvent::Connected or OpAMPEvent::ConnectFailed");
-                            },
+                            Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
                         }
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "channel closed");
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "SubAgentInternalEvent channel closed");
                                 break;
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
                                 debug!(select_arm = "sub_agent_internal_consumer", "StopRequested");
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "SubAgentInternalEvent StopRequested");
-
                                 stop_supervisor(supervisor);
                                 break;
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "SubAgentInternalEvent AgentHealthInfo");
 
                                 Self::log_health_info(is_healthy, health.clone().into());
+                                is_healthy = health.is_healthy();
                                 let _ = on_health(
-                                    health.clone(),
+                                    health,
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.identity.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
-                                is_healthy = health.is_healthy();
                             }
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
-                                trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "SubAgentInternalEvent AgentVersionInfo");
-
                                  let _ = on_version(
                                     agent_data,
                                     self.maybe_opamp_client.as_ref(),
@@ -220,9 +212,9 @@ where
                             }
                         }
                     }
-                    default(Duration::from_secs(60)) => {
+                    recv(uptime_report_ticker) -> _tick => {
                         // report uptime if no other event has happened in the last 60 seconds
-                        trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64(), event = "None");
+                        trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64());
                     }
                 }
             }
