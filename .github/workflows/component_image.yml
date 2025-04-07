@@ -60,6 +60,7 @@ jobs:
             --push \
             --platform=$DOCKER_PLATFORMS \
             -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            --attest type=provenance,mode=max \
             .
 
       - name: Build image
@@ -68,4 +69,5 @@ jobs:
           docker buildx build \
             --platform=$DOCKER_PLATFORMS \
             -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            --attest type=provenance,mode=max \
             .
