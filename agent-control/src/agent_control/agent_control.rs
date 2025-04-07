@@ -255,10 +255,7 @@ where
 
                     break sub_agents.stop();
                 },
-                recv(uptime_report_ticker) -> _tick => {
-                    // report uptime if no other event has happened in the last 60 seconds
-                    trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64());
-                }
+                recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
             }
         }
     }
