@@ -13,5 +13,5 @@ server:
   enabled: true
 
 agents:
-  nr-infra-agent:
+  nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
