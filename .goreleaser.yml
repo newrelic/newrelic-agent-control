@@ -3,7 +3,7 @@ env:
   # Artifacts Versions
   # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
   - NEWRELIC_INFRA_AGENT_VERSION=1.63.1
-  - NR_OTEL_COLLECTOR_VERSION=0.8.0
+  - NR_OTEL_COLLECTOR_VERSION=1.0.3
   #
 builds:
   - id: newrelic-agent-control
@@ -33,6 +33,8 @@ builds:
             - ARCH={{ .Arch }}
             - ARTIFACTS_VERSIONS={"newrelic-infra":"{{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}","nr-otel-collector":"{{ .Env.NR_OTEL_COLLECTOR_VERSION }}"}
         - cmd: sh ./build/scripts/download_collector_config.sh
+          env:
+            - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
   - id: newrelic-config-migrate
     main: ./build/dummy.go
     goos:
@@ -157,9 +159,9 @@ nfpms:
         type: dir
       - dst: /var/db/newrelic-infra/integrations.d
         type: dir
-      # NR Otel Collector
-      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nr-otel-collector
-        dst: /usr/bin/nr-otel-collector
+      # NR Otel Collector - Important to note the binary name is nrdot-collector-host matching nrdot binary
+      - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nrdot-collector-host
+        dst: /usr/bin/nrdot-collector-host
       - src: build/examples/
         dst: /etc/newrelic-agent-control/examples
 
