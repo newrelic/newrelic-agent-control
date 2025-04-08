@@ -13,5 +13,5 @@ server:
   enabled: true
 
 agents:
-  nr-otel-collector:
+  nrdot:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
