@@ -21,7 +21,7 @@ ctrlc = { version = "3.4.5", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
 futures = { version = "0.3.31" }
-tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.4.1", optional = true }
 duration-str = "0.13.0"
 konst = { workspace = true }
@@ -88,7 +88,7 @@ mockall_double = { workspace = true }
 tracing-test = { workspace = true }
 jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
-tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.0.0", features = ["derive", "http"] }
 prost = "0.13.5"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
