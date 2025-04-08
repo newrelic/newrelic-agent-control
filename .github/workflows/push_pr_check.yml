@@ -123,9 +123,13 @@ jobs:
   third-party-notices-check:
     runs-on: ubuntu-latest
     name: ⚖️ Check third party licenses
+    permissions:
+      # Allows github.token to push commit
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref }}
           submodules: true
 
       - name: Obtain Rust version from project
@@ -152,8 +156,22 @@ jobs:
         run: cargo fetch
 
       - uses: newrelic/rust-licenses-noticer@v1
+        id: license-verification
+        continue-on-error: true
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+      - name: Correct and Update License Notices
+        if: ${{ steps.license-verification.outcome == 'failure' && contains(github.event.pull_request.labels.*.name, 'renovate') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          make third-party-notices
+          git config user.name newrelic-coreint-bot
+          git config user.email coreint-dev@newrelic.com
+          git add THIRD_PARTY_NOTICES.md
+          git commit -m "Update THIRD PARTY NOTICES due to license check failure"
+          git push -u origin ${{ env.BRANCH }}
 
   unused-dependencies-check:
     name: Check unused dependencies
