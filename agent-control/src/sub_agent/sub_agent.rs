@@ -140,6 +140,7 @@ where
             // Report uptime every 60 seconds
             let start_time = Instant::now();
             let uptime_report_ticker = tick(Duration::from_secs(60));
+            trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64());
             // Count the received remote configs during execution
             let mut remote_config_count = 0;
             loop {
@@ -568,5 +569,16 @@ pub mod tests {
 
         // stop the runtime
         started_agent.stop().unwrap();
+    }
+
+    #[traced_test]
+    #[test]
+    fn test_uptime() {
+        let sub_agent = SubAgentForTesting::default();
+        let started_agent = sub_agent.run();
+        sleep(Duration::from_secs(65));
+        started_agent.stop().unwrap();
+
+        assert!(!logs_contain("ERROR"));
     }
 }

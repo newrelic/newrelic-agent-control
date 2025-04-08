@@ -26,7 +26,7 @@ use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, SystemTime};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
@@ -211,8 +211,11 @@ where
             .unwrap_or(&never_receive);
 
         // Report uptime every 60 seconds
-        let start_time = Instant::now();
         let uptime_report_ticker = tick(Duration::from_secs(60));
+        let _ = self
+            .start_time
+            .elapsed()
+            .inspect(|t| trace!(monotonic_counter.uptime = t.as_secs_f64()));
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
         loop {
@@ -255,7 +258,9 @@ where
 
                     break sub_agents.stop();
                 },
-                recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
+                recv(uptime_report_ticker) -> _tick => {
+                    let _ = self.start_time.elapsed().inspect(|t| trace!(monotonic_counter.uptime = t.as_secs_f64()));
+                },
             }
         }
     }
