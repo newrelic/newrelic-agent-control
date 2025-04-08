@@ -68,7 +68,7 @@ where
                 );
             }
             Err(error) => {
-                warn!( %error, "failed to check agent version");
+                warn!("failed to check agent version: {error}");
                 version_retrieved = false;
             }
         }

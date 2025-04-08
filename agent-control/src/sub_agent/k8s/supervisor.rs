@@ -216,7 +216,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
             match thread_context.stop_blocking() {
                 Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
                 Err(error_msg) => {
-                    error!(agent_id = %self.agent_id, %error_msg);
+                    error!(agent_id = %self.agent_id, "Error stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }

@@ -164,7 +164,7 @@ where
 
                                 match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config) {
                                     Err(error) =>{
-                                        error!(%error,"error handling remote config")
+                                        error!("error handling remote config: {error}")
                                     },
                                     Ok(())  =>{
                                         info!("Applying remote config");

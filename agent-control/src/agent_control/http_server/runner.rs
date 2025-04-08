@@ -150,12 +150,7 @@ impl Drop for Runner {
         let _ = thread_context
             .stop()
             .inspect(|_| debug!("status server runner thread stopped"))
-            .inspect_err(|error_msg| {
-                error!(
-                    %error_msg,
-                    "Error stopping Status Server"
-                )
-            });
+            .inspect_err(|error_msg| error!("Error stopping Status Server: {error_msg}"));
     }
 }
 
