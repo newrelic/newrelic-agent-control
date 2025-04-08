@@ -57,12 +57,12 @@ impl AgentControlRunner {
         };
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
-        let config = config_storer.load()?;
+        let agent_control_config = config_storer.load()?;
 
-        let fleet_id = config
+        let fleet_id = agent_control_config
             .fleet_control
             .as_ref()
-            .map(|c| c.fleet_id.clone())
+            .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
         let http_client = HttpClient::new(HttpConfig::new(
@@ -74,7 +74,7 @@ impl AgentControlRunner {
         .map_err(|e| AgentError::Http(e.to_string()))?;
 
         let identifiers_provider = IdentifiersProvider::new(http_client)
-            .with_host_id(config.host_id.clone())
+            .with_host_id(agent_control_config.host_id.to_string())
             .with_fleet_id(fleet_id);
 
         let identifiers = identifiers_provider
@@ -196,6 +196,7 @@ impl AgentControlRunner {
             self.application_event_consumer,
             maybe_sa_opamp_consumer,
             dynamic_config_validator,
+            agent_control_config,
         )
         .run()
     }

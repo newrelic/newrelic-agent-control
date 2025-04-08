@@ -1,5 +1,5 @@
 use super::agent_id::AgentID;
-use super::config::{AgentControlDynamicConfig, SubAgentsMap};
+use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
@@ -50,6 +50,7 @@ where
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     dynamic_config_validator: DV,
+    initial_config: AgentControlConfig,
 }
 
 impl<S, O, HR, SL, DV> AgentControl<S, O, HR, SL, DV>
@@ -73,6 +74,7 @@ where
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         dynamic_config_validator: DV,
+        initial_config: AgentControlConfig,
     ) -> Self {
         Self {
             opamp_client,
@@ -87,6 +89,7 @@ where
             application_event_consumer,
             agent_control_opamp_consumer,
             dynamic_config_validator,
+            initial_config,
         }
     }
 
@@ -111,9 +114,9 @@ where
         }
 
         info!("Starting the agents supervisor runtime");
-        let sub_agents_config = self.sa_dynamic_config_store.load()?.agents;
+        let sub_agents_config = &self.initial_config.dynamic.agents;
 
-        let running_sub_agents = self.build_and_run_sub_agents(&sub_agents_config)?;
+        let running_sub_agents = self.build_and_run_sub_agents(sub_agents_config)?;
 
         info!("Agents supervisor runtime successfully started");
 
@@ -413,7 +416,9 @@ where
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
+    use crate::agent_control::config::{
+        AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
+    };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
@@ -472,6 +477,7 @@ mod tests {
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         application_event_publisher
@@ -525,6 +531,7 @@ mod tests {
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         application_event_publisher
@@ -614,6 +621,7 @@ mod tests {
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
                 agent.run()
             }
@@ -677,6 +685,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
             }
@@ -732,6 +741,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
             }
@@ -833,6 +843,7 @@ agents:
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         let mut running_sub_agents = agent_control
@@ -927,6 +938,7 @@ agents:
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         let mut running_sub_agents = agent_control
@@ -1041,6 +1053,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1115,6 +1128,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1180,6 +1194,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1288,6 +1303,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);

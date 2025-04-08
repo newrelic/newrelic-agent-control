@@ -71,7 +71,7 @@ mod tests {
         agent_control::{
             agent_control::AgentControl,
             agent_id::AgentID,
-            config::{AgentControlDynamicConfig, SubAgentConfig},
+            config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig},
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
             config_validator::tests::MockDynamicConfigValidatorMock,
         },
@@ -79,8 +79,7 @@ mod tests {
         opamp::{
             client_builder::tests::MockStartedOpAMPClientMock,
             hash_repository::repository::tests::MockHashRepositoryMock,
-            remote_config::hash::Hash,
-            remote_config::{ConfigurationMap, RemoteConfig},
+            remote_config::{hash::Hash, ConfigurationMap, RemoteConfig},
         },
         sub_agent::{
             collection::StartedSubAgents,
@@ -150,6 +149,7 @@ mod tests {
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         agent_control
@@ -245,6 +245,7 @@ mod tests {
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         agent_control
