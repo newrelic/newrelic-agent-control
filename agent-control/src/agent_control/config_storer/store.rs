@@ -99,8 +99,8 @@ where
                 local_config_string.as_str(),
                 FileFormat::Yaml,
             ))
-            // Add in settings from the environment (with a prefix of `NR_` and separator double underscore, `__`)
-            // Eg.. `NR_LOG_USE_DEBUG=1 ./target/app` would set the `log.use_debug` key
+            // Add in settings from the environment (with a prefix of `NR_AC_` and separator double underscore, `__`)
+            // Eg.. `NR_AC_LOG__LEVEL=1 ./target/app` would set the `log.level` key to 1 (debug).
             // We use double underscore because we already use snake_case for the config keys.
             .add_source(
                 Environment::with_prefix(AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX)
