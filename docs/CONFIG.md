@@ -133,7 +133,7 @@ host_id: "some-host-id" # Defaults to "" (no host set).
 
 ### k8s
 
-The `k8s` configuration field applies for k8s environments only:
+The `k8s` configuration field applies for k8s environments only and are automatically set up through the corresponding helm chart:
 
 ```yaml
 k8s:
