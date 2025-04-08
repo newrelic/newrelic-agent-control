@@ -4,3 +4,4 @@ collections:
 
 roles:
   - name: newrelic.newrelic_install
+  - name: geerlingguy.pip
