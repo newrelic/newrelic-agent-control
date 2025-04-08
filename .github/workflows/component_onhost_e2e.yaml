@@ -83,7 +83,7 @@ jobs:
         uses: newrelic/fargate-runner-action@main
         with:
           aws_region: us-east-2
-          container_make_target: "test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2' PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}"
+          container_make_target: "ENVIRONMENT=production test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2' PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}"
           ecs_cluster_name: agent_control
           task_definition_name: agent_control
           cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control

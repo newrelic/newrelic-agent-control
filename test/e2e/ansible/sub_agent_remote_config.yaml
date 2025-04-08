@@ -1,0 +1,156 @@
+---
+# This test expects to have a created Fleet with an Active deployment containing an infra-agent
+# remote configuration containing:
+# config_agent: |+
+#   status_server_enabled: true
+#   status_server_port: 18003
+#   license_key: {{NEW_RELIC_LICENSE_KEY}}
+#   custom_attributes:
+#     config_origin: remote
+#     test_id: {{TEST_ID}}
+# This would make that the infra agent reported metrics contain a `config_origin: remote` attribute.
+
+- name: Install AC and assert a remote config is applied.
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  vars:
+    # ac-e2e-onhost-1 fleet on canaries account
+    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVmZmIzLTdlODItN2U2Zi05MThlLTcwMjc4YjEzMjU4Zg
+
+  tasks:
+    - name: Install AC and assert a remote config is applied.
+      block:
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml 
+
+        - name: Install Agent Control
+          include_role:
+            name: newrelic-agent-control
+
+        - name: Register agent control version
+          command: "/usr/bin/newrelic-agent-control --version"
+          register: version
+
+        - name: Assert version
+          include_role:
+            name: caos.ansible_roles.assert_version
+          vars:
+            target_versions:
+              - exec: "/usr/bin/newrelic-agent-control --version"
+                version: "{{ package_version }}"
+          when: package_version | length > 0
+
+        - name: Debug agent control version
+          debug:
+            var: version.stdout
+
+        - name: Import the L2 private key from env-var
+          copy:
+            dest: "{{ agent_control_private_key }}"
+            # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+            content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
+        - name: Setup AC config
+          include_role:
+            name: edit_yaml_config
+          vars:
+            config_path: "/etc/newrelic-agent-control/config.yaml"
+            update_config:
+              log:
+                format:
+                  target: true
+                # newrelic_agent_control::sub_agent::on_host::command::logging=debug -> sub agent logs
+                # opamp_client=trace -> opamp raw messages
+                insecure_fine_grained_level: "newrelic_agent_control=info,newrelic_agent_control::sub_agent::on_host::command::logging=debug,opamp_client=trace,off"
+              agents:
+                nr-infra:
+                  agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+              fleet_control:
+                fleet_id: "{{ fleet_id }}"
+                endpoint: "https://opamp.service.newrelic.com/v1/opamp"
+                auth_config:
+                  token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
+                  client_id: "{{ system_identity_client_id }}"
+                  provider: local
+                  private_key_path: "{{ agent_control_private_key }}"
+
+        - name: Add license to service
+          shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
+
+        - name: Set test identifier
+          set_fact:
+            test_id: "sub_agent_remote_config_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+
+        - name: Add TEST_ID to service to be used by remote config reference
+          shell: echo 'TEST_ID="{{ test_id }}"' >> {{ agent_control_service_conf }}
+
+        - name: Infra Agent config folder
+          file:
+            path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/
+            state: directory
+
+        - name: Infra Agent local config
+          copy:
+            dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+            content: |
+              config_agent: |+
+                status_server_enabled: true
+                status_server_port: 18003
+                license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}
+                custom_attributes:
+                  config_origin: local
+                  test_id: {{'{{'}}TEST_ID{{'}}'}}
+
+        - name: Restart Agent Control
+          include_role:
+            name: caos.ansible_roles.service_status
+          vars:
+            service_name: "newrelic-agent-control"
+            action: "restart"
+
+        - name: Assert that AC and sub agent is running with local config
+          include_role:
+            name: nrql_api_request
+            apply:
+              become: false
+          vars:
+            nrql_query: >-
+              SELECT *
+              FROM SystemSample
+              WHERE `config_origin` = 'local'
+              AND `test_id` = '{{ test_id }}'
+              LIMIT 1
+            retries: 60
+            delay: 5
+
+        # At this point the AC should register to the fleet , and the active deployment should send the remote config
+
+        - name: Assert that remote config has been applied
+          include_role:
+            name: nrql_api_request
+            apply:
+              become: false
+          vars:
+            nrql_query: >-
+              SELECT *
+              FROM SystemSample
+              WHERE `config_origin` = 'remote'
+              AND `test_id` = '{{ test_id }}'
+              LIMIT 1
+            # This was taking about 5m when the test was created
+            retries: 90
+            delay: 10
+
+      always:
+        - name: AC logs
+          shell: journalctl -u newrelic-agent-control --no-pager
+          register: ac_logs
+
+        - name: Debug AC logs
+          debug:
+            var: ac_logs.stdout_lines
+
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml
