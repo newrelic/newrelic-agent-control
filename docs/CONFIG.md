@@ -13,6 +13,17 @@ NR_AC_FLEET_CONTROL__AUTH_CONFIG__CLIENT_ID="some-client-id"
 
 ## Configuration fields
 
+### agents
+
+List of agents configured locally. Check of [DEVELOPMENT](./DEVELOPMENT.md) for more information regarding agents and their corresponding local configuration.
+
+Example:
+
+```yaml
+agents:
+  nrdot: "newrelic/io.opentelemetry.collector:0.1.0"
+```
+
 ### logs
 
 Logs can be configured as follows:
@@ -36,7 +47,6 @@ This configuration field enables and sets up the remote configuration features o
 ```yaml
 fleet_control:
   endpoint: https://opamp.service.newrelic.com/v1/opamp # Fleet control endpoint.
-  headers: {} # Optional headers to set to every request to the fleet control endpoint.
   auth_config:
     token_url: https://system-identity-oauth.service.newrelic.com/oauth2/token # Endpoint to obtain access token
     client_id: "some-client-id" # Auth client id associated with the private key
@@ -48,17 +58,6 @@ fleet_control:
     certificate_server_url: "https://newrelic.com/" # Server to obtain the certificate for signature validation.
     certificate_pem_file_path: "/some/certificate/" # Optional, if set it uses a local certificated instead of fetching it from 'certicate_server_url'.
     enabled: true # Defaults to true, allows disabling the signature validation.
-```
-
-### agents
-
-List of agents configured locally. Check of [DEVELOPMENT](./DEVELOPMENT.md) for more information regarding agents and their corresponding local configuration.
-
-Example:
-
-```yaml
-agents:
-  nrdot: "newrelic/io.opentelemetry.collector:0.1.0"
 ```
 
 ### proxy
