@@ -6,7 +6,7 @@ use std::{collections::HashMap, fmt::Debug, time::Duration};
 use url::Url;
 use wrapper_with_default::WrapperWithDefault;
 
-use crate::{http::config::ProxyConfig, reporter::UptimeReporterInterval};
+use crate::http::config::ProxyConfig;
 
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -54,9 +54,6 @@ pub struct OtelConfig {
     /// serde serialization and deserialization.
     #[serde(skip)]
     pub(crate) proxy: ProxyConfig,
-
-    #[serde(default)]
-    pub(crate) uptime_reporter: UptimeReporterConfig,
 }
 
 fn default_insecure_level() -> String {
@@ -168,36 +165,8 @@ impl From<&BatchConfig> for logs::BatchConfig {
     }
 }
 
-/// Configuration for [`UptimeReporter`](crate::reporter::uptime::UptimeReporter).
-#[derive(Debug, Deserialize, Default, Serialize, PartialEq, Clone)]
-pub(crate) struct UptimeReporterConfig {
-    /// Toggle to enable/disable the uptime reporter.
-    #[serde(default)]
-    enabled: UptimeReporterEnabled,
-    /// Interval to report the uptime. Default is 60 seconds.
-    #[serde(default)]
-    pub(crate) interval: UptimeReporterInterval,
-}
-
-impl UptimeReporterConfig {
-    pub(crate) fn enabled(&self) -> bool {
-        self.enabled.0
-    }
-}
-
-/// Wraps the uptime reporter toggle so it's enabled by default in the absence of a config.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
-struct UptimeReporterEnabled(bool);
-
-impl Default for UptimeReporterEnabled {
-    fn default() -> Self {
-        Self(true)
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
-    use serde_json::json;
 
     use super::*;
 
@@ -217,7 +186,6 @@ pub(crate) mod tests {
                 headers: Default::default(),
                 client_timeout: Default::default(),
                 proxy: Default::default(),
-                uptime_reporter: UptimeReporterConfig::default(),
             }
         }
     }
@@ -264,39 +232,5 @@ pub(crate) mod tests {
             Duration::from(config.client_timeout),
             DEFAULT_CLIENT_TIMEOUT
         );
-    }
-
-    #[test]
-    fn uptime_reporter_config() {
-        let config = UptimeReporterConfig::default();
-        assert!(config.enabled());
-        assert_eq!(config.interval, UptimeReporterInterval::default());
-    }
-
-    #[test]
-    fn uptime_reporter_config_deserialize_missing_values() {
-        let all_empty = json!({});
-
-        let config: UptimeReporterConfig = serde_json::from_value(all_empty).unwrap();
-        assert_eq!(config, UptimeReporterConfig::default());
-
-        let enable_only = json!( {
-            "enabled": false,
-        });
-
-        let config: UptimeReporterConfig = serde_json::from_value(enable_only).unwrap();
-        assert!(!config.enabled());
-        assert_eq!(config.interval, UptimeReporterInterval::default());
-
-        let duration_only = json!( {
-            "interval": "2m",
-        });
-
-        let config: UptimeReporterConfig = serde_json::from_value(duration_only).unwrap();
-        assert_eq!(
-            config.interval,
-            UptimeReporterInterval::from(Duration::from_secs(120))
-        );
-        assert!(config.enabled());
     }
 }

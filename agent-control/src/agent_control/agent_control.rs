@@ -22,11 +22,11 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::values::yaml_config::YAMLConfig;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, error, info, instrument, trace, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
@@ -209,6 +209,11 @@ where
             .agent_control_opamp_consumer
             .as_ref()
             .unwrap_or(&never_receive);
+
+        // Report uptime every 60 seconds
+        let start_time = Instant::now();
+        let uptime_report_ticker = tick(Duration::from_secs(60));
+        // Count the received remote configs during execution
         let mut remote_config_count = 0;
         loop {
             select! {
@@ -250,6 +255,7 @@ where
 
                     break sub_agents.stop();
                 },
+                recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
             }
         }
     }

@@ -13,12 +13,12 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, error, info, info_span, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
@@ -137,7 +137,10 @@ where
             // different loops, which currently is not straight forward due to sharing structures
             // that need to be moved into thread closures.
 
-            // metric report data
+            // Report uptime every 60 seconds
+            let start_time = Instant::now();
+            let uptime_report_ticker = tick(Duration::from_secs(60));
+            // Count the received remote configs during execution
             let mut remote_config_count = 0;
             loop {
                 select! {
@@ -189,15 +192,16 @@ where
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
+
                                 Self::log_health_info(is_healthy, health.clone().into());
+                                is_healthy = health.is_healthy();
                                 let _ = on_health(
-                                    health.clone(),
+                                    health,
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.identity.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
-                                is_healthy = health.is_healthy()
                             }
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                  let _ = on_version(
@@ -208,6 +212,7 @@ where
                             }
                         }
                     }
+                    recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
                 }
             }
 
