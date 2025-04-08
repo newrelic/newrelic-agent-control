@@ -61,6 +61,7 @@ jobs:
             --platform=$DOCKER_PLATFORMS \
             -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
             --attest type=provenance,mode=max \
+            --attest type=sbom \
             .
 
       - name: Build image
@@ -70,4 +71,5 @@ jobs:
             --platform=$DOCKER_PLATFORMS \
             -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
             --attest type=provenance,mode=max \
+            --attest type=sbom \
             .

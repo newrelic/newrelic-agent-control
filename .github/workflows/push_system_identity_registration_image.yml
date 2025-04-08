@@ -33,6 +33,7 @@ jobs:
         run: |
           docker buildx build \
             --attest type=provenance,mode=max \
+            --attest type=sbom \
             --platform=${DOCKER_PLATFORMS} \
             --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
             --file system_identity_registration/Dockerfile \
@@ -54,4 +55,5 @@ jobs:
             --file system_identity_registration/Dockerfile \
             --push \
             --attest type=provenance,mode=max \
+            --attest type=sbom \
             .
