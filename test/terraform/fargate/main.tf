@@ -85,22 +85,6 @@ module "agent_control_infra" {
     {
       "name" : "SSH_KEY",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CLIENT_ID",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CLIENT_SECRET",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CUSTOMER_ID",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}"
-    },
-    {
-      "name" : "CROWDSTRIKE_ANSIBLE_ROLE_KEY",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
     }
   ]
   task_custom_policies = [
@@ -129,10 +113,6 @@ module "agent_control_infra" {
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_client_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_private_key}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
             ]
           }
         ]
