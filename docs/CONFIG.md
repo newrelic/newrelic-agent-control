@@ -33,6 +33,7 @@ logs:
   format:
     target: true # Defaults to false, includes extra information for debugging purposes
     timestamp: "%Y-%m-%dT%H:%M%S" # Defaults to "%Y-%m-%dT%H:%M%S", details in <https://docs.rs/chrono/0.4.40/chrono/format/strftime/index.html#fn7>
+    ansi_colors: true # Defaults to false, set up ansi-colors in the stdout logs output.
   level: debug # Defines the log level, defaults to "info".
   insecure_fine_grained_level: debug # Enables logs for external dependencies and sets its level. This cannot be considered secure since external dependencies may leek secrets. If this is set the 'level' field does not apply.
   file:

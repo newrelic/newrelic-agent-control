@@ -20,10 +20,13 @@ impl Default for TimestampFormat {
 /// # Fields:
 /// - `target`: A bool that indicates whether or not the target of the trace event will be included in the formatted output.
 /// - `timestamp`: Specifies a `TimestampFormat` the application will use for logging timestamps.
+/// - `ansi_colors`: Specifies if ansi colors should be used in stdout logs.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct LoggingFormat {
     #[serde(default)]
     pub(crate) target: bool,
     #[serde(default)]
     pub(crate) timestamp: TimestampFormat,
+    #[serde(default)]
+    pub(crate) ansi_colors: bool,
 }

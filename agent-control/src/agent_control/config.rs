@@ -446,7 +446,8 @@ agents: {}
             LoggingConfig {
                 format: LoggingFormat {
                     target: true,
-                    timestamp: TimestampFormat("%Y".to_string())
+                    timestamp: TimestampFormat("%Y".to_string()),
+                    ansi_colors: false,
                 },
                 ..Default::default()
             }
