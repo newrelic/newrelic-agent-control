@@ -142,7 +142,10 @@ where
         // The supervisor won't be recreated.
         for validator in &self.remote_config_validators {
             if let Err(error_msg) = validator.validate(&agent_identity, config) {
-                error!(%error_msg, hash = &config.hash.get(), "error validating remote config");
+                error!(
+                    hash = &config.hash.get(),
+                    "Error validating remote config: {error_msg}"
+                );
                 Self::report_error(opamp_client, config, error_msg.to_string())?;
                 return Err(RemoteConfigHandlerError::ConfigValidating(
                     error_msg.to_string(),
