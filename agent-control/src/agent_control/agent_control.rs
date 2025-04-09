@@ -501,11 +501,13 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
-        let sub_agents_config = sub_agents_default_config();
+        let ac_config = AgentControlConfig {
+            dynamic: sub_agents_default_config(),
+            ..Default::default()
+        };
 
         let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
 
@@ -524,10 +526,6 @@ mod tests {
         // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
 
-        sub_agents_config_store
-            .expect_load()
-            .returning(move || Ok(sub_agents_config.clone()));
-
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, _agent_control_consumer) = pub_sub();
@@ -537,13 +535,13 @@ mod tests {
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(MockAgentControlDynamicConfigStore::new()),
             agent_control_publisher,
             sub_agent_publisher,
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
-            AgentControlConfig::default(),
+            ac_config,
         );
 
         application_event_publisher
@@ -557,6 +555,11 @@ mod tests {
     fn receive_opamp_remote_config() {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        let ac_config = AgentControlConfig {
+            dynamic: sub_agents_default_config(),
+            ..Default::default()
+        };
 
         // Agent Control OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -578,6 +581,7 @@ mod tests {
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         sub_agents_config_store
             .expect_load()
+            .once()
             .returning(|| Ok(sub_agents_default_config()));
         // updated agent
         sub_agents_config_store
@@ -633,7 +637,7 @@ mod tests {
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
-                    AgentControlConfig::default(),
+                    ac_config,
                 );
                 agent.run()
             }
