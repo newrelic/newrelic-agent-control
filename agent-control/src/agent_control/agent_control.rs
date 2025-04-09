@@ -1417,9 +1417,6 @@ agents:
         assert!(agent_thread.join().unwrap().is_ok());
 
         logs_assert(|lines| {
-            // are there lines to begin with? they were generated in another thread...
-            lines.iter().for_each(|l| println!("LINEEEEEE: {l}"));
-
             let uptime_lines = lines
                 .iter()
                 // lines should be at trace level
