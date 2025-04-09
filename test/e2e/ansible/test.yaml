@@ -20,15 +20,3 @@
 #
 #- name: Sub Agents invalid remote config
 #  import_playbook: sub_agent_invalid_remote_config.yaml
-
-# - name: pinned version agent installation
-#   import_playbook: installation-pinned.yaml
-
-# - name: installation-over-infra-agent
-#   import_playbook: installation-over-infra-agent.yaml
-
-# - name: installation-over-nr-otel-collector
-#   import_playbook: installation-over-nr-otel-collector.yaml
-
-# - name: installation-over-infra-agent-and-nr-otel-collector
-#   import_playbook: installation-over-infra-agent-and-collector.yaml
