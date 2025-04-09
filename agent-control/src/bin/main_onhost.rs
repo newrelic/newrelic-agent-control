@@ -31,7 +31,7 @@ fn main() -> ExitCode {
 
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
         CliCommand::OneShot(op) => {
-            op.run_one_shot();
+            op.run_one_shot(AGENT_CONTROL_MODE);
             return ExitCode::SUCCESS;
         }
     };
