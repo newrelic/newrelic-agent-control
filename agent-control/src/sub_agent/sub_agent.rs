@@ -570,15 +570,4 @@ pub mod tests {
         // stop the runtime
         started_agent.stop().unwrap();
     }
-
-    #[traced_test]
-    #[test]
-    fn test_uptime() {
-        let sub_agent = SubAgentForTesting::default();
-        let started_agent = sub_agent.run();
-        sleep(Duration::from_secs(65));
-        started_agent.stop().unwrap();
-
-        assert!(!logs_contain("ERROR"));
-    }
 }

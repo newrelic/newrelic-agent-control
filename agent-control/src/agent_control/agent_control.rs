@@ -114,6 +114,8 @@ where
         }
 
         info!("Starting the agents supervisor runtime");
+        // This is a first-time run and we already read the config earlier, the `initial_config` contains
+        // the result as read by the `AgentControlConfigLoader`.
         let sub_agents_config = &self.initial_config.dynamic.agents;
 
         let running_sub_agents = self.build_and_run_sub_agents(sub_agents_config)?;
@@ -213,23 +215,23 @@ where
             .as_ref()
             .unwrap_or(&never_receive);
 
-        // Report uptime
-        let uptime_report_ticker = self
-            .initial_config
-            .uptime_report
-            .as_ref()
-            .map(|u| tick(u.interval.into()));
+        // Uptime report config
+        let uptime_report_config = &self.initial_config.uptime_report;
 
         // If a uptime report is configured, we trace it for the first time here
-        if uptime_report_ticker.is_some() {
+        let uptime_report_ticker = if uptime_report_config.enabled {
             // Report uptime for the first time
             let _ = self
                 .start_time
                 .elapsed()
                 .inspect(|t| trace!(monotonic_counter.uptime = t.as_secs_f64()));
+
+            // Deliver uptime event at the configured interval
+            tick(uptime_report_config.interval.into())
+        } else {
+            // Never deliver messages if uptime report is disabled
+            never()
         };
-        // Never deliver messages if no uptime report was configured
-        let uptime_report_ticker = uptime_report_ticker.unwrap_or(never());
 
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
@@ -434,6 +436,7 @@ mod tests {
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
+    use crate::agent_control::uptime_report::UptimeReportConfig;
     use crate::agent_control::AgentControl;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
@@ -450,8 +453,9 @@ mod tests {
     use mockall::predicate;
     use std::collections::HashMap;
     use std::sync::Arc;
-    use std::thread::{sleep, spawn};
+    use std::thread::{self, sleep, spawn};
     use std::time::Duration;
+    use tracing_test::traced_test;
 
     #[test]
     fn run_and_stop_supervisors_no_agents() {
@@ -1348,6 +1352,111 @@ agents:
         let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
         let ev = agent_control_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
+    }
+
+    #[traced_test]
+    #[test]
+    fn agent_control_emits_uptime() {
+        let interval = Duration::from_millis(100);
+        let agent_control_config = AgentControlConfig {
+            uptime_report: UptimeReportConfig {
+                interval: interval.into(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let mut started_client = MockStartedOpAMPClientMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        started_client.should_set_healthy();
+        started_client.should_update_effective_config(1);
+        started_client.should_stop(1);
+
+        sub_agents_config_store
+            .expect_load()
+            .returning(|| Ok(HashMap::new().into()));
+
+        hash_repository_mock.expect_get().times(1).returning(|_| {
+            let mut hash = Hash::new("a-hash".to_string());
+            hash.apply();
+            Ok(Some(hash))
+        });
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
+
+        // no agents in the supervisor group
+        let thread_span = tracing::trace_span!("AC thread").or_current();
+        let agent_thread = thread::spawn(move || {
+            let _entered = thread_span.entered();
+            AgentControl::new(
+                Some(started_client),
+                Arc::new(hash_repository_mock),
+                MockSubAgentBuilderMock::new(),
+                Arc::new(sub_agents_config_store),
+                agent_control_publisher,
+                sub_agent_publisher,
+                application_event_consumer,
+                Some(opamp_consumer),
+                dynamic_config_validator,
+                agent_control_config,
+            )
+            .run()
+        });
+
+        thread::sleep(Duration::from_millis(500));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(agent_thread.join().unwrap().is_ok());
+
+        logs_assert(|lines| {
+            // are there lines to begin with? they were generated in another thread...
+            lines.iter().for_each(|l| println!("LINEEEEEE: {l}"));
+
+            let uptime_lines = lines
+                .iter()
+                // lines should be at trace level
+                .filter(|line| line.contains("TRACE"))
+                // get the ones that contain the uptime
+                .filter(|line| line.contains("monotonic_counter.uptime="))
+                // get each word of the line, find the one with the uptime and parse the value
+                .map(|line| {
+                    let result = line
+                        .split_whitespace()
+                        .filter_map(|word| {
+                            word.strip_prefix("monotonic_counter.uptime=")
+                                .and_then(|s| s.parse::<f64>().ok())
+                        })
+                        .collect::<Vec<_>>();
+                    // expecting only one element to satisfy the above filters and parse
+                    result[0]
+                })
+                .map(Duration::from_secs_f64)
+                .collect::<Vec<_>>();
+
+            // Assert that the uptime log lines report uptime within a reasonable interval
+            let (first, rest) = uptime_lines.split_first().unwrap();
+
+            rest.iter()
+                .try_fold(first, |previous, current| {
+                    // check that the uptime is increasing by interval with a tolerance of 16ms
+                    if Duration::abs_diff(*previous + interval, *current) < Duration::from_millis(16) {
+                        Ok(current)
+                    } else {
+                        Err(format!(
+                            "uptime diff exceeding 16ms toleration. Previous: {previous:?}. Current: {current:?}"
+                        ))
+                    }
+                })
+                .map(|_| ())
+        });
     }
 
     ////////////////////////////////////////////////////////////////////////////////////

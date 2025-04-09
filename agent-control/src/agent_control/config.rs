@@ -50,7 +50,7 @@ pub struct AgentControlConfig {
     pub self_instrumentation: InstrumentationConfig,
 
     #[serde(default)]
-    pub uptime_report: Option<UptimeReportConfig>,
+    pub uptime_report: UptimeReportConfig,
 }
 
 #[derive(Error, Debug)]

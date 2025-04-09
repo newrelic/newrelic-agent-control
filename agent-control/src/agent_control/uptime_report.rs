@@ -7,7 +7,17 @@ const DEFAULT_UPTIME_REPORT_INTERVAL: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UptimeReportConfig {
+    pub enabled: bool,
     pub interval: UptimeReportInterval,
+}
+
+impl Default for UptimeReportConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            interval: UptimeReportInterval::default(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
