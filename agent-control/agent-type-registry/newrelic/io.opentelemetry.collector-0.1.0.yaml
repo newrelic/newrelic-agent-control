@@ -53,7 +53,8 @@ deployment:
         path: "${nr-var:health_check.path}"
         port: ${nr-var:health_check.port}
     executable:
-      path: /usr/bin/nr-otel-collector
+      # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
+      path: /usr/bin/nrdot-collector-host
       args: >-
         --config=${nr-var:config}
         --feature-gates=-pkg.translator.prometheus.NormalizeName

@@ -57,14 +57,9 @@ artifacts:
 
   - name: nr-otel-collector
     # Version now should be added in goreleaser.yaml global envs
-    url: https://github.com/newrelic/opentelemetry-collector-releases/releases/download/nr-otel-collector-{{.Version | trimv}}/nr-otel-collector_{{.Version | trimv}}_linux_{{.Arch}}.deb
+    url: https://github.com/newrelic/nrdot-collector-releases/releases/download/{{.Version | trimv}}/nrdot-collector-host_{{.Version | trimv}}_linux_{{.Arch}}.deb
     files:
+     # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
       - name: nt-otel-collector binary
-        src: usr/bin/nr-otel-collector
-        dest: artifacts/{{.Arch}}/nr-otel-collector
-      - name: nt-otel-collector conf
-        src: etc/nr-otel-collector/config.yaml
-        dest: artifacts/{{.Arch}}/nr-otel-collector
-      - name: nt-otel-collector conf service
-        src: etc/nr-otel-collector/nr-otel-collector.conf
+        src: usr/bin/nrdot-collector-host
         dest: artifacts/{{.Arch}}/nr-otel-collector
