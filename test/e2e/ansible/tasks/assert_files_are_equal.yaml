@@ -1,0 +1,16 @@
+---
+- name: Get checksum of file1
+  stat:
+    path: "{{ file1 }}"
+  register: file1_stat
+
+- name: Get checksum of file2
+  stat:
+    path: "{{ file2 }}"
+  register: file2_stat
+
+- name: Assert file hashes are equal
+  assert:
+    that: file1_stat.stat.checksum == file2_stat.stat.checksum
+    success_msg: "Files are the same ({{ file1 }}, {{ file2 }})"
+    fail_msg: "Files are NOT the same ({{ file1 }}, {{ file2 }})"

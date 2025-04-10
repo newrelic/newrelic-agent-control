@@ -1,0 +1,186 @@
+---
+- name: Install Agent Control on a system where Infra Agent is already installed.
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  vars:
+    # ac-e2e-onhost-1 fleet on canaries account
+    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVmZmIzLTdlODItN2U2Zi05MThlLTcwMjc4YjEzMjU4Zg
+
+
+  tasks:
+  - name: Install Agent Control on a system where Infra Agent is already installed.
+    block:
+      - name: Cleanup
+        include_tasks: ./tasks/clean_all.yaml 
+
+      - name: Install Infra Agent
+        include_role:
+          name: newrelic.newrelic_install
+          apply:
+            environment:
+              NEW_RELIC_API_KEY: "{{ nr_api_key }}"
+              NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
+              NEW_RELIC_REGION: "US"
+        vars:
+          targets:
+            - infrastructure
+            - logs
+      
+      - name: Assert Infra Agent is running
+        include_role:
+          name: caos.ansible_roles.assert_service_status
+        vars:
+          services_running:
+            - newrelic-infra.service
+
+      - name: Install docker
+        include_role:
+          name: caos.ansible_roles.docker_install 
+      
+      #  docker run -d --rm --name some-mysql -p 3306:3306  -e MYSQL_ROOT_PASSWORD=root -d mysql:latest
+      - name: Run mysql container
+        community.docker.docker_container:
+          name: "mysql"
+          image: "mysql:latest"
+          auto_remove: true
+          detach: true
+          ports:
+            - "3306:3306"
+          env:
+            MYSQL_ROOT_PASSWORD: root
+
+      - name: Install nri-mysql integration
+        include_role:
+          name: caos.ansible_roles.nri_mysql
+
+      - name: Wait 2 minutes to give nri-mysql time to send metrics
+        pause:
+          minutes: 2
+      
+      - name:
+        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+        vars:
+          sending: true
+      
+      - name: Install Agent Control
+        include_role:
+          name: newrelic-agent-control
+
+      - name: Register Agent Control version
+        command: "/usr/bin/newrelic-agent-control --version"
+        register: version
+
+      - name: Assert version
+        include_role:
+          name: caos.ansible_roles.assert_version
+        vars:
+          target_versions:
+            - exec: "/usr/bin/newrelic-agent-control --version"
+              version: "{{ package_version }}"
+        when: package_version | length > 0
+      
+      - name: Assert Infra Agent stopped
+        include_role:
+          name: caos.ansible_roles.assert_no_service
+        vars:
+          service_name: newrelic-infra.service
+
+      - name: Wait 2 minutes to give nri-mysql time to STOP sending metrics
+        pause:
+          minutes: 2
+
+      - name:
+        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+        vars:
+          sending: false
+      
+      - name: Import the L2 private key from env-var
+        copy:
+          dest: "{{ agent_control_private_key }}"
+          # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+          content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
+      - name: Setup Agent Control config
+        include_role:
+          name: edit_yaml_config
+        vars:
+          config_path: "/etc/newrelic-agent-control/config.yaml"
+          update_config:
+            agents:
+              nr-infra:
+                agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+            fleet_control:
+              fleet_id: "{{ fleet_id }}"
+              endpoint: "https://opamp.service.newrelic.com/v1/opamp"
+              auth_config:
+                token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
+                client_id: "{{ system_identity_client_id }}"
+                provider: local
+                private_key_path: "{{ agent_control_private_key }}"
+      
+      - name: Migrate Infra Agent config
+        command: newrelic-config-migrate
+
+      - name: Restart Agent Control
+        include_role:
+          name: caos.ansible_roles.service_status
+        vars:
+          service_name: "newrelic-agent-control"
+          action: "restart"
+
+      - name: Assert Agent Control is running
+        include_role:
+          name: caos.ansible_roles.assert_service_status
+        vars:
+          services_running:
+            - newrelic-agent-control.service
+
+      - name: Assert Infra Agent stopped
+        include_role:
+          name: caos.ansible_roles.assert_no_service
+        vars:
+          service_name: newrelic-infra.service
+
+      - name: Wait 2 minutes to give nri-mysql time to STOP sending metrics
+        pause:
+          minutes: 2
+      
+      - name:
+        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+        vars:
+          sending: true
+      
+      - name: Check Infra Agent values file exists
+        stat:
+          path: "/etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml"
+        register: infra_agent_values
+        failed_when: not infra_agent_values.stat.exists
+      
+      - name: Assert nr-infra auto-generated files are the same as migrated
+        include_tasks: ./tasks/assert_files_are_equal.yaml
+        vars:
+          file1: "{{ item.generated }}"
+          file2: "{{ item.migrated }}"
+        loop:
+          - {
+            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/newrelic-infra.yml",
+            migrated: "/etc/newrelic-infra.yml.bck", 
+          }
+          - {
+            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/integrations.d/docker-config.yml",
+            migrated: "/etc/newrelic-infra/integrations.d.bck/docker-config.yml", 
+          }
+          - {
+            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/logging.d/logging.yml",
+            migrated: "/etc/newrelic-infra/logging.d.bck/logging.yml", 
+          }
+
+      - name: Assert Agent Control and Agents are running
+        include_role:
+          name: caos.ansible_roles.assert_process_running
+        vars:
+          processes_running:
+            - "^/usr/bin/newrelic-agent-control"
+            - "^/usr/bin/newrelic-infra"

@@ -1,5 +1,10 @@
 ---
 
+# Installation use cases
+- name: Agent Control migration from Infra Agent
+  import_playbook: migration_infra_to_ac.yaml
+
+# Configuration use cases
 - name: Sub Agent remote config
   import_playbook: sub_agent_remote_config.yaml
 
@@ -11,9 +16,6 @@
 #
 #- name: Agent Control invalid remote config
 #  import_playbook: agent_control_invalid_remote_config.yaml
-
-#- name: Migration Script Execution
-#  import_playbook: migration_script_execution.yaml
 
 #- name: Sub Agents valid remote config
 #  import_playbook: sub_agent_valid_remote_config.yaml
