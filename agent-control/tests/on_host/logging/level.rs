@@ -44,7 +44,7 @@ fn default_log_level_as_root() {
         .stdout(
             predicate::str::is_match(
                 TIME_FORMAT.to_owned()
-                    + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*, Environment: on host",
+                    + "INFO.*New Relic Agent Control Version: .*, Rust Version: .*, GitCommit: .*, Environment: host",
             )
             .unwrap(),
         )
