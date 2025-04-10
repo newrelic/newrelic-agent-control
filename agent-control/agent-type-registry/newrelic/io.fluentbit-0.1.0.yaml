@@ -8,12 +8,12 @@ variables:
         description: "Newrelic newrelic-logging chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
       global:
         description: "Global chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
     chart_version:
       description: "newrelic-logging chart version"
       type: string
@@ -94,13 +94,12 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
-            disableTakeOwnership: true
           valuesFrom:
-          - kind: Secret
-            name: default-values-${nr-sub:agent_id}
-            valuesKey: values.yaml
-          - kind: Secret
-            name: values-${nr-sub:agent_id}
-            valuesKey: values.yaml
+            - kind: Secret
+              name: default-values-${nr-sub:agent_id}
+              valuesKey: values.yaml
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
+              valuesKey: values.yaml
           values:
             global: ${nr-var:chart_values.global}

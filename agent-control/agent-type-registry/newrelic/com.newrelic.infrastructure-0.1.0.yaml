@@ -13,13 +13,13 @@ variables:
       description: "map of YAML configs for the OHIs"
       type: map[string]file
       required: false
-      default: {}
+      default: { }
       file_path: "integrations.d"
     config_logging:
       description: "map of YAML config for logging"
       type: map[string]file
       required: false
-      default: {}
+      default: { }
       file_path: "logging.d"
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
@@ -42,27 +42,27 @@ variables:
         description: "newrelic-infrastructure chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
       nri-metadata-injection:
         description: "nri-metadata-injection chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
       kube-state-metrics:
         description: "kube-state-metrics chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
       nri-kube-events:
         description: "nri-kube-events chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
       global:
         description: "Global chart values"
         type: yaml
         required: false
-        default: {}
+        default: { }
     chart_version:
       description: "nri-bundle chart version"
       type: string
@@ -164,11 +164,10 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
-            disableTakeOwnership: true
           valuesFrom:
-          - kind: Secret
-            name: default-values-${nr-sub:agent_id}
-            valuesKey: values.yaml
+            - kind: Secret
+              name: default-values-${nr-sub:agent_id}
+              valuesKey: values.yaml
           values:
             newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
             nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
