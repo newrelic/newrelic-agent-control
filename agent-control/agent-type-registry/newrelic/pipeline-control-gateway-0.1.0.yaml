@@ -95,7 +95,6 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
-            disableTakeOwnership: true
           valuesFrom:
             - kind: Secret
               name: default-values-${nr-sub:agent_id}
