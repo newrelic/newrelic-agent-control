@@ -41,7 +41,7 @@ pub enum Environment {
 impl Display for Environment {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         match self {
-            Environment::OnHost => write!(f, "on host"),
+            Environment::OnHost => write!(f, "host"),
             Environment::K8s => write!(f, "k8s"),
         }
     }
