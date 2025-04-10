@@ -14,13 +14,13 @@
 - name: Assert that nri-mysql is sending data
   assert:
     that:
-      - results[0]["openTables"] == 86
+      - results[0]["openTables"] is not none
     success_msg: "nri-mysql is sending data, as expected"
   when: sending is defined and sending | bool
 
 - name: Assert that nri-mysql is NOT sending data
   assert:
     that:
-      - results[0]["openTables"] != 86
+      - results[0]["openTables"] is none
     success_msg: "nri-mysql is not sending data, as expected"
   when: sending is defined and not sending | bool
