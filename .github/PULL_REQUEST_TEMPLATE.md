@@ -16,4 +16,4 @@
 - [ ] Included a detailed description for the Pull Request.
 - [ ] Documentation under `docs` is aligned with the change.
 - [ ] Follows guidelines for Pull Requests in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
-- [ ] Follows [`log level guidelines`](https://newrelic.atlassian.net/wiki/spaces/INST/pages/3041230849/New+Relic+Agent+Control+Style+Guide+WIP#Log-level-decision-making-table)
+- [ ] Follows [`log level guidelines`](../docs/style/logs.md)
