@@ -92,26 +92,6 @@ variable "secret_name_ssh" {
   default = "canaries/ssh_key-yhthNk"
 }
 
-# CrowdStrike Falcon secrets
-
-variable "secret_name_crowdstrike_client_id" {
-  default = "canaries/crowdstrike_falcon_client_id-OnAVWJ"
-}
-
-variable "secret_name_crowdstrike_client_secret" {
-  default = "canaries/crowdstrike_falcon_client_secret-PfSOHH"
-}
-
-variable "secret_name_crowdstrike_customer_id" {
-  default = "canaries/crowdstrike_falcon_customer_id-2NbNLJ"
-}
-
-variable "secret_name_crowdstrike_ansible_role_key" {
-  default = "crowdstrike/ansible-role-key-jJrGNu"
-}
-
-####
-
 variable "task_container_image" {
   default = "ghcr.io/newrelic/fargate-runner-action:latest"
 }
