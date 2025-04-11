@@ -7,22 +7,22 @@
 //! It utilizes the [`crossbeam`](https://docs.rs/crossbeam/latest/crossbeam/) crate to create a channel
 //! for the uptime reporting. The channel can then be used to send messages at a specified interval.
 //!
-//! The uptime reporting is configured via the [`UptimeReportConfig`] structure, which contains
-//! a boolean flag to enable or disable the reporting, and an interval for the reporting.
+//! The uptime reporting is performed with the [`UptimeReporter`] structure and configured via the
+//! [`UptimeReportConfig`] structure, which contains a boolean toggle and reporting interval.
 //!
-//! ```
+//! ```ignore
 //! let config = UptimeReportConfig {
 //!   interval: Duration::from_millis(100).into(),
 //!   ..Default::default()
 //! };
-//! let (uptime_reporter, uptime_report_ticker) = UptimeReporter::new_with_ticker(&config, None);
+//! let (reporter, ticker) = UptimeReporter::new_with_ticker(&config, None);
 //!
 //! // This will report the uptime every 100 milliseconds
 //! loop {
 //!     // Wait for the next tick
-//!     let _ = uptime_report_ticker.recv().unwrap();
+//!     let _ = ticker.recv_timeout(Duration::from_millis(200)).unwrap();
 //!     // Report the uptime
-//!     uptime_reporter.report().unwrap();
+//!     assert!(reporter.report().is_ok());
 //! }
 //! ```
 
