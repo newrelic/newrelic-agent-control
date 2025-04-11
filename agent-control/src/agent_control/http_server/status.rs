@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::time::SystemTime;
 use url::Url;
 
-/// `AgentControlStatus` will contain the information about Agent Control health.
-/// This information will be shown when the status endpoint is called
+/// Agent Control status and health information.
+/// This information will be shown when the status endpoint is called.
 /// i.e.
 /// {
 ///   "agent_control": {
@@ -44,8 +44,8 @@ impl AgentControlStatus {
     }
 }
 
-/// `OpAMPStatus` contains the information about OpAMP Connection health.
-/// This information will be shown when the status endpoint is called
+/// OpAMP Connection health information.
+/// This information will be shown when the status endpoint is called.
 /// i.e.
 /// {
 ///   "fleet": {
@@ -84,7 +84,7 @@ impl OpAMPStatus {
     }
 }
 
-/// `SubAgentStatus` contains the health information of a Sub Agent.
+///  Sub Agent status and health information.
 /// This information is displayed when the status endpoint is called.
 ///
 /// Example:
@@ -131,7 +131,7 @@ pub(super) struct SubAgentStatus {
     health_info: HealthInfo,
 }
 
-/// `HealthInfo` contains the health-related information of a Sub Agent.
+/// Health-related information of a Sub Agent.
 /// This struct is used to represent the health status of a Sub Agent
 /// and is displayed when the status endpoint is called.
 ///
@@ -214,8 +214,8 @@ impl SubAgentsStatus {
     }
 }
 
-/// `Status` will contain the information about the Agent Control, Sub Agents and OpAMP.
-/// This information will be shown when the status endpoint is called
+/// Agent Control, Sub Agents and OpAMP status and health.
+/// This information will be shown when the status endpoint is called.
 /// i.e.
 /// {
 ///   "agent_control": {
