@@ -252,11 +252,10 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-## backoff <https://crates.io/crates/backoff>
+## backon <https://crates.io/crates/backon>
 
 Distributed under the following license(s):
 
-* MIT
 * Apache-2.0
 ## backtrace <https://crates.io/crates/backtrace>
 
@@ -770,6 +769,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+## gloo-timers <https://crates.io/crates/gloo-timers>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 ## h2 <https://crates.io/crates/h2>
 
 Distributed under the following license(s):
@@ -965,11 +970,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * MIT
-## instant <https://crates.io/crates/instant>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
 ## ipnet <https://crates.io/crates/ipnet>
 
 Distributed under the following license(s):
@@ -2167,13 +2167,19 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-## windows <https://crates.io/crates/windows>
+## windows-core <https://crates.io/crates/windows-core>
 
 Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-## windows-core <https://crates.io/crates/windows-core>
+## windows-implement <https://crates.io/crates/windows-implement>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+## windows-interface <https://crates.io/crates/windows-interface>
 
 Distributed under the following license(s):
 
