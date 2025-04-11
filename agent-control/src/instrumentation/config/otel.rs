@@ -49,6 +49,7 @@ pub struct OtelConfig {
     #[serde(default)]
     pub(crate) headers: HashMap<String, String>,
     /// Client timeout
+    #[serde(default)]
     pub(crate) client_timeout: ClientTimeout,
     /// Client proxy configuration. It is supposed to take global proxy configuration, that's why it is skipped in
     /// serde serialization and deserialization.
@@ -99,8 +100,10 @@ impl OtelConfig {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct MetricsConfig {
     /// Indicates if metrics are enabled or not
+    #[serde(default)]
     pub(crate) enabled: bool,
     /// Sets up the interval to report metrics. They are reported periodically according to it.
+    #[serde(default)]
     pub(crate) interval: MetricsExportInterval,
 }
 
@@ -108,8 +111,10 @@ pub(crate) struct MetricsConfig {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct TracesConfig {
     /// Indicates if traces are enabled or not
+    #[serde(default)]
     pub(crate) enabled: bool,
     /// Traces are reported in batches, this field defines the batch configuration.
+    #[serde(default)]
     pub(crate) batch_config: BatchConfig,
 }
 
@@ -117,8 +122,10 @@ pub(crate) struct TracesConfig {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub(crate) struct LogsConfig {
     /// Indicates if logs are enabled or not
+    #[serde(default)]
     pub(crate) enabled: bool,
     /// Traces are reported in batches, this field defines the batch configuration.
+    #[serde(default)]
     pub(crate) batch_config: BatchConfig,
 }
 
@@ -135,6 +142,7 @@ pub struct MetricsExportInterval(#[serde(deserialize_with = "deserialize_duratio
 /// Holds the batch configuration to send traces/logs telemetry data through OpenTelemetry.
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub(crate) struct BatchConfig {
+    #[serde(deserialize_with = "deserialize_duration")]
     scheduled_delay: Duration,
     max_size: usize,
 }
@@ -167,8 +175,38 @@ impl From<&BatchConfig> for logs::BatchConfig {
 
 #[cfg(test)]
 pub(crate) mod tests {
-
     use super::*;
+
+    const EXAMPLE_WITH_DEFAULTS_OPENTELEMETRY_CONFIG: &str = r#"
+insecure_level: "newrelic_agent_control=info,off"
+endpoint: https://otlp.nr-data.net:4318
+metrics:
+  enabled: true
+traces:
+  enabled: true
+logs:
+  enabled: true
+"#;
+
+    const EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG: &str = r#"
+insecure_level: "newrelic_agent_control=info,off"
+endpoint: https://otlp.nr-data.net:4318
+headers: {}
+client_timeout: 10s
+metrics:
+  enabled: true
+  interval: 120s
+traces:
+  enabled: true
+  batch_config:
+    scheduled_delay: 30s
+    max_size: 512
+logs:
+  enabled: true
+  batch_config:
+    scheduled_delay: 30s
+    max_size: 512
+"#;
 
     impl Default for OtelConfig {
         fn default() -> Self {
@@ -231,6 +269,17 @@ pub(crate) mod tests {
         assert_eq!(
             Duration::from(config.client_timeout),
             DEFAULT_CLIENT_TIMEOUT
+        );
+    }
+
+    #[test]
+    fn test_yaml_parsing() {
+        assert!(
+            serde_yaml::from_str::<OtelConfig>(EXAMPLE_WITH_DEFAULTS_OPENTELEMETRY_CONFIG).is_ok()
+        );
+        assert!(
+            serde_yaml::from_str::<OtelConfig>(EXAMPLE_FULLY_POPULATED_OPENTELEMETRY_CONFIG)
+                .is_ok()
         );
     }
 }
