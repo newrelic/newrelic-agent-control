@@ -67,7 +67,7 @@ pub struct UptimeReporter {
 }
 
 impl Default for UptimeReporter {
-    /// Creates a new [`UptimeReporter`] instance with the current [`SystemTime`].
+    /// Creates a new uptime reporter instance with the current system time.
     fn default() -> Self {
         Self {
             start_time: SystemTime::now(),
@@ -76,8 +76,8 @@ impl Default for UptimeReporter {
 }
 
 impl UptimeReporter {
-    /// Creates a new [`UptimeReporter`] instance from an [`UptimeReportConfig`] and, optionally,
-    /// a provided [`SystemTime`].
+    /// Creates a new uptime reporter instance from a config and, optionally,
+    /// a provided system time.
     pub fn new_with_ticker(
         config: &UptimeReportConfig,
         start_time: Option<SystemTime>,
