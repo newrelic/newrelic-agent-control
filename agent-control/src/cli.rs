@@ -135,7 +135,7 @@ impl Cli {
             );
         let tracer = try_init_tracing(tracing_config)?;
 
-        info!("{}", binary_metadata());
+        info!("{}", binary_metadata(mode));
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
             base_paths.local_dir.to_string_lossy().to_string()
