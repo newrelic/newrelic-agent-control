@@ -216,12 +216,13 @@ where
             .as_ref()
             .unwrap_or(&never_receive);
 
-        // Uptime report config
         let uptime_report_config = &self.initial_config.uptime_report;
-
+        let uptime_reporter =
+            UptimeReporter::from(uptime_report_config).with_start_time(self.start_time);
         // If a uptime report is configured, we trace it for the first time here
-        let (uptime_reporter, uptime_ticker) =
-            UptimeReporter::new_with_ticker(uptime_report_config, self.start_time.into());
+        if uptime_report_config.enabled {
+            let _ = uptime_reporter.report();
+        }
 
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
@@ -265,7 +266,7 @@ where
 
                     break sub_agents.stop();
                 },
-                recv(uptime_ticker) -> _tick => { let _ = uptime_reporter.report(); },
+                recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
             }
         }
     }

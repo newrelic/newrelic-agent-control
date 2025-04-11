@@ -10,20 +10,20 @@
 //! The uptime reporting is performed with the [`UptimeReporter`] structure and configured via the
 //! [`UptimeReportConfig`] structure, which contains a boolean toggle and reporting interval.
 //!
-//! ```ignore
+//! ```
+//! # use std::time::Duration;
+//! # use newrelic_agent_control::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
+//!
 //! let config = UptimeReportConfig {
 //!   interval: Duration::from_millis(100).into(),
 //!   ..Default::default()
 //! };
-//! let (reporter, ticker) = UptimeReporter::new_with_ticker(&config, None);
+//! let reporter = UptimeReporter::from(&config);
 //!
-//! // This will report the uptime every 100 milliseconds
-//! loop {
-//!     // Wait for the next tick
-//!     let _ = ticker.recv_timeout(Duration::from_millis(200)).unwrap();
-//!     // Report the uptime
-//!     assert!(reporter.report().is_ok());
-//! }
+//! // Wait for the next tick
+//! reporter.receiver().recv_timeout(Duration::from_millis(125)).unwrap();
+//! // Report the uptime
+//! assert!(reporter.report().is_ok());
 //! ```
 
 use crossbeam::channel::{never, tick, Receiver};
@@ -61,42 +61,37 @@ impl Default for UptimeReportConfig {
 pub struct UptimeReportInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 /// The structure actually in charge of reporting the uptime. On creation, it stores the current
-/// [`SystemTime`].
+/// system time.
 pub struct UptimeReporter {
     start_time: SystemTime,
+    ticker: Receiver<Instant>,
 }
 
-impl Default for UptimeReporter {
-    /// Creates a new uptime reporter instance with the current system time.
-    fn default() -> Self {
+impl From<&UptimeReportConfig> for UptimeReporter {
+    fn from(config: &UptimeReportConfig) -> Self {
         Self {
             start_time: SystemTime::now(),
+            ticker: if config.enabled {
+                tick(config.interval.into())
+            } else {
+                never()
+            },
         }
     }
 }
 
 impl UptimeReporter {
-    /// Creates a new uptime reporter instance from a config and, optionally,
-    /// a provided system time.
-    pub fn new_with_ticker(
-        config: &UptimeReportConfig,
-        start_time: Option<SystemTime>,
-    ) -> (Self, Receiver<Instant>) {
-        let reporter = start_time.map(UptimeReporter::new).unwrap_or_default();
-        let ticker = if config.enabled {
-            // Report uptime for the first time
-            let _ = reporter.report();
-            // Deliver uptime event at the configured interval
-            tick(config.interval.into())
-        } else {
-            never()
-        };
-        (reporter, ticker)
+    /// Change the registered start time of the uptime reporter to the one passed as argument.
+    pub fn with_start_time(self, start_time: SystemTime) -> Self {
+        Self { start_time, ..self }
     }
 
-    fn new(start_time: SystemTime) -> Self {
-        Self { start_time }
+    /// Get a reference to a ticker that emits messages at the configured interval.
+    /// If no interval was configured, this ticker will never trigger.
+    pub fn receiver(&self) -> &Receiver<Instant> {
+        &self.ticker
     }
+
     /// Reports the uptime by logging the elapsed time since the start time
     /// (i.e. when the reporter was created).
     ///
@@ -112,6 +107,7 @@ impl UptimeReporter {
 
 #[cfg(test)]
 mod tests {
+    use crossbeam::select;
     use tracing_test::traced_test;
 
     use super::*;
@@ -133,29 +129,23 @@ mod tests {
     #[traced_test]
     #[test]
     fn test_uptime_report() {
+        const EXPECTED_UPTIME_REPORTS: usize = 3;
         let config = UptimeReportConfig {
             enabled: true,
             interval: UptimeReportInterval(Duration::from_millis(100)),
         };
 
-        let (uptime_reporter, uptime_report_ticker) =
-            UptimeReporter::new_with_ticker(&config, None);
+        let reporter = UptimeReporter::from(&config);
 
         // Wait for three ticks
-        for _ in 0..3 {
-            let _ = uptime_report_ticker
-                // Add a timeout so this test does not block if something is not right,
-                // the expect will make us notice
-                .recv_timeout(Duration::from_millis(200))
-                .expect("Uptime report ticker should deliver messages at the configured interval");
-            // Report the uptime
-            uptime_reporter
-                .report()
-                .expect("Uptime report should generally not fail");
-        }
-        // Check that the uptime was reported three times
+        (0..EXPECTED_UPTIME_REPORTS).for_each(|_| select! {
+            recv(reporter.receiver()) -> _tick => { reporter.report().expect("Uptime report should generally not fail"); },
+            default(Duration::from_millis(150)) => { panic!("Uptime report should have been triggered"); },
+        });
 
         logs_assert(|lines| {
+            // Check that the uptime was reported three times
+            assert_eq!(lines.len(), EXPECTED_UPTIME_REPORTS);
             assert!(lines.iter().all(|line| {
                 // lines should be at trace level
                 line.contains("TRACE") &&
@@ -178,8 +168,9 @@ mod tests {
                 })
                 .map(Duration::from_secs_f64)
                 .collect::<Vec<_>>();
+            assert_eq!(uptime_lines.len(), EXPECTED_UPTIME_REPORTS);
 
-            // Assert that the uptime log lines report uptime within a reasonable interval
+            // Assert that the uptime log lines report uptime monotonically within a reasonable interval
             let (first, rest) = uptime_lines.split_first().unwrap();
 
             rest.iter()
