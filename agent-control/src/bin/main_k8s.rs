@@ -1,12 +1,10 @@
-//! This is the entry point for both implementations of Agent Control (K8s, on-host).
+//! This is the entry point for the Kubernetes implementation of Agent Control.
 //!
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
-#[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
-use newrelic_agent_control::agent_control::pid_cache::PIDCache;
-use newrelic_agent_control::agent_control::run::AgentControlRunner;
+use newrelic_agent_control::agent_control::run::{AgentControlRunner, Environment};
 use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
 use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
@@ -16,15 +14,11 @@ use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
 
-#[cfg(all(feature = "onhost", feature = "k8s", not(feature = "ci")))]
-compile_error!("Feature \"onhost\" and feature \"k8s\" cannot be enabled at the same time");
-
-#[cfg(all(not(feature = "onhost"), not(feature = "k8s")))]
-compile_error!("Either feature \"onhost\" or feature \"k8s\" must be enabled");
+const AGENT_CONTROL_MODE: Environment = Environment::K8s;
 
 fn main() -> ExitCode {
-    let Ok(cli_command) =
-        Cli::init().inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
+    let Ok(cli_command) = Cli::init(AGENT_CONTROL_MODE)
+        .inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
     else {
         return ExitCode::FAILURE;
     };
@@ -35,7 +29,7 @@ fn main() -> ExitCode {
 
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
         CliCommand::OneShot(op) => {
-            op.run_one_shot();
+            op.run_one_shot(AGENT_CONTROL_MODE);
             return ExitCode::SUCCESS;
         }
     };
@@ -66,16 +60,6 @@ fn _main(
     agent_control_config: AgentControlCliConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
-    #[cfg(all(unix, feature = "onhost"))]
-    if !nix::unistd::Uid::effective().is_root() {
-        return Err("Program must run as root".into());
-    }
-
-    #[cfg(all(unix, feature = "onhost", not(feature = "multiple-instances")))]
-    if let Err(err) = PIDCache::default().store(std::process::id()) {
-        return Err(format!("Error saving main process id: {}", err).into());
-    }
-
     install_rustls_default_crypto_provider();
 
     trace!("creating the global context");
@@ -85,7 +69,8 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_config.run_config, application_event_consumer)?.run()?;
+    AgentControlRunner::new(agent_control_config.run_config, application_event_consumer)?
+        .run(AGENT_CONTROL_MODE)?;
 
     info!("exiting gracefully");
 

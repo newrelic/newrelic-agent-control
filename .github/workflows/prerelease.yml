@@ -166,9 +166,9 @@ jobs:
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
       cluster_name: Agent_Control_Canaries_Production-Cluster
-      # AC Staging Account `k8s-canaries-production-1` fleet
-      fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE0Ny1kY2UwLTc5OTItYjgwYS0yOWFjMjQ3NDM0MDk"
-      is_staging: true # To switch to prod once it's stable
+      # AC US Production Account `k8s-canaries-production` fleet
+      fleet_id: "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVlYzZhLTYwNjItNzZiZS1iOWE0LTA4MzZlZmE2MGY4YQ"
+      canary_dir: "production"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
@@ -182,13 +182,3 @@ jobs:
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
-
-  get_previous_tag:
-    runs-on: ubuntu-latest
-    outputs:
-      previous_tag: ${{ steps.previous_tag_step.outputs.PREVIOUS_TAG }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - id: previous_tag_step
-        run: ./.github/workflows/scripts/previous_version.sh ${{ inputs.TAG }} >> "$GITHUB_OUTPUT"

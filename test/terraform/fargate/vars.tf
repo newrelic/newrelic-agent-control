@@ -38,24 +38,48 @@ variable "secret_name_license" {
   default = "canaries/license_key-5wRtkT"
 }
 
+variable "secret_name_prod_license" {
+  default = "canaries/prod_license_key-Ats42t"
+}
+
 variable "secret_name_account_id" {
   default = "canaries/account_id-a25041"
+}
+
+variable "secret_name_prod_account_id" {
+  default = "canaries/prod_account_id-aTmqLo"
 }
 
 variable "secret_name_api_key" {
   default = "canaries/nr_api_key-zHyTVS"
 }
 
+variable "secret_name_prod_api_key" {
+  default = "canaries/prod_nr_api_key-dbXHer"
+}
+
 variable "secret_name_organization_id" {
   default = "canaries/organization_id-a0w4NX"
+}
+
+variable "secret_name_prod_organization_id" {
+  default = "canaries/prod_organization_id-k0Fchg"
 }
 
 variable "secret_name_system_identity_client_id" {
   default = "canaries/system_identity_client_id-qVzy88"
 }
 
+variable "secret_name_prod_system_identity_client_id" {
+  default = "canaries/prod_system_identity_client_id-Kw2stx"
+}
+
 variable "secret_name_system_identity_private_key" {
   default = "canaries/system_identity_private_key-G5vwsz"
+}
+
+variable "secret_name_prod_system_identity_private_key" {
+  default = "canaries/prod_system_identity_private_key-8SNBQY"
 }
 
 variable "secret_name_super-secret-agent-slack-webhook" {
@@ -67,26 +91,6 @@ variable "secret_name_super-secret-agent-slack-webhook" {
 variable "secret_name_ssh" {
   default = "canaries/ssh_key-yhthNk"
 }
-
-# CrowdStrike Falcon secrets
-
-variable "secret_name_crowdstrike_client_id" {
-  default = "canaries/crowdstrike_falcon_client_id-OnAVWJ"
-}
-
-variable "secret_name_crowdstrike_client_secret" {
-  default = "canaries/crowdstrike_falcon_client_secret-PfSOHH"
-}
-
-variable "secret_name_crowdstrike_customer_id" {
-  default = "canaries/crowdstrike_falcon_customer_id-2NbNLJ"
-}
-
-variable "secret_name_crowdstrike_ansible_role_key" {
-  default = "crowdstrike/ansible-role-key-jJrGNu"
-}
-
-####
 
 variable "task_container_image" {
   default = "ghcr.io/newrelic/fargate-runner-action:latest"

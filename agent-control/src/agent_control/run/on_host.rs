@@ -5,9 +5,8 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -15,9 +14,11 @@ use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::{Identifiers, Storer};
+use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
+use crate::opamp::instance_id::on_host::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
@@ -26,9 +27,8 @@ use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
-    opamp::{hash_repository::on_host::HashRepositoryFile, instance_id::IdentifiersProvider},
-    sub_agent::on_host::builder::OnHostSubAgentBuilder,
-    values::file::YAMLConfigRepositoryFile,
+    opamp::hash_repository::on_host::HashRepositoryFile,
+    sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::YAMLConfigRepositoryFile,
 };
 use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
@@ -39,7 +39,7 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 impl AgentControlRunner {
-    pub fn run(self) -> Result<(), AgentError> {
+    pub(super) fn run_onhost(self) -> Result<(), AgentError> {
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
             Arc::new(
@@ -139,10 +139,9 @@ impl AgentControlRunner {
                 ConfigurationPersisterFile::new(&self.base_paths.remote_dir),
                 self.base_paths.remote_dir.clone(),
             )
-            .with_agent_control_variables(agent_control_variables.into_iter());
+            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
             self.agent_type_registry.clone(),
             template_renderer,
         ));
@@ -151,12 +150,25 @@ impl AgentControlRunner {
             sub_agent_hash_repository.clone(),
             SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
             agents_assembler,
+            yaml_config_repository.clone(),
             Environment::OnHost,
         );
+
+        // This template rendered does not include the persister to AVOID mutate any state when used to validate configs.
+        let validation_renderer = TemplateRenderer::default()
+            .with_agent_control_variables(agent_control_variables.into_iter());
+        let validation_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+            self.agent_type_registry.clone(),
+            validation_renderer,
+        ));
 
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
+            SupportedRemoteConfigValidator::Values(ValuesValidator::new(
+                validation_assembler,
+                Environment::OnHost,
+            )),
         ];
         let remote_config_handler = AgentRemoteConfigHandler::new(
             remote_config_validators,

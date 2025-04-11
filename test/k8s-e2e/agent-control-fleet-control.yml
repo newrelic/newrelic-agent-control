@@ -9,7 +9,7 @@ agent-control-deployment:
       auth:
         secret:
           create: false
-          name: "sys-identity" 
+          name: "sys-identity"
     agentControl:
       content:
         log:
@@ -24,7 +24,3 @@ agent-control-deployment:
               customAttributes:
                 cluster_name: ${nr-env:NR_CLUSTER_NAME}
                 config_origin: local
-            nri-metadata-injection:
-              # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
-              # together with the gateway
-              enabled: false

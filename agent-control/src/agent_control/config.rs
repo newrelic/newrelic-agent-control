@@ -10,7 +10,7 @@ use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
 };
 use http::HeaderMap;
-#[cfg(feature = "k8s")]
+
 use kube::api::TypeMeta;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
@@ -184,12 +184,10 @@ pub struct K8sConfig {
     pub chart_version: String,
 
     /// CRDs is a list of crds that the SA should watch and be able to create/delete.
-    #[cfg(feature = "k8s")]
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
-#[cfg(feature = "k8s")]
 impl Default for K8sConfig {
     fn default() -> Self {
         Self {
@@ -201,7 +199,6 @@ impl Default for K8sConfig {
     }
 }
 
-#[cfg(feature = "k8s")]
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
@@ -209,14 +206,13 @@ pub fn helmrelease_v2_type_meta() -> TypeMeta {
     }
 }
 
-#[cfg(feature = "k8s")]
 pub fn instrumentation_v1beta1_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "newrelic.com/v1beta1".to_string(),
         kind: "Instrumentation".to_string(),
     }
 }
-#[cfg(feature = "k8s")]
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health
@@ -361,7 +357,6 @@ fleet_control:
 agents: {}
 "#;
 
-    #[cfg(feature = "k8s")]
     const EXAMPLE_K8S_EXTRA_CR_CONFIG: &str = r#"
 agents:
   agent-1:
@@ -451,7 +446,8 @@ agents: {}
             LoggingConfig {
                 format: LoggingFormat {
                     target: true,
-                    timestamp: TimestampFormat("%Y".to_string())
+                    timestamp: TimestampFormat("%Y".to_string()),
+                    ansi_colors: false,
                 },
                 ..Default::default()
             }
@@ -494,7 +490,6 @@ agents: {}
         assert_eq!(config.fleet_control.unwrap().fleet_id, "123");
     }
 
-    #[cfg(feature = "k8s")]
     #[test]
     fn k8s_cr_config() {
         let config =

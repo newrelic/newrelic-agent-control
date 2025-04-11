@@ -1,11 +1,11 @@
 use crate::agent_control::defaults::get_custom_capabilities;
-use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
+use crate::sub_agent::identity::AgentIdentity;
 use nix::NixPath;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -142,11 +142,11 @@ impl RemoteConfigValidator for SignatureValidator {
 
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
-            SignatureValidator::Validator(v) => v.validate(agent_type_id, remote_config),
+            SignatureValidator::Validator(v) => v.validate(agent_identity, remote_config),
             SignatureValidator::Noop => Ok(()),
         }
     }
@@ -168,12 +168,12 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), SignatureValidatorError> {
         // custom capabilities are got from the agent-type (currently hard-coded)
         // If the capability is not set, no validation is performed
-        if !get_custom_capabilities(agent_type_id).is_some_and(|c| {
+        if !get_custom_capabilities(&agent_identity.agent_type_id).is_some_and(|c| {
             c.capabilities
                 .contains(&SIGNATURE_CUSTOM_CAPABILITY.to_string())
         }) {
@@ -210,13 +210,13 @@ mod tests {
 
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
         SignatureData, Signatures, ECDSA_P256_SHA256, ED25519,
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use crate::opamp::remote_config::ConfigurationMap;
+    use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
 
@@ -331,12 +331,11 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test_payload".to_string()),
             None,
         );
-        let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
 
         let noop_validator = SignatureValidator::Noop;
 
         assert!(
-            noop_validator.validate(&agent_type, &rc).is_ok(),
+            noop_validator.validate(&test_agent_identity(), &rc).is_ok(),
             "The config should be valid even if the signature is missing when no-op validator is used",
         )
     }
@@ -350,7 +349,6 @@ certificate_pem_file_path: /path/to/file
 
         impl TestCase {
             fn run(self) {
-                let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
                 let test_signer = TestSigner::new();
 
                 let signature_validator = CertificateSignatureValidator::new(
@@ -360,7 +358,8 @@ certificate_pem_file_path: /path/to/file
                     .unwrap(),
                 );
 
-                let result = signature_validator.validate(&agent_type, &self.remote_config);
+                let result =
+                    signature_validator.validate(&test_agent_identity(), &self.remote_config);
                 assert_matches!(
                     result,
                     Err(SignatureValidatorError::VerifySignature(_)),
@@ -433,9 +432,10 @@ certificate_pem_file_path: /path/to/file
             Hash::new("test".to_string()),
             None,
         );
-        let agent_type = AgentIdentity::new_agent_control_identity().agent_type_id;
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
-        assert!(signature_validator.validate(&agent_type, &rc).is_ok());
+        assert!(signature_validator
+            .validate(&AgentIdentity::new_agent_control_identity(), &rc)
+            .is_ok());
     }
 
     #[test]
@@ -464,10 +464,8 @@ certificate_pem_file_path: /path/to/file
             test_signer.key_id(),
         ));
 
-        let agent_type = AgentTypeID::try_from("ns/aa:1.1.3").unwrap();
-
         assert!(signature_validator
-            .validate(&agent_type, &remote_config)
+            .validate(&test_agent_identity(), &remote_config)
             .is_ok())
     }
 }

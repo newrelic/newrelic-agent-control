@@ -1,10 +1,10 @@
 use super::callbacks::AgentCallbacks;
 use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
+use super::instance_id::getter::GetterError;
 use crate::agent_control::agent_id::AgentID;
 use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
-use crate::opamp::instance_id;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::settings::StartSettings;
@@ -20,8 +20,10 @@ pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
 pub enum OpAMPClientBuilderError {
     #[error("OpAMP client: `{0}`")]
     NotStartedClientError(#[from] NotStartedClientError),
+
     #[error("error getting agent instance id: `{0}`")]
-    GetInstanceIDError(#[from] instance_id::GetterError),
+    GetInstanceIDError(#[from] GetterError),
+
     #[error("error building http client: `{0}`")]
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
@@ -232,7 +234,7 @@ pub(crate) mod tests {
         // Until we refactor these tests (and find a better solution for this pattern) we'll
         // spawn a thread with the publisher, just not to be dropped in the test
         // TL;DR: Let the OpAMP Publisher leave for Duration
-        #[cfg(feature = "onhost")]
+
         pub fn should_build_and_start_and_run(
             &mut self,
             agent_id: AgentID,

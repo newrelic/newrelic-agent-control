@@ -11,7 +11,9 @@ pub fn init_logger() {
     INIT_LOGGER.call_once(|| {
         let logging_config: LoggingConfig = serde_yaml::from_str(
             r#"
-insecure_fine_grained_level: "newrelic_agent_control=debug,opamp_client=info,off"
+format:
+  target: true
+insecure_fine_grained_level: "newrelic_agent_control=trace,opamp_client=info,kube=debug,off"
         "#,
         )
         .unwrap();

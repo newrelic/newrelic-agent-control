@@ -1,4 +1,5 @@
-use super::tools::config::create_file;
+#![cfg(unix)]
+use super::tools::config::{create_file, create_sub_agent_values};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
 use assert_cmd::Command;
@@ -10,7 +11,6 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
-use newrelic_agent_control::opamp::instance_id::IdentifiersProvider;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
@@ -20,9 +20,9 @@ use tempfile::tempdir;
 const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
 #[test]
-#[cfg(target_family = "unix")]
 fn test_aws_cloud_id() {
     use httpmock::Method::PUT;
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
 
     use crate::on_host::consts::AWS_VM_RESPONSE;
 
@@ -75,8 +75,9 @@ fn test_aws_cloud_id() {
     token_mock.assert_calls(1);
 }
 #[test]
-#[cfg(target_family = "unix")]
 fn test_azure_cloud_id() {
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
+
     use crate::on_host::consts::AZURE_VM_RESPONSE;
 
     let metadata_path = "/metadata/instance";
@@ -122,8 +123,9 @@ fn test_azure_cloud_id() {
 }
 
 #[test]
-#[cfg(target_family = "unix")]
 fn test_gcp_cloud_id() {
+    use newrelic_agent_control::opamp::instance_id::on_host::getter::IdentifiersProvider;
+
     use crate::on_host::consts::GCP_VM_RESPONSE;
 
     let metadata_path = "/metadata/instance";
@@ -169,9 +171,10 @@ fn test_gcp_cloud_id() {
 }
 
 /// tests that nr-ac:host_id and nr-sub:agent_id are correctly replaced in the agent type.
-#[cfg(unix)]
 #[test]
 fn test_sub_sa_vars() {
+    use newrelic_agent_control::agent_control::run::Environment;
+
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
@@ -204,6 +207,7 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -211,7 +215,7 @@ agents:
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths);
+    let _agent_control = start_agent_control_with_custom_config(base_paths, Environment::OnHost);
 
     retry(30, Duration::from_secs(1), || {
         // Check that the process is running with this exact command

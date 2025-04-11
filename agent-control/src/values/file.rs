@@ -309,8 +309,9 @@ pub mod tests {
             yaml_config_content.to_string(),
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -321,21 +322,22 @@ pub mod tests {
 
     #[rstest]
     fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local(agent_id: AgentID) {
-        let yaml_config_content = "some_config: true\nanother_item: false";
-
         let mut repo = yaml_config_repository_file_mock(true);
+
         repo.file_rw.should_not_read_file_not_found(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "some_error_message".to_string(),
         );
 
+        let yaml_config_content = "some_config: true\nanother_item: false";
         repo.file_rw.should_read(
             concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
             yaml_config_content.to_string(),
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
 
         assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
@@ -345,7 +347,7 @@ pub mod tests {
     }
 
     #[rstest]
-    fn test_load_local_file_not_found_should_return_defaults(agent_id: AgentID) {
+    fn test_load_local_file_not_found_should_return_none(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
         repo.file_rw.should_not_read_file_not_found(
             concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
@@ -355,7 +357,7 @@ pub mod tests {
         let yaml_config =
             load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
 
-        assert_eq!(yaml_config, YAMLConfig::default());
+        assert!(yaml_config.is_none());
     }
 
     #[rstest]

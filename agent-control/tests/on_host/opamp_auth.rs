@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use assert_cmd::Command;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
@@ -12,7 +13,6 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::TempDir;
 
-#[cfg(unix)]
 #[test]
 fn test_auth_local_provider_as_root() {
     use crate::on_host::cli::create_temp_file;
@@ -76,7 +76,6 @@ agents: {{}}
 
 // This test verifies that empty Auth config doesn't inject any token.
 // This is a temporal behavior until auth config is mandatory.
-#[cfg(unix)]
 #[test]
 fn test_empty_auth_config_as_root() {
     use crate::on_host::cli::create_temp_file;
@@ -127,7 +126,6 @@ agents: {{}}
     assert!(opamp_server_mock.calls() >= 1)
 }
 
-#[cfg(unix)]
 #[test]
 fn test_unauthorized_token_retrieve_as_root() {
     use super::cli::create_temp_file;
@@ -183,7 +181,7 @@ agents: {{}}
 }
 
 fn cmd_agent_control(config_path: PathBuf) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
     cmd.arg("--local-dir").arg(config_path.parent().unwrap());
     cmd
 }
@@ -209,6 +207,7 @@ fn auth_server(token: String) -> MockServer {
 
     mock_server
 }
+
 fn is_authorized(when: When) -> When {
     when.is_true(|req| {
         let request: Request = serde_json::from_slice(req.body_ref()).unwrap();

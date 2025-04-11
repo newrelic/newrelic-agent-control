@@ -13,13 +13,13 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::SystemTime;
-use tracing::{debug, error, info, info_span, warn};
+use std::time::{Duration, Instant, SystemTime};
+use tracing::{debug, error, info, info_span, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
 pub trait NotStartedSubAgent {
@@ -136,6 +136,12 @@ where
             // TODO: We should separate the loop for OpAMP events and internal events into two
             // different loops, which currently is not straight forward due to sharing structures
             // that need to be moved into thread closures.
+
+            // Report uptime every 60 seconds
+            let start_time = Instant::now();
+            let uptime_report_ticker = tick(Duration::from_secs(60));
+            // Count the received remote configs during execution
+            let mut remote_config_count = 0;
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
@@ -151,10 +157,14 @@ where
                                     debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
                                     continue;
                                 };
+                                // Trace the occurrence of a remote config reception
+                                debug!("Received remote config.");
+                                remote_config_count += 1;
+                                trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config){
+                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config) {
                                     Err(error) =>{
-                                        error!(%error,"error handling remote config")
+                                        error!("error handling remote config: {error}")
                                     },
                                     Ok(())  =>{
                                         info!("Applying remote config");
@@ -182,15 +192,16 @@ where
                             },
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
+
                                 Self::log_health_info(is_healthy, health.clone().into());
+                                is_healthy = health.is_healthy();
                                 let _ = on_health(
-                                    health.clone(),
+                                    health,
                                     self.maybe_opamp_client.as_ref(),
                                     self.sub_agent_publisher.clone(),
                                     self.identity.clone(),
                                 )
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
-                                is_healthy = health.is_healthy()
                             }
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                  let _ = on_version(
@@ -201,6 +212,7 @@ where
                             }
                         }
                     }
+                    recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
                 }
             }
 
@@ -252,7 +264,7 @@ where
         let stopped_supervisor = self
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client, self.identity.clone())
-            .inspect_err(|e| error!(error = %e,"cannot assemble supervisor"))
+            .inspect_err(|e| warn!(error = %e,"cannot assemble supervisor"))
             .ok();
 
         stopped_supervisor

@@ -27,7 +27,7 @@ pub fn create_temp_file(
 }
 
 pub fn cmd_with_config_file(local_dir: &Path) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
     cmd.arg("--local-dir").arg(local_dir);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(5));
@@ -35,6 +35,7 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
 }
 
 struct AutoDropChild(std::process::Child);
+
 impl Drop for AutoDropChild {
     fn drop(&mut self) {
         self.0.kill().unwrap();
@@ -45,7 +46,7 @@ impl Drop for AutoDropChild {
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
-    let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir")
         .arg(dir.path())
         .arg("--print-debug-info");
@@ -58,7 +59,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
-    let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
     cmd.assert()
         .failure()
@@ -76,7 +77,7 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
 
-    let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
@@ -123,7 +124,7 @@ log:
 "#,
     )?;
 
-    let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
@@ -193,9 +194,9 @@ agents: {{}}
         .args([
             "run",
             "--bin",
-            "newrelic-agent-control",
+            "newrelic-agent-control-onhost",
             "--features",
-            "onhost,multiple-instances",
+            "multiple-instances",
             "--",
         ])
         .arg("--local-dir")
@@ -228,7 +229,7 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};
 
     let dir = TempDir::new()?;
-    let mut cmd = Command::cargo_bin("newrelic-agent-control")?;
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
 
     // We set the environment variable with the `__` separator which will create the nested

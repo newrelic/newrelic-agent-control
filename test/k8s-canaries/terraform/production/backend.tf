@@ -31,5 +31,5 @@ provider "aws" {
 provider "newrelic" {
   account_id = var.account_id
   api_key    = var.api_key
-  region     = "Staging" # To change to US when production is stable
+  region     = "US"
 }

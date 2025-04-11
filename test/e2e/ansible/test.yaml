@@ -1,7 +1,7 @@
 ---
 
-- name: Agent Control remote config
-  import_playbook: agent_control_remote_config.yaml
+- name: Sub Agent remote config
+  import_playbook: sub_agent_remote_config.yaml
 
 #- name: Agents registration/unregistration
 #  import_playbook: agents_registration_unregistration.yaml

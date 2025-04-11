@@ -27,9 +27,7 @@ Given an Ansible inventory file, the packaging tests will execute a bunch of Ans
 verify the installation, upgrade and uninstallation of a given package. In addition, service (systemd) checks
 will be done to ensure the proper execution of the binaries.
 
-The executed Ansible playbooks can be found [here](./packaging/ansible/test.yaml).
-
-[Full documentation](./packaging/README.md).
+The executed Ansible playbooks can be found [here](./e2e/ansible/test.yaml).
 
 ## Canaries
 

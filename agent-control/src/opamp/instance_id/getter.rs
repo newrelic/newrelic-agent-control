@@ -1,34 +1,54 @@
-use super::{GetterError, Identifiers, InstanceID};
+use crate::k8s;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tracing::debug;
+
+use super::{definition::InstanceIdentifiers, InstanceID};
 
 // IDGetter returns an InstanceID for a specific agentID.
 pub trait InstanceIDGetter {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum GetterError {
+    #[error("failed to persist data: `{0}`")]
+    OnHostPersisting(#[from] super::on_host::storer::StorerError),
+
+    #[error("failed to persist k8s data: `{0}`")]
+    K8sPersisting(#[from] super::k8s::storer::StorerError),
+
+    #[error("Initialising client: `{0}`")]
+    K8sClientInitialization(#[from] k8s::Error),
+
+    #[cfg(test)]
+    #[error("mock getter error")]
+    MockGetterError,
+}
+
 pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
+    GetterError: From<S::Error>,
 {
     storer: Mutex<S>,
-    identifiers: Identifiers,
+    identifiers: S::Identifiers,
 }
 
 impl<S> InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
+    GetterError: From<S::Error>,
 {
-    pub fn new(storer: S, identifiers: Identifiers) -> Self {
+    pub fn new(storer: S, identifiers: S::Identifiers) -> Self {
         Self {
             storer: Mutex::new(storer),
             identifiers,
         }
     }
 
-    pub fn with_identifiers(self, identifiers: Identifiers) -> Self {
+    pub fn with_identifiers(self, identifiers: S::Identifiers) -> Self {
         Self {
             identifiers,
             ..self
@@ -39,6 +59,7 @@ where
 impl<S> InstanceIDGetter for InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
+    GetterError: From<S::Error>,
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
         let storer = self.storer.lock().expect("failed to acquire the lock");
@@ -69,9 +90,9 @@ where
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub struct DataStored {
+pub struct DataStored<I: InstanceIdentifiers> {
     pub instance_id: InstanceID,
-    pub identifiers: Identifiers,
+    pub identifiers: I,
 }
 
 #[cfg(test)]
@@ -81,9 +102,9 @@ pub mod tests {
     use std::time::Duration;
 
     use super::*;
+    use crate::opamp::instance_id::definition::tests::MockIdentifiers;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
-    use crate::opamp::instance_id::storer::tests::MockInstanceIDStorerMock;
-    use crate::opamp::instance_id::StorerError;
+    use crate::opamp::instance_id::storer::tests::{MockInstanceIDStorerMock, MockStorerError};
     use mockall::{mock, predicate};
     use opamp_client::operation::instance_uid::InstanceUid;
 
@@ -119,7 +140,7 @@ pub mod tests {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -133,8 +154,8 @@ pub mod tests {
         mock.expect_get()
             .once()
             .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Err(StorerError::Generic));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+            .returning(|_| Err(MockStorerError));
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -152,9 +173,9 @@ pub mod tests {
         mock.expect_set()
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| Err(StorerError::Generic));
+            .returning(|_, _| Err(MockStorerError));
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -176,7 +197,7 @@ pub mod tests {
                     identifiers: Default::default(),
                 }))
             });
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -203,7 +224,7 @@ pub mod tests {
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -238,7 +259,7 @@ pub mod tests {
                 Ok(())
             });
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, Identifiers::default());
+        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let getter1 = Arc::new(getter);
         let getter2 = getter1.clone();
 
@@ -269,19 +290,7 @@ pub mod tests {
         assert_eq!(uuid_as_str, format!("{}", id_from_bytes));
     }
 
-    fn get_different_identifier() -> Identifiers {
-        #[cfg(feature = "k8s")]
-        return Identifiers {
-            cluster_name: "test".to_string(),
-            fleet_id: "test".to_string(),
-        };
-
-        #[cfg(feature = "onhost")]
-        return Identifiers {
-            machine_id: "different".to_string(),
-            hostname: "different".to_string(),
-            cloud_instance_id: "different".to_string(),
-            ..Default::default()
-        };
+    fn get_different_identifier() -> MockIdentifiers {
+        MockIdentifiers(1)
     }
 }

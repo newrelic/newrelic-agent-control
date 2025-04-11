@@ -6,17 +6,17 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::Identifiers;
+use crate::opamp::instance_id::k8s::getter::{get_identifiers, Identifiers};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
@@ -27,7 +27,6 @@ use crate::{
     agent_control::error::AgentError,
     opamp::{
         client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
-        instance_id,
     },
 };
 use crate::{
@@ -42,7 +41,7 @@ use std::sync::Arc;
 use tracing::{debug, error, info, warn};
 
 impl AgentControlRunner {
-    pub fn run(self) -> Result<(), AgentError> {
+    pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())
@@ -67,8 +66,7 @@ impl AgentControlRunner {
             .map(|c| c.fleet_id.clone())
             .unwrap_or_default();
 
-        let identifiers =
-            instance_id::get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
+        let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
         info!("Instance Identifiers: {}", identifiers);
 
         let mut non_identifying_attributes =
@@ -116,7 +114,6 @@ impl AgentControlRunner {
         let template_renderer = TemplateRenderer::default();
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            yaml_config_repository.clone(),
             self.agent_type_registry.clone(),
             template_renderer,
         ));
@@ -129,13 +126,18 @@ impl AgentControlRunner {
         let supervisor_assembler = AgentSupervisorAssembler::new(
             hash_repository.clone(),
             supervisor_builder,
-            agents_assembler,
+            agents_assembler.clone(),
+            yaml_config_repository.clone(),
             Environment::K8s,
         );
 
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
+            SupportedRemoteConfigValidator::Values(ValuesValidator::new(
+                agents_assembler,
+                Environment::K8s,
+            )),
         ];
 
         let remote_config_handler = AgentRemoteConfigHandler::new(

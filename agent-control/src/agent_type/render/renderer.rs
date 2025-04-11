@@ -162,13 +162,13 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 pub(crate) mod tests {
     use super::*;
     use crate::{
-        agent_type::render::persister::{
-            config_persister::{tests::MockConfigurationPersisterMock, PersistError},
-            config_persister_file::ConfigurationPersisterFile,
-        },
+        agent_control::run::Environment,
         agent_type::{
             definition::AgentType,
-            environment::Environment,
+            render::persister::{
+                config_persister::{tests::MockConfigurationPersisterMock, PersistError},
+                config_persister_file::ConfigurationPersisterFile,
+            },
             restart_policy::{
                 BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
             },

@@ -19,7 +19,7 @@ arch = os.getenv('ARCH','arm64')
 if build_with == 'cargo':
   local_resource(
       'build-binary',
-      cmd="cargo build --package newrelic_agent_control --features=k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control bin/newrelic-agent-control-"+arch,
+      cmd="cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"+arch,
       deps=[
         './agent-control',
       ]
@@ -27,7 +27,7 @@ if build_with == 'cargo':
 elif build_with == 'cross': 
   local_resource(
       'build-binary',
-      cmd="make BUILD_MODE=debug BUILD_FEATURE=k8s ARCH=%s build-agent-control" % arch,
+      cmd="make BUILD_MODE=debug BIN=newrelic-agent-control-k8s ARCH=%s build-agent-control" % arch,
       deps=[
         './agent-control',
       ]

@@ -49,12 +49,7 @@ impl Drop for K8sGarbageCollectorStarted {
         let _ = thread_context
             .stop()
             .inspect(|_| info!("garbage collector thread stopped"))
-            .inspect_err(|error_msg| {
-                error!(
-                    %error_msg,
-                    "Error stopping {} thread", THREAD_NAME
-                )
-            });
+            .inspect_err(|error_msg| error!("Error stopping '{THREAD_NAME}' thread: {error_msg}"));
     }
 }
 

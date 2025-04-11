@@ -21,7 +21,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "javaapp" ]
+                values: ["javaapp"]
       python-agent:
         type: newrelic/com.newrelic.apm_python:0.1.0
         content:
@@ -29,7 +29,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "pythonapp" ]
+                values: ["pythonapp"]
       node-agent:
         type: newrelic/com.newrelic.apm_node:0.1.0
         content:
@@ -37,7 +37,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "nodeapp" ]
+                values: ["nodeapp"]
       ruby-agent:
         type: newrelic/com.newrelic.apm_ruby:0.1.0
         content:
@@ -45,7 +45,7 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "rubyapp" ]
+                values: ["rubyapp"]
       dotnet-agent:
         type: newrelic/com.newrelic.apm_dotnet:0.1.0
         content:
@@ -53,4 +53,4 @@ agent-control-deployment:
             matchExpressions:
               - key: "app"
                 operator: "In"
-                values: [ "dotneteapp" ]
+                values: ["dotneteapp"]

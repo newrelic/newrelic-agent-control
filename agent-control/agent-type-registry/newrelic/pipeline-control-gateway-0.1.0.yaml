@@ -4,7 +4,6 @@ version: 0.1.0
 variables:
   k8s:
     chart_values:
-      # TODO once available in the newrelic repository review the chart name
       gateway:
         description: "Gateway chart values"
         type: yaml
@@ -36,8 +35,7 @@ deployment:
           # delaying the application of important updates.
           interval: 30m
           provider: generic
-          # TODO point to the newrelic repository once available
-          url: https://rnoothi.github.io/foobar
+          url: https://helm-charts.newrelic.com
       default-values:
         apiVersion: v1
         kind: Secret
@@ -70,7 +68,7 @@ deployment:
           interval: 3m
           chart:
             spec:
-              chart: gateway
+              chart: pipeline-control-gateway
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
               sourceRef:
@@ -97,7 +95,6 @@ deployment:
           rollback:
             disableWait: true
             disableWaitForJobs: true
-            disableTakeOwnership: true
           valuesFrom:
             - kind: Secret
               name: default-values-${nr-sub:agent_id}

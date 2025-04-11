@@ -45,6 +45,13 @@ impl TryFrom<String> for YAMLConfig {
         Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)
     }
 }
+impl TryFrom<&str> for YAMLConfig {
+    type Error = YAMLConfigError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(serde_yaml::from_str::<YAMLConfig>(value)?)
+    }
+}
 
 impl TryFrom<YAMLConfig> for String {
     type Error = YAMLConfigError;
@@ -67,11 +74,13 @@ mod tests {
 
     use serde_yaml::{Mapping, Value};
 
-    use crate::agent_type::{
-        definition::AgentType,
-        environment::Environment,
-        trivial_value::FilePathWithContent,
-        variable::definition::{VariableDefinition, VariableDefinitionTree},
+    use crate::{
+        agent_control::run::Environment,
+        agent_type::{
+            definition::AgentType,
+            trivial_value::FilePathWithContent,
+            variable::definition::{VariableDefinition, VariableDefinitionTree},
+        },
     };
 
     use super::*;

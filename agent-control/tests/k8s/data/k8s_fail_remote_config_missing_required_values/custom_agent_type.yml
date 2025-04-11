@@ -1,0 +1,25 @@
+namespace: newrelic
+name: com.newrelic.test
+version: 0.0.1
+variables:
+  k8s:
+    required_var:
+      description: "required_var"
+      type: yaml
+      required: true
+    non_required_var:
+      description: "non_required_var"
+      type: yaml
+      required: false
+      default: {}
+deployment:
+  k8s:
+    objects:
+      some-resource:
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: some-resource
+        StringData:
+          non_required_var: ${nr-var:non_required_var}
+          required_var: ${nr-var:required_var}

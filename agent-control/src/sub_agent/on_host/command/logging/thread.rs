@@ -1,8 +1,10 @@
 use super::logger::Logger;
-use crate::utils::threads::spawn_named_thread;
+use crate::{
+    event::broadcaster::unbounded::UnboundedBroadcast, utils::threads::spawn_named_thread,
+};
+
 use std::{
     io::{BufRead, BufReader, Read},
-    sync::mpsc::{self, Receiver, Sender},
     thread::JoinHandle,
 };
 
@@ -21,10 +23,12 @@ fn spawn_logger_inner<R>(handle: R, loggers: Vec<Logger>) -> (JoinHandle<()>, Ve
 where
     R: Read + Send + 'static,
 {
-    let LogBroadcaster {
-        loggers_rx,
-        senders,
-    } = LogBroadcaster::new(loggers);
+    let mut loggers_channel = UnboundedBroadcast::default();
+
+    let log_threads = loggers
+        .into_iter()
+        .map(|logger| logger.log(loggers_channel.subscribe()))
+        .collect();
 
     // In a separate thread, iterate over the handle to get the logs
     let sender_thread = spawn_named_thread("OnHost log sender", move || {
@@ -32,49 +36,12 @@ where
         for line in log_entries {
             let line = line.expect("Failed to read line from buffered reader");
             // Send each line to all existing loggers.
-            // We do not expect too many loggers at the moment but this is O(n * m) after all.
-            // Parallelize using rayon?
-            senders.iter().for_each(|tx| {
-                tx.send(line.clone())
-                    .expect("Failed to send line to channel")
-            });
+            loggers_channel.broadcast(line);
         }
     });
 
-    let log_threads = loggers_rx
-        .into_iter()
-        .map(|(logger, rx)| logger.log(rx))
-        .collect();
-
     // Return the threads (for testing purposes)
     (sender_thread, log_threads)
-}
-
-// Typical channels like the one in `std` or `crossbeam` lack broadcast/fan-out functionality,
-// so we need to implement it ourselves. This is a rough version that might be improved in the future.
-struct LogBroadcaster {
-    loggers_rx: Vec<(Logger, Receiver<String>)>,
-    senders: Vec<Sender<String>>,
-}
-
-impl LogBroadcaster {
-    fn new(loggers: Vec<Logger>) -> Self {
-        let mut loggers_rx = vec![];
-        let mut senders = vec![];
-
-        // For each logger, I create a pair of (tx, rx).
-        // The senders are collected in a separate vector to send logs to all loggers.
-        for logger in loggers {
-            let (tx, rx) = mpsc::channel();
-            loggers_rx.push((logger, rx));
-            senders.push(tx);
-        }
-
-        Self {
-            loggers_rx,
-            senders,
-        }
-    }
 }
 
 #[cfg(test)]

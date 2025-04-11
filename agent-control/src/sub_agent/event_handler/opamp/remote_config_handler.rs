@@ -101,9 +101,12 @@ where
                 Err(err)
             }
             // Remove previously persisted values when the configuration is empty
-            Ok(None) => Ok(self
-                .remote_values_repo
-                .delete_remote(&remote_config.agent_id)?),
+            Ok(None) => {
+                debug!("empty config received, remove remote configuration to fall-back to local");
+                Ok(self
+                    .remote_values_repo
+                    .delete_remote(&remote_config.agent_id)?)
+            }
             Ok(Some(agent_values)) => Ok(self
                 .remote_values_repo
                 .store_remote(&remote_config.agent_id, &agent_values)?),
@@ -138,8 +141,11 @@ where
         // Errors here will cause the sub-agent to continue running with the previous configuration.
         // The supervisor won't be recreated.
         for validator in &self.remote_config_validators {
-            if let Err(error_msg) = validator.validate(&agent_identity.agent_type_id, config) {
-                error!(%error_msg, hash = &config.hash.get(), "error validating remote config");
+            if let Err(error_msg) = validator.validate(&agent_identity, config) {
+                error!(
+                    hash = &config.hash.get(),
+                    "Error validating remote config: {error_msg}"
+                );
                 Self::report_error(opamp_client, config, error_msg.to_string())?;
                 return Err(RemoteConfigHandlerError::ConfigValidating(
                     error_msg.to_string(),

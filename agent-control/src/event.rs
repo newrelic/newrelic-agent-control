@@ -1,3 +1,4 @@
+pub mod broadcaster;
 pub mod cancellation;
 pub mod channel;
 use crate::opamp::{LastErrorCode, LastErrorMessage};

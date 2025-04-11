@@ -10,6 +10,7 @@
     repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
     agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
     agent_control_private_key: /etc/newrelic-agent-control/priv.key
+    infra_staging: true
 
   tasks:
 
@@ -72,7 +73,7 @@
       dest: /etc/newrelic-agent-control/fleet/agents.d/infra/values/values.yaml
       content: |
         config_agent: |+
-          staging: true
+          staging: {{ infra_staging }}
           status_server_enabled: true
           status_server_port: 18003
           license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}

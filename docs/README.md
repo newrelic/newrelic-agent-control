@@ -100,6 +100,10 @@ For the standard installation of Agent Control, either on-host or Kubernetes, he
 > [!CAUTION]
 > The link to documentation shared above currently leads to the **preview** version! This will be stabilized and moved to the main site shortly, so make sure this is updated. Remove this warning when the documentation links to the proper place.
 
+### Configuration
+
+For configuration details refer to [`CONFIG.md`](./CONFIG.md).
+
 ### Developing Agent Control
 
 For details related to developing for AC, like setting up the developer environment, some implementation details, troubleshooting, etc, go to [`DEVELOPMENT.md`](./DEVELOPMENT.md).

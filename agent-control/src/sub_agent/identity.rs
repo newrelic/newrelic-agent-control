@@ -53,9 +53,15 @@ impl Display for AgentIdentity {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
+    pub fn test_agent_identity() -> AgentIdentity {
+        AgentIdentity {
+            id: AgentID::new("test").unwrap(),
+            agent_type_id: AgentTypeID::try_from("test/test:0.0.1").unwrap(),
+        }
+    }
     #[test]
     fn test_new_agent_control_identity() {
         // Asserts that all fields are correctly set and this doesn't cause a panic

@@ -4,8 +4,10 @@
 #![warn(missing_docs)]
 
 mod one_shot_operation;
+use crate::agent_control::config::K8sConfig;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
+use crate::agent_control::run::Environment;
 use crate::instrumentation::tracing::{
     try_init_tracing, TracingConfig, TracingError, TracingGuardBox,
 };
@@ -84,7 +86,7 @@ pub struct Cli {
 
 impl Cli {
     /// Parses command line arguments and decides how the application runs.
-    pub fn init() -> Result<CliCommand, CliError> {
+    pub fn init(mode: Environment) -> Result<CliCommand, CliError> {
         // Get command line args
         let cli = Self::parse();
 
@@ -133,7 +135,7 @@ impl Cli {
             );
         let tracer = try_init_tracing(tracing_config)?;
 
-        info!("{}", binary_metadata());
+        info!("{}", binary_metadata(mode));
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
             base_paths.local_dir.to_string_lossy().to_string()
@@ -148,13 +150,15 @@ impl Cli {
             http_server,
             base_paths,
             proxy,
-            #[cfg(feature = "k8s")]
-            k8s_config: agent_control_config.k8s.ok_or(CliError::K8sConfig())?,
+
+            k8s_config: match mode {
+                Environment::OnHost => K8sConfig::default(),
+                Environment::K8s => agent_control_config.k8s.ok_or(CliError::K8sConfig())?,
+            },
 
             // TODO - Temporal solution until https://new-relic.atlassian.net/browse/NR-343594 is done.
             // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
             // before the GC process it, the resources will never be collected.
-            #[cfg(feature = "k8s")]
             garbage_collector_interval: DEFAULT_POLL_INTERVAL - std::time::Duration::from_secs(5),
         };
 

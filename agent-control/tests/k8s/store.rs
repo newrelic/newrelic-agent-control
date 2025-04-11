@@ -18,10 +18,10 @@ use newrelic_agent_control::k8s::store::{
 };
 use newrelic_agent_control::opamp::hash_repository::k8s::HashRepositoryConfigMap;
 use newrelic_agent_control::opamp::hash_repository::HashRepository;
-use newrelic_agent_control::opamp::instance_id::{
-    getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
-    Identifiers,
+use newrelic_agent_control::opamp::instance_id::getter::{
+    InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
+use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
 use newrelic_agent_control::opamp::remote_config::hash::Hash;
 use newrelic_agent_control::values::yaml_config_repository::{
     load_remote_fallback_local, YAMLConfigRepository,
@@ -122,11 +122,10 @@ fn k8s_value_repository_config_map() {
     let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
     let mut value_repository = YAMLConfigRepositoryConfigMap::new(k8s_store.clone());
-    let default_values = YAMLConfig::default();
     let capabilities = default_capabilities();
-    // without values the default is expected
+    // without values the none is expected
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), default_values);
+    assert!(res.unwrap().is_none());
 
     // with local values we expect some data
     block_on(create_local_config_map(
@@ -136,9 +135,11 @@ fn k8s_value_repository_config_map() {
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
+    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+        .expect("unexpected error loading config")
+        .expect("expected some configuration, got None");
 
-    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res, local_values);
 
     // with remote data we expect we get local without remote
     let remote_values = YAMLConfig::try_from("test: 3".to_string()).unwrap();
@@ -146,17 +147,21 @@ fn k8s_value_repository_config_map() {
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
+    assert_eq!(res.unwrap().unwrap(), local_values);
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), remote_values);
+    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+        .expect("unexpected error loading config")
+        .expect("expected some configuration, got None");
+    assert_eq!(res, remote_values);
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
+    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+        .expect("unexpected error loading config")
+        .expect("expected some configuration, got None");
+    assert_eq!(res, local_values);
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
@@ -164,10 +169,14 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    let res_agent_2 = load_remote_fallback_local(&value_repository, &agent_id_2, &capabilities);
-    assert_eq!(res.unwrap(), local_values);
-    assert_eq!(res_agent_2.unwrap(), remote_values_agent_2);
+    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+        .expect("unexpected error loading config")
+        .expect("expected some configuration, got None");
+    let res_agent_2 = load_remote_fallback_local(&value_repository, &agent_id_2, &capabilities)
+        .expect("unexpected error loading config")
+        .expect("expected some configuration, got None");
+    assert_eq!(res, local_values);
+    assert_eq!(res_agent_2, remote_values_agent_2);
 }
 
 #[test]

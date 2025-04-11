@@ -77,7 +77,6 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: true
 
-  # e2e test were not actually testing the new packages! This will be addressed in https://new-relic.atlassian.net/browse/NR-346876
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     needs: [ upload-packages-s3 ]
@@ -140,7 +139,7 @@ jobs:
       cluster_name: Agent_Control_Canaries_Staging-Cluster
       # AC Staging Account `k8s-canaries-staging-1` fleet
       fleet_id: "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg"
-      is_staging: true
+      canary_dir: "staging"
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}

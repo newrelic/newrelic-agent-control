@@ -34,24 +34,48 @@ module "agent_control_infra" {
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license}"
     },
     {
+      "name" : "NR_PROD_LICENSE_KEY",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_license}"
+    },
+    {
       "name" : "NEW_RELIC_ACCOUNT_ID",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}"
+    },
+    {
+      "name" : "NEW_RELIC_PROD_ACCOUNT_ID",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_account_id}"
     },
     {
       "name" : "NEW_RELIC_API_KEY",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}"
     },
     {
+      "name" : "NEW_RELIC_PROD_API_KEY",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_api_key}"
+    },
+    {
       "name" : "NR_ORGANIZATION_ID",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}"
+    },
+    {
+      "name" : "NR_PROD_ORGANIZATION_ID",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_organization_id}"
     },
     {
       "name" : "NR_SYSTEM_IDENTITY_CLIENT_ID",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_client_id}"
     },
     {
+      "name" : "NR_PROD_SYSTEM_IDENTITY_CLIENT_ID",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_client_id}"
+    },
+    {
       "name" : "NR_SYSTEM_IDENTITY_PRIVATE_KEY",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}"
+    },
+    {
+      "name" : "NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY",
+      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_private_key}"
     },
     ####
     {
@@ -61,22 +85,6 @@ module "agent_control_infra" {
     {
       "name" : "SSH_KEY",
       "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CLIENT_ID",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CLIENT_SECRET",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}"
-    },
-    {
-      "name" : "CROWDSTRIKE_CUSTOMER_ID",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}"
-    },
-    {
-      "name" : "CROWDSTRIKE_ANSIBLE_ROLE_KEY",
-      "valueFrom" : "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
     }
   ]
   task_custom_policies = [
@@ -94,15 +102,17 @@ module "agent_control_infra" {
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_ssh}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_super-secret-agent-slack-webhook}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_license}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_license}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_account_id}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_account_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_api_key}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_api_key}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_organization_id}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_organization_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_client_id}",
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_client_id}",
               "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_system_identity_private_key}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_id}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_client_secret}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_customer_id}",
-              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_crowdstrike_ansible_role_key}"
+              "arn:aws:secretsmanager:${var.region}:${var.accountId}:secret:${var.secret_name_prod_system_identity_private_key}",
             ]
           }
         ]

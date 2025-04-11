@@ -130,6 +130,26 @@ When adding these values as a user, either as a local config for AC (a file in t
 
 For examples of this with actual agent type definitions, see [config examples](https://docs-preview.newrelic.com/docs/new-relic-agent-control-linux#config-examples) in the official New Relic documentation site.
 
+##### Environment variable expansion on configuration values
+
+Any AC environment variable can be referenced within local or remote configuration values using the `${nr-env:<ENVIRONMENT_VARIABLE>}` syntax. During the rendering process, AC will resolve the `ENVIRONMENT_VARIABLE` and replace the placeholder with its corresponding value. 
+
+For example, consider the following configuration snippet:
+
+```yaml
+config_agent:
+  license_key: ${nr-env:LICENSE_KEY}
+```
+
+In this case, AC will look for an environment variable named `LICENSE_KEY` and substitute its value into the configuration.
+
+It is important to note that the availability of environment variables depends on the environment where AC is running:
+
+- **On-host installations**: AC will have access to environment variables configured at the systemd service level. Ensure that any required variables are properly defined in the service configuration.
+- **Kubernetes deployments**: AC will have access to environment variables attached to the AC Pod. These variables can be defined in the Pod's manifest, typically under the `env` section.
+
+By leveraging this mechanism, you can dynamically inject environment-specific values into your configurations, simplifying deployment and ensuring flexibility across different environments.
+
 ##### Templating `file` and `map[string]file` variables
 
 When a variable of type `file` or `map[string]file` is referenced inside the `deployment` section, the rendering process will:

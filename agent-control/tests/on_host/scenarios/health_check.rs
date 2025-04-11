@@ -1,18 +1,20 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::{create_agent_control_config, create_file};
+use crate::on_host::tools::config::{
+    create_agent_control_config, create_file, create_sub_agent_values,
+};
 use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use std::time::Duration;
 use tempfile::tempdir;
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from the file and send it to the opamp server.
-#[cfg(unix)]
 #[test]
 fn test_file_health_without_supervisor() {
     let opamp_server = FakeServer::start_new();
@@ -53,13 +55,15 @@ deployment:
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
@@ -117,7 +121,6 @@ status_time_unix_nano: 1725444002
 
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from http endpoint and send it to the opamp server.
-#[cfg(unix)]
 #[test]
 fn test_http_health_without_supervisor() {
     let opamp_server = FakeServer::start_new();
@@ -164,6 +167,7 @@ deployment:
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -172,7 +176,8 @@ deployment:
     };
     let base_paths = base_paths.clone();
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
         get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);

@@ -1,3 +1,4 @@
+# This image is leveraged in the Helm chart in order to create via script the L1 and the secret containing it.
 ARG base_image=alpine:3.21
 
 FROM $base_image

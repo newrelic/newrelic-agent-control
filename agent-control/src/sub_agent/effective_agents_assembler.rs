@@ -1,22 +1,18 @@
-use crate::agent_control::defaults::default_capabilities;
+use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment::Environment;
 use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
-#[cfg(feature = "k8s")]
 use crate::agent_type::runtime_config::K8s;
-#[cfg(feature = "onhost")]
 use crate::agent_type::runtime_config::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::identity::AgentIdentity;
-use crate::values::yaml_config_repository::{
-    load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
-};
+use crate::values::yaml_config::YAMLConfig;
+
 use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
@@ -34,8 +30,6 @@ pub enum EffectiveAgentsAssemblerError {
     AgentTypeError(#[from] AgentTypeError),
     #[error("error assembling agents: `{0}`")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
-    #[error("values error: `{0}`")]
-    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
 }
 
 #[derive(Error, Debug)]
@@ -63,7 +57,7 @@ impl EffectiveAgent {
             runtime_config,
         }
     }
-    #[cfg(feature = "onhost")]
+
     pub(crate) fn get_onhost_config(&self) -> Result<&OnHost, EffectiveAgentsAssemblerError> {
         self.runtime_config.deployment.on_host.as_ref().ok_or(
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
@@ -71,7 +65,7 @@ impl EffectiveAgent {
             ),
         )
     }
-    #[cfg(feature = "k8s")]
+
     pub(crate) fn get_k8s_config(&self) -> Result<&K8s, EffectiveAgentsAssemblerError> {
         self.runtime_config.deployment.k8s.as_ref().ok_or(
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(
@@ -86,52 +80,50 @@ impl EffectiveAgent {
 }
 
 pub trait EffectiveAgentsAssembler {
+    /// Assemble an [EffectiveAgent] from an [AgentIdentity]. The implementer is responsible for
+    /// getting the AgentType and all needed values to render the Runtime config.
     fn assemble_agent(
         &self,
         agent_identity: &AgentIdentity,
+        yaml_config: YAMLConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
 }
 
-pub struct LocalEffectiveAgentsAssembler<R, D, Y>
+/// Implements [EffectiveAgentsAssembler] and is responsible for:
+/// - Getting [AgentType] from [AgentRegistry]
+/// - Getting Local or Remote configs from [YAMLConfigRepository]
+/// - Rendering the [Runtime] configuration of an Agent
+///
+/// Important: Assembling an Agent may mutate the state of external resources by creating
+/// or removing configs when the Runtime is [Renderer].
+pub struct LocalEffectiveAgentsAssembler<R, Y>
 where
     R: AgentRegistry,
-    D: YAMLConfigRepository,
     Y: Renderer,
 {
     registry: Arc<R>,
-    yaml_config_repository: Arc<D>,
     renderer: Y,
 }
 
-impl<Y>
-    LocalEffectiveAgentsAssembler<EmbeddedRegistry, Y, TemplateRenderer<ConfigurationPersisterFile>>
-where
-    Y: YAMLConfigRepository,
-{
+impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
     pub fn new(
-        yaml_config_repository: Arc<Y>,
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
     ) -> Self {
-        LocalEffectiveAgentsAssembler {
-            registry,
-            yaml_config_repository,
-            renderer,
-        }
+        LocalEffectiveAgentsAssembler { registry, renderer }
     }
 }
 
-impl<R, D, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, D, N>
+impl<R, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, N>
 where
     R: AgentRegistry,
-    D: YAMLConfigRepository,
     N: Renderer,
 {
-    /// Load an agent type from the registry and populate it with values
     fn assemble_agent(
         &self,
         agent_identity: &AgentIdentity,
+        values: YAMLConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Load the agent type definition
@@ -140,13 +132,6 @@ where
             .get(&agent_identity.agent_type_id.to_string())?;
         // Build the corresponding agent type
         let agent_type = build_agent_type(agent_type_definition, environment)?;
-
-        // Load the values
-        let values = load_remote_fallback_local(
-            self.yaml_config_repository.as_ref(),
-            &agent_identity.id,
-            &default_capabilities(),
-        )?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -200,7 +185,7 @@ pub fn build_agent_type(
         .variables
         .common
         .merge(specific_vars)
-        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, environment.clone()))?;
+        .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
     Ok(AgentType::new(
         definition.agent_type_id,
@@ -217,15 +202,12 @@ pub fn build_agent_type(
 pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
-
-    use crate::agent_control::defaults::default_capabilities;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::render::renderer::tests::MockRendererMock;
     use crate::agent_type::runtime_config;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
 
@@ -236,8 +218,10 @@ pub(crate) mod tests {
             fn assemble_agent(
                 &self,
                 agent_identity:&AgentIdentity,
+                yaml_config: YAMLConfig,
                 environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
+
         }
     }
 
@@ -245,6 +229,7 @@ pub(crate) mod tests {
         pub fn should_assemble_agent(
             &mut self,
             agent_identity: &AgentIdentity,
+            yaml_config: &YAMLConfig,
             environment: &Environment,
             effective_agent: EffectiveAgent,
             times: usize,
@@ -253,22 +238,21 @@ pub(crate) mod tests {
                 .times(times)
                 .with(
                     predicate::eq(agent_identity.clone()),
-                    predicate::eq(environment.clone()),
+                    predicate::eq(yaml_config.clone()),
+                    predicate::eq(*environment),
                 )
-                .returning(move |_, _| Ok(effective_agent.clone()));
+                .returning(move |_, _, _| Ok(effective_agent.clone()));
         }
     }
 
-    impl<R, D, N> LocalEffectiveAgentsAssembler<R, D, N>
+    impl<R, N> LocalEffectiveAgentsAssembler<R, N>
     where
         R: AgentRegistry,
-        D: YAMLConfigRepository,
         N: Renderer,
     {
-        pub fn new_for_testing(registry: R, remote_values_repo: D, renderer: N) -> Self {
+        pub fn new_for_testing(registry: R, renderer: N) -> Self {
             Self {
                 registry: Arc::new(registry),
-                yaml_config_repository: Arc::new(remote_values_repo),
                 renderer,
             }
         }
@@ -300,7 +284,6 @@ pub(crate) mod tests {
     fn test_assemble_agents() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let mut renderer = MockRendererMock::new();
 
         // Objects
@@ -320,11 +303,6 @@ pub(crate) mod tests {
         //Expectations
         registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
 
-        sub_agent_values_repo.should_load_remote(
-            &agent_identity.id,
-            default_capabilities(),
-            &values,
-        );
         renderer.should_render(
             &agent_identity.id,
             &agent_type,
@@ -333,14 +311,10 @@ pub(crate) mod tests {
             rendered_runtime_config.clone(),
         );
 
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
-            sub_agent_values_repo,
-            renderer,
-        );
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry, renderer);
 
         let effective_agent = assembler
-            .assemble_agent(&agent_identity, &environment)
+            .assemble_agent(&agent_identity, values, &environment)
             .unwrap();
 
         assert_eq!(rendered_runtime_config, effective_agent.runtime_config);
@@ -351,7 +325,6 @@ pub(crate) mod tests {
     fn test_assemble_agents_error_on_registry() {
         //Mocks
         let mut registry = MockAgentRegistryMock::new();
-        let sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
         let renderer = MockRendererMock::new();
 
         // Objects
@@ -362,52 +335,16 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_not_get("namespace/name:0.0.1".to_string());
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry, renderer);
 
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
-            sub_agent_values_repo,
-            renderer,
-        );
-
-        let result = assembler.assemble_agent(&agent_identity, &Environment::OnHost);
+        let result =
+            assembler.assemble_agent(&agent_identity, YAMLConfig::default(), &Environment::OnHost);
 
         assert!(result.is_err());
         assert_eq!(
             "error assembling agents: `agent type `namespace/name:0.0.1` not found`",
             result.unwrap_err().to_string()
         );
-    }
-
-    #[test]
-    fn test_assemble_agents_error_loading_values() {
-        //Mocks
-        let mut registry = MockAgentRegistryMock::new();
-        let mut sub_agent_values_repo = MockYAMLConfigRepositoryMock::new();
-        let renderer = MockRendererMock::new();
-
-        // Objects
-        let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
-        ));
-        let environment = Environment::OnHost;
-        let agent_type_definition = AgentTypeDefinition::empty_with_metadata(
-            AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
-        );
-
-        //Expectations
-        registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
-        sub_agent_values_repo.should_not_load_remote(&agent_identity.id, default_capabilities());
-
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(
-            registry,
-            sub_agent_values_repo,
-            renderer,
-        );
-
-        let result = assembler.assemble_agent(&agent_identity, &environment);
-
-        assert!(result.is_err());
     }
 
     #[test]

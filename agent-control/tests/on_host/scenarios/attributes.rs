@@ -1,3 +1,4 @@
+#![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
@@ -5,7 +6,7 @@ use crate::common::attributes::{
 };
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::create_agent_control_config;
+use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -13,7 +14,7 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
     OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
-use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
@@ -26,7 +27,6 @@ const DEFAULT_NAME: &str = "name";
 
 /// Given an agent type that we don't know we are going to check if the default
 /// identifying and non identifying attributes are what we expect.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_non_existing_agent_type() {
     let opamp_server = FakeServer::start_new();
@@ -54,7 +54,8 @@ fn test_attributes_from_non_existing_agent_type() {
         remote_dir: remote_dir.path().to_path_buf(),
         log_dir: local_dir.path().to_path_buf(),
     };
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
@@ -106,7 +107,6 @@ fn test_attributes_from_non_existing_agent_type() {
 /// Given an agent type that we know we are going to check if the default
 /// identifying and non identifying attributes are what we expect plus
 /// the "agent.version" related with the agent type.
-#[cfg(unix)]
 #[test]
 fn test_attributes_from_an_existing_agent_type() {
     let opamp_server = FakeServer::start_new();
@@ -127,6 +127,7 @@ fn test_attributes_from_an_existing_agent_type() {
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
+    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -134,7 +135,8 @@ fn test_attributes_from_an_existing_agent_type() {
         log_dir: local_dir.path().to_path_buf(),
     };
 
-    let _agent_control = start_agent_control_with_custom_config(base_paths.clone());
+    let _agent_control =
+        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
     let agent_control_instance_id_ac =
         get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
     let agent_control_instance_id =

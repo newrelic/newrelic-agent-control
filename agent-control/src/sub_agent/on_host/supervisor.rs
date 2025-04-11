@@ -87,7 +87,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
             match thread_context.stop_blocking() {
                 Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
-                    error!(%error_msg);
+                    error!("Error stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }

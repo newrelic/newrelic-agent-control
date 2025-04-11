@@ -8,9 +8,7 @@ use newrelic_agent_control::agent_control::defaults::{
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
-use newrelic_agent_control::values::yaml_config_repository::{
-    YAMLConfigRepository, YAMLConfigRepositoryError,
-};
+use newrelic_agent_control::values::yaml_config_repository::YAMLConfigRepository;
 
 /// Creates the agent-control config given an opamp_server_endpoint
 /// and a list of agents on the specified local_dir.
@@ -78,18 +76,13 @@ pub fn create_sub_agent_values(agent_id: String, config: String, base_dir: PathB
     create_file(config, values_file_path.clone());
 }
 
-pub fn get_remote_config_content(
-    agent_id: &AgentID,
-    base_paths: BasePaths,
-) -> Result<String, YAMLConfigRepositoryError> {
+pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> Option<String> {
     let yaml_config_repo =
         YAMLConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone())
             .with_remote();
-    let remote_config = yaml_config_repo.load_remote(agent_id, &default_capabilities())?;
-    match remote_config {
-        None => Err(YAMLConfigRepositoryError::LoadError(
-            "file not found...".to_string(),
-        )),
-        Some(remote_config) => Ok(serde_yaml::to_string(&remote_config).unwrap()),
-    }
+
+    yaml_config_repo
+        .load_remote(agent_id, &default_capabilities())
+        .unwrap()
+        .map(|rc| serde_yaml::to_string(&rc).unwrap())
 }

@@ -7,6 +7,8 @@ use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::instance_id;
+
+use crate::opamp::instance_id::on_host::getter::IdentifiersProviderError;
 use crate::opamp::remote_config::RemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
@@ -54,7 +56,7 @@ pub enum AgentError {
     Persistence(#[from] PersistError),
 
     #[error("error getting agent instance id: `{0}`")]
-    GetInstanceID(#[from] instance_id::GetterError),
+    GetInstanceID(#[from] instance_id::getter::GetterError),
 
     #[error("`Sub Agent error: {0}`")]
     SubAgent(#[from] SubAgentError),
@@ -80,14 +82,12 @@ pub enum AgentError {
     #[error("sub agent remote config error: `{0}`")]
     SubAgentRemoteConfig(#[from] YAMLConfigRepositoryError),
 
-    #[cfg(feature = "k8s")]
     #[error("External module error: `{0}`")]
     ExternalError(String),
 
     #[error("error from http client: `{0}`")]
     Http(String),
 
-    #[cfg(feature = "onhost")]
     #[error("required identifiers error: `{0}`")]
     Identifiers(String),
 
@@ -97,9 +97,8 @@ pub enum AgentError {
     #[error("parsing remote config into YAMLConfig: `{0}`")]
     YAMLConfig(#[from] YAMLConfigError),
 
-    #[cfg(feature = "onhost")]
     #[error("failed to initialize the identifiers provider: `{0}`")]
-    InitializeIdentifiersProvider(#[from] instance_id::IdentifiersProviderError),
+    InitializeIdentifiersProvider(#[from] IdentifiersProviderError),
 
     #[error("agent control remote config validation error: `{0}`")]
     RemoteConfigValidator(#[from] DynamicConfigValidatorError),

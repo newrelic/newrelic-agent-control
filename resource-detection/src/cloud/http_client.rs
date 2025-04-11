@@ -29,6 +29,8 @@ pub trait HttpClient {
     /// Returns a `http::Response<Vec<u8>>` structure as the HTTP response or
     /// HttpClientError if an error was found.
     fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError>;
+
+    /// Performs a get request with the provided url and headers.
     fn get(&self, url: String, headers: HeaderMap) -> Result<Response<Vec<u8>>, HttpClientError> {
         let mut request = Request::builder()
             .method("GET")
@@ -39,6 +41,7 @@ pub trait HttpClient {
         self.send(request)
     }
 }
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

@@ -1,11 +1,11 @@
+use super::RemoteConfigValidator;
 use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::remote_config::RemoteConfig;
+use crate::sub_agent::identity::AgentIdentity;
 use regex::Regex;
 use std::collections::HashMap;
 use thiserror::Error;
-
-use super::RemoteConfigValidator;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
@@ -27,23 +27,21 @@ pub(super) struct AgentTypeFQNName(String);
 pub struct RegexValidator {
     rules: HashMap<AgentTypeFQNName, Vec<Regex>>,
 
-    // regex to match any endpoint field in the nrdot config
-    otel_endpoint: Regex,
-    // regex to match a valid newrelic otel endpoint
-    valid_otel_endpoint: Regex,
+    // regex to match any repository field in the nrdot config
+    otel_repository: Regex,
 }
 
 impl RemoteConfigValidator for RegexValidator {
     type Err = RegexValidatorError;
     fn validate(
         &self,
-        agent_type_id: &AgentTypeID,
+        agent_identity: &AgentIdentity,
         remote_config: &RemoteConfig,
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
         if let Ok(raw_config) = remote_config.get_unique() {
-            self.validate_regex_rules(agent_type_id, raw_config)?;
-            self.validate_nrdot_endpoint(agent_type_id, raw_config)?;
+            self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)?;
+            self.validate_nrdot_repository(&agent_identity.agent_type_id, raw_config)?;
         }
 
         Ok(())
@@ -53,23 +51,16 @@ impl RemoteConfigValidator for RegexValidator {
 impl RegexValidator {
     fn try_new() -> Result<Self, RegexValidatorError> {
         Ok(Self {
-            rules: HashMap::from([
-                (
-                    AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
-                    vec![
-                        Regex::new(REGEX_COMMAND_FIELD)?,
-                        Regex::new(REGEX_EXEC_FIELD)?,
-                        Regex::new(REGEX_BINARY_PATH_FIELD)?,
-                        Regex::new(REGEX_NRI_FLEX)?,
-                    ],
-                ),
-                (
-                    AgentTypeFQNName(AGENT_TYPE_NAME_NRDOT.to_string()),
-                    vec![Regex::new(REGEX_IMAGE_REPOSITORY)?],
-                ),
-            ]),
-            otel_endpoint: Regex::new(REGEX_OTEL_ENDPOINT)?,
-            valid_otel_endpoint: Regex::new(REGEX_VALID_OTEL_ENDPOINT)?,
+            rules: HashMap::from([(
+                AgentTypeFQNName(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
+                vec![
+                    Regex::new(REGEX_COMMAND_FIELD)?,
+                    Regex::new(REGEX_EXEC_FIELD)?,
+                    Regex::new(REGEX_BINARY_PATH_FIELD)?,
+                    Regex::new(REGEX_NRI_FLEX)?,
+                ],
+            )]),
+            otel_repository: Regex::new(REGEX_OTEL_REPOSITORY)?,
         })
     }
 
@@ -92,8 +83,8 @@ impl RegexValidator {
         Ok(())
     }
 
-    /// Validates all 'endpoint' in the nrdot config contains a valid newrelic otel endpoint.
-    fn validate_nrdot_endpoint(
+    /// Validates the 'repository' in the nrdot config.
+    fn validate_nrdot_repository(
         &self,
         agent_type: &AgentTypeID,
         raw_config: &str,
@@ -104,10 +95,9 @@ impl RegexValidator {
         }
 
         // gathers all the endpoints in the config
-        for capture in self.otel_endpoint.captures_iter(raw_config) {
-            if let Some(endpoint) = capture.get(1) {
-                // verifies that the endpoint is valid
-                if !self.valid_otel_endpoint.is_match(endpoint.as_str()) {
+        for capture in self.otel_repository.captures_iter(raw_config) {
+            if let Some(repository) = capture.get(1) {
+                if VALID_OTEL_REPOSITORY != repository.as_str() {
                     return Err(RegexValidatorError::InvalidConfig);
                 }
             }
@@ -124,9 +114,16 @@ impl Default for RegexValidator {
     }
 }
 
-// otel endpoint regex.
-pub static REGEX_OTEL_ENDPOINT: &str = r"\s*endpoint\s*:\s*(.+)";
-pub static REGEX_VALID_OTEL_ENDPOINT: &str = r#"^"?(https://)?(staging-otlp\.nr-data\.net|otlp\.nr-data\.net|otlp\.eu01\.nr-data\.net|\$\{OTEL_EXPORTER_OTLP_ENDPOINT\})(:\d+)?/?"?$"#;
+// deny using custom images for nr-dot
+// https://github.com/newrelic/helm-charts/blob/nr-k8s-otel-collector-0.7.4/charts/nr-k8s-otel-collector/values.yaml#L16
+// Example:
+// chart_values:
+//   image:
+//     repository: newrelic/nr-otel-collector
+//     pullPolicy: IfNotPresent
+//     tag: "0.7.1"
+pub static REGEX_OTEL_REPOSITORY: &str = r"\s*repository\s*:\s*(.+)";
+pub static VALID_OTEL_REPOSITORY: &str = "newrelic/nr-otel-collector";
 
 // Infra Agent Integrations (OHI)
 // deny any config for integrations that contains discovery command
@@ -179,16 +176,6 @@ pub static REGEX_BINARY_PATH_FIELD: &str = "(?i:BINARY_PATH)";
 // deny using nri-flex
 pub static REGEX_NRI_FLEX: &str = "nri-flex";
 
-// deny using custom images for nr-dot
-// https://github.com/newrelic/helm-charts/blob/nr-k8s-otel-collector-0.7.4/charts/nr-k8s-otel-collector/values.yaml#L16
-// Example:
-// chart_values:
-//   image:
-//     repository: newrelic/nr-otel-collector
-//     pullPolicy: IfNotPresent
-//     tag: "0.7.1"
-pub static REGEX_IMAGE_REPOSITORY: &str = "repository\\s*:";
-
 #[cfg(test)]
 pub(super) mod tests {
     use crate::agent_control::agent_id::AgentID;
@@ -198,6 +185,7 @@ pub(super) mod tests {
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 
@@ -238,7 +226,7 @@ pub(super) mod tests {
                 interval: 15s
         "#;
         let remote_config = RemoteConfig::new(
-            AgentID::new("invented").unwrap(),
+            test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
@@ -246,11 +234,15 @@ pub(super) mod tests {
             )]))),
         );
         let validator = RegexValidator::default();
-        let agent_type_fqn = AgentTypeID::try_from(
-            format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
-        )
-        .unwrap();
-        let validation_result = validator.validate(&agent_type_fqn, &remote_config);
+        let agent_identity = AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+            )
+            .unwrap(),
+        };
+
+        let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
             "Invalid config: restricted values detected"
@@ -258,7 +250,7 @@ pub(super) mod tests {
     }
 
     #[test]
-    fn nrdot_endpoint() {
+    fn nrdot_repository() {
         struct TestCase {
             name: &'static str,
             config: &'static str,
@@ -267,7 +259,7 @@ pub(super) mod tests {
         impl TestCase {
             fn run(self) {
                 let remote_config = RemoteConfig::new(
-                    AgentID::new("fake").unwrap(),
+                    test_id(),
                     Hash::new("fake".to_string()),
                     Some(ConfigurationMap::new(HashMap::from([(
                         "".to_string(),
@@ -275,12 +267,17 @@ pub(super) mod tests {
                     )]))),
                 );
 
-                let agent_type_fqn =
-                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:9.9.9").unwrap();
+                let agent_identity = AgentIdentity {
+                    id: test_id(),
+                    agent_type_id: AgentTypeID::try_from(
+                        "newrelic/io.opentelemetry.collector:9.9.9",
+                    )
+                    .unwrap(),
+                };
 
                 let validator = RegexValidator::default();
 
-                let res = validator.validate(&agent_type_fqn, &remote_config);
+                let res = validator.validate(&agent_identity, &remote_config);
                 assert_eq!(res.is_ok(), self.valid, "test case: {}", self.name);
             }
         }
@@ -293,96 +290,77 @@ pub(super) mod tests {
                 valid: true,
             },
             TestCase {
-                name: "valid single endpoint",
+                name: "valid repository and ignore comment",
                 config: r#"
-config: |
-  exporters:
-    otlp/nr:
-      endpoint: "https://otlp.nr-data.net:4317"
-"#,
+            config: |
+              image:
+                repository: newrelic/nr-otel-collector
+                pullPolicy: IfNotPresent
+                # repository: fake/fake
+                tag: "0.8.3" # repository: fake/fake
+            "#,
+                valid: false,
+                // Currently, we are not checking if the string is present in comments or not
+            },
+            TestCase {
+                name: "no repository is valid",
+                config: r#"
+            config: |
+              image:
+                pullPolicy: IfNotPresent
+                tag: "0.8.3"
+            "#,
                 valid: true,
             },
             TestCase {
-                name: "valid single endpoint with trailing /",
+                name: "empty is valid",
                 config: r#"
-config: |
-  exporters:
-    otlp/nr:
-      endpoint: "https://otlp.nr-data.net:4317/"
-"#,
+            "#,
                 valid: true,
             },
             TestCase {
-                name: "valid single endpoint without quotes",
+                name: "missing namespace",
                 config: r#"
 config: |
-  exporters:
-    otlp/nr:
-      endpoint: https://otlp.nr-data.net:4317
-"#,
-                valid: true,
-            },
-            TestCase {
-                name: "all valid combination endpoints",
-                config: r#"
-  endpoint : otlp.nr-data.net:4317
-  endpoint : staging-otlp.nr-data.net:1234
-  endpoint : otlp.eu01.nr-data.net:443
-  endpoint : https://otlp.nr-data.net:4317
-  endpoint : https://staging-otlp.nr-data.net:1234
-  endpoint : https://otlp.eu01.nr-data.net:443
-  endpoint : ${OTEL_EXPORTER_OTLP_ENDPOINT}
-  endpoint : "otlp.nr-data.net:4317"
-  endpoint : "staging-otlp.nr-data.net:1234"
-  endpoint : "otlp.eu01.nr-data.net:443"
-  endpoint : "https://otlp.nr-data.net:4317"
-  endpoint : "https://staging-otlp.nr-data.net:1234"
-  endpoint : "https://otlp.eu01.nr-data.net:443"
-  endpoint : "${OTEL_EXPORTER_OTLP_ENDPOINT}"
-"#,
-                valid: true,
-            },
-            // invalid cases
-            TestCase {
-                name: "invalid single endpoint",
-                config: r#"
-config: |
-exporters:
-  otlp/nr:
-    endpoint: "https://my-server:4317"
+  image:
+    repository: nr-otel-collector
+    pullPolicy: IfNotPresent
+    tag: "0.8.3"
 "#,
                 valid: false,
             },
             TestCase {
-                name: "invalid suffix",
-                config: r#"
-endpoint: https://otlp.nr-data.net-fake:4317
-"#,
-                valid: false,
-            },
-            TestCase {
-                name: "invalid prefix",
-                config: r#"
-endpoint: https://fake-otlp.nr-data.net:4317
-"#,
-                valid: false,
-            },
-            TestCase {
-                name: "invalid with spaces",
-                config: r#"
-endpoint :   my-fake-server:4317
-"#,
-                valid: false,
-            },
-            TestCase {
-                name: "multiple endpoints with one invalid",
+                name: "wrong namespace",
                 config: r#"
 config: |
-exporters:
-  otlp/nr:
-    endpoint: "https://otlp.nr-data.net:4317"
-  otlp/test:
-    endpoint: "https://my-server:4317"
+  image:
+    repository: fake/nr-otel-collector
+    pullPolicy: IfNotPresent
+    tag: "0.8.3"
+"#,
+                valid: false,
+            },
+            TestCase {
+                name: "wrong repo name",
+                config: r#"
+config: |
+  image:
+    repository: newrelic/nr-otel-collector2
+    pullPolicy: IfNotPresent
+    tag: "0.8.3"
+"#,
+                valid: false,
+            },
+            TestCase {
+                name: "second repo is wrong",
+                config: r#"
+config: |
+  image:
+    repository: newrelic/nr-otel-collector
+    pullPolicy: IfNotPresent
+    tag: "0.8.3"
+    different:
+      repository: newrelic/fakr
 "#,
                 valid: false,
             },
@@ -609,7 +587,7 @@ config: |
     fn test_invalid_configs_are_blocked() {
         struct TestCase {
             _name: &'static str,
-            agent_type: AgentTypeID,
+            agent_identity: AgentIdentity,
             config: &'static str,
         }
         impl TestCase {
@@ -617,7 +595,7 @@ config: |
                 let config_validator = RegexValidator::default();
                 let remote_config = remote_config(self.config);
                 let err = config_validator
-                    .validate(&self.agent_type, &remote_config)
+                    .validate(&self.agent_identity, &remote_config)
                     .unwrap_err();
 
                 assert_matches!(err, RegexValidatorError::InvalidConfig);
@@ -626,32 +604,32 @@ config: |
         let test_cases = vec![
             TestCase {
                 _name: "infra-agent config with nri-flex should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_NRI_FLEX,
             },
             TestCase {
                 _name: "infra-agent config with command should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_COMMAND,
             },
             TestCase {
                 _name: "infra-agent config with exec should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_EXEC,
             },
             TestCase {
                 _name: "infra-agent config with binary_path uppercase should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_UPPERCASE,
             },
             TestCase {
                 _name: "infra-agent config with binary_path lowercase should be invalid",
-                agent_type: infra_agent(),
+                agent_identity: infra_agent(),
                 config: CONFIG_WITH_BINARY_PATH_LOWERCASE,
             },
             TestCase {
                 _name: "nrdot config with image repository  should be invalid",
-                agent_type: nrdot(),
+                agent_identity: nrdot(),
                 config: CONFIG_WITH_IMAGE_REPOSITORY,
             },
         ];
@@ -664,19 +642,33 @@ config: |
     ///////////////////////////////////////////////////////
     // Helpers
     ///////////////////////////////////////////////////////
-
-    fn infra_agent() -> AgentTypeID {
-        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str())
-            .unwrap()
+    fn test_id() -> AgentID {
+        AgentID::new("test").unwrap()
     }
 
-    fn nrdot() -> AgentTypeID {
-        AgentTypeID::try_from(format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str()).unwrap()
+    fn infra_agent() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+            )
+            .unwrap(),
+        }
+    }
+
+    fn nrdot() -> AgentIdentity {
+        AgentIdentity {
+            id: test_id(),
+            agent_type_id: AgentTypeID::try_from(
+                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str(),
+            )
+            .unwrap(),
+        }
     }
 
     fn remote_config(config: &str) -> RemoteConfig {
         RemoteConfig::new(
-            AgentID::new("invented").unwrap(),
+            test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),

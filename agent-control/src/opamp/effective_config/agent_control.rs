@@ -88,14 +88,19 @@ where
 
         // For the effective config load, we can follow the load remote or fallback to local, since only the dynamic part is needed.
 
-        let config = load_remote_fallback_local(
+        let maybe_config = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
             &self.agent_id,
             &self.agent_control_capabilities,
         )
         .map_err(|err| {
-            LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
+            LoaderError::from(format!(
+                "could not load {} config values: {}",
+                &self.agent_id, err
+            ))
         })?;
+        // No configuration is considered as empty remote configuration
+        let config = maybe_config.unwrap_or_default();
 
         // Deserialize only effective config making sure that not default values are reported.
         let dynamic_config: AgentControlEffectiveConfig = config.try_into().map_err(|err| {

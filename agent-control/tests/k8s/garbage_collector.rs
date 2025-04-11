@@ -10,7 +10,6 @@ use super::tools::{
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::{mock, Sequence};
-use newrelic_agent_control::agent_type::runtime_config;
 use newrelic_agent_control::k8s::annotations::Annotations;
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
@@ -23,10 +22,7 @@ use newrelic_agent_control::{
     k8s::{
         client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,
     },
-    opamp::instance_id::{
-        getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
-        Identifiers,
-    },
+    opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
 };
 use newrelic_agent_control::{
     agent_control::{
@@ -34,6 +30,9 @@ use newrelic_agent_control::{
         config_storer::loader_storer::{AgentControlConfigLoader, AgentControlDynamicConfigLoader},
     },
     k8s::labels::Labels,
+};
+use newrelic_agent_control::{
+    agent_type::runtime_config, opamp::instance_id::k8s::getter::Identifiers,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
 

@@ -22,12 +22,12 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::values::yaml_config::YAMLConfig;
-use crossbeam::channel::never;
+use crossbeam::channel::{never, tick};
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
-use std::time::SystemTime;
-use tracing::{debug, error, info, instrument, warn};
+use std::time::{Duration, Instant, SystemTime};
+use tracing::{debug, error, info, instrument, trace, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
 where
@@ -209,6 +209,12 @@ where
             .agent_control_opamp_consumer
             .as_ref()
             .unwrap_or(&never_receive);
+
+        // Report uptime every 60 seconds
+        let start_time = Instant::now();
+        let uptime_report_ticker = tick(Duration::from_secs(60));
+        // Count the received remote configs during execution
+        let mut remote_config_count = 0;
         loop {
             select! {
                 recv(&opamp_receiver.as_ref()) -> opamp_event_res => {
@@ -219,18 +225,22 @@ where
                         Ok(opamp_event) => {
                             match opamp_event {
                                 OpAMPEvent::RemoteConfigReceived(remote_config) => {
+                                    // Report the reception of a remote config
+                                    debug!("Received remote config.");
+                                    remote_config_count += 1;
+                                    trace!(monotonic_counter.remote_configs_received = remote_config_count);
                                     let _ = self.remote_config(remote_config, &mut sub_agents)
-                                    .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
+                                        .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
                                 }
                                 OpAMPEvent::Connected => {
                                     let _ = self.agent_control_publisher
-                                    .publish(AgentControlEvent::OpAMPConnected)
-                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connected"));
+                                        .publish(AgentControlEvent::OpAMPConnected)
+                                        .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connected"));
                                 }
                                 OpAMPEvent::ConnectFailed(error_code, error_message) => {
                                     let _ = self.agent_control_publisher
-                                    .publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
-                                    .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connect_failed"));
+                                        .publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
+                                        .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connect_failed"));
                                 }
                             }
                         }
@@ -245,6 +255,7 @@ where
 
                     break sub_agents.stop();
                 },
+                recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
             }
         }
     }

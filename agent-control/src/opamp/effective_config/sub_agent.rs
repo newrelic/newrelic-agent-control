@@ -34,18 +34,23 @@ where
     Y: YAMLConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
-        let values = load_remote_fallback_local(
+        let maybe_values = load_remote_fallback_local(
             self.yaml_config_repository.as_ref(),
             &self.agent_id,
             &default_capabilities(),
         )
         .map_err(|err| {
-            LoaderError::from(format!("loading {} config values: {}", &self.agent_id, err))
+            LoaderError::from(format!(
+                "could not load {} config values: {}",
+                &self.agent_id, err
+            ))
         })?;
+        // No configuration is considered as empty effective-configuration
+        let values = maybe_values.unwrap_or_default();
 
         let values_string: String = values.try_into().map_err(|err| {
             LoaderError::from(format!(
-                "converting {} config values to effective config: {}",
+                "could not load {} config values: {}",
                 &self.agent_id, err
             ))
         })?;

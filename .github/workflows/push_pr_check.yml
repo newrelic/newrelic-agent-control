@@ -52,15 +52,12 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
-    name:  ${{ matrix.flag }} / clippy
+    name: cargo clippy
     permissions:
       contents: read
       checks: write
     strategy:
       fail-fast: false
-      matrix:
-        # newrelic_agent_control needs either onhost or k8s feature, the rest of packages can be checked also without features
-        flag: [ "--features=onhost", "--features=k8s", "--exclude='newrelic_agent_control'" ]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,8 +84,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
           
-      - name: cargo clippy (${{ matrix.flag }})
-        run: cargo clippy --workspace ${{ matrix.flag }} --tests -- -D clippy::all
+      - name: cargo clippy
+        run: cargo clippy --workspace --tests -- -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
@@ -118,12 +115,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
           
-      - name: Create on-host documentation
-        run: cargo doc --no-deps --features=onhost --package newrelic_agent_control
-        env:
-          RUSTDOCFLAGS: --cfg docsrs
-      - name: Create K8s documentation
-        run: cargo doc --no-deps --features=k8s --package newrelic_agent_control
+      - name: Create documentation
+        run: cargo doc --no-deps --package newrelic_agent_control
         env:
           RUSTDOCFLAGS: --cfg docsrs
 
@@ -161,3 +154,15 @@ jobs:
       - uses: newrelic/rust-licenses-noticer@v1
         with:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+  unused-dependencies-check:
+    name: Check unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186
+        with:
+          tool: cargo-shear@1.1.11
+
+      - run: cargo shear
