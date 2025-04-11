@@ -1,6 +1,7 @@
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
 use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::operations::stop_opamp_client;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
@@ -120,6 +121,9 @@ where
             let mut is_healthy = false;
 
             debug!("runtime started");
+            let _ = self.sub_agent_publisher
+                .publish(SubAgentStarted(self.identity.clone(),SystemTime::now()))
+                .inspect_err(|err| error!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
 
             Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 
@@ -451,7 +455,48 @@ pub mod tests {
     #[traced_test]
     #[test]
     fn test_run_and_stop() {
-        let sub_agent = SubAgentForTesting::default();
+        let agent_identity = AgentIdentity::from((
+            AgentID::new("some-agent-id").unwrap(),
+            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+        ));
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
+
+        let mut hash_repository = MockHashRepositoryMock::default();
+        hash_repository
+            .expect_get()
+            .with(predicate::eq(agent_identity.id.clone()))
+            .return_const(Ok(None));
+
+        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+
+        let mut started_supervisor = MockSupervisorStopper::new();
+        started_supervisor.should_stop();
+
+        let mut stopped_supervisor = MockSupervisorStarter::new();
+        stopped_supervisor.should_start(started_supervisor);
+
+        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+            stopped_supervisor,
+            agent_identity.clone(),
+        );
+
+        let sub_agent: SubAgent<
+            MockStartedOpAMPClientMock,
+            MockSupervisorAssemblerMock<MockSupervisorStarter>,
+            MockRemoteConfigHandlerMock,
+        > = SubAgent::new(
+            agent_identity,
+            None,
+            Arc::new(supervisor_assembler),
+            sub_agent_publisher,
+            None,
+            (sub_agent_internal_publisher, sub_agent_internal_consumer),
+            Arc::new(remote_config_handler),
+        );
+
         let started_agent = sub_agent.run();
         sleep(Duration::from_millis(20));
         started_agent.stop().unwrap();

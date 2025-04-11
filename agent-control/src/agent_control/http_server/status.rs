@@ -44,7 +44,7 @@ impl AgentControlStatus {
     }
 }
 
-// OpAMPStatus will contain the information about OpAMP Connection health.
+// OpAMPStatus contains the information about OpAMP Connection health.
 // This information will be shown when the status endpoint is called
 // i.e.
 // {
@@ -84,32 +84,74 @@ impl OpAMPStatus {
     }
 }
 
-// SubAgentStatus will contain the information about all the Sub Agents health.
-// This information will be shown when the status endpoint is called
-// i.e.
+// SubAgentStatus contains the health information of a Sub Agent.
+// This information is displayed when the status endpoint is called.
+//
+// Example:
 // {
 //   "sub_agents": [
 //     {
 //       "agent_id": "infrastructure_agent_id_1",
 //       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
-//       "healthy": true,
-//       "last_error": "",
-//       "status": ""
+//       "health_info": {
+//         "healthy": true,
+//         "last_error": null,
+//         "status": "",
+//         "start_time_unix_nano": 0,
+//         "status_time_unix_nano": 0
+//       },
+//       "agent_start_time_unix_nano": 0
 //     },
 //     {
 //       "agent_id": "infrastructure_agent_id_1",
 //       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
-//       "healthy": false,
-//       "last_error": "The sub-agent exceeded the number of retries defined in its restart policy.",
-//       "status": "[xx/xx/xx xx:xx:xx.xxxx] debug: could not read config at /etc/newrelic-infra.yml"
+//       "health_info": {
+//         "healthy": false,
+//         "last_error": "The sub-agent exceeded the number of retries defined in its restart policy.",
+//         "status": "[xx/xx/xx xx:xx:xx.xxxx] debug: could not read config at /etc/newrelic-infra.yml",
+//         "start_time_unix_nano": 0,
+//         "status_time_unix_nano": 0
+//       },
+//       "agent_start_time_unix_nano": 0
 //     }
 //   ]
 // }
+//
+// Fields:
+// - `agent_id`: The unique identifier of the Sub Agent.
+// - `agent_type`: The type of the Sub Agent, represented as a fully qualified name (FQN).
+// - `agent_start_time_unix_nano`: A `u64` representing the start time of the Sub Agent in nanoseconds since the Unix epoch.
+// - `health_info`: A `HealthInfo` struct containing the health-related information of the Sub Agent.
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub(super) struct SubAgentStatus {
     agent_id: AgentID,
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     agent_type: AgentTypeID,
+    agent_start_time_unix_nano: u64,
+    health_info: HealthInfo,
+}
+
+// `HealthInfo` contains the health-related information of a Sub Agent.
+// This struct is used to represent the health status of a Sub Agent
+// and is displayed when the status endpoint is called.
+//
+// Example:
+// {
+//   "healthy": true,
+//   "last_error": null,
+//   "status": "Running",
+//   "start_time_unix_nano": 1672531200000000000,
+//   "status_time_unix_nano": 1672531205000000000
+// }
+//
+// Fields:
+// - `healthy`: A boolean indicating whether the Sub Agent is healthy.
+// - `last_error`: An optional string containing the last error message, if any.
+// - `status`: A string representing the current status of the Sub Agent.
+// - `start_time_unix_nano`: A `u64` representing the start time of the agent in nanoseconds since the Unix epoch.
+// - `status_time_unix_nano`: A `u64` representing the last status update time in nanoseconds since the Unix epoch.
+#[derive(Debug, Serialize, PartialEq, Clone)]
+pub(super) struct HealthInfo {
     healthy: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     last_error: Option<String>,
@@ -124,30 +166,32 @@ impl SubAgentStatus {
         Self {
             agent_id: agent_identity.id,
             agent_type: agent_identity.agent_type_id,
-            healthy: false,
-            last_error: None,
-            status: String::default(),
-            start_time_unix_nano: 0,
-            status_time_unix_nano: 0,
+            agent_start_time_unix_nano: 0,
+            health_info: HealthInfo {
+                healthy: false,
+                last_error: None,
+                status: String::default(),
+                start_time_unix_nano: 0,
+                status_time_unix_nano: 0,
+            },
+        }
+    }
+
+    pub fn with_start_time(self, start_time: SystemTime) -> Self {
+        Self {
+            agent_start_time_unix_nano: time_to_unix_timestamp(start_time),
+            ..self
         }
     }
 
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
     pub fn update_health(&mut self, health: HealthWithStartTime) {
-        self.healthy = health.is_healthy();
-        self.last_error = health.last_error();
-        self.status = health.status().to_string();
-        self.start_time_unix_nano = health
-            .start_time()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
-        self.status_time_unix_nano = health
-            .status_time()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_nanos() as u64;
+        self.health_info.healthy = health.is_healthy();
+        self.health_info.last_error = health.last_error();
+        self.health_info.status = health.status().to_string();
+        self.health_info.start_time_unix_nano = time_to_unix_timestamp(health.start_time());
+        self.health_info.status_time_unix_nano = time_to_unix_timestamp(health.status_time());
     }
 }
 
@@ -216,6 +260,12 @@ impl Status {
     }
 }
 
+fn time_to_unix_timestamp(time: SystemTime) -> u64 {
+    time.duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as u64
+}
+
 #[cfg(test)]
 pub mod tests {
     use url::Url;
@@ -223,7 +273,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
 
     use crate::agent_control::http_server::status::{
-        AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
+        AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::{LastErrorCode, LastErrorMessage};
@@ -255,25 +305,37 @@ pub mod tests {
         pub fn new(
             agent_id: AgentID,
             agent_type: AgentTypeID,
+            agent_start_time_unix_nano: u64,
+            health_info: HealthInfo,
+        ) -> Self {
+            SubAgentStatus {
+                agent_id,
+                agent_type,
+                agent_start_time_unix_nano,
+                health_info,
+            }
+        }
+
+        pub fn agent_id(&self) -> AgentID {
+            self.agent_id.clone()
+        }
+    }
+
+    impl HealthInfo {
+        pub fn new(
             status: String,
             healthy: bool,
             last_error: Option<String>,
             start_time_unix_nano: u64,
             status_time_unix_nano: u64,
         ) -> Self {
-            SubAgentStatus {
-                agent_id,
-                agent_type,
+            HealthInfo {
                 status,
                 healthy,
                 last_error,
                 start_time_unix_nano,
                 status_time_unix_nano,
             }
-        }
-
-        pub fn agent_id(&self) -> AgentID {
-            self.agent_id.clone()
         }
     }
 

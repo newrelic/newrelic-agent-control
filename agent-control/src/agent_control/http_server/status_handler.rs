@@ -67,7 +67,7 @@ mod tests {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"agent_control":{"healthy":true},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":true,"start_time_unix_nano":0,"status_time_unix_nano":0}}}"#;
+        let expected_body = r#"{"agent_control":{"healthy":true},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":true,"start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
 
         assert_eq!(
             expected_body,
@@ -112,7 +112,7 @@ mod tests {
         let request = TestRequest::default().to_http_request();
         let response = responder.respond_to(&request);
 
-        let expected_body = r#"{"agent_control":{"healthy":false,"last_error":"agent control error"},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","healthy":false,"last_error":"some error","start_time_unix_nano":0,"status_time_unix_nano":0}}}"#;
+        let expected_body = r#"{"agent_control":{"healthy":false,"last_error":"agent control error"},"fleet":{"enabled":true,"endpoint":"http://127.0.0.1/","reachable":true},"sub_agents":{"some-agent-id":{"agent_id":"some-agent-id","agent_type":"namespace/some-agent-type:0.0.1","agent_start_time_unix_nano":0,"health_info":{"healthy":false,"last_error":"some error","start_time_unix_nano":0,"status_time_unix_nano":0}}}}"#;
 
         assert_eq!(
             expected_body,
