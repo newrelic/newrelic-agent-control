@@ -4,11 +4,6 @@
   become: true
   gather_facts: yes
 
-  vars:
-    # ac-e2e-onhost-1 fleet on canaries account
-    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVmZmIzLTdlODItN2U2Zi05MThlLTcwMjc4YjEzMjU4Zg
-
-
   tasks:
   - name: Install Agent Control on a system where Infra Agent is already installed.
     block:
@@ -95,12 +90,6 @@
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
         vars:
           sending: false
-      
-      - name: Import the L2 private key from env-var
-        copy:
-          dest: "{{ agent_control_private_key }}"
-          # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
-          content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
 
       - name: Setup Agent Control config
         include_role:
@@ -111,14 +100,6 @@
             agents:
               nr-infra:
                 agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-            fleet_control:
-              fleet_id: "{{ fleet_id }}"
-              endpoint: "https://opamp.service.newrelic.com/v1/opamp"
-              auth_config:
-                token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
-                client_id: "{{ system_identity_client_id }}"
-                provider: local
-                private_key_path: "{{ agent_control_private_key }}"
       
       - name: Migrate Infra Agent config
         command: newrelic-config-migrate
@@ -136,21 +117,6 @@
         vars:
           services_running:
             - newrelic-agent-control.service
-
-      - name: Assert Infra Agent stopped
-        include_role:
-          name: caos.ansible_roles.assert_no_service
-        vars:
-          service_name: newrelic-infra.service
-
-      - name: Wait 2 minutes to give nri-mysql time to STOP sending metrics
-        pause:
-          minutes: 2
-      
-      - name:
-        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
-        vars:
-          sending: true
       
       - name: Check Infra Agent values file exists
         stat:
@@ -184,3 +150,12 @@
           processes_running:
             - "^/usr/bin/newrelic-agent-control"
             - "^/usr/bin/newrelic-infra"
+
+      - name: Wait 2 minutes to give nri-mysql time to send metrics
+        pause:
+          minutes: 2
+      
+      - name:
+        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+        vars:
+          sending: true
