@@ -20,7 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Build/Push images
     env:
-      DOCKER_IMAGE_NAME: newrelic/newrelic-agent-control
+      DOCKER_IMAGE_NAME_AGENT_CONTROL: newrelic/newrelic-agent-control
+      DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI: newrelic/newrelic-agent-control-cli
       DOCKER_PLATFORMS: "linux/amd64,linux/arm64"
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +44,10 @@ jobs:
         run: |
           make build-agent-control ARCH=arm64 BIN=newrelic-agent-control-k8s PKG=newrelic_agent_control
           make build-agent-control ARCH=amd64 BIN=newrelic-agent-control-k8s PKG=newrelic_agent_control
+          
+          # We do not do it in parallel because most of the dependencies are shared
+          make build-agent-control ARCH=arm64 BIN=newrelic-agent-control-cli PKG=newrelic_agent_control
+          make build-agent-control ARCH=amd64 BIN=newrelic-agent-control-cli PKG=newrelic_agent_control
 
       - uses: docker/setup-qemu-action@v3
 
@@ -53,23 +58,41 @@ jobs:
           username: ${{ secrets.OHAI_DOCKER_HUB_ID }}
           password: ${{ secrets.OHAI_DOCKER_HUB_PASSWORD }}
 
-      - name: Build and push image
+      - name: Build and push images
         if: ${{ inputs.push }}
         run: |
           docker buildx build \
             --push \
             --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control \
+            --attest type=provenance,mode=max \
+            --attest type=sbom \
+            .
+          docker buildx build \
+            --push \
+            --platform=$DOCKER_PLATFORMS \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control_cli \
             --attest type=provenance,mode=max \
             --attest type=sbom \
             .
 
-      - name: Build image
+      - name: Build images
         if: ${{ ! inputs.push }}
         run: |
           docker buildx build \
             --platform=$DOCKER_PLATFORMS \
-            -t $DOCKER_IMAGE_NAME:${{ inputs.image-tag }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control \
+            --attest type=provenance,mode=max \
+            --attest type=sbom \
+            .
+          
+          docker buildx build \
+            --platform=$DOCKER_PLATFORMS \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ inputs.image-tag }} \
+            --file Dockerfiles/Dockerfile_agent_control_cli \
             --attest type=provenance,mode=max \
             --attest type=sbom \
             .

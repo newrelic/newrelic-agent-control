@@ -15,7 +15,7 @@
     {
       // Parse bundle image version from `base_image` ARG in Dockerfile.
       "fileMatch": [
-        "system_identity_registration/Dockerfile$"
+        "Dockerfiles/Dockerfile_system_identity_registration$"
       ],
       "datasourceTemplate": "docker",
       "matchStrings": [

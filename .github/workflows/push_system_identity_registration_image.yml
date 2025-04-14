@@ -9,7 +9,7 @@ on:
         default: 'latest'
   push:
     paths:
-      - 'system_identity_registration/**'
+      - 'Dockerfiles/Dockerfile_system_identity_registration'
 
 jobs:
   build-image:
@@ -36,7 +36,7 @@ jobs:
             --attest type=sbom \
             --platform=${DOCKER_PLATFORMS} \
             --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
-            --file system_identity_registration/Dockerfile \
+            --file Dockerfiles/Dockerfile_system_identity_registration \
             .
 
       # Only log in and push image on code pushes to `main` or manual triggers
@@ -52,7 +52,7 @@ jobs:
           docker buildx build \
             --platform=${DOCKER_PLATFORMS} \
             --tag ${DOCKER_IMAGE_NAME}:${{ inputs.tag || 'latest' }} \
-            --file system_identity_registration/Dockerfile \
+            --file Dockerfiles/Dockerfile_system_identity_registration \
             --push \
             --attest type=provenance,mode=max \
             --attest type=sbom \

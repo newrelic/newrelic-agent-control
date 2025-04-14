@@ -37,7 +37,15 @@ elif build_with == 'cross':
 docker_build(
     'tilt.local/agent-control-dev',
     context='.',
-    dockerfile='./Dockerfile',
+    dockerfile='./Dockerfiles/Dockerfile_agent_control',
+    only = ['./bin','./Dockerfile', './Tiltfile']
+)
+
+#### Build the final Docker image with the binary.
+docker_build(
+    'tilt.local/agent-control-cli-dev',
+    context='.',
+    dockerfile='./Dockerfiles/Dockerfile_agent_control_cli',
     only = ['./bin','./Dockerfile', './Tiltfile']
 )
 

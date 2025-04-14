@@ -1,0 +1,11 @@
+# Docker file used for the installation of the the Agent Control on k8s.
+
+FROM debian:bookworm-slim
+
+ARG TARGETARCH
+
+COPY --chmod=755 bin/newrelic-agent-control-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
+
+USER nobody
+
+ENTRYPOINT ["/bin/newrelic-agent-control-cli"]
