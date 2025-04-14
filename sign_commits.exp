@@ -1,0 +1,64 @@
+#!/usr/bin/expect -f
+
+## Configuración de la variable para esperar un tiempo razonable por cada interacción
+set timeout 10
+
+## Filtrar y establecer las variables de entorno
+set GPG_PRIVATE_KEY [lindex $argv 0]
+set GPG_PASSPHRASE [lindex $argv 1]
+set HEAD_REF [lindex $argv 2]
+
+## Importar la clave GPG
+puts "Importing GPG key..."
+spawn sh -c "echo $GPG_PRIVATE_KEY | base64 --decode > /tmp/private_key.gpg && chmod 600 /tmp/private_key.gpg"
+expect eof
+spawn sh -c "gpg --batch --import --pinentry-mode=loopback --passphrase $GPG_PASSPHRASE /tmp/private_key.gpg"
+expect eof
+
+## Configuración de Git
+puts "Configuring Git..."
+spawn sh -c {git config --global user.name "newrelic-coreint-bot"}
+expect eof
+spawn sh -c {git config --global user.email "coreint-dev@newrelic.com"}
+expect eof
+spawn sh -c {git config --global user.signingkey [exec gpg --list-secret-keys --keyid-format LONG | grep "^sec" | head -n 1 | awk "{print \$2}" | cut -d"/" -f2]}
+expect eof
+spawn sh -c {git config --global commit.gpgsign true}
+expect eof
+spawn sh -c {git config --global gpg.program [exec which gpg]}
+expect eof
+
+## Configuración de GPG
+puts "Setting up GPG configurations..."
+spawn sh -c "echo 'use-agent' >> ~/.gnupg/gpg.conf"
+expect eof
+
+## Operaciones de Git
+puts "Git Operations..."
+spawn sh -c {git add THIRD_PARTY_NOTICES.md}
+expect eof
+
+## Git Commit
+puts "Git Commit..."
+spawn sh -c {git config --list > /dev/null}
+expect {
+    -re "(.*)\n" {
+        puts $expect_out(1,string)
+        exp_continue
+    }
+    eof
+}
+set timeout -1
+spawn git commit -S -m "Update THIRD PARTY NOTICES due to license check failure"
+expect "Enter passphrase:"
+send -- "$GPG_PASSPHRASE\r"
+expect eof
+
+## Push to Git
+puts "Git Push..."
+spawn git push -u origin $HEAD_REF
+expect eof
+
+## Limpiar Archivo Temporal
+puts "Cleaning up..."
+spawn rm /tmp/private_key.gpg

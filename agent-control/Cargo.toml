@@ -17,11 +17,11 @@ thiserror = { workspace = true }
 nix = { workspace = true, features = ["signal", "user", "hostname"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
 tracing = { workspace = true, features = ["attributes"] }
-ctrlc = { version = "3.4.5", features = ["termination"] }
+ctrlc = { version = "3.4.6", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
 futures = { version = "0.3.31" }
-tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros", "sync"] }
+tokio = { version = "1.44.2", features = ["rt-multi-thread", "macros", "sync"] }
 console-subscriber = { version = "0.4.1", optional = true }
 duration-str = "0.17.0"
 konst = { workspace = true }
@@ -59,21 +59,21 @@ opentelemetry-semantic-conventions = { version = "0.28.0", features = [
   "semconv_experimental",
 ] }
 http-serde = "2.1.1"
-config = { version = "0.15.9", features = ["yaml"] }
-rustls = { version = "0.23.23", features = ["ring"] }
+config = { version = "0.15.11", features = ["yaml"] }
+rustls = { version = "0.23.26", features = ["ring"] }
 webpki = { version = "0.22.4", features = ["alloc"] }
 x509-parser = "0.17.0"
-ring = "0.17.13"
+ring = "0.17.14"
 bytes = "1.10.1"
-opentelemetry = { version = "0.29.0", features = ["trace"] }
+opentelemetry = { version = "0.29.1", features = ["trace"] }
 opentelemetry_sdk = { version = "0.29.0", features = ["trace"] }
 tracing-opentelemetry = "0.30.0"
 opentelemetry-otlp = { version = "0.29.0", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.29.0" }
-opentelemetry-appender-tracing = { version = "0.29.0", features = [
+opentelemetry-appender-tracing = { version = "0.29.1", features = [
   "experimental_use_tracing_span_context",
 ] }
-async-trait = "0.1.86"
+async-trait = "0.1.88"
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
@@ -89,7 +89,7 @@ tracing-test = { workspace = true }
 jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros"] }
-fake = { version = "4.0.0", features = ["derive", "http"] }
+fake = { version = "4.3.0", features = ["derive", "http"] }
 prost = "0.13.5"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
 httpmock = { version = "0.8.0-alpha.1", features = ["proxy"] }
