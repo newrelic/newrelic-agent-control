@@ -3,7 +3,7 @@ use crate::event::{AgentControlEvent, SubAgentEvent};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 pub(super) async fn on_agent_control_event_update_status(
     mut agent_control_event_consumer: UnboundedReceiver<AgentControlEvent>,
@@ -97,8 +97,18 @@ async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwL
             status
                 .sub_agents
                 .entry(agent_identity.id.clone())
-                .or_insert_with(|| SubAgentStatus::with_identity(agent_identity))
-                .update_health(health);
+                .or_insert_with(|| {
+                    warn!(agent_id = %agent_identity.id,"Event sub_agent_health_info received before sub_agent_started");
+                    SubAgentStatus::with_identity(agent_identity).with_start_time(health.start_time())
+                }).update_health(health);
+        }
+        SubAgentEvent::SubAgentStarted(agent_identity, start_time) => {
+            status
+                .sub_agents
+                .entry(agent_identity.id.clone())
+                .or_insert_with(|| {
+                    SubAgentStatus::with_identity(agent_identity).with_start_time(start_time)
+                });
         }
     }
 }
@@ -122,7 +132,7 @@ mod tests {
 
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::http_server::status::{
-        AgentControlStatus, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
+        AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };
     use crate::agent_control::http_server::status_updater::{
         on_agent_control_event_update_status, update_agent_control_status, update_sub_agent_status,
@@ -233,11 +243,8 @@ mod tests {
                         SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            String::default(),
-                            true,
-                            None,
                             0,
-                            0,
+                            HealthInfo::new(String::default(), true, None, 0, 0),
                         ),
                     )])),
                 },
@@ -270,11 +277,14 @@ mod tests {
                         SubAgentStatus::new(
                             AgentID::new("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            String::default(),
-                            false,
-                            Some(String::from("this is an error message")),
                             0,
-                            0,
+                            HealthInfo::new(
+                                String::default(),
+                                false,
+                                Some(String::from("this is an error message")),
+                                0,
+                                0,
+                            ),
                         ),
                     )])),
                 },
@@ -303,11 +313,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                true,
-                                Some(String::default()),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    true,
+                                    Some(String::default()),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                         (
@@ -315,11 +328,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                true,
-                                Some(String::default()),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    true,
+                                    Some(String::default()),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                     ])),
@@ -333,11 +349,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                false,
-                                Some(String::from("this is an error message")),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    false,
+                                    Some(String::from("this is an error message")),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                         (
@@ -345,11 +364,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                true,
-                                Some(String::default()),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    true,
+                                    Some(String::default()),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                     ])),
@@ -368,11 +390,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                true,
-                                Some(String::default()),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    true,
+                                    Some(String::default()),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                         (
@@ -380,11 +405,14 @@ mod tests {
                             SubAgentStatus::new(
                                 AgentID::new("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                                String::default(),
-                                true,
-                                Some(String::default()),
                                 0,
-                                0,
+                                HealthInfo::new(
+                                    String::default(),
+                                    true,
+                                    Some(String::default()),
+                                    0,
+                                    0,
+                                ),
                             ),
                         ),
                     ])),
@@ -397,11 +425,8 @@ mod tests {
                         SubAgentStatus::new(
                             AgentID::new("some-other-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                            String::default(),
-                            true,
-                            Some(String::default()),
                             0,
-                            0,
+                            HealthInfo::new(String::default(), true, Some(String::default()), 0, 0),
                         ),
                     )])),
                 },
@@ -486,7 +511,12 @@ mod tests {
         //random status
         let status = Word().fake::<String>();
 
-        SubAgentStatus::new(agent_id, agent_type, status, healthy, last_error, 0, 0)
+        SubAgentStatus::new(
+            agent_id,
+            agent_type,
+            0,
+            HealthInfo::new(status, healthy, last_error, 0, 0),
+        )
     }
 
     // create N (0..5) random Sub Agent status

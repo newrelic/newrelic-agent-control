@@ -54,7 +54,7 @@ scenarios:
           response=$(curl -s "http://localhost:51200/status")
           echo "response ${response}"
           for agent in dotnet-agent java-agent node-agent python-agent ruby-agent; do
-              agent_status=$(echo "$response" | jq -r ".sub_agents[\"${agent}\"].healthy")
+              agent_status=$(echo "$response" | jq -r ".sub_agents[\"${agent}\"].health_info.healthy")
               if [ "$agent_status" != "true" ]; then
                 echo "${agent} is not healthy. Failing..."
                 exit 1

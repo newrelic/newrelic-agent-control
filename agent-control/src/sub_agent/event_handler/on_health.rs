@@ -17,5 +17,5 @@ where
     if let Some(client) = maybe_opamp_client.as_ref() {
         client.set_health(health.clone().into())?;
     }
-    Ok(sub_agent_publisher.publish(SubAgentEvent::new(health, agent_identity))?)
+    Ok(sub_agent_publisher.publish(SubAgentEvent::new_health(agent_identity, health))?)
 }
