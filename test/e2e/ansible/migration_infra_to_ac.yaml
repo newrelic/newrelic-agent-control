@@ -50,10 +50,6 @@
         include_role:
           name: caos.ansible_roles.nri_mysql
 
-      - name: Wait 2 minutes to give nri-mysql time to send metrics
-        pause:
-          minutes: 2
-      
       - name:
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
         vars:
@@ -81,10 +77,6 @@
           name: caos.ansible_roles.assert_no_service
         vars:
           service_name: newrelic-infra.service
-
-      - name: Wait 2 minutes to give nri-mysql time to STOP sending metrics
-        pause:
-          minutes: 2
 
       - name:
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
@@ -150,10 +142,6 @@
           processes_running:
             - "^/usr/bin/newrelic-agent-control"
             - "^/usr/bin/newrelic-infra"
-
-      - name: Wait 2 minutes to give nri-mysql time to send metrics
-        pause:
-          minutes: 2
       
       - name:
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
