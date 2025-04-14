@@ -1,3 +1,9 @@
+//! # Runtime config module
+//!
+//! This module defines the runtime configuration for agents, including their deployment details
+//! and associated configurations. It provides structures and implementations for deserializing
+//! and templating runtime configurations, ensuring that the deployment information is valid and
+//! complete.
 pub mod health_config;
 pub mod k8s;
 pub mod onhost;

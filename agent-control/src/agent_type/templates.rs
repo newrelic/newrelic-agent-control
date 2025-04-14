@@ -1,3 +1,15 @@
+//! This module provides the implementation of the `Templateable` trait for core and external types,
+//! such as `String` and `serde_yaml` structures. The `Templateable` trait enables templating by
+//! replacing placeholders in content with values from a provided `Variables` map.
+//!
+//! The module also contains the logic for how these replacements are performed, including:
+//! - Parsing and identifying placeholders using regular expressions.
+//! - Resolving variable references and handling missing or undefined variables.
+//! - Replacing placeholders with their corresponding values, while supporting nested structures
+//!   like YAML mappings and sequences.
+//!
+//! Additionally, this module includes utility functions and constants to facilitate the templating
+//! process, such as trimming template delimiters and normalizing variable references.
 use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::variable::definition::VariableDefinition;
@@ -24,7 +36,18 @@ const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
+/// A trait for types that support templating using a set of variables.
+///
+/// Implementors replace placeholders in their content with values from a
+/// provided `Variables` map. Placeholders follow a specific format, such as
+/// `${nr-var:key}`.
+///
+/// # Errors
+///
+/// Returns an `AgentTypeError` if a placeholder references an undefined or
+/// missing variable.
 pub trait Templateable {
+    /// Replaces placeholders in the content with values from the `Variables` map.
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError>
     where
         Self: std::marker::Sized;
