@@ -1,11 +1,12 @@
 use super::agent_id::AgentID;
-use super::config::{AgentControlDynamicConfig, SubAgentsMap};
+use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
+use crate::agent_control::uptime_report::UptimeReporter;
 use crate::event::{
     channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
@@ -22,11 +23,11 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::values::yaml_config::YAMLConfig;
-use crossbeam::channel::{never, tick};
+use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::SystemTime;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 pub struct AgentControl<S, O, HR, SL, DV>
@@ -50,6 +51,7 @@ where
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     dynamic_config_validator: DV,
+    initial_config: AgentControlConfig,
 }
 
 impl<S, O, HR, SL, DV> AgentControl<S, O, HR, SL, DV>
@@ -73,6 +75,7 @@ where
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         dynamic_config_validator: DV,
+        initial_config: AgentControlConfig,
     ) -> Self {
         Self {
             opamp_client,
@@ -87,6 +90,7 @@ where
             application_event_consumer,
             agent_control_opamp_consumer,
             dynamic_config_validator,
+            initial_config,
         }
     }
 
@@ -111,9 +115,11 @@ where
         }
 
         info!("Starting the agents supervisor runtime");
-        let sub_agents_config = self.sa_dynamic_config_store.load()?.agents;
+        // This is a first-time run and we already read the config earlier, the `initial_config` contains
+        // the result as read by the `AgentControlConfigLoader`.
+        let sub_agents_config = &self.initial_config.dynamic.agents;
 
-        let running_sub_agents = self.build_and_run_sub_agents(&sub_agents_config)?;
+        let running_sub_agents = self.build_and_run_sub_agents(sub_agents_config)?;
 
         info!("Agents supervisor runtime successfully started");
 
@@ -210,9 +216,14 @@ where
             .as_ref()
             .unwrap_or(&never_receive);
 
-        // Report uptime every 60 seconds
-        let start_time = Instant::now();
-        let uptime_report_ticker = tick(Duration::from_secs(60));
+        let uptime_report_config = &self.initial_config.uptime_report;
+        let uptime_reporter =
+            UptimeReporter::from(uptime_report_config).with_start_time(self.start_time);
+        // If a uptime report is configured, we trace it for the first time here
+        if uptime_report_config.enabled() {
+            let _ = uptime_reporter.report();
+        }
+
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
         loop {
@@ -255,7 +266,7 @@ where
 
                     break sub_agents.stop();
                 },
-                recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
+                recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
             }
         }
     }
@@ -408,7 +419,9 @@ where
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
+    use crate::agent_control::config::{
+        AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
+    };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
@@ -467,6 +480,7 @@ mod tests {
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         application_event_publisher
@@ -478,11 +492,13 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
 
-        let sub_agents_config = sub_agents_default_config();
+        let ac_config = AgentControlConfig {
+            dynamic: sub_agents_default_config(),
+            ..Default::default()
+        };
 
         let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
 
@@ -501,10 +517,6 @@ mod tests {
         // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
 
-        sub_agents_config_store
-            .expect_load()
-            .returning(move || Ok(sub_agents_config.clone()));
-
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, _agent_control_consumer) = pub_sub();
@@ -514,12 +526,13 @@ mod tests {
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(MockAgentControlDynamicConfigStore::new()),
             agent_control_publisher,
             sub_agent_publisher,
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
+            ac_config,
         );
 
         application_event_publisher
@@ -533,6 +546,11 @@ mod tests {
     fn receive_opamp_remote_config() {
         let mut hash_repository_mock = MockHashRepositoryMock::new();
         let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+
+        let ac_config = AgentControlConfig {
+            dynamic: sub_agents_default_config(),
+            ..Default::default()
+        };
 
         // Agent Control OpAMP
         let mut started_client = MockStartedOpAMPClientMock::new();
@@ -554,6 +572,7 @@ mod tests {
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
         sub_agents_config_store
             .expect_load()
+            .once()
             .returning(|| Ok(sub_agents_default_config()));
         // updated agent
         sub_agents_config_store
@@ -609,6 +628,7 @@ mod tests {
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    ac_config,
                 );
                 agent.run()
             }
@@ -672,6 +692,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
             }
@@ -727,6 +748,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
             }
@@ -828,6 +850,7 @@ agents:
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         let mut running_sub_agents = agent_control
@@ -922,6 +945,7 @@ agents:
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
+            AgentControlConfig::default(),
         );
 
         let mut running_sub_agents = agent_control
@@ -1036,6 +1060,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1110,6 +1135,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1175,6 +1201,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);
@@ -1283,6 +1310,7 @@ agents:
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
+                    AgentControlConfig::default(),
                 );
 
                 agent.process_events(sub_agents);

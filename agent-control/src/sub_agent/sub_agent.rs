@@ -1,5 +1,6 @@
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
+use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
@@ -14,12 +15,12 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
-use crossbeam::channel::{never, tick};
+use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime};
+use std::time::SystemTime;
 use tracing::{debug, error, info, info_span, trace, warn};
 
 /// NotStartedSubAgent exposes a run method that starts processing events and, if present, the supervisor.
@@ -142,8 +143,13 @@ where
             // that need to be moved into thread closures.
 
             // Report uptime every 60 seconds
-            let start_time = Instant::now();
-            let uptime_report_ticker = tick(Duration::from_secs(60));
+            let uptime_report_config = &UptimeReportConfig::default();
+            let uptime_reporter = UptimeReporter::from(uptime_report_config);
+            // If a uptime report is configured, we trace it for the first time here
+            if uptime_report_config.enabled() {
+                let _ = uptime_reporter.report();
+            }
+
             // Count the received remote configs during execution
             let mut remote_config_count = 0;
             loop {
@@ -216,7 +222,7 @@ where
                             }
                         }
                     }
-                    recv(uptime_report_ticker) -> _tick => trace!(monotonic_counter.uptime = start_time.elapsed().as_secs_f64()),
+                    recv(uptime_reporter.receiver()) -> _tick => { let _ = uptime_reporter.report(); },
                 }
             }
 

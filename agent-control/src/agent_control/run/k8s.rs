@@ -63,7 +63,7 @@ impl AgentControlRunner {
         let fleet_id = agent_control_config
             .fleet_control
             .as_ref()
-            .map(|c| c.fleet_id.clone())
+            .map(|c| c.fleet_id.to_string())
             .unwrap_or_default();
 
         let identifiers = get_identifiers(self.k8s_config.cluster_name.clone(), fleet_id);
@@ -176,6 +176,7 @@ impl AgentControlRunner {
             self.application_event_consumer,
             maybe_opamp_consumer,
             dynamic_config_validator,
+            agent_control_config,
         )
         .run()
     }

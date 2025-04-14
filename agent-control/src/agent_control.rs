@@ -11,3 +11,4 @@ pub mod config_validator;
 pub mod http_server;
 pub mod pid_cache;
 pub mod run;
+pub mod uptime_report;

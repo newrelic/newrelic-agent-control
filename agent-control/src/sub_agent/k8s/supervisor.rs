@@ -523,7 +523,7 @@ pub mod tests {
 
         SubAgent::new(
             agent_identity,
-            none_mock_opamp_client(),
+            Option::<MockStartedOpAMPClientMock>::None,
             Arc::new(supervisor_assembler),
             sub_agent_publisher,
             None,
@@ -557,9 +557,5 @@ pub mod tests {
                 panic!("unhealthy event expected")
             }
         }
-    }
-
-    fn none_mock_opamp_client() -> Option<MockStartedOpAMPClientMock> {
-        None
     }
 }
