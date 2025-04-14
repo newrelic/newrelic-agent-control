@@ -149,6 +149,13 @@ impl opentelemetry_http::HttpClient for HttpClient {
         let bytes_body = Bytes::from(body);
         let resp_vec = Response::from_parts(parts, bytes_body);
 
+        if !resp_vec.status().is_success() {
+            warn!(
+                "Self instrumentation Otlp sending unsuccessful: {:?}",
+                resp_vec
+            );
+        }
+
         Ok(resp_vec)
     }
 }
