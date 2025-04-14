@@ -10,8 +10,6 @@
       FROM Metric
       WHERE host.hostname = '{{ ansible_hostname }}'
       SINCE 30 SECONDS AGO
-    retries: 60
-    delay: 5
 
 - name: Assert that nri-mysql is sending data
   assert:
