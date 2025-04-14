@@ -13,7 +13,9 @@ use url::Url;
 
 /// Agent Control status and health information.
 /// This information will be shown when the status endpoint is called.
-/// i.e.
+///
+/// Example:
+/// ```json
 /// {
 ///   "agent_control": {
 ///     "healthy": true,
@@ -21,6 +23,7 @@ use url::Url;
 ///     "status": ""
 ///   },
 /// }
+/// ```
 #[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct AgentControlStatus {
     healthy: bool,
@@ -46,7 +49,9 @@ impl AgentControlStatus {
 
 /// OpAMP Connection health information.
 /// This information will be shown when the status endpoint is called.
-/// i.e.
+///
+/// Example:
+/// ```json
 /// {
 ///   "fleet": {
 ///     "enabled": true,
@@ -54,7 +59,9 @@ impl AgentControlStatus {
 ///     "reachable": true,
 ///     "error_code": 403, // present only if reachable == false
 ///     "error_message": "this is an error message", // present only if reachable == false
-///  },
+///   }
+/// }
+/// ```
 #[derive(Debug, Serialize, PartialEq, Default, Clone)]
 pub struct OpAMPStatus {
     enabled: bool,
@@ -84,10 +91,11 @@ impl OpAMPStatus {
     }
 }
 
-///  Sub Agent status and health information.
+/// Sub Agent status and health information.
 /// This information is displayed when the status endpoint is called.
 ///
 /// Example:
+/// ```json
 /// {
 ///   "sub_agents": [
 ///     {
@@ -116,6 +124,7 @@ impl OpAMPStatus {
 ///     }
 ///   ]
 /// }
+/// ```
 ///
 /// Fields:
 /// - `agent_id`: The unique identifier of the Sub Agent.
@@ -136,6 +145,7 @@ pub(super) struct SubAgentStatus {
 /// and is displayed when the status endpoint is called.
 ///
 /// Example:
+/// ```json
 /// {
 ///   "healthy": true,
 ///   "last_error": null,
@@ -143,6 +153,7 @@ pub(super) struct SubAgentStatus {
 ///   "start_time_unix_nano": 1672531200000000000,
 ///   "status_time_unix_nano": 1672531205000000000
 /// }
+/// ```
 ///
 /// Fields:
 /// - `healthy`: A boolean indicating whether the Sub Agent is healthy.
@@ -216,7 +227,9 @@ impl SubAgentsStatus {
 
 /// Agent Control, Sub Agents and OpAMP status and health.
 /// This information will be shown when the status endpoint is called.
-/// i.e.
+///
+/// Example:
+/// ```json
 /// {
 ///   "agent_control": {
 ///     "healthy": true,
@@ -245,6 +258,7 @@ impl SubAgentsStatus {
 ///     }
 ///   ]
 /// }
+/// ```
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub(super) struct Status {
     pub(super) agent_control: AgentControlStatus,
