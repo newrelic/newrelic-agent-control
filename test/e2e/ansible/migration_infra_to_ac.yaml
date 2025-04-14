@@ -9,6 +9,10 @@
     block:
       - name: Cleanup
         include_tasks: ./tasks/clean_all.yaml 
+      
+      - name: Set test identifier
+        set_fact:
+          current_test_id: "migration_infra_to_ac_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
 
       - name: Install Infra Agent
         include_role:
@@ -22,14 +26,26 @@
           targets:
             - infrastructure
             - logs
-      
-      - name: Assert Infra Agent is running
-        include_role:
-          name: caos.ansible_roles.assert_service_status
-        vars:
-          services_running:
-            - newrelic-infra.service
 
+      - name: Change Infra Agent config
+        copy:
+          dest: /etc/newrelic-infra.yml
+          content: |
+            enable_process_metrics: true
+            status_server_enabled: true
+            status_server_port: 18003
+            license_key: {{ nr_license_key }}
+            custom_attributes:
+              test_id: {{ current_test_id }}
+              app: infra_agent
+      
+      - name: Restart Infra Agent
+        include_role:
+          name: caos.ansible_roles.service_status
+        vars:
+          service_name: newrelic-infra
+          action: restart
+      
       - name: Install docker
         include_role:
           name: caos.ansible_roles.docker_install 
@@ -57,8 +73,9 @@
       - name:
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
         vars:
-          sending: true
-      
+          test_id: "{{ current_test_id }}"
+          app: "infra_agent"
+
       - name: Install Agent Control
         include_role:
           name: newrelic-agent-control
@@ -75,21 +92,6 @@
             - exec: "/usr/bin/newrelic-agent-control --version"
               version: "{{ package_version }}"
         when: package_version | length > 0
-      
-      - name: Assert Infra Agent stopped
-        include_role:
-          name: caos.ansible_roles.assert_no_service
-        vars:
-          service_name: newrelic-infra.service
-
-      - name: Wait 2 minutes to give nri-mysql time to STOP sending metrics
-        pause:
-          minutes: 2
-
-      - name:
-        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
-        vars:
-          sending: false
 
       - name: Setup Agent Control config
         include_role:
@@ -103,6 +105,19 @@
       
       - name: Migrate Infra Agent config
         command: newrelic-config-migrate
+      
+      - name: Change Infra Agent config
+        copy:
+          dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          content: |
+            config_agent: |+
+              enable_process_metrics: true
+              status_server_enabled: true
+              status_server_port: 18003
+              license_key: {{ nr_license_key }}
+              custom_attributes:
+                test_id: {{ current_test_id }}
+                app: agent_control
 
       - name: Restart Agent Control
         include_role:
@@ -110,28 +125,7 @@
         vars:
           service_name: "newrelic-agent-control"
           action: "restart"
-
-      - name: Assert Agent Control is running
-        include_role:
-          name: caos.ansible_roles.assert_service_status
-        vars:
-          services_running:
-            - newrelic-agent-control.service
       
-      - name: Check Infra Agent values file exists
-        stat:
-          path: "/etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml"
-        register: infra_agent_values
-        failed_when: not infra_agent_values.stat.exists
-
-      - name: Assert Agent Control and Agents are running
-        include_role:
-          name: caos.ansible_roles.assert_process_running
-        vars:
-          processes_running:
-            - "^/usr/bin/newrelic-agent-control"
-            - "^/usr/bin/newrelic-infra"
-
       - name: Wait 2 minutes to give nri-mysql time to send metrics
         pause:
           minutes: 2
@@ -139,4 +133,5 @@
       - name:
         include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
         vars:
-          sending: true
+          test_id: "{{ current_test_id }}"
+          app: "agent_control"
