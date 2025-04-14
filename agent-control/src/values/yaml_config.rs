@@ -1,6 +1,6 @@
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::runtime_config_templates::Templateable;
+use crate::agent_type::templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};

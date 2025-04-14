@@ -173,7 +173,8 @@ pub mod tests {
 
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::{self, Deployment, K8sObject, Runtime};
+    use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -318,7 +319,7 @@ pub mod tests {
         );
     }
 
-    pub fn k8s_sample_runtime_config(valid_kind: bool) -> runtime_config::K8s {
+    pub fn k8s_sample_runtime_config(valid_kind: bool) -> K8s {
         let kind = if valid_kind {
             "HelmRelease".to_string()
         } else {
@@ -333,7 +334,7 @@ pub mod tests {
 
         let mut objects = HashMap::new();
         objects.insert("sample_object".to_string(), k8s_object);
-        runtime_config::K8s {
+        K8s {
             objects,
             health: None,
         }

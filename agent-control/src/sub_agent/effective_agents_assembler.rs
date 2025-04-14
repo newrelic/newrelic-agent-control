@@ -7,8 +7,8 @@ use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
-use crate::agent_type::runtime_config::K8s;
-use crate::agent_type::runtime_config::OnHost;
+use crate::agent_type::runtime_config::k8s::K8s;
+use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
@@ -206,7 +206,7 @@ pub(crate) mod tests {
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::render::renderer::tests::MockRendererMock;
-    use crate::agent_type::runtime_config;
+    use crate::agent_type::runtime_config::k8s::K8sObject;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
@@ -263,8 +263,8 @@ pub(crate) mod tests {
         Runtime {
             deployment: Deployment {
                 on_host: None,
-                k8s: Some(runtime_config::K8s {
-                    objects: vec![("key".to_string(), runtime_config::K8sObject::default())]
+                k8s: Some(K8s {
+                    objects: vec![("key".to_string(), K8sObject::default())]
                         .into_iter()
                         .collect(),
                     health: Some(Default::default()),

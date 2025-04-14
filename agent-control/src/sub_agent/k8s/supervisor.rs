@@ -1,6 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config;
-use crate::agent_type::runtime_config::K8sObject;
+use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -33,7 +32,7 @@ const SUPERVISOR_THREAD_NAME: &str = "k8s objects supervisor";
 pub struct NotStartedSupervisorK8s {
     agent_identity: AgentIdentity,
     k8s_client: Arc<SyncK8sClient>,
-    k8s_config: runtime_config::K8s,
+    k8s_config: K8s,
     interval: Duration,
 }
 
@@ -66,7 +65,7 @@ impl NotStartedSupervisorK8s {
     pub fn new(
         agent_identity: AgentIdentity,
         k8s_client: Arc<SyncK8sClient>,
-        k8s_config: runtime_config::K8s,
+        k8s_config: K8s,
     ) -> Self {
         Self {
             agent_identity,
@@ -234,10 +233,10 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::health_config::K8sHealthConfig;
-    use crate::agent_type::runtime_config::K8sObject;
+    use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
     use crate::event::channel::pub_sub;
     use crate::event::SubAgentEvent;
+    use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
@@ -246,7 +245,6 @@ pub mod tests {
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
-    use crate::{agent_type::runtime_config::K8sObjectMeta, k8s::client::MockSyncK8sClient};
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
@@ -302,7 +300,7 @@ pub mod tests {
         let supervisor = NotStartedSupervisorK8s::new(
             agent_identity,
             Arc::new(mock_k8s_client),
-            runtime_config::K8s {
+            K8s {
                 objects: HashMap::from([
                     ("mock_cr1".to_string(), k8s_object()),
                     ("mock_cr2".to_string(), k8s_object()),
@@ -354,7 +352,7 @@ pub mod tests {
     #[test]
     fn test_start_health_check_fails() {
         let (sub_agent_internal_publisher, _) = pub_sub();
-        let config = runtime_config::K8s {
+        let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(K8sHealthConfig {
                 ..Default::default()
@@ -380,7 +378,7 @@ pub mod tests {
     fn test_supervisor_start_stop() {
         let (sub_agent_internal_publisher, _) = pub_sub();
 
-        let config = runtime_config::K8s {
+        let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
         };
@@ -396,7 +394,7 @@ pub mod tests {
     fn test_supervisor_start_without_health_check() {
         let (sub_agent_internal_publisher, _) = pub_sub();
 
-        let config = runtime_config::K8s {
+        let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: None,
         };
@@ -445,7 +443,7 @@ pub mod tests {
     }
 
     fn not_started_supervisor(
-        config: runtime_config::K8s,
+        config: K8s,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
     ) -> NotStartedSupervisorK8s {
         let agent_identity = AgentIdentity::from((
