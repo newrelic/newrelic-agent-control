@@ -28,6 +28,8 @@ Please make sure you test your changes before you push them. Once pushed, a GitH
 
 And do NOT forget to update documentation! Check the contents of the [`docs`](./docs) directory and apply changes as required. To quickly locate potential places that might need updating, search for expressions like "currently" or "as of now".
 
+Check [`docs/style`](docs/style/) and make sure to comply with the style guide for the codebase.
+
 ## Contributor License Agreement
 
 Keep in mind that when you submit your Pull Request, you'll need to sign the CLA via the click-through using CLA-Assistant. If you'd like to execute our corporate CLA, or if you have any questions, please drop us an email at <opensource@newrelic.com>.

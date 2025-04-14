@@ -16,3 +16,4 @@
 - [ ] Included a detailed description for the Pull Request.
 - [ ] Documentation under `docs` is aligned with the change.
 - [ ] Follows guidelines for Pull Requests in [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+- [ ] Follows [`log level guidelines`](../docs/style/logs.md)
