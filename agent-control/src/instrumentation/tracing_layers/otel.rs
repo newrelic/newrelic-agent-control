@@ -2,12 +2,12 @@ use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
 use crate::instrumentation::tracing::LayerBox;
-use opentelemetry::trace::{TraceError, TracerProvider};
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_http::HttpClient as OtelHttpClient;
-use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
-use opentelemetry_sdk::logs::{BatchLogProcessor, LogError, SdkLoggerProvider};
-use opentelemetry_sdk::metrics::{MetricError, PeriodicReader, SdkMeterProvider};
+use opentelemetry_otlp::{ExporterBuildError, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
+use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
 use opentelemetry_sdk::Resource;
 use std::sync::LazyLock;
@@ -25,12 +25,8 @@ static RESOURCE: LazyLock<Resource> =
 pub enum OtelBuildError {
     #[error("could not build the otel http client: {0}")]
     HttpClient(#[from] HttpBuildError),
-    #[error("could not build traces exporter: {0}")]
-    Traces(#[from] TraceError),
-    #[error("could not build metrics exporter: {0}")]
-    Metrics(#[from] MetricError),
-    #[error("could not build logs exporter: {0}")]
-    Logs(#[from] LogError),
+    #[error("could not build the exporter: {0}")]
+    ExporterBuild(#[from] ExporterBuildError),
     #[error("invalid filtering directive `{directive}`: {err}")]
     FilteringDirective { directive: String, err: String },
 }
