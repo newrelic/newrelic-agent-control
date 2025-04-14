@@ -27,7 +27,7 @@ const METRICS_SUFFIX: &str = "/v1/metrics";
 const LOGS_SUFFIX: &str = "/v1/logs";
 
 /// Represents the OpenTelemetry configuration
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct OtelConfig {
     /// Metrics configuration
     #[serde(default)]

@@ -1,16 +1,16 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::fmt::{Display, Formatter};
 
 const DEFAULT_PORT: u16 = 51200;
 pub(super) const DEFAULT_WORKERS: usize = 1;
 const DEFAULT_HOST: &str = "127.0.0.1";
 
-#[derive(PartialEq, Deserialize, Serialize, Debug, Clone)]
+#[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Port(u16);
-#[derive(PartialEq, Deserialize, Serialize, Debug, Clone)]
+#[derive(PartialEq, Deserialize, Debug, Clone)]
 pub struct Host(String);
 
-#[derive(PartialEq, Deserialize, Serialize, Clone, Debug, Default)]
+#[derive(PartialEq, Deserialize, Clone, Debug, Default)]
 pub struct ServerConfig {
     #[serde(default)]
     pub port: Port,
