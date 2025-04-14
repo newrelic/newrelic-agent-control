@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 
-#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub(crate) struct FileLoggingConfig {
     pub(crate) enabled: bool,
     // Default value is being set by `ConfigPatcher` right after deserialization.

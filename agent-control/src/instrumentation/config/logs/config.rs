@@ -29,7 +29,7 @@ pub enum LoggingConfigError {
 }
 
 /// Defines the logging configuration Agent control.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingConfig {
     /// Allows setting up custom formatting options.
     #[serde(default)]

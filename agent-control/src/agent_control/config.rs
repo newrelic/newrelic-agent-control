@@ -19,7 +19,7 @@ use thiserror::Error;
 use url::Url;
 
 /// AgentControlConfig represents the configuration for the agent control.
-#[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 pub struct AgentControlConfig {
     #[serde(default)]
     pub log: LoggingConfig,
@@ -120,16 +120,14 @@ pub struct SubAgentConfig {
     pub agent_type: AgentTypeID,
 }
 
-#[derive(Debug, PartialEq, Serialize, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
     pub endpoint: Url,
-    #[serde(with = "http_serde::header_map")]
     pub headers: HeaderMap,
     pub auth_config: Option<AuthConfig>,
     /// Unique identifier for the fleet in which the super agent will join upon initialization.
     pub fleet_id: String,
     /// Contains the signature_validation configuration
-    #[serde(default)]
     pub signature_validation: SignatureValidatorConfig,
 }
 

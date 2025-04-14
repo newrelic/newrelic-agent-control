@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 /// Represents a custom time stamp format for logging.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub(crate) struct TimestampFormat(pub(crate) String);
 
 /// Provides a default `TimestampFormat`. The default format is based on
@@ -21,7 +21,7 @@ impl Default for TimestampFormat {
 /// - `target`: A bool that indicates whether or not the target of the trace event will be included in the formatted output.
 /// - `timestamp`: Specifies a `TimestampFormat` the application will use for logging timestamps.
 /// - `ansi_colors`: Specifies if ansi colors should be used in stdout logs.
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct LoggingFormat {
     #[serde(default)]
     pub(crate) target: bool,

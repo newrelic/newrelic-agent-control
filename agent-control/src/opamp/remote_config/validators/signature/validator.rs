@@ -7,7 +7,7 @@ use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
 use nix::NixPath;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
@@ -80,7 +80,7 @@ pub fn build_signature_validator(
     ))
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SignatureValidatorConfig {
     #[serde(default = "default_signature_validator_url")]
     pub certificate_server_url: Url,
@@ -102,7 +102,7 @@ impl Default for SignatureValidatorConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SignatureCertificateServerUrl(Url);
 
 impl From<SignatureCertificateServerUrl> for Url {

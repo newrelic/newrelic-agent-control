@@ -112,7 +112,7 @@ impl ProxyUrl {
 /// // The url will contain the value corresponding to the standard environment variables.
 /// let proxy_config = ProxyConfig::default().try_with_url_from_env().unwrap();
 /// ```
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
     /// Proxy URL proxy:
     /// <protocol>://<user>:<password>@<host>:<port>

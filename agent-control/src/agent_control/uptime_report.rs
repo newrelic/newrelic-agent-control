@@ -25,7 +25,7 @@
 
 use crossbeam::channel::{never, tick, Receiver};
 use duration_str::deserialize_duration;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::time::{Duration, Instant, SystemTime, SystemTimeError};
 use tracing::trace;
 use wrapper_with_default::WrapperWithDefault;
@@ -34,7 +34,7 @@ use wrapper_with_default::WrapperWithDefault;
 const DEFAULT_UPTIME_REPORT_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Default configuration for uptime reporting. Enabled by default.
-#[derive(Debug, Default, Serialize, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct UptimeReportConfig {
     /// Whether uptime reporting is enabled or not.
     #[serde(default)]
@@ -59,7 +59,7 @@ impl UptimeReportConfig {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 struct EnabledByDefault(bool);
 impl Default for EnabledByDefault {
     fn default() -> Self {
@@ -75,7 +75,7 @@ impl From<bool> for EnabledByDefault {
 
 /// Wrapper for the uptime report interval. This is a duration in seconds that is fixed to
 /// 60 seconds via [`DEFAULT_UPTIME_REPORT_INTERVAL`].
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_UPTIME_REPORT_INTERVAL)]
 pub struct UptimeReportInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
