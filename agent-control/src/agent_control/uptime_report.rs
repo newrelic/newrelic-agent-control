@@ -14,10 +14,7 @@
 //! # use std::time::Duration;
 //! # use newrelic_agent_control::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 //!
-//! let config = UptimeReportConfig {
-//!   interval: Duration::from_millis(100).into(),
-//!   ..Default::default()
-//! };
+//! let config = UptimeReportConfig::default().with_interval(Duration::from_millis(100));
 //! let reporter = UptimeReporter::from(&config);
 //!
 //! // Wait for the next tick
@@ -37,20 +34,42 @@ use wrapper_with_default::WrapperWithDefault;
 const DEFAULT_UPTIME_REPORT_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Default configuration for uptime reporting. Enabled by default.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Clone, PartialEq, Deserialize)]
 pub struct UptimeReportConfig {
     /// Whether uptime reporting is enabled or not.
-    pub enabled: bool,
+    #[serde(default)]
+    enabled: EnabledByDefault,
     /// Interval for uptime reporting.
+    #[serde(default)]
     pub interval: UptimeReportInterval,
 }
 
-impl Default for UptimeReportConfig {
-    fn default() -> Self {
+impl UptimeReportConfig {
+    /// Returns whether uptime reporting is enabled.
+    pub fn enabled(&self) -> bool {
+        self.enabled.0
+    }
+
+    /// Configures the interval for uptime reporting.
+    pub fn with_interval(self, interval: Duration) -> Self {
         Self {
-            enabled: true,
-            interval: UptimeReportInterval::default(),
+            interval: interval.into(),
+            ..self
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize, Serialize)]
+struct EnabledByDefault(bool);
+impl Default for EnabledByDefault {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
+impl From<bool> for EnabledByDefault {
+    fn from(enabled: bool) -> Self {
+        Self(enabled)
     }
 }
 
@@ -71,7 +90,7 @@ impl From<&UptimeReportConfig> for UptimeReporter {
     fn from(config: &UptimeReportConfig) -> Self {
         Self {
             start_time: SystemTime::now(),
-            ticker: if config.enabled {
+            ticker: if config.enabled() {
                 tick(config.interval.into())
             } else {
                 never()
@@ -107,16 +126,17 @@ impl UptimeReporter {
 
 #[cfg(test)]
 mod tests {
-    use crossbeam::select;
-    use tracing_test::traced_test;
-
     use super::*;
+
+    use crossbeam::select;
+    use serde_json::json;
     use std::time::Duration;
+    use tracing_test::traced_test;
 
     #[test]
     fn test_uptime_report_config() {
         let config = UptimeReportConfig::default();
-        assert!(config.enabled);
+        assert!(config.enabled());
         assert_eq!(config.interval.0, DEFAULT_UPTIME_REPORT_INTERVAL);
     }
 
@@ -126,12 +146,43 @@ mod tests {
         assert_eq!(interval.0, Duration::from_secs(30));
     }
 
+    #[test]
+    fn deserialize() {
+        let default_config_json = json!({});
+        let expected_default_config = UptimeReportConfig::default();
+        let disabled_config_json = json!({
+            "enabled": false,
+        });
+        let expected_disabled_config = UptimeReportConfig {
+            enabled: false.into(),
+            ..Default::default()
+        };
+        let custom_duration_config_json = json!({
+            "interval": "30s"
+        });
+        let expected_custom_duration_config = UptimeReportConfig {
+            interval: UptimeReportInterval(Duration::from_secs(30)),
+            enabled: true.into(),
+        };
+
+        let cases = [
+            (default_config_json, expected_default_config),
+            (disabled_config_json, expected_disabled_config),
+            (custom_duration_config_json, expected_custom_duration_config),
+        ];
+
+        for (json, expected) in cases {
+            let deserialized: UptimeReportConfig = serde_json::from_value(json).unwrap();
+            assert_eq!(deserialized, expected);
+        }
+    }
+
     #[traced_test]
     #[test]
     fn test_uptime_report() {
         const EXPECTED_UPTIME_REPORTS: usize = 3;
         let config = UptimeReportConfig {
-            enabled: true,
+            enabled: true.into(),
             interval: UptimeReportInterval(Duration::from_millis(100)),
         };
 

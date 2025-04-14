@@ -220,7 +220,7 @@ where
         let uptime_reporter =
             UptimeReporter::from(uptime_report_config).with_start_time(self.start_time);
         // If a uptime report is configured, we trace it for the first time here
-        if uptime_report_config.enabled {
+        if uptime_report_config.enabled() {
             let _ = uptime_reporter.report();
         }
 

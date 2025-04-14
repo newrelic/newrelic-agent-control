@@ -142,7 +142,7 @@ where
             let uptime_report_config = &UptimeReportConfig::default();
             let uptime_reporter = UptimeReporter::from(uptime_report_config);
             // If a uptime report is configured, we trace it for the first time here
-            if uptime_report_config.enabled {
+            if uptime_report_config.enabled() {
                 let _ = uptime_reporter.report();
             }
 
