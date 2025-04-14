@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/**"
       - "build/**"
+      - "Dockerfiles/**"
       - ".goreleaser.yml"
       - "**/Cargo.toml" # Also run it when dependencies change
 
