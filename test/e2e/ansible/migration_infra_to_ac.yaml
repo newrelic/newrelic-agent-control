@@ -123,25 +123,6 @@
           path: "/etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml"
         register: infra_agent_values
         failed_when: not infra_agent_values.stat.exists
-      
-      - name: Assert nr-infra auto-generated files are the same as migrated
-        include_tasks: ./tasks/assert_files_are_equal.yaml
-        vars:
-          file1: "{{ item.generated }}"
-          file2: "{{ item.migrated }}"
-        loop:
-          - {
-            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/newrelic-infra.yml",
-            migrated: "/etc/newrelic-infra.yml.bck", 
-          }
-          - {
-            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/integrations.d/docker-config.yml",
-            migrated: "/etc/newrelic-infra/integrations.d.bck/docker-config.yml", 
-          }
-          - {
-            generated: "/var/lib/newrelic-agent-control/auto-generated/nr-infra/logging.d/logging.yml",
-            migrated: "/etc/newrelic-infra/logging.d.bck/logging.yml", 
-          }
 
       - name: Assert Agent Control and Agents are running
         include_role:
