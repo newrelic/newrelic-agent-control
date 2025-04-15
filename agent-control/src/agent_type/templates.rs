@@ -1,16 +1,21 @@
+//! This module provides the implementation of the `Templateable` trait for core and external types,
+//! such as `String` and `serde_yaml` structures. The `Templateable` trait enables templating by
+//! replacing placeholders in content with values from a provided `Variables` map.
+//!
+//! The module also contains the logic for how these replacements are performed, including:
+//! - Parsing and identifying placeholders using regular expressions.
+//! - Resolving variable references and handling missing or undefined variables.
+//! - Replacing placeholders with their corresponding values, while supporting nested structures
+//!   like YAML mappings and sequences.
+//!
+//! Additionally, this module includes utility functions and constants to facilitate the templating
+//! process, such as trimming template delimiters and normalizing variable references.
 use super::definition::Variables;
-use super::runtime_config::Env;
+use super::error::AgentTypeError;
 use super::variable::definition::VariableDefinition;
 use super::variable::kind::Kind;
-use super::{
-    error::AgentTypeError,
-    restart_policy::{BackoffStrategyConfig, RestartPolicyConfig},
-    runtime_config::{Deployment, Executable, K8s, K8sObject, K8sObjectMeta, OnHost, Runtime},
-};
 use regex::Regex;
-use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
-use tracing::warn;
 
 /// Regex that extracts the template values from a string.
 ///
@@ -30,6 +35,23 @@ const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
+
+/// A trait for types that support templating using a set of variables.
+///
+/// Implementers replace placeholders in their content with values from a
+/// provided `Variables` map. Placeholders follow a specific format, such as
+/// `${nr-var:key}`.
+///
+/// # Errors
+///
+/// Returns an `AgentTypeError` if a placeholder references an undefined or
+/// missing variable.
+pub trait Templateable {
+    /// Replaces placeholders in the content with values from the `Variables` map.
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError>
+    where
+        Self: std::marker::Sized;
+}
 
 fn template_re() -> &'static Regex {
     static RE_ONCE: OnceLock<Regex> = OnceLock::new();
@@ -71,23 +93,6 @@ fn replace(
     Ok(s.replace(variable, value.as_str()))
 }
 
-pub trait Templateable {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError>
-    where
-        Self: std::marker::Sized;
-}
-
-impl Templateable for Executable {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            path: self.path.template_with(variables)?,
-            args: self.args.template_with(variables)?,
-            env: self.env.template_with(variables)?,
-            restart_policy: self.restart_policy.template_with(variables)?,
-        })
-    }
-}
-
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
     fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
@@ -103,100 +108,6 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
             let normalized_var = normalized_var(var_name, variables)?;
             replace(variable_to_substitute.as_str(), &r, normalized_var)
         })
-}
-
-impl Templateable for OnHost {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            executable: self
-                .executable
-                .map(|e| e.template_with(variables))
-                .transpose()?,
-            enable_file_logging: self.enable_file_logging.template_with(variables)?,
-            health: self
-                .health
-                .map(|h| h.template_with(variables))
-                .transpose()?,
-        })
-    }
-}
-
-impl Templateable for Env {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        self.0
-            .into_iter()
-            .map(|(k, v)| Ok((k, v.template_with(variables)?)))
-            .collect::<Result<HashMap<_, _>, _>>()
-            .map(Env)
-    }
-}
-
-impl Templateable for RestartPolicyConfig {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            backoff_strategy: self.backoff_strategy.template_with(variables)?,
-            restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
-        })
-    }
-}
-
-impl Templateable for BackoffStrategyConfig {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let backoff_type = self.backoff_type.template_with(variables)?;
-        let backoff_delay = self.backoff_delay.template_with(variables)?;
-        let max_retries = self.max_retries.template_with(variables)?;
-        let last_retry_interval = self.last_retry_interval.template_with(variables)?;
-
-        let result = Self {
-            backoff_type,
-            backoff_delay,
-            max_retries,
-            last_retry_interval,
-        };
-
-        if !result.are_values_in_sync_with_type() {
-            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored");
-        }
-
-        Ok(result)
-    }
-}
-
-impl Templateable for K8s {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            objects: self
-                .objects
-                .into_iter()
-                .map(|(k, v)| Ok((k, v.template_with(variables)?)))
-                .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
-            health: self.health,
-        })
-    }
-}
-
-impl Templateable for K8sObject {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            api_version: self.api_version.clone(),
-            kind: self.kind.clone(),
-            metadata: self.metadata.template_with(variables)?,
-            fields: self.fields.template_with(variables)?,
-        })
-    }
-}
-
-impl Templateable for K8sObjectMeta {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            labels: self
-                .labels
-                .into_iter()
-                .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
-                .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
-            name: self.name.template_with(variables)?,
-        })
-    }
 }
 
 impl Templateable for serde_yaml::Value {
@@ -272,69 +183,12 @@ fn template_yaml_value_string(
     }
 }
 
-impl Templateable for Deployment {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        /*
-        `self.on_host` has type `Option<OnHost>`
-
-        let t = self.on_host.map(|o| o.template_with(variables)); `t` has type `Option<Result<OnHost, AgentTypeError>>`
-
-        Let's visit all the possibilities of `t`.
-        When I do `t.transpose()`, which takes an Option<Result<_,_>> and returns a Result<Option<_>,_>, this is what happens:
-
-        ```
-        match t {
-            None => Ok(None),
-            Some(Ok(on_host)) => Ok(Some(on_host)),
-            Some(Err(e)) => Err(e),
-        }
-        ```
-
-        In words:
-        - None will be mapped to Ok(None).
-        - Some(Ok(_)) will be mapped to Ok(Some(_)).
-        - Some(Err(_)) will be mapped to Err(_).
-
-        With `?` I get rid of the original Result<_,_> wrapper type and get the Option<_> (or else the error bubbles up if it contained the Err(_) variant). Then I am able to store that Option<_>, be it None or Some(_), back into the Deployment object which contains the Option<_> field.
-        */
-
-        let oh = self
-            .on_host
-            .map(|oh| oh.template_with(variables))
-            .transpose()?;
-        let k8s = self
-            .k8s
-            .map(|k8s| k8s.template_with(variables))
-            .transpose()?;
-        Ok(Self { on_host: oh, k8s })
-    }
-}
-
-impl Templateable for Runtime {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            deployment: self.deployment.template_with(variables)?,
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::agent_type::variable::kind_value::KindValue;
     use assert_matches::assert_matches;
     use serde_yaml::Number;
-
-    use std::collections::HashMap;
-
-    use crate::agent_type::restart_policy::{BackoffDelay, BackoffLastRetryInterval};
-    use crate::agent_type::variable::kind_value::KindValue;
-    use crate::agent_type::{
-        definition::TemplateableValue,
-        restart_policy::BackoffStrategyType,
-        runtime_config::{Args, Env},
-        trivial_value::FilePathWithContent,
-    };
-
-    use super::*;
 
     #[test]
     fn test_template_string() {
@@ -359,137 +213,6 @@ mod tests {
         let expected_output =
             "Hello Alice ${UNTOUCHED}! You are 30 years old. ${UNTOUCHED}".to_string();
         let actual_output = template_string(input, &variables).unwrap();
-        assert_eq!(actual_output, expected_output);
-    }
-
-    #[test]
-    fn test_template_executable() {
-        let variables = Variables::from([
-            (
-                "nr-var:path".to_string(),
-                VariableDefinition::new(
-                    String::default(),
-                    true,
-                    None,
-                    Some("/usr/bin/myapp".to_string()),
-                ),
-            ),
-            (
-                "nr-var:args".to_string(),
-                VariableDefinition::new(
-                    String::default(),
-                    true,
-                    None,
-                    Some("--config /etc/myapp.conf".to_string()),
-                ),
-            ),
-            (
-                "nr-var:env.MYAPP_PORT".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("8080".to_string())),
-            ),
-            (
-                "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("linear".to_string())),
-            ),
-            (
-                "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("10s".to_string())),
-            ),
-            (
-                "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
-            ),
-            (
-                "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("300s".to_string())),
-            ),
-            (
-                "nr-var:config".to_string(),
-                VariableDefinition::new_with_file_path(
-                    "config".to_string(),
-                    true,
-                    None,
-                    Some(FilePathWithContent::new(
-                        "config2.yml".into(),
-                        "license_key: abc123\nstaging: true\n".to_string(),
-                    )),
-                    "config_path".into(),
-                ),
-            ),
-            (
-                "nr-var:integrations".to_string(),
-                VariableDefinition::new_with_file_path(
-                    "integrations".to_string(),
-                    true,
-                    None,
-                    Some(HashMap::from([(
-                        "kafka.yml".to_string(),
-                        FilePathWithContent::new(
-                            "config2.yml".into(),
-                            "license_key: abc123\nstaging: true\n".to_string(),
-                        ),
-                    )])),
-                    "integration_path".into(),
-                ),
-            ),
-        ]);
-
-        let input = Executable {
-            path: TemplateableValue::from_template("${nr-var:path}".to_string()),
-            args: TemplateableValue::from_template(
-                "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
-            ),
-            env: Env(HashMap::from([(
-                "MYAPP_PORT".to_string(),
-                TemplateableValue::from_template("${nr-var:env.MYAPP_PORT}".to_string()),
-            )])),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template(
-                        "${nr-var:backoff.type}".to_string(),
-                    ),
-                    backoff_delay: TemplateableValue::from_template(
-                        "${nr-var:backoff.delay}".to_string(),
-                    ),
-                    max_retries: TemplateableValue::from_template(
-                        "${nr-var:backoff.retries}".to_string(),
-                    ),
-                    last_retry_interval: TemplateableValue::from_template(
-                        "${nr-var:backoff.interval}".to_string(),
-                    ),
-                },
-                restart_exit_codes: vec![],
-            },
-        };
-        let expected_output = Executable {
-            path: TemplateableValue::new("/usr/bin/myapp".to_string())
-                .with_template("${nr-var:path}".to_string()),
-            args: TemplateableValue::new(Args(
-                "--config /etc/myapp.conf config_path integration_path".to_string(),
-            ))
-            .with_template("${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string()),
-            env: Env(HashMap::from([(
-                "MYAPP_PORT".to_string(),
-                TemplateableValue::new("8080".to_string())
-                    .with_template("${nr-var:env.MYAPP_PORT}".to_string()),
-            )])),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
-                        .with_template("${nr-var:backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::new(BackoffDelay::from_secs(10))
-                        .with_template("${nr-var:backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::new(30.into())
-                        .with_template("${nr-var:backoff.retries}".to_string()),
-                    last_retry_interval: TemplateableValue::new(
-                        BackoffLastRetryInterval::from_secs(300),
-                    )
-                    .with_template("${nr-var:backoff.interval}".to_string()),
-                },
-                restart_exit_codes: vec![],
-            },
-        };
-        let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
     }
 
@@ -969,60 +692,5 @@ mod tests {
             replace("${nr-var:any}", "${nr-var:any}-x", &neither_value_nor_default).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("${nr-var:any}".to_string(), key);
-    }
-
-    #[test]
-    fn test_template_k8s() {
-        let untouched_val = "${nr-var:any} no templated";
-        let test_agent_id = "id";
-        let k8s_template: K8s = serde_yaml::from_str(
-            format!(
-                r#"
-objects:
-  cr1:
-    apiVersion: {untouched_val}
-    kind: {untouched_val}
-    metadata:
-      name: ${{nr-sub:agent_id}}
-      labels:
-        foo: ${{nr-var:any}}
-        ${{nr-var:any}}: bar
-    spec: ${{nr-var:any}}
-"#
-            )
-            .as_str(),
-        )
-        .unwrap();
-
-        let value = "test_value";
-        let variables = Variables::from([
-            (
-                "nr-var:any".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
-            ),
-            (
-                "nr-sub:agent_id".to_string(),
-                VariableDefinition::new_final_string_variable(test_agent_id.to_string()),
-            ),
-        ]);
-
-        let k8s = k8s_template.template_with(&variables).unwrap();
-
-        let cr1 = k8s.objects.get("cr1").unwrap().clone();
-
-        // Expect no template applied on these fields.
-        assert_eq!(cr1.api_version, untouched_val);
-        assert_eq!(cr1.kind, untouched_val);
-
-        // Expect template works on fields.
-        assert_eq!(cr1.fields.get("spec").unwrap(), value);
-
-        // Expect template works on name.
-        assert_eq!(cr1.metadata.name, test_agent_id);
-
-        // Expect template works on labels.
-        let labels = cr1.metadata.labels;
-        assert_eq!(labels.get("foo").unwrap(), value);
-        assert_eq!(labels.get(value).unwrap(), "bar");
     }
 }

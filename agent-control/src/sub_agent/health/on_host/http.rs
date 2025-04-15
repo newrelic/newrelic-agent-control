@@ -1,4 +1,4 @@
-use crate::agent_type::health_config::HttpHealth;
+use crate::agent_type::runtime_config::health_config::HttpHealth;
 use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
 use crate::sub_agent::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,

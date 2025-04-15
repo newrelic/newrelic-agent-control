@@ -1,21 +1,16 @@
-use super::{
-    definition::{TemplateableValue, Variables},
-    error::AgentTypeError,
-    runtime_config_templates::Templateable,
-};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{collections::HashMap, time::Duration};
 use wrapper_with_default::WrapperWithDefault;
 
-const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
-const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
+use crate::agent_type::definition::Variables;
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::runtime_config::HealthCheckInterval;
+use crate::agent_type::templates::Templateable;
 
-#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct K8sHealthConfig {
-    /// The duration to wait between health checks.
-    pub(crate) interval: HealthCheckInterval,
-}
+use super::templateable_value::TemplateableValue;
+
+const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Represents the configuration for health checks.
 ///
@@ -33,10 +28,6 @@ pub struct OnHostHealthConfig {
     #[serde(flatten)]
     pub(crate) check: OnHostHealthCheck,
 }
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
-#[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
-pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_TIMEOUT)]

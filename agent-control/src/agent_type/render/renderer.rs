@@ -6,7 +6,7 @@ use crate::agent_type::{
     definition::AgentType,
     error::AgentTypeError,
     runtime_config::Runtime,
-    runtime_config_templates::Templateable,
+    templates::Templateable,
     variable::{
         definition::VariableDefinition,
         namespace::{Namespace, NamespacedVariableName},
@@ -169,10 +169,12 @@ pub(crate) mod tests {
                 config_persister::{tests::MockConfigurationPersisterMock, PersistError},
                 config_persister_file::ConfigurationPersisterFile,
             },
-            restart_policy::{
-                BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
+            runtime_config::{
+                onhost::Args,
+                restart_policy::{
+                    BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
+                },
             },
-            runtime_config::Args,
         },
     };
     use assert_matches::assert_matches;

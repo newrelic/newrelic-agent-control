@@ -1,4 +1,4 @@
-use crate::agent_type::restart_policy::{
+use crate::agent_type::runtime_config::restart_policy::{
     BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
 };
 use std::cmp::max;

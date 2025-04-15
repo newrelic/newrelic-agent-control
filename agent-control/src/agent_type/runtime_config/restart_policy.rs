@@ -1,8 +1,13 @@
-use super::{definition::TemplateableValue, error::AgentTypeError};
+use crate::agent_type::definition::Variables;
+use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::templates::Templateable;
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{str::FromStr, time::Duration};
+use tracing::warn;
 use wrapper_with_default::WrapperWithDefault;
+
+use super::templateable_value::TemplateableValue;
 
 /// Defines the Restart Policy configuration.
 /// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
@@ -14,6 +19,15 @@ pub struct RestartPolicyConfig {
     /// List of exit codes that triggers a restart.
     #[serde(default)]
     pub restart_exit_codes: Vec<i32>,
+}
+
+impl Templateable for RestartPolicyConfig {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        Ok(Self {
+            backoff_strategy: self.backoff_strategy.template_with(variables)?,
+            restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
+        })
+    }
 }
 
 /*
@@ -79,6 +93,28 @@ impl BackoffStrategyConfig {
     }
 }
 
+impl Templateable for BackoffStrategyConfig {
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        let backoff_type = self.backoff_type.template_with(variables)?;
+        let backoff_delay = self.backoff_delay.template_with(variables)?;
+        let max_retries = self.max_retries.template_with(variables)?;
+        let last_retry_interval = self.last_retry_interval.template_with(variables)?;
+
+        let result = Self {
+            backoff_type,
+            backoff_delay,
+            max_retries,
+            last_retry_interval,
+        };
+
+        if !result.are_values_in_sync_with_type() {
+            warn!("Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored");
+        }
+
+        Ok(result)
+    }
+}
+
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyType {
@@ -116,8 +152,9 @@ impl Default for BackoffStrategyConfig {
 
 #[cfg(test)]
 mod tests {
+    use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
+
     use super::{BackoffStrategyConfig, BackoffStrategyType};
-    use crate::agent_type::definition::TemplateableValue;
 
     #[test]
     fn values_in_sync_with_type() {

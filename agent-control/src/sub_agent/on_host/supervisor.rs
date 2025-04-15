@@ -1,5 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::health_config::OnHostHealthConfig;
+use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::channel::EventPublisher;

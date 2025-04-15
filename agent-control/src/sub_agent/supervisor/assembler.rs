@@ -185,7 +185,8 @@ pub mod tests {
     use crate::agent_control::defaults::default_capabilities;
     use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::{Deployment, OnHost, Runtime};
+    use crate::agent_type::runtime_config::onhost::OnHost;
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
     use crate::opamp::hash_repository::repository::HashRepositoryError;

@@ -7,17 +7,16 @@
 use super::{
     agent_type_id::AgentTypeID,
     error::AgentTypeError,
-    restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries},
-    runtime_config::{Args, Runtime},
-    runtime_config_templates::{Templateable, TEMPLATE_KEY_SEPARATOR},
+    runtime_config::Runtime,
+    templates::TEMPLATE_KEY_SEPARATOR,
     variable::definition::{VariableDefinition, VariableDefinitionTree},
 };
 
 use crate::agent_control::defaults::default_capabilities;
 use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
-use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, str::FromStr};
+use serde::Deserialize;
+use std::collections::HashMap;
 use tracing::warn;
 
 /// AgentTypeDefinition represents the definition of an [AgentType]. It defines the variables and runtime for any supported
@@ -52,155 +51,6 @@ pub struct AgentType {
     pub variables: VariableTree,
     pub runtime_config: Runtime,
     capabilities: Capabilities,
-}
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct TemplateableValue<T> {
-    pub(super) value: Option<T>,
-    pub(super) template: String,
-}
-
-impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
-    fn deserialize<D>(deserializer: D) -> Result<TemplateableValue<T>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum InputType {
-            String(String),
-            NumberU64(u64),
-            NumberI64(i64),
-            NumberF64(f64),
-            Bool(bool),
-        }
-
-        let result = match InputType::deserialize(deserializer)? {
-            InputType::String(s) => s,
-            InputType::NumberU64(n) => n.to_string(),
-            InputType::NumberI64(n) => n.to_string(),
-            InputType::NumberF64(n) => n.to_string(),
-            InputType::Bool(b) => b.to_string(),
-        };
-        Ok(TemplateableValue {
-            value: None,
-            template: result,
-        })
-    }
-}
-
-impl<T> TemplateableValue<T> {
-    pub fn get(self) -> T {
-        self.value
-            .unwrap_or_else(|| unreachable!("Values must be populated at this point"))
-    }
-    pub fn new(value: T) -> Self {
-        Self {
-            value: Some(value),
-            template: "".to_string(),
-        }
-    }
-    pub fn is_template_empty(&self) -> bool {
-        self.template.is_empty()
-    }
-    #[cfg(test)]
-    pub fn from_template(s: String) -> Self {
-        Self {
-            value: None,
-            template: s,
-        }
-    }
-    #[cfg(test)]
-    pub fn with_template(self, s: String) -> Self {
-        Self {
-            template: s,
-            ..self
-        }
-    }
-}
-
-impl<S> Templateable for TemplateableValue<S>
-where
-    S: FromStr + Default,
-{
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        let value = if templated_string.is_empty() {
-            S::default()
-        } else {
-            templated_string
-                .parse()
-                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
-        };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
-    }
-}
-
-impl Templateable for TemplateableValue<Args> {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        Ok(Self {
-            template: self.template,
-            value: Some(Args(templated_string)),
-        })
-    }
-}
-
-impl Templateable for TemplateableValue<BackoffDelay> {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        let value = if templated_string.is_empty() {
-            BackoffDelay::default()
-        } else {
-            // Attempt to parse a simple number as seconds
-            duration_str::parse(&templated_string)
-                .map(BackoffDelay::from)
-                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
-        };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
-    }
-}
-
-impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        let value = if templated_string.is_empty() {
-            BackoffLastRetryInterval::default()
-        } else {
-            // Attempt to parse a simple number as seconds
-            duration_str::parse(&templated_string)
-                .map(BackoffLastRetryInterval::from)
-                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
-        };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
-    }
-}
-
-impl Templateable for TemplateableValue<MaxRetries> {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
-        let value = if templated_string.is_empty() {
-            MaxRetries::default()
-        } else {
-            templated_string
-                .parse::<usize>()
-                .map(MaxRetries::from)
-                .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
-        };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
-    }
 }
 
 impl AgentType {
@@ -352,11 +202,7 @@ pub mod tests {
     use crate::agent_control::run::Environment;
     use crate::agent_type::runtime_config::Deployment;
     use crate::{
-        agent_type::{
-            restart_policy::{BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig},
-            runtime_config::{Env, Executable},
-            trivial_value::{FilePathWithContent, TrivialValue},
-        },
+        agent_type::trivial_value::{FilePathWithContent, TrivialValue},
         sub_agent::effective_agents_assembler::build_agent_type,
     };
     use assert_matches::assert_matches;
@@ -463,75 +309,22 @@ deployment:
       args: "-c ${nr-var:deployment.k8s.image}"
 "#;
 
-    pub const RESTART_POLICY_OMITTED_FIELDS_YAML: &str = r#"
-restart_policy:
-  backoff_strategy:
-    type: linear
-"#;
-
     #[test]
     fn test_basic_agent_parsing() {
-        let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_GIVEN_YAML).unwrap();
+        let basic_agent = r#"
+name: nrdot
+namespace: newrelic
+version: 0.0.1
+variables: {}
+deployment: 
+  on_host: {}
+"#;
+
+        let agent: AgentTypeDefinition = serde_yaml::from_str(basic_agent).unwrap();
 
         assert_eq!("nrdot", agent.agent_type_id.name());
         assert_eq!("newrelic", agent.agent_type_id.namespace());
         assert_eq!("0.0.1", agent.agent_type_id.version().to_string());
-
-        let on_host = agent.runtime_config.deployment.on_host.clone().unwrap();
-
-        assert_eq!(
-            "${nr-var:bin}/otelcol",
-            on_host.executable.clone().unwrap().path.template
-        );
-        assert_eq!(
-            "-c ${nr-var:deployment.k8s.image}".to_string(),
-            on_host.executable.clone().unwrap().args.template
-        );
-
-        // Restart policy values
-        assert_eq!(
-            BackoffStrategyConfig {
-                backoff_type: TemplateableValue::from_template("fixed".to_string()),
-                backoff_delay: TemplateableValue::from_template("1s".to_string()),
-                max_retries: TemplateableValue::from_template("3".to_string()),
-                last_retry_interval: TemplateableValue::from_template("30s".to_string()),
-            },
-            on_host.executable.unwrap().restart_policy.backoff_strategy
-        );
-    }
-
-    #[test]
-    fn test_no_executables() {
-        const AGENT_TYPE_NO_EXECUTABLES: &str = r#"
-name: no-exec
-namespace: newrelic
-version: 0.0.1
-variables: {}
-deployment:
-  on_host: {}
-"#;
-
-        let agent: AgentTypeDefinition = serde_yaml::from_str(AGENT_TYPE_NO_EXECUTABLES).unwrap();
-
-        assert_eq!("no-exec", agent.agent_type_id.name());
-        assert_eq!("newrelic", agent.agent_type_id.namespace());
-        assert_eq!("0.0.1", agent.agent_type_id.version().to_string());
-        assert!(agent
-            .runtime_config
-            .deployment
-            .on_host
-            .unwrap()
-            .executable
-            .is_none());
-    }
-
-    #[test]
-    fn test_agent_parsing_omitted_fields_use_defaults() {
-        let backoff_strategy: BackoffStrategyConfig =
-            serde_yaml::from_str(RESTART_POLICY_OMITTED_FIELDS_YAML).unwrap();
-
-        // Restart policy values
-        assert_eq!(BackoffStrategyConfig::default(), backoff_strategy);
     }
 
     #[test]
@@ -578,280 +371,6 @@ deployment:
                 .get_variable("description.name".to_string())
                 .unwrap()
         );
-    }
-
-    #[test]
-    fn test_replacer() {
-        let exec = Executable {
-            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
-            args: TemplateableValue::from_template(
-                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
-                    .to_string(),
-            ),
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template("${nr-var:backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::from_template("${nr-var:backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::from_template("${nr-var:backoff.retries}".to_string()),
-                    last_retry_interval: TemplateableValue::from_template(
-                        "${nr-var:backoff.interval}".to_string(),
-                    ),
-                },
-                restart_exit_codes: Vec::default(),
-            },
-        };
-
-        let normalized_values = Map::from([
-            (
-                "nr-var:bin".to_string(),
-                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
-            ),
-            (
-                "nr-var:config".to_string(),
-                VariableDefinition::new_with_file_path(
-                    "config".to_string(),
-                    true,
-                    None,
-                    Some(FilePathWithContent::new(
-                        "config2.yml".into(),
-                        "license_key: abc123\nstaging: true\n".to_string(),
-                    )),
-                    "config_path".into(),
-                ),
-            ),
-            (
-                "nr-var:integrations".to_string(),
-                VariableDefinition::new_with_file_path(
-                    "integrations".to_string(),
-                    true,
-                    None,
-                    Some(HashMap::from([
-                        (
-                            "kafka.yml".to_string(),
-                            FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            ),
-                        ),
-                        (
-                            "redis.yml".to_string(),
-                            FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            ),
-                        ),
-                    ])),
-                    "integration_path".into(),
-                ),
-            ),
-            (
-                "nr-var:deployment.on_host.verbose".to_string(),
-                VariableDefinition::new(
-                    "verbosity".to_string(),
-                    true,
-                    None,
-                    Some("true".to_string()),
-                ),
-            ),
-            (
-                "nr-var:deployment.on_host.log_level".to_string(),
-                VariableDefinition::new(
-                    "log_level".to_string(),
-                    true,
-                    None,
-                    Some("trace".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(
-                    "backoff_type".to_string(),
-                    true,
-                    None,
-                    Some("exponential".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(
-                    "backoff_delay".to_string(),
-                    true,
-                    None,
-                    Some("10s".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(
-                    "backoff_retries".to_string(),
-                    true,
-                    None,
-                    Some(Number::from(30)),
-                ),
-            ),
-            (
-                "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(
-                    "backoff_interval".to_string(),
-                    true,
-                    None,
-                    Some("300s".to_string()),
-                ),
-            ),
-        ]);
-
-        let exec_actual = exec.template_with(&normalized_values).unwrap();
-
-        let exec_expected = Executable {
-            path: TemplateableValue {
-                value: Some("/etc/otelcol".to_string()),
-                template: "${nr-var:bin}/otelcol".to_string(),
-            },
-            args: TemplateableValue {
-                value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
-                template:
-                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
-                    .to_string(),
-            },
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue {
-                        value: Some(BackoffStrategyType::Exponential),
-                        template: "${nr-var:backoff.type}".to_string(),
-                    },
-                    backoff_delay: TemplateableValue {
-                        value: Some(BackoffDelay::from_secs(10)),
-                        template: "${nr-var:backoff.delay}".to_string(),
-                    },
-                    max_retries: TemplateableValue {
-                        value: Some(30.into()),
-                        template: "${nr-var:backoff.retries}".to_string(),
-                    },
-                    last_retry_interval: TemplateableValue {
-                        value: Some(BackoffLastRetryInterval::from_secs(300)),
-                        template: "${nr-var:backoff.interval}".to_string(),
-                    },
-                },
-                restart_exit_codes: vec![],
-            },
-        };
-
-        assert_eq!(exec_actual, exec_expected);
-    }
-
-    #[test]
-    fn test_replacer_two_same() {
-        let exec = Executable {
-            path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
-            args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::from_template(
-                        "${nr-var:backoff.type}"
-                            .to_string(),
-                    ),
-                    backoff_delay: TemplateableValue::from_template(
-                        "${nr-var:backoff.delay}"
-                            .to_string(),
-                    ),
-                    max_retries: TemplateableValue::from_template(
-                        "${nr-var:backoff.retries}"
-                            .to_string(),
-                    ),
-                    last_retry_interval: TemplateableValue::from_template(
-                        "${nr-var:backoff.interval}"
-                            .to_string(),
-                    ),
-                },
-                restart_exit_codes: vec![],
-            },
-        };
-
-        let normalized_values = Map::from([
-            (
-                "nr-var:bin".to_string(),
-                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
-            ),
-            (
-                "nr-var:deployment.on_host.verbose".to_string(),
-                VariableDefinition::new(
-                    "verbosity".to_string(),
-                    true,
-                    None,
-                    Some("true".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(
-                    "backoff_type".to_string(),
-                    true,
-                    None,
-                    Some("linear".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(
-                    "backoff_delay".to_string(),
-                    true,
-                    None,
-                    Some("10s".to_string()),
-                ),
-            ),
-            (
-                "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(
-                    "backoff_retries".to_string(),
-                    true,
-                    None,
-                    Some(Number::from(30)),
-                ),
-            ),
-            (
-                "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(
-                    "backoff_interval".to_string(),
-                    true,
-                    None,
-                    Some("300s".to_string()),
-                ),
-            ),
-        ]);
-
-        let exec_actual = exec.template_with(&normalized_values).unwrap();
-
-        let exec_expected = Executable {
-            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
-            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue {
-                        value: Some(BackoffStrategyType::Linear),
-                        template: "${nr-var:backoff.type}".to_string(),
-                    },
-                    backoff_delay: TemplateableValue {
-                        value: Some(BackoffDelay::from_secs(10)),
-                        template: "${nr-var:backoff.delay}".to_string(),
-                    },
-                    max_retries: TemplateableValue {
-                        value: Some(30.into()),
-                        template: "${nr-var:backoff.retries}".to_string(),
-                    },
-                    last_retry_interval: TemplateableValue {
-                        value: Some(BackoffLastRetryInterval::from_secs(300)),
-                        template: "${nr-var:backoff.interval}".to_string(),
-                    },
-                },
-                restart_exit_codes: vec![],
-            },
-        };
-
-        assert_eq!(exec_actual, exec_expected);
     }
 
     const GIVEN_NEWRELIC_INFRA_YAML: &str = r#"
