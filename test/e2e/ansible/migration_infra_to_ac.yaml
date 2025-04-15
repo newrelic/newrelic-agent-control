@@ -73,13 +73,12 @@
             become: false
         vars:
           nrql_query: >-
-            SELECT latest(`mysql.node.openTables`) AS openTables
-            FROM Metric
-            WHERE host.hostname = '{{ ansible_hostname }}' AND test_id = '{{ test_id }}' AND app = 'infra_agent'
-            SINCE 30 SECONDS AGO
-          retries: 120
+            SELECT *
+            FROM MysqlSample
+            WHERE test_id = '{{ test_id }}' AND app = 'infra_agent'
+            LIMIT 1
+          retries: 60
           delay: 5
-          until: "response.json.data.actor.account.nrql.results[0][\"openTables\"] is not none"
 
       - name: Install Agent Control
         include_role:
@@ -131,10 +130,9 @@
             become: false
         vars:
           nrql_query: >-
-            SELECT latest(`mysql.node.openTables`) AS openTables
-            FROM Metric
-            WHERE host.hostname = '{{ ansible_hostname }}' AND test_id = '{{ test_id }}' AND app = 'agent_control'
-            SINCE 30 SECONDS AGO
+            SELECT *
+            FROM MysqlSample
+            WHERE test_id = '{{ test_id }}' AND app = 'agent_control'
+            LIMIT 1
           retries: 120
           delay: 5
-          until: "response.json is defined and response.json.data.actor.account.nrql.results[0][\"openTables\"] is not none"
