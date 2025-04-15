@@ -38,7 +38,7 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 
 /// A trait for types that support templating using a set of variables.
 ///
-/// Implementors replace placeholders in their content with values from a
+/// Implementers replace placeholders in their content with values from a
 /// provided `Variables` map. Placeholders follow a specific format, such as
 /// `${nr-var:key}`.
 ///
