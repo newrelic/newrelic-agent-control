@@ -60,7 +60,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use mockall::mock;
+    use mockall::{mock, predicate};
 
     mock! {
         pub RemoteConfigValidatorMock {}
@@ -73,6 +73,23 @@ pub mod tests {
                 agent_identity: &AgentIdentity,
                 remote_config: &RemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
+        }
+    }
+
+    impl MockRemoteConfigValidatorMock {
+        pub fn should_validate(
+            &mut self,
+            agent_identity: &AgentIdentity,
+            remote_config: &RemoteConfig,
+            result: Result<(), <Self as RemoteConfigValidator>::Err>,
+        ) {
+            self.expect_validate()
+                .once()
+                .with(
+                    predicate::eq(agent_identity.clone()),
+                    predicate::eq(remote_config.clone()),
+                )
+                .return_once(move |_, _| result);
         }
     }
 }
