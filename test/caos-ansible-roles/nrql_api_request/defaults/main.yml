@@ -1,3 +1,4 @@
 ---
 nr_api_host: "https://staging-api.newrelic.com"
+until: "response.json is defined and response.json.data.actor.account.nrql.results != []"
 ...

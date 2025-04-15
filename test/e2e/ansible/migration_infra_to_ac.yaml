@@ -66,15 +66,20 @@
         include_role:
           name: caos.ansible_roles.nri_mysql
 
-      - name: Wait 2 minutes to give nri-mysql time to send metrics
-        pause:
-          minutes: 2
-      
-      - name:
-        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+      - name: Get metrics sent by nri-mysql
+        include_role:
+          name: nrql_api_request
+          apply:
+            become: false
         vars:
-          test_id: "{{ current_test_id }}"
-          app: "infra_agent"
+          nrql_query: >-
+            SELECT latest(`mysql.node.openTables`) AS openTables
+            FROM Metric
+            WHERE host.hostname = '{{ ansible_hostname }}' AND test_id = '{{ current_test_id }}' AND app = 'infra_agent'
+            SINCE 30 SECONDS AGO
+          retries: 120
+          delay: 5
+          until: "response.json.data.actor.account.nrql.results[0][\"openTables\"] is not none"
 
       - name: Install Agent Control
         include_role:
@@ -118,13 +123,18 @@
         vars:
           service_name: "newrelic-agent-control"
           action: "restart"
-      
-      - name: Wait 10 minutes to give nri-mysql time to send metrics
-        pause:
-          minutes: 10
-      
-      - name:
-        include_tasks: ./tasks/assert-nri-mysql-sending-data.yml
+
+      - name: Get metrics sent by nri-mysql
+        include_role:
+          name: nrql_api_request
+          apply:
+            become: false
         vars:
-          test_id: "{{ current_test_id }}"
-          app: "agent_control"
+          nrql_query: >-
+            SELECT latest(`mysql.node.openTables`) AS openTables
+            FROM Metric
+            WHERE host.hostname = '{{ ansible_hostname }}' AND test_id = '{{ current_test_id }}' AND app = 'agent_control'
+            SINCE 30 SECONDS AGO
+          retries: 120
+          delay: 5
+          until: "response.json is defined and response.json.data.actor.account.nrql.results[0][\"openTables\"] is not none"

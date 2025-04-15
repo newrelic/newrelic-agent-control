@@ -25,7 +25,7 @@
   register: response
   retries: "{{ retries }}"
   delay: "{{ delay }}"
-  until: response.json is defined and response.json.data.actor.account.nrql.results != []
+  until: "{{ until }}"
 
 - name: fail if errors are present
   fail:
