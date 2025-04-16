@@ -46,6 +46,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
+        info!("starting k8s supervisor");
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let thread_contexts = vec![
@@ -53,6 +54,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher, resources),
         ];
+        info!("k8s supervisor started");
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_identity.id,
@@ -127,7 +129,7 @@ impl NotStartedSupervisorK8s {
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
-                warn!(%err, "K8s resources apply failed");
+                warn!(%err, "k8s resources apply failed");
             }
 
             // Check the cancellation signal
@@ -193,10 +195,10 @@ impl NotStartedSupervisorK8s {
     ) -> Result<(), SupervisorStarterError> {
         debug!("applying k8s objects if changed");
         for res in resources {
-            trace!("K8s object: {:?}", res);
+            trace!("k8s object: {:?}", res);
             k8s_client.apply_dynamic_object_if_changed(res)?;
         }
-        debug!("K8s objects applied");
+        debug!("k8s objects applied");
         Ok(())
     }
 }
@@ -213,9 +215,9 @@ impl SupervisorStopper for StartedSupervisorK8s {
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
             match thread_context.stop_blocking() {
-                Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
+                Ok(_) => debug!(agent_id = %self.agent_id, "{} stopped", thread_name),
                 Err(error_msg) => {
-                    error!(agent_id = %self.agent_id, "Error stopping '{thread_name}': {error_msg}");
+                    error!(agent_id = %self.agent_id, "error stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }

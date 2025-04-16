@@ -130,17 +130,17 @@ where
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         let s = info_span!("agent", id=%self.identity.id);
-        spawn_named_thread("SubAgent runtime", move || {
+        spawn_named_thread("subagent runtime", move || {
             let _guards = s.enter();
 
             let mut supervisor = self.assemble_and_start_supervisor();
             // Stores the current healthy state for logging purposes.
-            let mut is_healthy = false;
+            let mut previous_health = None;
 
             debug!("runtime started");
             let _ = self.sub_agent_publisher
                 .publish(SubAgentStarted(self.identity.clone(),SystemTime::now()))
-                .inspect_err(|err| error!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
+                .inspect_err(|err| warn!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
 
             Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 
@@ -191,12 +191,12 @@ where
                                 remote_config_count += 1;
                                 trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                info!(hash=&config.hash.get(), "Applying remote config");
+                                info!(hash=&config.hash.get(), "applying remote config");
                                 self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Applying);
 
                                 match self.remote_config_parser.parse(self.identity.clone(), &config) {
                                     Err(err) =>{
-                                        warn!(hash=&config.hash.get(), "Remote configuration cannot be applied: {err}");
+                                        warn!(hash=&config.hash.get(), "remote configuration cannot be applied: {err}");
                                         self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
                                         self.store_remote_config_hash(&config);
                                     },
@@ -205,7 +205,7 @@ where
                                         // and restarting the supervisor until the supervisor corresponding to the new configuration
                                         // is successfully.
                                         if let Err(err) = self.store_config_hash_and_values(&config, &yaml_config) {
-                                            warn!(hash=&config.hash.get(), "Error persisting remote configuration: {err}");
+                                            warn!(hash=&config.hash.get(), "persisting remote configuration failed: {err}");
                                             self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
                                         } else {
                                             // We need to restart the supervisor after we receive a new config
@@ -233,8 +233,11 @@ where
                             Ok(SubAgentInternalEvent::AgentHealthInfo(health))=>{
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
 
-                                Self::log_health_info(is_healthy, health.clone().into());
-                                is_healthy = health.is_healthy();
+                                let health_state = Health::from(health.clone());
+                                if !Self::is_health_state_equal_to_previous_state(&previous_health, &health_state) {
+                                    Self::log_health_info(&health_state);
+                                }
+                                previous_health = Some(health_state);
                                 let _ = on_health(
                                     health,
                                     self.maybe_opamp_client.as_ref(),
@@ -260,13 +263,22 @@ where
         })
     }
 
-    fn log_health_info(was_healthy: bool, health: Health) {
+    fn is_health_state_equal_to_previous_state(
+        previous_state: &Option<Health>,
+        current_state: &Health,
+    ) -> bool {
+        match (previous_state, current_state){
+            (Some(Health::Healthy(_)), Health::Healthy(_)) => true,
+            (Some(prev), current) => prev == current,
+            _ => false,
+        }
+    }
+
+    fn log_health_info(health: &Health) {
         match health {
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
-                if !was_healthy {
-                    info!("Agent is healthy");
-                }
+                info!("agent is healthy");
             }
             // Every time health is unhealthy
             Health::Unhealthy(unhealthy) => {
