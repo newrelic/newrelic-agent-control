@@ -21,9 +21,9 @@ use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
+use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
@@ -170,13 +170,13 @@ impl AgentControlRunner {
                 Environment::OnHost,
             )),
         ];
-        let remote_config_handler = AgentRemoteConfigHandler::new(remote_config_validators);
+        let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             Arc::new(supervisor_assembler),
-            Arc::new(remote_config_handler),
+            Arc::new(remote_config_parser),
             sub_agent_hash_repository,
             yaml_config_repository,
         );

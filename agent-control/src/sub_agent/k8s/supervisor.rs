@@ -241,8 +241,8 @@ pub mod tests {
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
     use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
-    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandlerMock;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
+    use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParserMock;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
@@ -506,7 +506,7 @@ pub mod tests {
             .return_const(Ok(None));
 
         let yaml_config_repository = MockYAMLConfigRepositoryMock::new();
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let remote_config_parser = MockRemoteConfigParserMock::new();
 
         let agent_identity_clone = agent_identity.clone();
         let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
@@ -531,7 +531,7 @@ pub mod tests {
                 sub_agent_internal_publisher.clone(),
                 sub_agent_internal_consumer,
             ),
-            Arc::new(remote_config_handler),
+            Arc::new(remote_config_parser),
             Arc::new(sub_agent_remote_config_hash_repository),
             Arc::new(yaml_config_repository),
         )

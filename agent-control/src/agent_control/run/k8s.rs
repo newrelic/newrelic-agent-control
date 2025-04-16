@@ -19,9 +19,9 @@ use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::event_handler::opamp::remote_config_handler::AgentRemoteConfigHandler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
+use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{
     agent_control::error::AgentError,
@@ -140,7 +140,7 @@ impl AgentControlRunner {
             )),
         ];
 
-        let remote_config_handler = AgentRemoteConfigHandler::new(remote_config_validators);
+        let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
@@ -148,7 +148,7 @@ impl AgentControlRunner {
             &instance_id_getter,
             self.k8s_config.clone(),
             Arc::new(supervisor_assembler),
-            Arc::new(remote_config_handler),
+            Arc::new(remote_config_parser),
             hash_repository.clone(),
             yaml_config_repository.clone(),
         );
