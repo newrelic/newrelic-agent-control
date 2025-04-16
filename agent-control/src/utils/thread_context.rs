@@ -121,10 +121,9 @@ where
         trace!(thread = self.thread_name, "publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self
-            .stop_publisher
-            .try_publish(())
-            .inspect_err(|err| debug!(thread = self.thread_name, "publishing stop failed: {}", err));
+        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
+            debug!(thread = self.thread_name, "publishing stop failed: {}", err)
+        });
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
                 trace!(thread = self.thread_name, "finished, joining");
@@ -143,10 +142,9 @@ where
         trace!(thread = self.thread_name, "publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self
-            .stop_publisher
-            .try_publish(())
-            .inspect_err(|err| debug!(thread = self.thread_name, "publishing stop failed: {}", err));
+        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
+            debug!(thread = self.thread_name, "publishing stop failed: {}", err)
+        });
         trace!(thread = self.thread_name, "joining");
         self.join_thread()
     }

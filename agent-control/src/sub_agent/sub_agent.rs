@@ -267,7 +267,7 @@ where
         previous_state: &Option<Health>,
         current_state: &Health,
     ) -> bool {
-        match (previous_state, current_state){
+        match (previous_state, current_state) {
             (Some(Health::Healthy(_)), Health::Healthy(_)) => true,
             (Some(prev), current) => prev == current,
             _ => false,
