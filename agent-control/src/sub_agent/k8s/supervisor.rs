@@ -127,7 +127,7 @@ impl NotStartedSupervisorK8s {
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
-                error!(%err, "K8s resources apply failed");
+                warn!(%err, "K8s resources apply failed");
             }
 
             // Check the cancellation signal

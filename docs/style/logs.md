@@ -10,7 +10,7 @@ Deciding which log level to use for each log message can be hard at times. We cr
     <th>AC Examples</th>
   </tr>
   <tr style="background-color:#ffcccc;color:black;">
-    <td>Error</td>
+    <td rowspan="2">Error</td>
     <td>Threatens the correct operation of AC</td>
     <td>
       <ul>
@@ -27,7 +27,6 @@ Deciding which log level to use for each log message can be hard at times. We cr
     </td>
   </tr>
   <tr style="background-color:#ffcccc;color:black;">
-    <td>Error</td>
     <td>Security issues</td>
     <td>
       <ul>
@@ -42,7 +41,7 @@ Deciding which log level to use for each log message can be hard at times. We cr
     </td>
   </tr>
   <tr style="background-color:#ffe5cc;color:black;">
-    <td>Warn</td>
+    <td rowspan="2">Warn</td>
     <td>Impact AC behaviour without breaking the application</td>
     <td>
       <ul>
@@ -59,7 +58,6 @@ Deciding which log level to use for each log message can be hard at times. We cr
     </td>
   </tr>
   <tr style="background-color:#ffe5cc;color:black;">
-    <td>Warn</td>
     <td>Issues that could be a problem in the future</td>
     <td>
       <ul>
