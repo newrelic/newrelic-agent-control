@@ -84,7 +84,7 @@
             FROM MysqlSample
             WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'infra_agent'
             LIMIT 1
-          retries: 60
+          retries: 12
           delay: 5
 
       - name: Install Agent Control
@@ -141,5 +141,5 @@
             FROM MysqlSample
             WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'agent_control'
             LIMIT 1
-          retries: 120
+          retries: 12
           delay: 5
