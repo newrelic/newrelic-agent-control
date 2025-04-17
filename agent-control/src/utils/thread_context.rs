@@ -40,7 +40,7 @@ where
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
         // Notice that this is needed in order to pass across threads
         let s = debug_span!("sub_thread", thread = &self.thread_name);
-        debug!("starting {} thread", self.thread_name);
+        debug!("Starting {} thread", self.thread_name);
 
         StartedThreadContext::new(
             self.thread_name.clone(),
@@ -118,15 +118,15 @@ where
     /// It sends a stop signal and periodically checks if the thread has finished until
     /// it timeout defined by `GRACEFUL_STOP_RETRY` * `GRACEFUL_STOP_RETRY_INTERVAL`.
     pub fn stop(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "publishing stop");
+        trace!(thread = self.thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
         let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
-            debug!(thread = self.thread_name, "publishing stop failed: {}", err)
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
         });
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
-                trace!(thread = self.thread_name, "finished, joining");
+                trace!(thread = self.thread_name, "Finished, joining");
                 return self.join_thread();
             }
             sleep(GRACEFUL_STOP_RETRY_INTERVAL);
@@ -139,13 +139,13 @@ where
 
     /// It sends a stop signal and waits until the thread handle is joined.
     pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "publishing stop");
+        trace!(thread = self.thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
         let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
-            debug!(thread = self.thread_name, "publishing stop failed: {}", err)
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
         });
-        trace!(thread = self.thread_name, "joining");
+        trace!(thread = self.thread_name, "Joining");
         self.join_thread()
     }
 }

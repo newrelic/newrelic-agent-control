@@ -130,7 +130,7 @@ where
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         let s = info_span!("agent", id=%self.identity.id);
-        spawn_named_thread("subagent runtime", move || {
+        spawn_named_thread("Subagent runtime", move || {
             let _guards = s.enter();
 
             let mut supervisor = self.assemble_and_start_supervisor();
@@ -140,7 +140,7 @@ where
             debug!("runtime started");
             let _ = self.sub_agent_publisher
                 .publish(SubAgentStarted(self.identity.clone(),SystemTime::now()))
-                .inspect_err(|err| error!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
+                .inspect_err(|err| error!(error_msg = %err,"Cannot publish sub_agent_event::sub_agent_started"));
 
             Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 
@@ -173,30 +173,30 @@ where
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
                         match opamp_event_res {
                             Err(e) => {
-                                debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "channel closed");
+                                debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
                                 break;
                             }
 
                             Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
                                 debug!(
                                     select_arm = "sub_agent_opamp_consumer",
-                                    "remote config received"
+                                    "Remote config received"
                                 );
                                 // This branch only makes sense with a valid OpAMP client
                                 let Some(opamp_client) = &self.maybe_opamp_client else {
-                                    debug!("got remote config without OpAMP being enabled");
+                                    debug!("Got remote config without OpAMP being enabled");
                                     continue;
                                 };
                                 // Trace the occurrence of a remote config reception
                                 remote_config_count += 1;
                                 trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                info!(hash=&config.hash.get(), "applying remote config");
+                                info!(hash=&config.hash.get(), "Applying remote config");
                                 self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Applying);
 
                                 match self.remote_config_parser.parse(self.identity.clone(), &config) {
                                     Err(err) =>{
-                                        warn!(hash=&config.hash.get(), "remote configuration cannot be applied: {err}");
+                                        warn!(hash=&config.hash.get(), "Remote configuration cannot be applied: {err}");
                                         self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
                                         self.store_remote_config_hash(&config);
                                     },
@@ -205,7 +205,7 @@ where
                                         // and restarting the supervisor until the supervisor corresponding to the new configuration
                                         // is successfully.
                                         if let Err(err) = self.store_config_hash_and_values(&config, &yaml_config) {
-                                            warn!(hash=&config.hash.get(), "persisting remote configuration failed: {err}");
+                                            warn!(hash=&config.hash.get(), "Persisting remote configuration failed: {err}");
                                             self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
                                         } else {
                                             // We need to restart the supervisor after we receive a new config
@@ -222,7 +222,7 @@ where
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
                         match sub_agent_internal_event_res {
                             Err(e) => {
-                                debug!(error = %e, select_arm = "sub_agent_internal_consumer", "channel closed");
+                                debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");
                                 break;
                             }
                             Ok(SubAgentInternalEvent::StopRequested) => {
@@ -244,7 +244,7 @@ where
                                     self.sub_agent_publisher.clone(),
                                     self.identity.clone(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing health message"));
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             }
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                  let _ = on_version(
@@ -278,14 +278,14 @@ where
         match health {
             // From unhealthy (or initial) to healthy
             Health::Healthy(_) => {
-                info!("agent is healthy");
+                info!("Agent is healthy");
             }
             // Every time health is unhealthy
             Health::Unhealthy(unhealthy) => {
                 warn!(
                     status = unhealthy.status(),
                     last_error = unhealthy.last_error(),
-                    "agent is unhealthy"
+                    "Agent is unhealthy"
                 );
             }
         }
@@ -316,7 +316,7 @@ where
         let stopped_supervisor = self
             .supervisor_assembler
             .assemble_supervisor(&self.maybe_opamp_client, self.identity.clone())
-            .inspect_err(|e| warn!(error = %e,"cannot assemble supervisor"))
+            .inspect_err(|e| warn!(error = %e,"Cannot assemble supervisor"))
             .ok();
 
         stopped_supervisor
@@ -349,7 +349,7 @@ where
                 .values_repository
                 .store_remote(&self.identity.id, yaml_config),
             None => {
-                debug!("empty config received, remove remote configuration to fall-back to local");
+                debug!("Empty config received, remove remote configuration to fall-back to local");
                 self.values_repository.delete_remote(&self.identity.id)
             }
         }?;
@@ -365,7 +365,7 @@ where
         let _ = remote_config_status
             .report(opamp_client, &config.hash)
             .inspect_err(|e| {
-                warn!("Error reporting OpAMP configuration status: {e}");
+                warn!("Reporting OpAMP configuration status failed: {e}");
             });
     }
 }
@@ -379,7 +379,7 @@ impl StartedSubAgent for SubAgentStopper {
         let runtime_join_result = self.runtime.join().map_err(|_| {
             // Error when the 'runtime thread' panics.
             SubAgentStopError::SubAgentJoinHandle(
-                "the sub agent thread failed unexpectedly".to_string(),
+                "The sub agent thread failed unexpectedly".to_string(),
             )
         })?;
         Ok(runtime_join_result?)
@@ -392,7 +392,7 @@ where
 {
     if let Some(s) = maybe_started_supervisor {
         let _ = s.stop().inspect_err(|err| {
-            error!(%err,"error stopping supervisor");
+            error!(%err,"Error stopping supervisor");
         });
     }
 }
