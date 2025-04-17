@@ -140,7 +140,7 @@ where
             debug!("runtime started");
             let _ = self.sub_agent_publisher
                 .publish(SubAgentStarted(self.identity.clone(),SystemTime::now()))
-                .inspect_err(|err| warn!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
+                .inspect_err(|err| error!(error_msg = %err,"cannot publish sub_agent_event::sub_agent_started"));
 
             Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
 

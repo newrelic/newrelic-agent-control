@@ -61,7 +61,7 @@ where
             if let Err(error_msg) = validator.validate(&agent_identity, config) {
                 debug!(
                     hash = &config.hash.get(),
-                    "remote config validation failed: {error_msg}"
+                    "invalid remote configuration: {error_msg}"
                 );
                 return Err(RemoteConfigParserError::Validation(error_msg.to_string()));
             }
