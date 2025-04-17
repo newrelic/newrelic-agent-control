@@ -73,8 +73,8 @@ pub(crate) mod tests {
     use std::collections::HashMap;
 
     mock! {
-        pub AgentControlDynamicConfigLoaderMock {}
-        impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoaderMock {
+        pub AgentControlDynamicConfigLoader {}
+        impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoader {
             fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
         }
     }
@@ -90,7 +90,7 @@ pub(crate) mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+                let mut config_loader = MockAgentControlDynamicConfigLoader::new();
                 config_loader.expect_load().times(1).returning(move || {
                     Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(self.agents_cfg).unwrap())
                 });
@@ -210,7 +210,7 @@ agents:
         }
         impl TestCase {
             fn run(self) {
-                let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+                let mut config_loader = MockAgentControlDynamicConfigLoader::new();
                 config_loader.expect_load().times(1).returning(move || {
                     Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(self.agents_cfg).unwrap())
                 });

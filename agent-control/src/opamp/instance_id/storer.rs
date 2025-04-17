@@ -37,9 +37,9 @@ pub(crate) mod tests {
     }
 
     mock! {
-        pub InstanceIDStorerMock {}
+        pub InstanceIDStorer {}
 
-        impl InstanceIDStorer for InstanceIDStorerMock {
+        impl InstanceIDStorer for InstanceIDStorer {
             type Error = MockStorerError;
             type Identifiers = MockIdentifiers;
 

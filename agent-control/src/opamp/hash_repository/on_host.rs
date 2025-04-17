@@ -149,7 +149,7 @@ pub mod tests {
     use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
     use crate::agent_control::agent_id::AgentID;
     use crate::values::file::FILE_PERMISSIONS;
-    use fs::directory_manager::mock::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
@@ -199,7 +199,7 @@ state: applied
 
         let mut expected_path_dir = expected_path.clone();
         expected_path_dir.pop();
-        let mut dir_manager = MockDirectoryManagerMock::new();
+        let mut dir_manager = MockDirectoryManager::new();
         dir_manager.should_create(
             expected_path_dir.as_path(),
             Permissions::from_mode(DIRECTORY_PERMISSIONS),

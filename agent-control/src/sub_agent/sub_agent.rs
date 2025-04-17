@@ -413,16 +413,16 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandlerMock;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandler;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use std::collections::HashMap;
@@ -464,9 +464,9 @@ pub mod tests {
     }
 
     mock! {
-        pub SubAgentBuilderMock {}
+        pub SubAgentBuilder {}
 
-        impl SubAgentBuilder for SubAgentBuilderMock {
+        impl SubAgentBuilder for SubAgentBuilder {
             type NotStartedSubAgent = MockNotStartedSubAgent;
 
             fn build(
@@ -477,7 +477,7 @@ pub mod tests {
         }
     }
 
-    impl MockSubAgentBuilderMock {
+    impl MockSubAgentBuilder {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
@@ -494,11 +494,11 @@ pub mod tests {
     }
 
     type SubAgentForTesting = SubAgent<
-        MockStartedOpAMPClientMock,
-        MockSupervisorAssemblerMock<MockSupervisorStarter>,
-        MockRemoteConfigHandlerMock,
-        MockHashRepositoryMock,
-        MockYAMLConfigRepositoryMock,
+        MockStartedOpAMPClient,
+        MockSupervisorAssembler<MockSupervisorStarter>,
+        MockRemoteConfigHandler,
+        MockHashRepository,
+        MockYAMLConfigRepository,
     >;
 
     impl Default for SubAgentForTesting {
@@ -511,15 +511,15 @@ pub mod tests {
             let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
             let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
-            let mut hash_repository = MockHashRepositoryMock::default();
+            let mut hash_repository = MockHashRepository::default();
             hash_repository
                 .expect_get()
                 .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
 
-            let yaml_repository = MockYAMLConfigRepositoryMock::new();
+            let yaml_repository = MockYAMLConfigRepository::new();
 
-            let remote_config_handler = MockRemoteConfigHandlerMock::new();
+            let remote_config_handler = MockRemoteConfigHandler::new();
 
             let mut started_supervisor = MockSupervisorStopper::new();
             started_supervisor.should_stop();
@@ -527,8 +527,8 @@ pub mod tests {
             let mut stopped_supervisor = MockSupervisorStarter::new();
             stopped_supervisor.should_start(started_supervisor);
 
-            let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
-            supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+            let mut supervisor_assembler = MockSupervisorAssembler::new();
+            supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
                 stopped_supervisor,
                 agent_identity.clone(),
             );
@@ -558,15 +558,15 @@ pub mod tests {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
-        let mut hash_repository = MockHashRepositoryMock::default();
+        let mut hash_repository = MockHashRepository::default();
         hash_repository
             .expect_get()
             .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
-        let yaml_repository = MockYAMLConfigRepositoryMock::new();
+        let yaml_repository = MockYAMLConfigRepository::new();
 
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let remote_config_handler = MockRemoteConfigHandler::new();
 
         let mut started_supervisor = MockSupervisorStopper::new();
         started_supervisor.should_stop();
@@ -574,18 +574,18 @@ pub mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+        let mut supervisor_assembler = MockSupervisorAssembler::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
             stopped_supervisor,
             agent_identity.clone(),
         );
 
         let sub_agent: SubAgent<
-            MockStartedOpAMPClientMock,
-            MockSupervisorAssemblerMock<MockSupervisorStarter>,
-            MockRemoteConfigHandlerMock,
-            MockHashRepositoryMock,
-            MockYAMLConfigRepositoryMock,
+            MockStartedOpAMPClient,
+            MockSupervisorAssembler<MockSupervisorStarter>,
+            MockRemoteConfigHandler,
+            MockHashRepository,
+            MockYAMLConfigRepository,
         > = SubAgent::new(
             agent_identity,
             None,
@@ -646,7 +646,7 @@ pub mod tests {
         let remote_config =
             RemoteConfig::new(agent_identity.id.clone(), hash.clone(), Some(config_map));
 
-        let mut opamp_client = MockStartedOpAMPClientMock::new();
+        let mut opamp_client = MockStartedOpAMPClient::new();
         opamp_client
             .expect_update_effective_config()
             .times(1)
@@ -664,9 +664,9 @@ pub mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        let mut supervisor_assembler = MockSupervisorAssembler::new();
 
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
             stopped_supervisor,
             agent_identity.clone(),
         );
@@ -674,13 +674,13 @@ pub mod tests {
         let hash = Hash::new("some-hash".into());
         let yaml_config: YAMLConfig = serde_yaml::from_str("some_item: some_value").unwrap();
 
-        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut hash_repository = MockHashRepository::new();
         hash_repository.should_save_hash(&agent_identity.id, &hash);
-        let mut yaml_repository = MockYAMLConfigRepositoryMock::new();
+        let mut yaml_repository = MockYAMLConfigRepository::new();
         yaml_repository.should_store_remote(&agent_identity.id, &yaml_config);
 
         // Receive a remote config
-        let mut remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let mut remote_config_handler = MockRemoteConfigHandler::new();
         remote_config_handler.should_handle(
             agent_identity.clone(),
             remote_config.clone(),
@@ -694,7 +694,7 @@ pub mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
             stopped_supervisor,
             agent_identity.clone(),
         );

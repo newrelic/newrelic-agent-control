@@ -133,7 +133,7 @@ mod tests {
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -150,7 +150,7 @@ mod tests {
                 let capabilities = default_capabilities();
 
                 // Prepare the mock repository to load from remote
-                let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
+                let mut yaml_config_repository = MockYAMLConfigRepository::default();
                 yaml_config_repository.should_load_remote(
                     &agent_id,
                     capabilities,
@@ -160,7 +160,7 @@ mod tests {
                 self.assert("load_from_remote", yaml_config_repository);
 
                 // Prepare the mock repository to load from fallback local
-                let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
+                let mut yaml_config_repository = MockYAMLConfigRepository::default();
                 yaml_config_repository
                     .expect_load_remote()
                     .once()
@@ -182,7 +182,7 @@ mod tests {
                 self.assert("load_fallback_local", yaml_config_repository);
             }
 
-            fn assert(&self, scenario: &str, yaml_config_repository: MockYAMLConfigRepositoryMock) {
+            fn assert(&self, scenario: &str, yaml_config_repository: MockYAMLConfigRepository) {
                 let loader =
                     AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));
 
@@ -248,7 +248,7 @@ agents:
         let capabilities = default_capabilities();
 
         // Prepare the mock repository to load from remote
-        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::default();
+        let mut yaml_config_repository = MockYAMLConfigRepository::default();
         yaml_config_repository.should_not_load_remote(&agent_id, capabilities);
 
         let loader = AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));

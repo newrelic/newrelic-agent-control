@@ -143,13 +143,13 @@ pub(crate) mod tests {
     use mockall::mock;
 
     mock! {
-        pub HttpClientMock {}
-        impl HttpClient for HttpClientMock {
+        pub HttpClient {}
+        impl HttpClient for HttpClient {
             fn get(&self, path: &str, headers: &HashMap<String, String>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
 
-    impl MockHttpClientMock {
+    impl MockHttpClient {
         pub fn should_get(&mut self, response: Response<Vec<u8>>) {
             self.expect_get()
                 .once()
@@ -163,7 +163,7 @@ pub(crate) mod tests {
 
     #[test]
     fn http_client_error_unhealthy() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_not_get(HttpClientError::HttpClientError("Timeout".to_string()));
 
         let url = DEFAULT_PROTOCOL.to_owned() + "a-path";
@@ -186,7 +186,7 @@ pub(crate) mod tests {
 
     #[test]
     fn empty_healthy_codes_healthy() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_get(
             http::Response::builder()
                 .status(200)
@@ -208,7 +208,7 @@ pub(crate) mod tests {
 
     #[test]
     fn empty_healthy_codes_unhealthy() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_get(
             http::Response::builder()
                 .status(400)
@@ -236,7 +236,7 @@ pub(crate) mod tests {
 
     #[test]
     fn specific_healthy_codes() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.expect_get().times(1).returning(|_, _| {
             Ok(http::Response::builder()
                 .status(201)
@@ -261,7 +261,7 @@ pub(crate) mod tests {
             health_response.unwrap().status()
         );
 
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.expect_get().times(1).returning(|_, _| {
             Ok(http::Response::builder()
                 .status(201)
@@ -281,7 +281,7 @@ pub(crate) mod tests {
 
         assert!(health_response.is_ok());
 
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.expect_get().times(1).returning(|_, _| {
             Ok(http::Response::builder()
                 .status(501)

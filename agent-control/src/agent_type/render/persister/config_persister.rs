@@ -100,15 +100,15 @@ pub mod tests {
     }
 
     mock! {
-        pub(crate) ConfigurationPersisterMock {}
+        pub(crate) ConfigurationPersister {}
 
-        impl ConfigurationPersister for ConfigurationPersisterMock {
+        impl ConfigurationPersister for ConfigurationPersister {
              fn persist_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
              fn delete_agent_config(&self, agent_id: &AgentID) -> Result<(), PersistError>;
         }
     }
 
-    impl MockConfigurationPersisterMock {
+    impl MockConfigurationPersister {
         pub fn should_persist_agent_config(
             &mut self,
             agent_id: &AgentID,

@@ -109,8 +109,8 @@ pub mod tests {
     use std::time::Duration;
 
     mock! {
-        pub VersionCheckerMock {}
-        impl VersionChecker for VersionCheckerMock {
+        pub VersionChecker {}
+        impl VersionChecker for VersionChecker {
             fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError>;
         }
     }
@@ -119,7 +119,7 @@ pub mod tests {
     fn test_spawn_version_checker() {
         let (version_publisher, version_consumer) = pub_sub();
 
-        let mut version_checker = MockVersionCheckerMock::new();
+        let mut version_checker = MockVersionChecker::new();
         let mut seq = Sequence::new();
         version_checker
             .expect_check_agent_version()

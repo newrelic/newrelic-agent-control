@@ -189,7 +189,7 @@ mod tests {
     use crate::agent_type::render::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,
     };
-    use fs::directory_manager::mock::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManager;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
@@ -227,7 +227,7 @@ mod tests {
     fn test_persist_multiple_single_files() {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
@@ -288,7 +288,7 @@ mod tests {
     fn test_persist_multiple_single_map_files() {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
@@ -370,7 +370,7 @@ mod tests {
     fn test_persist_multiple_multiple_map_files() {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let file_permissions = Permissions::from_mode(FILE_PERMISSIONS);
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
@@ -463,7 +463,7 @@ mod tests {
     fn test_error_deleting_directory() {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
         let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
@@ -500,7 +500,7 @@ mod tests {
     fn test_error_creating_agent_directory() {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
         let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
@@ -543,7 +543,7 @@ mod tests {
     fn test_error_creating_directory() {
         let generated_conf_path = PathBuf::from("some/path");
         let file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_SINGLE_FILE, &Environment::OnHost);
         let filled_variables = agent_type.fill_variables(AGENT_VALUES_SINGLE_FILE);
@@ -581,7 +581,7 @@ mod tests {
     fn test_writing_file_type_should_stop_processing_the_rest() {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_MULTIPLE_FILES, &Environment::OnHost);
@@ -625,7 +625,7 @@ mod tests {
     fn test_writing_filemap_type_should_stop_processing_the_rest() {
         let generated_conf_path = PathBuf::from("some/path");
         let mut file_writer = MockLocalFile::new();
-        let mut directory_manager = MockDirectoryManagerMock::new();
+        let mut directory_manager = MockDirectoryManager::new();
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_SINGLE_MAP_FILE, &Environment::OnHost);

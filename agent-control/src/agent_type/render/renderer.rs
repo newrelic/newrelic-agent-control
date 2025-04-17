@@ -166,7 +166,7 @@ pub(crate) mod tests {
         agent_type::{
             definition::AgentType,
             render::persister::{
-                config_persister::{tests::MockConfigurationPersisterMock, PersistError},
+                config_persister::{tests::MockConfigurationPersister, PersistError},
                 config_persister_file::ConfigurationPersisterFile,
             },
             runtime_config::{
@@ -183,9 +183,9 @@ pub(crate) mod tests {
     use tempfile::TempDir;
 
     mock! {
-         pub(crate) RendererMock {}
+         pub(crate) Renderer {}
 
-         impl Renderer for RendererMock {
+         impl Renderer for Renderer {
              fn render(
                 &self,
                 agent_id: &AgentID,
@@ -197,7 +197,7 @@ pub(crate) mod tests {
          }
     }
 
-    impl MockRendererMock {
+    impl MockRenderer {
         pub fn should_render(
             &mut self,
             agent_id: &AgentID,
@@ -295,12 +295,12 @@ pub(crate) mod tests {
         let filled_variables = agent_type.fill_variables(values);
 
         let expanded_path_filled_variables =
-            TemplateRenderer::<MockConfigurationPersisterMock>::extend_variables_file_path(
+            TemplateRenderer::<MockConfigurationPersister>::extend_variables_file_path(
                 path_as_string.clone(),
                 filled_variables.clone(),
             );
 
-        let mut persister = MockConfigurationPersisterMock::new();
+        let mut persister = MockConfigurationPersister::new();
         persister.should_delete_agent_config(&agent_id);
         persister.should_persist_agent_config(&agent_id, &expanded_path_filled_variables);
 
@@ -341,7 +341,7 @@ pub(crate) mod tests {
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
 
-        let mut persister = MockConfigurationPersisterMock::new();
+        let mut persister = MockConfigurationPersister::new();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));
@@ -368,7 +368,7 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
         let filled_variables = agent_type.fill_variables(values);
 
-        let mut persister = MockConfigurationPersisterMock::new();
+        let mut persister = MockConfigurationPersister::new();
         let err = PersistError::DirectoryError(DirectoryManagementError::ErrorDeletingDirectory(
             "oh no...".to_string(),
         ));

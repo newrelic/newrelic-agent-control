@@ -104,19 +104,19 @@ pub mod tests {
     use super::*;
     use crate::opamp::instance_id::definition::tests::MockIdentifiers;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
-    use crate::opamp::instance_id::storer::tests::{MockInstanceIDStorerMock, MockStorerError};
+    use crate::opamp::instance_id::storer::tests::{MockInstanceIDStorer, MockStorerError};
     use mockall::{mock, predicate};
     use opamp_client::operation::instance_uid::InstanceUid;
 
     mock! {
-        pub InstanceIDGetterMock {}
+        pub InstanceIDGetter {}
 
-        impl InstanceIDGetter for InstanceIDGetterMock {
+        impl InstanceIDGetter for InstanceIDGetter {
             fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
         }
     }
 
-    impl MockInstanceIDGetterMock {
+    impl MockInstanceIDGetter {
         pub fn should_get(&mut self, agent_id: &AgentID, instance_id: InstanceID) {
             self.expect_get()
                 .once()
@@ -129,7 +129,7 @@ pub mod tests {
 
     #[test]
     fn test_not_found() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
 
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
         mock.expect_get()
@@ -148,7 +148,7 @@ pub mod tests {
 
     #[test]
     fn test_error_get() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
 
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
         mock.expect_get()
@@ -163,7 +163,7 @@ pub mod tests {
 
     #[test]
     fn test_error_set() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
 
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
         mock.expect_get()
@@ -183,7 +183,7 @@ pub mod tests {
 
     #[test]
     fn test_instance_id_already_present() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
         let instance_id = InstanceID::create();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
@@ -206,7 +206,7 @@ pub mod tests {
 
     #[test]
     fn test_instance_id_present_but_different_identifiers() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
         let instance_id = InstanceID::create();
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
 
@@ -233,7 +233,7 @@ pub mod tests {
 
     #[test]
     fn test_thread_safety() {
-        let mut mock = MockInstanceIDStorerMock::new();
+        let mut mock = MockInstanceIDStorer::new();
 
         let agent_id = AgentID::new(AGENT_NAME).unwrap();
         // Data is read twice: first time it returns nothing, second time it returns data

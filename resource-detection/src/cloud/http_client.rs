@@ -49,13 +49,13 @@ pub(crate) mod tests {
     use mockall::mock;
 
     mock! {
-        pub HttpClientMock {}
-        impl HttpClient for HttpClientMock {
+        pub HttpClient {}
+        impl HttpClient for HttpClient {
             fn send(&self,request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
 
-    impl MockHttpClientMock {
+    impl MockHttpClient {
         pub fn should_send(&mut self, response: Response<Vec<u8>>) {
             self.expect_send().once().return_once(move |_| Ok(response));
         }

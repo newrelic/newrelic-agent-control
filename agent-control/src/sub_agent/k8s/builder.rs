@@ -192,19 +192,19 @@ pub mod tests {
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::http::builder::HttpClientBuilderError;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::operations::start_settings;
-    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandlerMock;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandler;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use crate::{
-        k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilderMock,
+        k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
     };
     use assert_matches::assert_matches;
     use mockall::predicate;
@@ -232,8 +232,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let supervisor_assembler = MockSupervisorAssemblerMock::<MockSupervisorStarter>::new();
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let supervisor_assembler = MockSupervisorAssembler::<MockSupervisorStarter>::new();
+        let remote_config_handler = MockRemoteConfigHandler::new();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
@@ -241,8 +241,8 @@ pub mod tests {
             k8s_config,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
-            Arc::new(MockHashRepositoryMock::new()),
-            Arc::new(MockYAMLConfigRepositoryMock::new()),
+            Arc::new(MockHashRepository::new()),
+            Arc::new(MockYAMLConfigRepository::new()),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -268,8 +268,8 @@ pub mod tests {
             ..Default::default()
         };
 
-        let supervisor_assembler = MockSupervisorAssemblerMock::<MockSupervisorStarter>::new();
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let supervisor_assembler = MockSupervisorAssembler::<MockSupervisorStarter>::new();
+        let remote_config_handler = MockRemoteConfigHandler::new();
 
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
@@ -277,8 +277,8 @@ pub mod tests {
             k8s_config,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
-            Arc::new(MockHashRepositoryMock::new()),
-            Arc::new(MockYAMLConfigRepositoryMock::new()),
+            Arc::new(MockHashRepository::new()),
+            Arc::new(MockYAMLConfigRepository::new()),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -365,13 +365,13 @@ pub mod tests {
     fn k8s_agent_get_common_mocks(
         agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
-    ) -> (MockOpAMPClientBuilderMock, MockInstanceIDGetterMock) {
+    ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
         let instance_id: InstanceID =
             serde_yaml::from_str("018FCA0670A879689D04fABDDE189B8C").unwrap();
 
         // opamp builder mock
-        let started_client = MockStartedOpAMPClientMock::new();
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let started_client = MockStartedOpAMPClient::new();
+        let mut opamp_builder = MockOpAMPClientBuilder::new();
         let start_settings = start_settings(
             instance_id.clone(),
             &agent_identity.agent_type_id,
@@ -413,7 +413,7 @@ pub mod tests {
         }
 
         // instance id getter mock
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        let mut instance_id_getter = MockInstanceIDGetter::new();
         instance_id_getter.should_get(&agent_identity.id, instance_id.clone());
         instance_id_getter.should_get(&AgentID::new_agent_control_id(), instance_id);
 

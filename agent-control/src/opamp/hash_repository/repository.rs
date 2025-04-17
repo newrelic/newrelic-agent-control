@@ -20,9 +20,9 @@ pub mod tests {
     use mockall::{mock, predicate};
 
     mock! {
-        pub(crate) HashRepositoryMock {}
+        pub(crate) HashRepository {}
 
-        impl HashRepository for HashRepositoryMock {
+        impl HashRepository for HashRepository {
 
             fn save(&self, agent_id: &AgentID, hash:&Hash) -> Result<(), HashRepositoryError>;
 
@@ -30,7 +30,7 @@ pub mod tests {
         }
     }
 
-    impl MockHashRepositoryMock {
+    impl MockHashRepository {
         pub fn should_get_hash(&mut self, agent_id: &AgentID, hash: Hash) {
             self.expect_get()
                 .with(predicate::eq(agent_id.clone()))

@@ -311,15 +311,15 @@ pub mod tests {
     }
 
     mock! {
-        pub HealthCheckMock{}
-        impl HealthChecker for HealthCheckMock{
+        pub HealthCheck{}
+        impl HealthChecker for HealthCheck{
             fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
         }
     }
 
-    impl MockHealthCheckMock {
-        pub fn new_healthy() -> MockHealthCheckMock {
-            let mut healthy = MockHealthCheckMock::new();
+    impl MockHealthCheck {
+        pub fn new_healthy() -> MockHealthCheck {
+            let mut healthy = MockHealthCheck::new();
             healthy.expect_check_health().returning(|| {
                 Ok(HealthWithStartTime::from_healthy(
                     Healthy::default(),
@@ -329,8 +329,8 @@ pub mod tests {
             healthy
         }
 
-        pub fn new_unhealthy() -> MockHealthCheckMock {
-            let mut unhealthy = MockHealthCheckMock::new();
+        pub fn new_unhealthy() -> MockHealthCheck {
+            let mut unhealthy = MockHealthCheck::new();
             unhealthy.expect_check_health().returning(|| {
                 Ok(HealthWithStartTime::from_unhealthy(
                     Unhealthy::new(String::default(), String::default()),
@@ -340,8 +340,8 @@ pub mod tests {
             unhealthy
         }
 
-        pub fn new_with_error() -> MockHealthCheckMock {
-            let mut unhealthy = MockHealthCheckMock::new();
+        pub fn new_with_error() -> MockHealthCheck {
+            let mut unhealthy = MockHealthCheck::new();
             unhealthy
                 .expect_check_health()
                 .returning(|| Err(HealthCheckerError::Generic("test".to_string())));
@@ -355,7 +355,7 @@ pub mod tests {
 
         let start_time = SystemTime::now();
 
-        let mut health_checker = MockHealthCheckMock::new();
+        let mut health_checker = MockHealthCheck::new();
         let mut seq = Sequence::new();
         health_checker
             .expect_check_health()
@@ -417,7 +417,7 @@ pub mod tests {
 
         let start_time = SystemTime::now();
 
-        let mut health_checker = MockHealthCheckMock::new();
+        let mut health_checker = MockHealthCheck::new();
         let mut seq = Sequence::new();
         health_checker
             .expect_check_health()
@@ -474,7 +474,7 @@ pub mod tests {
     fn test_repeating_unhealthy() {
         let (health_publisher, health_consumer) = pub_sub();
 
-        let mut health_checker = MockHealthCheckMock::new();
+        let mut health_checker = MockHealthCheck::new();
         let mut seq = Sequence::new();
         health_checker
             .expect_check_health()

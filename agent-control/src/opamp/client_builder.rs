@@ -118,23 +118,23 @@ pub(crate) mod tests {
     use super::*;
 
     mock! {
-        pub NotStartedOpAMPClientMock {}
-        impl NotStartedClient for NotStartedOpAMPClientMock
+        pub NotStartedOpAMPClient {}
+        impl NotStartedClient for NotStartedOpAMPClient
         {
-            type StartedClient= MockStartedOpAMPClientMock;
+            type StartedClient= MockStartedOpAMPClient;
             fn start(self) -> NotStartedClientResult<<Self as NotStartedClient>::StartedClient>;
         }
     }
 
     mock! {
-        pub StartedOpAMPClientMock {}
+        pub StartedOpAMPClient {}
 
-        impl StartedClient for StartedOpAMPClientMock
+        impl StartedClient for StartedOpAMPClient
         {
             fn stop(self) -> StartedClientResult<()>;
         }
 
-        impl Client for StartedOpAMPClientMock
+        impl Client for StartedOpAMPClient
         {
             fn get_agent_description(
                 &self,
@@ -155,7 +155,7 @@ pub(crate) mod tests {
         }
     }
 
-    impl MockStartedOpAMPClientMock {
+    impl MockStartedOpAMPClient {
         pub fn should_update_effective_config(&mut self, times: usize) {
             self.expect_update_effective_config()
                 .times(times)
@@ -200,21 +200,21 @@ pub(crate) mod tests {
     }
 
     mock! {
-        pub OpAMPClientBuilderMock {}
+        pub OpAMPClientBuilder {}
 
-        impl OpAMPClientBuilder for OpAMPClientBuilderMock{
-            type Client = MockStartedOpAMPClientMock;
+        impl OpAMPClientBuilder for OpAMPClientBuilder{
+            type Client = MockStartedOpAMPClient;
             fn build_and_start(&self, opamp_publisher: EventPublisher<OpAMPEvent>, agent_id: AgentID, start_settings: StartSettings) -> Result<<Self as OpAMPClientBuilder>::Client, OpAMPClientBuilderError>;
         }
     }
 
-    impl MockOpAMPClientBuilderMock {
+    impl MockOpAMPClientBuilder {
         #[allow(dead_code)] //used in k8s feature
         pub fn should_build_and_start(
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            client: MockStartedOpAMPClientMock,
+            client: MockStartedOpAMPClient,
         ) {
             self.expect_build_and_start()
                 .with(
@@ -239,7 +239,7 @@ pub(crate) mod tests {
             &mut self,
             agent_id: AgentID,
             start_settings: StartSettings,
-            client: MockStartedOpAMPClientMock,
+            client: MockStartedOpAMPClient,
             run_for: Duration,
         ) {
             use std::thread;

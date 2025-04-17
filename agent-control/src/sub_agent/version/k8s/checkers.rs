@@ -93,8 +93,8 @@ mod tests {
     use std::sync::Arc;
 
     mock! {
-        pub VersionCheckerMock {}
-        impl VersionChecker for VersionCheckerMock {
+        pub VersionChecker {}
+        impl VersionChecker for VersionChecker {
             fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError>;
         }
     }

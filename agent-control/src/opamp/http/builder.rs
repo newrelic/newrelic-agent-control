@@ -109,7 +109,7 @@ pub(crate) mod tests {
                 DefaultOpAMPClientBuilder, OpAMPClientBuilder, DEFAULT_POLL_INTERVAL,
             },
             effective_config::loader::tests::{
-                MockEffectiveConfigLoaderBuilderMock, MockEffectiveConfigLoaderMock,
+                MockEffectiveConfigLoaderBuilder, MockEffectiveConfigLoader,
             },
         },
     };
@@ -118,34 +118,34 @@ pub(crate) mod tests {
 
     // Mock the HttpClient
     mock! {
-        pub HttpClientMock {}
-        impl OpampHttpClient for HttpClientMock {
+        pub HttpClient {}
+        impl OpampHttpClient for HttpClient {
             fn post(&self, body: Vec<u8>) -> Result<Response<Vec<u8>>, HttpClientError>;
         }
     }
 
     // Mock the builder
     mock! {
-        pub HttpClientBuilderMock {}
-        impl HttpClientBuilder for HttpClientBuilderMock {
-            type Client = MockHttpClientMock;
-            fn build(&self) -> Result<MockHttpClientMock, HttpClientBuilderError>;
+        pub HttpClientBuilder {}
+        impl HttpClientBuilder for HttpClientBuilder {
+            type Client = MockHttpClient;
+            fn build(&self) -> Result<MockHttpClient, HttpClientBuilderError>;
         }
     }
 
     #[test]
     fn test_default_http_client_builder() {
-        let mut http_client = MockHttpClientMock::default();
-        let mut http_builder = MockHttpClientBuilderMock::new();
+        let mut http_client = MockHttpClient::default();
+        let mut http_builder = MockHttpClientBuilder::new();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_agent_control_id();
         let start_settings = StartSettings::default();
 
-        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilderMock::new();
+        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder
             .expect_build()
             .once()
-            .return_once(|_| MockEffectiveConfigLoaderMock::default());
+            .return_once(|_| MockEffectiveConfigLoader::default());
 
         http_client // Define http client behavior for this test
             .expect_post()
@@ -173,12 +173,12 @@ pub(crate) mod tests {
 
     #[test]
     fn test_default_http_client_builder_error() {
-        let mut http_builder = MockHttpClientBuilderMock::new();
+        let mut http_builder = MockHttpClientBuilder::new();
         let (tx, _rx) = pub_sub();
         let agent_id = AgentID::new_agent_control_id();
         let start_settings = StartSettings::default();
 
-        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilderMock::new();
+        let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
         effective_config_loader_builder.expect_build().never();
 
         // Define http builder behavior for this test

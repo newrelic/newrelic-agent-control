@@ -28,14 +28,14 @@ pub mod tests {
 
     // Mock
     mock! {
-        pub AgentRegistryMock {}
+        pub AgentRegistry {}
 
-        impl AgentRegistry for AgentRegistryMock  {
+        impl AgentRegistry for AgentRegistry  {
             fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError>;
         }
     }
 
-    impl MockAgentRegistryMock {
+    impl MockAgentRegistry {
         pub fn should_get(&mut self, name: String, final_agent: &AgentTypeDefinition) {
             let final_agent = final_agent.clone();
             self.expect_get()

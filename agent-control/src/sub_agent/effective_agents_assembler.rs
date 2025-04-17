@@ -203,18 +203,18 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
+    use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::render::renderer::tests::MockRendererMock;
+    use crate::agent_type::render::renderer::tests::MockRenderer;
     use crate::agent_type::runtime_config::k8s::K8sObject;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
 
     mock! {
-        pub(crate) EffectiveAgentAssemblerMock {}
+        pub(crate) EffectiveAgentAssembler {}
 
-        impl EffectiveAgentsAssembler for EffectiveAgentAssemblerMock {
+        impl EffectiveAgentsAssembler for EffectiveAgentAssembler {
             fn assemble_agent(
                 &self,
                 agent_identity:&AgentIdentity,
@@ -225,7 +225,7 @@ pub(crate) mod tests {
         }
     }
 
-    impl MockEffectiveAgentAssemblerMock {
+    impl MockEffectiveAgentAssembler {
         pub fn should_assemble_agent(
             &mut self,
             agent_identity: &AgentIdentity,
@@ -283,8 +283,8 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents() {
         //Mocks
-        let mut registry = MockAgentRegistryMock::new();
-        let mut renderer = MockRendererMock::new();
+        let mut registry = MockAgentRegistry::new();
+        let mut renderer = MockRenderer::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -324,8 +324,8 @@ pub(crate) mod tests {
     #[test]
     fn test_assemble_agents_error_on_registry() {
         //Mocks
-        let mut registry = MockAgentRegistryMock::new();
-        let renderer = MockRendererMock::new();
+        let mut registry = MockAgentRegistry::new();
+        let renderer = MockRenderer::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((

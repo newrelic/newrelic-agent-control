@@ -59,9 +59,9 @@ pub mod tests {
     use opamp_client::operation::capabilities::Capabilities;
 
     mock! {
-        pub(crate) YAMLConfigRepositoryMock {}
+        pub(crate) YAMLConfigRepository {}
 
-        impl YAMLConfigRepository for YAMLConfigRepositoryMock {
+        impl YAMLConfigRepository for YAMLConfigRepository {
             fn store_remote(
                 &self,
                 agent_id: &AgentID,
@@ -83,7 +83,7 @@ pub mod tests {
         }
     }
 
-    impl MockYAMLConfigRepositoryMock {
+    impl MockYAMLConfigRepository {
         pub fn should_load_remote(
             &mut self,
             agent_id: &AgentID,

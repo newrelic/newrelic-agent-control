@@ -63,9 +63,9 @@ pub mod tests {
     use mockall::{mock, predicate};
 
     mock! {
-        pub RemoteConfigValidatorMock {}
+        pub RemoteConfigValidator {}
 
-        impl RemoteConfigValidator for RemoteConfigValidatorMock {
+        impl RemoteConfigValidator for RemoteConfigValidator {
             type Err = String;
 
             fn validate(
@@ -76,7 +76,7 @@ pub mod tests {
         }
     }
 
-    impl MockRemoteConfigValidatorMock {
+    impl MockRemoteConfigValidator {
         pub fn should_validate(
             &mut self,
             agent_identity: &AgentIdentity,

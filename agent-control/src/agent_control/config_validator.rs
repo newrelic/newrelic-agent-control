@@ -49,14 +49,14 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_type::agent_type_registry::tests::MockAgentRegistryMock;
+    use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
     use mockall::mock;
 
     mock! {
-        pub DynamicConfigValidatorMock {}
+        pub DynamicConfigValidator {}
 
-        impl DynamicConfigValidator for DynamicConfigValidatorMock {
+        impl DynamicConfigValidator for DynamicConfigValidator {
             fn validate(
                 &self,
                 dynamic_config: &AgentControlDynamicConfig,
@@ -66,7 +66,7 @@ pub mod tests {
 
     #[test]
     fn test_existing_agent_type_validation() {
-        let mut registry = MockAgentRegistryMock::new();
+        let mut registry = MockAgentRegistry::new();
 
         let agent_type_definition =
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
@@ -89,7 +89,7 @@ agents:
     }
     #[test]
     fn test_non_existing_agent_type_validation() {
-        let mut registry = MockAgentRegistryMock::new();
+        let mut registry = MockAgentRegistry::new();
         registry.should_not_get("ns/another:0.0.1".to_string());
 
         let dynamic_config = serde_yaml::from_str::<AgentControlDynamicConfig>(

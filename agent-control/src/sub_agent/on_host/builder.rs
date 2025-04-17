@@ -186,17 +186,17 @@ mod tests {
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::tests::MockOpAMPClientBuilderMock;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetterMock;
+    use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::instance_id::InstanceID;
-    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandlerMock;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::event_handler::opamp::remote_config_handler::tests::MockRemoteConfigHandler;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use nix::unistd::gethostname;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn build_start_stop() {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
+        let mut opamp_builder = MockOpAMPClientBuilder::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
             AgentID::new("infra-agent").unwrap(),
@@ -229,7 +229,7 @@ mod tests {
 
         let agent_control_id = AgentID::new_agent_control_id();
 
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
@@ -243,7 +243,7 @@ mod tests {
             Duration::from_millis(10),
         );
 
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        let mut instance_id_getter = MockInstanceIDGetter::new();
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
@@ -253,21 +253,21 @@ mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+        let mut supervisor_assembler = MockSupervisorAssembler::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
             stopped_supervisor,
             agent_identity.clone(),
         );
 
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let remote_config_handler = MockRemoteConfigHandler::new();
 
         let on_host_builder = OnHostSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
-            Arc::new(MockHashRepositoryMock::new()),
-            Arc::new(MockYAMLConfigRepositoryMock::new()),
+            Arc::new(MockHashRepository::new()),
+            Arc::new(MockYAMLConfigRepository::new()),
         );
 
         on_host_builder
@@ -285,8 +285,8 @@ mod tests {
         let (opamp_publisher, _opamp_consumer) = pub_sub();
 
         // Mocks
-        let mut opamp_builder = MockOpAMPClientBuilderMock::new();
-        let mut instance_id_getter = MockInstanceIDGetterMock::new();
+        let mut opamp_builder = MockOpAMPClientBuilder::new();
+        let mut instance_id_getter = MockInstanceIDGetter::new();
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
@@ -310,7 +310,7 @@ mod tests {
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
 
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
@@ -329,13 +329,13 @@ mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClientMock>(
+        let mut supervisor_assembler = MockSupervisorAssembler::new();
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
             stopped_supervisor,
             agent_identity.clone(),
         );
 
-        let remote_config_handler = MockRemoteConfigHandlerMock::new();
+        let remote_config_handler = MockRemoteConfigHandler::new();
 
         // Sub Agent Builder
         let on_host_builder = OnHostSubAgentBuilder::new(
@@ -343,8 +343,8 @@ mod tests {
             &instance_id_getter,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
-            Arc::new(MockHashRepositoryMock::new()),
-            Arc::new(MockYAMLConfigRepositoryMock::new()),
+            Arc::new(MockHashRepository::new()),
+            Arc::new(MockYAMLConfigRepository::new()),
         );
 
         let sub_agent = on_host_builder

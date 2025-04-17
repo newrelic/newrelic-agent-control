@@ -73,7 +73,7 @@ mod tests {
     use crate::opamp::remote_config::validators::values::ValuesValidatorError;
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::identity::tests::test_agent_identity;
     use assert_matches::assert_matches;
@@ -81,7 +81,7 @@ mod tests {
 
     #[test]
     fn test_valid_config() {
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
+        let mut effective_agent_assembler = MockEffectiveAgentAssembler::default();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
@@ -102,7 +102,7 @@ mod tests {
     }
     #[test]
     fn test_invalid_config() {
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
+        let mut effective_agent_assembler = MockEffectiveAgentAssembler::default();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
@@ -116,7 +116,7 @@ mod tests {
     }
     #[test]
     fn test_validating_errors() {
-        let effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
+        let effective_agent_assembler = MockEffectiveAgentAssembler::default();
         let err = ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
             .validate(
                 &test_agent_identity(),
@@ -128,7 +128,7 @@ mod tests {
             )
             .unwrap_err();
         assert_matches!(err, ValuesValidatorError::Validating(_));
-        let effective_agent_assembler = MockEffectiveAgentAssemblerMock::default();
+        let effective_agent_assembler = MockEffectiveAgentAssembler::default();
         let err = ValuesValidator::new(effective_agent_assembler.into(), Environment::K8s)
             .validate(
                 &test_agent_identity(),

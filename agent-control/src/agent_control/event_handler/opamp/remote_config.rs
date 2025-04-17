@@ -73,17 +73,17 @@ mod tests {
             agent_id::AgentID,
             config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig},
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
-            config_validator::tests::MockDynamicConfigValidatorMock,
+            config_validator::tests::MockDynamicConfigValidator,
         },
         event::channel::pub_sub,
         opamp::{
-            client_builder::tests::MockStartedOpAMPClientMock,
-            hash_repository::repository::tests::MockHashRepositoryMock,
+            client_builder::tests::MockStartedOpAMPClient,
+            hash_repository::repository::tests::MockHashRepository,
             remote_config::{hash::Hash, ConfigurationMap, RemoteConfig},
         },
         sub_agent::{
             collection::StartedSubAgents,
-            tests::{MockStartedSubAgent, MockSubAgentBuilderMock},
+            tests::{MockStartedSubAgent, MockSubAgentBuilder},
         },
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
@@ -94,10 +94,10 @@ mod tests {
     #[test]
     fn agent_control_invalid_remote_config_should_be_reported_as_failed() {
         // Mocked services
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let hash_repository_mock = Arc::new(MockHashRepositoryMock::new());
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let hash_repository_mock = Arc::new(MockHashRepository::new());
+        let mut started_client = MockStartedOpAMPClient::new();
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = AgentControlDynamicConfig::default();
@@ -110,7 +110,7 @@ mod tests {
                 "invalid_yaml_content:{}".to_string(),
             )]))),
         );
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         //Expectations
 
@@ -160,10 +160,10 @@ mod tests {
     #[test]
     fn agent_control_valid_remote_config_should_be_reported_as_applied() {
         // Mocked services
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
         let sub_agent_id = AgentID::try_from("agent-id".to_string()).unwrap();
@@ -188,7 +188,7 @@ mod tests {
                 "agents: {}".to_string(),
             )]))),
         );
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
 
         //Expectations
 
