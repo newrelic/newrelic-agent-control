@@ -20,7 +20,7 @@ pub enum FunctionError {
     #[error("parsing function: {0}")]
     Parsing(String),
     #[error("not supported function: {0}")]
-    ParsingName(String),
+    UnknownFunctionName(String),
 }
 
 /// Trait that defines a function that can be applied to a string value.
@@ -46,7 +46,7 @@ impl Function for Indent {
     fn parse(value: &str) -> Result<Self, FunctionError> {
         let trimmed_value = value.trim().to_ascii_lowercase();
         let Some(n_parameter) = trimmed_value.strip_prefix(INDENT_FUNCTION_NAME) else {
-            return Err(FunctionError::ParsingName(value.to_string()));
+            return Err(FunctionError::UnknownFunctionName(value.to_string()));
         };
 
         let n = n_parameter.trim().parse().map_err(|_| {
@@ -163,6 +163,6 @@ mod tests {
     #[case::multiple("|indent2|unknown func")]
     fn test_parse_fails_unkown_names(#[case] functions_str: &str) {
         let err = SupportedFunction::parse_function_list(functions_str).unwrap_err();
-        assert_matches!(err, FunctionError::ParsingName(_))
+        assert_matches!(err, FunctionError::UnknownFunctionName(_))
     }
 }
