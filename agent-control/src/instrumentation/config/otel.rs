@@ -55,6 +55,9 @@ pub struct OtelConfig {
     /// serde serialization and deserialization.
     #[serde(skip)]
     pub(crate) proxy: ProxyConfig,
+    /// Custom attributes to be added to all traces/metrics.
+    #[serde(default)]
+    pub(crate) custom_attributes: HashMap<String, String>,
 }
 
 fn default_insecure_level() -> String {
@@ -65,6 +68,14 @@ impl OtelConfig {
     /// Returns a new configuration including proxy config
     pub fn with_proxy_config(self, proxy: ProxyConfig) -> Self {
         Self { proxy, ..self }
+    }
+
+    /// Returns a new configuration including custom_attributes
+    pub fn with_custom_attributes(self, custom_attributes: HashMap<String, String>) -> Self {
+        Self {
+            custom_attributes,
+            ..self
+        }
     }
 
     /// Returns the otel endpoint to report traces to.
@@ -193,6 +204,9 @@ insecure_level: "newrelic_agent_control=info,off"
 endpoint: https://otlp.nr-data.net:4318
 headers: {}
 client_timeout: 10s
+custom_attributes:
+    cluster_name: "test"
+    environment: production
 metrics:
   enabled: true
   interval: 120s
@@ -224,6 +238,7 @@ logs:
                 headers: Default::default(),
                 client_timeout: Default::default(),
                 proxy: Default::default(),
+                custom_attributes: Default::default(),
             }
         }
     }

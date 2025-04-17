@@ -102,6 +102,7 @@ self_instrumentation:
     endpoint: https://otlp.nr-data.net:4318 # HTTPS endpoint to report instrumentation to.
     headers: {} # Headers that will be included in any request to the endpoint
     client_timeout: 10s # Timeout for performing requests, defaults to 30s.
+    custom_attributes: {} # Attributes to be decorated in all metrics, traces and logs
     metrics:
       enabled: true # Defaults to false.
       interval: 120s # Interval to report metrics, it defaults to 60s.

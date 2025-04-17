@@ -3,6 +3,7 @@ use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
 use crate::instrumentation::tracing::LayerBox;
 use opentelemetry::trace::TracerProvider;
+use opentelemetry::KeyValue;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_http::HttpClient as OtelHttpClient;
 use opentelemetry_otlp::{ExporterBuildError, WithExportConfig, WithHttpConfig};
@@ -10,15 +11,11 @@ use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
 use opentelemetry_sdk::Resource;
-use std::sync::LazyLock;
 use thiserror::Error;
 use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::{EnvFilter, Layer};
 
 const TRACER_NAME: &str = "agent-control-self-instrumentation";
-
-static RESOURCE: LazyLock<Resource> =
-    LazyLock::new(|| Resource::builder().with_service_name(TRACER_NAME).build());
 
 /// Enumerates the possible error building OpenTelemetry providers.
 #[derive(Debug, Error)]
@@ -64,23 +61,40 @@ impl OtelLayers {
     where
         C: OtelHttpClient + Send + Sync + Clone + 'static,
     {
-        let traces_provider = config
-            .traces
-            .enabled
-            .then(|| Self::traces_provider(client.clone(), config))
-            .transpose()?;
+        let mut traces_provider = None;
+        let mut metrics_provider = None;
+        let mut logs_provider = None;
 
-        let metrics_provider = config
-            .metrics
-            .enabled
-            .then(|| Self::metrics_provider(client.clone(), config))
-            .transpose()?;
+        if config.traces.enabled || config.metrics.enabled || config.logs.enabled {
+            let attributes: Vec<KeyValue> = config
+                .custom_attributes
+                .iter()
+                .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
+                .collect();
 
-        let logs_provider = config
-            .logs
-            .enabled
-            .then(|| Self::logs_provider(client, config))
-            .transpose()?;
+            let resource = Resource::builder()
+                .with_service_name(TRACER_NAME)
+                .with_attributes(attributes)
+                .build();
+
+            traces_provider = config
+                .traces
+                .enabled
+                .then(|| Self::traces_provider(client.clone(), config, resource.clone()))
+                .transpose()?;
+
+            metrics_provider = config
+                .metrics
+                .enabled
+                .then(|| Self::metrics_provider(client.clone(), config, resource.clone()))
+                .transpose()?;
+
+            logs_provider = config
+                .logs
+                .enabled
+                .then(|| Self::logs_provider(client, config, resource))
+                .transpose()?;
+        }
 
         let filter = EnvFilter::builder()
             .parse(&config.insecure_level)
@@ -100,6 +114,7 @@ impl OtelLayers {
     fn traces_provider<C>(
         client: C,
         config: &OtelConfig,
+        resource: Resource,
     ) -> Result<SdkTracerProvider, OtelBuildError>
     where
         C: OtelHttpClient + Send + Sync + 'static,
@@ -117,13 +132,14 @@ impl OtelLayers {
 
         Ok(SdkTracerProvider::builder()
             .with_span_processor(batch_processor)
-            .with_resource(RESOURCE.clone())
+            .with_resource(resource)
             .build())
     }
 
     fn metrics_provider<C>(
         client: C,
         config: &OtelConfig,
+        resource: Resource,
     ) -> Result<SdkMeterProvider, OtelBuildError>
     where
         C: OtelHttpClient + Send + Sync + 'static,
@@ -141,11 +157,15 @@ impl OtelLayers {
 
         Ok(SdkMeterProvider::builder()
             .with_reader(periodic_reader)
-            .with_resource(RESOURCE.clone())
+            .with_resource(resource)
             .build())
     }
 
-    fn logs_provider<C>(client: C, config: &OtelConfig) -> Result<SdkLoggerProvider, OtelBuildError>
+    fn logs_provider<C>(
+        client: C,
+        config: &OtelConfig,
+        resource: Resource,
+    ) -> Result<SdkLoggerProvider, OtelBuildError>
     where
         C: OtelHttpClient + Send + Sync + 'static,
     {
@@ -162,7 +182,7 @@ impl OtelLayers {
 
         Ok(SdkLoggerProvider::builder()
             .with_log_processor(batch_processor)
-            .with_resource(RESOURCE.clone())
+            .with_resource(resource)
             .build())
     }
 
@@ -190,6 +210,7 @@ impl OtelLayers {
 #[cfg(test)]
 mod tests {
     use http::Response;
+    use opentelemetry_sdk::Resource;
     use tracing::{debug, info, trace};
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::EnvFilter;
@@ -232,6 +253,7 @@ mod tests {
                 },
                 ..Default::default()
             },
+            Resource::builder().build(),
         )
         .unwrap();
 
