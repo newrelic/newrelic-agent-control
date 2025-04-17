@@ -170,17 +170,15 @@ impl AgentControlRunner {
                 Environment::OnHost,
             )),
         ];
-        let remote_config_handler = AgentRemoteConfigHandler::new(
-            remote_config_validators,
-            sub_agent_hash_repository,
-            yaml_config_repository.clone(),
-        );
+        let remote_config_handler = AgentRemoteConfigHandler::new(remote_config_validators);
 
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
+            sub_agent_hash_repository,
+            yaml_config_repository,
         );
 
         let dynamic_config_validator =

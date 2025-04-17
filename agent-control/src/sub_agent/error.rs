@@ -2,9 +2,6 @@ use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::hash_repository::repository::HashRepositoryError;
-use crate::opamp::remote_config::validators::SupportedRemoteConfigValidatorError;
-use crate::opamp::remote_config::RemoteConfigError;
-use crate::values::yaml_config::YAMLConfigError;
 use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
 use opamp_client::StartedClientError;
 use opamp_client::{ClientError, NotStartedClientError};
@@ -25,19 +22,12 @@ pub enum SubAgentError {
     NotStartedOpampClientError(#[from] NotStartedClientError),
     #[error("remote config hash error: `{0}`")]
     RemoteConfigHashError(#[from] HashRepositoryError),
-
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("sub agent yaml config repository error: `{0}`")]
     YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
-    #[error("sub agent values error: `{0}`")]
-    ValuesUnserializeError(#[from] YAMLConfigError),
-    #[error("remote config error: `{0}`")]
-    RemoteConfigError(#[from] RemoteConfigError),
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
-    #[error("ConfigValidator error: `{0}`")]
-    ConfigValidatorError(#[from] SupportedRemoteConfigValidatorError),
 }
 
 #[derive(Error, Debug)]

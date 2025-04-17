@@ -140,11 +140,7 @@ impl AgentControlRunner {
             )),
         ];
 
-        let remote_config_handler = AgentRemoteConfigHandler::new(
-            remote_config_validators,
-            hash_repository.clone(),
-            yaml_config_repository.clone(),
-        );
+        let remote_config_handler = AgentRemoteConfigHandler::new(remote_config_validators);
 
         info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
@@ -153,6 +149,8 @@ impl AgentControlRunner {
             self.k8s_config.clone(),
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_handler),
+            hash_repository.clone(),
+            yaml_config_repository.clone(),
         );
 
         let gcc = NotStartedK8sGarbageCollector::new(

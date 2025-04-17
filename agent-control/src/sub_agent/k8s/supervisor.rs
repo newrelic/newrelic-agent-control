@@ -245,6 +245,7 @@ pub mod tests {
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
@@ -504,6 +505,7 @@ pub mod tests {
             .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
+        let yaml_config_repository = MockYAMLConfigRepositoryMock::new();
         let remote_config_handler = MockRemoteConfigHandlerMock::new();
 
         let agent_identity_clone = agent_identity.clone();
@@ -530,6 +532,8 @@ pub mod tests {
                 sub_agent_internal_consumer,
             ),
             Arc::new(remote_config_handler),
+            Arc::new(sub_agent_remote_config_hash_repository),
+            Arc::new(yaml_config_repository),
         )
         .run();
 

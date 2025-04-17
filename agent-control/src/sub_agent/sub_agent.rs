@@ -4,7 +4,10 @@ use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
+use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;
@@ -15,6 +18,8 @@ use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
+use crate::values::yaml_config::YAMLConfig;
+use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crossbeam::channel::never;
 use crossbeam::select;
 use opamp_client::StartedClient;
@@ -66,11 +71,13 @@ pub struct SubAgentStopper {
 ///
 /// All its methods are internal and only called from the runtime method that spawns
 /// a thread listening to events and acting on them.
-pub struct SubAgent<C, SA, R>
+pub struct SubAgent<C, SA, R, H, Y>
 where
     C: StartedClient + Send + Sync + 'static,
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
+    H: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository + Send + Sync + 'static,
 {
     pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
@@ -80,14 +87,19 @@ where
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     remote_config_handler: Arc<R>,
     supervisor_assembler: Arc<SA>,
+    hash_repository: Arc<H>,
+    values_repository: Arc<Y>,
 }
 
-impl<C, SA, R> SubAgent<C, SA, R>
+impl<C, SA, R, H, Y> SubAgent<C, SA, R, H, Y>
 where
     C: StartedClient + Send + Sync + 'static,
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
+    H: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository + Send + Sync + 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
@@ -99,6 +111,8 @@ where
             EventConsumer<SubAgentInternalEvent>,
         ),
         remote_config_handler: Arc<R>,
+        hash_repository: Arc<H>,
+        values_repository: Arc<Y>,
     ) -> Self {
         Self {
             identity,
@@ -109,6 +123,8 @@ where
             sub_agent_internal_publisher: internal_pub_sub.0,
             sub_agent_internal_consumer: internal_pub_sub.1,
             remote_config_handler,
+            hash_repository,
+            values_repository,
         }
     }
 
@@ -161,28 +177,42 @@ where
                                 break;
                             }
 
-                            Ok(OpAMPEvent::RemoteConfigReceived(mut config)) => {
+                            Ok(OpAMPEvent::RemoteConfigReceived(config)) => {
+                                debug!(
+                                    select_arm = "sub_agent_opamp_consumer",
+                                    "remote config received"
+                                );
                                 // This branch only makes sense with a valid OpAMP client
                                 let Some(opamp_client) = &self.maybe_opamp_client else {
-                                    debug!(select_arm = "sub_agent_opamp_consumer", "got remote config without OpAMP being enabled");
+                                    debug!("got remote config without OpAMP being enabled");
                                     continue;
                                 };
                                 // Trace the occurrence of a remote config reception
-                                debug!("Received remote config.");
                                 remote_config_count += 1;
                                 trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                match self.remote_config_handler.handle(opamp_client,self.identity.clone(),&mut config) {
-                                    Err(error) =>{
-                                        error!("error handling remote config: {error}")
-                                    },
-                                    Ok(())  =>{
-                                        info!("Applying remote config");
-                                        // We need to restart the supervisor after we receive a new config
-                                        // as we don't have hot-reloading handling implemented yet
-                                        stop_supervisor(supervisor);
+                                info!(hash=&config.hash.get(), "Applying remote config");
+                                self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Applying);
 
-                                        supervisor = self.assemble_and_start_supervisor();
+                                match self.remote_config_handler.handle(self.identity.clone(), &config) {
+                                    Err(err) =>{
+                                        warn!(hash=&config.hash.get(), "Remote configuration cannot be applied: {err}");
+                                        self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
+                                        self.store_remote_config_hash(&config);
+                                    },
+                                    Ok(yaml_config) => {
+                                        // TODO: we need to refactor the supervisor-assembler components in order to avoid persisting
+                                        // and restarting the supervisor until the supervisor corresponding to the new configuration
+                                        // is successfully.
+                                        if let Err(err) = self.store_config_hash_and_values(&config, &yaml_config) {
+                                            warn!(hash=&config.hash.get(), "Error persisting remote configuration: {err}");
+                                            self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
+                                        } else {
+                                            // We need to restart the supervisor after we receive a new config
+                                            // as we don't have hot-reloading handling implemented yet
+                                            stop_supervisor(supervisor);
+                                            supervisor = self.assemble_and_start_supervisor();
+                                        }
                                     }
                                 }
                             },
@@ -281,6 +311,51 @@ where
             .map(|s| self.start_supervisor(s))
             .and_then(|s| s.ok())
     }
+
+    fn store_remote_config_hash(&self, config: &RemoteConfig) {
+        let _ = self
+            .hash_repository
+            .save(&self.identity.id, &config.hash)
+            .inspect_err(|err| {
+                warn!(
+                    hash = config.hash.get(),
+                    "Could not save the hash repository: {err}"
+                );
+            });
+    }
+
+    fn store_config_hash_and_values(
+        &self,
+        config: &RemoteConfig,
+        yaml_config: &Option<YAMLConfig>,
+    ) -> Result<(), SubAgentError> {
+        // Store remote config hash
+        self.hash_repository.save(&self.identity.id, &config.hash)?;
+        // Store remote config values
+        match yaml_config {
+            Some(yaml_config) => self
+                .values_repository
+                .store_remote(&self.identity.id, yaml_config),
+            None => {
+                debug!("empty config received, remove remote configuration to fall-back to local");
+                self.values_repository.delete_remote(&self.identity.id)
+            }
+        }?;
+        Ok(())
+    }
+
+    fn report_config_status(
+        &self,
+        config: &RemoteConfig,
+        opamp_client: &C,
+        remote_config_status: OpampRemoteConfigStatus,
+    ) {
+        let _ = remote_config_status
+            .report(opamp_client, &config.hash)
+            .inspect_err(|e| {
+                warn!("Error reporting OpAMP configuration status: {e}");
+            });
+    }
 }
 
 impl StartedSubAgent for SubAgentStopper {
@@ -310,11 +385,13 @@ where
     }
 }
 
-impl<C, SA, R> NotStartedSubAgent for SubAgent<C, SA, R>
+impl<C, SA, R, H, Y> NotStartedSubAgent for SubAgent<C, SA, R, H, Y>
 where
     C: StartedClient + Send + Sync + 'static,
     SA: SupervisorAssembler + Send + Sync + 'static,
     R: RemoteConfigHandler + Send + Sync + 'static,
+    H: HashRepository + Send + Sync + 'static,
+    Y: YAMLConfigRepository + Send + Sync + 'static,
 {
     type StartedSubAgent = SubAgentStopper;
 
@@ -345,6 +422,7 @@ pub mod tests {
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
     use std::collections::HashMap;
@@ -419,6 +497,8 @@ pub mod tests {
         MockStartedOpAMPClientMock,
         MockSupervisorAssemblerMock<MockSupervisorStarter>,
         MockRemoteConfigHandlerMock,
+        MockHashRepositoryMock,
+        MockYAMLConfigRepositoryMock,
     >;
 
     impl Default for SubAgentForTesting {
@@ -436,6 +516,8 @@ pub mod tests {
                 .expect_get()
                 .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
+
+            let yaml_repository = MockYAMLConfigRepositoryMock::new();
 
             let remote_config_handler = MockRemoteConfigHandlerMock::new();
 
@@ -459,6 +541,8 @@ pub mod tests {
                 None,
                 (sub_agent_internal_publisher, sub_agent_internal_consumer),
                 Arc::new(remote_config_handler),
+                Arc::new(hash_repository),
+                Arc::new(yaml_repository),
             )
         }
     }
@@ -480,6 +564,8 @@ pub mod tests {
             .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
+        let yaml_repository = MockYAMLConfigRepositoryMock::new();
+
         let remote_config_handler = MockRemoteConfigHandlerMock::new();
 
         let mut started_supervisor = MockSupervisorStopper::new();
@@ -498,6 +584,8 @@ pub mod tests {
             MockStartedOpAMPClientMock,
             MockSupervisorAssemblerMock<MockSupervisorStarter>,
             MockRemoteConfigHandlerMock,
+            MockHashRepositoryMock,
+            MockYAMLConfigRepositoryMock,
         > = SubAgent::new(
             agent_identity,
             None,
@@ -506,6 +594,8 @@ pub mod tests {
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(remote_config_handler),
+            Arc::new(hash_repository),
+            Arc::new(yaml_repository),
         );
 
         let started_agent = sub_agent.run();
@@ -561,6 +651,8 @@ pub mod tests {
             .expect_update_effective_config()
             .times(1)
             .returning(|| Ok(()));
+        // Applying + Applied
+        opamp_client.should_set_any_remote_config_status(1);
 
         //opamp client expects to be stopped
         opamp_client.should_stop(1);
@@ -579,11 +671,20 @@ pub mod tests {
             agent_identity.clone(),
         );
 
+        let hash = Hash::new("some-hash".into());
+        let yaml_config: YAMLConfig = serde_yaml::from_str("some_item: some_value").unwrap();
+
+        let mut hash_repository = MockHashRepositoryMock::new();
+        hash_repository.should_save_hash(&agent_identity.id, &hash);
+        let mut yaml_repository = MockYAMLConfigRepositoryMock::new();
+        yaml_repository.should_store_remote(&agent_identity.id, &yaml_config);
+
         // Receive a remote config
         let mut remote_config_handler = MockRemoteConfigHandlerMock::new();
-        remote_config_handler.should_handle::<MockStartedOpAMPClientMock>(
+        remote_config_handler.should_handle(
             agent_identity.clone(),
             remote_config.clone(),
+            Some(yaml_config),
         );
 
         // Assemble again on config received
@@ -606,6 +707,8 @@ pub mod tests {
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(remote_config_handler),
+            Arc::new(hash_repository),
+            Arc::new(yaml_repository),
         );
 
         //start the runtime
