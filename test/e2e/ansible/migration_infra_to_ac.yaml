@@ -35,16 +35,6 @@
             status_server_enabled: true
             status_server_port: 18003
             license_key: {{ nr_license_key }}
-            custom_attributes:
-              test_id: {{ test_id }}
-              app: infra_agent
-      
-      - name: Restart Infra Agent
-        include_role:
-          name: caos.ansible_roles.service_status
-        vars:
-          service_name: newrelic-infra
-          action: restart
       
       - name: Install docker
         include_role:
@@ -66,6 +56,23 @@
         include_role:
           name: caos.ansible_roles.nri_mysql
 
+      - name: Change Integrations config
+        replace:
+          path: "/etc/newrelic-infra/integrations.d/nri-mysql-config.yml"
+          regexp: "name: nri-mysql"
+          replace: |-
+            name: nri-mysql
+                labels:
+                  test_id: {{ test_id }}
+                  test_installed_agent: infra_agent
+      
+      - name: Restart Infra Agent
+        include_role:
+          name: caos.ansible_roles.service_status
+        vars:
+          service_name: newrelic-infra
+          action: restart
+
       - name: Get metrics sent by nri-mysql
         include_role:
           name: nrql_api_request
@@ -75,7 +82,7 @@
           nrql_query: >-
             SELECT *
             FROM MysqlSample
-            WHERE test_id = '{{ test_id }}' AND app = 'infra_agent'
+            WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'infra_agent'
             LIMIT 1
           retries: 60
           delay: 5
@@ -110,11 +117,11 @@
       - name: Migrate Infra Agent config
         command: newrelic-config-migrate
       
-      - name: Change Infra Agent config (app custom attribute)
+      - name: Change installed agent label
         replace:
           path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
-          regexp: "app: infra_agent"
-          replace: "app: agent_control"
+          regexp: "test_installed_agent: infra_agent"
+          replace: "test_installed_agent: agent_control"
 
       - name: Restart Agent Control
         include_role:
@@ -132,7 +139,7 @@
           nrql_query: >-
             SELECT *
             FROM MysqlSample
-            WHERE test_id = '{{ test_id }}' AND app = 'agent_control'
+            WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'agent_control'
             LIMIT 1
           retries: 120
           delay: 5
