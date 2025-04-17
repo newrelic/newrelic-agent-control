@@ -68,16 +68,14 @@ impl SupportedFunction {
         functions_str: &str,
     ) -> Result<Vec<SupportedFunction>, FunctionError> {
         let re_functions = template_functions_re();
-        let function_chain =
-            re_functions
-                .find_iter(functions_str)
-                .try_fold(vec![], |mut acc, m| {
-                    let name = m.as_str().trim_start_matches("|");
-                    let func = SupportedFunction::parse(name)?;
-                    acc.push(func);
-                    Ok(acc)
-                })?;
-        Ok(function_chain)
+        re_functions
+            .find_iter(functions_str)
+            .map(|m| {
+                let name = m.as_str().trim_start_matches("|");
+                let func = Self::parse(name)?;
+                Ok(func)
+            })
+            .collect()
     }
 }
 
