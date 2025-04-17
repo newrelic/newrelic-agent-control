@@ -111,9 +111,8 @@ pub mod tests {
     }
     #[test]
     fn builder() {
-        let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
-            MockYAMLConfigRepository::default(),
-        ));
+        let builder =
+            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockYAMLConfigRepository::default()));
 
         match builder.build(AgentID::new_agent_control_id()) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}

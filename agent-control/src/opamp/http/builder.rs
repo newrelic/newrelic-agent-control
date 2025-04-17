@@ -109,7 +109,7 @@ pub(crate) mod tests {
                 DefaultOpAMPClientBuilder, OpAMPClientBuilder, DEFAULT_POLL_INTERVAL,
             },
             effective_config::loader::tests::{
-                MockEffectiveConfigLoaderBuilder, MockEffectiveConfigLoader,
+                MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
             },
         },
     };

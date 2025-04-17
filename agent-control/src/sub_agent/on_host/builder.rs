@@ -254,10 +254,8 @@ mod tests {
         stopped_supervisor.should_start(started_supervisor);
 
         let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-        );
+        supervisor_assembler
+            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
 
         let remote_config_handler = MockRemoteConfigHandler::new();
 
@@ -330,10 +328,8 @@ mod tests {
         stopped_supervisor.should_start(started_supervisor);
 
         let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-        );
+        supervisor_assembler
+            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
 
         let remote_config_handler = MockRemoteConfigHandler::new();
 

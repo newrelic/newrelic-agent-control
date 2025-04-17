@@ -474,10 +474,7 @@ pub mod tests {
             .is_err());
     }
 
-    fn setup_hash_repository(
-        hash: String,
-        agent_identity: AgentIdentity,
-    ) -> MockHashRepository {
+    fn setup_hash_repository(hash: String, agent_identity: AgentIdentity) -> MockHashRepository {
         let mut hash_repository = MockHashRepository::new();
         if hash.is_empty() {
             hash_repository.should_not_get_hash(&agent_identity.id);

@@ -575,10 +575,8 @@ pub mod tests {
         stopped_supervisor.should_start(started_supervisor);
 
         let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-        );
+        supervisor_assembler
+            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
 
         let sub_agent: SubAgent<
             MockStartedOpAMPClient,
@@ -666,10 +664,8 @@ pub mod tests {
 
         let mut supervisor_assembler = MockSupervisorAssembler::new();
 
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-        );
+        supervisor_assembler
+            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
 
         let hash = Hash::new("some-hash".into());
         let yaml_config: YAMLConfig = serde_yaml::from_str("some_item: some_value").unwrap();
@@ -694,10 +690,8 @@ pub mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-        );
+        supervisor_assembler
+            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
 
         let sub_agent = SubAgent::new(
             agent_identity,
