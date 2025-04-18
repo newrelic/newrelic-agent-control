@@ -45,11 +45,14 @@ pub struct Reflectors {
 }
 
 impl Reflectors {
-    pub async fn try_new(builder: &ReflectorBuilder) -> Result<Reflectors, K8sError> {
+    pub async fn try_new(
+        builder: &ReflectorBuilder,
+        namespace: &str,
+    ) -> Result<Reflectors, K8sError> {
         Ok(Reflectors {
-            deployment: builder.try_build().await?,
-            daemon_set: builder.try_build().await?,
-            stateful_set: builder.try_build().await?,
+            deployment: builder.try_build(namespace).await?,
+            daemon_set: builder.try_build(namespace).await?,
+            stateful_set: builder.try_build(namespace).await?,
         })
     }
 }

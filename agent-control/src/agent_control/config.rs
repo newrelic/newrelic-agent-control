@@ -181,6 +181,8 @@ pub struct K8sConfig {
     pub cluster_name: String,
     /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
+    /// namespace_agents is where the agents are
+    pub namespace_agents: String,
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
@@ -195,6 +197,7 @@ impl Default for K8sConfig {
         Self {
             cluster_name: Default::default(),
             namespace: Default::default(),
+            namespace_agents: Default::default(),
             chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
         }

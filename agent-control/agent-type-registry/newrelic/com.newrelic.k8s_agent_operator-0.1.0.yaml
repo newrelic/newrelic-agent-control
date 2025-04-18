@@ -63,6 +63,7 @@ deployment:
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           interval: 3m
           chart:
@@ -70,6 +71,7 @@ deployment:
               chart: k8s-agents-operator
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
+              targetNamespace: ${nr-ac:namespace_agents}
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
@@ -79,6 +81,7 @@ deployment:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
+            createNamespace: true
             remediation:
               retries: 3
             replace: true

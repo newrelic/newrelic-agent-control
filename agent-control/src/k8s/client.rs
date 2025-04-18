@@ -40,9 +40,13 @@ pub struct SyncK8sClient {
 
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
-    pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
+    pub fn try_new(
+        runtime: Arc<Runtime>,
+        namespace: String,
+        namespace_agents: String,
+    ) -> Result<Self, K8sError> {
         Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace))?,
+            async_client: runtime.block_on(AsyncK8sClient::try_new(namespace, namespace_agents))?,
             runtime,
         })
     }
@@ -151,7 +155,7 @@ impl AsyncK8sClient {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
-    pub async fn try_new(namespace: String) -> Result<Self, K8sError> {
+    pub async fn try_new(namespace: String, namespace_agents: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
         let mut config = match Config::incluster() {
@@ -178,7 +182,7 @@ impl AsyncK8sClient {
             })?;
 
         let reflector_builder = ReflectorBuilder::new(client.clone());
-        let reflectors = Reflectors::try_new(&reflector_builder).await?;
+        let reflectors = Reflectors::try_new(&reflector_builder, namespace_agents.as_str()).await?;
 
         debug!("k8s client initialization succeeded");
         Ok(Self {

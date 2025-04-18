@@ -9,6 +9,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
 use crate::agent_type::render::renderer::TemplateRenderer;
+use crate::agent_type::variable::definition::VariableDefinition;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -44,10 +45,27 @@ impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
-            SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())
-                .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+            SyncK8sClient::try_new(
+                self.runtime,
+                self.k8s_config.namespace.clone(),
+                self.k8s_config.namespace_agents.clone(),
+            )
+            .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
         let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+
+        let agent_control_variables = HashMap::from([
+            (
+                "namespace".to_string(),
+                VariableDefinition::new_final_string_variable(self.k8s_config.namespace.clone()),
+            ),
+            (
+                "namespace_agents".to_string(),
+                VariableDefinition::new_final_string_variable(
+                    self.k8s_config.namespace_agents.clone(),
+                ),
+            ),
+        ]);
 
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
@@ -111,7 +129,8 @@ impl AgentControlRunner {
         // Disable startup check for sub-agents OpAMP client builder
         let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
-        let template_renderer = TemplateRenderer::default();
+        let template_renderer = TemplateRenderer::default()
+            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),

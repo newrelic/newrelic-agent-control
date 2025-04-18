@@ -72,14 +72,14 @@ impl ReflectorBuilder {
     ///
     /// # Returns
     /// Returns the newly built reflector or an error.
-    pub async fn try_build<K>(&self) -> Result<Reflector<K>, K8sError>
+    pub async fn try_build<K>(&self, namespace: &str) -> Result<Reflector<K>, K8sError>
     where
         K: ResourceWithReflector,
     {
         trace!("Building k8s reflector for kind {}", K::KIND);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
-                Api::default_namespaced(self.client.clone()),
+                Api::namespaced(self.client.clone(), namespace),
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 reflector::store::Writer::default,
