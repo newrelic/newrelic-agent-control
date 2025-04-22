@@ -10,7 +10,6 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
 use std::sync::Arc;
-use std::thread::sleep;
 use std::time::Duration;
 
 pub const K8S_GC_INTERVAL: Duration = Duration::from_secs(20);
@@ -66,9 +65,6 @@ pub fn start_agent_control_with_custom_config(
             .run(mode)
             .unwrap();
     });
-
-    // to avoid k8s GC first executions collision with the first remote configs that are set in the tests.
-    sleep(Duration::from_secs(5));
 
     StartedAgentControl {
         application_event_publisher,

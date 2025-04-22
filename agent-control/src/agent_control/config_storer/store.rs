@@ -12,14 +12,14 @@ use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepo
 use config::builder::DefaultState;
 use config::{Config, ConfigBuilder, Environment, File, FileFormat};
 use opamp_client::operation::capabilities::Capabilities;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 pub struct AgentControlConfigStore<Y>
 where
     Y: YAMLConfigRepository,
 {
     config_builder: ConfigBuilder<DefaultState>,
-    values_repository: Arc<Y>,
+    values_repository: RwLock<Arc<Y>>,
     agent_control_id: AgentID,
     agent_control_capabilities: Capabilities,
 }
@@ -48,6 +48,8 @@ where
 {
     fn delete(&self) -> Result<(), AgentControlConfigError> {
         self.values_repository
+            .write()
+            .map_err(|e| AgentControlConfigError::Delete(e.to_string()))?
             .delete_remote(&self.agent_control_id)?;
         Ok(())
     }
@@ -59,6 +61,8 @@ where
 {
     fn store(&self, yaml_config: &YAMLConfig) -> Result<(), AgentControlConfigError> {
         self.values_repository
+            .read()
+            .map_err(|e| AgentControlConfigError::Store(e.to_string()))?
             .store_remote(&self.agent_control_id, yaml_config)?;
         Ok(())
     }
@@ -73,7 +77,7 @@ where
 
         Self {
             config_builder,
-            values_repository,
+            values_repository: RwLock::new(values_repository),
             agent_control_id: AgentID::new_agent_control_id(),
             agent_control_capabilities: default_capabilities(),
         }
@@ -83,8 +87,11 @@ where
     /// From the remote config only the AgentControlDynamicConfig is retrieve and if available applied
     /// on top of the local config
     fn _load_config(&self) -> Result<AgentControlConfig, AgentControlConfigError> {
-        let local_config_string: String = self
+        let values_repository = self
             .values_repository
+            .read()
+            .map_err(|e| AgentControlConfigError::Load(e.to_string()))?;
+        let local_config_string: String = values_repository
             .load_local(&self.agent_control_id)?
             .ok_or(AgentControlConfigError::Load(
                 "missing local agent control config".to_string(),
@@ -110,8 +117,7 @@ where
             .build()?
             .try_deserialize::<AgentControlConfig>()?;
 
-        if let Some(remote_config) = self
-            .values_repository
+        if let Some(remote_config) = values_repository
             .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
         {
             let dynamic_config: AgentControlDynamicConfig = remote_config.try_into()?;

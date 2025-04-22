@@ -153,13 +153,13 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
         );
 
-        let gcc = NotStartedK8sGarbageCollector::new(
+        let _garbage_collector = NotStartedK8sGarbageCollector::new(
             config_storer.clone(),
             k8s_client,
             self.k8s_config.cr_type_meta,
             self.garbage_collector_interval,
-        );
-        let _started_gcc = gcc.start();
+        )
+        .start();
 
         let dynamic_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
