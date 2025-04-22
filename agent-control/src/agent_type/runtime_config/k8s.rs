@@ -32,6 +32,7 @@ pub struct K8sObjectMeta {
     #[serde(default)]
     pub labels: std::collections::BTreeMap<String, String>,
     pub name: String,
+    pub namespace: String,
 }
 
 impl Templateable for K8s {
@@ -67,6 +68,7 @@ impl Templateable for K8sObjectMeta {
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
             name: self.name.template_with(variables)?,
+            namespace: self.namespace.template_with(variables)?,
         })
     }
 }

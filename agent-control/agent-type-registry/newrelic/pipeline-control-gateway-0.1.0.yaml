@@ -28,6 +28,7 @@ deployment:
         kind: HelmRepository
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
           # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
@@ -41,6 +42,7 @@ deployment:
         kind: Secret
         metadata:
           name: default-values-${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         stringData:
           # These env variables are attached to the AC pod on the Helm Chart.
           values.yaml: |
@@ -55,6 +57,7 @@ deployment:
         kind: Secret
         metadata:
           name: values-${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         stringData:
           # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
           values.yaml: |
@@ -64,6 +67,7 @@ deployment:
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           interval: 3m
           chart:

@@ -19,6 +19,7 @@ deployment:
         kind: Bar
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           data: ${nr-var:data}
 

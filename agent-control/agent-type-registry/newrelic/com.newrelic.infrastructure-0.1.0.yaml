@@ -99,6 +99,7 @@ deployment:
         kind: HelmRepository
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
           # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
@@ -112,6 +113,7 @@ deployment:
         kind: Secret
         metadata:
           name: default-values-${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         stringData:
           values.yaml: |
             newrelic-infrastructure:
@@ -136,12 +138,13 @@ deployment:
           namespace: ${nr-ac:namespace}
         spec:
           interval: 3m
+          targetNamespace: ${nr-ac:namespace_agents}
+          releaseName: ${nr-sub:agent_id}
           chart:
             spec:
               chart: nri-bundle
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
-              targetNamespace: ${nr-ac:namespace_agents}
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
