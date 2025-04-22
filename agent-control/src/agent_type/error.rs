@@ -22,6 +22,8 @@ pub enum AgentTypeError {
     UnknownBackoffStrategyType(String),
     #[error("Invalid variant provided as a value: `{0}`. Variants allowed: {1:?}")]
     InvalidVariant(String, Vec<String>),
+    #[error("Rendering template: {0}")]
+    RenderingTemplate(String),
     #[error("error assembling agents: `{0}`")]
     ConfigurationPersisterError(#[from] PersistError),
     #[error("Conflicting variable definition: `{0}`")]

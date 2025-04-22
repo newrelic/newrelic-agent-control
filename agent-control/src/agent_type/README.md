@@ -105,6 +105,24 @@ The deployment section indicates how the agent should be executed and its health
 
 Note you can reference the variables defined in the `variables` section using `${nr-var:variable_name}`. And this is valid for nested variables as well: following the example above, you would be able to use `${nr-var:log.info}`.
 
+### Template Functions
+
+You can enhance templated variables by applying functions to them, enabling transformations as needed.
+
+Functions are pipelined, meaning the output of each transformation serves as the input for the next one: `${nr-var:variable_name | func1 | func2 | ... | funcN}`.
+
+#### Indent(n)
+
+The `indent` function indents each new line with `n` spaces. Essentially, it adds `n` spaces after each `\n`. For example, `${nr-var:key|indent 2}` will prepend 2 spaces to the beginning of each line in the string produced by the variable.
+
+This is particularly useful when rendering YAML inside a multiline string where the YAML being rendered requires specific indentation, as shown below:
+
+```yaml
+multi_line_string: |
+  fixed_key:
+    ${nr-var:yaml_variable | indent 2 }
+```
+
 ### OnHost Deployment
 
 For on-host deployment, use the following format:
