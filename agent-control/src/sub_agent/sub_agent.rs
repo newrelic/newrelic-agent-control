@@ -234,8 +234,8 @@ where
                                 debug!(select_arm = "sub_agent_internal_consumer", ?health, "AgentHealthInfo");
 
                                 let health_state = Health::from(health.clone());
-                                if !Self::is_health_state_equal_to_previous_state(&previous_health, &health_state) {
-                                    Self::log_health_info(&health_state);
+                                if !is_health_state_equal_to_previous_state(&previous_health, &health_state) {
+                                    log_health_info(&health_state);
                                 }
                                 previous_health = Some(health_state);
                                 let _ = on_health(
@@ -261,34 +261,6 @@ where
 
             stop_opamp_client(self.maybe_opamp_client, &self.identity.id)
         })
-    }
-
-    fn is_health_state_equal_to_previous_state(
-        previous_state: &Option<Health>,
-        current_state: &Health,
-    ) -> bool {
-        match (previous_state, current_state) {
-            (Some(Health::Healthy(_)), Health::Healthy(_)) => true,
-            (Some(prev), current) => prev == current,
-            _ => false,
-        }
-    }
-
-    fn log_health_info(health: &Health) {
-        match health {
-            // From unhealthy (or initial) to healthy
-            Health::Healthy(_) => {
-                info!("Agent is healthy");
-            }
-            // Every time health is unhealthy
-            Health::Unhealthy(unhealthy) => {
-                warn!(
-                    status = unhealthy.status(),
-                    last_error = unhealthy.last_error(),
-                    "Agent is unhealthy"
-                );
-            }
-        }
     }
 
     pub(crate) fn start_supervisor(
@@ -370,6 +342,34 @@ where
     }
 }
 
+fn is_health_state_equal_to_previous_state(
+    previous_state: &Option<Health>,
+    current_state: &Health,
+) -> bool {
+    match (previous_state, current_state) {
+        (Some(Health::Healthy(_)), Health::Healthy(_)) => true,
+        (Some(prev), current) => prev == current,
+        _ => false,
+    }
+}
+
+fn log_health_info(health: &Health) {
+    match health {
+        // From unhealthy (or initial) to healthy
+        Health::Healthy(_) => {
+            info!("Agent is healthy");
+        }
+        // Every time health is unhealthy
+        Health::Unhealthy(unhealthy) => {
+            warn!(
+                status = unhealthy.status(),
+                last_error = unhealthy.last_error(),
+                "Agent is unhealthy"
+            );
+        }
+    }
+}
+
 impl StartedSubAgent for SubAgentStopper {
     fn stop(self) -> Result<(), SubAgentStopError> {
         // Stop processing events
@@ -429,6 +429,7 @@ pub mod tests {
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
@@ -437,6 +438,7 @@ pub mod tests {
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
+    use rstest::*;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::sleep;
@@ -728,5 +730,34 @@ pub mod tests {
 
         // stop the runtime
         started_agent.stop().unwrap();
+    }
+
+    #[rstest]
+    #[case::healthy_states_same_status(Some(Health::Healthy(Healthy::new("status".to_string()))), Health::Healthy(Healthy::new("status".to_string())))]
+    #[case::healthy_states_different_status(Some(Health::Healthy(Healthy::new("status a".to_string()))), Health::Healthy(Healthy::new("status b".to_string())))]
+    #[case::unhealthy_states_with_same_content(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
+    fn test_health_state_is_equal_to_previous_state(
+        #[case] previous_state: Option<Health>,
+        #[case] current_state: Health,
+    ) {
+        assert!(
+            is_health_state_equal_to_previous_state(&previous_state, &current_state)
+        );
+    }
+    
+    #[rstest]
+    #[case::first_state_is_healthy(None, Health::Healthy(Healthy::new("status".to_string())))]
+    #[case::first_state_is_unhealthy(None, Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
+    #[case::healthy_and_unhealthy(Some(Health::Healthy(Healthy::new("status".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
+    #[case::unhealthy_and_healthy(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string()))), Health::Healthy(Healthy::new("status".to_string())))]
+    #[case::two_unhealthy_states_with_different_status(Some(Health::Unhealthy(Unhealthy::new("status a".to_string(), "error".to_string()))), Health::Unhealthy(Unhealthy::new("status b".to_string(), "error".to_string())))]
+    #[case::two_unhealthy_states_with_different_errors(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error a".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error b".to_string())))]
+    fn test_health_state_is_different_to_previous_state(
+        #[case] previous_state: Option<Health>,
+        #[case] current_state: Health,
+    ) {
+        assert!(
+            !is_health_state_equal_to_previous_state(&previous_state, &current_state)
+        );
     }
 }
