@@ -2,7 +2,7 @@ use std::{
     thread::{sleep, JoinHandle},
     time::Duration,
 };
-use tracing::{debug, info, info_span, trace};
+use tracing::{debug, debug_span, trace};
 
 const GRACEFUL_STOP_RETRY: u16 = 10;
 const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
@@ -39,8 +39,8 @@ where
     pub fn start(self) -> StartedThreadContext<T> {
         let (stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
         // Notice that this is needed in order to pass across threads
-        let s = info_span!("sub_thread", thread = &self.thread_name);
-        info!("starting {} thread", self.thread_name);
+        let s = debug_span!("sub_thread", thread = &self.thread_name);
+        debug!("Starting {} thread", self.thread_name);
 
         StartedThreadContext::new(
             self.thread_name.clone(),
@@ -50,16 +50,6 @@ where
                 (self.callback)(stop_consumer)
             }),
         )
-
-        // let join_handle = spawn_named_thread(&self.thread_name, {
-        //     let name = self.thread_name.clone();
-        //     move || {
-        //         info!("{} started", &name);
-        //         let _guards = s.enter();
-        //         (self.callback)(stop_consumer);
-        //     }
-        // });
-        // StartedThreadContext::new(self.thread_name, stop_publisher, join_handle)
     }
 }
 pub struct StartedThreadContext<T = ()>
@@ -128,16 +118,15 @@ where
     /// It sends a stop signal and periodically checks if the thread has finished until
     /// it timeout defined by `GRACEFUL_STOP_RETRY` * `GRACEFUL_STOP_RETRY_INTERVAL`.
     pub fn stop(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "publishing stop");
+        trace!(thread = self.thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self
-            .stop_publisher
-            .try_publish(())
-            .inspect_err(|err| debug!(thread = self.thread_name, "Fail publishing stop: {}", err));
+        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
+        });
         for _ in 0..GRACEFUL_STOP_RETRY {
             if self.join_handle.is_finished() {
-                trace!(thread = self.thread_name, "finished, joining");
+                trace!(thread = self.thread_name, "Finished, joining");
                 return self.join_thread();
             }
             sleep(GRACEFUL_STOP_RETRY_INTERVAL);
@@ -150,14 +139,13 @@ where
 
     /// It sends a stop signal and waits until the thread handle is joined.
     pub fn stop_blocking(self) -> Result<T, ThreadContextStopperError> {
-        trace!(thread = self.thread_name, "publishing stop");
+        trace!(thread = self.thread_name, "Publishing stop");
         // Stop consumer could be disconnected if the thread has finished already.
         // Either the stop is full or disconnected that shouldn't prevent to join the thread.
-        let _ = self
-            .stop_publisher
-            .try_publish(())
-            .inspect_err(|err| debug!(thread = self.thread_name, "Fail publishing stop: {}", err));
-        trace!(thread = self.thread_name, "joining");
+        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
+        });
+        trace!(thread = self.thread_name, "Joining");
         self.join_thread()
     }
 }

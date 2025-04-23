@@ -46,6 +46,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
         self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<StartedSupervisorK8s, SupervisorStarterError> {
+        info!("Starting k8s supervisor");
         let resources = Arc::new(self.build_dynamic_objects()?);
 
         let thread_contexts = vec![
@@ -53,6 +54,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
             self.start_health_check(sub_agent_internal_publisher.clone(), resources.clone())?,
             self.start_version_checker(sub_agent_internal_publisher, resources),
         ];
+        info!("K8s supervisor started");
 
         Ok(StartedSupervisorK8s {
             agent_id: self.agent_identity.id,
@@ -147,14 +149,14 @@ impl NotStartedSupervisorK8s {
         let start_time = StartTime::now();
 
         let Some(health_config) = &self.k8s_config.health else {
-            debug!("health checks are disabled for this agent");
+            debug!("Health checks are disabled for this agent");
             return Ok(None);
         };
 
         let Some(k8s_health_checker) =
             SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
-            warn!("health-check cannot start even if it is enabled there are no compatible k8s resources");
+            warn!("Health checks disabled, there aren't compatible k8s resources to check");
             return Ok(None);
         };
 
@@ -191,7 +193,7 @@ impl NotStartedSupervisorK8s {
         resources: impl Iterator<Item = &'a DynamicObject>,
         k8s_client: Arc<SyncK8sClient>,
     ) -> Result<(), SupervisorStarterError> {
-        debug!("applying k8s objects if changed");
+        debug!("Applying k8s objects if changed");
         for res in resources {
             trace!("K8s object: {:?}", res);
             k8s_client.apply_dynamic_object_if_changed(res)?;
@@ -213,7 +215,7 @@ impl SupervisorStopper for StartedSupervisorK8s {
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
             match thread_context.stop_blocking() {
-                Ok(_) => info!(agent_id = %self.agent_id, "{} stopped", thread_name),
+                Ok(_) => debug!(agent_id = %self.agent_id, "Thread {} stopped", thread_name),
                 Err(error_msg) => {
                     error!(agent_id = %self.agent_id, "Error stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
