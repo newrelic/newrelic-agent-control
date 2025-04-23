@@ -1,0 +1,145 @@
+---
+- name: Install Agent Control on a system where Infra Agent is already installed.
+  hosts: testing_hosts_linux
+  become: true
+  gather_facts: yes
+
+  tasks:
+  - name: Install Agent Control on a system where Infra Agent is already installed.
+    block:
+      - name: Cleanup
+        include_tasks: ./tasks/clean_all.yaml 
+      
+      - name: Set test identifier
+        set_fact:
+          test_id: "migration_infra_to_ac_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+
+      - name: Install Infra Agent
+        include_role:
+          name: newrelic.newrelic_install
+          apply:
+            environment:
+              NEW_RELIC_API_KEY: "{{ nr_api_key }}"
+              NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
+              NEW_RELIC_REGION: "US"
+        vars:
+          targets:
+            - infrastructure
+            - logs
+
+      - name: Change Infra Agent config
+        copy:
+          dest: /etc/newrelic-infra.yml
+          content: |
+            enable_process_metrics: true
+            status_server_enabled: true
+            status_server_port: 18003
+            license_key: {{ nr_license_key }}
+      
+      - name: Install docker
+        include_role:
+          name: caos.ansible_roles.docker_install 
+      
+      #  docker run -d --rm --name some-mysql -p 3306:3306  -e MYSQL_ROOT_PASSWORD=root -d mysql:latest
+      - name: Run mysql container
+        community.docker.docker_container:
+          name: "mysql"
+          image: "mysql:latest"
+          auto_remove: true
+          detach: true
+          ports:
+            - "3306:3306"
+          env:
+            MYSQL_ROOT_PASSWORD: root
+
+      - name: Install nri-mysql integration
+        include_role:
+          name: caos.ansible_roles.nri_mysql
+
+      - name: Change Integrations config
+        replace:
+          path: "/etc/newrelic-infra/integrations.d/nri-mysql-config.yml"
+          regexp: "name: nri-mysql"
+          replace: |-
+            name: nri-mysql
+                labels:
+                  test_id: {{ test_id }}
+                  test_installed_agent: infra_agent
+      
+      - name: Restart Infra Agent
+        include_role:
+          name: caos.ansible_roles.service_status
+        vars:
+          service_name: newrelic-infra
+          action: restart
+
+      - name: Get metrics sent by nri-mysql
+        include_role:
+          name: nrql_api_request
+          apply:
+            become: false
+        vars:
+          nrql_query: >-
+            SELECT *
+            FROM MysqlSample
+            WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'infra_agent'
+            LIMIT 1
+          retries: 12
+          delay: 5
+
+      - name: Install Agent Control
+        include_role:
+          name: newrelic-agent-control
+
+      - name: Register Agent Control version
+        command: "/usr/bin/newrelic-agent-control --version"
+        register: version
+
+      - name: Assert version
+        include_role:
+          name: caos.ansible_roles.assert_version
+        vars:
+          target_versions:
+            - exec: "/usr/bin/newrelic-agent-control --version"
+              version: "{{ package_version }}"
+        when: package_version | length > 0
+
+      - name: Setup Agent Control config
+        include_role:
+          name: edit_yaml_config
+        vars:
+          config_path: "/etc/newrelic-agent-control/config.yaml"
+          update_config:
+            agents:
+              nr-infra:
+                agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+      
+      - name: Migrate Infra Agent config
+        command: newrelic-config-migrate
+      
+      - name: Change installed agent label
+        replace:
+          path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          regexp: "test_installed_agent: infra_agent"
+          replace: "test_installed_agent: agent_control"
+
+      - name: Restart Agent Control
+        include_role:
+          name: caos.ansible_roles.service_status
+        vars:
+          service_name: "newrelic-agent-control"
+          action: "restart"
+
+      - name: Get metrics sent by nri-mysql
+        include_role:
+          name: nrql_api_request
+          apply:
+            become: false
+        vars:
+          nrql_query: >-
+            SELECT *
+            FROM MysqlSample
+            WHERE label.test_id = '{{ test_id }}' AND label.test_installed_agent = 'agent_control'
+            LIMIT 1
+          retries: 12
+          delay: 5
