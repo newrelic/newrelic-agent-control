@@ -12,26 +12,15 @@
 //! process, such as trimming template delimiters and normalizing variable references.
 use super::definition::Variables;
 use super::error::AgentTypeError;
+use super::templates_function::{Function, SupportedFunction};
 use super::variable::definition::VariableDefinition;
 use super::variable::kind::Kind;
 use regex::Regex;
 use std::sync::OnceLock;
 
-/// Regex that extracts the template values from a string.
-///
-/// Example:
-///
-/// ```
-/// use regex::Regex;
-///
-/// const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)\}";
-/// let re = Regex::new(TEMPLATE_RE).unwrap();
-/// let content = "Hello ${nr-var:name.value}!";
-///
-/// let result = re.find_iter(content).map(|i| i.as_str()).collect::<Vec<_>>();
-///
-/// assert_eq!(result, vec!["${nr-var:name.value}"]);
-const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)\}";
+/// Regular expression patterns for parsing template variables and functions.
+/// example: ${nr-var:name|indent 2}
+const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)((?:\s*\|\s*[a-zA-Z]+\s*\d*)*)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
@@ -79,20 +68,6 @@ fn normalized_var<'a>(
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
 }
 
-/// Returns a string with the variable replaced with the corresponding value .
-fn replace(
-    variable: &str,
-    s: &str,
-    normalized_var: &VariableDefinition,
-) -> Result<String, AgentTypeError> {
-    let value = normalized_var
-        .get_template_value()
-        .ok_or(AgentTypeError::MissingTemplateKey(variable.to_string()))?
-        .to_string();
-
-    Ok(s.replace(variable, value.as_str()))
-}
-
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
     fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
@@ -101,13 +76,39 @@ impl Templateable for String {
 }
 
 fn template_string(s: String, variables: &Variables) -> Result<String, AgentTypeError> {
-    let re = template_re();
-    re.find_iter(&s)
-        .try_fold(s.clone(), |r, variable_to_substitute| {
-            let var_name = template_trim(variable_to_substitute.as_str());
-            let normalized_var = normalized_var(var_name, variables)?;
-            replace(variable_to_substitute.as_str(), &r, normalized_var)
-        })
+    let re_template = template_re();
+
+    // Iterates over each found place holder replacing the value in the original string.
+    let mut render_result = s.clone();
+    for captures in re_template.captures_iter(&s) {
+        // "Example with a template: ${nr-var:name|indent 2|to_upper}"
+        // templatable_placeholder="${nr-var:name|indent 2|to_upper}"
+        // captured_var="nr-var:name"
+        // captured_functions="|indent 2|to_upper"
+        let (templatable_placeholder, [captured_var, captured_functions]) = captures.extract();
+
+        // Get variable value
+        let normalized_var = normalized_var(captured_var, variables)?;
+        let value = normalized_var
+            .get_template_value()
+            .ok_or(AgentTypeError::MissingTemplateKey(
+                templatable_placeholder.to_string(),
+            ))?
+            .to_string();
+
+        // Apply functions
+        let functions: Vec<SupportedFunction> =
+            SupportedFunction::parse_function_list(captured_functions)
+                .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))?;
+        let final_value = functions.iter().try_fold(value, |acc, m| {
+            m.apply(acc)
+                .map_err(|e| AgentTypeError::RenderingTemplate(e.to_string()))
+        })?;
+
+        render_result = render_result.replace(templatable_placeholder, &final_value);
+    }
+
+    Ok(render_result)
 }
 
 impl Templateable for serde_yaml::Value {
@@ -188,7 +189,37 @@ mod tests {
     use super::*;
     use crate::agent_type::variable::kind_value::KindValue;
     use assert_matches::assert_matches;
+    use rstest::rstest;
     use serde_yaml::Number;
+
+    #[rstest]
+    #[case::multiline_indent_line("\nline1\nline2\n", "|indent 1", "\n line1\n line2\n ")]
+    #[case::multiline_indent_line("\nline1\nline2\n", "|indent1|indent1", "\n  line1\n  line2\n  ")]
+    fn test_template_functions(
+        #[case] var_content: &str,
+        #[case] var_functions: &str,
+        #[case] expected_out: &str,
+    ) {
+        let variables = Variables::from([(
+            "nr-var:foo".to_string(),
+            VariableDefinition::new(String::default(), true, None, Some(var_content.to_string())),
+        )]);
+        let input = format!("${{nr-var:foo{var_functions}}}");
+        let actual_output = template_string(input, &variables).unwrap();
+        assert_eq!(actual_output, expected_out.to_string());
+    }
+
+    #[rstest]
+    #[case::invalid("${this is invalid}")]
+    #[case::missing_dash("${nrvar:foo}")]
+    #[case::invalid_function_name("${nr-var:foo | 9}")]
+    #[case::empty_function_name("${nr-var:foo |}")]
+    #[case::invalid_function_parameter("${nr-var:foo | indent -1}")]
+    fn test_invalid_pattern_renders_nothing(#[case] placeholder: &str) {
+        let variables = Variables::from([]);
+        let output = template_string(placeholder.to_string(), &variables).unwrap();
+        assert_eq!(placeholder, output);
+    }
 
     #[test]
     fn test_template_string() {
@@ -344,6 +375,20 @@ mod tests {
                 ),
             ),
             (
+                "nr-var:change.me.yaml.map".to_string(),
+                VariableDefinition::new(
+                    String::default(),
+                    true,
+                    None,
+                    Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
+                        [(
+                            "map".into(),
+                            serde_yaml::Mapping::from_iter([("key".into(), "value".into())]).into(),
+                        )],
+                    ))),
+                ),
+            ),
+            (
                 // Expansion inside variable's values is not supported.
                 "nr-var:yaml.with.var.placeholder".to_string(),
                 VariableDefinition::new(
@@ -381,6 +426,19 @@ mod tests {
         a_yaml: ${nr-var:change.me.yaml}
         another_yaml: ${nr-var:yaml.with.var.placeholder} # A variable inside another variable value is not expanded
         string_key: "here, the value ${nr-var:change.me.yaml} is encoded as string because it is not alone"
+        string_multiline_containing_yaml: |
+          a_string: ${nr-var:change.me.string}
+          --
+          broken:
+            indented:
+              yaml:
+                ${nr-var:change.me.yaml.map}
+          --
+          correct:
+            indented:
+              yaml:
+                ${nr-var:change.me.yaml.map| indent 6}
+          --
         last_one: ${UNTOUCHED}
         "#,
         )
@@ -411,6 +469,23 @@ mod tests {
         another_yaml:
           "this.will.not.be.expanded": "${nr-var:change.me.string}" # A variable inside another other variable value is not expanded
         string_key: "here, the value key: value\n is encoded as string because it is not alone"
+        string_multiline_containing_yaml: |
+          a_string: CHANGED-STRING ${UNTOUCHED}
+          --
+          broken:
+            indented:
+              yaml:
+                map:
+            key: value
+          
+          --
+          correct:
+            indented:
+              yaml:
+                map:
+                  key: value
+                
+          --
         last_one: ${UNTOUCHED}
         "#, // FIXME? Note line above, the "key: value\n" part was replaced!!
         )
@@ -663,34 +738,5 @@ mod tests {
             normalized_var("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("does.not.exists".to_string(), key);
-    }
-
-    #[test]
-    fn test_replace() {
-        let value_var =
-            VariableDefinition::new(String::default(), true, None, Some("Value".to_string()));
-        let default_var =
-            VariableDefinition::new(String::default(), true, Some("Default".to_string()), None);
-
-        let neither_value_nor_default =
-            VariableDefinition::new(String::default(), true, None::<String>, None::<String>);
-
-        assert_eq!(
-            "Value-${nr-var:other}".to_string(),
-            replace("${nr-var:any}", "${nr-var:any}-${nr-var:other}", &value_var).unwrap()
-        );
-        assert_eq!(
-            "Default-${nr-var:other}".to_string(),
-            replace(
-                "${nr-var:any}",
-                "${nr-var:any}-${nr-var:other}",
-                &default_var
-            )
-            .unwrap()
-        );
-        let key = assert_matches!(
-            replace("${nr-var:any}", "${nr-var:any}-x", &neither_value_nor_default).unwrap_err(),
-            AgentTypeError::MissingTemplateKey(s) => s);
-        assert_eq!("${nr-var:any}".to_string(), key);
     }
 }

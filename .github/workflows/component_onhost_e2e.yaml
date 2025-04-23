@@ -37,7 +37,7 @@ jobs:
   infra:
     name: Provision infra and run OnHost E2E tests
 
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Configure AWS Credentials

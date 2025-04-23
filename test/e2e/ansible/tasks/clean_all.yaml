@@ -6,12 +6,17 @@
     files_to_cleanup:
       - /etc/newrelic-agent-control/
       - /var/lib/newrelic-agent-control/
-      - /etc/newrelic-infra/
-      - /var/db/newrelic-infra/
-      - /var/log/newrelic-infra
-      - /var/run/newrelic-infra
       - /etc/nr-otel-collector
+      - /etc/newrelic-infra
+      - /etc/newrelic-infra.yml
+      - /var/db/newrelic-infra
+      - /usr/bin/newrelic-infra
+      - /var/run/newrelic-infra
+      - /var/log/newrelic-infra
+      - /etc/systemd/system/newrelic-infra.service
     packages_to_cleanup:
       - newrelic-agent-control
+      - newrelic-infra
     services_to_stop:
       - newrelic-agent-control
+      - newrelic-infra
