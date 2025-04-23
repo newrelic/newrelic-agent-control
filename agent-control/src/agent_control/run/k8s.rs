@@ -6,6 +6,8 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
+use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
+use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
 use crate::agent_type::render::renderer::TemplateRenderer;
@@ -30,8 +32,7 @@ use crate::{
     },
 };
 use crate::{
-    k8s::{garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore},
-    sub_agent::k8s::builder::K8sSubAgentBuilder,
+    k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
     values::k8s::YAMLConfigRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
@@ -153,13 +154,15 @@ impl AgentControlRunner {
             yaml_config_repository.clone(),
         );
 
-        let gcc = NotStartedK8sGarbageCollector::new(
-            config_storer.clone(),
+        let garbage_collector = K8sGarbageCollector {
             k8s_client,
-            self.k8s_config.cr_type_meta,
-            self.garbage_collector_interval,
-        );
-        let _started_gcc = gcc.start();
+            cr_type_meta: self.k8s_config.cr_type_meta,
+        };
+        // Cleanup of the existing resources managed by Agent Control but not existing in the
+        // config loaded from the first time, for example from previous executions.
+        garbage_collector
+            .retain(&agent_control_config.dynamic.agents)
+            .map_err(ResourceCleanerError::from)?;
 
         let dynamic_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
@@ -174,6 +177,7 @@ impl AgentControlRunner {
             self.application_event_consumer,
             maybe_opamp_consumer,
             dynamic_config_validator,
+            garbage_collector,
             agent_control_config,
         )
         .run()

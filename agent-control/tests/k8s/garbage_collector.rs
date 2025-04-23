@@ -9,17 +9,18 @@ use super::tools::{
 };
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
-use mockall::{mock, Sequence};
-use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
+use mockall::mock;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::{
     agent_control::config::default_group_version_kinds, agent_type::agent_type_id::AgentTypeID,
 };
 use newrelic_agent_control::{
+    agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
+    opamp::instance_id::k8s::getter::Identifiers,
+};
+use newrelic_agent_control::{
     agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},
-    k8s::{
-        client::SyncK8sClient, garbage_collector::NotStartedK8sGarbageCollector, store::K8sStore,
-    },
+    k8s::{client::SyncK8sClient, store::K8sStore},
     opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
 };
 use newrelic_agent_control::{
@@ -54,8 +55,6 @@ mock! {
         fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
     }
 }
-
-const GC_TEST_INTERVAL: Duration = Duration::from_secs(1);
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -140,7 +139,6 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
 
-    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
     let config = format!(
         r#"
 agents:
@@ -149,42 +147,24 @@ agents:
 "#,
         agent_identity.id, agent_identity.agent_type_id
     );
-    let mut seq = Sequence::new();
 
-    // First call have the agent id in the config
-    config_loader
-        .expect_load()
-        .times(1)
-        .returning(move || {
-            Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str()).unwrap())
-        })
-        .in_sequence(&mut seq);
-
-    // Second call will not have agents
-    config_loader
-        .expect_load()
-        .times(1)
-        .returning(move || {
-            Ok(serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}").unwrap())
-        })
-        .in_sequence(&mut seq);
-
-    let mut gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
+    let gc = K8sGarbageCollector {
         k8s_client,
-        vec![
+        cr_type_meta: vec![
             foo_type_meta(),
             TypeMeta {
                 api_version: "v1".to_string(),
                 kind: "Secret".to_string(),
             },
         ],
-        GC_TEST_INTERVAL,
-    );
+    };
 
     // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
     // are missing in the cluster.
-    gc.collect().unwrap();
+    let first_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
+        .unwrap()
+        .agents;
+    gc.retain(&first_agents_config).unwrap();
     let api_foo: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api_foo.get(resource_name)).expect("CR should exist");
     let api_secret: Api<Secret> = Api::namespaced(test.client.clone(), &test_ns);
@@ -196,7 +176,10 @@ agents:
     );
 
     // Expect that the current_agent and secret to be removed on the second call.
-    gc.collect().unwrap();
+    let second_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+        .unwrap()
+        .agents;
+    gc.retain(&second_agents_config).unwrap();
     retry(60, Duration::from_secs(1), || {
         if block_on(api_foo.get(resource_name)).is_ok() {
             return Err("CR should be removed".into());
@@ -229,28 +212,22 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         None,
     ));
 
-    // Executes the GC passing only current agent in the config.
-    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
-
-    config_loader.expect_load().times(1).returning(move || {
-        Ok(serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}").unwrap())
-    });
-
     // This kind is not present in the cluster.
     let missing_kind = TypeMeta {
         api_version: "missing.com/v1".to_string(),
         kind: "Missing".to_string(),
     };
 
-    let mut gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
-        vec![missing_kind, foo_type_meta()],
-        GC_TEST_INTERVAL,
-    );
+    let gc = K8sGarbageCollector {
+        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
+        cr_type_meta: vec![missing_kind, foo_type_meta()],
+    };
 
+    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+        .unwrap()
+        .agents;
     // Expects the GC to clean the "removed" agent CR.
-    gc.collect().unwrap();
+    gc.retain(&agents_config).unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(removed_agent_id)).expect_err("fail garbage collecting removed agent");
 }
@@ -281,21 +258,16 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
 
     let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
 
-    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
-
-    config_loader.expect_load().times(1).returning(move || {
-        Ok(serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}").unwrap())
-    });
-
-    let mut gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
+    let gc = K8sGarbageCollector {
         k8s_client,
-        default_group_version_kinds(),
-        GC_TEST_INTERVAL,
-    );
+        cr_type_meta: default_group_version_kinds(),
+    };
 
     // Expects the GC do not clean any resource related to the SA.
-    gc.collect().unwrap();
+    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
+        .unwrap()
+        .agents;
+    gc.retain(&agents_config).unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(AGENT_CONTROL_ID)).expect("CR should exist");
     assert_eq!(
@@ -355,10 +327,6 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         Some(Annotations::new_agent_type_id_annotation(fqn).get()),
     ));
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
-
-    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
     let config = format!(
         r#"
 agents:
@@ -366,19 +334,17 @@ agents:
     agent_type: {fqn}
 "#
     );
-    config_loader.expect_load().times(1).returning(move || {
-        Ok(serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str()).unwrap())
-    });
 
-    let mut gc = NotStartedK8sGarbageCollector::new(
-        Arc::new(config_loader),
-        k8s_client,
-        vec![foo_type_meta()],
-        GC_TEST_INTERVAL,
-    );
+    let gc = K8sGarbageCollector {
+        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
+        cr_type_meta: vec![foo_type_meta()],
+    };
 
     // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.
-    gc.collect().unwrap();
+    let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
+        .unwrap()
+        .agents;
+    gc.retain(&agents_config).unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
 
     block_on(api.get("not-deleted")).expect("CR should exist");
