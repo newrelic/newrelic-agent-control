@@ -134,7 +134,7 @@ where
             let _guards = s.enter();
 
             let mut supervisor = self.assemble_and_start_supervisor();
-            // Stores the current healthy state for logging purposes.
+            // Stores the current health state for logging purposes.
             let mut previous_health = None;
 
             debug!("runtime started");
