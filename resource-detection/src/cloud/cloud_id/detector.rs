@@ -129,17 +129,17 @@ mod tests {
     use mockall::mock;
 
     mock! {
-        pub DetectorMock {}
-        impl Detector for DetectorMock {
+        pub Detector {}
+        impl Detector for Detector {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
     #[test]
     fn detect_aws_metadata() {
-        let mut aws_detector_mock = MockDetectorMock::default();
-        let azure_detector_mock = MockDetectorMock::default();
-        let gcp_detector_mock = MockDetectorMock::default();
+        let mut aws_detector_mock = MockDetector::default();
+        let azure_detector_mock = MockDetector::default();
+        let gcp_detector_mock = MockDetector::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
             Ok(Resource::new([(
@@ -169,9 +169,9 @@ mod tests {
 
     #[test]
     fn detect_azure_metadata() {
-        let mut aws_detector_mock = MockDetectorMock::default();
-        let mut azure_detector_mock = MockDetectorMock::default();
-        let gcp_detector_mock = MockDetectorMock::default();
+        let mut aws_detector_mock = MockDetector::default();
+        let mut azure_detector_mock = MockDetector::default();
+        let gcp_detector_mock = MockDetector::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
             Err(DetectError::AWSError(AWSDetectorError::HttpError(
@@ -207,9 +207,9 @@ mod tests {
 
     #[test]
     fn detect_gcp_metadata() {
-        let mut aws_detector_mock = MockDetectorMock::default();
-        let mut azure_detector_mock = MockDetectorMock::default();
-        let mut gcp_detector_mock = MockDetectorMock::default();
+        let mut aws_detector_mock = MockDetector::default();
+        let mut azure_detector_mock = MockDetector::default();
+        let mut gcp_detector_mock = MockDetector::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
             Err(DetectError::AWSError(AWSDetectorError::HttpError(
@@ -251,9 +251,9 @@ mod tests {
 
     #[test]
     fn detect_nothing_metadata() {
-        let mut aws_detector_mock = MockDetectorMock::default();
-        let mut azure_detector_mock = MockDetectorMock::default();
-        let mut gcp_detector_mock = MockDetectorMock::default();
+        let mut aws_detector_mock = MockDetector::default();
+        let mut azure_detector_mock = MockDetector::default();
+        let mut gcp_detector_mock = MockDetector::default();
 
         aws_detector_mock.expect_detect().once().returning(|| {
             Err(DetectError::AWSError(AWSDetectorError::HttpError(

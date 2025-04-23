@@ -104,16 +104,16 @@ pub mod mock {
     use std::path::PathBuf;
 
     mock! {
-        pub DirectoryManagerMock {}
+        pub DirectoryManager {}
 
         #[cfg(target_family = "unix")]
-        impl DirectoryManager for DirectoryManagerMock {
+        impl DirectoryManager for DirectoryManager {
             fn create(&self, path: &Path, permissions: Permissions) -> Result<(), DirectoryManagementError>;
             fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
         }
     }
 
-    impl MockDirectoryManagerMock {
+    impl MockDirectoryManager {
         pub fn should_create(&mut self, path: &Path, permissions: Permissions) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()

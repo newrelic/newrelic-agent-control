@@ -114,14 +114,14 @@ pub mod tests {
     use nr_auth::{TokenRetriever, TokenRetrieverError};
 
     mock! {
-        pub TokenRetrieverMock {}
+        pub TokenRetriever {}
 
-        impl TokenRetriever for TokenRetrieverMock{
+        impl TokenRetriever for TokenRetriever{
             fn retrieve(&self) -> Result<Token, TokenRetrieverError>;
         }
     }
 
-    impl MockTokenRetrieverMock {
+    impl MockTokenRetriever {
         pub fn should_retrieve(&mut self, token: Token) {
             self.expect_retrieve().once().return_once(move || Ok(token));
         }
@@ -151,7 +151,7 @@ pub mod tests {
         )]);
         let http_client = HttpClient::new(http_config).unwrap();
 
-        let mut token_retriever = MockTokenRetrieverMock::default();
+        let mut token_retriever = MockTokenRetriever::default();
         let token = token_stub();
         token_retriever.should_retrieve(token.clone());
 
@@ -177,7 +177,7 @@ pub mod tests {
         )]);
         let http_client = HttpClient::new(http_config).unwrap();
 
-        let mut token_retriever = MockTokenRetrieverMock::default();
+        let mut token_retriever = MockTokenRetriever::default();
         token_retriever
             .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 
@@ -197,7 +197,7 @@ pub mod tests {
         )]);
         let http_client = HttpClient::new(http_config).unwrap();
 
-        let mut token_retriever = MockTokenRetrieverMock::default();
+        let mut token_retriever = MockTokenRetriever::default();
         token_retriever
             .should_return_error(TokenRetrieverError::TokenRetrieverError("error".into()));
 

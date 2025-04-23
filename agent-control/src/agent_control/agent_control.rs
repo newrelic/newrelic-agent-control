@@ -423,21 +423,21 @@ mod tests {
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
-    use crate::agent_control::config_validator::tests::MockDynamicConfigValidatorMock;
+    use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::AgentControl;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::channel::pub_sub;
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::tests::MockStartedSubAgent;
-    use crate::sub_agent::tests::MockSubAgentBuilderMock;
+    use crate::sub_agent::tests::MockSubAgentBuilder;
     use mockall::predicate;
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -447,9 +447,9 @@ mod tests {
     #[test]
     fn run_and_stop_supervisors_no_agents() {
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut started_client = MockStartedOpAMPClientMock::new();
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let mut started_client = MockStartedOpAMPClient::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
         started_client.should_set_healthy();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
@@ -473,7 +473,7 @@ mod tests {
         let agent = AgentControl::new(
             Some(started_client),
             Arc::new(hash_repository_mock),
-            MockSubAgentBuilderMock::new(),
+            MockSubAgentBuilder::new(),
             Arc::new(sub_agents_config_store),
             agent_control_publisher,
             sub_agent_publisher,
@@ -492,18 +492,18 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let mut sub_agent_builder = MockSubAgentBuilder::new();
 
         let ac_config = AgentControlConfig {
             dynamic: sub_agents_default_config(),
             ..Default::default()
         };
 
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_healthy();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
@@ -544,8 +544,8 @@ mod tests {
 
     #[test]
     fn receive_opamp_remote_config() {
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let mut sub_agent_builder = MockSubAgentBuilder::new();
 
         let ac_config = AgentControlConfig {
             dynamic: sub_agents_default_config(),
@@ -553,7 +553,7 @@ mod tests {
         };
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(2);
         // applying and applied
         started_client
@@ -563,7 +563,7 @@ mod tests {
         started_client.should_update_effective_config(2);
         started_client.should_stop(1);
 
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
             .times(1)
@@ -661,16 +661,16 @@ agents:
 
     #[test]
     fn receive_opamp_connected() {
-        let hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(1);
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
@@ -718,16 +718,16 @@ agents:
 
     #[test]
     fn receive_opamp_connect_failed() {
-        let hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(1);
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
@@ -783,11 +783,11 @@ agents:
         // Sub Agents
         let sub_agents_config = sub_agents_default_config().agents;
 
-        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut sub_agent_builder = MockSubAgentBuilder::new();
         // it should build three times (2 + 1 + 1)
         sub_agent_builder.should_build(3);
 
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
             .times(2)
@@ -826,7 +826,7 @@ agents:
             .times(1)
             .returning(|_| Ok(()));
 
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
         hash_repository_mock.should_save_hash(
             &AgentID::new_agent_control_id(),
             &Hash::new("a-hash".to_string()),
@@ -841,7 +841,7 @@ agents:
 
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
-            None::<MockStartedOpAMPClientMock>,
+            None::<MockStartedOpAMPClient>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
@@ -909,10 +909,10 @@ agents:
         // Sub Agents
         let sub_agents_config = sub_agents_default_config().agents;
 
-        let mut sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut sub_agent_builder = MockSubAgentBuilder::new();
         sub_agent_builder.should_build(2);
 
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
             .times(1)
@@ -929,14 +929,14 @@ agents:
             .times(1)
             .returning(|| Ok(sub_agents_default_config()));
 
-        let hash_repository_mock = MockHashRepositoryMock::new();
+        let hash_repository_mock = MockHashRepository::new();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, _agent_control_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
-            None::<MockStartedOpAMPClientMock>,
+            None::<MockStartedOpAMPClient>,
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
@@ -986,11 +986,11 @@ agents:
     // and we assert on Agent Control Healthy event
     #[test]
     fn test_config_updated_should_publish_agent_control_healthy() {
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(2);
         started_client.should_update_effective_config(1);
         // applying and applied
@@ -1001,7 +1001,7 @@ agents:
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
             .times(1)
@@ -1090,11 +1090,11 @@ agents:
     // Receive an OpAMP Invalid Config should publish Unhealthy Event
     #[test]
     fn test_invalid_config_should_publish_agent_control_unhealthy() {
-        let hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
         // set unhealthy on invalid config
@@ -1107,7 +1107,7 @@ agents:
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
         remote_config_hash.fail(String::from("some error message"));
@@ -1169,17 +1169,17 @@ agents:
     // Receive an StopRequest event should publish AgentControlStopped
     #[test]
     fn test_stop_request_should_publish_agent_control_stopped() {
-        let hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         // set healthy on start processing events
         started_client.should_set_healthy();
 
         let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         // the running sub agents
         let sub_agents = StartedSubAgents::from(HashMap::default());
@@ -1231,11 +1231,11 @@ agents:
     // And it should publish SubAgentRemoved
     #[test]
     fn test_removing_a_sub_agent_should_publish_sub_agent_removed() {
-        let mut hash_repository_mock = MockHashRepositoryMock::new();
-        let sub_agent_builder = MockSubAgentBuilderMock::new();
+        let mut hash_repository_mock = MockHashRepository::new();
+        let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClientMock::new();
+        let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(2);
         started_client.should_update_effective_config(1);
         // applying and applied
@@ -1246,7 +1246,7 @@ agents:
 
         let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
 
-        let mut dynamic_config_validator = MockDynamicConfigValidatorMock::new();
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
             .times(1)

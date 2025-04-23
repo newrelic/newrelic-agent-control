@@ -89,7 +89,7 @@ where
 #[cfg(test)]
 mod tests {
     use crate::cloud::aws::http_client::AWSHttpClient;
-    use crate::cloud::http_client::tests::MockHttpClientMock;
+    use crate::cloud::http_client::tests::MockHttpClient;
     use crate::cloud::http_client::HttpClientError;
     use http::{Response, StatusCode};
     use mockall::Sequence;
@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn test_authenticated_request_token() {
-        let mut mock_http_client = MockHttpClientMock::new();
+        let mut mock_http_client = MockHttpClient::new();
 
         let token_response = Response::builder()
             .status(StatusCode::OK)
@@ -123,7 +123,7 @@ mod tests {
 
     #[test]
     fn test_authenticated_request_get() {
-        let mut mock_http_client = MockHttpClientMock::new();
+        let mut mock_http_client = MockHttpClient::new();
 
         let token_response = Response::builder()
             .status(StatusCode::OK)
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_authenticated_request_token_error() {
-        let mut mock_http_client = MockHttpClientMock::new();
+        let mut mock_http_client = MockHttpClient::new();
 
         let token_response = Response::builder()
             .status(StatusCode::BAD_REQUEST)
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_authenticated_request_get_error() {
-        let mut mock_http_client = MockHttpClientMock::new();
+        let mut mock_http_client = MockHttpClient::new();
 
         let token_response = Response::builder()
             .status(StatusCode::OK)

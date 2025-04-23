@@ -160,7 +160,7 @@ mod tests {
     use crate::opamp::instance_id::on_host::storer::Storer;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use crate::opamp::instance_id::InstanceID;
-    use fs::directory_manager::mock::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
     use mockall::predicate;
     use std::fs::Permissions;
@@ -174,7 +174,7 @@ mod tests {
         let sub_agent_dir = PathBuf::from("/sub");
         let storer = Storer::new(
             MockLocalFile::default(),
-            MockDirectoryManagerMock::default(),
+            MockDirectoryManager::default(),
             sa_dir.clone(),
             sub_agent_dir.clone(),
         );
@@ -192,7 +192,7 @@ mod tests {
         // Data
         let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::default();
+        let mut dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
         let ds = DataStored {
             instance_id: instance_id.clone(),
@@ -219,7 +219,7 @@ mod tests {
         // Data
         let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::default();
+        let mut dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
         let ds = DataStored {
             instance_id: instance_id.clone(),
@@ -246,7 +246,7 @@ mod tests {
         // Data
         let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::default();
+        let dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
         let ds = DataStored {
             instance_id: instance_id.clone(),
@@ -273,7 +273,7 @@ mod tests {
     fn test_unsuccessful_read() {
         let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::default();
+        let dir_manager = MockDirectoryManager::default();
 
         file_rw
             .expect_read()

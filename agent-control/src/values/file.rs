@@ -228,7 +228,7 @@ pub mod tests {
         load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
     };
     use assert_matches::assert_matches;
-    use fs::directory_manager::mock::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManagementError::ErrorCreatingDirectory;
     use fs::directory_manager::DirectoryManager;
     use fs::file_reader::FileReader;
@@ -267,9 +267,9 @@ pub mod tests {
 
     fn yaml_config_repository_file_mock(
         remote_enabled: bool,
-    ) -> YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManagerMock> {
+    ) -> YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManager> {
         let file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManagerMock::new();
+        let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = Path::new("some/remote/path");
         let local_dir_path = Path::new("some/local/path");
 
@@ -283,7 +283,7 @@ pub mod tests {
     }
 
     fn get_conf_path(
-        yaml_config: &YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManagerMock>,
+        yaml_config: &YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
     ) -> &Path {
         if yaml_config.remote_enabled {
             &yaml_config.remote_conf_path

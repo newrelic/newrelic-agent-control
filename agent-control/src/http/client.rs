@@ -279,13 +279,13 @@ pub(crate) mod tests {
 
     mock! {
         #[derive(Debug)]
-        pub OtelHttpClientMock {}
+        pub OtelHttpClient {}
         #[async_trait]
-        impl opentelemetry_http::HttpClient for OtelHttpClientMock {
+        impl opentelemetry_http::HttpClient for OtelHttpClient {
             async fn send_bytes(&self, request:  Request<opentelemetry_http::Bytes>) -> Result<Response<opentelemetry_http::Bytes>, opentelemetry_http::HttpError>;
         }
 
-        impl Clone for OtelHttpClientMock {
+        impl Clone for OtelHttpClient {
             fn clone(&self) -> Self;
         }
     }

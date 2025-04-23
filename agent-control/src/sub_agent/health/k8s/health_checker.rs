@@ -144,7 +144,7 @@ where
 pub mod tests {
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::health::health_checker::tests::MockHealthCheckMock;
+    use crate::sub_agent::health::health_checker::tests::MockHealthCheck;
     use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
     use crate::sub_agent::health::with_start_time::StartTime;
@@ -214,8 +214,8 @@ pub mod tests {
         let start_time = StartTime::now();
         assert!(SubAgentHealthChecker {
             health_checkers: vec![
-                MockHealthCheckMock::new_healthy(),
-                MockHealthCheckMock::new_healthy()
+                MockHealthCheck::new_healthy(),
+                MockHealthCheck::new_healthy()
             ],
             start_time,
         }
@@ -226,9 +226,9 @@ pub mod tests {
         assert!(
             !SubAgentHealthChecker {
                 health_checkers: vec![
-                    MockHealthCheckMock::new_healthy(),
-                    MockHealthCheckMock::new_unhealthy(),
-                    MockHealthCheckMock::new_healthy()
+                    MockHealthCheck::new_healthy(),
+                    MockHealthCheck::new_unhealthy(),
+                    MockHealthCheck::new_healthy()
                 ],
                 start_time
             }
@@ -239,9 +239,9 @@ pub mod tests {
 
         assert!(SubAgentHealthChecker {
             health_checkers: vec![
-                MockHealthCheckMock::new_healthy(),
-                MockHealthCheckMock::new_with_error(),
-                MockHealthCheckMock::new_healthy()
+                MockHealthCheck::new_healthy(),
+                MockHealthCheck::new_with_error(),
+                MockHealthCheck::new_healthy()
             ],
             start_time
         }

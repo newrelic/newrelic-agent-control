@@ -187,11 +187,11 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::onhost::OnHost;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
     use crate::opamp::remote_config::hash::Hash;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssemblerMock;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::effective_agents_assembler::{
         EffectiveAgent, EffectiveAgentsAssemblerError,
     };
@@ -204,7 +204,7 @@ pub mod tests {
     use crate::sub_agent::supervisor::starter::SupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use mockall::mock;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
@@ -214,9 +214,9 @@ pub mod tests {
 
     //Mock implementation for tests
     mock! {
-        pub SupervisorAssemblerMock<A> where A: SupervisorStarter + 'static {}
+        pub SupervisorAssembler<A> where A: SupervisorStarter + 'static {}
 
-        impl<A> SupervisorAssembler for SupervisorAssemblerMock<A> where A:SupervisorStarter+ 'static{
+        impl<A> SupervisorAssembler for SupervisorAssembler<A> where A:SupervisorStarter+ 'static{
             type SupervisorStarter = A;
 
             fn assemble_supervisor<C>(
@@ -229,7 +229,7 @@ pub mod tests {
         }
     }
 
-    impl MockSupervisorAssemblerMock<MockSupervisorStarter> {
+    impl MockSupervisorAssembler<MockSupervisorStarter> {
         pub fn should_assemble<C>(
             &mut self,
             starter: MockSupervisorStarter,
@@ -246,23 +246,23 @@ pub mod tests {
 
     //Follow the same approach as before the refactor
     type AssemblerForTesting = AgentSupervisorAssembler<
-        MockHashRepositoryMock,
+        MockHashRepository,
         MockSupervisorBuilder<MockSupervisorStarter>,
-        MockEffectiveAgentAssemblerMock,
-        MockYAMLConfigRepositoryMock,
+        MockEffectiveAgentAssembler,
+        MockYAMLConfigRepository,
     >;
 
-    type OpampClientForTest = MockStartedOpAMPClientMock;
+    type OpampClientForTest = MockStartedOpAMPClient;
 
     impl AssemblerForTesting {
         fn test_assembler(agent_identity: AgentIdentity) -> Self {
-            let mut hash_repository = MockHashRepositoryMock::default();
+            let mut hash_repository = MockHashRepository::default();
             hash_repository
                 .expect_get()
                 .with(predicate::eq(agent_identity.id.clone()))
                 .return_const(Ok(None));
 
-            let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+            let mut yaml_config_repository = MockYAMLConfigRepository::new();
             yaml_config_repository.should_load_remote(
                 &agent_identity.id,
                 default_capabilities(),
@@ -270,7 +270,7 @@ pub mod tests {
             );
 
             let effective_agent = final_agent(agent_identity.clone());
-            let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+            let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
             effective_agent_assembler.should_assemble_agent(
                 &agent_identity,
                 &YAMLConfig::default(),
@@ -359,7 +359,7 @@ pub mod tests {
         let hash = Hash::new("some_hash".to_string());
         let mut applied_hash = hash.clone();
         applied_hash.apply();
-        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut hash_repository = MockHashRepository::new();
         hash_repository.should_get_hash(&agent_identity.id, hash);
         hash_repository.should_save_hash(&agent_identity.id, &applied_hash);
 
@@ -392,7 +392,7 @@ pub mod tests {
 
         // Modify expectations for this test
         // Expected calls on the hash repository
-        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut hash_repository = MockHashRepository::new();
         hash_repository.should_return_error_on_get(
             &agent_identity.id,
             HashRepositoryError::LoadError(String::from("random error loading")),
@@ -422,10 +422,10 @@ pub mod tests {
             error_message: hash.error_message().unwrap(),
         };
 
-        let mut hash_repository = MockHashRepositoryMock::new();
+        let mut hash_repository = MockHashRepository::new();
         hash_repository.should_get_hash(&agent_identity.id, hash);
 
-        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        let mut yaml_config_repository = MockYAMLConfigRepository::new();
         yaml_config_repository.should_load_remote(
             &agent_identity.id,
             default_capabilities(),
@@ -434,7 +434,7 @@ pub mod tests {
 
         let effective_agent = final_agent(agent_identity.clone());
 
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+        let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
@@ -474,11 +474,8 @@ pub mod tests {
             .is_err());
     }
 
-    fn setup_hash_repository(
-        hash: String,
-        agent_identity: AgentIdentity,
-    ) -> MockHashRepositoryMock {
-        let mut hash_repository = MockHashRepositoryMock::new();
+    fn setup_hash_repository(hash: String, agent_identity: AgentIdentity) -> MockHashRepository {
+        let mut hash_repository = MockHashRepository::new();
         if hash.is_empty() {
             hash_repository.should_not_get_hash(&agent_identity.id);
         } else {
@@ -490,8 +487,8 @@ pub mod tests {
 
     fn setup_effective_agent_assembler_to_return_ok(
         effective_agent: EffectiveAgent,
-    ) -> MockEffectiveAgentAssemblerMock {
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+    ) -> MockEffectiveAgentAssembler {
+        let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
@@ -500,8 +497,8 @@ pub mod tests {
         effective_agent_assembler
     }
 
-    fn setup_effective_agent_assembler_to_return_err() -> MockEffectiveAgentAssemblerMock {
-        let mut effective_agent_assembler = MockEffectiveAgentAssemblerMock::new();
+    fn setup_effective_agent_assembler_to_return_err() -> MockEffectiveAgentAssembler {
+        let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
         effective_agent_assembler
             .expect_assemble_agent()
             .once()
@@ -545,7 +542,7 @@ pub mod tests {
             .return_once(|_| Ok(MockSupervisorStarter::new()));
 
         let hash_repository = setup_hash_repository(hash.clone(), agent_identity.clone());
-        let mut yaml_config_repository = MockYAMLConfigRepositoryMock::new();
+        let mut yaml_config_repository = MockYAMLConfigRepository::new();
         yaml_config_repository.should_load_remote(
             &agent_identity.id,
             default_capabilities(),

@@ -215,7 +215,7 @@ mod tests {
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::EnvFilter;
 
-    use crate::http::client::tests::MockOtelHttpClientMock;
+    use crate::http::client::tests::MockOtelHttpClient;
     use crate::instrumentation::config::otel::{LogsConfig, OtelConfig};
     use crate::instrumentation::tracing_layers::otel::OtelLayers;
 
@@ -225,7 +225,7 @@ mod tests {
         const DEBUG_LOG: &str = "bar";
         const TRACE_LOG: &str = "baz";
 
-        let mut mock_http_client = MockOtelHttpClientMock::new();
+        let mut mock_http_client = MockOtelHttpClient::new();
         // Asserts info logs are sent by otlp exporter
         mock_http_client
             .expect_send_bytes()

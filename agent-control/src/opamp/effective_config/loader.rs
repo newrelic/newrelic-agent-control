@@ -88,32 +88,31 @@ where
 pub mod tests {
     use mockall::mock;
 
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
 
     use super::*;
 
     mock!(
-        pub EffectiveConfigLoaderMock {}
+        pub EffectiveConfigLoader {}
 
-        impl EffectiveConfigLoader for EffectiveConfigLoaderMock {
+        impl EffectiveConfigLoader for EffectiveConfigLoader {
             fn load(&self) -> Result<ConfigurationMap, LoaderError>;
         }
     );
 
     mock! {
-        pub EffectiveConfigLoaderBuilderMock {}
+        pub EffectiveConfigLoaderBuilder {}
 
-        impl EffectiveConfigLoaderBuilder for EffectiveConfigLoaderBuilderMock {
-            type Loader = MockEffectiveConfigLoaderMock;
+        impl EffectiveConfigLoaderBuilder for EffectiveConfigLoaderBuilder {
+            type Loader = MockEffectiveConfigLoader;
 
-            fn build(&self,agent_id: AgentID) -> MockEffectiveConfigLoaderMock;
+            fn build(&self,agent_id: AgentID) -> MockEffectiveConfigLoader;
         }
     }
     #[test]
     fn builder() {
-        let builder = DefaultEffectiveConfigLoaderBuilder::new(Arc::new(
-            MockYAMLConfigRepositoryMock::default(),
-        ));
+        let builder =
+            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockYAMLConfigRepository::default()));
 
         match builder.build(AgentID::new_agent_control_id()) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}

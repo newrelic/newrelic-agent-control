@@ -96,7 +96,7 @@ pub mod tests {
 
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidatorMock;
+    use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::sub_agent::identity::AgentIdentity;
@@ -107,9 +107,9 @@ pub mod tests {
     use rstest::rstest;
 
     mock! {
-        pub RemoteConfigParserMock {}
+        pub RemoteConfigParser {}
 
-        impl RemoteConfigParser for RemoteConfigParserMock{
+        impl RemoteConfigParser for RemoteConfigParser{
             fn parse(
                 &self,
                 agent_identity: AgentIdentity,
@@ -118,7 +118,7 @@ pub mod tests {
         }
     }
 
-    impl MockRemoteConfigParserMock {
+    impl MockRemoteConfigParser {
         pub fn should_parse(
             &mut self,
             agent_identity: AgentIdentity,
@@ -143,7 +143,7 @@ pub mod tests {
             Some(ConfigurationMap::default()),
         );
 
-        let handler = AgentRemoteConfigParser::<MockRemoteConfigValidatorMock>::new(Vec::new());
+        let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
         let result = handler.parse(agent_identity, &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::RemoteConfigLoad(s)) => {
             assert_eq!(s, "some error".to_string());
@@ -161,9 +161,9 @@ pub mod tests {
             Some(ConfigurationMap::default()),
         );
 
-        let mut validator1 = MockRemoteConfigValidatorMock::new();
-        let mut validator2 = MockRemoteConfigValidatorMock::new();
-        let mut validator3 = MockRemoteConfigValidatorMock::new();
+        let mut validator1 = MockRemoteConfigValidator::new();
+        let mut validator2 = MockRemoteConfigValidator::new();
+        let mut validator3 = MockRemoteConfigValidator::new();
 
         validator1.should_validate(&agent_identity, &remote_config, Ok(()));
         validator2.should_validate(
@@ -195,7 +195,7 @@ pub mod tests {
             ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
         let remote_config = RemoteConfig::new(agent_identity.id.clone(), hash, Some(config_map));
 
-        let handler = AgentRemoteConfigParser::<MockRemoteConfigValidatorMock>::new(Vec::new());
+        let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
 
         let result = handler.parse(agent_identity.clone(), &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::InvalidValues(_)));
@@ -214,7 +214,7 @@ pub mod tests {
         );
         let remote_config = RemoteConfig::new(agent_identity.id.clone(), hash, Some(config_map));
 
-        let mut validator = MockRemoteConfigValidatorMock::new();
+        let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &remote_config, Ok(()));
 
         let handler = AgentRemoteConfigParser::new(vec![validator]);
@@ -237,7 +237,7 @@ pub mod tests {
         );
         let remote_config = RemoteConfig::new(agent_identity.id.clone(), hash, Some(config_map));
 
-        let mut validator = MockRemoteConfigValidatorMock::new();
+        let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &remote_config, Ok(()));
 
         let handler = AgentRemoteConfigParser::new(vec![validator]);

@@ -169,20 +169,20 @@ pub mod tests {
     use resource_detection::{DetectError, Detector, Key, Resource, Value};
 
     mock! {
-        pub SystemDetectorMock {}
-        impl Detector for SystemDetectorMock {
+        pub SystemDetector {}
+        impl Detector for SystemDetector {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
     mock! {
-        pub CloudDetectorMock {}
-        impl Detector for CloudDetectorMock {
+        pub CloudDetector {}
+        impl Detector for CloudDetector {
             fn detect(&self) -> Result<Resource, DetectError>;
         }
     }
 
-    impl MockSystemDetectorMock {
+    impl MockSystemDetector {
         pub fn should_detect(&mut self, resource: Resource) {
             self.expect_detect()
                 .once()
@@ -194,7 +194,7 @@ pub mod tests {
         }
     }
 
-    impl MockCloudDetectorMock {
+    impl MockCloudDetector {
         pub fn should_detect(&mut self, resource: Resource) {
             self.expect_detect()
                 .once()
@@ -234,8 +234,8 @@ pub mod tests {
 
         struct TestCase {
             name: &'static str,
-            system_detector_mock: MockSystemDetectorMock,
-            cloud_id_detector_mock: MockCloudDetectorMock,
+            system_detector_mock: MockSystemDetector,
+            cloud_id_detector_mock: MockCloudDetector,
             expected_identifiers: Identifiers,
             host_id: String,
         }
@@ -261,7 +261,7 @@ pub mod tests {
                 name: "configured host_id takes precedence over cloud id",
                 host_id: host_id.clone(),
                 system_detector_mock: {
-                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    let mut system_detector_mock = MockSystemDetector::new();
                     system_detector_mock
                         .expect_detect()
                         .once()
@@ -269,7 +269,7 @@ pub mod tests {
                     system_detector_mock
                 },
                 cloud_id_detector_mock: {
-                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    let mut cloud_id_detector_mock = MockCloudDetector::new();
                     cloud_id_detector_mock.should_detect(cloud_id());
                     cloud_id_detector_mock
                 },
@@ -285,7 +285,7 @@ pub mod tests {
                 name: "cloud id takes precedence over machine id",
                 host_id: "".to_string(),
                 system_detector_mock: {
-                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    let mut system_detector_mock = MockSystemDetector::new();
                     system_detector_mock
                         .expect_detect()
                         .once()
@@ -293,7 +293,7 @@ pub mod tests {
                     system_detector_mock
                 },
                 cloud_id_detector_mock: {
-                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    let mut cloud_id_detector_mock = MockCloudDetector::new();
                     cloud_id_detector_mock.should_detect(cloud_id());
                     cloud_id_detector_mock
                 },
@@ -309,7 +309,7 @@ pub mod tests {
                 name: "machine id as host_id",
                 host_id: "".to_string(),
                 system_detector_mock: {
-                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    let mut system_detector_mock = MockSystemDetector::new();
                     system_detector_mock.expect_detect().once().returning(|| {
                         Ok(Resource::new([(
                             Key::from("machine_id".to_string()),
@@ -319,7 +319,7 @@ pub mod tests {
                     system_detector_mock
                 },
                 cloud_id_detector_mock: {
-                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    let mut cloud_id_detector_mock = MockCloudDetector::new();
                     cloud_id_detector_mock.should_detect(Resource::new([]));
                     cloud_id_detector_mock
                 },
@@ -333,7 +333,7 @@ pub mod tests {
                 name: "configured host_id is the only required resource",
                 host_id: host_id.clone(),
                 system_detector_mock: {
-                    let mut system_detector_mock = MockSystemDetectorMock::new();
+                    let mut system_detector_mock = MockSystemDetector::new();
                     system_detector_mock
                         .expect_detect()
                         .once()
@@ -341,7 +341,7 @@ pub mod tests {
                     system_detector_mock
                 },
                 cloud_id_detector_mock: {
-                    let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+                    let mut cloud_id_detector_mock = MockCloudDetector::new();
                     cloud_id_detector_mock.should_detect(Resource::new([]));
                     cloud_id_detector_mock
                 },
@@ -359,8 +359,8 @@ pub mod tests {
 
     #[test]
     fn test_empty_host_id_will_error() {
-        let mut system_detector_mock = MockSystemDetectorMock::new();
-        let mut cloud_id_detector_mock = MockCloudDetectorMock::new();
+        let mut system_detector_mock = MockSystemDetector::new();
+        let mut cloud_id_detector_mock = MockCloudDetector::new();
         cloud_id_detector_mock.should_detect(Resource::new([]));
         system_detector_mock
             .expect_detect()

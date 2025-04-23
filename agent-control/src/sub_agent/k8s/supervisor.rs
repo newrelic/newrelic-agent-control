@@ -239,13 +239,13 @@ pub mod tests {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClientMock;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepositoryMock;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
-    use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParserMock;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssemblerMock;
+    use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
+    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepositoryMock;
+    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
@@ -499,21 +499,21 @@ pub mod tests {
         });
         let mocked_client = Arc::new(mock_client);
 
-        let mut sub_agent_remote_config_hash_repository = MockHashRepositoryMock::default();
+        let mut sub_agent_remote_config_hash_repository = MockHashRepository::default();
         sub_agent_remote_config_hash_repository
             .expect_get()
             .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
-        let yaml_config_repository = MockYAMLConfigRepositoryMock::new();
-        let remote_config_parser = MockRemoteConfigParserMock::new();
+        let yaml_config_repository = MockYAMLConfigRepository::new();
+        let remote_config_parser = MockRemoteConfigParser::new();
 
         let agent_identity_clone = agent_identity.clone();
-        let mut supervisor_assembler = MockSupervisorAssemblerMock::new();
+        let mut supervisor_assembler = MockSupervisorAssembler::new();
         supervisor_assembler
             .expect_assemble_supervisor()
             .with(predicate::always(), predicate::eq(agent_identity.clone()))
-            .returning(move |_: &Option<MockStartedOpAMPClientMock>, _| {
+            .returning(move |_: &Option<MockStartedOpAMPClient>, _| {
                 Ok(NotStartedSupervisorK8s::new(
                     agent_identity_clone.clone(),
                     mocked_client.clone(),
@@ -523,7 +523,7 @@ pub mod tests {
 
         SubAgent::new(
             agent_identity,
-            Option::<MockStartedOpAMPClientMock>::None,
+            Option::<MockStartedOpAMPClient>::None,
             Arc::new(supervisor_assembler),
             sub_agent_publisher,
             None,

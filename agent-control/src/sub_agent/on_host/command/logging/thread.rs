@@ -57,25 +57,25 @@ mod tests {
     use tracing_test::traced_test;
 
     mock! {
-        WriteMock {}
+        Write {}
 
-        impl Write for WriteMock{
+        impl Write for Write{
             fn write(&mut self, buf: &[u8]) -> std::io::Result<usize>;
             fn flush(&mut self) -> std::io::Result<()>;
         }
     }
 
     mock! {
-        ReadMock {}
+        Read {}
 
-        impl Read for ReadMock {
+        impl Read for Read {
             fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize>;
         }
     }
 
     #[test]
     fn spawn_empty_logger() {
-        let mut read_mock = MockReadMock::new();
+        let mut read_mock = MockRead::new();
         // Current implementation should never actually read when passing an empty logger list
         read_mock.expect_read().never();
 
@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn spawn_stdout_logger() {
         let log_lines = b"logging test 1\nlogging test 2\n";
-        let mut read_mock = MockReadMock::new();
+        let mut read_mock = MockRead::new();
 
         // Reading in sequence
         let mut seq = Sequence::new();
@@ -129,7 +129,7 @@ mod tests {
     #[test]
     fn spawn_stderr_logger() {
         let log_lines = b"err logging test 1\nerr logging test 2\n";
-        let mut read_mock = MockReadMock::new();
+        let mut read_mock = MockRead::new();
 
         // Reading in sequence
         let mut seq = Sequence::new();
@@ -179,7 +179,7 @@ mod tests {
             agent_id.clone(),
         );
 
-        let mut read_mock = MockReadMock::new();
+        let mut read_mock = MockRead::new();
         // Reading in sequence
         let mut seq = Sequence::new();
         read_mock

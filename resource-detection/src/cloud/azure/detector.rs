@@ -89,12 +89,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cloud::http_client::tests::MockHttpClientMock;
+    use crate::cloud::http_client::tests::MockHttpClient;
     use assert_matches::assert_matches;
 
     #[test]
     fn http_client_error() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         let error = HttpClientError::TransportError(String::from("some error"));
         client_mock.should_not_send(error);
 
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn invalid_response_code() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_send(
             http::Response::builder()
                 .status(503)
@@ -139,7 +139,7 @@ mod tests {
 
     #[test]
     fn error_on_deserializing() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_send(
             http::Response::builder()
                 .status(200)
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn detect_azure_metadata_from_windows_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=windows
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_send(
             http::Response::builder()
                 .status(200)
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn detect_azure_metadata_from_linux_vm() {
         // https://learn.microsoft.com/en-us/azure/virtual-machines/instance-metadata-service?tabs=linux
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
         client_mock.should_send(
             http::Response::builder()
                 .status(200)

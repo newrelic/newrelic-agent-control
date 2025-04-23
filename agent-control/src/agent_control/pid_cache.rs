@@ -116,7 +116,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use fs::directory_manager::mock::MockDirectoryManagerMock;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
     use std::path::PathBuf;
 
@@ -138,7 +138,7 @@ pub mod tests {
 
         let pid_path = PathBuf::from("/an/invented/path/not-existing");
         let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::default();
+        let mut dir_manager = MockDirectoryManager::default();
 
         file_rw.should_read(pid_path.clone().as_path(), already_running_pid.to_string());
         dir_manager.should_create(
@@ -173,7 +173,7 @@ pub mod tests {
 
         let pid_path = PathBuf::from("/an/invented/path/not-existing");
         let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManagerMock::default();
+        let mut dir_manager = MockDirectoryManager::default();
 
         file_rw.should_read(
             pid_path.clone().as_path(),

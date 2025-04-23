@@ -256,7 +256,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
-    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoaderMock;
+    use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
         ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
@@ -269,7 +269,7 @@ pub(crate) mod tests {
     #[test]
     fn test_connect() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let effective_config_loader = MockEffectiveConfigLoader::new();
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -291,7 +291,7 @@ pub(crate) mod tests {
     #[test]
     fn test_connect_fail() {
         let (event_publisher, event_consumer) = pub_sub();
-        let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let effective_config_loader = MockEffectiveConfigLoader::new();
 
         let callbacks = AgentCallbacks::new(
             AgentID::new("agent").unwrap(),
@@ -360,7 +360,7 @@ pub(crate) mod tests {
                 let agent_id = AgentID::new("an-agent-id").unwrap();
 
                 let (event_publisher, event_consumer) = pub_sub();
-                let effective_config_loader = MockEffectiveConfigLoaderMock::new();
+                let effective_config_loader = MockEffectiveConfigLoader::new();
 
                 let callbacks =
                     AgentCallbacks::new(agent_id.clone(), event_publisher, effective_config_loader);
@@ -599,7 +599,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_effective_config() {
         let (event_publisher, _event_consumer) = pub_sub();
-        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let mut effective_config_loader = MockEffectiveConfigLoader::new();
 
         effective_config_loader
             .expect_load()
@@ -624,7 +624,7 @@ pub(crate) mod tests {
     #[test]
     fn test_get_effective_config_err() {
         let (event_publisher, _event_consumer) = pub_sub();
-        let mut effective_config_loader = MockEffectiveConfigLoaderMock::new();
+        let mut effective_config_loader = MockEffectiveConfigLoader::new();
 
         effective_config_loader
             .expect_load()

@@ -80,12 +80,12 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cloud::http_client::tests::MockHttpClientMock;
+    use crate::cloud::http_client::tests::MockHttpClient;
     use assert_matches::assert_matches;
 
     #[test]
     fn detect_aws_metadata() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
 
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
@@ -142,7 +142,7 @@ mod tests {
 
     #[test]
     fn detect_internal_http_error() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
 
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn detect_json_error() {
-        let mut client_mock = MockHttpClientMock::new();
+        let mut client_mock = MockHttpClient::new();
 
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()

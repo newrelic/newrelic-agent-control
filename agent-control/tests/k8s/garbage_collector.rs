@@ -48,9 +48,9 @@ mock! {
 
 // Setup AgentControlDynamicConfigLoader mock
 mock! {
-    pub AgentControlDynamicConfigLoaderMock{}
+    pub AgentControlDynamicConfigLoader{}
 
-    impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoaderMock {
+    impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoader {
         fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
     }
 }
@@ -140,7 +140,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
 
-    let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
     let config = format!(
         r#"
 agents:
@@ -230,7 +230,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     ));
 
     // Executes the GC passing only current agent in the config.
-    let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
 
     config_loader.expect_load().times(1).returning(move || {
         Ok(serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}").unwrap())
@@ -281,7 +281,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
 
     let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
 
-    let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
 
     config_loader.expect_load().times(1).returning(move || {
         Ok(serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}").unwrap())
@@ -358,7 +358,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
 
-    let mut config_loader = MockAgentControlDynamicConfigLoaderMock::new();
+    let mut config_loader = MockAgentControlDynamicConfigLoader::new();
     let config = format!(
         r#"
 agents:
