@@ -156,7 +156,7 @@ impl NotStartedSupervisorK8s {
         let Some(k8s_health_checker) =
             SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
-            warn!("Health-check cannot start even if it is enabled there are no compatible k8s resources");
+            warn!("Health checks disabled, there aren't compatible k8s resources to check");
             return Ok(None);
         };
 
