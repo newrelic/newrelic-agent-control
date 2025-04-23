@@ -735,30 +735,41 @@ pub mod tests {
     #[rstest]
     #[case::healthy_states_same_status(Some(healthy("status")), healthy("status"))]
     #[case::healthy_states_different_status(Some(healthy("status a")), healthy("status b"))]
-    #[case::unhealthy_states_with_same_content(Some(unhealthy("status", "error")), unhealthy("status", "error"))]
+    #[case::unhealthy_states_with_same_content(
+        Some(unhealthy("status", "error")),
+        unhealthy("status", "error")
+    )]
     fn test_health_state_is_equal_to_previous_state(
         #[case] previous_state: Option<Health>,
         #[case] current_state: Health,
     ) {
-        assert!(
-            is_health_state_equal_to_previous_state(&previous_state, &current_state)
-        );
+        assert!(is_health_state_equal_to_previous_state(
+            &previous_state,
+            &current_state
+        ));
     }
-    
+
     #[rstest]
     #[case::first_state_is_healthy(None, healthy("status"))]
     #[case::first_state_is_unhealthy(None, unhealthy("status", "error"))]
     #[case::healthy_and_unhealthy(Some(healthy("status")), unhealthy("status", "error"))]
     #[case::unhealthy_and_healthy(Some(unhealthy("status", "error")), healthy("status"))]
-    #[case::two_unhealthy_states_with_different_status(Some(unhealthy("status a", "error")), unhealthy("status b", "error"))]
-    #[case::two_unhealthy_states_with_different_errors(Some(unhealthy("status", "error a")), unhealthy("status", "error b"))]
+    #[case::two_unhealthy_states_with_different_status(
+        Some(unhealthy("status a", "error")),
+        unhealthy("status b", "error")
+    )]
+    #[case::two_unhealthy_states_with_different_errors(
+        Some(unhealthy("status", "error a")),
+        unhealthy("status", "error b")
+    )]
     fn test_health_state_is_different_to_previous_state(
         #[case] previous_state: Option<Health>,
         #[case] current_state: Health,
     ) {
-        assert!(
-            !is_health_state_equal_to_previous_state(&previous_state, &current_state)
-        );
+        assert!(!is_health_state_equal_to_previous_state(
+            &previous_state,
+            &current_state
+        ));
     }
 
     fn healthy(status: &str) -> Health {
