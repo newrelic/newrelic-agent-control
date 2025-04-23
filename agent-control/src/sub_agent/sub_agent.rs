@@ -733,9 +733,9 @@ pub mod tests {
     }
 
     #[rstest]
-    #[case::healthy_states_same_status(Some(Health::Healthy(Healthy::new("status".to_string()))), Health::Healthy(Healthy::new("status".to_string())))]
-    #[case::healthy_states_different_status(Some(Health::Healthy(Healthy::new("status a".to_string()))), Health::Healthy(Healthy::new("status b".to_string())))]
-    #[case::unhealthy_states_with_same_content(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
+    #[case::healthy_states_same_status(Some(healthy("status")), healthy("status"))]
+    #[case::healthy_states_different_status(Some(healthy("status a")), healthy("status b"))]
+    #[case::unhealthy_states_with_same_content(Some(unhealthy("status", "error")), unhealthy("status", "error"))]
     fn test_health_state_is_equal_to_previous_state(
         #[case] previous_state: Option<Health>,
         #[case] current_state: Health,
@@ -746,12 +746,12 @@ pub mod tests {
     }
     
     #[rstest]
-    #[case::first_state_is_healthy(None, Health::Healthy(Healthy::new("status".to_string())))]
-    #[case::first_state_is_unhealthy(None, Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
-    #[case::healthy_and_unhealthy(Some(Health::Healthy(Healthy::new("status".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string())))]
-    #[case::unhealthy_and_healthy(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error".to_string()))), Health::Healthy(Healthy::new("status".to_string())))]
-    #[case::two_unhealthy_states_with_different_status(Some(Health::Unhealthy(Unhealthy::new("status a".to_string(), "error".to_string()))), Health::Unhealthy(Unhealthy::new("status b".to_string(), "error".to_string())))]
-    #[case::two_unhealthy_states_with_different_errors(Some(Health::Unhealthy(Unhealthy::new("status".to_string(), "error a".to_string()))), Health::Unhealthy(Unhealthy::new("status".to_string(), "error b".to_string())))]
+    #[case::first_state_is_healthy(None, healthy("status"))]
+    #[case::first_state_is_unhealthy(None, unhealthy("status", "error"))]
+    #[case::healthy_and_unhealthy(Some(healthy("status")), unhealthy("status", "error"))]
+    #[case::unhealthy_and_healthy(Some(unhealthy("status", "error")), healthy("status"))]
+    #[case::two_unhealthy_states_with_different_status(Some(unhealthy("status a", "error")), unhealthy("status b", "error"))]
+    #[case::two_unhealthy_states_with_different_errors(Some(unhealthy("status", "error a")), unhealthy("status", "error b"))]
     fn test_health_state_is_different_to_previous_state(
         #[case] previous_state: Option<Health>,
         #[case] current_state: Health,
@@ -759,5 +759,13 @@ pub mod tests {
         assert!(
             !is_health_state_equal_to_previous_state(&previous_state, &current_state)
         );
+    }
+
+    fn healthy(status: &str) -> Health {
+        Health::Healthy(Healthy::new(status.to_string()))
+    }
+
+    fn unhealthy(status: &str, error: &str) -> Health {
+        Health::Unhealthy(Unhealthy::new(status.to_string(), error.to_string()))
     }
 }
