@@ -6,6 +6,7 @@ K8S_HELM_DIR := $(CURR_DIR)helm
 
 AWS_REGION := us-east-2
 .DEFAULT_GOAL := all
+OTLP_ENDPOINT=https://otlp.nr-data.net:4318
 
 # Generate a random key to add to the helm deployment annotation
 # This way, whenever there is a helm upgrade the pod will be recreated and its image pulled, even if the tag didn't change
@@ -27,6 +28,7 @@ ifeq ($(CANARY_DIR), production)
 	export NR_SYSTEM_IDENTITY_PRIVATE_KEY
 else
 	IS_STAGING = true
+	OTLP_ENDPOINT=https://staging-otlp.nr-data.net:4318
 endif
 
 .PHONY: all
@@ -112,6 +114,10 @@ endif
     --set global.cluster=$(CLUSTER_NAME) \
     --set global.nrStaging=$(IS_STAGING) \
     --set agent-control-deployment.image.tag=$(IMAGE_TAG) \
+    --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.custom_attributes.clusterName="$(CLUSTER_NAME)" \
+    --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.custom_attributes."label\.app\.kubernetes\.io/name"=agent-control \
+    --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.endpoint="$(OTLP_ENDPOINT)" \
+    --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.headers.api-key=$(NR_LICENSE_KEY) \
     --set agent-control-deployment.config.fleet_control.auth.secret.create=false \
     --set agent-control-deployment.config.fleet_control.auth.secret.name="sys-identity" \
     --set agent-control-deployment.config.fleet_control.fleet_id="$(FLEET_ID)" \

@@ -79,6 +79,18 @@ module "alerts" {
       operator      = "below_or_equals"
       template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
     },
+    {
+      name          = "Opamp traces per minute"
+      metric        = "*"
+      sample        = "Span"
+      threshold     = 1
+      duration      = 3600
+      operator      = "below_or_equals"
+      wheres        = {
+        name = "opamp"
+      }
+      template_name = "./alert_nrql_templates/generic_metric_count.tftpl"
+    },
   ]
 }
 
