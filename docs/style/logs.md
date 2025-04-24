@@ -1,7 +1,45 @@
 # Logs
 
+## Log messages
+
+Log messages **must begin with a capital letter and should not end with a period**.
+
+Examples:
+
+```rust
+// 👍 Good:
+debug!("Creating agent's communication channels");
+
+// 👎 Bad:
+// It must start with capital letter
+debug!("creating agent's communication channels");
+// It should not end with a period
+debug!("Creating agent's communication channels.");
+```
+
+Log messages should generally be static, with fields used for dynamic content. However, the error message should be
+included in the log message, even if it is static. The fields used for dynamic content should be `snake_case` and consistent.
+
+Additionally, most dynamic fields (representing the log context) will be included automatically, as the code is traced
+and logs are within the span context. Refer to the [tracing crate](https://docs.rs/tracing/latest/tracing/#core-concepts)
+documentation and [this PR](https://github.com/newrelic/newrelic-agent-control/pull/1143)
+for more details.
+
+```rust
+// 👍 Good:
+info!(hash=&config.hash.get(), "Applying remote configuration");
+warn!(hash=&config.hash.get(), "Remote configuration cannot be applied: {err}");
+
+// 👎 Bad:
+//`agent_id` is already added in the parent span, the error message in `err` should be part of the log message, fields should be snake_case and consistent.
+info!(%agent_id, hash=&config.hash.get(), "Applying remote configuration");
+warn!(%agent_id, configHash=&config.hash.get(), %err, "Remote configuration cannot be applied");
+```
+
+## Log level
+
 Deciding which log level to use for each log message can be hard at times. We created this table to aid with the decision.
- 
+
 <table>
   <tr style="background-color:#f2f2f2;color:black;">
     <th>Log Type</th>
@@ -129,4 +167,3 @@ Deciding which log level to use for each log message can be hard at times. We cr
     </td>
   </tr>
 </table>
-
