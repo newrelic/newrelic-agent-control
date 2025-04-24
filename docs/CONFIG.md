@@ -29,7 +29,7 @@ agents:
 Logs can be configured as follows:
 
 ```yaml
-logs:
+log:
   format:
     target: true # Defaults to false, includes extra information for debugging purposes
     timestamp: "%Y-%m-%dT%H:%M%S" # Defaults to "%Y-%m-%dT%H:%M%S", details in <https://docs.rs/chrono/0.4.40/chrono/format/strftime/index.html#fn7>
