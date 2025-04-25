@@ -16,6 +16,7 @@ use crate::{
 
 #[test]
 #[ignore = "needs k8s cluster"]
+/// Tests that resources that already exist in the cluster of agents that are no longer active are removed.
 fn k8s_garbage_collector_triggers_on_ac_startup() {
     let test_name = "k8s_garbage_collector_triggers_on_ac_startup";
     let mut k8s = block_on(K8sEnv::new());
