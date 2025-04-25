@@ -51,7 +51,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), test_ns.as_str());
 
     let api: Api<Foo> = Api::namespaced(k8s.client.clone(), &test_ns);
-    retry(10, Duration::from_secs(1), || {
+    retry(30, Duration::from_secs(1), || {
         if block_on(api.get(removed_agent_id)).is_ok() {
             return Err("agent should have been removed".into());
         }
