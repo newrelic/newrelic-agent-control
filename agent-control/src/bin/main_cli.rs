@@ -50,8 +50,14 @@ struct HelmReleaseData {
     #[arg(long)]
     name: String,
 
-    #[arg(short, long)]
+    #[arg(long)]
+    chart_name: String,
+
+    #[arg(long)]
     chart_version: String,
+
+    #[arg(long)]
+    repository_name: String,
 
     #[arg(long, default_value = "24h")]
     interval: String,
@@ -141,11 +147,11 @@ fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmRe
                 "timeout": helm_release_data.timeout,
                 "chart": {
                     "spec": {
-                        "chart": helm_release_data.name,
+                        "chart": helm_release_data.chart_name,
                         "version": helm_release_data.chart_version,
                         "sourceRef": {
                             "kind": "HelmRepository",
-                            "name": "podinfo"
+                            "name": helm_release_data.repository_name,
                         },
                         "interval": helm_release_data.interval,
                     }
