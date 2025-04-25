@@ -1,9 +1,11 @@
+use std::time::Duration;
+
 use kube::Api;
 use newrelic_agent_control::{agent_control::agent_id::AgentID, k8s::labels::Labels};
 use tempfile::tempdir;
 
 use crate::{
-    common::{opamp::FakeServer, runtime::block_on},
+    common::{opamp::FakeServer, retry::retry, runtime::block_on},
     k8s::tools::{
         agent_control::{
             start_agent_control_with_testdata_config,
@@ -49,5 +51,10 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), test_ns.as_str());
 
     let api: Api<Foo> = Api::namespaced(k8s.client.clone(), &test_ns);
-    block_on(api.get(removed_agent_id)).expect_err("fail garbage collecting removed agent");
+    retry(10, Duration::from_secs(1), || {
+        if block_on(api.get(removed_agent_id)).is_ok() {
+            return Err("agent should have been removed".into());
+        }
+        Ok(())
+    });
 }
