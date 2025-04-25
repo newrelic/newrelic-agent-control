@@ -1,4 +1,5 @@
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_control::run::Environment;
 use crate::context::Context;
 use crate::event::SubAgentEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
@@ -6,7 +7,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
@@ -25,7 +26,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct OnHostSubAgentBuilder<'a, O, I, SA, R, H, Y>
+pub struct OnHostSubAgentBuilder<'a, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -33,6 +34,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -40,9 +42,10 @@ where
     remote_config_parser: Arc<R>,
     hash_repository: Arc<H>,
     yaml_config_repository: Arc<Y>,
+    effective_agents_assembler: Arc<A>,
 }
 
-impl<'a, O, I, SA, R, H, Y> OnHostSubAgentBuilder<'a, O, I, SA, R, H, Y>
+impl<'a, O, I, SA, R, H, Y, A> OnHostSubAgentBuilder<'a, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -50,6 +53,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
@@ -58,6 +62,7 @@ where
         remote_config_parser: Arc<R>,
         hash_repository: Arc<H>,
         yaml_config_repository: Arc<Y>,
+        effective_agents_assembler: Arc<A>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -66,11 +71,12 @@ where
             remote_config_parser,
             hash_repository,
             yaml_config_repository,
+            effective_agents_assembler,
         }
     }
 }
 
-impl<O, I, SA, R, H, Y> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, SA, R, H, Y>
+impl<O, I, SA, R, H, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
@@ -78,8 +84,9 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, SA, R, H, Y>;
+    type NotStartedSubAgent = SubAgent<O::Client, SA, R, H, Y, A>;
 
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
@@ -118,6 +125,8 @@ where
             self.remote_config_parser.clone(),
             self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
+            self.effective_agents_assembler.clone(),
+            Environment::OnHost,
         ))
     }
 }
@@ -185,18 +194,22 @@ mod tests {
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
+    use mockall::predicate;
     use nix::unistd::gethostname;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
@@ -243,6 +256,22 @@ mod tests {
             Duration::from_millis(10),
         );
 
+        let mut hash_repository = MockHashRepository::new();
+        hash_repository
+            .expect_get()
+            .with(predicate::eq(agent_identity.id.clone()))
+            .once()
+            .return_once(move |_| Ok(None));
+        let mut yaml_config_repository = MockYAMLConfigRepository::new();
+        yaml_config_repository
+            .expect_load_remote()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::always(),
+            )
+            .once()
+            .return_once(move |_, _| Ok(Some(YAMLConfig::default())));
+
         let mut instance_id_getter = MockInstanceIDGetter::new();
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
         instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
@@ -253,9 +282,27 @@ mod tests {
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
+        let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
+        let effective_agent = EffectiveAgent::new(
+            agent_identity.clone(),
+            Runtime {
+                deployment: Deployment::default(),
+            },
+        );
+        effective_agents_assembler.should_assemble_agent(
+            &agent_identity,
+            &YAMLConfig::default(),
+            &Environment::OnHost,
+            effective_agent.clone(),
+            1,
+        );
+
         let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler
-            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
+            stopped_supervisor,
+            agent_identity.clone(),
+            effective_agent,
+        );
 
         let remote_config_parser = MockRemoteConfigParser::new();
 
@@ -264,8 +311,9 @@ mod tests {
             &instance_id_getter,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_parser),
-            Arc::new(MockHashRepository::new()),
-            Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(hash_repository),
+            Arc::new(yaml_config_repository),
+            Arc::new(effective_agents_assembler),
         );
 
         on_host_builder
@@ -321,15 +369,49 @@ mod tests {
             Duration::from_millis(10),
         );
 
+        let mut hash_repository = MockHashRepository::new();
+        hash_repository
+            .expect_get()
+            .with(predicate::eq(agent_identity.id.clone()))
+            .once()
+            .return_once(move |_| Ok(None));
+        let mut yaml_config_repository = MockYAMLConfigRepository::new();
+        yaml_config_repository
+            .expect_load_remote()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::always(),
+            )
+            .once()
+            .return_once(move |_, _| Ok(Some(YAMLConfig::default())));
+
         let mut started_supervisor = MockSupervisorStopper::new();
         started_supervisor.should_stop();
 
         let mut stopped_supervisor = MockSupervisorStarter::new();
         stopped_supervisor.should_start(started_supervisor);
 
+        let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
+        let effective_agent = EffectiveAgent::new(
+            agent_identity.clone(),
+            Runtime {
+                deployment: Deployment::default(),
+            },
+        );
+        effective_agents_assembler.should_assemble_agent(
+            &agent_identity,
+            &YAMLConfig::default(),
+            &Environment::OnHost,
+            effective_agent.clone(),
+            1,
+        );
+
         let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler
-            .should_assemble::<MockStartedOpAMPClient>(stopped_supervisor, agent_identity.clone());
+        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
+            stopped_supervisor,
+            agent_identity.clone(),
+            effective_agent,
+        );
 
         let remote_config_parser = MockRemoteConfigParser::new();
 
@@ -339,8 +421,9 @@ mod tests {
             &instance_id_getter,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_parser),
-            Arc::new(MockHashRepository::new()),
-            Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(hash_repository),
+            Arc::new(yaml_config_repository),
+            Arc::new(effective_agents_assembler),
         );
 
         let sub_agent = on_host_builder

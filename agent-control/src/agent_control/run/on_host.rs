@@ -150,9 +150,6 @@ impl AgentControlRunner {
         let supervisor_assembler = AgentSupervisorAssembler::new(
             sub_agent_hash_repository.clone(),
             SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
-            agents_assembler,
-            yaml_config_repository.clone(),
-            Environment::OnHost,
         );
 
         // This template rendered does not include the persister to AVOID mutate any state when used to validate configs.
@@ -180,6 +177,7 @@ impl AgentControlRunner {
             Arc::new(remote_config_parser),
             sub_agent_hash_repository,
             yaml_config_repository,
+            agents_assembler,
         );
 
         let dynamic_config_validator =

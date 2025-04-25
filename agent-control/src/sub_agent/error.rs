@@ -28,6 +28,8 @@ pub enum SubAgentError {
     YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
+    #[error("no configuration found")]
+    NoConfiguration,
 }
 
 #[derive(Error, Debug)]

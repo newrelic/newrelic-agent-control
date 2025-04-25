@@ -244,8 +244,10 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::helmrelease_v2_type_meta;
+    use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
+    use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::SubAgentEvent;
     use crate::event::channel::pub_sub;
     use crate::k8s::client::MockSyncK8sClient;
@@ -253,10 +255,13 @@ pub mod tests {
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
+    use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -519,15 +524,43 @@ pub mod tests {
             .with(predicate::eq(agent_identity.id.clone()))
             .return_const(Ok(None));
 
-        let yaml_config_repository = MockYAMLConfigRepository::new();
+        let mut yaml_config_repository = MockYAMLConfigRepository::new();
+        let yaml_config = YAMLConfig::default();
+        let yaml_config_clone = yaml_config.clone();
+        yaml_config_repository
+            .expect_load_remote()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::always(),
+            )
+            .return_once(|_, _| Ok(Some(yaml_config_clone)));
         let remote_config_parser = MockRemoteConfigParser::new();
+
+        let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
+        let effective_agent = EffectiveAgent::new(
+            agent_identity.clone(),
+            Runtime {
+                deployment: Deployment::default(),
+            },
+        );
+        effective_agents_assembler.should_assemble_agent(
+            &agent_identity,
+            &yaml_config,
+            &Environment::K8s,
+            effective_agent.clone(),
+            1,
+        );
 
         let agent_identity_clone = agent_identity.clone();
         let mut supervisor_assembler = MockSupervisorAssembler::new();
         supervisor_assembler
             .expect_assemble_supervisor()
-            .with(predicate::always(), predicate::eq(agent_identity.clone()))
-            .returning(move |_: &Option<MockStartedOpAMPClient>, _| {
+            .with(
+                predicate::always(),
+                predicate::eq(agent_identity.clone()),
+                predicate::eq(effective_agent),
+            )
+            .returning(move |_: &Option<MockStartedOpAMPClient>, _, _| {
                 Ok(NotStartedSupervisorK8s::new(
                     agent_identity_clone.clone(),
                     mocked_client.clone(),
@@ -548,6 +581,8 @@ pub mod tests {
             Arc::new(remote_config_parser),
             Arc::new(sub_agent_remote_config_hash_repository),
             Arc::new(yaml_config_repository),
+            Arc::new(effective_agents_assembler),
+            Environment::K8s,
         )
         .run();
 

@@ -28,7 +28,7 @@ pub struct ValuesValidator<A> {
 }
 impl<A> ValuesValidator<A>
 where
-    A: EffectiveAgentsAssembler,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     /// Creates a new instance of [ValuesValidator]
     pub fn new(effective_agent_assembler: Arc<A>, environment: Environment) -> Self {
@@ -40,7 +40,7 @@ where
 }
 impl<A> RemoteConfigValidator for ValuesValidator<A>
 where
-    A: EffectiveAgentsAssembler,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     type Err = ValuesValidatorError;
     fn validate(

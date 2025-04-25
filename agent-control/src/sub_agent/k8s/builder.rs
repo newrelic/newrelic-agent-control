@@ -1,5 +1,6 @@
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
@@ -8,7 +9,7 @@ use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
-use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
@@ -24,7 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct K8sSubAgentBuilder<'a, O, I, SA, R, H, Y>
+pub struct K8sSubAgentBuilder<'a, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -32,6 +33,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
@@ -40,9 +42,10 @@ where
     remote_config_parser: Arc<R>,
     hash_repository: Arc<H>,
     yaml_config_repository: Arc<Y>,
+    effective_agents_assembler: Arc<A>,
 }
 
-impl<'a, O, I, SA, R, H, Y> K8sSubAgentBuilder<'a, O, I, SA, R, H, Y>
+impl<'a, O, I, SA, R, H, Y, A> K8sSubAgentBuilder<'a, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
@@ -50,6 +53,7 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     // TODO refactor this new function
     #[allow(clippy::too_many_arguments)]
@@ -61,6 +65,7 @@ where
         remote_config_parser: Arc<R>,
         hash_repository: Arc<H>,
         yaml_config_repository: Arc<Y>,
+        effective_agents_assembler: Arc<A>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -70,11 +75,12 @@ where
             remote_config_parser,
             hash_repository,
             yaml_config_repository,
+            effective_agents_assembler,
         }
     }
 }
 
-impl<O, I, SA, R, H, Y> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, SA, R, H, Y>
+impl<O, I, SA, R, H, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, SA, R, H, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
@@ -82,8 +88,9 @@ where
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, SA, R, H, Y>;
+    type NotStartedSubAgent = SubAgent<O::Client, SA, R, H, Y, A>;
 
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
@@ -125,6 +132,8 @@ where
             self.remote_config_parser.clone(),
             self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
+            self.effective_agents_assembler.clone(),
+            Environment::K8s,
         ))
     }
 }
@@ -199,6 +208,7 @@ pub mod tests {
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::operations::start_settings;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
@@ -235,6 +245,8 @@ pub mod tests {
         let supervisor_assembler = MockSupervisorAssembler::<MockSupervisorStarter>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
+        let effective_agents_assembler = MockEffectiveAgentAssembler::new();
+
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -243,6 +255,7 @@ pub mod tests {
             Arc::new(remote_config_parser),
             Arc::new(MockHashRepository::new()),
             Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(effective_agents_assembler),
         );
 
         let (application_event_publisher, _) = pub_sub();
@@ -271,6 +284,8 @@ pub mod tests {
         let supervisor_assembler = MockSupervisorAssembler::<MockSupervisorStarter>::new();
         let remote_config_parser = MockRemoteConfigParser::new();
 
+        let effective_agents_assembler = MockEffectiveAgentAssembler::new();
+
         let builder = K8sSubAgentBuilder::new(
             Some(&opamp_builder),
             &instance_id_getter,
@@ -279,6 +294,7 @@ pub mod tests {
             Arc::new(remote_config_parser),
             Arc::new(MockHashRepository::new()),
             Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(effective_agents_assembler),
         );
 
         let (application_event_publisher, _) = pub_sub();
