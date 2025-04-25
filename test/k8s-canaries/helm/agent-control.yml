@@ -10,8 +10,6 @@ agent-control-deployment:
         self_instrumentation:
           opentelemetry:
             insecure_level: "newrelic_agent_control=trace,opamp_client=trace,off"
-            metrics:
-              enabled: true
             traces:
               enabled: true
     subAgents:
