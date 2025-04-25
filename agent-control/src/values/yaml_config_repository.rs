@@ -1,9 +1,10 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::values::yaml_config::YAMLConfig;
 use opamp_client::operation::capabilities::Capabilities;
+use thiserror::Error;
 use tracing::debug;
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug, Clone)]
 pub enum YAMLConfigRepositoryError {
     #[error("error loading values: `{0}`")]
     LoadError(String),

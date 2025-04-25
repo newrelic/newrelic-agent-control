@@ -45,14 +45,14 @@ pub mod tests {
                 .return_once(move |_| Ok(None));
         }
 
-        pub fn should_save_hash(&mut self, agent_id: &AgentID, hash: &Hash) {
+        pub(crate) fn should_save_hash(&mut self, agent_id: &AgentID, hash: &Hash) {
             self.expect_save()
                 .with(predicate::eq(agent_id.clone()), predicate::eq(hash.clone()))
                 .once()
                 .returning(move |_, _| Ok(()));
         }
 
-        pub fn should_return_error_on_get(
+        pub(crate) fn should_return_error_on_get(
             &mut self,
             agent_id: &AgentID,
             error: HashRepositoryError,
