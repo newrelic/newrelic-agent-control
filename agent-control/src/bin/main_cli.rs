@@ -4,25 +4,29 @@ use newrelic_agent_control::{
     agent_control::config::helmrelease_v2_type_meta,
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
-use tracing::{debug, info, Level};
+use tracing::{info, Level};
 
 use std::{fs, path::PathBuf, sync::Arc};
 
+/// Manage Helm releases and repositories in Kubernetes
 #[derive(Parser)]
-#[command(about, long_about = None)]
+#[command()]
 struct Cli {
     #[command(subcommand)]
     operation: Operations,
 
+    /// Namespace where the operation will be performed
     #[arg(short, long, global = true, default_value = "default")]
     namespace: String,
 
+    /// Log level upperbound
     #[arg(long, global = true, default_value = "info")]
     log_level: Option<Level>,
 }
 
 #[derive(Subcommand)]
 enum Operations {
+    /// Create an object in the cluster
     Create {
         #[command(subcommand)]
         resource_type: CommandResourceType,
@@ -31,46 +35,86 @@ enum Operations {
 
 #[derive(Subcommand)]
 enum CommandResourceType {
+    /// Operate over a helm release object
     HelmRelease(HelmReleaseData),
+
+    /// Operate over a helm repository object
     HelmRepository(HelmRepositoryData),
 }
 
 #[derive(Parser)]
 struct HelmRepositoryData {
+    /// Object name
     #[arg(long)]
     name: String,
 
+    /// Repository url
     #[arg(long)]
     url: String,
 
-    #[arg(long, default_value = "24h")]
+    /// Interval at which the repository will be fetched again
+    ///
+    /// The controller will fetch the Helm repository
+    /// index yaml at the specified interval.
+    /// 
+    /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
+    #[arg(long, default_value = "5m")]
     interval: String,
 }
 
 #[derive(Parser)]
 struct HelmReleaseData {
+    /// Object name
     #[arg(long)]
     name: String,
 
+    /// Name of the chart to deploy
     #[arg(long)]
     chart_name: String,
 
+    /// Version of the chart to deploy
     #[arg(long)]
     chart_version: String,
 
+    /// Name of the Helm Repository from where to get the chart
+    ///
+    /// The Helm Repository must already be created in the
+    /// cluster.
     #[arg(long)]
     repository_name: String,
 
+    /// Chart values as string
+    ///
+    /// The values of the chart as a yaml string.
+    /// The values can also be read from a file using `--values-file`,
+    /// but only one flag can be used at once.
     #[arg(long)]
     values: Option<String>,
 
+    /// Chart values file
+    ///
+    /// A yaml file with the values of the chart.
+    /// The values can also be passed as a string with `--values`,
+    /// but only one flag can be used at once.
     #[arg(long)]
     values_file: Option<PathBuf>,
 
-    #[arg(long, default_value = "24h")]
+    /// Interval at which the release is reconciled
+    /// 
+    /// The controller will check the Helm release is in
+    /// the desired state at the specified interval.
+    /// 
+    /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
+    #[arg(long, default_value = "5m")]
     interval: String,
 
-    #[arg(long, default_value = "24h")]
+    /// Timeout for some Helm actions
+    /// 
+    /// Some Helm actions like install, upgrade or rollback
+    /// will timeout at the specified elapsed time.
+    /// 
+    /// The timeout must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
+    #[arg(long, default_value = "5m")]
     timeout: String,
 }
 
@@ -78,12 +122,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting the cli");
     let cli = Cli::parse();
 
-    // TODO: Make configurable through cli options
     tracing_subscriber::fmt::fmt()
         .with_max_level(cli.log_level)
         .init();
-
-    debug!("Log level set");
 
     info!("Starting k8s installation job...");
     install_rustls_default_crypto_provider();
