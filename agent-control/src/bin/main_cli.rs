@@ -6,7 +6,7 @@ use newrelic_agent_control::{
 };
 use tracing::{info, Level};
 
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, fs, path::PathBuf, sync::Arc};
 
 /// Manage Helm releases and repositories in Kubernetes
 #[derive(Parser)]
@@ -52,11 +52,21 @@ struct HelmRepositoryData {
     #[arg(long)]
     url: String,
 
+    /// Identifying metadata
+    ///
+    /// Labels are used to select and find collection of objects.
+    #[arg(long)]
+    labels: Option<String>,
+
+    /// Non-identifying metadata
+    #[arg(long)]
+    annotations: Option<String>,
+
     /// Interval at which the repository will be fetched again
     ///
     /// The controller will fetch the Helm repository
     /// index yaml at the specified interval.
-    /// 
+    ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
     interval: String,
@@ -99,20 +109,30 @@ struct HelmReleaseData {
     #[arg(long)]
     values_file: Option<PathBuf>,
 
+    /// Identifying metadata
+    ///
+    /// Labels are used to select and find collection of objects.
+    #[arg(long)]
+    labels: Option<String>,
+
+    /// Non-identifying metadata
+    #[arg(long)]
+    annotations: Option<String>,
+
     /// Interval at which the release is reconciled
-    /// 
+    ///
     /// The controller will check the Helm release is in
     /// the desired state at the specified interval.
-    /// 
+    ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
     interval: String,
 
     /// Timeout for some Helm actions
-    /// 
+    ///
     /// Some Helm actions like install, upgrade or rollback
     /// will timeout at the specified elapsed time.
-    /// 
+    ///
     /// The timeout must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
     timeout: String,
@@ -167,6 +187,10 @@ fn create_helm_repository(
         metadata: ObjectMeta {
             name: Some(helm_repository_data.name),
             namespace: Some(k8s_client.default_namespace().to_string()),
+            annotations: parse_key_value_pairs(
+                &helm_repository_data.annotations.unwrap_or_default(),
+            ),
+            labels: parse_key_value_pairs(&helm_repository_data.labels.unwrap_or_default()),
             ..Default::default()
         },
         data: serde_json::json!({
@@ -180,6 +204,22 @@ fn create_helm_repository(
     info!("Applying Helm repository");
     k8s_client.apply_dynamic_object(&helm_repo).unwrap();
     info!("Helm repository applied.");
+}
+
+fn parse_key_value_pairs(data: &str) -> Option<BTreeMap<String, String>> {
+    let mut parsed_key_values = BTreeMap::new();
+
+    let pairs = data.split(',');
+    let key_values = pairs.map(|pair| pair.split_once('='));
+    let valid_key_values = key_values.flatten();
+    valid_key_values.for_each(|(key, value)| {
+        parsed_key_values.insert(key.trim().to_string(), value.trim().to_string());
+    });
+
+    match parsed_key_values.is_empty() {
+        true => None,
+        false => Some(parsed_key_values),
+    }
 }
 
 fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
@@ -212,6 +252,8 @@ fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmRe
         metadata: ObjectMeta {
             name: Some(helm_release_data.name.clone()),
             namespace: Some(k8s_client.default_namespace().to_string()),
+            annotations: parse_key_value_pairs(&helm_release_data.annotations.unwrap_or_default()),
+            labels: parse_key_value_pairs(&helm_release_data.labels.unwrap_or_default()),
             ..Default::default()
         },
         data,
@@ -224,14 +266,12 @@ fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmRe
 }
 
 fn parse_helm_release_values(helm_release_data: &HelmReleaseData) -> Option<serde_json::Value> {
-    let values = &helm_release_data.values;
-    let values_file = &helm_release_data.values_file;
-    match (values, values_file) {
+    match (&helm_release_data.values, &helm_release_data.values_file) {
         (Some(_), Some(_)) => {
             panic!("You can only specify one of --values or --values-file");
         }
         (Some(values), None) => {
-            let values = serde_yaml::from_str(values).unwrap();
+            let values = serde_yaml::from_str(&values).unwrap();
             Some(serde_json::from_value(values).unwrap())
         }
         (None, Some(values_file)) => {
