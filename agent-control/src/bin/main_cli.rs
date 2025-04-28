@@ -4,10 +4,9 @@ use newrelic_agent_control::{
     agent_control::config::helmrelease_v2_type_meta,
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
-use tracing::{info, Level};
-use tracing_subscriber;
+use tracing::{debug, info, Level};
 
-use std::sync::Arc;
+use std::{fs, path::PathBuf, sync::Arc};
 
 #[derive(Parser)]
 #[command(about, long_about = None)]
@@ -17,6 +16,9 @@ struct Cli {
 
     #[arg(short, long, global = true, default_value = "default")]
     namespace: String,
+
+    #[arg(long, global = true, default_value = "info")]
+    log_level: Option<Level>,
 }
 
 #[derive(Subcommand)]
@@ -59,6 +61,12 @@ struct HelmReleaseData {
     #[arg(long)]
     repository_name: String,
 
+    #[arg(long)]
+    values: Option<String>,
+
+    #[arg(long)]
+    values_file: Option<PathBuf>,
+
     #[arg(long, default_value = "24h")]
     interval: String,
 
@@ -72,8 +80,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // TODO: Make configurable through cli options
     tracing_subscriber::fmt::fmt()
-        .with_max_level(Level::INFO)
+        .with_max_level(cli.log_level)
         .init();
+
+    debug!("Log level set");
 
     info!("Starting k8s installation job...");
     install_rustls_default_crypto_provider();
@@ -134,6 +144,28 @@ fn create_helm_repository(
 fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
     info!("Creating Helm release");
 
+    let mut data = serde_json::json!({
+        "spec": {
+            "interval": helm_release_data.interval,
+            "timeout": helm_release_data.timeout,
+            "chart": {
+                "spec": {
+                    "chart": helm_release_data.chart_name,
+                    "version": helm_release_data.chart_version,
+                    "sourceRef": {
+                        "kind": "HelmRepository",
+                        "name": helm_release_data.repository_name,
+                    },
+                    "interval": helm_release_data.interval,
+                },
+            }
+        }
+    });
+
+    if let Some(values) = parse_helm_release_values(&helm_release_data) {
+        data["spec"]["values"] = values;
+    }
+
     let helm_release = DynamicObject {
         types: Some(helmrelease_v2_type_meta()),
         metadata: ObjectMeta {
@@ -141,27 +173,31 @@ fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmRe
             namespace: Some(k8s_client.default_namespace().to_string()),
             ..Default::default()
         },
-        data: serde_json::json!({
-            "spec": {
-                "interval": helm_release_data.interval,
-                "timeout": helm_release_data.timeout,
-                "chart": {
-                    "spec": {
-                        "chart": helm_release_data.chart_name,
-                        "version": helm_release_data.chart_version,
-                        "sourceRef": {
-                            "kind": "HelmRepository",
-                            "name": helm_release_data.repository_name,
-                        },
-                        "interval": helm_release_data.interval,
-                    }
-                }
-            }
-        }),
+        data,
     };
     info!("Helm release object created: {:?}", helm_release);
 
     info!("Applying helm release");
     k8s_client.apply_dynamic_object(&helm_release).unwrap();
     info!("Helm release applied.");
+}
+
+fn parse_helm_release_values(helm_release_data: &HelmReleaseData) -> Option<serde_json::Value> {
+    let values = &helm_release_data.values;
+    let values_file = &helm_release_data.values_file;
+    match (values, values_file) {
+        (Some(_), Some(_)) => {
+            panic!("You can only specify one of --values or --values-file");
+        }
+        (Some(values), None) => {
+            let values = serde_yaml::from_str(values).unwrap();
+            Some(serde_json::from_value(values).unwrap())
+        }
+        (None, Some(values_file)) => {
+            let values = fs::read_to_string(values_file).unwrap();
+            let values = serde_yaml::from_str(&values).unwrap();
+            Some(serde_json::from_value(values).unwrap())
+        }
+        (None, None) => None,
+    }
 }
