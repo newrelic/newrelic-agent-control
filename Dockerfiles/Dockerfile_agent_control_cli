@@ -6,6 +6,10 @@ ARG TARGETARCH
 
 COPY --chmod=755 bin/newrelic-agent-control-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
 
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get clean
+
 USER nobody
 
 ENTRYPOINT ["/bin/newrelic-agent-control-cli"]

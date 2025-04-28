@@ -9,6 +9,7 @@ COPY --chmod=755 bin/newrelic-agent-control-${TARGETARCH} /bin/newrelic-agent-co
 
 RUN apt-get update && \
     apt-get install -y ca-certificates && \
+    apt-get upgrade -y && \
     apt-get clean
 
 USER nobody
