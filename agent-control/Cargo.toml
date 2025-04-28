@@ -116,7 +116,7 @@ path = "src/bin/main_config_migrate.rs"
 
 [[bin]]
 name = "newrelic-agent-control-cli"
-path = "src/bin/main_cli.rs"
+path = "src/bin/main_cli/main.rs"
 
 [features]
 # feature tokio-console allows debugging tokio tasks using tokio-console
