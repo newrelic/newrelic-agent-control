@@ -1,0 +1,13 @@
+fleet_control:
+  endpoint: <opamp-endpoint>
+  headers:
+    api-key: test-api-key
+  signature_validation:
+    certificate_pem_file_path: <cert-path>
+k8s:
+  namespace: <ns>
+  cluster_name: <cluster-name>
+  cr_type_meta:
+  - apiVersion: newrelic.com/v1
+    kind: Foo
+agents: {}
