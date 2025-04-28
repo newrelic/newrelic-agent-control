@@ -107,13 +107,13 @@ deployment:
           interval: 30m
           provider: generic
           url: https://helm-charts.newrelic.com
-      default-values:
+      values:
         apiVersion: v1
         kind: Secret
         metadata:
-          name: default-values-${nr-sub:agent_id}
+          name: values-${nr-sub:agent_id}
         stringData:
-          values.yaml: |
+          default.yaml: |
             newrelic-infrastructure:
               enabled: true
             nri-metadata-injection:
@@ -128,6 +128,37 @@ deployment:
               nrStaging: ${nr-env:NR_STAGING}
               lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
               verboseLog: ${nr-env:NR_VERBOSE_LOG}
+          values.yaml: |
+            newrelic-infrastructure: 
+              ${nr-var:chart_values.newrelic-infrastructure | indent 2}
+            nri-metadata-injection: 
+              ${nr-var:chart_values.nri-metadata-injection | indent 2}
+            kube-state-metrics: 
+              ${nr-var:chart_values.kube-state-metrics | indent 2}
+            nri-kube-events: 
+              ${nr-var:chart_values.nri-kube-events | indent 2}
+            global: 
+              ${nr-var:chart_values.global | indent 2}
+          # The rest of nri-bundle charts are explicitly disabled below.
+          # Note: this needs to be in sync with nri-bundle's supported charts. If a new version of
+          # nri-bundle included a new chart enabled by default, it needs to be disabled here.
+          fixed.yaml: |
+            nri-prometheus:
+              enabled: false
+            newrelic-logging:
+              enabled: false
+            newrelic-pixie:
+              enabled: false
+            k8s-agents-operator:
+              enabled: false
+            pixie-chart:
+              enabled: false
+            newrelic-infra-operator:
+              enabled: false
+            newrelic-prometheus-agent:
+              enabled: false
+            newrelic-k8s-metrics-adapter:
+              enabled: false 
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -166,31 +197,11 @@ deployment:
             disableWaitForJobs: true
           valuesFrom:
             - kind: Secret
-              name: default-values-${nr-sub:agent_id}
+              name: values-${nr-sub:agent_id}
+              valuesKey: default.yaml
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
               valuesKey: values.yaml
-          values:
-            newrelic-infrastructure: ${nr-var:chart_values.newrelic-infrastructure}
-            nri-metadata-injection: ${nr-var:chart_values.nri-metadata-injection}
-            kube-state-metrics: ${nr-var:chart_values.kube-state-metrics}
-            nri-kube-events: ${nr-var:chart_values.nri-kube-events}
-            global: ${nr-var:chart_values.global}
-
-            # The rest of nri-bundle charts are explicitly disabled below.
-            # Note: this needs to be in sync with nri-bundle's supported charts. If a new version of
-            # nri-bundle included a new chart enabled by default, it needs to be disabled here.
-            nri-prometheus:
-              enabled: false
-            newrelic-logging:
-              enabled: false
-            newrelic-pixie:
-              enabled: false
-            k8s-agents-operator:
-              enabled: false
-            pixie-chart:
-              enabled: false
-            newrelic-infra-operator:
-              enabled: false
-            newrelic-prometheus-agent:
-              enabled: false
-            newrelic-k8s-metrics-adapter:
-              enabled: false
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
+              valuesKey: fixed.yaml

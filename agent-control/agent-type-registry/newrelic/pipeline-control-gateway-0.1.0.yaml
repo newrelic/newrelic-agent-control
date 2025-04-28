@@ -36,29 +36,26 @@ deployment:
           interval: 30m
           provider: generic
           url: https://helm-charts.newrelic.com
-      default-values:
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: default-values-${nr-sub:agent_id}
-        stringData:
-          # These env variables are attached to the AC pod on the Helm Chart.
-          values.yaml: |
-            global:
-              licenseKey: ${nr-env:NR_LICENSE_KEY}
-              cluster: ${nr-env:NR_CLUSTER_NAME}
-              nrStaging: ${nr-env:NR_STAGING}
-              lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
-              verboseLog: ${nr-env:NR_VERBOSE_LOG}
       values:
         apiVersion: v1
         kind: Secret
         metadata:
           name: values-${nr-sub:agent_id}
         stringData:
-          # global values defined inside here will have less precedence than the ones defined in `chart_values.global`
+          # These env variables are attached to the AC pod on the Helm Chart.
+          default.yaml: |
+            global:
+              licenseKey: ${nr-env:NR_LICENSE_KEY}
+              cluster: ${nr-env:NR_CLUSTER_NAME}
+              nrStaging: ${nr-env:NR_STAGING}
+              lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
+              verboseLog: ${nr-env:NR_VERBOSE_LOG}
           values.yaml: |
             ${nr-var:chart_values.gateway}
+          # chart_values.global will have precedence over chart_values.gateway.global
+          global.yaml: |
+            global:
+              ${nr-var:chart_values.global | indent 2}
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -97,10 +94,11 @@ deployment:
             disableWaitForJobs: true
           valuesFrom:
             - kind: Secret
-              name: default-values-${nr-sub:agent_id}
-              valuesKey: values.yaml
+              name: values-${nr-sub:agent_id}
+              valuesKey: default.yaml
             - kind: Secret
               name: values-${nr-sub:agent_id}
               valuesKey: values.yaml
-          values:
-            global: ${nr-var:chart_values.global}
+            - kind: Secret
+              name: values-${nr-sub:agent_id}
+              valuesKey: global.yaml
