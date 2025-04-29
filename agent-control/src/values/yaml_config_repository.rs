@@ -35,7 +35,7 @@ pub trait YAMLConfigRepository: Send + Sync + 'static {
 }
 
 /// Looks for remote configs first, if unavailable checks the local ones.
-/// If none is found, it fallbacks to the empty default values.
+/// It returns an error if no configuration is found.
 pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
     config_repository: &R,
     agent_id: &AgentID,
