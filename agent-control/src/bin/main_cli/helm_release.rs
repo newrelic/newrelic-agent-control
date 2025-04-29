@@ -5,11 +5,11 @@ use kube::api::{DynamicObject, ObjectMeta};
 use newrelic_agent_control::{
     agent_control::config::helmrelease_v2_type_meta, k8s::client::SyncK8sClient,
 };
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::utils::parse_key_value_pairs;
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 pub struct HelmReleaseData {
     /// Object name
     #[arg(long)]
@@ -97,28 +97,35 @@ pub fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: He
     });
 
     if let Some(values) = parse_helm_release_values(&helm_release_data) {
+        debug!("Parsed values: {:?}", values);
         data["spec"]["values"] = values;
     }
+
+    let labels = parse_key_value_pairs(&helm_release_data.labels.unwrap_or_default());
+    debug!("Parsed labels: {:?}", labels);
+
+    let annotations = parse_key_value_pairs(&helm_release_data.annotations.unwrap_or_default());
+    debug!("Parsed annotations: {:?}", annotations);
 
     let helm_release = DynamicObject {
         types: Some(helmrelease_v2_type_meta()),
         metadata: ObjectMeta {
             name: Some(helm_release_data.name.clone()),
             namespace: Some(k8s_client.default_namespace().to_string()),
-            annotations: parse_key_value_pairs(&helm_release_data.annotations.unwrap_or_default()),
-            labels: parse_key_value_pairs(&helm_release_data.labels.unwrap_or_default()),
+            labels,
+            annotations,
             ..Default::default()
         },
         data,
     };
-    info!("Helm release object created: {:?}", helm_release);
+    info!("Helm release object representation created");
 
     info!("Applying helm release");
     k8s_client.apply_dynamic_object(&helm_release).unwrap();
-    info!("Helm release applied.");
+    info!("Helm release applied");
 }
 
-pub fn parse_helm_release_values(helm_release_data: &HelmReleaseData) -> Option<serde_json::Value> {
+fn parse_helm_release_values(helm_release_data: &HelmReleaseData) -> Option<serde_json::Value> {
     match (&helm_release_data.values, &helm_release_data.values_file) {
         (Some(_), Some(_)) => {
             panic!("You can only specify one of --values or --values-file");

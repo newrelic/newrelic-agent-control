@@ -3,11 +3,11 @@ use std::sync::Arc;
 use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::utils::parse_key_value_pairs;
 
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
     /// Object name
     #[arg(long)]
@@ -42,6 +42,13 @@ pub fn create_helm_repository(
     helm_repository_data: HelmRepositoryData,
 ) {
     info!("Creating Helm repository");
+
+    let labels = parse_key_value_pairs(&helm_repository_data.labels.unwrap_or_default());
+    debug!("Parsed labels: {:?}", labels);
+
+    let annotations = parse_key_value_pairs(&helm_repository_data.annotations.unwrap_or_default());
+    debug!("Parsed annotations: {:?}", annotations);
+
     let helm_repo = DynamicObject {
         types: Some(TypeMeta {
             api_version: "source.toolkit.fluxcd.io/v1".to_string(),
@@ -50,10 +57,8 @@ pub fn create_helm_repository(
         metadata: ObjectMeta {
             name: Some(helm_repository_data.name),
             namespace: Some(k8s_client.default_namespace().to_string()),
-            annotations: parse_key_value_pairs(
-                &helm_repository_data.annotations.unwrap_or_default(),
-            ),
-            labels: parse_key_value_pairs(&helm_repository_data.labels.unwrap_or_default()),
+            labels,
+            annotations,
             ..Default::default()
         },
         data: serde_json::json!({
@@ -63,6 +68,7 @@ pub fn create_helm_repository(
             }
         }),
     };
+    info!("Helm repository object representation created");
 
     info!("Applying Helm repository");
     k8s_client.apply_dynamic_object(&helm_repo).unwrap();

@@ -6,14 +6,14 @@ use helm_repository::{create_helm_repository, HelmRepositoryData};
 use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
-use tracing::{info, Level};
+use tracing::{debug, info, Level};
 
 mod helm_release;
 mod helm_repository;
 mod utils;
 
 /// Manage Helm releases and repositories in Kubernetes
-#[derive(Parser)]
+#[derive(Debug, Parser)]
 #[command()]
 struct Cli {
     #[command(subcommand)]
@@ -28,7 +28,7 @@ struct Cli {
     log_level: Option<Level>,
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand)]
 enum Operations {
     /// Create an object in the cluster
     Create {
@@ -37,7 +37,7 @@ enum Operations {
     },
 }
 
-#[derive(Subcommand)]
+#[derive(Debug, Subcommand )]
 enum CommandResourceType {
     /// Operate over a helm release object
     HelmRelease(HelmReleaseData),
@@ -47,23 +47,26 @@ enum CommandResourceType {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    info!("Starting the cli");
+    debug!("Starting cli");
     let cli = Cli::parse();
+    debug!("Arguments parsed: {:?}", cli);
 
+    debug!("Setting up logging with level: {:?}", cli.log_level);
     tracing_subscriber::fmt::fmt()
         .with_max_level(cli.log_level)
         .init();
 
-    info!("Starting k8s installation job...");
+    debug!("Installing default rustls crypto provider");
     install_rustls_default_crypto_provider();
 
-    info!("Starting the runtime");
+    debug!("Starting the runtime");
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()?,
     );
-    info!("Starting the k8s client");
+
+    debug!("Starting the k8s client");
     let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, cli.namespace)?);
 
     match cli.operation {
@@ -77,7 +80,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     };
 
-    info!("K8s installation job completed.");
+    debug!("Operation finished");
 
     Ok(())
 }
