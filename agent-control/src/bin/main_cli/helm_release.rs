@@ -1,13 +1,11 @@
-use std::{fs, path::PathBuf, sync::Arc};
+use std::{fs, path::PathBuf};
 
 use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta};
-use newrelic_agent_control::{
-    agent_control::config::helmrelease_v2_type_meta, k8s::client::SyncK8sClient,
-};
+use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{utils::parse_key_value_pairs, ApplyError, ParseError};
+use crate::{errors::ParseError, utils::parse_key_value_pairs, ResourceTypeHandler};
 
 #[derive(Debug, Parser)]
 pub struct HelmReleaseData {
@@ -75,7 +73,11 @@ pub struct HelmReleaseData {
     pub timeout: String,
 }
 
-impl HelmReleaseData {
+impl ResourceTypeHandler for HelmReleaseData {
+    fn type_name(&self) -> String {
+        "Helm release".to_string()
+    }
+
     fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
         info!("Creating Helm release object representation");
 
@@ -123,7 +125,9 @@ impl HelmReleaseData {
 
         Ok(dynamic_object)
     }
+}
 
+impl HelmReleaseData {
     fn parse_values(&self) -> Result<Option<serde_json::Value>, ParseError> {
         match (&self.values, &self.values_file) {
             (Some(_), Some(_)) => {
@@ -150,22 +154,6 @@ impl HelmReleaseData {
             (None, None) => Ok(None),
         }
     }
-}
-
-pub fn apply_helm_release(
-    k8s_client: Arc<SyncK8sClient>,
-    helm_release_data: HelmReleaseData,
-) -> Result<(), ApplyError> {
-    info!("Creating Helm release");
-    let helm_release = helm_release_data
-        .to_dynamic_object(k8s_client.default_namespace().to_string())
-        .map_err(|err| ApplyError::HelmRelease(err.to_string()))?;
-    k8s_client
-        .apply_dynamic_object(&helm_release)
-        .map_err(|err| ApplyError::HelmRelease(err.to_string()))?;
-    info!("Helm release created");
-
-    Ok(())
 }
 
 #[cfg(test)]

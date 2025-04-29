@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
 use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
-use newrelic_agent_control::k8s::client::SyncK8sClient;
-use tracing::{debug, info};
+use tracing::debug;
 
-use crate::{utils::parse_key_value_pairs, ApplyError};
+use crate::{errors::ParseError, utils::parse_key_value_pairs, ResourceTypeHandler};
 
 #[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
@@ -37,8 +34,12 @@ pub struct HelmRepositoryData {
     pub interval: String,
 }
 
-impl HelmRepositoryData {
-    fn to_dynamic_object(&self, namespace: String) -> DynamicObject {
+impl ResourceTypeHandler for HelmRepositoryData {
+    fn type_name(&self) -> String {
+        "Helm repository".to_string()
+    }
+
+    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
         debug!("Creating Helm repository object representation");
 
         let labels = parse_key_value_pairs(self.labels.as_deref().unwrap_or_default());
@@ -68,23 +69,8 @@ impl HelmRepositoryData {
         };
         debug!("Helm repository object representation created");
 
-        dynamic_object
+        Ok(dynamic_object)
     }
-}
-
-pub fn apply_helm_repository(
-    k8s_client: Arc<SyncK8sClient>,
-    helm_repository_data: HelmRepositoryData,
-) -> Result<(), ApplyError> {
-    info!("Creating Helm repository");
-    let helm_repository =
-        helm_repository_data.to_dynamic_object(k8s_client.default_namespace().to_string());
-    k8s_client
-        .apply_dynamic_object(&helm_repository)
-        .map_err(|err| ApplyError::HelmRepository(err.to_string()))?;
-    info!("Helm repository created");
-
-    Ok(())
 }
 
 #[cfg(test)]
@@ -134,8 +120,9 @@ mod tests {
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
             interval: "6m".to_string(),
         };
-        let actual_dynamic_object =
-            helm_repository_data.to_dynamic_object("test-namespace".to_string());
+        let actual_dynamic_object = helm_repository_data
+            .to_dynamic_object("test-namespace".to_string())
+            .unwrap();
 
         assert_eq!(actual_dynamic_object, expected_dynamic_object);
     }

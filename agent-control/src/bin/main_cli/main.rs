@@ -1,14 +1,16 @@
-use std::sync::Arc;
+use std::{process::ExitCode, sync::Arc};
 
 use clap::{Parser, Subcommand};
-use helm_release::{apply_helm_release, HelmReleaseData};
-use helm_repository::{apply_helm_repository, HelmRepositoryData};
+use errors::{CliError, ParseError};
+use helm_release::HelmReleaseData;
+use helm_repository::HelmRepositoryData;
+use kube::api::DynamicObject;
 use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
-use thiserror::Error;
-use tracing::{debug, error, Level};
+use tracing::{debug, error, info, Level};
 
+mod errors;
 mod helm_release;
 mod helm_repository;
 mod utils;
@@ -34,12 +36,12 @@ enum Operations {
     /// Create an object in the cluster
     Create {
         #[command(subcommand)]
-        resource_type: CommandResourceType,
+        resource_type: ResourceType,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum CommandResourceType {
+enum ResourceType {
     /// Operate over a helm release object
     HelmRelease(HelmReleaseData),
 
@@ -47,31 +49,21 @@ enum CommandResourceType {
     HelmRepository(HelmRepositoryData),
 }
 
-#[derive(Debug, Error)]
-enum CliError {
-    #[error("Failed to apply resource: {0}")]
-    ApplyResource(String),
+impl ResourceType {
+    fn as_trait_object(&self) -> &dyn ResourceTypeHandler {
+        match self {
+            ResourceType::HelmRelease(data) => data,
+            ResourceType::HelmRepository(data) => data,
+        }
+    }
 }
 
-#[derive(Debug, Error)]
-enum ApplyError {
-    #[error("Failed to apply Helm repository: {0}")]
-    HelmRepository(String),
-
-    #[error("Failed to apply Helm release: {0}")]
-    HelmRelease(String),
+trait ResourceTypeHandler {
+    fn type_name(&self) -> String;
+    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError>;
 }
 
-#[derive(Debug, Error)]
-enum ParseError {
-    #[error("Failed to parse yaml: {0}")]
-    YamlString(String),
-
-    #[error("Failed to parse file: {0}")]
-    FileParse(String),
-}
-
-fn main() -> Result<(), CliError> {
+fn main() -> ExitCode {
     debug!("Starting cli");
     let cli = Cli::parse();
     debug!("Arguments parsed: {:?}", cli);
@@ -96,19 +88,31 @@ fn main() -> Result<(), CliError> {
     let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, cli.namespace).unwrap());
 
     let result = match cli.operation {
-        Operations::Create { resource_type } => match resource_type {
-            CommandResourceType::HelmRepository(helm_repository_data) => {
-                apply_helm_repository(k8s_client.clone(), helm_repository_data)
-                    .map_err(|err| CliError::ApplyResource(err.to_string()))
-            }
-            CommandResourceType::HelmRelease(helm_release_data) => {
-                apply_helm_release(k8s_client.clone(), helm_release_data)
-                    .map_err(|err| CliError::ApplyResource(err.to_string()))
-            }
-        },
+        Operations::Create { resource_type } => apply_resource(k8s_client.clone(), resource_type),
     };
 
-    result.inspect_err(|err| {
-        error!("Operation failed: {:?}", err);
-    })
+    match result {
+        Ok(_) => ExitCode::SUCCESS,
+        Err(err) => {
+            error!("Operation failed: {:?}", err);
+            err.to_exit_code()
+        }
+    }
+}
+
+fn apply_resource(
+    k8s_client: Arc<SyncK8sClient>,
+    resource_type: ResourceType,
+) -> Result<(), CliError> {
+    let resource_type_handler = resource_type.as_trait_object();
+
+    info!("Creating {}", resource_type_handler.type_name());
+    let dynamic_object =
+        resource_type_handler.to_dynamic_object(k8s_client.default_namespace().to_string())?;
+    k8s_client
+        .apply_dynamic_object(&dynamic_object)
+        .map_err(|err| CliError::ApplyResource(err.to_string()))?;
+    info!("{} created", resource_type_handler.type_name());
+
+    Ok(())
 }
