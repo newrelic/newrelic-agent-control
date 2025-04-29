@@ -5,7 +5,7 @@ use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use tracing::{debug, info};
 
-use crate::utils::parse_key_value_pairs;
+use crate::{utils::parse_key_value_pairs, ApplyError};
 
 #[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
@@ -75,12 +75,16 @@ impl HelmRepositoryData {
 pub fn apply_helm_repository(
     k8s_client: Arc<SyncK8sClient>,
     helm_repository_data: HelmRepositoryData,
-) {
+) -> Result<(), ApplyError> {
     info!("Creating Helm repository");
     let helm_repository =
         helm_repository_data.to_dynamic_object(k8s_client.default_namespace().to_string());
-    k8s_client.apply_dynamic_object(&helm_repository).unwrap();
+    k8s_client
+        .apply_dynamic_object(&helm_repository)
+        .map_err(|err| ApplyError::HelmRepository(err.to_string()))?;
     info!("Helm repository created");
+
+    Ok(())
 }
 
 #[cfg(test)]

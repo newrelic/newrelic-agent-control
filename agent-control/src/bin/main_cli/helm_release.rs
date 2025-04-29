@@ -7,7 +7,7 @@ use newrelic_agent_control::{
 };
 use tracing::{debug, info};
 
-use crate::utils::parse_key_value_pairs;
+use crate::{utils::parse_key_value_pairs, ApplyError, ParseError};
 
 #[derive(Debug, Parser)]
 pub struct HelmReleaseData {
@@ -35,7 +35,7 @@ pub struct HelmReleaseData {
     /// The values of the chart as a yaml string.
     /// The values can also be read from a file using `--values-file`,
     /// but only one flag can be used at once.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "values_file")]
     pub values: Option<String>,
 
     /// Chart values file
@@ -43,7 +43,7 @@ pub struct HelmReleaseData {
     /// A yaml file with the values of the chart.
     /// The values can also be passed as a string with `--values`,
     /// but only one flag can be used at once.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "values")]
     pub values_file: Option<PathBuf>,
 
     /// Identifying metadata
@@ -76,7 +76,7 @@ pub struct HelmReleaseData {
 }
 
 impl HelmReleaseData {
-    fn to_dynamic_object(&self, namespace: String) -> DynamicObject {
+    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
         info!("Creating Helm release object representation");
 
         let mut data = serde_json::json!({
@@ -97,7 +97,7 @@ impl HelmReleaseData {
             }
         });
 
-        if let Some(values) = self.parse_values() {
+        if let Some(values) = self.parse_values()? {
             debug!("Parsed values: {:?}", values);
             data["spec"]["values"] = values;
         }
@@ -121,34 +121,51 @@ impl HelmReleaseData {
         };
         debug!("Helm release object representation created");
 
-        dynamic_object
+        Ok(dynamic_object)
     }
 
-    fn parse_values(&self) -> Option<serde_json::Value> {
+    fn parse_values(&self) -> Result<Option<serde_json::Value>, ParseError> {
         match (&self.values, &self.values_file) {
             (Some(_), Some(_)) => {
-                panic!("You can only specify one of --values or --values-file");
+                unreachable!("Clap ensures that only one of `values` and `values_file` is set");
             }
             (Some(values), None) => {
-                let values = serde_yaml::from_str(values).unwrap();
-                Some(serde_json::from_value(values).unwrap())
+                let values = serde_yaml::from_str(values)
+                    .map_err(|err| ParseError::YamlString(err.to_string()))?;
+                Ok(Some(
+                    serde_json::from_value(values)
+                        .expect("serde_yaml should return a valid `Value`"),
+                ))
             }
             (None, Some(values_file)) => {
-                let values = fs::read_to_string(values_file).unwrap();
-                let values = serde_yaml::from_str(&values).unwrap();
-                Some(serde_json::from_value(values).unwrap())
+                let values = fs::read_to_string(values_file)
+                    .map_err(|err| ParseError::FileParse(err.to_string()))?;
+                let values = serde_yaml::from_str(&values)
+                    .map_err(|err| ParseError::YamlString(err.to_string()))?;
+                Ok(Some(
+                    serde_json::from_value(values)
+                        .expect("serde_yaml should return a valid `Value`"),
+                ))
             }
-            (None, None) => None,
+            (None, None) => Ok(None),
         }
     }
 }
 
-pub fn apply_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
+pub fn apply_helm_release(
+    k8s_client: Arc<SyncK8sClient>,
+    helm_release_data: HelmReleaseData,
+) -> Result<(), ApplyError> {
     info!("Creating Helm release");
-    let helm_release =
-        helm_release_data.to_dynamic_object(k8s_client.default_namespace().to_string());
-    k8s_client.apply_dynamic_object(&helm_release).unwrap();
+    let helm_release = helm_release_data
+        .to_dynamic_object(k8s_client.default_namespace().to_string())
+        .map_err(|err| ApplyError::HelmRelease(err.to_string()))?;
+    k8s_client
+        .apply_dynamic_object(&helm_release)
+        .map_err(|err| ApplyError::HelmRelease(err.to_string()))?;
     info!("Helm release created");
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -224,7 +241,9 @@ mod tests {
     #[test]
     fn test_to_dynamic_object() {
         assert_eq!(
-            helm_release_data().to_dynamic_object("test-namespace".to_string()),
+            helm_release_data()
+                .to_dynamic_object("test-namespace".to_string())
+                .unwrap(),
             helm_release_dynamic_object()
         );
     }
@@ -232,7 +251,7 @@ mod tests {
     #[test]
     fn test_parse_values() {
         assert_eq!(
-            helm_release_data().parse_values(),
+            helm_release_data().parse_values().unwrap(),
             Some(serde_json::json!({
                 "value1": "value1",
                 "value2": "value2"
@@ -246,7 +265,7 @@ mod tests {
         helm_release_data.values = None;
         helm_release_data.values_file = None;
 
-        assert_eq!(helm_release_data.parse_values(), None);
+        assert_eq!(helm_release_data.parse_values().unwrap(), None);
     }
 
     #[test]
@@ -257,7 +276,7 @@ mod tests {
         helm_release_data.values_file = None;
 
         assert_eq!(
-            helm_release_data.parse_values(),
+            helm_release_data.parse_values().unwrap(),
             Some(serde_json::json!({
             "outer": {
                 "inner1": "value1",
@@ -278,7 +297,7 @@ mod tests {
         helm_release_data.values_file = Some(temp_file.path().to_path_buf());
 
         assert_eq!(
-            helm_release_data.parse_values(),
+            helm_release_data.parse_values().unwrap(),
             Some(serde_json::json!({
             "outer": {
                 "inner1": "value1",
@@ -288,14 +307,11 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_parse_values_both_values() {
         let mut helm_release_data = helm_release_data();
         helm_release_data.values = Some("".to_string());
         helm_release_data.values_file = Some(PathBuf::from(""));
-
-        assert!(std::panic::catch_unwind(|| {
-            helm_release_data.parse_values();
-        })
-        .is_err());
+        let _ = helm_release_data.parse_values();
     }
 }
