@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
-use helm_release::{create_helm_release, HelmReleaseData};
-use helm_repository::{create_helm_repository, HelmRepositoryData};
+use helm_release::{apply_helm_release, HelmReleaseData};
+use helm_repository::{apply_helm_repository, HelmRepositoryData};
 use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
@@ -72,10 +72,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.operation {
         Operations::Create { resource_type } => match resource_type {
             CommandResourceType::HelmRepository(helm_repository_data) => {
-                create_helm_repository(k8s_client.clone(), helm_repository_data)
+                apply_helm_repository(k8s_client.clone(), helm_repository_data)
             }
             CommandResourceType::HelmRelease(helm_release_data) => {
-                create_helm_release(k8s_client.clone(), helm_release_data)
+                apply_helm_release(k8s_client.clone(), helm_release_data)
             }
         },
     };

@@ -143,7 +143,7 @@ impl HelmReleaseData {
     }
 }
 
-pub fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
+pub fn apply_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
     info!("Creating Helm release");
     let helm_release =
         helm_release_data.to_dynamic_object(k8s_client.default_namespace().to_string());

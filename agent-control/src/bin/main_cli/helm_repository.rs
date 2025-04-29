@@ -72,7 +72,7 @@ impl HelmRepositoryData {
     }
 }
 
-pub fn create_helm_repository(
+pub fn apply_helm_repository(
     k8s_client: Arc<SyncK8sClient>,
     helm_repository_data: HelmRepositoryData,
 ) {
