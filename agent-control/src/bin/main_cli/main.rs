@@ -12,7 +12,7 @@ mod helm_release;
 mod helm_repository;
 mod utils;
 
-/// Manage Helm releases and repositories in Kubernetes
+/// Manage Helm releases and repositories in Kubernetes.
 #[derive(Debug, Parser)]
 #[command()]
 struct Cli {
