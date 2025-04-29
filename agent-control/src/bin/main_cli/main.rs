@@ -6,7 +6,7 @@ use helm_repository::{create_helm_repository, HelmRepositoryData};
 use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
 };
-use tracing::{debug, info, Level};
+use tracing::{debug, Level};
 
 mod helm_release;
 mod helm_repository;
@@ -37,7 +37,7 @@ enum Operations {
     },
 }
 
-#[derive(Debug, Subcommand )]
+#[derive(Debug, Subcommand)]
 enum CommandResourceType {
     /// Operate over a helm release object
     HelmRelease(HelmReleaseData),

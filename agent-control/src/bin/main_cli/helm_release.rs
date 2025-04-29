@@ -75,70 +75,227 @@ pub struct HelmReleaseData {
     pub timeout: String,
 }
 
-pub fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
-    info!("Creating Helm release");
+impl HelmReleaseData {
+    fn to_dynamic_object(&self, namespace: String) -> DynamicObject {
+        info!("Creating Helm release object representation");
 
-    let mut data = serde_json::json!({
-        "spec": {
-            "interval": helm_release_data.interval,
-            "timeout": helm_release_data.timeout,
-            "chart": {
-                "spec": {
-                    "chart": helm_release_data.chart_name,
-                    "version": helm_release_data.chart_version,
-                    "sourceRef": {
-                        "kind": "HelmRepository",
-                        "name": helm_release_data.repository_name,
+        let mut data = serde_json::json!({
+            "spec": {
+                "interval": self.interval,
+                "timeout": self.timeout,
+                "chart": {
+                    "spec": {
+                        "chart": self.chart_name,
+                        "version": self.chart_version,
+                        "sourceRef": {
+                            "kind": "HelmRepository",
+                            "name": self.repository_name,
+                        },
+                        "interval": self.interval,
                     },
-                    "interval": helm_release_data.interval,
-                },
+                }
             }
-        }
-    });
+        });
 
-    if let Some(values) = parse_helm_release_values(&helm_release_data) {
-        debug!("Parsed values: {:?}", values);
-        data["spec"]["values"] = values;
+        if let Some(values) = self.parse_values() {
+            debug!("Parsed values: {:?}", values);
+            data["spec"]["values"] = values;
+        }
+
+        let labels = parse_key_value_pairs(self.labels.as_deref().unwrap_or_default());
+        debug!("Parsed labels: {:?}", labels);
+
+        let annotations = parse_key_value_pairs(self.annotations.as_deref().unwrap_or_default());
+        debug!("Parsed annotations: {:?}", annotations);
+
+        let dynamic_object = DynamicObject {
+            types: Some(helmrelease_v2_type_meta()),
+            metadata: ObjectMeta {
+                name: Some(self.name.clone()),
+                namespace: Some(namespace),
+                labels,
+                annotations,
+                ..Default::default()
+            },
+            data,
+        };
+        debug!("Helm release object representation created");
+
+        dynamic_object
     }
 
-    let labels = parse_key_value_pairs(&helm_release_data.labels.unwrap_or_default());
-    debug!("Parsed labels: {:?}", labels);
-
-    let annotations = parse_key_value_pairs(&helm_release_data.annotations.unwrap_or_default());
-    debug!("Parsed annotations: {:?}", annotations);
-
-    let helm_release = DynamicObject {
-        types: Some(helmrelease_v2_type_meta()),
-        metadata: ObjectMeta {
-            name: Some(helm_release_data.name.clone()),
-            namespace: Some(k8s_client.default_namespace().to_string()),
-            labels,
-            annotations,
-            ..Default::default()
-        },
-        data,
-    };
-    info!("Helm release object representation created");
-
-    info!("Applying helm release");
-    k8s_client.apply_dynamic_object(&helm_release).unwrap();
-    info!("Helm release applied");
+    fn parse_values(&self) -> Option<serde_json::Value> {
+        match (&self.values, &self.values_file) {
+            (Some(_), Some(_)) => {
+                panic!("You can only specify one of --values or --values-file");
+            }
+            (Some(values), None) => {
+                let values = serde_yaml::from_str(values).unwrap();
+                Some(serde_json::from_value(values).unwrap())
+            }
+            (None, Some(values_file)) => {
+                let values = fs::read_to_string(values_file).unwrap();
+                let values = serde_yaml::from_str(&values).unwrap();
+                Some(serde_json::from_value(values).unwrap())
+            }
+            (None, None) => None,
+        }
+    }
 }
 
-fn parse_helm_release_values(helm_release_data: &HelmReleaseData) -> Option<serde_json::Value> {
-    match (&helm_release_data.values, &helm_release_data.values_file) {
-        (Some(_), Some(_)) => {
-            panic!("You can only specify one of --values or --values-file");
+pub fn create_helm_release(k8s_client: Arc<SyncK8sClient>, helm_release_data: HelmReleaseData) {
+    info!("Creating Helm release");
+    let helm_release =
+        helm_release_data.to_dynamic_object(k8s_client.default_namespace().to_string());
+    k8s_client.apply_dynamic_object(&helm_release).unwrap();
+    info!("Helm release created");
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+
+    use super::*;
+    use tempfile::NamedTempFile;
+
+    fn helm_release_data() -> HelmReleaseData {
+        HelmReleaseData {
+            name: "test-release".to_string(),
+            chart_name: "test-chart".to_string(),
+            chart_version: "1.0.0".to_string(),
+            repository_name: "test-repository".to_string(),
+            values: Some("value1: value1\nvalue2: value2".to_string()),
+            values_file: None,
+            labels: Some("label1=value1,label2=value2".to_string()),
+            annotations: Some("annotation1=value1,annotation2=value2".to_string()),
+            interval: "6m".to_string(),
+            timeout: "5m".to_string(),
         }
-        (Some(values), None) => {
-            let values = serde_yaml::from_str(&values).unwrap();
-            Some(serde_json::from_value(values).unwrap())
+    }
+
+    fn helm_release_dynamic_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(helmrelease_v2_type_meta()),
+            metadata: ObjectMeta {
+                name: Some("test-release".to_string()),
+                namespace: Some("test-namespace".to_string()),
+                labels: Some(
+                    vec![
+                        ("label1".to_string(), "value1".to_string()),
+                        ("label2".to_string(), "value2".to_string()),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                annotations: Some(
+                    vec![
+                        ("annotation1".to_string(), "value1".to_string()),
+                        ("annotation2".to_string(), "value2".to_string()),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "interval": "6m",
+                    "timeout": "5m",
+                    "chart": {
+                        "spec": {
+                            "chart": "test-chart",
+                            "version": "1.0.0",
+                            "sourceRef": {
+                                "kind": "HelmRepository",
+                                "name": "test-repository",
+                            },
+                            "interval": "6m",
+                        },
+                    },
+                    "values": {
+                        "value1": "value1",
+                        "value2": "value2",
+                    },
+                },
+            }),
         }
-        (None, Some(values_file)) => {
-            let values = fs::read_to_string(values_file).unwrap();
-            let values = serde_yaml::from_str(&values).unwrap();
-            Some(serde_json::from_value(values).unwrap())
-        }
-        (None, None) => None,
+    }
+
+    #[test]
+    fn test_to_dynamic_object() {
+        assert_eq!(
+            helm_release_data().to_dynamic_object("test-namespace".to_string()),
+            helm_release_dynamic_object()
+        );
+    }
+
+    #[test]
+    fn test_parse_values() {
+        assert_eq!(
+            helm_release_data().parse_values(),
+            Some(serde_json::json!({
+                "value1": "value1",
+                "value2": "value2"
+            }))
+        );
+    }
+
+    #[test]
+    fn test_parse_values_no_values() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = None;
+        helm_release_data.values_file = None;
+
+        assert_eq!(helm_release_data.parse_values(), None);
+    }
+
+    #[test]
+    fn test_parse_values_from_string() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values =
+            Some("{outer: {inner1: 'value1', inner2: 'value2'}}".to_string());
+        helm_release_data.values_file = None;
+
+        assert_eq!(
+            helm_release_data.parse_values(),
+            Some(serde_json::json!({
+            "outer": {
+                "inner1": "value1",
+                "inner2": "value2"
+            }}))
+        );
+    }
+
+    #[test]
+    fn test_parse_values_from_file() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = None;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file
+            .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
+            .unwrap();
+        helm_release_data.values_file = Some(temp_file.path().to_path_buf());
+
+        assert_eq!(
+            helm_release_data.parse_values(),
+            Some(serde_json::json!({
+            "outer": {
+                "inner1": "value1",
+                "inner2": "value2"
+            }}))
+        );
+    }
+
+    #[test]
+    fn test_parse_values_both_values() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = Some("".to_string());
+        helm_release_data.values_file = Some(PathBuf::from(""));
+
+        assert!(std::panic::catch_unwind(|| {
+            helm_release_data.parse_values();
+        })
+        .is_err());
     }
 }

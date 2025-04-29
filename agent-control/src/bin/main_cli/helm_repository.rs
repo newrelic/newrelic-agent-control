@@ -37,40 +37,102 @@ pub struct HelmRepositoryData {
     pub interval: String,
 }
 
+impl HelmRepositoryData {
+    fn to_dynamic_object(&self, namespace: String) -> DynamicObject {
+        debug!("Creating Helm repository object representation");
+
+        let labels = parse_key_value_pairs(self.labels.as_deref().unwrap_or_default());
+        debug!("Parsed labels: {:?}", labels);
+
+        let annotations = parse_key_value_pairs(self.annotations.as_deref().unwrap_or_default());
+        debug!("Parsed annotations: {:?}", annotations);
+
+        let dynamic_object = DynamicObject {
+            types: Some(TypeMeta {
+                api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+                kind: "HelmRepository".to_string(),
+            }),
+            metadata: ObjectMeta {
+                name: Some(self.name.clone()),
+                namespace: Some(namespace),
+                labels,
+                annotations,
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "url": self.url,
+                    "interval": self.interval,
+                }
+            }),
+        };
+        debug!("Helm repository object representation created");
+
+        dynamic_object
+    }
+}
+
 pub fn create_helm_repository(
     k8s_client: Arc<SyncK8sClient>,
     helm_repository_data: HelmRepositoryData,
 ) {
     info!("Creating Helm repository");
+    let helm_repository =
+        helm_repository_data.to_dynamic_object(k8s_client.default_namespace().to_string());
+    k8s_client.apply_dynamic_object(&helm_repository).unwrap();
+    info!("Helm repository created");
+}
 
-    let labels = parse_key_value_pairs(&helm_repository_data.labels.unwrap_or_default());
-    debug!("Parsed labels: {:?}", labels);
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    let annotations = parse_key_value_pairs(&helm_repository_data.annotations.unwrap_or_default());
-    debug!("Parsed annotations: {:?}", annotations);
+    #[test]
+    fn test_to_dynamic_object() {
+        let expected_dynamic_object = DynamicObject {
+            types: Some(TypeMeta {
+                api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+                kind: "HelmRepository".to_string(),
+            }),
+            metadata: ObjectMeta {
+                name: Some("test-repository".to_string()),
+                namespace: Some("test-namespace".to_string()),
+                labels: Some(
+                    vec![
+                        ("label1".to_string(), "value1".to_string()),
+                        ("label2".to_string(), "value2".to_string()),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                annotations: Some(
+                    vec![
+                        ("annotation1".to_string(), "value1".to_string()),
+                        ("annotation2".to_string(), "value2".to_string()),
+                    ]
+                    .into_iter()
+                    .collect(),
+                ),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "url": "https://example.com/helm-charts",
+                    "interval": "6m",
+                }
+            }),
+        };
 
-    let helm_repo = DynamicObject {
-        types: Some(TypeMeta {
-            api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-            kind: "HelmRepository".to_string(),
-        }),
-        metadata: ObjectMeta {
-            name: Some(helm_repository_data.name),
-            namespace: Some(k8s_client.default_namespace().to_string()),
-            labels,
-            annotations,
-            ..Default::default()
-        },
-        data: serde_json::json!({
-            "spec": {
-                "url": helm_repository_data.url,
-                "interval": helm_repository_data.interval,
-            }
-        }),
-    };
-    info!("Helm repository object representation created");
+        let helm_repository_data = HelmRepositoryData {
+            name: "test-repository".to_string(),
+            url: "https://example.com/helm-charts".to_string(),
+            labels: Some("label1=value1,label2=value2".to_string()),
+            annotations: Some("annotation1=value1,annotation2=value2".to_string()),
+            interval: "6m".to_string(),
+        };
+        let actual_dynamic_object =
+            helm_repository_data.to_dynamic_object("test-namespace".to_string());
 
-    info!("Applying Helm repository");
-    k8s_client.apply_dynamic_object(&helm_repo).unwrap();
-    info!("Helm repository applied.");
+        assert_eq!(actual_dynamic_object, expected_dynamic_object);
+    }
 }
