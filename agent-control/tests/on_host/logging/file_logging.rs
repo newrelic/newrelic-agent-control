@@ -57,6 +57,7 @@ fn default_log_level_no_root() {
 }
 
 #[test]
+#[ignore = "requires root"]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
     let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);

@@ -14,6 +14,7 @@ use std::time::Duration;
 use tempfile::TempDir;
 
 #[test]
+#[ignore = "requires root"]
 fn test_auth_local_provider_as_root() {
     use crate::on_host::cli::create_temp_file;
 
@@ -77,6 +78,7 @@ agents: {{}}
 // This test verifies that empty Auth config doesn't inject any token.
 // This is a temporal behavior until auth config is mandatory.
 #[test]
+#[ignore = "requires root"]
 fn test_empty_auth_config_as_root() {
     use crate::on_host::cli::create_temp_file;
 
@@ -127,6 +129,7 @@ agents: {{}}
 }
 
 #[test]
+#[ignore = "requires root"]
 fn test_unauthorized_token_retrieve_as_root() {
     use super::cli::create_temp_file;
 
