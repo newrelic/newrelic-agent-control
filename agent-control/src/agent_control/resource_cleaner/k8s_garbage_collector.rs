@@ -173,16 +173,10 @@ impl K8sGarbageCollector {
                 }
             }
             K8sGarbageCollectorMode::Collect(id, agent_type_id) => {
-                // But at this point we already had an agent id passed as parameter,
-                // and we are sure that this one is not the one for Agent Control from the check
-                // right at `collect` method. Do we need to traverse the labels at all?
-                // Make sure the ID reported from the labels is the same as the one passed
-                // as parameter. Error if not?
                 if agent_id_from_labels != &id.get() {
                     return Ok(false);
                 }
 
-                // Same here?
                 let annotated_agent_type_id = AgentTypeID::try_from(
                     annotations::get_agent_type_id_value(annotations)
                         .ok_or(GarbageCollectorK8sError::MissingAnnotations)?
