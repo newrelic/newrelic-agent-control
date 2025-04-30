@@ -12,6 +12,13 @@ pub enum CliError {
 }
 
 impl CliError {
+    /// Converts the error to an exit code.
+    /// 
+    /// We comply with the [Advanced Bash Scripting Guide] and
+    /// [BSD guidelines] for the exit codes.
+    /// 
+    /// [Advanced Bash Scripting Guide]: https://tldp.org/LDP/abs/html/exitcodes.html
+    /// [BSD exit codes]: https://man.freebsd.org/cgi/man.cgi?query=sysexits&manpath=FreeBSD+4.3-RELEASE
     pub fn to_exit_code(&self) -> ExitCode {
         match self {
             CliError::ApplyResource(_) => ExitCode::from(1),
@@ -30,7 +37,7 @@ pub enum ParseError {
 }
 
 impl ParseError {
-    pub fn to_exit_code(&self) -> ExitCode {
+    fn to_exit_code(&self) -> ExitCode {
         match self {
             ParseError::YamlString(_) => ExitCode::from(65),
             ParseError::FileParse(_) => ExitCode::from(66),
