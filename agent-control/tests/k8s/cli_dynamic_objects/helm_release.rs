@@ -151,7 +151,7 @@ fn k8s_cli_create_helm_release_with_values_file() {
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let mut temp_file = NamedTempFile::new().unwrap();
-    temp_file.write(b"key1: value1\nkey2: value2").unwrap();
+    let _ = temp_file.write(b"key1: value1\nkey2: value2").unwrap();
 
     let release_name = "podinfo-release";
     let mut cmd = build_helm_release_command(namespace.clone(), release_name.to_string());
