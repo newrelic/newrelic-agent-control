@@ -24,7 +24,8 @@ scenarios:
       - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292; do echo 'Ruby not ready yet. Retrying...';sleep 5;done"
       - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null 127.0.0.1:9292
       # dotnet image does not have wget available, we use one from a different pod
-      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`
+      - timeout 60s bash -c "until kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`/rolldice; do echo 'Dotnet not ready yet. Retrying...';sleep 5;done"
+      - seq 100 | xargs -I{} kubectl exec ${SCENARIO_TAG}-ruby -c ${SCENARIO_TAG}-ruby -- wget -qO /dev/null `kubectl get pod ${SCENARIO_TAG}-dotnet -o json | jq -r .status.podIP`/rolldice
 
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
