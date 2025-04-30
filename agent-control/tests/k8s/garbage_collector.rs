@@ -164,7 +164,8 @@ agents:
     let first_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
-    gc.retain(&first_agents_config).unwrap();
+    gc.retain(K8sGarbageCollector::active_config_ids(&first_agents_config))
+        .unwrap();
     let api_foo: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api_foo.get(resource_name)).expect("CR should exist");
     let api_secret: Api<Secret> = Api::namespaced(test.client.clone(), &test_ns);
@@ -179,7 +180,10 @@ agents:
     let second_agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
-    gc.retain(&second_agents_config).unwrap();
+    gc.retain(K8sGarbageCollector::active_config_ids(
+        &second_agents_config,
+    ))
+    .unwrap();
     retry(60, Duration::from_secs(1), || {
         if block_on(api_foo.get(resource_name)).is_ok() {
             return Err("CR should be removed".into());
@@ -227,7 +231,8 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         .unwrap()
         .agents;
     // Expects the GC to clean the "removed" agent CR.
-    gc.retain(&agents_config).unwrap();
+    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
+        .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(removed_agent_id)).expect_err("fail garbage collecting removed agent");
 }
@@ -267,7 +272,8 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
         .unwrap()
         .agents;
-    gc.retain(&agents_config).unwrap();
+    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
+        .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     block_on(api.get(AGENT_CONTROL_ID)).expect("CR should exist");
     assert_eq!(
@@ -344,7 +350,8 @@ agents:
     let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>(config.as_str())
         .unwrap()
         .agents;
-    gc.retain(&agents_config).unwrap();
+    gc.retain(K8sGarbageCollector::active_config_ids(&agents_config))
+        .unwrap();
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
 
     block_on(api.get("not-deleted")).expect("CR should exist");

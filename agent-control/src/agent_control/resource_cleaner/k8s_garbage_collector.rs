@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use kube::api::{ObjectMeta, TypeMeta};
@@ -22,8 +22,8 @@ use crate::{
 use super::{ResourceCleaner, ResourceCleanerError};
 
 /// The K8sGarbageCollector is responsible for cleaning up resources in Kubernetes that are
-/// no longer needed. In practice, this actually performs the stop and deletion of a sub-agent once
-/// Agent Control removes it from its list of active sub-agents.
+/// no longer needed. In practice, this actually performs the stop and deletion of a sub-agent
+/// from Kubernetes, once Agent Control has removed it from its list of active sub-agents.
 ///
 /// It supports two modes of operation, with a public method for each:
 /// [`retain`](K8sGarbageCollector::retain) and [`collect`](K8sGarbageCollector::collect).
@@ -36,7 +36,7 @@ pub struct K8sGarbageCollector {
 enum K8sGarbageCollectorMode<'a> {
     /// Retain all resources that are in the config map passed as parameter.
     /// Remove all others.
-    RetainConfig(&'a SubAgentsMap),
+    RetainConfig(&'a HashMap<AgentID, AgentTypeID>),
     /// Remove all resources associated with the Agent ID and sub-agent config passed as parameter.
     Collect(&'a AgentID, &'a AgentTypeID),
 }
@@ -45,8 +45,11 @@ impl K8sGarbageCollector {
     /// Remove all the Kubernetes resources managed by Agent Control that are not included in the
     /// map passed as parameter.
     #[instrument(skip_all, name = "k8s_garbage_collector_retain")]
-    pub fn retain(&self, config: &SubAgentsMap) -> Result<(), GarbageCollectorK8sError> {
-        self.garbage_collection(K8sGarbageCollectorMode::RetainConfig(config))
+    pub fn retain(
+        &self,
+        active_agents: HashMap<AgentID, AgentTypeID>,
+    ) -> Result<(), GarbageCollectorK8sError> {
+        self.garbage_collection(K8sGarbageCollectorMode::RetainConfig(&active_agents))
     }
 
     /// Garbage collect resources managed by AC associated to a certain
@@ -62,6 +65,13 @@ impl K8sGarbageCollector {
             return Err(GarbageCollectorK8sError::AgentControlId);
         }
         self.garbage_collection(K8sGarbageCollectorMode::Collect(id, agent_type_id))
+    }
+
+    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
+        active_config
+            .iter()
+            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
+            .collect()
     }
 
     fn garbage_collection(
@@ -145,20 +155,20 @@ impl K8sGarbageCollector {
         }
 
         match mode {
-            K8sGarbageCollectorMode::RetainConfig(config) => {
+            K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
                 // Delete if the agent id does not exist in the passed config
-                match config.get(&AgentID::new(agent_id_from_labels)?) {
+                match agent_identities.get(&AgentID::new(agent_id_from_labels)?) {
                     None => Ok(true),
-                    Some(c) => {
+                    Some(agent_type_id) => {
                         // Check if the agent type is different from the one in the config.
                         // This is to support the case where the agent id exists in the config
                         // but it's a different agent type. See PR#655 for some details.
-                        let agent_type_id = AgentTypeID::try_from(
+                        let annotated_agent_type_id = AgentTypeID::try_from(
                             annotations::get_agent_type_id_value(annotations)
                                 .ok_or(GarbageCollectorK8sError::MissingAnnotations)?
                                 .as_str(),
                         )?;
-                        Ok(c.agent_type != agent_type_id)
+                        Ok(&annotated_agent_type_id != agent_type_id)
                     }
                 }
             }

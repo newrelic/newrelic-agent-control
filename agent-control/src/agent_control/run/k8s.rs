@@ -161,7 +161,9 @@ impl AgentControlRunner {
         // Cleanup of the existing resources managed by Agent Control but not existing in the
         // config loaded from the first time, for example from previous executions.
         garbage_collector
-            .retain(&agent_control_config.dynamic.agents)
+            .retain(K8sGarbageCollector::active_config_ids(
+                &agent_control_config.dynamic.agents,
+            ))
             .map_err(ResourceCleanerError::from)?;
 
         let dynamic_config_validator =
