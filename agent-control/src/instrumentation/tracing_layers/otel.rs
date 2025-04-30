@@ -1,7 +1,7 @@
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
-use crate::instrumentation::tracing::LayerBox;
+use crate::instrumentation::tracing::{LayerBox, TracingGuard};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::TracerProvider;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
@@ -28,21 +28,26 @@ pub enum OtelBuildError {
     FilteringDirective { directive: String, err: String },
 }
 
-/// Holds the OpenTelemetry providers to report instrumentation. These providers will be used to
-/// build the corresponding tracing layers.
+/// Holds the resources to build the layers for [tracing_subscriber] that will allow reporting telemetry
+/// through OpenTelemetry.
 ///
-/// The providers' shutdown will be automatically triggered when all their references are dropped.
-/// Check the providers documentation for details. Eg: [SdkTracerProvider].
+/// The underlying OpenTelemetry providers will be automatically shutdown when all their references are dropped.
+/// Therefore, in order to keep the reference for as long as needed, a guard is returned with the layers.
+/// For more information about automatic shutting down the OpenTelemetry providers, check the providers documentation.
+/// Eg: [SdkTracerProvider].
+#[derive(Default)]
 pub struct OtelLayers {
-    traces_provider: Option<SdkTracerProvider>,
-    metrics_provider: Option<SdkMeterProvider>,
-    logs_provider: Option<SdkLoggerProvider>,
-    filter: EnvFilter,
+    logs_layer_builder: Option<(SdkLoggerProvider, EnvFilter)>,
+    traces_layer_builder: Option<(SdkTracerProvider, EnvFilter)>,
+    // Metrics are reported regardless of the configured level, there are no filtering options supported for now.
+    metrics_layer_builder: Option<SdkMeterProvider>,
 }
 
 impl OtelLayers {
-    /// Returns the [tracing_subscriber] layers corresponding to the provided configuration.
-    pub fn try_build(config: &OtelConfig) -> Result<LayerBox, OtelBuildError> {
+    /// Returns the layers for [tracing_subscriber] corresponding to the enabled OpenTelemetry providers and the corresponding
+    /// _guard_ that needs to be keep alive in order to avoid shutting down the corresponding exporters while telemetry
+    /// is emitted. When the _guard_ is dropped all the exporters are shut down and the remaining telemetry is sent.
+    pub fn try_build(config: &OtelConfig) -> Result<(LayerBox, OtelGuard), OtelBuildError> {
         let http_config = HttpConfig::new(
             config.client_timeout.clone().into(),
             config.client_timeout.clone().into(),
@@ -53,7 +58,7 @@ impl OtelLayers {
         Ok(otel_layers.layers())
     }
 
-    /// Builds the providers corresponding to the provided configuration.
+    /// Builds the providers and filters corresponding to the provided configuration.
     pub(crate) fn try_new_with_client<C>(
         config: &OtelConfig,
         client: C,
@@ -61,53 +66,64 @@ impl OtelLayers {
     where
         C: OtelHttpClient + Send + Sync + Clone + 'static,
     {
-        let mut traces_provider = None;
-        let mut metrics_provider = None;
-        let mut logs_provider = None;
-
-        if config.traces.enabled || config.metrics.enabled || config.logs.enabled {
-            let attributes: Vec<KeyValue> = config
-                .custom_attributes
-                .iter()
-                .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
-                .collect();
-
-            let resource = Resource::builder()
-                .with_service_name(TRACER_NAME)
-                .with_attributes(attributes)
-                .build();
-
-            traces_provider = config
-                .traces
-                .enabled
-                .then(|| Self::traces_provider(client.clone(), config, resource.clone()))
-                .transpose()?;
-
-            metrics_provider = config
-                .metrics
-                .enabled
-                .then(|| Self::metrics_provider(client.clone(), config, resource.clone()))
-                .transpose()?;
-
-            logs_provider = config
-                .logs
-                .enabled
-                .then(|| Self::logs_provider(client, config, resource))
-                .transpose()?;
+        if !(config.traces.enabled || config.metrics.enabled || config.logs.enabled) {
+            return Ok(Self::default());
         }
 
-        let filter = EnvFilter::builder()
-            .parse(&config.insecure_level)
-            .map_err(|err| OtelBuildError::FilteringDirective {
-                directive: config.insecure_level.clone(),
-                err: err.to_string(),
-            })?;
+        // Set up the resource and custom attributes
+        let attributes: Vec<KeyValue> = config
+            .custom_attributes
+            .iter()
+            .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
+            .collect();
+
+        let resource = Resource::builder()
+            .with_service_name(TRACER_NAME)
+            .with_attributes(attributes)
+            .build();
+
+        // Build each layer if configured
+        let traces_layer_builder = if config.traces.enabled {
+            Some((
+                Self::traces_provider(client.clone(), config, resource.clone())?,
+                Self::filter(&config.insecure_level)?,
+            ))
+        } else {
+            None
+        };
+
+        let metrics_layer_builder = if config.metrics.enabled {
+            Some(Self::metrics_provider(
+                client.clone(),
+                config,
+                resource.clone(),
+            )?)
+        } else {
+            None
+        };
+
+        let logs_layer_builder = if config.logs.enabled {
+            Some((
+                Self::logs_provider(client, config, resource)?,
+                Self::filter(&config.insecure_level)?,
+            ))
+        } else {
+            None
+        };
 
         Ok(Self {
-            traces_provider,
-            metrics_provider,
-            logs_provider,
-            filter,
+            logs_layer_builder,
+            metrics_layer_builder,
+            traces_layer_builder,
+        })
+    }
+
+    fn filter(insecure_level: &str) -> Result<EnvFilter, OtelBuildError> {
+        EnvFilter::builder().parse(insecure_level).map_err(|err| {
+            OtelBuildError::FilteringDirective {
+                directive: insecure_level.to_string(),
+                err: err.to_string(),
+            }
         })
     }
 
@@ -186,29 +202,48 @@ impl OtelLayers {
             .build())
     }
 
-    /// Return the layers for [tracing_subscriber] corresponding to the enabled OpenTelemetry providers.
-    pub fn layers(self) -> LayerBox {
+    pub fn layers(self) -> (LayerBox, OtelGuard) {
         let mut layers = Vec::<LayerBox>::new();
-        if let Some(traces_provider) = self.traces_provider.as_ref() {
+        let mut guard = OtelGuard::default();
+
+        if let Some((traces_provider, traces_filter)) = self.traces_layer_builder {
+            guard._traces_provider = Some(traces_provider.clone());
             let layer =
                 tracing_opentelemetry::layer().with_tracer(traces_provider.tracer(TRACER_NAME));
-            layers.push(Box::new(layer));
+            layers.push(Box::new(layer.with_filter(traces_filter)));
         }
-        if let Some(metrics_provider) = self.metrics_provider.as_ref() {
+
+        if let Some(metrics_provider) = self.metrics_layer_builder {
+            guard._metrics_provider = Some(metrics_provider.clone());
             let layer = MetricsLayer::new(metrics_provider.clone());
             layers.push(Box::new(layer));
         }
-        if let Some(logs_provider) = self.logs_provider.as_ref() {
-            let layer = OpenTelemetryTracingBridge::new(logs_provider);
-            layers.push(Box::new(layer));
+
+        if let Some((logs_provider, logs_filter)) = self.logs_layer_builder {
+            guard._logs_provider = Some(logs_provider.clone());
+            let layer = OpenTelemetryTracingBridge::new(&logs_provider);
+            layers.push(Box::new(layer.with_filter(logs_filter)));
         }
 
-        layers.with_filter(self.filter).boxed()
+        (layers.boxed(), guard)
     }
 }
 
+/// Keeps a reference to the OpenTelemetry providers to avoid shutting down the underlying reporters while telemetry
+/// is emitted.
+#[derive(Default)]
+pub struct OtelGuard {
+    _logs_provider: Option<SdkLoggerProvider>,
+    _metrics_provider: Option<SdkMeterProvider>,
+    _traces_provider: Option<SdkTracerProvider>,
+}
+
+impl TracingGuard for OtelGuard {}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use http::Response;
     use opentelemetry_sdk::Resource;
     use tracing::{debug, info, trace};
@@ -216,7 +251,7 @@ mod tests {
     use tracing_subscriber::layer::SubscriberExt;
 
     use crate::http::client::tests::MockOtelHttpClient;
-    use crate::instrumentation::config::otel::{LogsConfig, OtelConfig};
+    use crate::instrumentation::config::otel::{LogsConfig, MetricsConfig, OtelConfig};
     use crate::instrumentation::tracing_layers::otel::OtelLayers;
 
     #[test]
@@ -258,17 +293,59 @@ mod tests {
         .unwrap();
 
         let otel_providers = OtelLayers {
-            logs_provider: Some(logs_provider),
-            filter: EnvFilter::builder().parse_lossy("info"),
-            traces_provider: None,
-            metrics_provider: None,
+            logs_layer_builder: Some((logs_provider, EnvFilter::builder().parse_lossy("info"))),
+            ..Default::default()
         };
 
-        let subscriber = tracing_subscriber::Registry::default().with(otel_providers.layers());
+        let (layers, _guard) = otel_providers.layers();
+        let subscriber = tracing_subscriber::Registry::default().with(layers);
         tracing::subscriber::with_default(subscriber, || {
             info!(INFO_LOG);
             debug!(DEBUG_LOG);
             trace!(TRACE_LOG);
+        });
+    }
+
+    #[test]
+    fn test_metrics_layer() {
+        let mut mock_http_client = MockOtelHttpClient::new();
+        // Asserts metrics are sent
+        mock_http_client
+            .expect_send_bytes()
+            .times(1..) // The metric should be sent at least once
+            .withf(|req| {
+                let body = String::from_utf8_lossy(req.body().as_ref());
+                req.uri().path().eq("/v1/metrics") && body.contains("uptime")
+            })
+            .returning(|_| {
+                Ok(Response::builder()
+                    .status(200)
+                    .body(opentelemetry_http::Bytes::default())
+                    .unwrap())
+            });
+
+        let metrics_provider = OtelLayers::metrics_provider(
+            mock_http_client,
+            &OtelConfig {
+                metrics: MetricsConfig {
+                    enabled: true,
+                    interval: Duration::from_secs(1).into(),
+                },
+                ..Default::default()
+            },
+            Resource::builder().build(),
+        )
+        .unwrap();
+
+        let otel_layers = OtelLayers {
+            metrics_layer_builder: Some(metrics_provider),
+            ..Default::default()
+        };
+        let (layers, _guard) = otel_layers.layers();
+        let subscriber = tracing_subscriber::Registry::default().with(layers);
+        tracing::subscriber::with_default(subscriber, || {
+            trace!(monotonic_counter.uptime = 42);
+            std::thread::sleep(Duration::from_secs(2));
         });
     }
 }
