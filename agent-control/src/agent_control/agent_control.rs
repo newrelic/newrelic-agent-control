@@ -445,6 +445,8 @@ mod tests {
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
+    use crate::agent_control::resource_cleaner::tests::MockResourceCleaner;
+    use crate::agent_control::resource_cleaner::ResourceCleanerError;
     use crate::agent_control::AgentControl;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
@@ -458,7 +460,7 @@ mod tests {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
-    use mockall::predicate;
+    use mockall::{predicate, Sequence};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
@@ -864,6 +866,40 @@ agents:
         let (agent_control_publisher, _agent_control_consumer) = pub_sub();
         let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
+        let mut resource_cleaner = MockResourceCleaner::new();
+        let mut resource_cleaning_seq = Sequence::new();
+        let mut sub_agents_to_clean = sub_agents_default_config().agents;
+        let infra_agent_id = AgentID::new("infra-agent").unwrap();
+        let infra_agent_type = sub_agents_to_clean
+            .remove(&infra_agent_id)
+            .unwrap()
+            .agent_type;
+        let nrdot_agent_id = AgentID::new("nrdot").unwrap();
+        let nrdot_agent_type = sub_agents_to_clean
+            .remove(&nrdot_agent_id)
+            .unwrap()
+            .agent_type;
+        // This test first cleans up the infra-agent agent
+        resource_cleaner
+            .expect_clean()
+            .once()
+            .in_sequence(&mut resource_cleaning_seq)
+            .with(
+                predicate::eq(infra_agent_id),
+                predicate::eq(infra_agent_type),
+            )
+            .returning(|_, _| Ok(()));
+        // Then cleans up the nrdot agent
+        resource_cleaner
+            .expect_clean()
+            .once()
+            .in_sequence(&mut resource_cleaning_seq)
+            .with(
+                predicate::eq(nrdot_agent_id),
+                predicate::eq(nrdot_agent_type),
+            )
+            .returning(|_, _| Ok(()));
+
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
@@ -875,7 +911,7 @@ agents:
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
-            NoOpResourceCleaner,
+            resource_cleaner,
             AgentControlConfig::default(),
         );
 
@@ -924,6 +960,162 @@ agents:
         agent_control
             .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
             .unwrap();
+
+        assert_eq!(running_sub_agents.len(), 1);
+
+        running_sub_agents.stop()
+    }
+
+    #[test]
+    fn agent_control_fails_if_resource_cleaning_fails() {
+        // Sub Agents
+        let sub_agents_config = sub_agents_default_config().agents;
+
+        let mut sub_agent_builder = MockSubAgentBuilder::new();
+        // it should build three times (2 + 1 + 1)
+        sub_agent_builder.should_build(3);
+
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        // all agents on first load
+        sub_agents_config_store
+            .expect_load()
+            .times(1)
+            .returning(|| Ok(sub_agents_default_config()));
+
+        sub_agents_config_store
+            .expect_load()
+            .once()
+            .return_once(|| {
+                Ok(HashMap::from([(
+                    AgentID::new("nrdot").unwrap(),
+                    SubAgentConfig {
+                        agent_type: AgentTypeID::try_from(
+                            "newrelic/io.opentelemetry.collector:0.0.1",
+                        )
+                        .unwrap(),
+                    },
+                )])
+                .into())
+            });
+
+        sub_agents_config_store
+            .expect_store()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let mut hash_repository_mock = MockHashRepository::new();
+        hash_repository_mock.should_save_hash(
+            &AgentID::new_agent_control_id(),
+            &Hash::new("a-hash".to_string()),
+        );
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
+        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
+
+        let mut resource_cleaner = MockResourceCleaner::new();
+        let mut resource_cleaning_seq = Sequence::new();
+        let mut sub_agents_to_clean = sub_agents_default_config().agents;
+        let infra_agent_id = AgentID::new("infra-agent").unwrap();
+        let infra_agent_type = sub_agents_to_clean
+            .remove(&infra_agent_id)
+            .unwrap()
+            .agent_type;
+        let nrdot_agent_id = AgentID::new("nrdot").unwrap();
+        let nrdot_agent_type = sub_agents_to_clean
+            .remove(&nrdot_agent_id)
+            .unwrap()
+            .agent_type;
+        // This test first cleans up the infra-agent agent
+        resource_cleaner
+            .expect_clean()
+            .once()
+            .in_sequence(&mut resource_cleaning_seq)
+            .with(
+                predicate::eq(infra_agent_id),
+                predicate::eq(infra_agent_type),
+            )
+            .returning(|_, _| Ok(()));
+        // Then cleans up the nrdot agent
+        resource_cleaner
+            .expect_clean()
+            .once()
+            .in_sequence(&mut resource_cleaning_seq)
+            .with(
+                predicate::eq(nrdot_agent_id),
+                predicate::eq(nrdot_agent_type),
+            )
+            .returning(|_, _| {
+                Err(ResourceCleanerError::new(
+                    "something failed when cleaning up resources!",
+                ))
+            });
+
+        // Create the Agent Control and rub Sub Agents
+        let agent_control = AgentControl::new(
+            None::<MockStartedOpAMPClient>,
+            Arc::new(hash_repository_mock),
+            sub_agent_builder,
+            Arc::new(sub_agents_config_store),
+            agent_control_publisher,
+            sub_agent_publisher,
+            pub_sub().1,
+            Some(opamp_consumer),
+            dynamic_config_validator,
+            resource_cleaner,
+            AgentControlConfig::default(),
+        );
+
+        let mut running_sub_agents = agent_control
+            .build_and_run_sub_agents(&sub_agents_config)
+            .unwrap();
+
+        // just one agent, it should remove the infra-agent
+        let remote_config = RemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            Hash::new("a-hash".to_string()),
+            Some(ConfigurationMap::new(HashMap::from([(
+                "".to_string(),
+                r#"
+agents:
+  nrdot:
+    agent_type: newrelic/io.opentelemetry.collector:0.0.1
+"#
+                .to_string(),
+            )]))),
+        );
+
+        assert_eq!(running_sub_agents.len(), 2);
+
+        agent_control
+            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+            .unwrap();
+
+        assert_eq!(running_sub_agents.len(), 1);
+
+        // remove nrdot and create new infra-agent sub_agent
+        let remote_config = RemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            Hash::new("b-hash".to_string()),
+            Some(ConfigurationMap::new(HashMap::from([(
+                "".to_string(),
+                r#"
+agents:
+  infra-agent:
+    agent_type: newrelic/com.newrelic.infrastructure:0.0.1
+"#
+                .to_string(),
+            )]))),
+        );
+
+        assert!(agent_control
+            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+            .is_err());
 
         assert_eq!(running_sub_agents.len(), 1);
 
