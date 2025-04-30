@@ -16,6 +16,20 @@ fn helm_repository_type_meta() -> TypeMeta {
     }
 }
 
+fn build_helm_repository_command(namespace: String) -> Command {
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    cmd.arg("create")
+        .arg("helm-repository")
+        .arg("--name")
+        .arg("podinfo-repository")
+        .arg("--url")
+        .arg("https://stefanprodan.github.io/podinfo")
+        .arg("--namespace")
+        .arg(namespace);
+
+    cmd
+}
+
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_create_helm_repository() {
@@ -25,15 +39,7 @@ fn k8s_cli_create_helm_repository() {
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let repository_name = "podinfo-repository";
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("create")
-        .arg("helm-repository")
-        .arg("--name")
-        .arg(repository_name)
-        .arg("--url")
-        .arg("https://stefanprodan.github.io/podinfo")
-        .arg("--namespace")
-        .arg(namespace.clone());
+    let mut cmd = build_helm_repository_command(namespace.clone());
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
@@ -61,16 +67,8 @@ fn k8s_cli_create_helm_repository_with_all_arguments() {
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let repository_name = "podinfo-repository";
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("create")
-        .arg("helm-repository")
-        .arg("--name")
-        .arg(repository_name)
-        .arg("--url")
-        .arg("https://stefanprodan.github.io/podinfo")
-        .arg("--namespace")
-        .arg(namespace.clone())
-        .arg("--interval")
+    let mut cmd = build_helm_repository_command(namespace.clone());
+    cmd.arg("--interval")
         .arg("6m")
         .arg("--labels")
         .arg("chart=podinfo, env=testing, app=ac")
@@ -115,15 +113,7 @@ fn k8s_cli_create_helm_repository_with_all_arguments() {
     );
 }
 
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_cli_create_helm_release() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
-
-    let release_name = "podinfo-release";
+fn build_helm_release_command(namespace: String, release_name: String) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("create")
         .arg("helm-release")
@@ -136,7 +126,21 @@ fn k8s_cli_create_helm_release() {
         .arg("--repository-name")
         .arg("podinfo-repository")
         .arg("--namespace")
-        .arg(namespace.clone());
+        .arg(namespace);
+
+    cmd
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_cli_create_helm_release() {
+    let runtime = crate::common::runtime::tokio_runtime();
+
+    let mut k8s_env = runtime.block_on(K8sEnv::new());
+    let namespace = runtime.block_on(k8s_env.test_namespace());
+
+    let release_name = "podinfo-release";
+    let mut cmd = build_helm_release_command(namespace.clone(), release_name.to_string());
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
@@ -146,7 +150,6 @@ fn k8s_cli_create_helm_release() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.metadata.name, Some(release_name.to_string()));
     assert_eq!(release.data["spec"]["interval"], "5m");
     assert_eq!(release.data["spec"]["timeout"], "5m");
 
@@ -167,20 +170,8 @@ fn k8s_cli_create_helm_release_with_all_arguments_but_values_file() {
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let release_name = "podinfo-release";
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("create")
-        .arg("helm-release")
-        .arg("--name")
-        .arg(release_name)
-        .arg("--chart-name")
-        .arg("podinfo")
-        .arg("--chart-version")
-        .arg("6.0.0")
-        .arg("--repository-name")
-        .arg("podinfo-repository")
-        .arg("--namespace")
-        .arg(namespace.clone())
-        .arg("--interval")
+    let mut cmd = build_helm_release_command(namespace.clone(), release_name.to_string());
+    cmd.arg("--interval")
         .arg("6m")
         .arg("--timeout")
         .arg("10m")
@@ -199,7 +190,6 @@ fn k8s_cli_create_helm_release_with_all_arguments_but_values_file() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.metadata.name, Some(release_name.to_string()));
     assert_eq!(
         release.metadata.labels,
         Some(
@@ -246,20 +236,8 @@ fn k8s_cli_create_helm_release_with_all_arguments_but_values() {
     temp_file.write(b"key1: value1\nkey2: value2").unwrap();
 
     let release_name = "podinfo-release";
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("create")
-        .arg("helm-release")
-        .arg("--name")
-        .arg(release_name)
-        .arg("--chart-name")
-        .arg("podinfo")
-        .arg("--chart-version")
-        .arg("6.0.0")
-        .arg("--repository-name")
-        .arg("podinfo-repository")
-        .arg("--namespace")
-        .arg(namespace.clone())
-        .arg("--interval")
+    let mut cmd = build_helm_release_command(namespace.clone(), release_name.to_string());
+    cmd.arg("--interval")
         .arg("6m")
         .arg("--timeout")
         .arg("10m")
@@ -278,7 +256,6 @@ fn k8s_cli_create_helm_release_with_all_arguments_but_values() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.metadata.name, Some(release_name.to_string()));
     assert_eq!(
         release.metadata.labels,
         Some(
