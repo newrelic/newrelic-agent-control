@@ -122,7 +122,7 @@ impl K8sGarbageCollector {
                     Ok(())
                 }),
                 Err(K8sError::MissingAPIResource(e)) => {
-                    debug!(error = %e, "GC skipping for TypeMeta");
+                    debug!(error = %e, "GC skipping for TypeMeta {}", tm.kind);
                     Ok(())
                 }
                 Err(e) => Err(e.into()),
@@ -149,7 +149,7 @@ impl K8sGarbageCollector {
         let agent_id_from_labels =
             labels::get_agent_id(labels).ok_or(GarbageCollectorK8sError::MissingLabels)?;
 
-        // We do not want to delete anything related to Agent Control by mistake
+        // Agent Control resources must not be removed by the Garbage Collector
         if agent_id_from_labels == AGENT_CONTROL_ID {
             return Ok(false);
         }

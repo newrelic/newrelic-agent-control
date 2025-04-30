@@ -10,6 +10,7 @@ use super::agent_id::AgentID;
 /// Represents a mechanism to clean up resources when called. Intended to be used by Agent Control
 /// for cleaning up sub-agent resources, Kubernetes objects or on-host packages.
 pub trait ResourceCleaner {
+    /// Cleans up resources associated with the given agent ID and agent type ID.
     fn clean(&self, agent_id: &AgentID, config: &AgentTypeID) -> Result<(), ResourceCleanerError>;
 }
 
