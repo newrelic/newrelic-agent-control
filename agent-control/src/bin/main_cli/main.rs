@@ -2,8 +2,8 @@ use std::{process::ExitCode, sync::Arc};
 
 use clap::{Parser, Subcommand};
 use errors::{CliError, ParseError};
-use helm_release::HelmReleaseData;
-use helm_repository::HelmRepositoryData;
+use helm_release::{HelmReleaseData, TYPE_NAME as HELM_RELEASE_TYPE_NAME};
+use helm_repository::{HelmRepositoryData, TYPE_NAME as HELM_REPOSITORY_TYPE_NAME};
 use kube::api::DynamicObject;
 use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
@@ -49,17 +49,7 @@ enum ResourceType {
     HelmRepository(HelmRepositoryData),
 }
 
-impl ResourceType {
-    fn as_trait_object(&self) -> &dyn ResourceTypeHandler {
-        match self {
-            ResourceType::HelmRelease(data) => data,
-            ResourceType::HelmRepository(data) => data,
-        }
-    }
-}
-
-trait ResourceTypeHandler {
-    fn type_name(&self) -> String;
+trait ToDynamicObject {
     fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError>;
 }
 
@@ -85,10 +75,13 @@ fn main() -> ExitCode {
     );
 
     debug!("Starting the k8s client");
-    let k8s_client = Arc::new(SyncK8sClient::try_new(runtime, cli.namespace).unwrap());
+    let k8s_client = SyncK8sClient::try_new(runtime, cli.namespace).unwrap();
 
     let result = match cli.operation {
-        Operations::Create { resource_type } => apply_resource(k8s_client.clone(), resource_type),
+        Operations::Create { resource_type } => match resource_type {
+            ResourceType::HelmRelease(data) => apply_resource(k8s_client, data, HELM_RELEASE_TYPE_NAME),
+            ResourceType::HelmRepository(data) => apply_resource(k8s_client, data, HELM_REPOSITORY_TYPE_NAME),
+        },
     };
 
     match result {
@@ -100,19 +93,18 @@ fn main() -> ExitCode {
     }
 }
 
-fn apply_resource(
-    k8s_client: Arc<SyncK8sClient>,
-    resource_type: ResourceType,
+fn apply_resource<T: ToDynamicObject>(
+    k8s_client: SyncK8sClient,
+    data: T,
+    type_name: &str
 ) -> Result<(), CliError> {
-    let resource_type_handler = resource_type.as_trait_object();
-
-    info!("Creating {}", resource_type_handler.type_name());
+    info!("Creating {}", type_name);
     let dynamic_object =
-        resource_type_handler.to_dynamic_object(k8s_client.default_namespace().to_string())?;
+        data.to_dynamic_object(k8s_client.default_namespace().to_string())?;
     k8s_client
         .apply_dynamic_object(&dynamic_object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-    info!("{} created", resource_type_handler.type_name());
+    info!("{} created", type_name);
 
     Ok(())
 }

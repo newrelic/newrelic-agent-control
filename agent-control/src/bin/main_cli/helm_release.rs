@@ -5,7 +5,9 @@ use kube::api::{DynamicObject, ObjectMeta};
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs, ResourceTypeHandler};
+use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
+
+pub const TYPE_NAME: &str = "HelmRepository";
 
 #[derive(Debug, Parser)]
 pub struct HelmReleaseData {
@@ -73,11 +75,7 @@ pub struct HelmReleaseData {
     pub timeout: String,
 }
 
-impl ResourceTypeHandler for HelmReleaseData {
-    fn type_name(&self) -> String {
-        "Helm release".to_string()
-    }
-
+impl ToDynamicObject for HelmReleaseData {
     fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
         info!("Creating Helm release object representation");
 

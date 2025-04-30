@@ -2,7 +2,9 @@ use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
 use tracing::debug;
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs, ResourceTypeHandler};
+use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
+
+pub const TYPE_NAME: &str = "HelmRepository";
 
 #[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
@@ -34,11 +36,7 @@ pub struct HelmRepositoryData {
     pub interval: String,
 }
 
-impl ResourceTypeHandler for HelmRepositoryData {
-    fn type_name(&self) -> String {
-        "Helm repository".to_string()
-    }
-
+impl ToDynamicObject for HelmRepositoryData {
     fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
         debug!("Creating Helm repository object representation");
 
