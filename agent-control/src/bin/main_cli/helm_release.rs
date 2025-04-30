@@ -286,7 +286,7 @@ mod tests {
         helm_release_data.values = None;
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file
+        let _ = temp_file
             .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
             .unwrap();
         helm_release_data.values_file = Some(temp_file.path().to_path_buf());
@@ -307,7 +307,7 @@ mod tests {
         helm_release_data.values = None;
 
         let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write(b"key1: value1\nkey2 value2").unwrap();
+        let _ = temp_file.write(b"key1: value1\nkey2 value2").unwrap();
         helm_release_data.values_file = Some(temp_file.path().to_path_buf());
 
         assert!(helm_release_data.parse_values().is_err());
