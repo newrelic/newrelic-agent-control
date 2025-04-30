@@ -79,8 +79,12 @@ fn main() -> ExitCode {
 
     let result = match cli.operation {
         Operations::Create { resource_type } => match resource_type {
-            ResourceType::HelmRelease(data) => apply_resource(k8s_client, data, HELM_RELEASE_TYPE_NAME),
-            ResourceType::HelmRepository(data) => apply_resource(k8s_client, data, HELM_REPOSITORY_TYPE_NAME),
+            ResourceType::HelmRelease(data) => {
+                apply_resource(k8s_client, data, HELM_RELEASE_TYPE_NAME)
+            }
+            ResourceType::HelmRepository(data) => {
+                apply_resource(k8s_client, data, HELM_REPOSITORY_TYPE_NAME)
+            }
         },
     };
 
@@ -96,11 +100,10 @@ fn main() -> ExitCode {
 fn apply_resource<T: ToDynamicObject>(
     k8s_client: SyncK8sClient,
     data: T,
-    type_name: &str
+    type_name: &str,
 ) -> Result<(), CliError> {
     info!("Creating {}", type_name);
-    let dynamic_object =
-        data.to_dynamic_object(k8s_client.default_namespace().to_string())?;
+    let dynamic_object = data.to_dynamic_object(k8s_client.default_namespace().to_string())?;
     k8s_client
         .apply_dynamic_object(&dynamic_object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;

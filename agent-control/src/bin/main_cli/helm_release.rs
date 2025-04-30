@@ -272,6 +272,15 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_values_from_string_throws_error_invalid_yaml() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = Some("key1: value1\nkey2 value2".to_string());
+        helm_release_data.values_file = None;
+
+        assert!(helm_release_data.parse_values().is_err());
+    }
+
+    #[test]
     fn test_parse_values_from_file() {
         let mut helm_release_data = helm_release_data();
         helm_release_data.values = None;
@@ -290,6 +299,18 @@ mod tests {
                 "inner2": "value2"
             }}))
         );
+    }
+
+    #[test]
+    fn test_parse_values_from_file_throws_error_invalid_yaml() {
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = None;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        temp_file.write(b"key1: value1\nkey2 value2").unwrap();
+        helm_release_data.values_file = Some(temp_file.path().to_path_buf());
+
+        assert!(helm_release_data.parse_values().is_err());
     }
 
     #[test]
