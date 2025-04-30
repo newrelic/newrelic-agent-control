@@ -149,15 +149,22 @@ impl K8sGarbageCollector {
         let agent_id_from_labels =
             labels::get_agent_id(labels).ok_or(GarbageCollectorK8sError::MissingLabels)?;
 
-        // Agent Control resources must not be removed by the Garbage Collector
-        if agent_id_from_labels == AGENT_CONTROL_ID {
-            return Ok(false);
-        }
+        let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
+            Ok(id) => id,
+            Err(e) => {
+                // We must not delete anything with reserved AgentIDs (currently only Agent Control)
+                return if matches!(e, AgentIDError::Reserved(_)) {
+                    Ok(false)
+                } else {
+                    Err(e.into())
+                };
+            }
+        };
 
         match mode {
             K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
                 // Delete if the agent id does not exist in the passed config
-                match agent_identities.get(&AgentID::new(agent_id_from_labels)?) {
+                match agent_identities.get(&agent_id_from_labels) {
                     None => Ok(true),
                     Some(agent_type_id) => {
                         // Check if the agent type is different from the one in the config.
@@ -173,7 +180,7 @@ impl K8sGarbageCollector {
                 }
             }
             K8sGarbageCollectorMode::Collect(id, agent_type_id) => {
-                if agent_id_from_labels != &id.get() {
+                if agent_id_from_labels != **id {
                     return Ok(false);
                 }
 
@@ -183,7 +190,7 @@ impl K8sGarbageCollector {
                         .as_str(),
                 )?;
 
-                Ok(&&annotated_agent_type_id == agent_type_id)
+                Ok(annotated_agent_type_id == **agent_type_id)
             }
         }
     }
