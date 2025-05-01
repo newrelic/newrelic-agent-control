@@ -151,14 +151,9 @@ impl K8sGarbageCollector {
 
         let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
             Ok(id) => id,
-            Err(e) => {
-                // We must not delete anything with reserved AgentIDs (currently only Agent Control)
-                return if matches!(e, AgentIDError::Reserved(_)) {
-                    Ok(false)
-                } else {
-                    Err(e.into())
-                };
-            }
+            // We must not delete anything with reserved AgentIDs (currently only Agent Control)
+            Err(AgentIDError::Reserved(_)) => return Ok(false),
+            Err(e) => return Err(e.into()),
         };
 
         match mode {
