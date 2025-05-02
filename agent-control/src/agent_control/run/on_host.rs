@@ -5,6 +5,7 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
+use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{AgentControlRunner, Environment};
 use crate::agent_control::AgentControl;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
@@ -194,6 +195,7 @@ impl AgentControlRunner {
             self.application_event_consumer,
             maybe_sa_opamp_consumer,
             dynamic_config_validator,
+            NoOpResourceCleaner,
             agent_control_config,
         )
         .run()

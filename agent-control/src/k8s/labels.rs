@@ -51,7 +51,9 @@ impl Labels {
 
 /// returns true if labels indicates that is managed by the agentControl
 pub fn is_managed_by_agentcontrol(labels: &BTreeMap<String, String>) -> bool {
-    MANAGED_BY_VAL == labels.get(MANAGED_BY_KEY).unwrap_or(&String::from(""))
+    labels
+        .get(MANAGED_BY_KEY)
+        .is_some_and(|v| v == MANAGED_BY_VAL)
 }
 
 pub fn get_agent_id(labels: &BTreeMap<String, String>) -> Option<&String> {

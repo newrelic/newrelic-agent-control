@@ -185,7 +185,7 @@ pub struct K8sConfig {
     #[serde(default)]
     pub chart_version: String,
 
-    /// CRDs is a list of crds that the SA should watch and be able to create/delete.
+    /// CRDs is a list of crds that AC should watch and be able to create/delete.
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
 }

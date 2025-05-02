@@ -1,4 +1,4 @@
-use super::config::OpAMPClientConfig;
+use super::config::{K8sConfig, OpAMPClientConfig};
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_FILENAME,
@@ -72,10 +72,7 @@ pub struct AgentControlRunConfig {
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
     pub proxy: ProxyConfig,
-
-    pub k8s_config: super::config::K8sConfig,
-
-    pub garbage_collector_interval: Duration,
+    pub k8s_config: K8sConfig,
 }
 
 /// Structure with all the data required to run the agent control.
@@ -93,11 +90,8 @@ pub struct AgentControlRunner {
     #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
 
-    k8s_config: super::config::K8sConfig,
+    k8s_config: K8sConfig,
 
-    garbage_collector_interval: Duration,
-
-    #[allow(dead_code)]
     runtime: Arc<Runtime>,
 
     // Since _http_server_runner drop depends on agent_control_publisher being drop before we need it
@@ -168,10 +162,7 @@ impl AgentControlRunner {
         Ok(AgentControlRunner {
             _http_server_runner,
             runtime,
-
             k8s_config: config.k8s_config,
-
-            garbage_collector_interval: config.garbage_collector_interval,
             agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
