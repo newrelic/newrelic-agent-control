@@ -34,6 +34,7 @@ fn default_log_level_no_root() {
 }
 
 #[test]
+#[ignore = "requires root"]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
     std::fs::write(dir.path().join(AGENT_CONTROL_CONFIG_FILENAME), EMPTY_CONFIG).unwrap();
@@ -88,6 +89,7 @@ fn debug_log_level_no_root() {
 }
 
 #[test]
+#[ignore = "requires root"]
 fn trace_log_level_as_root() {
     let dir = TempDir::new().unwrap();
     std::fs::write(

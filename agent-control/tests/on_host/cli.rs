@@ -69,7 +69,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(unix)]
 #[test]
-fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
+fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     use crate::on_host::logging::level::TIME_FORMAT;
@@ -108,7 +108,7 @@ fn runs_as_root() -> Result<(), Box<dyn std::error::Error>> {
 
 #[cfg(unix)]
 #[test]
-fn custom_logging_format_as_root() -> Result<(), Box<dyn std::error::Error>> {
+fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
 
     let dir = TempDir::new()?;
@@ -155,6 +155,7 @@ log:
 
 #[cfg(unix)]
 #[test]
+#[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use httpmock::Method::POST;
     use httpmock::MockServer;
@@ -225,7 +226,7 @@ agents: {{}}
 
 #[cfg(unix)]
 #[test]
-fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
+fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};
 
     let dir = TempDir::new()?;

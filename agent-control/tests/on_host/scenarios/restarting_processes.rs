@@ -14,6 +14,7 @@ use tempfile::TempDir;
 /// The agent control is configured with no OpAMP and a custom agent-type to check that
 /// a process gets restarted as expected when killing it externally.
 #[test]
+#[ignore = "requires root"]
 fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use crate::on_host::cli::create_temp_file;
 
