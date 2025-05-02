@@ -2,8 +2,13 @@ use std::process::ExitCode;
 
 use thiserror::Error;
 
+use newrelic_agent_control::k8s::error::K8sError;
+
 #[derive(Debug, Error)]
 pub enum CliError {
+    #[error("Failed to create k8s client: {0}")]
+    K8sClient(#[from] K8sError),
+
     #[error("Failed to apply resource: {0}")]
     ApplyResource(String),
 
@@ -21,6 +26,7 @@ impl CliError {
     /// [BSD exit codes]: https://man.freebsd.org/cgi/man.cgi?query=sysexits&manpath=FreeBSD+4.3-RELEASE
     pub fn to_exit_code(&self) -> ExitCode {
         match self {
+            CliError::K8sClient(_) => ExitCode::from(69),
             CliError::ApplyResource(_) => ExitCode::from(1),
             CliError::Parse(err) => err.to_exit_code(),
         }

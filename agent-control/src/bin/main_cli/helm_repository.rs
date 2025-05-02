@@ -4,7 +4,7 @@ use tracing::debug;
 
 use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
 
-pub const TYPE_NAME: &str = "HelmRepository";
+pub const TYPE_NAME: &str = "Helm Repository";
 
 #[derive(Debug, Parser)]
 pub struct HelmRepositoryData {

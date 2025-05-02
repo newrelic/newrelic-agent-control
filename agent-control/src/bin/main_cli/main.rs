@@ -66,24 +66,13 @@ fn main() -> ExitCode {
     debug!("Installing default rustls crypto provider");
     install_rustls_default_crypto_provider();
 
-    debug!("Starting the runtime");
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Tokio should be able to create a runtime"),
-    );
-
-    debug!("Starting the k8s client");
-    let k8s_client = SyncK8sClient::try_new(runtime, cli.namespace).unwrap();
-
     let result = match cli.operation {
         Operations::Create { resource_type } => match resource_type {
             ResourceType::HelmRelease(data) => {
-                apply_resource(k8s_client, data, HELM_RELEASE_TYPE_NAME)
+                apply_resource(cli.namespace, data, HELM_RELEASE_TYPE_NAME)
             }
             ResourceType::HelmRepository(data) => {
-                apply_resource(k8s_client, data, HELM_REPOSITORY_TYPE_NAME)
+                apply_resource(cli.namespace, data, HELM_REPOSITORY_TYPE_NAME)
             }
         },
     };
@@ -98,16 +87,30 @@ fn main() -> ExitCode {
 }
 
 fn apply_resource<T: ToDynamicObject>(
-    k8s_client: SyncK8sClient,
+    namespace: String,
     data: T,
     type_name: &str,
 ) -> Result<(), CliError> {
     info!("Creating {}", type_name);
-    let dynamic_object = data.to_dynamic_object(k8s_client.default_namespace().to_string())?;
+    let dynamic_object = data.to_dynamic_object(namespace.clone())?;
+    let k8s_client = k8s_client(namespace.clone())?;
     k8s_client
         .apply_dynamic_object(&dynamic_object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;
     info!("{} created", type_name);
 
     Ok(())
+}
+
+fn k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
+    debug!("Starting the runtime");
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Tokio should be able to create a runtime"),
+    );
+
+    debug!("Starting the k8s client");
+    Ok(SyncK8sClient::try_new(runtime, namespace)?)
 }
