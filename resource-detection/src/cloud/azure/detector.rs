@@ -1,7 +1,7 @@
 //! Azure EC2 instance id detector implementation
 use super::metadata::AzureMetadata;
 use crate::cloud::http_client::{HttpClient, HttpClientError};
-use crate::{cloud::AZURE_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use crate::{DetectError, Detector, Key, Resource, Value, cloud::AZURE_INSTANCE_ID};
 use http::HeaderMap;
 use thiserror::Error;
 use tracing::instrument;

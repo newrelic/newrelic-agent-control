@@ -1,5 +1,5 @@
 use k8s_openapi::{
-    apimachinery::pkg::util::intstr::IntOrString, Metadata, NamespaceResourceScope, Resource,
+    Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::util::intstr::IntOrString,
 };
 use kube::api::{ObjectMeta, TypeMeta};
 

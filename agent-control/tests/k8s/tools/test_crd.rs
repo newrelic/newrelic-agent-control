@@ -1,9 +1,9 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use kube::{
+    Api, Client, CustomResource, CustomResourceExt,
     api::{DynamicObject, ObjectMeta, Patch, PatchParams, PostParams, TypeMeta},
     core::GroupVersion,
     runtime::reflector::Lookup,
-    Api, Client, CustomResource, CustomResourceExt,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

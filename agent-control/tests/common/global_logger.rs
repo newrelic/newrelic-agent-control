@@ -3,7 +3,7 @@ use std::sync::Once;
 
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_LOG_DIR;
 use newrelic_agent_control::instrumentation::config::logs::config::LoggingConfig;
-use newrelic_agent_control::instrumentation::tracing::{try_init_tracing, TracingConfig};
+use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
 
 static INIT_LOGGER: Once = Once::new();
 

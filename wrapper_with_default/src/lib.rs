@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput, Fields, Path};
+use syn::{Data, DeriveInput, Fields, Path, parse_macro_input, spanned::Spanned};
 
 /// Procedural derive macro to make easier the implementation of wrappers setting a default value.
 /// It automatically generates the [Default] implementation with the provided `wrapper_default_value` (which should

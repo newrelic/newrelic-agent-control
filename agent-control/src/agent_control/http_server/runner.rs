@@ -164,8 +164,8 @@ mod tests {
     use tracing_test::traced_test;
 
     use crate::agent_control::http_server::config::ServerConfig;
-    use crate::event::channel::pub_sub;
     use crate::event::AgentControlEvent;
+    use crate::event::channel::pub_sub;
 
     use super::Runner;
 

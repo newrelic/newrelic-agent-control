@@ -4,8 +4,8 @@ use crate::common::opamp::{ConfigResponse, FakeServer};
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{
-    start_agent_control_with_testdata_config, wait_until_agent_control_with_opamp_is_started,
-    CUSTOM_AGENT_TYPE_PATH,
+    CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
+    wait_until_agent_control_with_opamp_is_started,
 };
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;

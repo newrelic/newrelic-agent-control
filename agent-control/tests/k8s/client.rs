@@ -1,18 +1,18 @@
 use super::tools::{
     k8s_env::K8sEnv,
-    test_crd::{create_foo_cr, foo_type_meta, get_dynamic_api_foo, Foo, FooSpec},
+    test_crd::{Foo, FooSpec, create_foo_cr, foo_type_meta, get_dynamic_api_foo},
 };
 
 use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
 use assert_matches::assert_matches;
 use kube::core::DynamicObject;
 use kube::{
-    api::{Api, DeleteParams, TypeMeta},
     CustomResource,
+    api::{Api, DeleteParams, TypeMeta},
 };
 use kube::{CustomResourceExt, ResourceExt};
 use newrelic_agent_control::k8s::Error::MissingAPIResource;
-use newrelic_agent_control::k8s::{client::AsyncK8sClient, Error};
+use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -553,25 +553,29 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     // Old removed CR should not be found
-    assert!(k8s_client
-        .dynamic_object_managers()
-        .get(
-            &dynamic_object.types.clone().unwrap(),
-            &dynamic_object.name_unchecked(),
-        )
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        k8s_client
+            .dynamic_object_managers()
+            .get(
+                &dynamic_object.types.clone().unwrap(),
+                &dynamic_object.name_unchecked(),
+            )
+            .await
+            .unwrap()
+            .is_none()
+    );
     // New CR should be found
-    assert!(k8s_client
-        .dynamic_object_managers()
-        .get(
-            &new_dyn_object.types.clone().unwrap(),
-            &new_dyn_object.name_unchecked(),
-        )
-        .await
-        .unwrap()
-        .is_some());
+    assert!(
+        k8s_client
+            .dynamic_object_managers()
+            .get(
+                &new_dyn_object.types.clone().unwrap(),
+                &new_dyn_object.name_unchecked(),
+            )
+            .await
+            .unwrap()
+            .is_some()
+    );
 
     // clean up
     delete_crd(k8s.client.clone(), ClientTest::crd())

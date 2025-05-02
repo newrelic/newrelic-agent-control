@@ -9,7 +9,7 @@ use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
     agent_control::{agent_control::AgentControl, error::AgentError},
     opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
-    sub_agent::{collection::StartedSubAgents, NotStartedSubAgent, SubAgentBuilder},
+    sub_agent::{NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents},
 };
 use opamp_client::StartedClient;
 use tracing::{error, info};
@@ -82,7 +82,7 @@ mod tests {
         opamp::{
             client_builder::tests::MockStartedOpAMPClient,
             hash_repository::repository::tests::MockHashRepository,
-            remote_config::{hash::Hash, ConfigurationMap, RemoteConfig},
+            remote_config::{ConfigurationMap, RemoteConfig, hash::Hash},
         },
         sub_agent::{
             collection::StartedSubAgents,

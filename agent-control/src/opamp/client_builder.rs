@@ -3,8 +3,8 @@ use super::effective_config::loader::EffectiveConfigLoaderBuilder;
 use super::http::builder::{HttpClientBuilder, HttpClientBuilderError};
 use super::instance_id::getter::GetterError;
 use crate::agent_control::agent_id::AgentID;
-use crate::event::channel::EventPublisher;
 use crate::event::OpAMPEvent;
+use crate::event::channel::EventPublisher;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::settings::StartSettings;
@@ -110,9 +110,9 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
-        opamp::proto::{AgentDescription, ComponentHealth, CustomCapabilities, RemoteConfigStatus},
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
         StartedClientResult,
+        opamp::proto::{AgentDescription, ComponentHealth, CustomCapabilities, RemoteConfigStatus},
     };
 
     use super::*;

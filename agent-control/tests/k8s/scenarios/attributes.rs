@@ -6,7 +6,7 @@ use crate::common::opamp::ConfigResponse;
 use crate::common::retry::retry;
 use crate::common::{opamp::FakeServer, runtime::block_on};
 use crate::k8s::tools::agent_control::{
-    wait_until_agent_control_with_opamp_is_started, CUSTOM_AGENT_TYPE_PATH,
+    CUSTOM_AGENT_TYPE_PATH, wait_until_agent_control_with_opamp_is_started,
 };
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,

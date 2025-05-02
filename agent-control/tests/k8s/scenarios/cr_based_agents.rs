@@ -1,6 +1,6 @@
 use crate::k8s::tools::agent_control::BAR_CR_AGENT_TYPE_PATH;
 use crate::k8s::tools::k8s_api::check_config_map_exist;
-use crate::k8s::tools::test_crd::{create_crd, delete_crd, Foo};
+use crate::k8s::tools::test_crd::{Foo, create_crd, delete_crd};
 use crate::k8s::tools::{
     agent_control::{
         start_agent_control_with_testdata_config, wait_until_agent_control_with_opamp_is_started,

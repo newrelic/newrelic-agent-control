@@ -1,5 +1,5 @@
-use crate::event::channel::EventPublisher;
 use crate::event::SubAgentEvent;
+use crate::event::channel::EventPublisher;
 use crate::sub_agent::error::SubAgentError;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;

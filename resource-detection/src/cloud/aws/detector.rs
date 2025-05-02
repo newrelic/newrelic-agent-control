@@ -3,7 +3,7 @@
 use super::metadata::AWSMetadata;
 use crate::cloud::aws::http_client::AWSHttpClient;
 use crate::cloud::http_client::{HttpClient, HttpClientError};
-use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use crate::{DetectError, Detector, Key, Resource, Value, cloud::AWS_INSTANCE_ID};
 use core::str;
 use std::time::Duration;
 use thiserror::Error;

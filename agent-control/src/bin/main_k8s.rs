@@ -6,8 +6,8 @@
 
 use newrelic_agent_control::agent_control::run::{AgentControlRunner, Environment};
 use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
-use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
+use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;

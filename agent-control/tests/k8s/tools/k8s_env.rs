@@ -3,8 +3,8 @@ use crate::common::runtime::tokio_runtime;
 use super::test_crd::create_foo_crd;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
-    api::{DeleteParams, PostParams},
     Api, Client,
+    api::{DeleteParams, PostParams},
 };
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use std::{env, sync::Once};

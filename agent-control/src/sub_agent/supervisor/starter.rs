@@ -1,5 +1,5 @@
-use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
+use crate::event::channel::EventPublisher;
 use crate::sub_agent::error::SubAgentBuilderError;
 use crate::sub_agent::health::health_checker::HealthCheckerError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -31,8 +31,8 @@ pub trait SupervisorStarter {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::event::channel::EventPublisher;
     use crate::event::SubAgentInternalEvent;
+    use crate::event::channel::EventPublisher;
     use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use mockall::mock;

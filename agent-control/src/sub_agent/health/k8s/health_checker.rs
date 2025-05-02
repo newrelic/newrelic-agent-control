@@ -155,13 +155,15 @@ pub mod tests {
     #[test]
     fn no_resource_set() {
         let mock_client = MockSyncK8sClient::default();
-        assert!(SubAgentHealthChecker::try_new(
-            Arc::new(mock_client),
-            Arc::new(vec![]),
-            StartTime::now()
+        assert!(
+            SubAgentHealthChecker::try_new(
+                Arc::new(mock_client),
+                Arc::new(vec![]),
+                StartTime::now()
+            )
+            .unwrap()
+            .is_none()
         )
-        .unwrap()
-        .is_none())
     }
     #[test]
     fn failing_build_health_check_resource_with_no_type() {
@@ -212,16 +214,18 @@ pub mod tests {
     #[test]
     fn logic_health_check() {
         let start_time = StartTime::now();
-        assert!(SubAgentHealthChecker {
-            health_checkers: vec![
-                MockHealthCheck::new_healthy(),
-                MockHealthCheck::new_healthy()
-            ],
-            start_time,
-        }
-        .check_health()
-        .unwrap()
-        .is_healthy());
+        assert!(
+            SubAgentHealthChecker {
+                health_checkers: vec![
+                    MockHealthCheck::new_healthy(),
+                    MockHealthCheck::new_healthy()
+                ],
+                start_time,
+            }
+            .check_health()
+            .unwrap()
+            .is_healthy()
+        );
 
         assert!(
             !SubAgentHealthChecker {
@@ -237,15 +241,17 @@ pub mod tests {
             .is_healthy() //Notice that this assert has a ! at the beginning
         );
 
-        assert!(SubAgentHealthChecker {
-            health_checkers: vec![
-                MockHealthCheck::new_healthy(),
-                MockHealthCheck::new_with_error(),
-                MockHealthCheck::new_healthy()
-            ],
-            start_time
-        }
-        .check_health()
-        .is_err());
+        assert!(
+            SubAgentHealthChecker {
+                health_checkers: vec![
+                    MockHealthCheck::new_healthy(),
+                    MockHealthCheck::new_with_error(),
+                    MockHealthCheck::new_healthy()
+                ],
+                start_time
+            }
+            .check_health()
+            .is_err()
+        );
     }
 }

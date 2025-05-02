@@ -8,7 +8,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
 use crate::values::yaml_config::YAMLConfig;
-use crate::values::yaml_config_repository::{load_remote_fallback_local, YAMLConfigRepository};
+use crate::values::yaml_config_repository::{YAMLConfigRepository, load_remote_fallback_local};
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;

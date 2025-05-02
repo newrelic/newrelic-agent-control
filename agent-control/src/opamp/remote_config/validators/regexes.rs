@@ -182,8 +182,8 @@ pub(super) mod tests {
     use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
+    use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;

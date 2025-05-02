@@ -53,7 +53,7 @@ impl Display for Host {
 #[cfg(test)]
 mod tests {
     use crate::agent_control::http_server::config::{
-        Host, Port, ServerConfig, DEFAULT_HOST, DEFAULT_PORT,
+        DEFAULT_HOST, DEFAULT_PORT, Host, Port, ServerConfig,
     };
     use serde::Deserialize;
 

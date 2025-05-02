@@ -1,7 +1,7 @@
 //! GCP instance id detector implementation
 use super::metadata::GCPMetadata;
-use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::cloud::GCP_INSTANCE_ID;
+use crate::cloud::http_client::{HttpClient, HttpClientError};
 use crate::{DetectError, Detector, Key, Resource, Value};
 use http::HeaderMap;
 use thiserror::Error;

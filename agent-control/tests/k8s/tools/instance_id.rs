@@ -4,11 +4,11 @@ use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::k8s::store::{
-    K8sStore, CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID,
+    CM_NAME_OPAMP_DATA_PREFIX, K8sStore, STORE_KEY_INSTANCE_ID,
 };
+use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::instance_id::getter::DataStored;
 use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
-use newrelic_agent_control::opamp::instance_id::InstanceID;
 use std::time::Duration;
 
 pub fn get_instance_id(k8s_client: Client, namespace: &str, agent_id: &AgentID) -> InstanceID {

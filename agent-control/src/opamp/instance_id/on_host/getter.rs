@@ -1,17 +1,17 @@
 use crate::http::client::HttpClient;
 use crate::opamp::instance_id::definition::InstanceIdentifiers;
 
-use resource_detection::cloud::aws::detector::{
-    AWSDetector, AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT,
-};
-use resource_detection::cloud::azure::detector::{AzureDetector, AZURE_IPV4_METADATA_ENDPOINT};
-use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
-use resource_detection::cloud::gcp::detector::{GCPDetector, GCP_IPV4_METADATA_ENDPOINT};
-use resource_detection::cloud::http_client::HttpClientError;
-use resource_detection::cloud::CLOUD_INSTANCE_ID;
-use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use resource_detection::DetectError;
-use resource_detection::{system::detector::SystemDetector, Detector};
+use resource_detection::cloud::CLOUD_INSTANCE_ID;
+use resource_detection::cloud::aws::detector::{
+    AWS_IPV4_METADATA_ENDPOINT, AWS_IPV4_METADATA_TOKEN_ENDPOINT, AWSDetector,
+};
+use resource_detection::cloud::azure::detector::{AZURE_IPV4_METADATA_ENDPOINT, AzureDetector};
+use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
+use resource_detection::cloud::gcp::detector::{GCP_IPV4_METADATA_ENDPOINT, GCPDetector};
+use resource_detection::cloud::http_client::HttpClientError;
+use resource_detection::system::{HOSTNAME_KEY, MACHINE_ID_KEY};
+use resource_detection::{Detector, system::detector::SystemDetector};
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 use thiserror::Error;
@@ -33,14 +33,16 @@ impl Display for Identifiers {
         write!(
             f,
             "hostname = '{}', machine_id = '{}', cloud_instance_id = '{}', host_id = '{}', fleet_id = '{}'",
-            self.hostname, self.machine_id, self.cloud_instance_id, self.host_id,self.fleet_id,
+            self.hostname, self.machine_id, self.cloud_instance_id, self.host_id, self.fleet_id,
         )
     }
 }
 
 #[derive(Error, Debug)]
 pub enum IdentifiersProviderError {
-    #[error("generating host identification: adding a `host_id` in the agent-control config is required for this case`")]
+    #[error(
+        "generating host identification: adding a `host_id` in the agent-control config is required for this case`"
+    )]
     MissingHostIDError,
     #[error("detecting resources: `{0}`")]
     DetectError(#[from] DetectError),

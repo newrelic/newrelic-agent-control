@@ -15,7 +15,7 @@ where
         data: &DataStored<Self::Identifiers>,
     ) -> Result<(), Self::Error>;
     fn get(&self, agent_id: &AgentID)
-        -> Result<Option<DataStored<Self::Identifiers>>, Self::Error>;
+    -> Result<Option<DataStored<Self::Identifiers>>, Self::Error>;
 }
 
 #[cfg(test)]

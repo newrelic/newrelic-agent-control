@@ -8,11 +8,11 @@ use crate::{
     common::{opamp::FakeServer, retry::retry, runtime::block_on},
     k8s::tools::{
         agent_control::{
-            start_agent_control_with_testdata_config,
-            wait_until_agent_control_with_opamp_is_started, CUSTOM_AGENT_TYPE_PATH,
+            CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
+            wait_until_agent_control_with_opamp_is_started,
         },
         k8s_env::K8sEnv,
-        test_crd::{create_foo_cr, Foo},
+        test_crd::{Foo, create_foo_cr},
     },
 };
 

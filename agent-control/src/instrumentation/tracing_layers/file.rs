@@ -2,9 +2,9 @@ use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigE
 use crate::instrumentation::tracing::{LayerBox, TracingGuard};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
-use tracing_subscriber::Layer;
 
 pub type FileTracingExporter = WorkerGuard;
 

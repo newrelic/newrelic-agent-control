@@ -1,8 +1,8 @@
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
 use crate::instrumentation::tracing::LayerBox;
+use tracing_subscriber::Layer;
 use tracing_subscriber::fmt::format::PrettyFields;
 use tracing_subscriber::fmt::time::ChronoLocal;
-use tracing_subscriber::Layer;
 
 /// Returns the [LayerBox] corresponding to the standard output.
 pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {

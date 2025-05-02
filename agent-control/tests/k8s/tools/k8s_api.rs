@@ -1,6 +1,6 @@
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::{api::DynamicObject, core::GroupVersion, Api, Client};
+use kube::{Api, Client, api::DynamicObject, core::GroupVersion};
 use std::time::Duration;
 use std::{error::Error, str::FromStr};
 use tokio::time::sleep;

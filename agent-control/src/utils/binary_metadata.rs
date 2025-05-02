@@ -7,5 +7,7 @@ pub(crate) const GIT_COMMIT: &str =
     konst::option::unwrap_or!(option_env!("GIT_COMMIT"), "development");
 
 pub fn binary_metadata(env: Environment) -> String {
-    format!("New Relic Agent Control Version: {VERSION}, Rust Version: {RUST_VERSION}, GitCommit: {GIT_COMMIT}, Environment: {env}")
+    format!(
+        "New Relic Agent Control Version: {VERSION}, Rust Version: {RUST_VERSION}, GitCommit: {GIT_COMMIT}, Environment: {env}"
+    )
 }

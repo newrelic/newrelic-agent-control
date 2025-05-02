@@ -9,8 +9,8 @@ use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::agent_control::uptime_report::UptimeReporter;
 use crate::event::{
-    channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
+    channel::{EventConsumer, EventPublisher},
 };
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::{
@@ -436,18 +436,18 @@ fn sub_agents_difference<'a>(
 
 #[cfg(test)]
 mod tests {
+    use crate::agent_control::AgentControl;
     use crate::agent_control::agent_control::sub_agents_difference;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::{
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
     use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
-    use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
+    use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
+    use crate::agent_control::resource_cleaner::ResourceCleanerError;
     use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
     use crate::agent_control::resource_cleaner::tests::MockResourceCleaner;
-    use crate::agent_control::resource_cleaner::ResourceCleanerError;
-    use crate::agent_control::AgentControl;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::channel::pub_sub;
@@ -460,7 +460,7 @@ mod tests {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
-    use mockall::{predicate, Sequence};
+    use mockall::{Sequence, predicate};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
@@ -1113,9 +1113,11 @@ agents:
             )]))),
         );
 
-        assert!(agent_control
-            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
-            .is_err());
+        assert!(
+            agent_control
+                .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+                .is_err()
+        );
 
         assert_eq!(running_sub_agents.len(), 1);
 
@@ -1380,9 +1382,12 @@ agents:
         let ev = agent_control_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
-        let expected = AgentControlEvent::AgentControlBecameUnhealthy(Unhealthy::new(String::default(),  String::from(
-            "Error applying Agent Control remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
-        )));
+        let expected = AgentControlEvent::AgentControlBecameUnhealthy(Unhealthy::new(
+            String::default(),
+            String::from(
+                "Error applying Agent Control remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
+            ),
+        ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
     }
@@ -1647,12 +1652,14 @@ agents:
         let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
 
         assert_eq!(diff.len(), 2);
-        assert!(diff
-            .iter()
-            .any(|(id, _)| id == &&AgentID::new("infra-agent").unwrap()));
-        assert!(diff
-            .iter()
-            .any(|(id, _)| id == &&AgentID::new("nrdot").unwrap()));
+        assert!(
+            diff.iter()
+                .any(|(id, _)| id == &&AgentID::new("infra-agent").unwrap())
+        );
+        assert!(
+            diff.iter()
+                .any(|(id, _)| id == &&AgentID::new("nrdot").unwrap())
+        );
     }
 
     #[test]

@@ -1,12 +1,12 @@
 use crate::common::retry::retry;
-use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::SUB_AGENT_DIR;
 use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::instance_id::on_host::storer::Storer;
 use newrelic_agent_control::opamp::instance_id::storer::InstanceIDStorer;
-use newrelic_agent_control::opamp::instance_id::InstanceID;
 use std::error::Error;
 use std::time::Duration;
 

@@ -2,8 +2,8 @@
 
 use super::{
     config::{
-        logs::config::{LoggingConfig, LoggingConfigError},
         InstrumentationConfig,
+        logs::config::{LoggingConfig, LoggingConfigError},
     },
     tracing_layers::{
         file::file,
@@ -14,7 +14,7 @@ use super::{
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer, Registry};
+use tracing_subscriber::{Layer, Registry, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// Represents errors while setting up or shutting down tracing.
 #[derive(Error, Debug)]

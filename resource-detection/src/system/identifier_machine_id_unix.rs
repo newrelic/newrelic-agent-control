@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 
 use fs::{
-    file_reader::{FileReader, FileReaderError},
     LocalFile,
+    file_reader::{FileReader, FileReaderError},
 };
 
 use super::detector::SystemDetectorError;

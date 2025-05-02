@@ -6,13 +6,13 @@ use super::{
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use kube::api::entry::Entry;
 use kube::api::ObjectList;
+use kube::api::entry::Entry;
 use kube::{
+    Api, Client, Config, Resource,
     api::{DeleteParams, ListParams, PostParams},
     config::KubeConfigOptions,
     core::{DynamicObject, TypeMeta},
-    Api, Client, Config, Resource,
 };
 use serde::de::DeserializeOwned;
 use std::fmt::Debug;
@@ -336,8 +336,8 @@ pub(crate) mod tests {
     use crate::k8s::reflector::resources::ResourceWithReflector;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
     use k8s_openapi::serde_json;
-    use kube::runtime::reflector;
     use kube::Client;
+    use kube::runtime::reflector;
     use tower_test::mock;
 
     #[tokio::test]

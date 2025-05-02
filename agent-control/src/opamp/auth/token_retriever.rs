@@ -5,11 +5,11 @@ use crate::http::config::ProxyConfig;
 use crate::{agent_control::run::BasePaths, http::client::HttpBuildError};
 use chrono::DateTime;
 use nr_auth::{
+    TokenRetriever, TokenRetrieverError,
     authenticator::HttpAuthenticator,
-    jwt::signer::{local::LocalPrivateKeySigner, JwtSignerImpl, JwtSignerImplError},
+    jwt::signer::{JwtSignerImpl, JwtSignerImplError, local::LocalPrivateKeySigner},
     token::{AccessToken, Token, TokenType},
     token_retriever::TokenRetrieverWithCache,
-    TokenRetriever, TokenRetrieverError,
 };
 use std::time::Duration;
 use thiserror::Error;

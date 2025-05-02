@@ -1,6 +1,6 @@
-use super::directory_manager::DirectoryManagementError;
-use super::utils::{validate_path, FsError};
 use super::LocalFile;
+use super::directory_manager::DirectoryManagementError;
+use super::utils::{FsError, validate_path};
 use std::fs::Permissions;
 use std::io::Write;
 #[cfg(target_family = "unix")]

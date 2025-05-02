@@ -3,7 +3,7 @@
 use super::health_checker::LABEL_RELEASE_FLUX;
 use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
-    apimachinery::pkg::apis::meta::v1::ObjectMeta, Metadata, NamespaceResourceScope, Resource,
+    Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
 use kube::core::{Expression, Selector, SelectorExt};
 use std::{any::Any, sync::Arc};

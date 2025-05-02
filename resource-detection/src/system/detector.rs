@@ -5,8 +5,8 @@ use tracing::{error, instrument};
 use crate::{DetectError, Detector, Key, Resource, Value};
 
 use super::{
-    hostname::HostnameGetter, identifier_machine_id_unix::IdentifierProviderMachineId,
-    HOSTNAME_KEY, MACHINE_ID_KEY,
+    HOSTNAME_KEY, MACHINE_ID_KEY, hostname::HostnameGetter,
+    identifier_machine_id_unix::IdentifierProviderMachineId,
 };
 
 /// An enumeration of potential errors related to the system detector.

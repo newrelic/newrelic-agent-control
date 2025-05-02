@@ -1,7 +1,7 @@
 use super::certificate::Certificate;
 use super::certificate_fetcher::CertificateFetcher;
-use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::log::error;
@@ -10,7 +10,9 @@ use tracing::log::error;
 pub enum CertificateStoreError {
     #[error("fetching certificate: `{0}`")]
     CertificateFetch(String),
-    #[error("signature keyId({signature_key_id}) does not match certificate keyId({certificate_key_id})")]
+    #[error(
+        "signature keyId({signature_key_id}) does not match certificate keyId({certificate_key_id})"
+    )]
     KeyMismatch {
         signature_key_id: String,
         certificate_key_id: String,

@@ -1,23 +1,23 @@
 use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
-use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
+use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
-use crate::sub_agent::SubAgent;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
-    sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
+    sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use std::collections::{HashMap, HashSet};
@@ -192,12 +192,12 @@ pub mod tests {
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
+    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::http::builder::HttpClientBuilderError;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::instance_id::InstanceID;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;

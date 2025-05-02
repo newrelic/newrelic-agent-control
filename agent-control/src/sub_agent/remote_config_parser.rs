@@ -1,5 +1,5 @@
-use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 use thiserror::Error;
@@ -98,8 +98,8 @@ pub mod tests {
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::mock;

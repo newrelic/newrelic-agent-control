@@ -1,12 +1,12 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::hash_repository::repository::{HashRepository, HashRepositoryError};
 use crate::opamp::remote_config::hash::Hash;
+use fs::LocalFile;
 use fs::directory_manager::DirectoryManagementError;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::file_reader::FileReaderError;
 use fs::writer_file::{FileWriter, WriteError};
-use fs::LocalFile;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
@@ -146,11 +146,11 @@ where
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod tests {
-    use super::{Hash, HashRepository, HashRepositoryFile, DIRECTORY_PERMISSIONS, HASH_FILE_NAME};
+    use super::{DIRECTORY_PERMISSIONS, HASH_FILE_NAME, Hash, HashRepository, HashRepositoryFile};
     use crate::agent_control::agent_id::AgentID;
     use crate::values::file::FILE_PERMISSIONS;
-    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManager;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;

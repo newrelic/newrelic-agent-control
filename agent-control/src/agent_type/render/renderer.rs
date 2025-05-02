@@ -166,7 +166,7 @@ pub(crate) mod tests {
         agent_type::{
             definition::AgentType,
             render::persister::{
-                config_persister::{tests::MockConfigurationPersister, PersistError},
+                config_persister::{PersistError, tests::MockConfigurationPersister},
                 config_persister_file::ConfigurationPersisterFile,
             },
             runtime_config::{
@@ -489,11 +489,13 @@ pub(crate) mod tests {
 
         for yaml in wrong_backoff_yamls.into_iter() {
             let values = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
-            assert!(agent_type
-                .variables
-                .clone()
-                .fill_with_values(values)
-                .is_err())
+            assert!(
+                agent_type
+                    .variables
+                    .clone()
+                    .fill_with_values(values)
+                    .is_err()
+            )
         }
     }
 

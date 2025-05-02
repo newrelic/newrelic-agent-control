@@ -1,10 +1,10 @@
 use super::runtime::tokio_runtime;
-use actix_web::{web, App, HttpResponse, HttpServer};
-use base64::prelude::BASE64_STANDARD;
+use actix_web::{App, HttpResponse, HttpServer, web};
 use base64::Engine;
+use base64::prelude::BASE64_STANDARD;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::remote_config::signature::{
-    SignatureFields, ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
+    ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
 };
 use newrelic_agent_control::opamp::remote_config::validators::signature::public_key_fingerprint;
 use opamp_client::opamp;

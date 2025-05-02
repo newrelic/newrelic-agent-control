@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
-use crate::values::yaml_config::{has_remote_management, YAMLConfig};
+use crate::values::yaml_config::{YAMLConfig, has_remote_management};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use opamp_client::operation::capabilities::Capabilities;
 use std::sync::Arc;

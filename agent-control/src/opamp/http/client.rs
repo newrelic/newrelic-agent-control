@@ -4,8 +4,8 @@ use crate::opamp::http::client::OpAMPHttpClientError::AuthorizationHeadersError;
 use http::header::AUTHORIZATION;
 use http::{HeaderMap, HeaderValue, Response};
 use nr_auth::TokenRetriever;
-use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 use opamp_client::http::HttpClientError;
+use opamp_client::http::http_client::HttpClient as OpampHttpClient;
 use std::sync::Arc;
 use url::Url;
 
@@ -105,8 +105,8 @@ pub mod tests {
     use super::*;
 
     use chrono::Utc;
-    use fake::faker::lorem::en::Word;
     use fake::Fake;
+    use fake::faker::lorem::en::Word;
     use mockall::mock;
 
     use crate::http::config::HttpConfig;

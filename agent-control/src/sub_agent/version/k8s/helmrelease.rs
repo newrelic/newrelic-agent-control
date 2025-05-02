@@ -136,7 +136,7 @@ pub mod tests {
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::k8s::client::MockSyncK8sClient;
     use kube::api::DynamicObject;
-    use serde_json::{json, Value};
+    use serde_json::{Value, json};
     use std::sync::Arc;
 
     impl std::fmt::Debug for HelmReleaseVersionChecker {

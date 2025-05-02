@@ -1,7 +1,7 @@
+use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
 use fs::writer_file::{FileWriter, WriteError};
-use fs::LocalFile;
 use std::fs::Permissions;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;

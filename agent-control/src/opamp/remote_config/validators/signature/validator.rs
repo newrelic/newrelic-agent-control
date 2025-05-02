@@ -2,9 +2,9 @@ use crate::agent_control::defaults::get_custom_capabilities;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
+use crate::opamp::remote_config::RemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::opamp::remote_config::RemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
 use nix::NixPath;
 use serde::Deserialize;
@@ -210,14 +210,14 @@ mod tests {
 
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{
-        SignatureData, Signatures, ECDSA_P256_SHA256, ED25519,
+        ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
-    use crate::opamp::remote_config::ConfigurationMap;
-    use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::tests::test_agent_identity;
     use assert_matches::assert_matches;
 
     #[test]
@@ -433,9 +433,11 @@ certificate_pem_file_path: /path/to/file
             None,
         );
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
-        assert!(signature_validator
-            .validate(&AgentIdentity::new_agent_control_identity(), &rc)
-            .is_ok());
+        assert!(
+            signature_validator
+                .validate(&AgentIdentity::new_agent_control_identity(), &rc)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -464,8 +466,10 @@ certificate_pem_file_path: /path/to/file
             test_signer.key_id(),
         ));
 
-        assert!(signature_validator
-            .validate(&test_agent_identity(), &remote_config)
-            .is_ok())
+        assert!(
+            signature_validator
+                .validate(&test_agent_identity(), &remote_config)
+                .is_ok()
+        )
     }
 }

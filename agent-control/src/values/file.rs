@@ -2,12 +2,12 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
-use crate::values::yaml_config::{has_remote_management, YAMLConfig};
+use crate::values::yaml_config::{YAMLConfig, has_remote_management};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
+use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
-use fs::LocalFile;
 use opamp_client::operation::capabilities::Capabilities;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
@@ -220,17 +220,17 @@ pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf
 pub mod tests {
     use rstest::*;
 
-    use super::{concatenate_sub_agent_dir_path, YAMLConfigRepositoryFile};
+    use super::{YAMLConfigRepositoryFile, concatenate_sub_agent_dir_path};
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{
-        load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
+        YAMLConfigRepository, YAMLConfigRepositoryError, load_remote_fallback_local,
     };
     use assert_matches::assert_matches;
-    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManagementError::ErrorCreatingDirectory;
     use fs::directory_manager::DirectoryManager;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;

@@ -4,8 +4,8 @@ use super::uptime_report::UptimeReportConfig;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
-use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
@@ -390,10 +390,12 @@ agents: {}
             serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_SUBAGENTS_CONFIG).is_ok()
         );
         assert!(serde_yaml::from_str::<AgentControlDynamicConfig>(EXAMPLE_K8S_CONFIG).is_ok());
-        assert!(serde_yaml::from_str::<AgentControlDynamicConfig>(
-            EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS
-        )
-        .is_ok());
+        assert!(
+            serde_yaml::from_str::<AgentControlDynamicConfig>(
+                EXAMPLE_AGENTCONTROL_CONFIG_EMPTY_AGENTS
+            )
+            .is_ok()
+        );
         assert!(
             serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG_NO_AGENTS)
                 .is_err()
@@ -418,10 +420,12 @@ agents: {}
         let actual =
             serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_RESERVED_AGENT_ID);
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("AgentID 'agent-control' is reserved at line"))
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("AgentID 'agent-control' is reserved at line")
+        )
     }
 
     #[test]
@@ -429,10 +433,12 @@ agents: {}
         let actual =
             serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_MISSING_K8S_FIELDS);
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("k8s: missing field"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("k8s: missing field")
+        );
     }
 
     #[test]
