@@ -55,7 +55,9 @@ enum ResourceType {
     HelmRepository(HelmRepositoryData),
 }
 
+/// A data structure that can be converted into a Kubernetes dynamic object.
 trait ToDynamicObject {
+    /// Converts the data into a Kubernetes dynamic object.
     fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError>;
 }
 
