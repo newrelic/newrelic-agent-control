@@ -195,7 +195,7 @@ fn cli_helm_release_fails_when_values_format_is_incorrect() {
 #[test]
 fn cli_helm_release_fails_when_values_file_does_not_exist() {
     let mut cmd = build_helm_release_command("default".to_string(), "test-release".to_string());
-    cmd.arg("--values-file").arg("nonexistent.yaml");
+    cmd.arg("--values").arg("fs://nonexistent.yaml");
     cmd.assert().failure();
     cmd.assert().code(predicate::eq(66));
 }

@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::fs;
 
 use clap::Parser;
 use kube::api::{DynamicObject, ObjectMeta};
@@ -8,6 +8,7 @@ use tracing::{debug, info};
 use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
 
 pub const TYPE_NAME: &str = "Helm release";
+const FILE_PREFIX: &str = "fs://";
 
 #[derive(Debug, Parser)]
 pub struct HelmReleaseData {
@@ -30,21 +31,13 @@ pub struct HelmReleaseData {
     #[arg(long)]
     pub repository_name: String,
 
-    /// Chart values as string
+    /// Chart values
     ///
-    /// The values of the chart as a yaml string.
-    /// The values can also be read from a file using `--values-file`,
-    /// but only one flag can be used at once.
-    #[arg(long, conflicts_with = "values_file")]
+    /// A yaml file or yaml string with the values of the chart.
+    /// If the value starts with `fs://`, it is treated as a
+    /// file path. Otherwise, it is treated as a string.
+    #[arg(long)]
     pub values: Option<String>,
-
-    /// Chart values file
-    ///
-    /// A yaml file with the values of the chart.
-    /// The values can also be passed as a string with `--values`,
-    /// but only one flag can be used at once.
-    #[arg(long, conflicts_with = "values")]
-    pub values_file: Option<PathBuf>,
 
     /// Identifying metadata
     ///
@@ -127,30 +120,19 @@ impl ToDynamicObject for HelmReleaseData {
 
 impl HelmReleaseData {
     fn parse_values(&self) -> Result<Option<serde_json::Value>, ParseError> {
-        match (&self.values, &self.values_file) {
-            (Some(_), Some(_)) => {
-                unreachable!("Clap ensures that only one of `values` and `values_file` is set");
-            }
-            (Some(values), None) => {
-                let values = serde_yaml::from_str(values)
-                    .map_err(|err| ParseError::YamlString(err.to_string()))?;
-                Ok(Some(
-                    serde_json::from_value(values)
-                        .expect("serde_yaml should return a valid `Value`"),
-                ))
-            }
-            (None, Some(values_file)) => {
-                let values = fs::read_to_string(values_file)
-                    .map_err(|err| ParseError::FileParse(err.to_string()))?;
-                let values = serde_yaml::from_str(&values)
-                    .map_err(|err| ParseError::YamlString(err.to_string()))?;
-                Ok(Some(
-                    serde_json::from_value(values)
-                        .expect("serde_yaml should return a valid `Value`"),
-                ))
-            }
-            (None, None) => Ok(None),
-        }
+        let Some(input) = &self.values else {
+            return Ok(None);
+        };
+
+        let values = match input.strip_prefix(FILE_PREFIX) {
+            Some(path) => &fs::read_to_string(path)?,
+            None => input,
+        };
+        let yaml_values = serde_yaml::from_str(values)?;
+        let json_values =
+            serde_json::from_value(yaml_values).expect("serde_yaml should return a valid `Value`");
+
+        Ok(Some(json_values))
     }
 }
 
@@ -168,7 +150,6 @@ mod tests {
             chart_version: "1.0.0".to_string(),
             repository_name: "test-repository".to_string(),
             values: Some("value1: value1\nvalue2: value2".to_string()),
-            values_file: None,
             labels: Some("label1=value1,label2=value2".to_string()),
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
             interval: "6m".to_string(),
@@ -249,7 +230,6 @@ mod tests {
     fn test_parse_values_no_values() {
         let mut helm_release_data = helm_release_data();
         helm_release_data.values = None;
-        helm_release_data.values_file = None;
 
         assert_eq!(helm_release_data.parse_values().unwrap(), None);
     }
@@ -259,7 +239,6 @@ mod tests {
         let mut helm_release_data = helm_release_data();
         helm_release_data.values =
             Some("{outer: {inner1: 'value1', inner2: 'value2'}}".to_string());
-        helm_release_data.values_file = None;
 
         assert_eq!(
             helm_release_data.parse_values().unwrap(),
@@ -275,21 +254,19 @@ mod tests {
     fn test_parse_values_from_string_throws_error_invalid_yaml() {
         let mut helm_release_data = helm_release_data();
         helm_release_data.values = Some("key1: value1\nkey2 value2".to_string());
-        helm_release_data.values_file = None;
 
         assert!(helm_release_data.parse_values().is_err());
     }
 
     #[test]
     fn test_parse_values_from_file() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = None;
-
         let mut temp_file = NamedTempFile::new().unwrap();
         let _ = temp_file
             .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
             .unwrap();
-        helm_release_data.values_file = Some(temp_file.path().to_path_buf());
+
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = Some(format!("fs://{}", temp_file.path().display()));
 
         assert_eq!(
             helm_release_data.parse_values().unwrap(),
@@ -303,22 +280,12 @@ mod tests {
 
     #[test]
     fn test_parse_values_from_file_throws_error_invalid_yaml() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = None;
-
         let mut temp_file = NamedTempFile::new().unwrap();
         let _ = temp_file.write(b"key1: value1\nkey2 value2").unwrap();
-        helm_release_data.values_file = Some(temp_file.path().to_path_buf());
+
+        let mut helm_release_data = helm_release_data();
+        helm_release_data.values = Some(format!("fs://{}", temp_file.path().display()));
 
         assert!(helm_release_data.parse_values().is_err());
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_parse_values_both_values() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = Some("".to_string());
-        helm_release_data.values_file = Some(PathBuf::from(""));
-        let _ = helm_release_data.parse_values();
     }
 }

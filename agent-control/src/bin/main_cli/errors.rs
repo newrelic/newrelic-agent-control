@@ -40,10 +40,10 @@ impl CliError {
 #[derive(Debug, Error)]
 pub enum ParseError {
     #[error("Failed to parse yaml: {0}")]
-    YamlString(String),
+    YamlString(#[from] serde_yaml::Error),
 
     #[error("Failed to parse file: {0}")]
-    FileParse(String),
+    FileParse(#[from] std::io::Error),
 }
 
 impl ParseError {
