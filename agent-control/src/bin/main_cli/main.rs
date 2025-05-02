@@ -1,4 +1,4 @@
-use std::{process::ExitCode, sync::Arc};
+use std::{path::PathBuf, process::ExitCode, sync::Arc};
 
 use clap::{Parser, Subcommand};
 use errors::{CliError, ParseError};
@@ -6,7 +6,13 @@ use helm_release::{HelmReleaseData, TYPE_NAME as HELM_RELEASE_TYPE_NAME};
 use helm_repository::{HelmRepositoryData, TYPE_NAME as HELM_REPOSITORY_TYPE_NAME};
 use kube::api::DynamicObject;
 use newrelic_agent_control::{
-    http::tls::install_rustls_default_crypto_provider, k8s::client::SyncK8sClient,
+    agent_control::defaults::AGENT_CONTROL_LOG_DIR,
+    http::tls::install_rustls_default_crypto_provider,
+    instrumentation::{
+        config::logs::config::LoggingConfig,
+        tracing::{try_init_tracing, TracingConfig},
+    },
+    k8s::client::SyncK8sClient,
 };
 use tracing::{debug, error, info, Level};
 
@@ -28,7 +34,7 @@ struct Cli {
 
     /// Log level upperbound
     #[arg(long, global = true, default_value = "info")]
-    log_level: Option<Level>,
+    log_level: Level,
 }
 
 #[derive(Debug, Subcommand)]
@@ -54,14 +60,18 @@ trait ToDynamicObject {
 }
 
 fn main() -> ExitCode {
-    debug!("Starting cli");
     let cli = Cli::parse();
-    debug!("Arguments parsed: {:?}", cli);
 
-    debug!("Setting up logging with level: {:?}", cli.log_level);
-    tracing_subscriber::fmt::fmt()
-        .with_max_level(cli.log_level)
-        .init();
+    let logging_config: LoggingConfig =
+        serde_yaml::from_str(&format!("level: {}", cli.log_level)).unwrap();
+    let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR))
+        .with_logging_config(logging_config);
+    let tracer = try_init_tracing(tracing_config).map_err(CliError::Tracing);
+
+    if let Err(err) = tracer {
+        eprintln!("Failed to initialize tracing: {:?}", err);
+        return err.to_exit_code();
+    }
 
     debug!("Installing default rustls crypto provider");
     install_rustls_default_crypto_provider();
