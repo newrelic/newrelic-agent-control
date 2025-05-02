@@ -1,5 +1,8 @@
 use clap::Parser;
-use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
+use kube::{
+    api::{DynamicObject, ObjectMeta, TypeMeta},
+    core::Duration,
+};
 use tracing::debug;
 
 use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
@@ -33,7 +36,7 @@ pub struct HelmRepositoryData {
     ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
-    pub interval: String,
+    pub interval: Duration,
 }
 
 impl ToDynamicObject for HelmRepositoryData {
@@ -73,6 +76,8 @@ impl ToDynamicObject for HelmRepositoryData {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use super::*;
 
     #[test]
@@ -106,7 +111,7 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "url": "https://example.com/helm-charts",
-                    "interval": "6m",
+                    "interval": "360s",
                 }
             }),
         };
@@ -116,7 +121,7 @@ mod tests {
             url: "https://example.com/helm-charts".to_string(),
             labels: Some("label1=value1,label2=value2".to_string()),
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
-            interval: "6m".to_string(),
+            interval: Duration::from_str("6m").unwrap(),
         };
         let actual_dynamic_object = helm_repository_data
             .to_dynamic_object("test-namespace".to_string())

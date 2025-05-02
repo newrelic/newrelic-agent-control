@@ -1,7 +1,10 @@
 use std::fs;
 
 use clap::Parser;
-use kube::api::{DynamicObject, ObjectMeta};
+use kube::{
+    api::{DynamicObject, ObjectMeta},
+    core::Duration,
+};
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
@@ -56,7 +59,7 @@ pub struct HelmReleaseData {
     ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
-    pub interval: String,
+    pub interval: Duration,
 
     /// Timeout for some Helm actions
     ///
@@ -65,7 +68,7 @@ pub struct HelmReleaseData {
     ///
     /// The timeout must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
     #[arg(long, default_value = "5m")]
-    pub timeout: String,
+    pub timeout: Duration,
 }
 
 impl ToDynamicObject for HelmReleaseData {
@@ -138,7 +141,7 @@ impl HelmReleaseData {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
+    use std::{io::Write, str::FromStr};
 
     use super::*;
     use tempfile::NamedTempFile;
@@ -152,8 +155,8 @@ mod tests {
             values: Some("value1: value1\nvalue2: value2".to_string()),
             labels: Some("label1=value1,label2=value2".to_string()),
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
-            interval: "6m".to_string(),
-            timeout: "5m".to_string(),
+            interval: Duration::from_str("6m").unwrap(),
+            timeout: Duration::from_str("7m").unwrap(),
         }
     }
 
@@ -183,8 +186,8 @@ mod tests {
             },
             data: serde_json::json!({
                 "spec": {
-                    "interval": "6m",
-                    "timeout": "5m",
+                    "interval": "360s",
+                    "timeout": "420s",
                     "chart": {
                         "spec": {
                             "chart": "test-chart",
@@ -193,7 +196,7 @@ mod tests {
                                 "kind": "HelmRepository",
                                 "name": "test-repository",
                             },
-                            "interval": "6m",
+                            "interval": "360s",
                         },
                     },
                     "values": {
