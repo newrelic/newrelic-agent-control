@@ -235,7 +235,8 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     // We set the environment variable with the `__` separator which will create the nested
     // configs appropriately.
     let env_var_name = "NR_AC_AGENTS__ROLLDICE__AGENT_TYPE";
-    env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(1));
@@ -254,7 +255,8 @@ fn runs_with_no_config_as_root() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Env cleanup
-    env::remove_var(env_var_name);
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::remove_var(env_var_name) };
 
     // No supervisor group, so we don't check for it.
     Ok(())

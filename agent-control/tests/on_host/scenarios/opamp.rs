@@ -288,7 +288,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     // Having an env_var placeholder and the corresponding env_var set in order to
     // check that is not expanded on the effective config
-    env::set_var("my_env_var", "my-value");
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::set_var("my_env_var", "my-value") };
 
     let values_config = format!(
         "fake_variable: ${{{}}}",
@@ -325,7 +326,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         }
     });
 
-    env::remove_var("my_env_var");
+    // TODO: Audit that the environment access only happens in single-threaded code.
+    unsafe { env::remove_var("my_env_var") };
 }
 
 /// The agent-control is configured with on agent with local configuration and a remote configuration was also set for the

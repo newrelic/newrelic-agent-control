@@ -204,15 +204,15 @@ where
                                         // TODO: we need to refactor the supervisor-assembler components in order to avoid persisting
                                         // and restarting the supervisor until the supervisor corresponding to the new configuration
                                         // is successfully.
-                                        if let Err(err) = self.store_config_hash_and_values(&config, &yaml_config) {
+                                        match self.store_config_hash_and_values(&config, &yaml_config) { Err(err) => {
                                             warn!(hash=&config.hash.get(), "Persisting remote configuration failed: {err}");
                                             self.report_config_status(&config, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
-                                        } else {
+                                        } _ => {
                                             // We need to restart the supervisor after we receive a new config
                                             // as we don't have hot-reloading handling implemented yet
                                             stop_supervisor(supervisor);
                                             supervisor = self.assemble_and_start_supervisor();
-                                        }
+                                        }}
                                     }
                                 }
                             },

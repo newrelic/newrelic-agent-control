@@ -367,12 +367,12 @@ fn wait_for_termination(
 
         // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
 
-        if let Some(pid) = *current_pid.lock().unwrap() {
+        match *current_pid.lock().unwrap() { Some(pid) => {
             info!(pid = pid, msg = "stopping supervisor process");
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-        } else {
+        } _ => {
             info!(msg = "stopped supervisor without process running");
-        }
+        }}
     })
 }
 

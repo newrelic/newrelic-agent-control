@@ -50,7 +50,7 @@ pub struct LoggingConfig {
 impl LoggingConfig {
     /// Returns the configured filter according to the corresponding fields. The filter will also allow
     /// any span whose level doesn't exceed [SPAN_ATTRIBUTES_MAX_LEVEL].
-    pub fn filter(&self) -> Result<impl Filter<Registry>, LoggingConfigError> {
+    pub fn filter(&self) -> Result<impl Filter<Registry> + use<>, LoggingConfigError> {
         let configured_logs_filter = self.logging_filter()?;
 
         let allow_spans_filter = FilterFn::new(|metadata| {
