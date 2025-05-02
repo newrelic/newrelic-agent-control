@@ -28,7 +28,6 @@ impl K8sEnv {
         });
 
         // Forces the client to use the dev kubeconfig file.
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { env::set_var("KUBECONFIG", KUBECONFIG_PATH) };
 
         let client = Client::try_default().await.expect("fail to create client");

@@ -210,7 +210,6 @@ fleet_control:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
@@ -237,7 +236,6 @@ fleet_control:
         };
 
         // Env cleanup
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { env::remove_var(env_var_name) };
 
         assert_eq!(actual, expected);
@@ -260,7 +258,6 @@ agents:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
@@ -287,7 +284,6 @@ agents:
         };
 
         // Env cleanup
-        // TODO: Audit that the environment access only happens in single-threaded code.
         unsafe { env::remove_var(env_var_name) };
 
         assert_eq!(actual, expected);
