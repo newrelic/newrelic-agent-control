@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use kube::api::TypeMeta;
+use kube::api::{ObjectMeta, TypeMeta};
 use thiserror::Error;
 use tracing::{debug, instrument};
 
@@ -32,6 +32,15 @@ pub struct K8sGarbageCollector {
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
+/// Garbage collector operation modes.
+enum K8sGarbageCollectorMode<'a> {
+    /// Retain all resources that are in the config map passed as parameter.
+    /// Remove all others.
+    RetainConfig(&'a HashMap<AgentID, AgentTypeID>),
+    /// Remove all resources associated with the Agent ID and sub-agent config passed as parameter.
+    Collect(&'a AgentID, &'a AgentTypeID),
+}
+
 impl K8sGarbageCollector {
     /// Remove all the Kubernetes resources managed by Agent Control that are not included in the
     /// map passed as parameter.
@@ -40,41 +49,7 @@ impl K8sGarbageCollector {
         &self,
         active_agents: HashMap<AgentID, AgentTypeID>,
     ) -> Result<(), GarbageCollectorK8sError> {
-        self.garbage_collection(
-            |labels, annotations| {
-                let agent_id_from_labels =
-                    labels::get_agent_id(labels).ok_or(GarbageCollectorK8sError::MissingLabels)?;
-
-                let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
-                    Ok(id) => id,
-                    // We must not delete anything with reserved AgentIDs (currently only Agent Control)
-                    Err(AgentIDError::Reserved(_)) => return Ok(false),
-                    Err(e) => return Err(e.into()),
-                };
-                match active_agents.get(&agent_id_from_labels) {
-                    None => Ok(true), // Delete if the agent id does not exist in the passed config
-                    Some(agent_type_id) => {
-                        let agent_type_id_from_annotations =
-                            annotations::get_agent_type_id_value(annotations)
-                                .ok_or(GarbageCollectorK8sError::MissingAnnotations)?;
-                        let agent_type_id_from_annotations =
-                            AgentTypeID::try_from(agent_type_id_from_annotations.as_str())?;
-                        Ok(agent_type_id != &agent_type_id_from_annotations)
-                    }
-                }
-            },
-            |default_label_selector| {
-                format!(
-                    "{default_label_selector}, {AGENT_ID_LABEL_KEY} notin ({})", //codespell:ignore
-                    active_agents
-                        .iter()
-                        // Including the Agent Control ID in the list of IDs to be retained
-                        .fold(AGENT_CONTROL_ID.to_string(), |acc, (id, _)| {
-                            format!("{acc},{id}")
-                        })
-                )
-            },
-        )
+        self.garbage_collection(K8sGarbageCollectorMode::RetainConfig(&active_agents))
     }
 
     /// Garbage collect resources managed by AC associated to a certain
@@ -89,60 +64,55 @@ impl K8sGarbageCollector {
         if id.is_agent_control_id() {
             return Err(GarbageCollectorK8sError::AgentControlId);
         }
+        self.garbage_collection(K8sGarbageCollectorMode::Collect(id, agent_type_id))
+    }
 
-        self.garbage_collection(
-            |labels, annotations| {
-                let agent_id_from_labels =
-                    labels::get_agent_id(labels).ok_or(GarbageCollectorK8sError::MissingLabels)?;
-
-                let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
-                    Ok(id) => id,
-                    // We must not delete anything with reserved AgentIDs (currently only Agent Control)
-                    Err(AgentIDError::Reserved(_)) => return Ok(false),
-                    Err(e) => return Err(e.into()),
-                };
-                let agent_type_id_from_annotations =
-                    annotations::get_agent_type_id_value(annotations)
-                        .ok_or(GarbageCollectorK8sError::MissingAnnotations)?;
-                let agent_type_id_from_annotations =
-                    AgentTypeID::try_from(agent_type_id_from_annotations.as_str())?;
-                Ok(id == &agent_id_from_labels && agent_type_id == &agent_type_id_from_annotations)
-            },
-            |default_label_selector| {
-                format!("{default_label_selector}, {AGENT_ID_LABEL_KEY} in ({id})")
-            },
-        )
+    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
+        active_config
+            .iter()
+            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
+            .collect()
     }
 
     fn garbage_collection(
         &self,
-        should_delete_fn: impl Fn(
-            &BTreeMap<String, String>,
-            &BTreeMap<String, String>,
-        ) -> Result<bool, GarbageCollectorK8sError>,
-        label_selector_builder: impl Fn(String) -> String,
+        mode: K8sGarbageCollectorMode,
     ) -> Result<(), GarbageCollectorK8sError> {
-        let default_label_selector = Labels::default().selector();
-        let label_selector_query = label_selector_builder(default_label_selector);
+        self.delete_configmaps(&mode)?;
+        self.delete_dynamic_resources(&mode)?;
+        Ok(())
+    }
 
+    fn delete_configmaps(&self, mode: &K8sGarbageCollectorMode) -> Result<(), K8sError> {
+        let default_label_selector = Labels::default().selector();
+        let label_selector_query = match mode {
+            K8sGarbageCollectorMode::RetainConfig(active_agents) => format!(
+                "{default_label_selector}, {AGENT_ID_LABEL_KEY} notin ({})", //codespell:ignore
+                active_agents
+                    .iter()
+                    // Including the Agent Control ID in the list of IDs to be retained
+                    .fold(AGENT_CONTROL_ID.to_string(), |acc, (id, _)| format!(
+                        "{acc},{id}"
+                    ))
+            ),
+            K8sGarbageCollectorMode::Collect(agent_id, _) => {
+                format!("{default_label_selector}, {AGENT_ID_LABEL_KEY} in ({agent_id})")
+            }
+        };
         debug!("Deleting configmaps using label selector: `{label_selector_query}`",);
         self.k8s_client
-            .delete_configmap_collection(&label_selector_query)?;
+            .delete_configmap_collection(&label_selector_query)
+    }
 
+    fn delete_dynamic_resources(
+        &self,
+        mode: &K8sGarbageCollectorMode,
+    ) -> Result<(), GarbageCollectorK8sError> {
         self.cr_type_meta
             .iter()
             .try_for_each(|tm| match self.k8s_client.list_dynamic_objects(tm) {
                 Ok(dyn_objs) => dyn_objs.into_iter().try_for_each(|d| {
-                    // I only need to work with references here, so I pre-define an empty BTreeMap
-                    // which does no allocate anything on its own and use it as default value for
-                    // labels and annotations in case any of them are None.
-                    let empty = BTreeMap::new();
-                    let labels = d.metadata.labels.as_ref().unwrap_or(&empty);
-                    let annotations = d.metadata.annotations.as_ref().unwrap_or(&empty);
-
-                    if labels::is_managed_by_agentcontrol(labels)
-                        && should_delete_fn(labels, annotations)?
-                    {
+                    if self.should_delete_dynamic_object(&d.metadata, mode)? {
                         let name = d.metadata.name.as_ref().ok_or_else(|| {
                             K8sError::MissingName(d.types.clone().unwrap_or_default().kind)
                         })?;
@@ -159,11 +129,65 @@ impl K8sGarbageCollector {
             })
     }
 
-    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
-        active_config
-            .iter()
-            .map(|(id, config)| (id.clone(), config.agent_type.clone()))
-            .collect()
+    fn should_delete_dynamic_object(
+        &self,
+        obj_meta: &ObjectMeta,
+        mode: &K8sGarbageCollectorMode,
+    ) -> Result<bool, GarbageCollectorK8sError> {
+        // I only need to work with references here, so I pre-define an empty BTreeMap which does
+        // no allocate anything on its own and use it as default value for labels and annotations
+        // in case any of them are None.
+        let empty_map = BTreeMap::new();
+        let labels = obj_meta.labels.as_ref().unwrap_or(&empty_map);
+        let annotations = obj_meta.annotations.as_ref().unwrap_or(&empty_map);
+
+        // We delete resources only if they are managed by Agent Control
+        if !labels::is_managed_by_agentcontrol(labels) {
+            return Ok(false);
+        }
+
+        let agent_id_from_labels =
+            labels::get_agent_id(labels).ok_or(GarbageCollectorK8sError::MissingLabels)?;
+
+        let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
+            Ok(id) => id,
+            // We must not delete anything with reserved AgentIDs (currently only Agent Control)
+            Err(AgentIDError::Reserved(_)) => return Ok(false),
+            Err(e) => return Err(e.into()),
+        };
+
+        match mode {
+            K8sGarbageCollectorMode::RetainConfig(agent_identities) => {
+                // Delete if the agent id does not exist in the passed config
+                match agent_identities.get(&agent_id_from_labels) {
+                    None => Ok(true),
+                    Some(agent_type_id) => {
+                        // Check if the agent type is different from the one in the config.
+                        // This is to support the case where the agent id exists in the config
+                        // but it's a different agent type. See PR#655 for some details.
+                        let annotated_agent_type_id = AgentTypeID::try_from(
+                            annotations::get_agent_type_id_value(annotations)
+                                .ok_or(GarbageCollectorK8sError::MissingAnnotations)?
+                                .as_str(),
+                        )?;
+                        Ok(&annotated_agent_type_id != agent_type_id)
+                    }
+                }
+            }
+            K8sGarbageCollectorMode::Collect(id, agent_type_id) => {
+                if agent_id_from_labels != **id {
+                    return Ok(false);
+                }
+
+                let annotated_agent_type_id = AgentTypeID::try_from(
+                    annotations::get_agent_type_id_value(annotations)
+                        .ok_or(GarbageCollectorK8sError::MissingAnnotations)?
+                        .as_str(),
+                )?;
+
+                Ok(annotated_agent_type_id == **agent_type_id)
+            }
+        }
     }
 }
 
