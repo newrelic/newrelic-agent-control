@@ -9,11 +9,10 @@ where
 {
     let mut last_err = Ok(());
     for _ in 0..max_attempts {
-        match f() { Err(err) => {
-            last_err = Err(err)
-        } _ => {
+        let Err(err) = f() else {
             return;
-        }}
+        };
+        last_err = Err(err);
         std::thread::sleep(interval);
     }
     last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts} attempts: {err}"))

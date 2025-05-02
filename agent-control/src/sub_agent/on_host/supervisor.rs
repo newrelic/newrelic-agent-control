@@ -2,12 +2,12 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
-use crate::event::channel::EventPublisher;
 use crate::event::SubAgentInternalEvent;
+use crate::event::channel::EventPublisher;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::sub_agent::health::health_checker::{
-    publish_health_event, spawn_health_checker, HealthCheckerError,
+    HealthCheckerError, publish_health_event, spawn_health_checker,
 };
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
@@ -18,7 +18,7 @@ use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
-    wait_exit_timeout, wait_exit_timeout_default, ProcessTerminator,
+    ProcessTerminator, wait_exit_timeout, wait_exit_timeout_default,
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -253,7 +253,9 @@ impl NotStartedSupervisorOnHost {
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 if restart_policy.backoff != BackoffStrategy::None {
-                    warn!("supervisor won't restart anymore due to having exceeded its restart policy");
+                    warn!(
+                        "supervisor won't restart anymore due to having exceeded its restart policy"
+                    );
 
                     let unhealthy = Unhealthy::new(
                         String::default(),
@@ -366,13 +368,12 @@ fn wait_for_termination(
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
 
         // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
-
-        match *current_pid.lock().unwrap() { Some(pid) => {
+        if let Some(pid) = *current_pid.lock().unwrap() {
             info!(pid = pid, msg = "stopping supervisor process");
             _ = ProcessTerminator::new(pid).shutdown(|| wait_exit_timeout_default(shutdown_ctx));
-        } _ => {
+        } else {
             info!(msg = "stopped supervisor without process running");
-        }}
+        }
     })
 }
 
