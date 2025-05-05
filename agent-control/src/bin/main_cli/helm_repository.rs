@@ -5,7 +5,7 @@ use kube::{
 };
 use tracing::debug;
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
+use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
 pub const TYPE_NAME: &str = "Helm Repository";
 
@@ -39,14 +39,16 @@ pub struct HelmRepositoryData {
     pub interval: Duration,
 }
 
-impl ToDynamicObject for HelmRepositoryData {
-    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
+impl TryFrom<HelmRepositoryData> for DynamicObject {
+    type Error = ParseError;
+
+    fn try_from(value: HelmRepositoryData) -> Result<Self, Self::Error> {
         debug!("Creating Helm repository object representation");
 
-        let labels = parse_key_value_pairs(self.labels.as_deref().unwrap_or_default());
+        let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
         debug!("Parsed labels: {:?}", labels);
 
-        let annotations = parse_key_value_pairs(self.annotations.as_deref().unwrap_or_default());
+        let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
         debug!("Parsed annotations: {:?}", annotations);
 
         let dynamic_object = DynamicObject {
@@ -55,16 +57,15 @@ impl ToDynamicObject for HelmRepositoryData {
                 kind: "HelmRepository".to_string(),
             }),
             metadata: ObjectMeta {
-                name: Some(self.name.clone()),
-                namespace: Some(namespace),
+                name: Some(value.name.clone()),
                 labels,
                 annotations,
                 ..Default::default()
             },
             data: serde_json::json!({
                 "spec": {
-                    "url": self.url,
-                    "interval": self.interval,
+                    "url": value.url,
+                    "interval": value.interval,
                 }
             }),
         };
@@ -89,7 +90,6 @@ mod tests {
             }),
             metadata: ObjectMeta {
                 name: Some("test-repository".to_string()),
-                namespace: Some("test-namespace".to_string()),
                 labels: Some(
                     vec![
                         ("label1".to_string(), "value1".to_string()),
@@ -123,9 +123,7 @@ mod tests {
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
             interval: Duration::from_str("6m").unwrap(),
         };
-        let actual_dynamic_object = helm_repository_data
-            .to_dynamic_object("test-namespace".to_string())
-            .unwrap();
+        let actual_dynamic_object = DynamicObject::try_from(helm_repository_data).unwrap();
 
         assert_eq!(actual_dynamic_object, expected_dynamic_object);
     }

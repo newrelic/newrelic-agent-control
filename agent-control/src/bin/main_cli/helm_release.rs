@@ -8,7 +8,7 @@ use kube::{
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs, ToDynamicObject};
+use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
 pub const TYPE_NAME: &str = "Helm release";
 const FILE_PREFIX: &str = "fs://";
@@ -71,44 +71,45 @@ pub struct HelmReleaseData {
     pub timeout: Duration,
 }
 
-impl ToDynamicObject for HelmReleaseData {
-    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError> {
+impl TryFrom<HelmReleaseData> for DynamicObject {
+    type Error = ParseError;
+
+    fn try_from(value: HelmReleaseData) -> Result<Self, Self::Error> {
         info!("Creating Helm release object representation");
 
         let mut data = serde_json::json!({
             "spec": {
-                "interval": self.interval,
-                "timeout": self.timeout,
+                "interval": value.interval,
+                "timeout": value.timeout,
                 "chart": {
                     "spec": {
-                        "chart": self.chart_name,
-                        "version": self.chart_version,
+                        "chart": value.chart_name,
+                        "version": value.chart_version,
                         "sourceRef": {
                             "kind": "HelmRepository",
-                            "name": self.repository_name,
+                            "name": value.repository_name,
                         },
-                        "interval": self.interval,
+                        "interval": value.interval,
                     },
                 }
             }
         });
 
-        if let Some(values) = self.parse_values()? {
+        if let Some(values) = value.parse_values()? {
             debug!("Parsed values: {:?}", values);
             data["spec"]["values"] = values;
         }
 
-        let labels = parse_key_value_pairs(self.labels.as_deref().unwrap_or_default());
+        let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
         debug!("Parsed labels: {:?}", labels);
 
-        let annotations = parse_key_value_pairs(self.annotations.as_deref().unwrap_or_default());
+        let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
         debug!("Parsed annotations: {:?}", annotations);
 
         let dynamic_object = DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(self.name.clone()),
-                namespace: Some(namespace),
+                name: Some(value.name.clone()),
                 labels,
                 annotations,
                 ..Default::default()
@@ -165,7 +166,6 @@ mod tests {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
                 name: Some("test-release".to_string()),
-                namespace: Some("test-namespace".to_string()),
                 labels: Some(
                     vec![
                         ("label1".to_string(), "value1".to_string()),
@@ -210,12 +210,8 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_object() {
-        assert_eq!(
-            helm_release_data()
-                .to_dynamic_object("test-namespace".to_string())
-                .unwrap(),
-            helm_release_dynamic_object()
-        );
+        let actual_dynamic_object = DynamicObject::try_from(helm_release_data()).unwrap();
+        assert_eq!(actual_dynamic_object, helm_release_dynamic_object());
     }
 
     #[test]

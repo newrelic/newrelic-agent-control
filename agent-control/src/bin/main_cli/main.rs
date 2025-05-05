@@ -55,12 +55,6 @@ enum ResourceType {
     HelmRepository(HelmRepositoryData),
 }
 
-/// A data structure that can be converted into a Kubernetes dynamic object.
-trait ToDynamicObject {
-    /// Converts the data into a Kubernetes dynamic object.
-    fn to_dynamic_object(&self, namespace: String) -> Result<DynamicObject, ParseError>;
-}
-
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
@@ -81,10 +75,10 @@ fn main() -> ExitCode {
     let result = match cli.operation {
         Operations::Create { resource_type } => match resource_type {
             ResourceType::HelmRelease(data) => {
-                apply_resource(cli.namespace, data, HELM_RELEASE_TYPE_NAME)
+                apply_resource(HELM_RELEASE_TYPE_NAME, data, cli.namespace)
             }
             ResourceType::HelmRepository(data) => {
-                apply_resource(cli.namespace, data, HELM_REPOSITORY_TYPE_NAME)
+                apply_resource(HELM_REPOSITORY_TYPE_NAME, data, cli.namespace)
             }
         },
     };
@@ -98,13 +92,12 @@ fn main() -> ExitCode {
     }
 }
 
-fn apply_resource<T: ToDynamicObject>(
-    namespace: String,
-    data: T,
-    type_name: &str,
-) -> Result<(), CliError> {
+fn apply_resource<T>(type_name: &str, data: T, namespace: String) -> Result<(), CliError>
+where
+    DynamicObject: TryFrom<T, Error = ParseError>,
+{
     info!("Creating {}", type_name);
-    let dynamic_object = data.to_dynamic_object(namespace.clone())?;
+    let dynamic_object = DynamicObject::try_from(data)?;
     let k8s_client = k8s_client(namespace.clone())?;
     k8s_client
         .apply_dynamic_object(&dynamic_object)
