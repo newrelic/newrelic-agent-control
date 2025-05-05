@@ -140,7 +140,7 @@
               AND `test_id` = '{{ test_id }}'
               LIMIT 1
             # This was taking about 5m when the test was created
-            retries: 90
+            retries: 120
             delay: 10
 
       always:
