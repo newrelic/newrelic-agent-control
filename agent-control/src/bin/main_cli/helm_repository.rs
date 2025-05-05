@@ -3,11 +3,9 @@ use kube::{
     api::{DynamicObject, ObjectMeta, TypeMeta},
     core::Duration,
 };
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{errors::ParseError, utils::parse_key_value_pairs};
-
-pub const TYPE_NAME: &str = "Helm Repository";
 
 #[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
@@ -43,7 +41,7 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
     type Error = ParseError;
 
     fn try_from(value: HelmRepositoryData) -> Result<Self, Self::Error> {
-        debug!("Creating Helm repository object representation");
+        info!("Creating Helm repository object representation");
 
         let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
         debug!("Parsed labels: {:?}", labels);
@@ -69,7 +67,7 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
                 }
             }),
         };
-        debug!("Helm repository object representation created");
+        info!("Helm repository object representation created");
 
         Ok(dynamic_object)
     }

@@ -10,7 +10,6 @@ use tracing::{debug, info};
 
 use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
-pub const TYPE_NAME: &str = "Helm release";
 const FILE_PREFIX: &str = "fs://";
 
 #[derive(Debug, Parser)]
@@ -116,7 +115,7 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
             },
             data,
         };
-        debug!("Helm release object representation created");
+        info!("Helm release object representation created");
 
         Ok(dynamic_object)
     }

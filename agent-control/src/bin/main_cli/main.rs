@@ -2,8 +2,8 @@ use std::{path::PathBuf, process::ExitCode, sync::Arc};
 
 use clap::{Parser, Subcommand};
 use errors::{CliError, ParseError};
-use helm_release::{HelmReleaseData, TYPE_NAME as HELM_RELEASE_TYPE_NAME};
-use helm_repository::{HelmRepositoryData, TYPE_NAME as HELM_REPOSITORY_TYPE_NAME};
+use helm_release::HelmReleaseData;
+use helm_repository::HelmRepositoryData;
 use kube::api::DynamicObject;
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
@@ -74,12 +74,8 @@ fn main() -> ExitCode {
 
     let result = match cli.operation {
         Operations::Create { resource_type } => match resource_type {
-            ResourceType::HelmRelease(data) => {
-                apply_resource(HELM_RELEASE_TYPE_NAME, data, cli.namespace)
-            }
-            ResourceType::HelmRepository(data) => {
-                apply_resource(HELM_REPOSITORY_TYPE_NAME, data, cli.namespace)
-            }
+            ResourceType::HelmRelease(data) => apply_resource(data, cli.namespace),
+            ResourceType::HelmRepository(data) => apply_resource(data, cli.namespace),
         },
     };
 
@@ -92,17 +88,17 @@ fn main() -> ExitCode {
     }
 }
 
-fn apply_resource<T>(type_name: &str, data: T, namespace: String) -> Result<(), CliError>
+fn apply_resource<T>(data: T, namespace: String) -> Result<(), CliError>
 where
     DynamicObject: TryFrom<T, Error = ParseError>,
 {
-    info!("Creating {}", type_name);
+    info!("Applying resource");
     let dynamic_object = DynamicObject::try_from(data)?;
     let k8s_client = k8s_client(namespace.clone())?;
     k8s_client
         .apply_dynamic_object(&dynamic_object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-    info!("{} created", type_name);
+    info!("Resource applied successfully");
 
     Ok(())
 }
