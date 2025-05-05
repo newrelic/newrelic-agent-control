@@ -67,7 +67,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(repository.data["spec"]["interval"], "300s");
     assert_eq!(
         repository.data["spec"]["url"],
-        "https://charts.newrelic.com"
+        "https://helm-charts.newrelic.com"
     );
     assert_eq!(repository.metadata.labels, None);
     assert_eq!(repository.metadata.annotations, None);
