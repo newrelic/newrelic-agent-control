@@ -10,7 +10,7 @@ use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
 const RELEASE_NAME: &str = "agent-control-release";
-const REPOSITORY_NAME: &str = "agent-control-repository";
+const REPOSITORY_NAME: &str = "newrelic";
 
 fn install_agent_control_command(namespace: String) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
@@ -169,7 +169,8 @@ fn k8s_cli_install_agent_control_with_file_values() {
     let _ = temp_file.write(b"key1: value1\nkey2: value2").unwrap();
 
     let mut cmd = install_agent_control_command(namespace.clone());
-    cmd.arg("--values").arg(temp_file.path());
+    cmd.arg("--values")
+        .arg(format!("fs://{}", temp_file.path().display()));
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();

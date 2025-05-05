@@ -6,8 +6,8 @@ use tracing::info;
 
 use crate::{errors::ParseError, resources::HelmReleaseData, resources::HelmRepositoryData};
 
-const AGENT_CONTROL_REPOSITORY_NAME: &str = "agent-control-repository";
-const AGENT_CONTROL_REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
+const REPOSITORY_NAME: &str = "newrelic";
+const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 
 #[derive(Debug, Parser)]
 pub struct AgentControlData {
@@ -48,8 +48,8 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         info!("Creating Agent Control resources dynamic object representations");
 
         let helm_repository = HelmRepositoryData {
-            name: AGENT_CONTROL_REPOSITORY_NAME.to_string(),
-            url: AGENT_CONTROL_REPOSITORY_URL.to_string(),
+            name: REPOSITORY_NAME.to_string(),
+            url: REPOSITORY_URL.to_string(),
             labels: value.labels.clone(),
             annotations: value.annotations.clone(),
             interval: Duration::from_str("5m").expect("Hardcoded value should be correct"),
@@ -58,9 +58,9 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
 
         let helm_release = HelmReleaseData {
             name: "agent-control-release".to_string(),
-            chart_name: "newrelic/agent-control".to_string(),
+            chart_name: "agent-control".to_string(),
             chart_version: value.chart_version,
-            repository_name: AGENT_CONTROL_REPOSITORY_NAME.to_string(),
+            repository_name: REPOSITORY_NAME.to_string(),
             values: value.values,
             labels: value.labels,
             annotations: value.annotations,
@@ -94,11 +94,13 @@ mod tests {
         assert_eq!(dynamic_objects.len(), 2);
 
         // Check the repository object
+        println!("Dynamic objects: {:?}", dynamic_objects);
+        let data = &dynamic_objects[0].data;
+        assert_eq!(data["spec"]["url"], REPOSITORY_URL);
+        assert_eq!(data["spec"]["interval"], "300s");
+
         let metadata = &dynamic_objects[0].metadata;
-        assert_eq!(
-            metadata.name,
-            Some(AGENT_CONTROL_REPOSITORY_NAME.to_string())
-        );
+        assert_eq!(metadata.name, Some(REPOSITORY_NAME.to_string()));
         assert_eq!(
             metadata.labels,
             Some(BTreeMap::from_iter(vec![
@@ -113,12 +115,16 @@ mod tests {
                 ("annotation2".to_string(), "value2".to_string()),
             ]))
         );
-        assert_eq!(
-            dynamic_objects[0].data["spec"]["url"],
-            AGENT_CONTROL_REPOSITORY_URL
-        );
 
         // Check the release object
+        let data = &dynamic_objects[1].data;
+        assert_eq!(
+            data["spec"]["chart"]["spec"]["sourceRef"]["name"],
+            REPOSITORY_NAME
+        );
+        assert_eq!(data["spec"]["interval"], "300s");
+        assert_eq!(data["spec"]["timeout"], "300s");
+
         let metadata = &dynamic_objects[1].metadata;
         assert_eq!(metadata.name, Some("agent-control-release".to_string()));
         assert_eq!(
@@ -134,10 +140,6 @@ mod tests {
                 ("annotation1".to_string(), "value1".to_string()),
                 ("annotation2".to_string(), "value2".to_string()),
             ]))
-        );
-        assert_eq!(
-            dynamic_objects[1].data["spec"]["chart"]["spec"]["sourceRef"]["name"],
-            AGENT_CONTROL_REPOSITORY_NAME
         );
     }
 }
