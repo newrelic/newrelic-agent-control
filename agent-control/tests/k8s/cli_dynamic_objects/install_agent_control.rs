@@ -53,7 +53,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(release.metadata.annotations, None);
 
     let chart_data = release.data["spec"]["chart"]["spec"].clone();
-    assert_eq!(chart_data["chart"], "newrelic/agent-control");
+    assert_eq!(chart_data["chart"], "agent-control");
     assert_eq!(chart_data["version"], "1.0.0");
     assert_eq!(chart_data["sourceRef"]["kind"], "HelmRepository");
     assert_eq!(chart_data["sourceRef"]["name"], REPOSITORY_NAME);
@@ -67,7 +67,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(repository.data["spec"]["interval"], "300s");
     assert_eq!(
         repository.data["spec"]["url"],
-        "https://stefanprodan.github.io/podinfo"
+        "https://charts.newrelic.com"
     );
     assert_eq!(repository.metadata.labels, None);
     assert_eq!(repository.metadata.annotations, None);
