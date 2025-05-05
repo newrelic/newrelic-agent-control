@@ -1,6 +1,5 @@
 use std::fs;
 
-use clap::Parser;
 use kube::{
     api::{DynamicObject, ObjectMeta},
     core::Duration,
@@ -12,25 +11,20 @@ use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
 const FILE_PREFIX: &str = "fs://";
 
-#[derive(Debug, Parser)]
 pub struct HelmReleaseData {
     /// Object name
-    #[arg(long)]
     pub name: String,
 
     /// Name of the chart to deploy
-    #[arg(long)]
     pub chart_name: String,
 
     /// Version of the chart to deploy
-    #[arg(long)]
     pub chart_version: String,
 
     /// Name of the Helm Repository from where to get the chart
     ///
     /// The Helm Repository must already be created in the
     /// cluster.
-    #[arg(long)]
     pub repository_name: String,
 
     /// Chart values
@@ -38,17 +32,14 @@ pub struct HelmReleaseData {
     /// A yaml file or yaml string with the values of the chart.
     /// If the value starts with `fs://`, it is treated as a
     /// file path. Otherwise, it is treated as a string.
-    #[arg(long)]
     pub values: Option<String>,
 
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
-    #[arg(long)]
     pub labels: Option<String>,
 
     /// Non-identifying metadata
-    #[arg(long)]
     pub annotations: Option<String>,
 
     /// Interval at which the release is reconciled
@@ -57,7 +48,6 @@ pub struct HelmReleaseData {
     /// the desired state at the specified interval.
     ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
-    #[arg(long, default_value = "5m")]
     pub interval: Duration,
 
     /// Timeout for some Helm actions
@@ -66,7 +56,6 @@ pub struct HelmReleaseData {
     /// will timeout at the specified elapsed time.
     ///
     /// The timeout must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
-    #[arg(long, default_value = "5m")]
     pub timeout: Duration,
 }
 

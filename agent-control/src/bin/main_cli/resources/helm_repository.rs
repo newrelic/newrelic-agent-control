@@ -1,4 +1,3 @@
-use clap::Parser;
 use kube::{
     api::{DynamicObject, ObjectMeta, TypeMeta},
     core::Duration,
@@ -7,24 +6,19 @@ use tracing::{debug, info};
 
 use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
-#[derive(Debug, Parser)]
 pub struct HelmRepositoryData {
     /// Object name
-    #[arg(long)]
     pub name: String,
 
     /// Repository url
-    #[arg(long)]
     pub url: String,
 
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
-    #[arg(long)]
     pub labels: Option<String>,
 
     /// Non-identifying metadata
-    #[arg(long)]
     pub annotations: Option<String>,
 
     /// Interval at which the repository will be fetched again
@@ -33,7 +27,6 @@ pub struct HelmRepositoryData {
     /// index yaml at the specified interval.
     ///
     /// The interval must be in the [Go duration format](https://pkg.go.dev/time#ParseDuration).
-    #[arg(long, default_value = "5m")]
     pub interval: Duration,
 }
 

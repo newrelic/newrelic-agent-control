@@ -1,10 +1,9 @@
 use std::{path::PathBuf, process::ExitCode, sync::Arc};
 
+use agent_control::AgentControlData;
 use clap::{Parser, Subcommand};
-use errors::{CliError, ParseError};
-use helm_release::HelmReleaseData;
-use helm_repository::HelmRepositoryData;
-use kube::api::DynamicObject;
+use errors::CliError;
+use kube::{Resource, api::DynamicObject};
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
     http::tls::install_rustls_default_crypto_provider,
@@ -16,9 +15,9 @@ use newrelic_agent_control::{
 };
 use tracing::{Level, debug, error, info};
 
+mod agent_control;
 mod errors;
-mod helm_release;
-mod helm_repository;
+mod resources;
 mod utils;
 
 /// Manage Helm releases and repositories in Kubernetes.
@@ -39,20 +38,17 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Operations {
-    /// Create an object in the cluster
-    Create {
+    /// Install a helm chart and create required resources
+    Install {
         #[command(subcommand)]
-        resource_type: ResourceType,
+        application: Application,
     },
 }
 
 #[derive(Debug, Subcommand)]
-enum ResourceType {
-    /// Operate over a helm release object
-    HelmRelease(HelmReleaseData),
-
-    /// Operate over a helm repository object
-    HelmRepository(HelmRepositoryData),
+enum Application {
+    /// Operate over an application
+    AgentControl(AgentControlData),
 }
 
 fn main() -> ExitCode {
@@ -73,9 +69,10 @@ fn main() -> ExitCode {
     install_rustls_default_crypto_provider();
 
     let result = match cli.operation {
-        Operations::Create { resource_type } => match resource_type {
-            ResourceType::HelmRelease(data) => apply_resource(data, cli.namespace),
-            ResourceType::HelmRepository(data) => apply_resource(data, cli.namespace),
+        Operations::Install { application } => match application {
+            Application::AgentControl(agent_control) => {
+                install_agent_control(agent_control, cli.namespace)
+            }
         },
     };
 
@@ -88,17 +85,20 @@ fn main() -> ExitCode {
     }
 }
 
-fn apply_resource<T>(data: T, namespace: String) -> Result<(), CliError>
-where
-    DynamicObject: TryFrom<T, Error = ParseError>,
-{
-    info!("Applying resource");
-    let dynamic_object = DynamicObject::try_from(data)?;
+fn install_agent_control(data: AgentControlData, namespace: String) -> Result<(), CliError> {
+    info!("Installing agent control");
+    let dynamic_objects = Vec::<DynamicObject>::try_from(data)?;
+
     let k8s_client = k8s_client(namespace.clone())?;
-    k8s_client
-        .apply_dynamic_object(&dynamic_object)
-        .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-    info!("Resource applied successfully");
+    for object in dynamic_objects {
+        let name = object.meta().name.clone().expect("Name should be present");
+        info!("Applying {}", name);
+        k8s_client
+            .apply_dynamic_object(&object)
+            .map_err(|err| CliError::ApplyResource(err.to_string()))?;
+        info!("{} applied successfully", name);
+    }
+    info!("Agent control installed successfully");
 
     Ok(())
 }
