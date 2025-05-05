@@ -47,8 +47,8 @@ fn k8s_cli_install_agent_control_creates_resources() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.data["spec"]["interval"], "5m");
-    assert_eq!(release.data["spec"]["timeout"], "5m");
+    assert_eq!(release.data["spec"]["interval"], "300s");
+    assert_eq!(release.data["spec"]["timeout"], "300s");
     assert_eq!(release.metadata.labels, None);
     assert_eq!(release.metadata.annotations, None);
 
@@ -57,14 +57,14 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(chart_data["version"], "1.0.0");
     assert_eq!(chart_data["sourceRef"]["kind"], "HelmRepository");
     assert_eq!(chart_data["sourceRef"]["name"], REPOSITORY_NAME);
-    assert_eq!(chart_data["interval"], "5m");
+    assert_eq!(chart_data["interval"], "300s");
 
     let repository = k8s_client
         .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
         .unwrap()
         .unwrap();
 
-    assert_eq!(repository.data["spec"]["interval"], "5m");
+    assert_eq!(repository.data["spec"]["interval"], "300s");
     assert_eq!(
         repository.data["spec"]["url"],
         "https://stefanprodan.github.io/podinfo"
@@ -169,7 +169,7 @@ fn k8s_cli_install_agent_control_with_file_values() {
     let _ = temp_file.write(b"key1: value1\nkey2: value2").unwrap();
 
     let mut cmd = install_agent_control_command(namespace.clone());
-    cmd.arg("--values-file").arg(temp_file.path());
+    cmd.arg("--values").arg(temp_file.path());
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
