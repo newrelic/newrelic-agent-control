@@ -10,11 +10,11 @@ use newrelic_agent_control::{
     http::tls::install_rustls_default_crypto_provider,
     instrumentation::{
         config::logs::config::LoggingConfig,
-        tracing::{try_init_tracing, TracingConfig},
+        tracing::{TracingConfig, try_init_tracing},
     },
     k8s::client::SyncK8sClient,
 };
-use tracing::{debug, error, info, Level};
+use tracing::{Level, debug, error, info};
 
 mod errors;
 mod helm_release;
