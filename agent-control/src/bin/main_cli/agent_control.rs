@@ -15,7 +15,7 @@ pub struct AgentControlData {
     #[arg(long)]
     pub release_name: String,
 
-    /// Version of the chart to deploy
+    /// Version of the agent control chart 
     #[arg(long)]
     pub chart_version: String,
 
