@@ -175,7 +175,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
-    use crate::k8s::{client::MockSyncK8sClient, Error};
+    use crate::k8s::{Error, client::MockSyncK8sClient};
     use crate::sub_agent::health::health_checker::Health;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;

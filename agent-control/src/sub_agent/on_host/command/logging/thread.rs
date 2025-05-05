@@ -50,7 +50,7 @@ mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::sub_agent::on_host::command::logging::file_logger::FileLogger;
     use mockall::predicate::*;
-    use mockall::{mock, Sequence};
+    use mockall::{Sequence, mock};
     use std::io::{Read, Seek, SeekFrom, Write};
     use tempfile::tempfile;
     use tracing_test::internal::logs_with_scope_contain;

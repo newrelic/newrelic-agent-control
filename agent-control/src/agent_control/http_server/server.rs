@@ -1,16 +1,16 @@
 use crate::agent_control::config::OpAMPClientConfig;
-use crate::agent_control::http_server::config::{ServerConfig, DEFAULT_WORKERS};
+use crate::agent_control::http_server::StatusServerError;
+use crate::agent_control::http_server::config::{DEFAULT_WORKERS, ServerConfig};
 use crate::agent_control::http_server::status::Status;
 use crate::agent_control::http_server::status_handler::status_handler;
 use crate::agent_control::http_server::status_updater::on_agent_control_event_update_status;
-use crate::agent_control::http_server::StatusServerError;
 use crate::event::{AgentControlEvent, SubAgentEvent};
-use actix_web::{dev::ServerHandle, web, App, HttpServer};
-use std::sync::mpsc;
+use actix_web::{App, HttpServer, dev::ServerHandle, web};
 use std::sync::Arc;
+use std::sync::mpsc;
 use tokio::runtime::Handle;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, error, info};
 
 pub async fn run_status_server(

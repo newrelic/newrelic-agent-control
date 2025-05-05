@@ -4,22 +4,22 @@ use super::{
     instance_id::getter::InstanceIDGetter,
 };
 use crate::agent_control::defaults::{
-    default_capabilities, get_custom_capabilities, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    default_capabilities, get_custom_capabilities,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::{
     agent_control::agent_id::AgentID,
     event::{
-        channel::{pub_sub, EventConsumer},
         OpAMPEvent,
+        channel::{EventConsumer, pub_sub},
     },
     sub_agent::error::SubAgentError,
 };
 use opamp_client::{
-    operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
     StartedClient,
+    operation::settings::{AgentDescription, DescriptionValueType, StartSettings},
 };
 use std::collections::HashMap;
 use tracing::info;

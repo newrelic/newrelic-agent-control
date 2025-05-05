@@ -1,5 +1,5 @@
-use super::utils::{validate_path, FsError};
-use std::fs::{remove_dir_all, DirBuilder, Permissions};
+use super::utils::{FsError, validate_path};
+use std::fs::{DirBuilder, Permissions, remove_dir_all};
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::DirBuilderExt;
 #[cfg(target_family = "unix")]
@@ -24,7 +24,7 @@ pub trait DirectoryManager {
     #[cfg(target_family = "unix")]
     /// create will create a folder
     fn create(&self, path: &Path, permissions: Permissions)
-        -> Result<(), DirectoryManagementError>;
+    -> Result<(), DirectoryManagementError>;
 
     /// Delete the folder and its contents. If the folder does not exist it
     /// will not return an error.

@@ -1,9 +1,9 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
 use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::SubAgentInternalEvent;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -236,8 +236,8 @@ pub mod tests {
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
-    use crate::event::channel::pub_sub;
     use crate::event::SubAgentEvent;
+    use crate::event::channel::pub_sub;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
@@ -406,10 +406,12 @@ pub mod tests {
         let started = not_started
             .start(sub_agent_internal_publisher)
             .expect("supervisor started");
-        assert!(!started
-            .thread_contexts
-            .iter()
-            .any(|thread_contexts| thread_contexts.thread_name() == "k8s health checker"));
+        assert!(
+            !started
+                .thread_contexts
+                .iter()
+                .any(|thread_contexts| thread_contexts.thread_name() == "k8s health checker")
+        );
     }
 
     fn k8s_object() -> K8sObject {

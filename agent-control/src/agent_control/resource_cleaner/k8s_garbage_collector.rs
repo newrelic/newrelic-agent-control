@@ -13,7 +13,7 @@ use crate::k8s::annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
-use crate::k8s::labels::{self, Labels, AGENT_ID_LABEL_KEY};
+use crate::k8s::labels::{self, AGENT_ID_LABEL_KEY, Labels};
 use crate::{
     agent_control::{agent_id::AgentIDError, config::AgentControlConfigError},
     agent_type::agent_type_id::AgentTypeIDError,

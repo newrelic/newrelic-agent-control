@@ -75,7 +75,9 @@ impl K8sAgentVersionChecker {
             };
             return Some(health_checker);
         }
-        warn!("Version cannot be fetched from any of the agent underlying resources, it won't be reported");
+        warn!(
+            "Version cannot be fetched from any of the agent underlying resources, it won't be reported"
+        );
         None
     }
 }

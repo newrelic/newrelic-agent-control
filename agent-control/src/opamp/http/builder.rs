@@ -98,7 +98,7 @@ pub(crate) mod tests {
     use http::Response;
     use mockall::mock;
     use opamp_client::operation::settings::StartSettings;
-    use opamp_client::{http::HttpClientError, StartedClient};
+    use opamp_client::{StartedClient, http::HttpClientError};
 
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::{
@@ -106,7 +106,7 @@ pub(crate) mod tests {
         event::channel::pub_sub,
         opamp::{
             client_builder::{
-                DefaultOpAMPClientBuilder, OpAMPClientBuilder, DEFAULT_POLL_INTERVAL,
+                DEFAULT_POLL_INTERVAL, DefaultOpAMPClientBuilder, OpAMPClientBuilder,
             },
             effective_config::loader::tests::{
                 MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,

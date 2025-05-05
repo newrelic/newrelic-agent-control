@@ -23,7 +23,7 @@
 //! assert!(reporter.report().is_ok());
 //! ```
 
-use crossbeam::channel::{never, tick, Receiver};
+use crossbeam::channel::{Receiver, never, tick};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::time::{Duration, Instant, SystemTime, SystemTimeError};

@@ -1,8 +1,8 @@
 use super::with_start_time::StartTime;
 use crate::agent_type::runtime_config::HealthCheckInterval;
+use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::SubAgentInternalEvent;
 
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
@@ -283,7 +283,7 @@ pub mod tests {
     use crate::event::channel::pub_sub;
 
     use super::*;
-    use mockall::{mock, Sequence};
+    use mockall::{Sequence, mock};
 
     impl Default for Healthy {
         fn default() -> Self {

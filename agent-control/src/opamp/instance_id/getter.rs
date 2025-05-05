@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tracing::debug;
 
-use super::{definition::InstanceIdentifiers, InstanceID};
+use super::{InstanceID, definition::InstanceIdentifiers};
 
 // IDGetter returns an InstanceID for a specific agentID.
 pub trait InstanceIDGetter {

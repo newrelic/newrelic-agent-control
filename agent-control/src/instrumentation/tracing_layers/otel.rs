@@ -2,15 +2,15 @@ use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::HttpConfig;
 use crate::instrumentation::config::otel::OtelConfig;
 use crate::instrumentation::tracing::LayerBox;
-use opentelemetry::trace::TracerProvider;
 use opentelemetry::KeyValue;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
 use opentelemetry_http::HttpClient as OtelHttpClient;
 use opentelemetry_otlp::{ExporterBuildError, WithExportConfig, WithHttpConfig};
+use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::{BatchLogProcessor, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracerProvider};
-use opentelemetry_sdk::Resource;
 use thiserror::Error;
 use tracing_opentelemetry::MetricsLayer;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -212,8 +212,8 @@ mod tests {
     use http::Response;
     use opentelemetry_sdk::Resource;
     use tracing::{debug, info, trace};
-    use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::layer::SubscriberExt;
 
     use crate::http::client::tests::MockOtelHttpClient;
     use crate::instrumentation::config::otel::{LogsConfig, OtelConfig};

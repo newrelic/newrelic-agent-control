@@ -13,18 +13,18 @@ use newrelic_agent_control::agent_control::defaults::default_capabilities;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::Labels;
 use newrelic_agent_control::k8s::store::{
-    K8sStore, StoreKey, CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX,
-    STORE_KEY_INSTANCE_ID, STORE_KEY_OPAMP_DATA_CONFIG_HASH,
+    CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX, K8sStore, STORE_KEY_INSTANCE_ID,
+    STORE_KEY_OPAMP_DATA_CONFIG_HASH, StoreKey,
 };
-use newrelic_agent_control::opamp::hash_repository::k8s::HashRepositoryConfigMap;
 use newrelic_agent_control::opamp::hash_repository::HashRepository;
+use newrelic_agent_control::opamp::hash_repository::k8s::HashRepositoryConfigMap;
 use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
 use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
 use newrelic_agent_control::opamp::remote_config::hash::Hash;
 use newrelic_agent_control::values::yaml_config_repository::{
-    load_remote_fallback_local, YAMLConfigRepository,
+    YAMLConfigRepository, load_remote_fallback_local,
 };
 use newrelic_agent_control::{
     values::k8s::YAMLConfigRepositoryConfigMap, values::yaml_config::YAMLConfig,
@@ -225,9 +225,11 @@ agents:
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 "#;
-    assert!(store_sa
-        .store(&from_str::<YAMLConfig>(agents_cfg).unwrap())
-        .is_ok());
+    assert!(
+        store_sa
+            .store(&from_str::<YAMLConfig>(agents_cfg).unwrap())
+            .is_ok()
+    );
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config

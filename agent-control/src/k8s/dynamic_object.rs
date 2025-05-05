@@ -8,10 +8,10 @@ use super::{
 };
 use base64::engine::general_purpose::STANDARD;
 use kube::{
+    Api, Resource,
     api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
     core::GroupVersion,
     discovery::pinned_kind,
-    Api, Resource,
 };
 use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;

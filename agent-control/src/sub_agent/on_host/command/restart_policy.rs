@@ -68,9 +68,9 @@ pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 impl BackoffStrategy {
     fn should_backoff(&mut self) -> bool {
         match self {
-            BackoffStrategy::Fixed(ref mut b)
-            | BackoffStrategy::Linear(ref mut b)
-            | BackoffStrategy::Exponential(ref mut b) => b.should_backoff(),
+            BackoffStrategy::Fixed(b)
+            | BackoffStrategy::Linear(b)
+            | BackoffStrategy::Exponential(b) => b.should_backoff(),
             BackoffStrategy::None => true,
         }
     }
@@ -80,9 +80,9 @@ impl BackoffStrategy {
         S: FnOnce(Duration),
     {
         match self {
-            BackoffStrategy::Fixed(ref mut b) => b.backoff(fixed, sleep_func),
-            BackoffStrategy::Linear(ref mut b) => b.backoff(linear, sleep_func),
-            BackoffStrategy::Exponential(ref mut b) => b.backoff(exponential, sleep_func),
+            BackoffStrategy::Fixed(b) => b.backoff(fixed, sleep_func),
+            BackoffStrategy::Linear(b) => b.backoff(linear, sleep_func),
+            BackoffStrategy::Exponential(b) => b.backoff(exponential, sleep_func),
             BackoffStrategy::None => {}
         }
     }

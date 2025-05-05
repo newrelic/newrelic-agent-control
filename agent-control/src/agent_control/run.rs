@@ -9,14 +9,14 @@ use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::event::channel::pub_sub;
 use crate::event::{
-    channel::{EventConsumer, EventPublisher},
     AgentControlEvent, ApplicationEvent, SubAgentEvent,
+    channel::{EventConsumer, EventPublisher},
 };
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::remote_config::validators::signature::validator::{
-    build_signature_validator, SignatureValidator,
+    SignatureValidator, build_signature_validator,
 };
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};

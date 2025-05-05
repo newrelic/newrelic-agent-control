@@ -15,49 +15,51 @@ pub fn run_async_sync_bridge(
     sub_agent_consumer: EventConsumer<SubAgentEvent>,
     stop_rx: EventConsumer<()>,
 ) -> JoinHandle<()> {
-    spawn_named_thread("Async-Sync bridge", move || loop {
-        select! {
-            recv(&agent_control_consumer.as_ref()) -> sa_event_res => {
-                match sa_event_res {
-                    Ok(agent_control_event) => {
-                        let _ = async_sa_publisher.send(agent_control_event).inspect_err(|err| {
-                            error!(
+    spawn_named_thread("Async-Sync bridge", move || {
+        loop {
+            select! {
+                recv(&agent_control_consumer.as_ref()) -> sa_event_res => {
+                    match sa_event_res {
+                        Ok(agent_control_event) => {
+                            let _ = async_sa_publisher.send(agent_control_event).inspect_err(|err| {
+                                error!(
+                                    error_msg = %err,
+                                    "cannot forward agent control event"
+                                );
+                            });
+                        }
+                        Err(err) => {
+                            debug!(
                                 error_msg = %err,
-                                "cannot forward agent control event"
+                                "status server bridge channel closed"
                             );
-                        });
+                            break;
+                        }
                     }
-                    Err(err) => {
-                        debug!(
-                            error_msg = %err,
-                            "status server bridge channel closed"
-                        );
-                        break;
-                    }
-                }
-            },
-            recv(&sub_agent_consumer.as_ref()) -> suba_event_res => {
-                match suba_event_res {
-                    Ok(sub_agent_event) => {
-                        let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
-                            error!(
+                },
+                recv(&sub_agent_consumer.as_ref()) -> suba_event_res => {
+                    match suba_event_res {
+                        Ok(sub_agent_event) => {
+                            let _ = async_suba_publisher.send(sub_agent_event).inspect_err(|err| {
+                                error!(
+                                    error_msg = %err,
+                                    "cannot forward agent control event"
+                                );
+                            });
+                        }
+                        Err(err) => {
+                            debug!(
                                 error_msg = %err,
-                                "cannot forward agent control event"
+                                "status server bridge channel closed"
                             );
-                        });
+                            break;
+                        }
                     }
-                    Err(err) => {
-                        debug!(
-                            error_msg = %err,
-                            "status server bridge channel closed"
-                        );
-                        break;
-                    }
+                },
+                recv(&stop_rx.as_ref()) -> _ => {
+                    debug!("status server bridge stopping");
+                    break;
                 }
-            },
-            recv(&stop_rx.as_ref()) -> _ => {
-                debug!("status server bridge stopping");
-                break;
             }
         }
     })

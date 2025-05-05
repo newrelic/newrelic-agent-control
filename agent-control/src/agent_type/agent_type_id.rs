@@ -344,9 +344,10 @@ version: 0.1.0-alpha.1
 agent_type_id: namespace/name:invalid_version
 "#,
         );
-        assert!(foo
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid AgentType version"));
+        assert!(
+            foo.unwrap_err()
+                .to_string()
+                .contains("Invalid AgentType version")
+        );
     }
 }

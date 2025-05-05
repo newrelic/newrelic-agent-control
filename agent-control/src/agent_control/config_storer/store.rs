@@ -6,7 +6,7 @@ use crate::agent_control::config_storer::loader_storer::{
     AgentControlConfigLoader, AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
     AgentControlDynamicConfigStorer,
 };
-use crate::agent_control::defaults::{default_capabilities, AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX};
+use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
 use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
 use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
 use config::builder::DefaultState;
@@ -210,7 +210,7 @@ fleet_control:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
-        env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
+        unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = AgentControlConfigStore::new(Arc::new(vr));
@@ -236,7 +236,7 @@ fleet_control:
         };
 
         // Env cleanup
-        env::remove_var(env_var_name);
+        unsafe { env::remove_var(env_var_name) };
 
         assert_eq!(actual, expected);
     }
@@ -258,7 +258,7 @@ agents:
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
         let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
-        env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2");
+        unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
 
         let vr = YAMLConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
         let store = AgentControlConfigStore::new(Arc::new(vr));
@@ -284,7 +284,7 @@ agents:
         };
 
         // Env cleanup
-        env::remove_var(env_var_name);
+        unsafe { env::remove_var(env_var_name) };
 
         assert_eq!(actual, expected);
     }

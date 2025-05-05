@@ -1,14 +1,14 @@
 use super::k8s_api::check_config_map_exist;
 use crate::common::{
-    agent_control::{start_agent_control_with_custom_config, StartedAgentControl},
+    agent_control::{StartedAgentControl, start_agent_control_with_custom_config},
     retry::retry,
     runtime::block_on,
 };
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::{
-    api::{Api, DeleteParams, PostParams},
     Client,
+    api::{Api, DeleteParams, PostParams},
 };
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
@@ -16,7 +16,7 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
 use newrelic_agent_control::{
     agent_control::run::BasePaths,
-    k8s::store::{K8sStore, CM_NAME_LOCAL_DATA_PREFIX, STORE_KEY_LOCAL_DATA_CONFIG},
+    k8s::store::{CM_NAME_LOCAL_DATA_PREFIX, K8sStore, STORE_KEY_LOCAL_DATA_CONFIG},
 };
 use std::io::Read;
 use std::path::Path;

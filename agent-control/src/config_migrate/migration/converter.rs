@@ -4,16 +4,16 @@ use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::variable::kind::Kind;
 use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::config_migrate::migration::agent_value_spec::{
-    from_fqn_and_value, merge_agent_values, AgentValueError, AgentValueSpec,
+    AgentValueError, AgentValueSpec, from_fqn_and_value, merge_agent_values,
 };
 use crate::config_migrate::migration::config::{
     AgentTypeFieldFQN, DirInfo, FilePath, MigrationAgentConfig,
 };
 use crate::config_migrate::migration::config::{FILE_SEPARATOR, FILE_SEPARATOR_REPLACE};
 use crate::config_migrate::migration::converter::ConversionError::RequiredFileMappingNotFoundError;
-use crate::sub_agent::effective_agents_assembler::{build_agent_type, AgentTypeDefinitionError};
-use fs::file_reader::{FileReader, FileReaderError};
+use crate::sub_agent::effective_agents_assembler::{AgentTypeDefinitionError, build_agent_type};
 use fs::LocalFile;
+use fs::file_reader::{FileReader, FileReaderError};
 use std::collections::HashMap;
 use thiserror::Error;
 use tracing::{debug, error};

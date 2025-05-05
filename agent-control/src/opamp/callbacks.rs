@@ -1,14 +1,15 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
 use crate::opamp::remote_config::signature::Signatures;
-use crate::opamp::remote_config::{hash::Hash, ConfigurationMap, RemoteConfig};
+use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig, hash::Hash};
 use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfigError};
 use crate::{
     event::{
-        channel::{EventPublisher, EventPublisherError},
         OpAMPEvent,
+        channel::{EventPublisher, EventPublisherError},
     },
     opamp::remote_config::signature::SignatureError,
 };
+use HttpClientError::UnsuccessfulResponse;
 use opamp_client::{
     error::ConnectionError,
     error::ConnectionError::HTTPClientError,
@@ -22,7 +23,6 @@ use opamp_client::{
 use std::string::FromUtf8Error;
 use thiserror::Error;
 use tracing::{debug, error, trace};
-use HttpClientError::UnsuccessfulResponse;
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
@@ -123,8 +123,7 @@ where
 
         trace!(
             agent_id = self.agent_id.to_string(),
-            "remote config received: {:?}",
-            &remote_config
+            "remote config received: {:?}", &remote_config
         );
 
         Ok(self
@@ -254,8 +253,8 @@ fn log_connection_error(err: &ConnectionError, agent_id: AgentID) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::event::channel::pub_sub;
     use crate::event::OpAMPEvent;
+    use crate::event::channel::pub_sub;
     use crate::opamp::effective_config::loader::tests::MockEffectiveConfigLoader;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::signature::{

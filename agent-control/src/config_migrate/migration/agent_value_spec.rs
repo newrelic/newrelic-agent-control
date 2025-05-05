@@ -96,7 +96,7 @@ mod tests {
         AgentValueSpecEnd, AgentValueSpecMapping,
     };
     use crate::config_migrate::migration::agent_value_spec::{
-        from_fqn_and_value, merge_agent_values_recursive, AgentValueSpec,
+        AgentValueSpec, from_fqn_and_value, merge_agent_values_recursive,
     };
     use crate::config_migrate::migration::config::AgentTypeFieldFQN;
     use std::collections::HashMap;

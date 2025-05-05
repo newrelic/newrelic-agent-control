@@ -1,5 +1,5 @@
 use std::{
-    thread::{sleep, JoinHandle},
+    thread::{JoinHandle, sleep},
     time::Duration,
 };
 use tracing::{debug, debug_span, trace};
@@ -10,7 +10,7 @@ const GRACEFUL_STOP_RETRY_INTERVAL: Duration = Duration::from_millis(100);
 use crate::{
     event::{
         cancellation::CancellationMessage,
-        channel::{pub_sub, EventConsumer, EventPublisher},
+        channel::{EventConsumer, EventPublisher, pub_sub},
     },
     utils::threads::spawn_named_thread,
 };

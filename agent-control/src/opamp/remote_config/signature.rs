@@ -338,10 +338,10 @@ impl TryFrom<&CustomMessage> for Signatures {
 mod tests {
     use super::SignatureData;
     use super::Signatures;
-    use crate::opamp::remote_config::signature::SigningAlgorithm;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA256;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA384;
     use crate::opamp::remote_config::signature::ED25519;
+    use crate::opamp::remote_config::signature::SigningAlgorithm;
     use opamp_client::opamp::proto::CustomMessage;
     use std::collections::HashMap;
 

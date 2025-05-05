@@ -1,10 +1,11 @@
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::context::Context;
-use crate::event::channel::{pub_sub, EventPublisher};
 use crate::event::SubAgentEvent;
+use crate::event::channel::{EventPublisher, pub_sub};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
+use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -12,11 +13,10 @@ use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
-use crate::sub_agent::SubAgent;
 use crate::values::yaml_config_repository::YAMLConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
-    sub_agent::{error::SubAgentBuilderError, SubAgentBuilder},
+    sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
 #[cfg(unix)]
 use nix::unistd::gethostname;
@@ -181,16 +181,16 @@ mod tests {
     use crate::agent_control::agent_id::AgentID;
 
     use crate::agent_control::defaults::{
-        default_capabilities, default_sub_agent_custom_capabilities, OPAMP_SERVICE_NAME,
-        OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::opamp::instance_id::InstanceID;
+    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;

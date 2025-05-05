@@ -1,8 +1,8 @@
 use crate::agent_control::http_server::status::{Status, SubAgentStatus};
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use std::sync::Arc;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::RwLock;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, trace, warn};
 
 pub(super) async fn on_agent_control_event_update_status(
@@ -124,8 +124,8 @@ mod tests {
     use fake::faker::lorem::en::{Word, Words};
     use fake::{Fake, Faker};
     use tokio::runtime::Handle;
-    use tokio::sync::mpsc::unbounded_channel;
     use tokio::sync::RwLock;
+    use tokio::sync::mpsc::unbounded_channel;
     use tokio::time::sleep;
 
     use url::Url;

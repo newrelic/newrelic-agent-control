@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize, Serializer};
 use std::fmt::Debug;
 use std::str::FromStr;
 use thiserror::Error;
-use tracing::level_filters::LevelFilter;
 use tracing::Level;
+use tracing::level_filters::LevelFilter;
 use tracing_subscriber::filter::{Directive, FilterExt, FilterFn};
 use tracing_subscriber::layer::Filter;
 use tracing_subscriber::{EnvFilter, Registry};
@@ -50,7 +50,7 @@ pub struct LoggingConfig {
 impl LoggingConfig {
     /// Returns the configured filter according to the corresponding fields. The filter will also allow
     /// any span whose level doesn't exceed [SPAN_ATTRIBUTES_MAX_LEVEL].
-    pub fn filter(&self) -> Result<impl Filter<Registry>, LoggingConfigError> {
+    pub fn filter(&self) -> Result<impl Filter<Registry> + use<>, LoggingConfigError> {
         let configured_logs_filter = self.logging_filter()?;
 
         let allow_spans_filter = FilterFn::new(|metadata| {
@@ -326,8 +326,10 @@ mod tests {
 
         // WARN and ERROR messages should be included
         // Logs inside info-spans should include the corresponding fields
-        assert!(log_file_content
-            .contains(r#"ERROR info-span{key: "value"}: error message inside span"#));
+        assert!(
+            log_file_content
+                .contains(r#"ERROR info-span{key: "value"}: error message inside span"#)
+        );
         // Logs inside debug-spans should not include the corresponding fields
         assert!(log_file_content.contains(r"ERROR error message inside debug span"));
         // Logs outside should also be reported

@@ -1,8 +1,8 @@
 use super::certificate::Certificate;
 use crate::http::client::HttpClient;
 use reqwest::tls::TlsInfo;
-use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::CertificateDer;
+use rustls::pki_types::pem::PemObject;
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::log::error;

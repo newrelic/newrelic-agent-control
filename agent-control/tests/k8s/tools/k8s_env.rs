@@ -3,8 +3,8 @@ use crate::common::runtime::tokio_runtime;
 use super::test_crd::create_foo_crd;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
-    api::{DeleteParams, PostParams},
     Api, Client,
+    api::{DeleteParams, PostParams},
 };
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use std::{env, sync::Once};
@@ -28,7 +28,7 @@ impl K8sEnv {
         });
 
         // Forces the client to use the dev kubeconfig file.
-        env::set_var("KUBECONFIG", KUBECONFIG_PATH);
+        unsafe { env::set_var("KUBECONFIG", KUBECONFIG_PATH) };
 
         let client = Client::try_default().await.expect("fail to create client");
         create_foo_crd(client.to_owned()).await;

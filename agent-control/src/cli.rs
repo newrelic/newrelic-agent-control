@@ -5,11 +5,11 @@
 
 mod one_shot_operation;
 use crate::agent_control::config::K8sConfig;
+use crate::agent_control::run::Environment;
 #[cfg(debug_assertions)]
 use crate::agent_control::run::set_debug_dirs;
-use crate::agent_control::run::Environment;
 use crate::instrumentation::tracing::{
-    try_init_tracing, TracingConfig, TracingError, TracingGuardBox,
+    TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::YAMLConfigRepositoryFile;

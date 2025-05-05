@@ -1,12 +1,13 @@
 use futures::StreamExt;
 use kube::{
+    Api, Client,
     core::DynamicObject,
     discovery::ApiResource,
     runtime::{
-        reflector::{self, store::Writer, Store},
-        watcher, WatchStreamExt,
+        WatchStreamExt,
+        reflector::{self, Store, store::Writer},
+        watcher,
     },
-    Api, Client,
 };
 use std::{fmt::Debug, future::Future, time::Duration};
 

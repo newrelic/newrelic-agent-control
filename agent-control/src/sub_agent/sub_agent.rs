@@ -1,13 +1,13 @@
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
-use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::SubAgentEvent::SubAgentStarted;
+use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
-use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;

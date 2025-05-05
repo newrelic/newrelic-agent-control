@@ -1,7 +1,7 @@
 use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-use crate::event::SubAgentInternalEvent;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use tracing::{debug, error, info, warn};
 
@@ -100,12 +100,12 @@ pub(crate) fn publish_version_event(
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
-    use crate::event::channel::pub_sub;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;
+    use crate::event::channel::pub_sub;
     use crate::sub_agent::version::version_checker::{
-        spawn_version_checker, AgentVersion, VersionCheckError, VersionChecker,
+        AgentVersion, VersionCheckError, VersionChecker, spawn_version_checker,
     };
-    use mockall::{mock, Sequence};
+    use mockall::{Sequence, mock};
     use std::time::Duration;
 
     mock! {

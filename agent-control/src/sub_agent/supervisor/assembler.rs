@@ -7,7 +7,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::SupervisorStarter;
 use crate::values::yaml_config_repository::{
-    load_remote_fallback_local, YAMLConfigRepository, YAMLConfigRepositoryError,
+    YAMLConfigRepository, YAMLConfigRepositoryError, load_remote_fallback_local,
 };
 use opamp_client::StartedClient;
 use std::sync::Arc;
@@ -188,8 +188,8 @@ pub mod tests {
     use crate::agent_type::runtime_config::onhost::OnHost;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::hash_repository::repository::HashRepositoryError;
+    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::effective_agents_assembler::{
@@ -200,15 +200,15 @@ pub mod tests {
         AgentSupervisorAssembler, SupervisorAssembler, SupervisorAssemblerError,
     };
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
-    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::starter::SupervisorStarter;
+    use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use mockall::mock;
+    use opamp_client::StartedClient;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
-    use opamp_client::StartedClient;
     use predicates::prelude::predicate;
     use std::sync::Arc;
 
@@ -377,9 +377,11 @@ pub mod tests {
         started_opamp_client.should_update_effective_config(1);
         let maybe_opamp_client = Some(started_opamp_client);
 
-        assert!(assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_ok());
+        assert!(
+            assembler
+                .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                .is_ok()
+        );
     }
 
     /// `maybe_opamp_client == Some(_)`
@@ -403,9 +405,11 @@ pub mod tests {
         // Expected calls on the opamp client
         let maybe_opamp_client = Some(OpampClientForTest::new());
 
-        assert!(assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_ok());
+        assert!(
+            assembler
+                .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                .is_ok()
+        );
     }
 
     /// `maybe_opamp_client == Some(_)`
@@ -469,9 +473,11 @@ pub mod tests {
 
         let maybe_opamp_client = Some(opamp_client);
 
-        assert!(supervisor_assembler
-            .assemble_supervisor(&maybe_opamp_client, agent_identity)
-            .is_err());
+        assert!(
+            supervisor_assembler
+                .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                .is_err()
+        );
     }
 
     fn setup_hash_repository(hash: String, agent_identity: AgentIdentity) -> MockHashRepository {
@@ -557,13 +563,17 @@ pub mod tests {
         );
 
         if should_return_effective_agent {
-            assert!(supervisor_assembler
-                .assemble_supervisor(&maybe_opamp_client, agent_identity)
-                .is_ok());
+            assert!(
+                supervisor_assembler
+                    .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                    .is_ok()
+            );
         } else {
-            assert!(supervisor_assembler
-                .assemble_supervisor(&maybe_opamp_client, agent_identity)
-                .is_err());
+            assert!(
+                supervisor_assembler
+                    .assemble_supervisor(&maybe_opamp_client, agent_identity)
+                    .is_err()
+            );
         }
     }
 }

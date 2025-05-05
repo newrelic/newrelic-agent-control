@@ -1,4 +1,4 @@
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone, Default)]

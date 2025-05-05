@@ -8,7 +8,7 @@ use crate::cloud::{
     AZURE_INSTANCE_ID, CLOUD_INSTANCE_ID, CLOUD_TYPE, CLOUD_TYPE_AWS, CLOUD_TYPE_AZURE,
     CLOUD_TYPE_GCP, CLOUD_TYPE_NO, GCP_INSTANCE_ID,
 };
-use crate::{cloud::AWS_INSTANCE_ID, DetectError, Detector, Key, Resource, Value};
+use crate::{DetectError, Detector, Key, Resource, Value, cloud::AWS_INSTANCE_ID};
 use thiserror::Error;
 use tracing::warn;
 
@@ -121,11 +121,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cloud::CLOUD_TYPE_GCP;
     use crate::cloud::aws::detector::AWSDetectorError;
     use crate::cloud::azure::detector::AzureDetectorError;
     use crate::cloud::gcp::detector::GCPDetectorError;
     use crate::cloud::http_client::HttpClientError;
-    use crate::cloud::CLOUD_TYPE_GCP;
     use mockall::mock;
 
     mock! {

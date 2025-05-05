@@ -2,11 +2,11 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::IDENTIFIERS_FILENAME;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
+use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::utils::FsError;
 use fs::writer_file::{FileWriter, WriteError};
-use fs::LocalFile;
 use std::fs::Permissions;
 use std::io;
 use std::os::unix::fs::PermissionsExt;
@@ -155,11 +155,11 @@ where
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
+    use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::getter::Identifiers;
     use crate::opamp::instance_id::on_host::storer::Storer;
     use crate::opamp::instance_id::storer::InstanceIDStorer;
-    use crate::opamp::instance_id::InstanceID;
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
     use mockall::predicate;
@@ -308,13 +308,9 @@ mod tests {
     }
 
     fn expected_file(instance_id: InstanceID) -> String {
-        format!("instance_id: {}\nidentifiers:\n  hostname: {}\n  machine_id: {}\n  cloud_instance_id: {}\n  host_id: {}\n  fleet_id: {}\n",
-                instance_id,
-            HOSTNAME,
-            MICHINE_ID,
-            CLOUD_INSTANCE_ID,
-            HOST_ID,
-            FLEET_ID,
+        format!(
+            "instance_id: {}\nidentifiers:\n  hostname: {}\n  machine_id: {}\n  cloud_instance_id: {}\n  host_id: {}\n  fleet_id: {}\n",
+            instance_id, HOSTNAME, MICHINE_ID, CLOUD_INSTANCE_ID, HOST_ID, FLEET_ID,
         )
     }
 

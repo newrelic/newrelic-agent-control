@@ -10,7 +10,7 @@ use newrelic_agent_control::config_migrate::migration::defaults::NEWRELIC_INFRA_
 use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use newrelic_agent_control::instrumentation::tracing::{try_init_tracing, TracingConfig};
+use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
 use std::error::Error;
 use std::path::PathBuf;

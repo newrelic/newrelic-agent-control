@@ -1,4 +1,4 @@
-use crossbeam::channel::{unbounded, Receiver, Sender};
+use crossbeam::channel::{Receiver, Sender, unbounded};
 use thiserror::Error;
 
 pub struct EventConsumer<E>(Receiver<E>);

@@ -142,8 +142,8 @@ pub mod tests {
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
     };
-    use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
+    use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;
     use k8s_openapi::{
         api::apps::v1::{DaemonSetSpec, DaemonSetStatus},
         apimachinery::pkg::apis::meta::v1::ObjectMeta,

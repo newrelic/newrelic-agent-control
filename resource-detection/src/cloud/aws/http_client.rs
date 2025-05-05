@@ -89,8 +89,8 @@ where
 #[cfg(test)]
 mod tests {
     use crate::cloud::aws::http_client::AWSHttpClient;
-    use crate::cloud::http_client::tests::MockHttpClient;
     use crate::cloud::http_client::HttpClientError;
+    use crate::cloud::http_client::tests::MockHttpClient;
     use http::{Response, StatusCode};
     use mockall::Sequence;
     use std::time::Duration;

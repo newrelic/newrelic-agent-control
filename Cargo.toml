@@ -1,11 +1,11 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 
 members = ["agent-control", "resource-detection", "fs", "wrapper_with_default"]
 
 [workspace.package]
 authors = ["The New Relic Agent Control Team"]
-edition = "2021"
+edition = "2024"
 publish = false
 rust-version = "1.85.0"
 license-file = "./LICENSE.md"

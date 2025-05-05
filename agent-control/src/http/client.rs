@@ -12,8 +12,8 @@ use opamp_client::http::HttpClientError as OpampHttpClientError;
 use opentelemetry_http::HttpError;
 use reqwest::tls::TlsInfo;
 use reqwest::{
-    blocking::{Client, Response as BlockingResponse},
     Certificate, Proxy,
+    blocking::{Client, Response as BlockingResponse},
 };
 use resource_detection::cloud::http_client::HttpClient as CloudClient;
 use resource_detection::cloud::http_client::HttpClientError as CloudClientError;

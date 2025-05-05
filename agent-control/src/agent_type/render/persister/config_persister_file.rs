@@ -2,9 +2,9 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, GENERATED_FOLDER_NAME};
 use crate::agent_type::variable::definition::VariableDefinition;
 use crate::agent_type::variable::kind::Kind;
+use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
-use fs::LocalFile;
 use std::collections::HashMap;
 use std::fs::Permissions;
 #[cfg(target_family = "unix")]
@@ -189,8 +189,8 @@ mod tests {
     use crate::agent_type::render::persister::config_persister_file::{
         DIRECTORY_PERMISSIONS, FILE_PERMISSIONS,
     };
-    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::directory_manager::DirectoryManager;
+    use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
     use fs::writer_file::FileWriter;
     use std::fs::Permissions;
@@ -279,9 +279,11 @@ mod tests {
             generated_conf_path.as_path(),
         );
 
-        assert!(persister
-            .persist_agent_config(&agent_id, &filled_variables)
-            .is_ok());
+        assert!(
+            persister
+                .persist_agent_config(&agent_id, &filled_variables)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -361,9 +363,11 @@ mod tests {
             generated_conf_path.as_path(),
         );
 
-        assert!(persister
-            .persist_agent_config(&agent_id, &filled_variables)
-            .is_ok());
+        assert!(
+            persister
+                .persist_agent_config(&agent_id, &filled_variables)
+                .is_ok()
+        );
     }
 
     #[test]
@@ -454,9 +458,11 @@ mod tests {
             generated_conf_path.as_path(),
         );
 
-        assert!(persister
-            .persist_agent_config(&agent_id, &filled_variables)
-            .is_ok());
+        assert!(
+            persister
+                .persist_agent_config(&agent_id, &filled_variables)
+                .is_ok()
+        );
     }
 
     #[test]

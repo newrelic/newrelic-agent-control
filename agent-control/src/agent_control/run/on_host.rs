@@ -1,3 +1,4 @@
+use crate::agent_control::AgentControl;
 use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
 use crate::agent_control::config_storer::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -7,7 +8,6 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::{AgentControlRunner, Environment};
-use crate::agent_control::AgentControl;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -18,9 +18,9 @@ use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::on_host::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
+use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::opamp::remote_config::validators::values::ValuesValidator;
-use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
@@ -31,8 +31,8 @@ use crate::{
     opamp::hash_repository::on_host::HashRepositoryFile,
     sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::YAMLConfigRepositoryFile,
 };
-use fs::directory_manager::DirectoryManagerFs;
 use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;

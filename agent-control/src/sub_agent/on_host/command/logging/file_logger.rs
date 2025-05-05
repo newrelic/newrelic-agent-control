@@ -8,8 +8,8 @@ use tracing_appender::{
     rolling::RollingFileAppender,
 };
 use tracing_subscriber::{
-    fmt::format::{DefaultFields, Format, Full},
     FmtSubscriber,
+    fmt::format::{DefaultFields, Format, Full},
 };
 
 use crate::agent_control::agent_id::AgentID;

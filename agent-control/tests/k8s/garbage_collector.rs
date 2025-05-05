@@ -5,7 +5,7 @@ use crate::common::{
 
 use super::tools::{
     k8s_env::K8sEnv,
-    test_crd::{create_foo_cr, foo_type_meta, Foo},
+    test_crd::{Foo, create_foo_cr, foo_type_meta},
 };
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};

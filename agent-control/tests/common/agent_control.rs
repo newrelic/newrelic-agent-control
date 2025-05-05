@@ -5,8 +5,8 @@ use newrelic_agent_control::agent_control::config_storer::store::AgentControlCon
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, BasePaths, Environment,
 };
-use newrelic_agent_control::event::channel::{pub_sub, EventPublisher};
 use newrelic_agent_control::event::ApplicationEvent;
+use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
 use std::sync::Arc;

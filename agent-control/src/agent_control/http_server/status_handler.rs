@@ -24,10 +24,10 @@ mod tests {
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
+    use actix_web::Responder;
     use actix_web::body::MessageBody;
     use actix_web::test::TestRequest;
     use actix_web::web::Data;
-    use actix_web::Responder;
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::SystemTime;

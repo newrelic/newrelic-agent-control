@@ -70,11 +70,11 @@ mod tests {
     use crate::agent_control::run::Environment;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::validators::values::ValuesValidatorError;
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
+    use crate::opamp::remote_config::validators::values::ValuesValidatorError;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
+    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::identity::tests::test_agent_identity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;

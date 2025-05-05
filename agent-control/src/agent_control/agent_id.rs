@@ -17,7 +17,9 @@ pub struct AgentID(String);
 
 #[derive(Error, Debug)]
 pub enum AgentIDError {
-    #[error("AgentID must contain 32 characters at most, contain lowercase alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric")]
+    #[error(
+        "AgentID must contain 32 characters at most, contain lowercase alphanumeric characters or dashes only, start with alphabetic, and end with alphanumeric"
+    )]
     InvalidFormat,
     #[error("AgentID '{0}' is reserved")]
     Reserved(String),

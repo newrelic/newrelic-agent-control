@@ -15,7 +15,7 @@ use crate::{
         embedded_registry::EmbeddedRegistry,
         render::{
             persister::config_persister_file::ConfigurationPersisterFile,
-            renderer::{tests::testing_agent_attributes, Renderer, TemplateRenderer},
+            renderer::{Renderer, TemplateRenderer, tests::testing_agent_attributes},
         },
         variable::{definition::VariableDefinition, namespace::Namespace},
     },
