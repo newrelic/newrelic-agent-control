@@ -15,7 +15,7 @@ pub struct AgentControlData {
     #[arg(long)]
     pub release_name: String,
 
-    /// Version of the agent control chart
+    /// Version of the agent control chart 
     #[arg(long)]
     pub chart_version: String,
 
@@ -57,8 +57,8 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         let repository_object = DynamicObject::try_from(helm_repository)?;
 
         let helm_release = HelmReleaseData {
-            name: "agent-control-release".to_string(),
-            chart_name: "agent-control".to_string(),
+            name: "agent-control-deployment-release".to_string(),
+            chart_name: "agent-control-deployment".to_string(),
             chart_version: value.chart_version,
             repository_name: REPOSITORY_NAME.to_string(),
             values: value.values,
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn test_to_dynamic_objects() {
         let data = AgentControlData {
-            release_name: "agent-control-release".to_string(),
+            release_name: "agent-control-deployment-release".to_string(),
             chart_version: "1.0.0".to_string(),
             values: None,
             labels: Some("key1=value1,key2=value2".to_string()),
@@ -94,7 +94,6 @@ mod tests {
         assert_eq!(dynamic_objects.len(), 2);
 
         // Check the repository object
-        println!("Dynamic objects: {:?}", dynamic_objects);
         let data = &dynamic_objects[0].data;
         assert_eq!(data["spec"]["url"], REPOSITORY_URL);
         assert_eq!(data["spec"]["interval"], "300s");
@@ -126,7 +125,7 @@ mod tests {
         assert_eq!(data["spec"]["timeout"], "300s");
 
         let metadata = &dynamic_objects[1].metadata;
-        assert_eq!(metadata.name, Some("agent-control-release".to_string()));
+        assert_eq!(metadata.name, Some("agent-control-deployment-release".to_string()));
         assert_eq!(
             metadata.labels,
             Some(BTreeMap::from_iter(vec![

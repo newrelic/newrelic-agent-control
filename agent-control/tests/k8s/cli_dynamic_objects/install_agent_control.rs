@@ -9,7 +9,7 @@ use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
-const RELEASE_NAME: &str = "agent-control-release";
+const RELEASE_NAME: &str = "agent-control-deployment-release";
 const REPOSITORY_NAME: &str = "newrelic";
 
 fn install_agent_control_command(namespace: String) -> Command {
