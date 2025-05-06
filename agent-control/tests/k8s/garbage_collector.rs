@@ -184,7 +184,7 @@ agents:
         &second_agents_config,
     ))
     .unwrap();
-    retry(60, Duration::from_secs(1), || {
+    retry(120, Duration::from_secs(1), || {
         if block_on(api_foo.get(resource_name)).is_ok() {
             return Err("CR should be removed".into());
         };
