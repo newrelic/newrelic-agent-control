@@ -63,7 +63,10 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
     type Error = ParseError;
 
     fn try_from(value: HelmReleaseData) -> Result<Self, Self::Error> {
-        info!("Creating Helm release object representation");
+        info!(
+            "Creating Helm release representation with name \"{}\"",
+            value.name
+        );
 
         let mut data = serde_json::json!({
             "spec": {
@@ -104,7 +107,10 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
             },
             data,
         };
-        info!("Helm release object representation created");
+        info!(
+            "Helm release representation with name \"{}\" created",
+            value.name
+        );
 
         Ok(dynamic_object)
     }

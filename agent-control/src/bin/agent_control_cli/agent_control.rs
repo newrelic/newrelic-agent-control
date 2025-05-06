@@ -45,7 +45,7 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
     type Error = ParseError;
 
     fn try_from(value: AgentControlData) -> Result<Self, Self::Error> {
-        info!("Creating Agent Control resources dynamic object representations");
+        info!("Creating Agent Control resources representations");
 
         let helm_repository = HelmRepositoryData {
             name: REPOSITORY_NAME.to_string(),
@@ -68,6 +68,8 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
             timeout: Duration::from_str("5m").expect("Hardcoded value should be correct"),
         };
         let release_object = DynamicObject::try_from(helm_release)?;
+
+        info!("Agent Control resources representations created");
 
         Ok(vec![repository_object, release_object])
     }

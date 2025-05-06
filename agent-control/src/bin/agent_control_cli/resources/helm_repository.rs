@@ -34,7 +34,10 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
     type Error = ParseError;
 
     fn try_from(value: HelmRepositoryData) -> Result<Self, Self::Error> {
-        info!("Creating Helm repository object representation");
+        info!(
+            "Creating Helm repository representation with name \"{}\"",
+            value.name
+        );
 
         let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
         debug!("Parsed labels: {:?}", labels);
@@ -60,7 +63,10 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
                 }
             }),
         };
-        info!("Helm repository object representation created");
+        info!(
+            "Helm repository representation with name \"{}\" created",
+            value.name
+        );
 
         Ok(dynamic_object)
     }

@@ -87,18 +87,34 @@ fn main() -> ExitCode {
 
 fn install_agent_control(data: AgentControlData, namespace: String) -> Result<(), CliError> {
     info!("Installing agent control");
+
     let dynamic_objects = Vec::<DynamicObject>::try_from(data)?;
 
     let k8s_client = k8s_client(namespace.clone())?;
+    info!("Applying agent control resources");
     for object in dynamic_objects {
-        let name = object.meta().name.clone().expect("Name should be present");
-        info!("Applying {}", name);
-        k8s_client
-            .apply_dynamic_object(&object)
-            .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-        info!("{} applied successfully", name);
+        apply_resource(&k8s_client, &object)?;
     }
+    info!("Agent control resources applied successfully");
+
     info!("Agent control installed successfully");
+
+    Ok(())
+}
+
+fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<(), CliError> {
+    let name = object.meta().name.clone().expect("Name should be present");
+    let kind = object
+        .types
+        .clone()
+        .map(|t| t.kind)
+        .unwrap_or_else(|| "Unknown kind".to_string());
+
+    info!("Applying \"{}\" with name \"{}\"", kind, name);
+    k8s_client
+        .apply_dynamic_object(object)
+        .map_err(|err| CliError::ApplyResource(err.to_string()))?;
+    info!("\"{}\" with name \"{}\" applied successfully", kind, name);
 
     Ok(())
 }
