@@ -34,6 +34,8 @@ pub struct HelmReleaseData {
     /// file path. Otherwise, it is treated as a string.
     pub values: Option<String>,
 
+    pub values_from_secret: Option<String>,
+
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
@@ -89,6 +91,15 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
         if let Some(values) = value.parse_values()? {
             debug!("Parsed values: {:?}", values);
             data["spec"]["values"] = values;
+        }
+
+        if let Some(values_from_secret) = value.values_from_secret {
+            debug!("Parsed values from secret: {:?}", values_from_secret);
+            data["spec"]["valuesFrom"] = serde_json::json!([{
+                "kind": "Secret",
+                "name": values_from_secret,
+                "valuesKey": "values.yaml",
+            }]);
         }
 
         let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
@@ -148,6 +159,7 @@ mod tests {
             chart_version: "1.0.0".to_string(),
             repository_name: "test-repository".to_string(),
             values: Some("value1: value1\nvalue2: value2".to_string()),
+            values_from_secret: None,
             labels: Some("label1=value1,label2=value2".to_string()),
             annotations: Some("annotation1=value1,annotation2=value2".to_string()),
             interval: Duration::from_str("6m").unwrap(),

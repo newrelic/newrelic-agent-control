@@ -1,13 +1,17 @@
-use std::str::FromStr;
+use std::{collections::BTreeMap, str::FromStr};
 
 use clap::Parser;
 use kube::{api::DynamicObject, core::Duration};
 use tracing::info;
 
-use crate::{errors::ParseError, resources::HelmReleaseData, resources::HelmRepositoryData};
+use crate::{
+    errors::ParseError,
+    resources::{HelmReleaseData, HelmRepositoryData, SecretData, SecretType},
+};
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
+const SECRET_NAME: &str = "agent-control-secret";
 
 #[derive(Debug, Parser)]
 pub struct AgentControlData {
@@ -56,12 +60,26 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         };
         let repository_object = DynamicObject::try_from(helm_repository)?;
 
+        let values = value.values.map(|v| parse_values(v)).transpose()?;
+        let string_data = values.map(|v| BTreeMap::from_iter(vec![("values.yaml".to_string(), v)]));
+        let secret = SecretData {
+            name: SECRET_NAME.to_string(),
+            secret_type: SecretType::Opaque,
+            immutable: None,
+            data: None,
+            string_data,
+            labels: value.labels.clone(),
+            annotations: value.annotations.clone(),
+        };
+        let secret_object = DynamicObject::try_from(secret)?;
+
         let helm_release = HelmReleaseData {
             name: value.release_name,
             chart_name: "agent-control-deployment".to_string(),
             chart_version: value.chart_version,
             repository_name: REPOSITORY_NAME.to_string(),
-            values: value.values,
+            values: None,
+            values_from_secret: Some(SECRET_NAME.to_string()),
             labels: value.labels,
             annotations: value.annotations,
             interval: Duration::from_str("5m").expect("Hardcoded value should be correct"),
@@ -71,8 +89,17 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
 
         info!("Agent Control resources representations created");
 
-        Ok(vec![repository_object, release_object])
+        Ok(vec![repository_object, secret_object, release_object])
     }
+}
+
+fn parse_values(values: String) -> Result<String, ParseError> {
+    let values = match values.strip_prefix("fs://") {
+        Some(path) => std::fs::read_to_string(path)?,
+        None => values,
+    };
+
+    Ok(values)
 }
 
 #[cfg(test)]
