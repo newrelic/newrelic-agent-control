@@ -528,9 +528,7 @@ pub mod tests {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
     use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
@@ -964,132 +962,6 @@ pub mod tests {
                 },
             },
         )
-    }
-
-    //Follow the same approach as before the refactor
-    pub(crate) type AssemblerForTesting =
-        AgentSupervisorAssembler<MockHashRepository, MockSupervisorBuilder<MockSupervisorStarter>>;
-
-    pub(crate) type OpampClientForTest = MockStartedOpAMPClient;
-
-    impl AssemblerForTesting {
-        fn test_assembler(agent_identity: AgentIdentity) -> Self {
-            let mut hash_repository = MockHashRepository::default();
-            hash_repository
-                .expect_get()
-                .with(predicate::eq(agent_identity.id.clone()))
-                .return_const(Ok(None));
-
-            // let mut yaml_config_repository = MockYAMLConfigRepository::new();
-            // yaml_config_repository.should_load_remote(
-            //     &agent_identity.id,
-            //     default_capabilities(),
-            //     &YAMLConfig::default(),
-            // );
-
-            let effective_agent = final_agent(agent_identity.clone());
-            // let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
-            // effective_agent_assembler.should_assemble_agent(
-            //     &agent_identity,
-            //     &YAMLConfig::default(),
-            //     &Environment::OnHost,
-            //     effective_agent.clone(),
-            //     1,
-            // );
-
-            let mut supervisor_stopper = MockSupervisorStopper::new();
-            supervisor_stopper
-                .expect_stop()
-                .times(0..=1) // at most once
-                .return_once(|| Ok(()));
-
-            let mut supervisor_starter = MockSupervisorStarter::new();
-            supervisor_starter
-                .expect_start()
-                .times(0..=1) // at most once
-                .with(predicate::always())
-                .return_once(|_| Ok(supervisor_stopper));
-
-            let mut supervisor_builder = MockSupervisorBuilder::new();
-            supervisor_builder
-                .expect_build_supervisor()
-                .with(predicate::function(move |e: &EffectiveAgent| {
-                    e == &effective_agent
-                }))
-                .return_once(|_| Ok(supervisor_starter));
-
-            let hash_repository_ref = Arc::new(hash_repository);
-
-            AgentSupervisorAssembler::new(hash_repository_ref, supervisor_builder)
-        }
-    }
-
-    #[rstest]
-    #[case::from_none_hash_err_eff_agent(false, Some(OpampClientForTest::new()), "")]
-    #[case::from_none_hash_ok_eff_agent(true, Some(OpampClientForTest::new()), "")]
-    #[case::from_ok_eff_agent_no_opamp(true, None, "some_hash")]
-    #[case::from_ok_eff_agent_no_opamp_no_hash(true, None, "")]
-    #[case::from_err_eff_agent_no_opamp(false, None, "some_hash")]
-    #[case::from_err_eff_agent_no_opamp_no_hash(false, None, "")]
-    fn test_assemble_supervisor(
-        #[case] should_return_effective_agent: bool,
-        #[case] maybe_opamp_client: Option<OpampClientForTest>,
-        #[case] hash: String,
-        agent_identity: AgentIdentity,
-        final_agent: EffectiveAgent,
-    ) {
-        use crate::sub_agent::supervisor::{
-            assembler::{
-                AgentSupervisorAssembler,
-                tests::{
-                    setup_effective_agent_assembler_to_return_err,
-                    setup_effective_agent_assembler_to_return_ok, setup_hash_repository,
-                },
-            },
-            builder::tests::MockSupervisorBuilder,
-        };
-
-        let effective_agent_assembler = if should_return_effective_agent {
-            setup_effective_agent_assembler_to_return_ok(final_agent.clone())
-        } else {
-            setup_effective_agent_assembler_to_return_err()
-        };
-
-        let mut supervisor_builder = MockSupervisorBuilder::new();
-        supervisor_builder
-            .expect_build_supervisor()
-            .with(predicate::function({
-                let final_agent = final_agent.clone();
-                move |e: &EffectiveAgent| e == &final_agent
-            }))
-            .return_once(|_| Ok(MockSupervisorStarter::new()));
-
-        let hash_repository = setup_hash_repository(hash.clone(), agent_identity.clone());
-        let mut yaml_config_repository = MockYAMLConfigRepository::new();
-        yaml_config_repository.should_load_remote(
-            &agent_identity.id,
-            default_capabilities(),
-            &YAMLConfig::default(),
-        );
-        let supervisor_assembler =
-            AgentSupervisorAssembler::new(Arc::new(hash_repository), supervisor_builder);
-
-        let assembled_supervisor = supervisor_assembler.assemble_supervisor(
-            &maybe_opamp_client,
-            agent_identity,
-            // EffectiveAgent::new(
-            //     agent_identity,
-            //     Runtime {
-            //         deployment: Deployment::default(),
-            //     },
-            // )
-            final_agent,
-        );
-        if should_return_effective_agent {
-            assert!(assembled_supervisor.is_ok());
-        } else {
-            assert!(assembled_supervisor.is_err());
-        }
     }
 
     fn healthy(status: &str) -> Health {

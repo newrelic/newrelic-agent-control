@@ -1,18 +1,13 @@
-use crate::agent_control::defaults::default_capabilities;
-use crate::agent_control::run::Environment;
 use crate::opamp::hash_repository::HashRepository;
-use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
-use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
+use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::sub_agent::supervisor::starter::SupervisorStarter;
-use crate::values::yaml_config_repository::{
-    YAMLConfigRepository, YAMLConfigRepositoryError, load_remote_fallback_local,
-};
+use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
 use opamp_client::StartedClient;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::{debug, error, warn};
+use tracing::error;
 
 #[derive(Debug, Error)]
 pub enum SupervisorAssemblerError {
@@ -47,7 +42,7 @@ pub trait SupervisorAssembler {
 /// If it succeeds, it will use the environment specific SupervisorBuilder
 /// to actually build and return the Supervisor.
 pub struct AgentSupervisorAssembler<HR, B> {
-    hash_repository: Arc<HR>,
+    _hash_repository: Arc<HR>,
     supervisor_builder: B,
 }
 
@@ -58,7 +53,7 @@ where
 {
     pub fn new(hash_repository: Arc<HR>, supervisor_builder: B) -> Self {
         Self {
-            hash_repository,
+            _hash_repository: hash_repository,
             supervisor_builder,
         }
     }
@@ -73,8 +68,8 @@ where
 
     fn assemble_supervisor<C>(
         &self,
-        maybe_opamp_client: &Option<C>,
-        agent_identity: AgentIdentity,
+        _maybe_opamp_client: &Option<C>,
+        _agent_identity: AgentIdentity,
         effective_agent: EffectiveAgent,
     ) -> Result<B::SupervisorStarter, SupervisorAssemblerError>
     where
@@ -91,38 +86,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use rstest::*;
 
-    use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::defaults::default_capabilities;
-    use crate::agent_control::run::Environment;
-    use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::onhost::OnHost;
-    use crate::agent_type::runtime_config::{Deployment, Runtime};
-    use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::HashRepositoryError;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
-    use crate::opamp::remote_config::hash::Hash;
-    use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
-    use crate::sub_agent::effective_agents_assembler::{
-        self, EffectiveAgent, EffectiveAgentsAssemblerError,
-    };
+    use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::identity::AgentIdentity;
-    use crate::sub_agent::supervisor::assembler::{
-        AgentSupervisorAssembler, SupervisorAssembler, SupervisorAssemblerError,
-    };
-    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
+    use crate::sub_agent::supervisor::assembler::{SupervisorAssembler, SupervisorAssemblerError};
     use crate::sub_agent::supervisor::starter::SupervisorStarter;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
-    use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use mockall::mock;
     use opamp_client::StartedClient;
-    use opamp_client::opamp::proto::RemoteConfigStatus;
-    use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Failed};
     use predicates::prelude::predicate;
-    use std::sync::Arc;
 
     //Mock implementation for tests
     mock! {
@@ -160,47 +132,5 @@ pub mod tests {
                 .once()
                 .return_once(|_, _, _| Ok(starter));
         }
-    }
-
-    pub(crate) fn setup_hash_repository(
-        hash: String,
-        agent_identity: AgentIdentity,
-    ) -> MockHashRepository {
-        let mut hash_repository = MockHashRepository::new();
-        if hash.is_empty() {
-            hash_repository.should_not_get_hash(&agent_identity.id);
-        } else {
-            hash_repository.should_get_hash(&agent_identity.id, Hash::new(hash));
-        }
-
-        hash_repository
-    }
-
-    pub(crate) fn setup_effective_agent_assembler_to_return_ok(
-        effective_agent: EffectiveAgent,
-    ) -> MockEffectiveAgentAssembler {
-        let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
-        effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .return_once(move |_, _, _| Ok(effective_agent));
-
-        effective_agent_assembler
-    }
-
-    pub(crate) fn setup_effective_agent_assembler_to_return_err() -> MockEffectiveAgentAssembler {
-        let mut effective_agent_assembler = MockEffectiveAgentAssembler::new();
-        effective_agent_assembler
-            .expect_assemble_agent()
-            .once()
-            .return_once(move |_, _, _| {
-                Err(
-                    EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(String::from(
-                        "random error!",
-                    )),
-                )
-            });
-
-        effective_agent_assembler
     }
 }
