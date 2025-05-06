@@ -9,7 +9,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::{AgentControlRunner, Environment};
+use crate::agent_control::run::AgentControlRunner;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -19,7 +19,6 @@ use crate::opamp::instance_id::k8s::getter::{Identifiers, get_identifiers};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::opamp::remote_config::validators::values::ValuesValidator;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
@@ -130,10 +129,6 @@ impl AgentControlRunner {
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
-            SupportedRemoteConfigValidator::Values(ValuesValidator::new(
-                agents_assembler.clone(),
-                Environment::K8s,
-            )),
         ];
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
