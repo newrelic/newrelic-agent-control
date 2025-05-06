@@ -4,4 +4,4 @@ mod secret;
 
 pub use helm_release::HelmReleaseData;
 pub use helm_repository::HelmRepositoryData;
-pub use secret::{SecretData, SecretType};
+pub use secret::SecretData;

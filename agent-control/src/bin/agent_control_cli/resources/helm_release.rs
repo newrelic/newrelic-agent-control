@@ -1,4 +1,4 @@
-use std::fs;
+use std::{collections::BTreeMap, fs};
 
 use kube::{
     api::{DynamicObject, ObjectMeta},
@@ -7,7 +7,7 @@ use kube::{
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs};
+use crate::errors::ParseError;
 
 const FILE_PREFIX: &str = "fs://";
 
@@ -39,10 +39,10 @@ pub struct HelmReleaseData {
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
-    pub labels: Option<String>,
+    pub labels: Option<BTreeMap<String, String>>,
 
     /// Non-identifying metadata
-    pub annotations: Option<String>,
+    pub annotations: Option<BTreeMap<String, String>>,
 
     /// Interval at which the release is reconciled
     ///
@@ -102,18 +102,12 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
             }]);
         }
 
-        let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
-        debug!("Parsed labels: {:?}", labels);
-
-        let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
-        debug!("Parsed annotations: {:?}", annotations);
-
         let dynamic_object = DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
                 name: Some(value.name.clone()),
-                labels,
-                annotations,
+                labels: value.labels,
+                annotations: value.annotations,
                 ..Default::default()
             },
             data,
@@ -149,6 +143,8 @@ impl HelmReleaseData {
 mod tests {
     use std::{io::Write, str::FromStr};
 
+    use crate::utils::parse_key_value_pairs;
+
     use super::*;
     use tempfile::NamedTempFile;
 
@@ -160,8 +156,10 @@ mod tests {
             repository_name: "test-repository".to_string(),
             values: Some("value1: value1\nvalue2: value2".to_string()),
             values_from_secret: None,
-            labels: Some("label1=value1,label2=value2".to_string()),
-            annotations: Some("annotation1=value1,annotation2=value2".to_string()),
+            labels: Some(parse_key_value_pairs("label1=value1,label2=value2").unwrap()),
+            annotations: Some(
+                parse_key_value_pairs("annotation1=value1,annotation2=value2").unwrap(),
+            ),
             interval: Duration::from_str("6m").unwrap(),
             timeout: Duration::from_str("7m").unwrap(),
         }

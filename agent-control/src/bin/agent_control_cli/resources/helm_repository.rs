@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
+
 use kube::{
     api::{DynamicObject, ObjectMeta, TypeMeta},
     core::Duration,
 };
-use tracing::{debug, info};
+use tracing::info;
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs};
+use crate::errors::ParseError;
 
 pub struct HelmRepositoryData {
     /// Object name
@@ -16,10 +18,10 @@ pub struct HelmRepositoryData {
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
-    pub labels: Option<String>,
+    pub labels: Option<BTreeMap<String, String>>,
 
     /// Non-identifying metadata
-    pub annotations: Option<String>,
+    pub annotations: Option<BTreeMap<String, String>>,
 
     /// Interval at which the repository will be fetched again
     ///
@@ -39,12 +41,6 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
             value.name
         );
 
-        let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
-        debug!("Parsed labels: {:?}", labels);
-
-        let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
-        debug!("Parsed annotations: {:?}", annotations);
-
         let dynamic_object = DynamicObject {
             types: Some(TypeMeta {
                 api_version: "source.toolkit.fluxcd.io/v1".to_string(),
@@ -52,8 +48,8 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
             }),
             metadata: ObjectMeta {
                 name: Some(value.name.clone()),
-                labels,
-                annotations,
+                labels: value.labels,
+                annotations: value.annotations,
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -75,6 +71,8 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
+
+    use crate::utils::parse_key_value_pairs;
 
     use super::*;
 
@@ -116,8 +114,10 @@ mod tests {
         let helm_repository_data = HelmRepositoryData {
             name: "test-repository".to_string(),
             url: "https://example.com/helm-charts".to_string(),
-            labels: Some("label1=value1,label2=value2".to_string()),
-            annotations: Some("annotation1=value1,annotation2=value2".to_string()),
+            labels: Some(parse_key_value_pairs("label1=value1,label2=value2").unwrap()),
+            annotations: Some(
+                parse_key_value_pairs("annotation1=value1,annotation2=value2").unwrap(),
+            ),
             interval: Duration::from_str("6m").unwrap(),
         };
         let actual_dynamic_object = DynamicObject::try_from(helm_repository_data).unwrap();
