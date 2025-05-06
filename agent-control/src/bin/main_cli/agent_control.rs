@@ -15,7 +15,7 @@ pub struct AgentControlData {
     #[arg(long)]
     pub release_name: String,
 
-    /// Version of the agent control chart 
+    /// Version of the agent control chart
     #[arg(long)]
     pub chart_version: String,
 
@@ -125,7 +125,10 @@ mod tests {
         assert_eq!(data["spec"]["timeout"], "300s");
 
         let metadata = &dynamic_objects[1].metadata;
-        assert_eq!(metadata.name, Some("agent-control-deployment-release".to_string()));
+        assert_eq!(
+            metadata.name,
+            Some("agent-control-deployment-release".to_string())
+        );
         assert_eq!(
             metadata.labels,
             Some(BTreeMap::from_iter(vec![
