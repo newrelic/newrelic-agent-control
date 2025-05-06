@@ -53,7 +53,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(release.metadata.annotations, None);
 
     let chart_data = release.data["spec"]["chart"]["spec"].clone();
-    assert_eq!(chart_data["chart"], "agent-control");
+    assert_eq!(chart_data["chart"], "agent-control-deployment");
     assert_eq!(chart_data["version"], "1.0.0");
     assert_eq!(chart_data["sourceRef"]["kind"], "HelmRepository");
     assert_eq!(chart_data["sourceRef"]["name"], REPOSITORY_NAME);
