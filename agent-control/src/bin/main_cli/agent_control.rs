@@ -57,7 +57,7 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         let repository_object = DynamicObject::try_from(helm_repository)?;
 
         let helm_release = HelmReleaseData {
-            name: "agent-control-deployment-release".to_string(),
+            name: value.release_name,
             chart_name: "agent-control-deployment".to_string(),
             chart_version: value.chart_version,
             repository_name: REPOSITORY_NAME.to_string(),
@@ -81,8 +81,9 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects() {
+        let release_name = "agent-control-deployment-release".to_string();
         let data = AgentControlData {
-            release_name: "agent-control-deployment-release".to_string(),
+            release_name: release_name.clone(),
             chart_version: "1.0.0".to_string(),
             values: None,
             labels: Some("key1=value1,key2=value2".to_string()),
@@ -125,10 +126,7 @@ mod tests {
         assert_eq!(data["spec"]["timeout"], "300s");
 
         let metadata = &dynamic_objects[1].metadata;
-        assert_eq!(
-            metadata.name,
-            Some("agent-control-deployment-release".to_string())
-        );
+        assert_eq!(metadata.name, Some(release_name));
         assert_eq!(
             metadata.labels,
             Some(BTreeMap::from_iter(vec![
