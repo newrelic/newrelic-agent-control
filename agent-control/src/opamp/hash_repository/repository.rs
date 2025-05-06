@@ -31,36 +31,11 @@ pub mod tests {
     }
 
     impl MockHashRepository {
-        pub fn should_get_hash(&mut self, agent_id: &AgentID, hash: Hash) {
-            self.expect_get()
-                .with(predicate::eq(agent_id.clone()))
-                .once()
-                .return_once(move |_| Ok(Some(hash)));
-        }
-
-        pub fn should_not_get_hash(&mut self, agent_id: &AgentID) {
-            self.expect_get()
-                .with(predicate::eq(agent_id.clone()))
-                .once()
-                .return_once(move |_| Ok(None));
-        }
-
         pub(crate) fn should_save_hash(&mut self, agent_id: &AgentID, hash: &Hash) {
             self.expect_save()
                 .with(predicate::eq(agent_id.clone()), predicate::eq(hash.clone()))
                 .once()
                 .returning(move |_, _| Ok(()));
-        }
-
-        pub(crate) fn should_return_error_on_get(
-            &mut self,
-            agent_id: &AgentID,
-            error: HashRepositoryError,
-        ) {
-            self.expect_get()
-                .with(predicate::eq(agent_id.clone()))
-                .once()
-                .return_once(move |_| Err(error));
         }
     }
 }
