@@ -3,6 +3,7 @@ use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{ClientError, StartedClient};
 
+#[derive(Debug, Clone)]
 pub enum OpampRemoteConfigStatus {
     Applying,
     Error(String),
