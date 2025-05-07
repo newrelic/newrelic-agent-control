@@ -3,14 +3,16 @@ use std::io::Write;
 use assert_cmd::Command;
 use kube::api::TypeMeta;
 use predicates::prelude::*;
+use serde_json::Value;
 use tempfile::NamedTempFile;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
-const RELEASE_NAME: &str = "agent-control-deployment-release";
 const REPOSITORY_NAME: &str = "newrelic";
+const SECRET_NAME: &str = "agent-control-secret";
+const RELEASE_NAME: &str = "agent-control-deployment-release";
 
 fn install_agent_control_command(namespace: String) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
@@ -29,19 +31,45 @@ fn helm_repository_type_meta() -> TypeMeta {
     }
 }
 
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_creates_resources() {
-    let runtime = crate::common::runtime::tokio_runtime();
+fn secret_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "v1".to_string(),
+        kind: "Secret".to_string(),
+    }
+}
 
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
+fn assert_helm_repository(k8s_client: &SyncK8sClient) {
+    let repository = k8s_client
+        .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
+        .unwrap()
+        .unwrap();
 
-    let mut cmd = install_agent_control_command(namespace.clone());
-    cmd.assert().success();
+    assert_eq!(
+        repository.data["spec"]["url"],
+        "https://helm-charts.newrelic.com"
+    );
+    assert_eq!(repository.data["spec"]["interval"], "300s");
+    assert_eq!(repository.metadata.labels, None);
+    assert_eq!(repository.metadata.annotations, None);
+}
 
-    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+fn assert_secret(k8s_client: &SyncK8sClient) {
+    let secret = k8s_client
+        .get_dynamic_object(&secret_type_meta(), SECRET_NAME)
+        .unwrap()
+        .unwrap();
 
+    assert_eq!(secret.data["type"], "Opaque");
+    assert_eq!(
+        secret.data["data"]["values.yaml"],
+        Value::String("eyJ2YWx1ZTEiOiJ2YWx1ZTEiLCJ2YWx1ZTIiOiJ2YWx1ZTIifQ==".to_string())
+    );
+    assert_eq!(secret.data["immutable"], Value::Null);
+    assert_eq!(secret.metadata.labels, None);
+    assert_eq!(secret.metadata.annotations, None);
+}
+
+fn assert_helm_release(k8s_client: &SyncK8sClient) {
     let release = k8s_client
         .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
         .unwrap()
@@ -58,30 +86,54 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert_eq!(chart_data["sourceRef"]["kind"], "HelmRepository");
     assert_eq!(chart_data["sourceRef"]["name"], REPOSITORY_NAME);
     assert_eq!(chart_data["interval"], "300s");
-
-    let repository = k8s_client
-        .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
-        .unwrap()
-        .unwrap();
-
-    assert_eq!(repository.data["spec"]["interval"], "300s");
-    assert_eq!(
-        repository.data["spec"]["url"],
-        "https://helm-charts.newrelic.com"
-    );
-    assert_eq!(repository.metadata.labels, None);
-    assert_eq!(repository.metadata.annotations, None);
 }
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_with_labels_and_annotations() {
+fn k8s_cli_install_agent_control_creates_resources_no_values() {
     let runtime = crate::common::runtime::tokio_runtime();
 
     let mut k8s_env = runtime.block_on(K8sEnv::new());
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let mut cmd = install_agent_control_command(namespace.clone());
+    cmd.assert().success();
+
+    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+
+    assert_helm_repository(&k8s_client);
+    assert_helm_release(&k8s_client);
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_cli_install_agent_control_creates_resources_with_values() {
+    let runtime = crate::common::runtime::tokio_runtime();
+
+    let mut k8s_env = runtime.block_on(K8sEnv::new());
+    let namespace = runtime.block_on(k8s_env.test_namespace());
+
+    let mut cmd = install_agent_control_command(namespace.clone());
+    cmd.arg("--values").arg("value1: value1\nvalue2: value2");
+    cmd.assert().success();
+
+    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+
+    assert_helm_repository(&k8s_client);
+    assert_secret(&k8s_client);
+    assert_helm_release(&k8s_client);
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_cli_install_agent_control_with_values_labels_and_annotations() {
+    let runtime = crate::common::runtime::tokio_runtime();
+
+    let mut k8s_env = runtime.block_on(K8sEnv::new());
+    let namespace = runtime.block_on(k8s_env.test_namespace());
+
+    let mut cmd = install_agent_control_command(namespace.clone());
+    cmd.arg("--values").arg("value1: value1\nvalue2: value2");
     cmd.arg("--labels")
         .arg("chart=podinfo, env=testing, app=ac");
     cmd.arg("--annotations")
@@ -90,21 +142,26 @@ fn k8s_cli_install_agent_control_with_labels_and_annotations() {
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
 
-    let release = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
-        .unwrap()
-        .unwrap();
-
     let repository = k8s_client
         .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.metadata.labels, repository.metadata.labels);
-    assert_eq!(
-        release.metadata.annotations,
-        repository.metadata.annotations
-    );
+    let secret = k8s_client
+        .get_dynamic_object(&&secret_type_meta(), SECRET_NAME)
+        .unwrap()
+        .unwrap();
+
+    let release = k8s_client
+        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+        .unwrap()
+        .unwrap();
+
+    assert_eq!(repository.metadata.labels, secret.metadata.labels);
+    assert_eq!(repository.metadata.annotations, secret.metadata.annotations);
+
+    assert_eq!(secret.metadata.labels, release.metadata.labels);
+    assert_eq!(secret.metadata.annotations, release.metadata.annotations);
 
     assert_eq!(
         release.metadata.labels,
@@ -149,11 +206,12 @@ fn k8s_cli_install_agent_control_with_string_values() {
         .unwrap();
 
     assert_eq!(
-        release.data["spec"]["values"],
-        serde_json::json!({
-            "key1": "value1",
-            "key2": "value2"
-        })
+        release.data["spec"]["valuesFrom"],
+        serde_json::json!([{
+            "kind": "Secret",
+            "name": "agent-control-secret",
+            "valuesKey": "values.yaml",
+        }])
     );
 }
 
@@ -181,11 +239,12 @@ fn k8s_cli_install_agent_control_with_file_values() {
         .unwrap();
 
     assert_eq!(
-        release.data["spec"]["values"],
-        serde_json::json!({
-            "key1": "value1",
-            "key2": "value2"
-        })
+        release.data["spec"]["valuesFrom"],
+        serde_json::json!([{
+            "kind": "Secret",
+            "name": "agent-control-secret",
+            "valuesKey": "values.yaml",
+        }])
     );
 }
 
