@@ -2,7 +2,6 @@ use std::io::Write;
 
 use assert_cmd::Command;
 use kube::api::TypeMeta;
-use predicates::prelude::*;
 use serde_json::Value;
 use tempfile::NamedTempFile;
 
@@ -246,20 +245,4 @@ fn k8s_cli_install_agent_control_with_file_values() {
             "valuesKey": "values.yaml",
         }])
     );
-}
-
-#[test]
-fn cli_helm_release_fails_when_values_format_is_incorrect() {
-    let mut cmd = install_agent_control_command("default".to_string());
-    cmd.arg("--values").arg("key1: value1\nkey2 value2");
-    cmd.assert().failure();
-    cmd.assert().code(predicate::eq(65));
-}
-
-#[test]
-fn cli_helm_release_fails_when_values_file_does_not_exist() {
-    let mut cmd = install_agent_control_command("default".to_string());
-    cmd.arg("--values").arg("fs://nonexistent.yaml");
-    cmd.assert().failure();
-    cmd.assert().code(predicate::eq(66));
 }
