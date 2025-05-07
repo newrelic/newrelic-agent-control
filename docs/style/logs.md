@@ -20,20 +20,46 @@ debug!("Creating agent's communication channels.");
 Log messages should generally be static, with fields used for dynamic content. However, the error message should be
 included in the log message, even if it is static. The fields used for dynamic content should be `snake_case` and consistent.
 
-Additionally, most dynamic fields (representing the log context) will be included automatically, as the code is traced
-and logs are within the span context. Refer to the [tracing crate](https://docs.rs/tracing/latest/tracing/#core-concepts)
-documentation and [this PR](https://github.com/newrelic/newrelic-agent-control/pull/1143)
-for more details.
+
+
+## Span
+
+Spans MUST be SHORT lived since it accumulates all events until it gets dropped as well as all child Spans (this is being tracked by the subscriber). 
+The code base mainly use Spans in order to decorate Events in their scope with context like AgentID. 
+The Span level MUST be always `INFO` so all logs are decorated with the context. Setting a Span to `DEBUG` will cause `INFO` logs not miss decoration.
+The Span name should be `snake_case`.
 
 ```rust
 // 👍 Good:
+let s = span_info!("my_span", id=%agent_id);
+let _guard = s.enter();
 info!(hash=&config.hash.get(), "Applying remote configuration");
 warn!(hash=&config.hash.get(), "Remote configuration cannot be applied: {err}");
 
 // 👎 Bad:
 //`agent_id` is already added in the parent span, the error message in `err` should be part of the log message, fields should be snake_case and consistent.
+let s = span_info!("my_span", id=%agent_id);
+let _guard = s.enter();
 info!(%agent_id, hash=&config.hash.get(), "Applying remote configuration");
 warn!(%agent_id, configHash=&config.hash.get(), %err, "Remote configuration cannot be applied");
+```
+
+```rust
+// 👍 Good:
+let s = span_info!("my_span", id=%agent_id);
+{
+  let _guard = s.enter();
+  some_short_lived_task();
+}
+
+
+// 👎 Bad:
+// The span will LEAK all Events created inside the `long_live_task` until the thread finish.
+let s = span_info!("my_span", id=%agent_id);
+spawn_named_thread("long live thread", move || {
+    let _guards = s.enter();
+    long_live_task()
+}),
 ```
 
 ## Log level
