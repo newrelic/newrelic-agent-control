@@ -117,7 +117,6 @@ pub fn stop_opamp_client<C: StartedClient>(
             "Stopping OpAMP client for supervised agent type: {}",
             agent_id
         );
-        // TODO We should call disconnect here as this means a graceful shutdown
         client.stop()?;
     }
     Ok(())

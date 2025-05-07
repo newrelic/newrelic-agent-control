@@ -12,7 +12,7 @@ use crate::sub_agent::health::health_checker::{
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
 use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -140,6 +140,7 @@ impl NotStartedSupervisorOnHost {
             let health_checker =
                 OnHostHealthChecker::try_new(http_client, health_config.clone(), start_time)?;
             let started_thread_context = spawn_health_checker(
+                self.agent_identity.id.clone(),
                 health_checker,
                 sub_agent_internal_publisher,
                 health_config.interval,
@@ -159,6 +160,7 @@ impl NotStartedSupervisorOnHost {
             OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
+            self.agent_identity.id.clone(),
             onhost_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),
@@ -176,10 +178,16 @@ impl NotStartedSupervisorOnHost {
         _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
 
         let executable_data_clone = executable_data.clone();
+        let agent_id = self.agent_identity.id.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
         // This should be refactored to work as the other threads used by the supervisor.
         let callback = move |_| loop {
+            let span = info_span!(
+                "start_executable",
+                { ID_ATTRIBUTE_NAME } = %agent_id
+            );
+            let span_guard = span.enter();
             // locks the current_pid to prevent `wait_for_termination` finishing before the process
             // is started and the pid is set.
             // In case starting the process fail the guard will be dropped and `wait_for_termination`
@@ -189,17 +197,11 @@ impl NotStartedSupervisorOnHost {
             // A context cancelled means that the supervisor has been gracefully stopped
             // before the process was started.
             if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
-                debug!(
-                    supervisor = executable_data_clone.bin,
-                    msg = "supervisor stopped before starting the process"
-                );
+                debug!("supervisor stopped before starting the process");
                 break;
             }
 
-            info!(
-                supervisor = executable_data_clone.bin,
-                msg = "starting supervisor process"
-            );
+            info!("starting supervisor process");
 
             shutdown_ctx.reset().unwrap();
             // Signals return exit_code 0, if in the future we need to act on them we can import
@@ -215,7 +217,14 @@ impl NotStartedSupervisorOnHost {
                 HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
             );
 
-            let exit_code = start_command(not_started_command, pid_guard)
+            let command_result = start_command(not_started_command, pid_guard, span_guard);
+            let span = info_span!(
+                "stop_executable",
+                { ID_ATTRIBUTE_NAME } = %agent_id
+            );
+            let _span_guard = span.enter();
+
+            let exit_code = command_result
                 .inspect_err(|err| {
                     error!(
                         supervisor = executable_data_clone.bin,
@@ -340,6 +349,7 @@ fn handle_termination(
 fn start_command(
     not_started_command: CommandOSNotStarted,
     mut pid: std::sync::MutexGuard<Option<u32>>,
+    span_guard: tracing::span::Entered<'_>,
 ) -> Result<ExitStatus, CommandError> {
     // run and stream the process
     let started = not_started_command.start()?;
@@ -351,6 +361,8 @@ fn start_command(
     // free the lock so the wait_for_termination can lock it on graceful shutdown
     drop(pid);
 
+    drop(span_guard);
+
     streaming.wait()
 }
 
@@ -361,11 +373,11 @@ fn wait_for_termination(
     ctx: Context<bool>,
     shutdown_ctx: Context<bool>,
 ) -> JoinHandle<()> {
-    let s = info_span!("termination_signal_listener");
+    let span = info_span!("termination_signal");
     spawn_named_thread("OnHost Termination signal listener", move || {
-        let _guards = s.enter();
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
+        let _span = span.entered();
 
         // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
         if let Some(pid) = *current_pid.lock().unwrap() {

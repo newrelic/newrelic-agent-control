@@ -5,6 +5,8 @@ use crate::agent_control::defaults::{
 use crate::agent_type::agent_type_id::AgentTypeID;
 use std::fmt::{Display, Formatter};
 
+pub const ID_ATTRIBUTE_NAME: &str = "id";
+
 // This could be SubAgentIdentity
 #[derive(Clone, Debug, PartialEq)]
 pub struct AgentIdentity {

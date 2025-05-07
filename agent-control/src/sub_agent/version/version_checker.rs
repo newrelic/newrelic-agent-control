@@ -1,11 +1,13 @@
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, info_span, warn};
 
-const VERSION_CHECKER_THREAD_NAME: &str = "version checker";
+const VERSION_CHECKER_THREAD_NAME: &str = "version_checker";
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
@@ -43,6 +45,7 @@ pub enum VersionCheckError {
 }
 
 pub(crate) fn spawn_version_checker<V>(
+    agent_id: AgentID,
     version_checker: V,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: VersionCheckerInterval,
@@ -53,6 +56,12 @@ where
     // Stores if the version was retrieved in last iteration for logging purposes.
     let mut version_retrieved = false;
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+        let span = info_span!(
+            VERSION_CHECKER_THREAD_NAME,
+            { ID_ATTRIBUTE_NAME } = %agent_id
+        );
+        let _guard = span.enter();
+
         debug!("starting to check version with the configured checker");
 
         match version_checker.check_agent_version() {
@@ -99,6 +108,7 @@ pub(crate) fn publish_version_event(
 
 #[cfg(test)]
 pub mod tests {
+    use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;
     use crate::event::channel::pub_sub;
@@ -142,6 +152,7 @@ pub mod tests {
             });
 
         let started_thread_context = spawn_version_checker(
+            AgentID::default(),
             version_checker,
             version_publisher,
             Duration::from_millis(10).into(),
