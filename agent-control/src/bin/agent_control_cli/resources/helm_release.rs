@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs};
+use std::collections::BTreeMap;
 
 use kube::{
     api::{DynamicObject, ObjectMeta},
@@ -8,8 +8,6 @@ use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
 use crate::errors::ParseError;
-
-const FILE_PREFIX: &str = "fs://";
 
 pub struct HelmReleaseData {
     /// Object name
@@ -28,12 +26,9 @@ pub struct HelmReleaseData {
     pub repository_name: String,
 
     /// Chart values
-    ///
-    /// A yaml file or yaml string with the values of the chart.
-    /// If the value starts with `fs://`, it is treated as a
-    /// file path. Otherwise, it is treated as a string.
-    pub values: Option<String>,
+    pub values: Option<serde_json::Value>,
 
+    /// Secret name from where to get the chart values
     pub values_from_secret: Option<String>,
 
     /// Identifying metadata
@@ -88,8 +83,7 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
             }
         });
 
-        if let Some(values) = value.parse_values()? {
-            debug!("Parsed values: {:?}", values);
+        if let Some(values) = value.values {
             data["spec"]["values"] = values;
         }
 
@@ -121,52 +115,37 @@ impl TryFrom<HelmReleaseData> for DynamicObject {
     }
 }
 
-impl HelmReleaseData {
-    fn parse_values(&self) -> Result<Option<serde_json::Value>, ParseError> {
-        let Some(input) = &self.values else {
-            return Ok(None);
-        };
-
-        let values = match input.strip_prefix(FILE_PREFIX) {
-            Some(path) => &fs::read_to_string(path)?,
-            None => input,
-        };
-        let yaml_values = serde_yaml::from_str(values)?;
-        let json_values =
-            serde_json::from_value(yaml_values).expect("serde_yaml should return a valid `Value`");
-
-        Ok(Some(json_values))
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{io::Write, str::FromStr};
-
-    use crate::utils::parse_key_value_pairs;
+    use std::str::FromStr;
 
     use super::*;
-    use tempfile::NamedTempFile;
 
-    fn helm_release_data() -> HelmReleaseData {
-        HelmReleaseData {
+    #[test]
+    fn test_to_dynamic_object() {
+        let helm_release_data = HelmReleaseData {
             name: "test-release".to_string(),
             chart_name: "test-chart".to_string(),
             chart_version: "1.0.0".to_string(),
             repository_name: "test-repository".to_string(),
-            values: Some("value1: value1\nvalue2: value2".to_string()),
-            values_from_secret: None,
-            labels: Some(parse_key_value_pairs("label1=value1,label2=value2").unwrap()),
-            annotations: Some(
-                parse_key_value_pairs("annotation1=value1,annotation2=value2").unwrap(),
-            ),
+            values: Some(serde_json::json!({
+                "value1": "value1",
+                "value2": "value2"
+            })),
+            values_from_secret: Some("test-secret".to_string()),
+            labels: Some(BTreeMap::from([
+                ("label1".to_string(), "value1".to_string()),
+                ("label2".to_string(), "value2".to_string()),
+            ])),
+            annotations: Some(BTreeMap::from([
+                ("annotation1".to_string(), "value1".to_string()),
+                ("annotation2".to_string(), "value2".to_string()),
+            ])),
             interval: Duration::from_str("6m").unwrap(),
             timeout: Duration::from_str("7m").unwrap(),
-        }
-    }
+        };
 
-    fn helm_release_dynamic_object() -> DynamicObject {
-        DynamicObject {
+        let expected_dynamic_object = DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
                 name: Some("test-release".to_string()),
@@ -207,88 +186,16 @@ mod tests {
                         "value1": "value1",
                         "value2": "value2",
                     },
+                    "valuesFrom": [{
+                        "kind": "Secret",
+                        "name": "test-secret",
+                        "valuesKey": "values.yaml",
+                    }],
                 },
             }),
-        }
-    }
+        };
 
-    #[test]
-    fn test_to_dynamic_object() {
-        let actual_dynamic_object = DynamicObject::try_from(helm_release_data()).unwrap();
-        assert_eq!(actual_dynamic_object, helm_release_dynamic_object());
-    }
-
-    #[test]
-    fn test_parse_values() {
-        assert_eq!(
-            helm_release_data().parse_values().unwrap(),
-            Some(serde_json::json!({
-                "value1": "value1",
-                "value2": "value2"
-            }))
-        );
-    }
-
-    #[test]
-    fn test_parse_values_no_values() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = None;
-
-        assert_eq!(helm_release_data.parse_values().unwrap(), None);
-    }
-
-    #[test]
-    fn test_parse_values_from_string() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values =
-            Some("{outer: {inner1: 'value1', inner2: 'value2'}}".to_string());
-
-        assert_eq!(
-            helm_release_data.parse_values().unwrap(),
-            Some(serde_json::json!({
-            "outer": {
-                "inner1": "value1",
-                "inner2": "value2"
-            }}))
-        );
-    }
-
-    #[test]
-    fn test_parse_values_from_string_throws_error_invalid_yaml() {
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = Some("key1: value1\nkey2 value2".to_string());
-
-        assert!(helm_release_data.parse_values().is_err());
-    }
-
-    #[test]
-    fn test_parse_values_from_file() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file
-            .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
-            .unwrap();
-
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = Some(format!("fs://{}", temp_file.path().display()));
-
-        assert_eq!(
-            helm_release_data.parse_values().unwrap(),
-            Some(serde_json::json!({
-            "outer": {
-                "inner1": "value1",
-                "inner2": "value2"
-            }}))
-        );
-    }
-
-    #[test]
-    fn test_parse_values_from_file_throws_error_invalid_yaml() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file.write(b"key1: value1\nkey2 value2").unwrap();
-
-        let mut helm_release_data = helm_release_data();
-        helm_release_data.values = Some(format!("fs://{}", temp_file.path().display()));
-
-        assert!(helm_release_data.parse_values().is_err());
+        let actual_dynamic_object = DynamicObject::try_from(helm_release_data).unwrap();
+        assert_eq!(actual_dynamic_object, expected_dynamic_object);
     }
 }

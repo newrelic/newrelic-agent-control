@@ -72,7 +72,8 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         let repository_object = DynamicObject::try_from(helm_repository)?;
 
         let values = value.values.map(parse_values).transpose()?;
-        let string_data = values.map(|v| BTreeMap::from_iter(vec![("values.yaml".to_string(), v)]));
+        let string_data =
+            values.map(|v| BTreeMap::from_iter(vec![("values.yaml".to_string(), v.to_string())]));
         let secret = SecretData(Secret {
             type_: Some("Opaque".to_string()),
             metadata: ObjectMeta {
@@ -107,21 +108,24 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
     }
 }
 
-fn parse_values(values: String) -> Result<String, ParseError> {
+fn parse_values(values: String) -> Result<serde_json::Value, ParseError> {
     let values = match values.strip_prefix("fs://") {
         Some(path) => std::fs::read_to_string(path)?,
         None => values,
     };
 
-    let yaml_values = serde_yaml::from_str::<serde_yaml::Value>(&values)?;
-    let values = serde_json::to_string(&yaml_values).expect("YAML to JSON should work if input string was valid");
+    let yaml_values = serde_yaml::from_str(&values)?;
+    let json_values =
+        serde_json::from_value(yaml_values).expect("serde_yaml should return a valid `Value`");
 
-    Ok(values)
+    Ok(json_values)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, io::Write};
+
+    use tempfile::NamedTempFile;
 
     use super::*;
 
@@ -138,7 +142,7 @@ mod tests {
 
         let dynamic_objects = Vec::<DynamicObject>::try_from(data).unwrap();
 
-        assert_eq!(dynamic_objects.len(), 2);
+        assert_eq!(dynamic_objects.len(), 3);
 
         // Check the repository object
         let data = &dynamic_objects[0].data;
@@ -163,7 +167,7 @@ mod tests {
         );
 
         // Check the release object
-        let data = &dynamic_objects[1].data;
+        let data = &dynamic_objects[2].data;
         assert_eq!(
             data["spec"]["chart"]["spec"]["sourceRef"]["name"],
             REPOSITORY_NAME
@@ -171,7 +175,7 @@ mod tests {
         assert_eq!(data["spec"]["interval"], "300s");
         assert_eq!(data["spec"]["timeout"], "300s");
 
-        let metadata = &dynamic_objects[1].metadata;
+        let metadata = &dynamic_objects[2].metadata;
         assert_eq!(metadata.name, Some(release_name));
         assert_eq!(
             metadata.labels,
@@ -187,5 +191,44 @@ mod tests {
                 ("annotation2".to_string(), "value2".to_string()),
             ]))
         );
+    }
+
+    #[test]
+    fn test_parse_values_from_string() {
+        assert_eq!(
+            parse_values("value1: value1\nvalue2: value2".to_string()).unwrap(),
+            serde_json::json!({
+                "value1": "value1",
+                "value2": "value2"
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_values_from_string_throws_error_invalid_yaml() {
+        assert!(parse_values("key1: value1\nkey2 value2".to_string()).is_err());
+    }
+
+    #[test]
+    fn test_parse_values_from_file() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let _ = temp_file
+            .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
+            .unwrap();
+        assert_eq!(
+            parse_values(format!("fs://{}", temp_file.path().display())).unwrap(),
+            serde_json::json!({
+            "outer": {
+                "inner1": "value1",
+                "inner2": "value2"
+            }})
+        );
+    }
+
+    #[test]
+    fn test_parse_values_from_file_throws_error_invalid_yaml() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let _ = temp_file.write(b"key1: value1\nkey2 value2").unwrap();
+        assert!(parse_values(format!("fs://{}", temp_file.path().display())).is_err());
     }
 }
