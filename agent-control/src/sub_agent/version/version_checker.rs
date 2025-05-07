@@ -57,7 +57,7 @@ where
     let mut version_retrieved = false;
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         let span = info_span!(
-            VERSION_CHECKER_THREAD_NAME,
+            "version_check",
             { ID_ATTRIBUTE_NAME } = %agent_id
         );
         let _guard = span.enter();

@@ -130,7 +130,8 @@ where
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
         spawn_named_thread("Subagent runtime", move || {
-            let span = info_span!("start_agent", id=%self.identity.id).entered();
+            let span = info_span!("start_agent", id=%self.identity.id);
+            let _span_guard = span.enter();
 
             let mut supervisor = self.assemble_and_start_supervisor();
             // Stores the current health state for logging purposes.
@@ -167,14 +168,14 @@ where
                 let _ = uptime_reporter.report();
             }
 
-            span.exit();
+            drop(_span_guard);
 
             // Count the received remote configs during execution
             let mut remote_config_count = 0;
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
-                        let span = info_span!("fleet_event", id=%self.identity.id);
+                        let span = info_span!("process_fleet_event", id=%self.identity.id);
                         let _span_guard = span.enter();
                         match opamp_event_res {
                             Err(e) => {
@@ -225,7 +226,8 @@ where
                         }
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
-                        let _span = info_span!("event", id=%self.identity.id).entered();
+                        let span = info_span!("process_event", id=%self.identity.id);
+                        let _span_guard = span.enter();
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");

@@ -225,7 +225,7 @@ where
 {
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         let span = info_span!(
-            HEALTH_CHECKER_THREAD_NAME,
+            "health_check",
             { ID_ATTRIBUTE_NAME } = %agent_id
         );
         let _guard = span.enter();

@@ -130,7 +130,7 @@ impl NotStartedSupervisorK8s {
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
             let span = info_span!(
-                SUPERVISOR_THREAD_NAME,
+                "reconcile_resources",
                 { ID_ATTRIBUTE_NAME } = %agent_id
             );
             let _guard = span.enter();

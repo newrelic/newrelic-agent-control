@@ -26,8 +26,8 @@ included in the log message, even if it is static. The fields used for dynamic c
 
 Spans MUST be SHORT lived since it accumulates all events until it gets dropped as well as all child Spans (this is being tracked by the subscriber). 
 The code base mainly use Spans in order to decorate Events in their scope with context like AgentID. 
-The Span level MUST be always `INFO` so all logs are decorated with the context. Setting a Span to `DEBUG` will cause `INFO` logs not miss decoration.
-The Span name should be `snake_case`.
+The Span level MUST be always `INFO` so all logs are decorated with the context. Setting the Span to `DEBUG` will cause underlying `INFO` logs to miss decoration.
+The Span name should be `snake_case` and the name should represent the short lived action that is being performed.
 
 ```rust
 // 👍 Good:
