@@ -30,10 +30,7 @@ impl TryFrom<SecretData> for DynamicObject {
         }
 
         let dynamic_object = DynamicObject {
-            types: Some(TypeMeta {
-                api_version: "v1".to_string(),
-                kind: "Secret".to_string(),
-            }),
+            types: Some(secret_type_meta()),
             metadata: value.metadata,
             data,
         };
@@ -44,6 +41,13 @@ impl TryFrom<SecretData> for DynamicObject {
         );
 
         Ok(dynamic_object)
+    }
+}
+
+pub fn secret_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "v1".to_string(),
+        kind: "Secret".to_string(),
     }
 }
 

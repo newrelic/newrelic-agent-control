@@ -42,10 +42,7 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
         );
 
         let dynamic_object = DynamicObject {
-            types: Some(TypeMeta {
-                api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-                kind: "HelmRepository".to_string(),
-            }),
+            types: Some(helmrepository_type_meta()),
             metadata: ObjectMeta {
                 name: Some(value.name.clone()),
                 labels: value.labels,
@@ -65,6 +62,13 @@ impl TryFrom<HelmRepositoryData> for DynamicObject {
         );
 
         Ok(dynamic_object)
+    }
+}
+
+pub fn helmrepository_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        kind: "HelmRepository".to_string(),
     }
 }
 

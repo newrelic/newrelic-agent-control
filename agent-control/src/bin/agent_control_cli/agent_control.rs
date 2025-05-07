@@ -71,22 +71,26 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         };
         let repository_object = DynamicObject::try_from(helm_repository)?;
 
+        let mut secret_object = None;
         let values = value.values.map(parse_values).transpose()?;
-        let string_data =
-            values.map(|v| BTreeMap::from_iter(vec![("values.yaml".to_string(), v.to_string())]));
-        let secret = SecretData(Secret {
-            type_: Some("Opaque".to_string()),
-            metadata: ObjectMeta {
-                name: Some(SECRET_NAME.to_string()),
-                labels: labels.clone(),
-                annotations: annotations.clone(),
-                ..Default::default()
-            },
-            string_data,
-            data: None,
-            immutable: None,
-        });
-        let secret_object = DynamicObject::try_from(secret)?;
+        if let Some(values) = &values {
+            let secret = SecretData(Secret {
+                type_: Some("Opaque".to_string()),
+                metadata: ObjectMeta {
+                    name: Some(SECRET_NAME.to_string()),
+                    labels: labels.clone(),
+                    annotations: annotations.clone(),
+                    ..Default::default()
+                },
+                string_data: Some(BTreeMap::from_iter(vec![(
+                    "values.yaml".to_string(),
+                    values.to_string(),
+                )])),
+                data: None,
+                immutable: None,
+            });
+            secret_object = Some(DynamicObject::try_from(secret)?);
+        }
 
         let helm_release = HelmReleaseData {
             name: value.release_name,
@@ -94,7 +98,7 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
             chart_version: value.chart_version,
             repository_name: REPOSITORY_NAME.to_string(),
             values: None,
-            values_from_secret: Some(SECRET_NAME.to_string()),
+            values_from_secret: secret_object.clone().and(Some(SECRET_NAME.to_string())),
             labels,
             annotations,
             interval: Duration::from_str("5m").expect("Hardcoded value should be correct"),
@@ -104,7 +108,8 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
 
         info!("Agent Control resources representations created");
 
-        Ok(vec![repository_object, secret_object, release_object])
+        let objects = vec![Some(repository_object), secret_object, Some(release_object)];
+        Ok(objects.into_iter().flatten().collect())
     }
 }
 
@@ -123,73 +128,164 @@ fn parse_values(values: String) -> Result<serde_json::Value, ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeMap, io::Write};
+    use std::io::Write;
 
+    use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
     use tempfile::NamedTempFile;
+
+    use crate::resources::{helmrepository_type_meta, secret_type_meta};
 
     use super::*;
 
-    #[test]
-    fn test_to_dynamic_objects() {
-        let release_name = "agent-control-deployment-release".to_string();
-        let data = AgentControlData {
-            release_name: release_name.clone(),
-            chart_version: "1.0.0".to_string(),
+    const RELEASE_NAME: &str = "agent-control-deployment-release";
+    const VERSION: &str = "1.0.0";
+
+    fn agent_control_data() -> AgentControlData {
+        AgentControlData {
+            release_name: RELEASE_NAME.to_string(),
+            chart_version: VERSION.to_string(),
             values: None,
-            labels: Some("key1=value1,key2=value2".to_string()),
-            annotations: Some("annotation1=value1,annotation2=value2".to_string()),
-        };
+            labels: None,
+            annotations: None,
+        }
+    }
 
-        let dynamic_objects = Vec::<DynamicObject>::try_from(data).unwrap();
+    fn repository_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(helmrepository_type_meta()),
+            metadata: ObjectMeta {
+                name: Some(REPOSITORY_NAME.to_string()),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "url": REPOSITORY_URL,
+                    "interval": "300s",
+                }
+            }),
+        }
+    }
 
-        assert_eq!(dynamic_objects.len(), 3);
+    fn secret_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(secret_type_meta()),
+            metadata: ObjectMeta {
+                name: Some(SECRET_NAME.to_string()),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "type": "Opaque",
+                "stringData": {
+                    "values.yaml": "{\"value1\":\"value1\",\"value2\":\"value2\"}"
+                }
+            }),
+        }
+    }
 
-        // Check the repository object
-        let data = &dynamic_objects[0].data;
-        assert_eq!(data["spec"]["url"], REPOSITORY_URL);
-        assert_eq!(data["spec"]["interval"], "300s");
+    fn release_object() -> DynamicObject {
+        DynamicObject {
+            types: Some(helmrelease_v2_type_meta()),
+            metadata: ObjectMeta {
+                name: Some(RELEASE_NAME.to_string()),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "interval": "300s",
+                    "timeout": "300s",
+                    "chart": {
+                        "spec": {
+                            "chart": "agent-control-deployment",
+                            "version": VERSION,
+                            "sourceRef": {
+                                "kind": "HelmRepository",
+                                "name": REPOSITORY_NAME,
+                            },
+                            "interval": "300s",
+                        }
+                    }
+                }
+            }),
+        }
+    }
 
-        let metadata = &dynamic_objects[0].metadata;
-        assert_eq!(metadata.name, Some(REPOSITORY_NAME.to_string()));
+    #[test]
+    fn test_to_dynamic_objects_no_values() {
+        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data()).unwrap();
+        assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
+    }
+
+    #[test]
+    fn test_to_dynamic_objects_with_values() {
+        let mut agent_control_data = agent_control_data();
+        agent_control_data.values = Some("value1: value1\nvalue2: value2".to_string());
+        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data).unwrap();
+
+        let mut expected_release_object = release_object();
+        expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([{
+            "kind": "Secret",
+            "name": SECRET_NAME,
+            "valuesKey": "values.yaml",
+        }]);
         assert_eq!(
-            metadata.labels,
-            Some(BTreeMap::from_iter(vec![
-                ("key1".to_string(), "value1".to_string()),
-                ("key2".to_string(), "value2".to_string()),
-            ]))
+            dynamic_objects,
+            vec![
+                repository_object(),
+                secret_object(),
+                expected_release_object
+            ]
         );
-        assert_eq!(
-            metadata.annotations,
-            Some(BTreeMap::from_iter(vec![
+    }
+
+    #[test]
+    fn test_to_dynamic_objects_with_values_labels_and_annotations() {
+        let mut agent_control_data = agent_control_data();
+        agent_control_data.values = Some("value1: value1\nvalue2: value2".to_string());
+        agent_control_data.labels = Some("label1=value1,label2=value2".to_string());
+        agent_control_data.annotations = Some("annotation1=value1,annotation2=value2".to_string());
+        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data).unwrap();
+
+        let labels = Some(
+            vec![
+                ("label1".to_string(), "value1".to_string()),
+                ("label2".to_string(), "value2".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+        );
+        let annotations = Some(
+            vec![
                 ("annotation1".to_string(), "value1".to_string()),
                 ("annotation2".to_string(), "value2".to_string()),
-            ]))
+            ]
+            .into_iter()
+            .collect(),
         );
 
-        // Check the release object
-        let data = &dynamic_objects[2].data;
-        assert_eq!(
-            data["spec"]["chart"]["spec"]["sourceRef"]["name"],
-            REPOSITORY_NAME
-        );
-        assert_eq!(data["spec"]["interval"], "300s");
-        assert_eq!(data["spec"]["timeout"], "300s");
+        let mut expected_repository_object = repository_object();
+        expected_repository_object.metadata.labels = labels.clone();
+        expected_repository_object.metadata.annotations = annotations.clone();
 
-        let metadata = &dynamic_objects[2].metadata;
-        assert_eq!(metadata.name, Some(release_name));
+        let mut expected_secret_object = secret_object();
+        expected_secret_object.metadata.labels = labels.clone();
+        expected_secret_object.metadata.annotations = annotations.clone();
+
+        let mut expected_release_object = release_object();
+        expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([{
+            "kind": "Secret",
+            "name": SECRET_NAME,
+            "valuesKey": "values.yaml",
+        }]);
+        expected_release_object.metadata.labels = labels;
+        expected_release_object.metadata.annotations = annotations;
+
         assert_eq!(
-            metadata.labels,
-            Some(BTreeMap::from_iter(vec![
-                ("key1".to_string(), "value1".to_string()),
-                ("key2".to_string(), "value2".to_string()),
-            ]))
-        );
-        assert_eq!(
-            metadata.annotations,
-            Some(BTreeMap::from_iter(vec![
-                ("annotation1".to_string(), "value1".to_string()),
-                ("annotation2".to_string(), "value2".to_string()),
-            ]))
+            dynamic_objects,
+            vec![
+                expected_repository_object,
+                expected_secret_object,
+                expected_release_object
+            ]
         );
     }
 
