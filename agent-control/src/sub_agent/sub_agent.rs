@@ -233,11 +233,11 @@ where
                                             warn!(hash=&config.hash.get(), "Persisting remote configuration failed: {err}");
                                             self.report_config_status(&config.hash, opamp_client, OpampRemoteConfigStatus::Error(err.to_string()));
                                         } else {
-                                            let yaml_config = if yaml_config.is_none() {
-                                                self.yaml_config_repository.load_local(&self.identity.id)?
-                                            } else {
-                                                yaml_config
-                                            };
+                                            let yaml_config = yaml_config.or_else(|| {
+                                                self.yaml_config_repository
+                                                    .load_local(&self.identity.id)  // Result<Option<YAMLConfig>, _>
+                                                    .unwrap_or_default()            // Option<YAMLConfig>
+                                            });
                                             // We need to restart the supervisor after we receive a new config
                                             // as we don't have hot-reloading handling implemented yet
                                             stop_supervisor(supervisor);
