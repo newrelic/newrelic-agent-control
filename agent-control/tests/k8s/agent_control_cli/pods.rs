@@ -14,7 +14,6 @@ fn k8s_cli_install_agent_control_creates_pods() {
         "global": {
             "cluster": "test-cluster",
             "licenseKey": "***",
-            "nrStaging": true,
         },
         "config": {
             "fleet_control": {
@@ -29,13 +28,13 @@ fn k8s_cli_install_agent_control_creates_pods() {
     cmd.arg("--release-name").arg("test-release");
     // This chart version must be a valid version of the "agent-control-deployment" chart
     cmd.arg("--chart-version").arg("0.0.45");
-    cmd.arg("--namespace").arg(namespace);
+    cmd.arg("--namespace").arg(&namespace);
     cmd.arg("--values").arg(values.to_string());
     cmd.assert().success();
 
     for _ in 0..10 {
         let get_pods = Command::new("minikube")
-            .args(["kubectl", "--", "get", "pods"])
+            .args(["kubectl", "--", "get", "pods", "-n", &namespace])
             .unwrap();
         if String::from_utf8_lossy(&get_pods.stdout).contains("test-release-agent-control") {
             return;
