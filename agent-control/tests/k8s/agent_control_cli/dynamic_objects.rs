@@ -147,7 +147,7 @@ fn k8s_cli_install_agent_control_with_values_labels_and_annotations() {
         .unwrap();
 
     let secret = k8s_client
-        .get_dynamic_object(&&secret_type_meta(), SECRET_NAME)
+        .get_dynamic_object(&secret_type_meta(), SECRET_NAME)
         .unwrap()
         .unwrap();
 

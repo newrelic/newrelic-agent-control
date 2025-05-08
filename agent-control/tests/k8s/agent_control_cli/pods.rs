@@ -35,7 +35,7 @@ fn k8s_cli_install_agent_control_creates_pods() {
 
     for _ in 0..10 {
         let get_pods = Command::new("minikube")
-            .args(&["kubectl", "--", "get", "pods"])
+            .args(["kubectl", "--", "get", "pods"])
             .unwrap();
         if String::from_utf8_lossy(&get_pods.stdout).contains("test-release-agent-control") {
             return;
