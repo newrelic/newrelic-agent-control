@@ -53,11 +53,76 @@ pub fn load_remote_fallback_local<R: YAMLConfigRepository>(
 }
 #[cfg(test)]
 pub mod tests {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
     use crate::agent_control::agent_id::AgentID;
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
     use mockall::{mock, predicate};
     use opamp_client::operation::capabilities::Capabilities;
+
+    use super::load_remote_fallback_local;
+
+    #[derive(Debug, Default)]
+    pub struct InMemoryYAMLConfigRepository {
+        local_config: Mutex<HashMap<AgentID, YAMLConfig>>,
+        remote_config: Mutex<HashMap<AgentID, YAMLConfig>>,
+    }
+    impl InMemoryYAMLConfigRepository {
+        pub fn store_local(
+            &self,
+            agent_id: &AgentID,
+            yaml_config: &YAMLConfig,
+        ) -> Result<(), YAMLConfigRepositoryError> {
+            self.local_config
+                .lock()
+                .unwrap()
+                .insert(agent_id.clone(), yaml_config.clone());
+            Ok(())
+        }
+        pub fn assert_no_config_for_agent(&self, agent_id: &AgentID) {
+            assert!(
+                load_remote_fallback_local(self, agent_id, &Capabilities::default())
+                    .unwrap()
+                    .is_none()
+            );
+        }
+    }
+
+    impl YAMLConfigRepository for InMemoryYAMLConfigRepository {
+        fn store_remote(
+            &self,
+            agent_id: &AgentID,
+            yaml_config: &YAMLConfig,
+        ) -> Result<(), YAMLConfigRepositoryError> {
+            self.remote_config
+                .lock()
+                .unwrap()
+                .insert(agent_id.clone(), yaml_config.clone());
+            Ok(())
+        }
+
+        fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
+            self.remote_config.lock().unwrap().remove(agent_id);
+            Ok(())
+        }
+
+        fn load_local(
+            &self,
+            agent_id: &AgentID,
+        ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
+            Ok(self.local_config.lock().unwrap().get(agent_id).cloned())
+        }
+
+        fn load_remote(
+            &self,
+            agent_id: &AgentID,
+            _capabilities: &Capabilities,
+        ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
+            Ok(self.remote_config.lock().unwrap().get(agent_id).cloned())
+        }
+    }
 
     mock! {
         pub(crate) YAMLConfigRepository {}
@@ -107,16 +172,6 @@ pub mod tests {
                         "load error".to_string(),
                     ))
                 });
-        }
-
-        pub fn should_store_remote(&mut self, agent_id: &AgentID, yaml_config: &YAMLConfig) {
-            self.expect_store_remote()
-                .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(yaml_config.clone()),
-                )
-                .returning(|_, _| Ok(()));
         }
     }
 }

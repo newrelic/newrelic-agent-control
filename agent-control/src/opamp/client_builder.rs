@@ -107,7 +107,7 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use mockall::{mock, predicate};
+    use mockall::{Sequence, mock, predicate};
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{
         Client, ClientResult, NotStartedClient, NotStartedClientResult, StartedClient,
@@ -181,21 +181,22 @@ pub(crate) mod tests {
             self.expect_stop().times(times).returning(|| Ok(()));
         }
 
-        // assertion just for the call of the method but not the remote
-        // status itself (so any remote config status)
-        pub fn should_set_any_remote_config_status(&mut self, times: usize) {
-            self.expect_set_remote_config_status()
-                .times(times)
-                .returning(|_| Ok(()));
-        }
-
-        // assertion just for the call of the method but not the remote
-        // status itself (so any remote config status)
         pub fn should_set_remote_config_status(&mut self, status: RemoteConfigStatus) {
             self.expect_set_remote_config_status()
                 .once()
                 .with(predicate::eq(status))
                 .returning(|_| Ok(()));
+        }
+
+        pub fn should_set_remote_config_status_seq(&mut self, status_seq: Vec<RemoteConfigStatus>) {
+            let mut sequence = Sequence::new();
+            for status in status_seq {
+                self.expect_set_remote_config_status()
+                    .once()
+                    .in_sequence(&mut sequence)
+                    .with(predicate::eq(status))
+                    .returning(|_| Ok(()));
+            }
         }
     }
 

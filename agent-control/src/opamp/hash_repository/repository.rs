@@ -18,6 +18,27 @@ pub trait HashRepository {
 pub mod tests {
     use super::{AgentID, Hash, HashRepository, HashRepositoryError};
     use mockall::{mock, predicate};
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Debug, Default)]
+    pub struct InMemoryHashRepository {
+        storage: Arc<Mutex<HashMap<AgentID, Hash>>>,
+    }
+
+    impl HashRepository for InMemoryHashRepository {
+        fn save(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), HashRepositoryError> {
+            self.storage
+                .lock()
+                .unwrap()
+                .insert(agent_id.clone(), hash.clone());
+            Ok(())
+        }
+
+        fn get(&self, agent_id: &AgentID) -> Result<Option<Hash>, HashRepositoryError> {
+            Ok(self.storage.lock().unwrap().get(agent_id).cloned())
+        }
+    }
 
     mock! {
         pub(crate) HashRepository {}
