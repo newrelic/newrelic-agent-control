@@ -8,11 +8,10 @@ use kube::{
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{errors::ParseError, utils::parse_key_value_pairs};
+use crate::utils::parse_key_value_pairs;
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
-const SECRET_NAME: &str = "agent-control-secret";
 
 #[derive(Debug, Parser)]
 pub struct AgentControlData {
@@ -24,32 +23,34 @@ pub struct AgentControlData {
     #[arg(long)]
     pub chart_version: String,
 
-    /// Chart values
+    /// Secret values
     ///
-    /// A yaml file or yaml string with the values of the chart.
-    /// If the value starts with `fs://`, it is treated as a
-    /// file path. Otherwise, it is treated as a string.
+    /// List of secret names and values keys to be used in the Helm release.
+    ///
+    /// **Format**: secret_name_1=values_key_1,secret_name_2=values_key_2.
     #[arg(long)]
-    pub values: Option<String>,
+    pub secrets: Option<String>,
 
     /// Identifying metadata
     ///
     /// Labels are used to select and find collection of objects.
     /// They will be applied to every resource created for Agent Control.
+    ///
+    /// **Format**: label1=value1,label2=value2.
     #[arg(long)]
     pub labels: Option<String>,
 
     /// Non-identifying metadata
     ///
     /// They will be applied to every resource created for Agent Control.
+    ///
+    /// **Format**: annotation1=value1,annotation2=value2.
     #[arg(long)]
     pub annotations: Option<String>,
 }
 
-impl TryFrom<AgentControlData> for Vec<DynamicObject> {
-    type Error = ParseError;
-
-    fn try_from(value: AgentControlData) -> Result<Self, Self::Error> {
+impl From<AgentControlData> for Vec<DynamicObject> {
+    fn from(value: AgentControlData) -> Vec<DynamicObject> {
         info!("Creating Agent Control resources representations");
 
         let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
@@ -60,35 +61,13 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
 
         let repository_object = helm_repository(labels.clone(), annotations.clone());
 
-        let values = value.values.clone().map(parse_values).transpose()?;
-        let secret_object =
-            values.map(|values| secret(values, labels.clone(), annotations.clone()));
-
-        let release_object = helm_release(
-            &value,
-            secret_object.clone().and(Some(SECRET_NAME.to_string())),
-            labels,
-            annotations,
-        );
+        let secrets = parse_key_value_pairs(value.secrets.as_deref().unwrap_or_default());
+        let release_object = helm_release(&value, secrets, labels, annotations);
 
         info!("Agent Control resources representations created");
 
-        let objects = vec![Some(repository_object), secret_object, Some(release_object)];
-        Ok(objects.into_iter().flatten().collect())
+        vec![repository_object, release_object]
     }
-}
-
-fn parse_values(values: String) -> Result<serde_json::Value, ParseError> {
-    let values = match values.strip_prefix("fs://") {
-        Some(path) => std::fs::read_to_string(path)?,
-        None => values,
-    };
-
-    let yaml_values = serde_yaml::from_str(&values)?;
-    let json_values =
-        serde_json::from_value(yaml_values).expect("serde_yaml should return a valid `Value`");
-
-    Ok(json_values)
 }
 
 fn helmrepository_type_meta() -> TypeMeta {
@@ -129,50 +108,9 @@ fn helm_repository(
     dynamic_object
 }
 
-fn secret_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "v1".to_string(),
-        kind: "Secret".to_string(),
-    }
-}
-
-fn secret(
-    values: serde_json::Value,
-    labels: Option<BTreeMap<String, String>>,
-    annotations: Option<BTreeMap<String, String>>,
-) -> DynamicObject {
-    info!(
-        "Creating Secret representation with name \"{}\"",
-        SECRET_NAME
-    );
-
-    let dynamic_object = DynamicObject {
-        types: Some(secret_type_meta()),
-        metadata: ObjectMeta {
-            name: Some(SECRET_NAME.to_string()),
-            labels,
-            annotations,
-            ..Default::default()
-        },
-        data: serde_json::json!({
-            "type": "Opaque",
-            "stringData": {
-                "values.yaml": values.to_string()
-            }
-        }),
-    };
-
-    info!(
-        "Secret representation with name \"{}\" created",
-        SECRET_NAME
-    );
-
-    dynamic_object
-}
-
 fn helm_release(
     value: &AgentControlData,
-    secret_name: Option<String>,
+    secrets: Option<BTreeMap<String, String>>,
     labels: Option<BTreeMap<String, String>>,
     annotations: Option<BTreeMap<String, String>>,
 ) -> DynamicObject {
@@ -202,12 +140,19 @@ fn helm_release(
         }
     });
 
-    if let Some(secret_name) = secret_name {
-        data["spec"]["valuesFrom"] = serde_json::json!([{
-            "kind": "Secret",
-            "name": secret_name,
-            "valuesKey": "values.yaml",
-        }]);
+    let secrets_data = secrets.iter().flatten();
+    let secrets_json = secrets_data
+        .map(|(name, values_key)| {
+            serde_json::json!({
+                "kind": "Secret",
+                "name": name,
+                "valuesKey": values_key,
+                "optional": true,
+            })
+        })
+        .collect::<Vec<serde_json::Value>>();
+    if !secrets_json.is_empty() {
+        data["spec"]["valuesFrom"] = serde_json::json!(secrets_json);
     }
 
     let dynamic_object = DynamicObject {
@@ -230,10 +175,7 @@ fn helm_release(
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
-
     use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-    use tempfile::NamedTempFile;
 
     use super::*;
 
@@ -244,7 +186,7 @@ mod tests {
         AgentControlData {
             release_name: RELEASE_NAME.to_string(),
             chart_version: VERSION.to_string(),
-            values: None,
+            secrets: None,
             labels: None,
             annotations: None,
         }
@@ -261,22 +203,6 @@ mod tests {
                 "spec": {
                     "url": REPOSITORY_URL,
                     "interval": "300s",
-                }
-            }),
-        }
-    }
-
-    fn secret_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(secret_type_meta()),
-            metadata: ObjectMeta {
-                name: Some(SECRET_NAME.to_string()),
-                ..Default::default()
-            },
-            data: serde_json::json!({
-                "type": "Opaque",
-                "stringData": {
-                    "values.yaml": "{\"value1\":\"value1\",\"value2\":\"value2\"}"
                 }
             }),
         }
@@ -311,39 +237,49 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data()).unwrap();
+        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data());
         assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
     }
 
     #[test]
-    fn test_to_dynamic_objects_with_values() {
+    fn test_to_dynamic_objects_with_secrets() {
         let mut agent_control_data = agent_control_data();
-        agent_control_data.values = Some("value1: value1\nvalue2: value2".to_string());
-        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data).unwrap();
+        agent_control_data.secrets =
+            Some("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string());
+        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
 
         let mut expected_release_object = release_object();
-        expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([{
+        expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([
+        {
             "kind": "Secret",
-            "name": SECRET_NAME,
+            "name": "secret1",
+            "valuesKey": "default.yaml",
+            "optional": true,
+        },
+        {
+            "kind": "Secret",
+            "name": "secret2",
             "valuesKey": "values.yaml",
+            "optional": true,
+        },
+        {
+            "kind": "Secret",
+            "name": "secret3",
+            "valuesKey": "fixed.yaml",
+            "optional": true
         }]);
         assert_eq!(
             dynamic_objects,
-            vec![
-                repository_object(),
-                secret_object(),
-                expected_release_object
-            ]
+            vec![repository_object(), expected_release_object]
         );
     }
 
     #[test]
-    fn test_to_dynamic_objects_with_values_labels_and_annotations() {
+    fn test_to_dynamic_objects_with_labels_and_annotations() {
         let mut agent_control_data = agent_control_data();
-        agent_control_data.values = Some("value1: value1\nvalue2: value2".to_string());
         agent_control_data.labels = Some("label1=value1,label2=value2".to_string());
         agent_control_data.annotations = Some("annotation1=value1,annotation2=value2".to_string());
-        let dynamic_objects = Vec::<DynamicObject>::try_from(agent_control_data).unwrap();
+        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
 
         let labels = Some(
             vec![
@@ -366,65 +302,13 @@ mod tests {
         expected_repository_object.metadata.labels = labels.clone();
         expected_repository_object.metadata.annotations = annotations.clone();
 
-        let mut expected_secret_object = secret_object();
-        expected_secret_object.metadata.labels = labels.clone();
-        expected_secret_object.metadata.annotations = annotations.clone();
-
         let mut expected_release_object = release_object();
-        expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([{
-            "kind": "Secret",
-            "name": SECRET_NAME,
-            "valuesKey": "values.yaml",
-        }]);
         expected_release_object.metadata.labels = labels;
         expected_release_object.metadata.annotations = annotations;
 
         assert_eq!(
             dynamic_objects,
-            vec![
-                expected_repository_object,
-                expected_secret_object,
-                expected_release_object
-            ]
+            vec![expected_repository_object, expected_release_object]
         );
-    }
-
-    #[test]
-    fn test_parse_values_from_string() {
-        assert_eq!(
-            parse_values("value1: value1\nvalue2: value2".to_string()).unwrap(),
-            serde_json::json!({
-                "value1": "value1",
-                "value2": "value2"
-            })
-        );
-    }
-
-    #[test]
-    fn test_parse_values_from_string_throws_error_invalid_yaml() {
-        assert!(parse_values("key1: value1\nkey2 value2".to_string()).is_err());
-    }
-
-    #[test]
-    fn test_parse_values_from_file() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file
-            .write(b"{outer: {inner1: 'value1', inner2: 'value2'}}")
-            .unwrap();
-        assert_eq!(
-            parse_values(format!("fs://{}", temp_file.path().display())).unwrap(),
-            serde_json::json!({
-            "outer": {
-                "inner1": "value1",
-                "inner2": "value2"
-            }})
-        );
-    }
-
-    #[test]
-    fn test_parse_values_from_file_throws_error_invalid_yaml() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        let _ = temp_file.write(b"key1: value1\nkey2 value2").unwrap();
-        assert!(parse_values(format!("fs://{}", temp_file.path().display())).is_err());
     }
 }

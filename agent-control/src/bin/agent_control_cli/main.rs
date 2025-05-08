@@ -87,7 +87,7 @@ fn main() -> ExitCode {
 fn install_agent_control(data: AgentControlData, namespace: String) -> Result<(), CliError> {
     info!("Installing agent control");
 
-    let dynamic_objects = Vec::<DynamicObject>::try_from(data)?;
+    let dynamic_objects = Vec::<DynamicObject>::from(data);
 
     let k8s_client = k8s_client(namespace.clone())?;
     info!("Applying agent control resources");

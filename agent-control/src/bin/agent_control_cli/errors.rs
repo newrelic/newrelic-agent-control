@@ -14,9 +14,6 @@ pub enum CliError {
 
     #[error("Failed to apply resource: {0}")]
     ApplyResource(String),
-
-    #[error("Failed to parse data: {0}")]
-    Parse(#[from] ParseError),
 }
 
 impl CliError {
@@ -32,25 +29,6 @@ impl CliError {
             CliError::K8sClient(_) => ExitCode::from(69),
             CliError::Tracing(_) => ExitCode::from(70),
             CliError::ApplyResource(_) => ExitCode::from(1),
-            CliError::Parse(err) => err.to_exit_code(),
-        }
-    }
-}
-
-#[derive(Debug, Error)]
-pub enum ParseError {
-    #[error("Failed to parse yaml: {0}")]
-    YamlString(#[from] serde_yaml::Error),
-
-    #[error("Failed to parse file: {0}")]
-    FileParse(#[from] std::io::Error),
-}
-
-impl ParseError {
-    fn to_exit_code(&self) -> ExitCode {
-        match self {
-            ParseError::YamlString(_) => ExitCode::from(65),
-            ParseError::FileParse(_) => ExitCode::from(66),
         }
     }
 }

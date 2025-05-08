@@ -10,18 +10,19 @@ fn k8s_cli_install_agent_control_creates_pods() {
     let mut k8s_env = runtime.block_on(K8sEnv::new());
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
-    let values = serde_json::json!({
-        "global": {
-            "cluster": "test-cluster",
-            "licenseKey": "***",
-        },
-        "config": {
-            "fleet_control": {
-                "enabled": false,
-            },
-            "subAgents": {},
-        },
-    });
+    let values = "{'config':{'fleet_control':{'enabled':false},'subAgents':{}},'global':{'cluster':'test-cluster','licenseKey':'***'}}";
+    let _create_secret = Command::new("minikube")
+        .args([
+            "kubectl",
+            "--",
+            "create",
+            "secret",
+            "generic",
+            "test-secret",
+        ])
+        .args([format!("--from-literal=values.yaml={}", values)])
+        .args(["-n", &namespace])
+        .unwrap();
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install").arg("agent-control");
@@ -29,7 +30,7 @@ fn k8s_cli_install_agent_control_creates_pods() {
     // This chart version must be a valid version of the "agent-control-deployment" chart
     cmd.arg("--chart-version").arg("0.0.45");
     cmd.arg("--namespace").arg(&namespace);
-    cmd.arg("--values").arg(values.to_string());
+    cmd.arg("--secrets").arg("test-secret=values.yaml");
     cmd.assert().success();
 
     for _ in 0..10 {
