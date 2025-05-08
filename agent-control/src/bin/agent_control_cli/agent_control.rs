@@ -1,18 +1,14 @@
 use std::{collections::BTreeMap, str::FromStr};
 
 use clap::Parser;
-use k8s_openapi::api::core::v1::Secret;
 use kube::{
-    api::{DynamicObject, ObjectMeta},
+    api::{DynamicObject, ObjectMeta, TypeMeta},
     core::Duration,
 };
+use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use tracing::{debug, info};
 
-use crate::{
-    errors::ParseError,
-    resources::{HelmReleaseData, HelmRepositoryData, SecretData},
-    utils::parse_key_value_pairs,
-};
+use crate::{errors::ParseError, utils::parse_key_value_pairs};
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
@@ -62,49 +58,18 @@ impl TryFrom<AgentControlData> for Vec<DynamicObject> {
         let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
         debug!("Parsed annotations: {:?}", annotations);
 
-        let helm_repository = HelmRepositoryData {
-            name: REPOSITORY_NAME.to_string(),
-            url: REPOSITORY_URL.to_string(),
-            labels: labels.clone(),
-            annotations: annotations.clone(),
-            interval: Duration::from_str("5m").expect("Hardcoded value should be correct"),
-        };
-        let repository_object = DynamicObject::try_from(helm_repository)?;
+        let repository_object = helm_repository(labels.clone(), annotations.clone());
 
-        let mut secret_object = None;
-        let values = value.values.map(parse_values).transpose()?;
-        if let Some(values) = &values {
-            let secret = SecretData(Secret {
-                type_: Some("Opaque".to_string()),
-                metadata: ObjectMeta {
-                    name: Some(SECRET_NAME.to_string()),
-                    labels: labels.clone(),
-                    annotations: annotations.clone(),
-                    ..Default::default()
-                },
-                string_data: Some(BTreeMap::from_iter(vec![(
-                    "values.yaml".to_string(),
-                    values.to_string(),
-                )])),
-                data: None,
-                immutable: None,
-            });
-            secret_object = Some(DynamicObject::try_from(secret)?);
-        }
+        let values = value.values.clone().map(parse_values).transpose()?;
+        let secret_object =
+            values.map(|values| secret(values, labels.clone(), annotations.clone()));
 
-        let helm_release = HelmReleaseData {
-            name: value.release_name,
-            chart_name: "agent-control-deployment".to_string(),
-            chart_version: value.chart_version,
-            repository_name: REPOSITORY_NAME.to_string(),
-            values: None,
-            values_from_secret: secret_object.clone().and(Some(SECRET_NAME.to_string())),
+        let release_object = helm_release(
+            &value,
+            secret_object.clone().and(Some(SECRET_NAME.to_string())),
             labels,
             annotations,
-            interval: Duration::from_str("5m").expect("Hardcoded value should be correct"),
-            timeout: Duration::from_str("5m").expect("Hardcoded value should be correct"),
-        };
-        let release_object = DynamicObject::try_from(helm_release)?;
+        );
 
         info!("Agent Control resources representations created");
 
@@ -126,14 +91,149 @@ fn parse_values(values: String) -> Result<serde_json::Value, ParseError> {
     Ok(json_values)
 }
 
+fn helmrepository_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        kind: "HelmRepository".to_string(),
+    }
+}
+
+fn helm_repository(
+    labels: Option<BTreeMap<String, String>>,
+    annotations: Option<BTreeMap<String, String>>,
+) -> DynamicObject {
+    info!(
+        "Creating Helm repository representation with name \"{}\"",
+        REPOSITORY_NAME
+    );
+    let dynamic_object = DynamicObject {
+        types: Some(helmrepository_type_meta()),
+        metadata: ObjectMeta {
+            name: Some(REPOSITORY_NAME.to_string()),
+            labels,
+            annotations,
+            ..Default::default()
+        },
+        data: serde_json::json!({
+            "spec": {
+                "url": REPOSITORY_URL,
+                "interval": Duration::from_str("5m").expect("Hardcoded value should be correct"),
+            }
+        }),
+    };
+    info!(
+        "Helm repository representation with name \"{}\" created",
+        REPOSITORY_NAME
+    );
+
+    dynamic_object
+}
+
+fn secret_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "v1".to_string(),
+        kind: "Secret".to_string(),
+    }
+}
+
+fn secret(
+    values: serde_json::Value,
+    labels: Option<BTreeMap<String, String>>,
+    annotations: Option<BTreeMap<String, String>>,
+) -> DynamicObject {
+    info!(
+        "Creating Secret representation with name \"{}\"",
+        SECRET_NAME
+    );
+
+    let dynamic_object = DynamicObject {
+        types: Some(secret_type_meta()),
+        metadata: ObjectMeta {
+            name: Some(SECRET_NAME.to_string()),
+            labels,
+            annotations,
+            ..Default::default()
+        },
+        data: serde_json::json!({
+            "type": "Opaque",
+            "stringData": {
+                "values.yaml": values.to_string()
+            }
+        }),
+    };
+
+    info!(
+        "Secret representation with name \"{}\" created",
+        SECRET_NAME
+    );
+
+    dynamic_object
+}
+
+fn helm_release(
+    value: &AgentControlData,
+    secret_name: Option<String>,
+    labels: Option<BTreeMap<String, String>>,
+    annotations: Option<BTreeMap<String, String>>,
+) -> DynamicObject {
+    info!(
+        "Creating Helm release representation with name \"{}\"",
+        value.release_name
+    );
+
+    let interval = Duration::from_str("5m").expect("Hardcoded value should be correct");
+    let timeout = Duration::from_str("5m").expect("Hardcoded value should be correct");
+
+    let mut data = serde_json::json!({
+        "spec": {
+            "interval": interval,
+            "timeout": timeout,
+            "chart": {
+                "spec": {
+                    "chart": "agent-control-deployment",
+                    "version": value.chart_version,
+                    "sourceRef": {
+                        "kind": "HelmRepository",
+                        "name": REPOSITORY_NAME,
+                    },
+                    "interval": interval,
+                },
+            }
+        }
+    });
+
+    if let Some(secret_name) = secret_name {
+        data["spec"]["valuesFrom"] = serde_json::json!([{
+            "kind": "Secret",
+            "name": secret_name,
+            "valuesKey": "values.yaml",
+        }]);
+    }
+
+    let dynamic_object = DynamicObject {
+        types: Some(helmrelease_v2_type_meta()),
+        metadata: ObjectMeta {
+            name: Some(value.release_name.clone()),
+            labels,
+            annotations,
+            ..Default::default()
+        },
+        data,
+    };
+    info!(
+        "Helm release representation with name \"{}\" created",
+        value.release_name
+    );
+
+    dynamic_object
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::Write;
 
     use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
     use tempfile::NamedTempFile;
-
-    use crate::resources::{helmrepository_type_meta, secret_type_meta};
 
     use super::*;
 

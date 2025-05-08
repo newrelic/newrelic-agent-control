@@ -17,7 +17,6 @@ use tracing::{Level, debug, error, info};
 
 mod agent_control;
 mod errors;
-mod resources;
 mod utils;
 
 /// Manage Helm releases and repositories in Kubernetes.
