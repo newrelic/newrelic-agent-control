@@ -21,7 +21,7 @@ pub enum RemoteConfigParserError {
 pub trait RemoteConfigParser {
     fn parse(
         &self,
-        agent_identity: AgentIdentity,
+        agent_identity: &AgentIdentity,
         config: &RemoteConfig,
     ) -> Result<Option<YAMLConfig>, RemoteConfigParserError>;
 }
@@ -49,7 +49,7 @@ where
     /// or an error if the configuration is invalid according to the configured validators.
     fn parse(
         &self,
-        agent_identity: AgentIdentity,
+        agent_identity: &AgentIdentity,
         config: &RemoteConfig,
     ) -> Result<Option<YAMLConfig>, RemoteConfigParserError> {
         // Errors here will cause the sub-agent to continue running with the previous configuration.
@@ -58,7 +58,7 @@ where
             return Err(RemoteConfigParserError::RemoteConfigLoad(err_msg));
         }
         for validator in &self.remote_config_validators {
-            if let Err(error_msg) = validator.validate(&agent_identity, config) {
+            if let Err(error_msg) = validator.validate(agent_identity, config) {
                 debug!(
                     hash = &config.hash.get(),
                     "Invalid remote configuration: {error_msg}"
@@ -112,7 +112,7 @@ pub mod tests {
         impl RemoteConfigParser for RemoteConfigParser{
             fn parse(
                 &self,
-                agent_identity: AgentIdentity,
+                agent_identity: &AgentIdentity,
                 config: &RemoteConfig
             ) -> Result<Option<YAMLConfig>, RemoteConfigParserError>;
         }
@@ -144,7 +144,7 @@ pub mod tests {
         );
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
-        let result = handler.parse(agent_identity, &remote_config);
+        let result = handler.parse(&agent_identity, &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::RemoteConfigLoad(s)) => {
             assert_eq!(s, "some error".to_string());
         });
@@ -175,7 +175,7 @@ pub mod tests {
 
         let handler = AgentRemoteConfigParser::new(vec![validator1, validator2, validator3]);
 
-        let result = handler.parse(agent_identity.clone(), &remote_config);
+        let result = handler.parse(&agent_identity, &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::Validation(s)) => {
             assert_eq!(s, "validation2 error".to_string());
         });
@@ -197,7 +197,7 @@ pub mod tests {
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
 
-        let result = handler.parse(agent_identity.clone(), &remote_config);
+        let result = handler.parse(&agent_identity, &remote_config);
         assert_matches!(result, Err(RemoteConfigParserError::InvalidValues(_)));
     }
 
@@ -221,7 +221,7 @@ pub mod tests {
 
         let expected: YAMLConfig = serde_yaml::from_str("key: value").unwrap();
 
-        let result = handler.parse(agent_identity.clone(), &remote_config);
+        let result = handler.parse(&agent_identity, &remote_config);
         assert_matches!(result, Ok(Some(yaml_config)) => {
             assert_eq!(yaml_config, expected);
         });
@@ -242,7 +242,7 @@ pub mod tests {
 
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
-        let result = handler.parse(agent_identity.clone(), &remote_config);
+        let result = handler.parse(&agent_identity, &remote_config);
 
         assert!(result.unwrap().is_none());
     }

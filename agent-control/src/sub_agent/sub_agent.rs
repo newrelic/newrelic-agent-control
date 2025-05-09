@@ -384,7 +384,7 @@ where
         // Attempt to parse/validate the remote config
         let parsed_remote = self
             .remote_config_parser
-            .parse(self.identity.clone(), &config) // does this need the whole config or only the values? We have to clone the hash above due to this
+            .parse(&self.identity, &config) // does this need the whole config or only the values? We have to clone the hash above due to this
             .map_err(SupervisorCreationError::from);
 
         // The below variable will signal if, at the end of this whole handler, we need to delete
