@@ -25,7 +25,6 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     opamp::hash_repository::on_host::HashRepositoryFile,
@@ -147,10 +146,8 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            sub_agent_hash_repository.clone(),
-            SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR)),
-        );
+        let supervisor_builder =
+            SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR));
 
         // This template rendered does not include the persister to AVOID mutate any state when used to validate configs.
         let validation_renderer = TemplateRenderer::default()
@@ -173,7 +170,7 @@ impl AgentControlRunner {
         let sub_agent_builder = OnHostSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
-            Arc::new(supervisor_assembler),
+            Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
             sub_agent_hash_repository,
             yaml_config_repository,

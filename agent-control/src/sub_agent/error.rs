@@ -1,6 +1,5 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use super::remote_config_parser::RemoteConfigParserError;
-use super::supervisor::assembler::SupervisorAssemblerError;
 use super::supervisor::starter::SupervisorStarterError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
@@ -46,8 +45,8 @@ pub enum SupervisorCreationError {
     NoConfiguration,
     #[error("could not assemble the effective agent from YAML config: `{0}`")]
     EffectiveAgentAssemble(#[from] EffectiveAgentsAssemblerError),
-    #[error("could not assemble the supervisor from an effective agent: `{0}`")]
-    SupervisorAssemble(#[from] SupervisorAssemblerError),
+    #[error("could not build the supervisor from an effective agent: `{0}`")]
+    SupervisorAssemble(#[from] SubAgentBuilderError),
     #[error("could not start the supervisor: `{0}`")]
     SupervisorStart(#[from] SupervisorStarterError),
 }

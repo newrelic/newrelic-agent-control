@@ -1,6 +1,7 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use super::error::SubAgentStopError;
 use super::health::health_checker::Health;
+use super::supervisor::builder::SupervisorBuilder;
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
@@ -19,7 +20,6 @@ use crate::sub_agent::event_handler::on_version::on_version;
 use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
-use crate::sub_agent::supervisor::assembler::SupervisorAssembler;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
@@ -76,10 +76,10 @@ pub struct SubAgentStopper {
 ///
 /// All its methods are internal and only called from the runtime method that spawns
 /// a thread listening to events and acting on them.
-pub struct SubAgent<C, SA, R, H, Y, A>
+pub struct SubAgent<C, B, R, H, Y, A>
 where
     C: StartedClient + Send + Sync + 'static,
-    SA: SupervisorAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
@@ -92,17 +92,17 @@ where
     pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     remote_config_parser: Arc<R>,
-    supervisor_assembler: Arc<SA>,
+    supervisor_builder: Arc<B>,
     hash_repository: Arc<H>,
     yaml_config_repository: Arc<Y>,
     effective_agent_assembler: Arc<A>,
     environment: Environment,
 }
 
-impl<C, SA, R, H, Y, A> SubAgent<C, SA, R, H, Y, A>
+impl<C, B, R, H, Y, A> SubAgent<C, B, R, H, Y, A>
 where
     C: StartedClient + Send + Sync + 'static,
-    SA: SupervisorAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
@@ -112,7 +112,7 @@ where
     pub fn new(
         identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
-        supervisor_assembler: Arc<SA>,
+        supervisor_builder: Arc<B>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         (sub_agent_internal_publisher, sub_agent_internal_consumer): (
@@ -128,7 +128,7 @@ where
         Self {
             identity,
             maybe_opamp_client,
-            supervisor_assembler,
+            supervisor_builder,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
             sub_agent_internal_publisher,
@@ -184,9 +184,8 @@ where
     /// OpAMP client present in the sub-agent.
     fn init_supervisor(
         &self,
-    ) -> Option<
-        <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-    > {
+    ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
+    {
         // An earlier run of Agent Control might have data for this agent identity, so we
         // attempt to retrieve an existing remote config hash and also the remote config itself,
         // falling back to a local config if there's no remote config.
@@ -213,13 +212,10 @@ where
         let effective_agent = self
             .effective_agent(yaml_config)
             .map_err(SupervisorCreationError::from);
+
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
-            self.supervisor_assembler
-                .assemble_supervisor(
-                    &self.maybe_opamp_client,
-                    self.identity.clone(),
-                    effective_agent,
-                )
+            self.supervisor_builder
+                .build_supervisor(effective_agent)
                 .map_err(SupervisorCreationError::from)
         });
 
@@ -401,10 +397,10 @@ where
         opamp_client: &C,
         config: RemoteConfig,
         old_supervisor: Option<
-            <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>,
-    ) -> Option<
-        <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-    > {
+            <<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
+        >,
+    ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
+    {
         // We return early if the hash comes failed. This might happen if the pre-processing steps
         // of the incoming remote config (performed in the OpAMP client callbacks, see
         // `process_remote_config` in `opamp::callbacks`) fails for any reason.
@@ -488,7 +484,7 @@ where
         &self,
         opamp_client: &C,
         config: &RemoteConfig,
-    ) -> Result<<SA as SupervisorAssembler>::SupervisorStarter, SupervisorCreationError> {
+    ) -> Result<<B as SupervisorBuilder>::SupervisorStarter, SupervisorCreationError> {
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
         let parsed_remote = self
@@ -535,14 +531,9 @@ where
         //   - having empty values
         //   - the EffectiveAgent assembly attempt
         // Let's continue.
-        // TODO remove the supervisor assembler or trait in the next task!
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
-            self.supervisor_assembler
-                .assemble_supervisor(
-                    &self.maybe_opamp_client,
-                    self.identity.clone(),
-                    effective_agent,
-                )
+            self.supervisor_builder
+                .build_supervisor(effective_agent)
                 .map_err(SupervisorCreationError::from)
         });
 
@@ -582,9 +573,9 @@ where
 
     pub(crate) fn start_supervisor(
         &self,
-        not_started_supervisor: SA::SupervisorStarter,
+        not_started_supervisor: B::SupervisorStarter,
     ) -> Result<
-        <SA::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
+        <B::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
         SupervisorStarterError,
     > {
         not_started_supervisor
@@ -692,10 +683,10 @@ where
     }
 }
 
-impl<C, SA, R, H, Y, A> NotStartedSubAgent for SubAgent<C, SA, R, H, Y, A>
+impl<C, B, R, H, Y, A> NotStartedSubAgent for SubAgent<C, B, R, H, Y, A>
 where
     C: StartedClient + Send + Sync + 'static,
-    SA: SupervisorAssembler + Send + Sync + 'static,
+    B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     H: HashRepository + Send + Sync + 'static,
     Y: YAMLConfigRepository + Send + Sync + 'static,
@@ -729,7 +720,7 @@ pub mod tests {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
+    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
@@ -807,7 +798,7 @@ pub mod tests {
 
     type SubAgentForTesting = SubAgent<
         MockStartedOpAMPClient,
-        MockSupervisorAssembler<MockSupervisorStarter>,
+        MockSupervisorBuilder<MockSupervisorStarter>,
         MockRemoteConfigParser,
         MockHashRepository,
         MockYAMLConfigRepository,
@@ -848,17 +839,16 @@ pub mod tests {
                 },
             );
 
-            let mut supervisor_assembler = MockSupervisorAssembler::new();
-            supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-                stopped_supervisor,
-                agent_identity.clone(),
-                effective_agent,
-            );
+            let mut supervisor_builder = MockSupervisorBuilder::new();
+            supervisor_builder
+                .expect_build_supervisor()
+                .with(predicate::eq(effective_agent))
+                .return_once(|_| Ok(stopped_supervisor));
 
             SubAgent::new(
                 agent_identity,
                 None,
-                Arc::new(supervisor_assembler),
+                Arc::new(supervisor_builder),
                 sub_agent_publisher,
                 None,
                 (sub_agent_internal_publisher, sub_agent_internal_consumer),
@@ -920,16 +910,15 @@ pub mod tests {
             1,
         );
 
-        let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-            effective_agent,
-        );
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder
+            .expect_build_supervisor()
+            .with(predicate::eq(effective_agent))
+            .return_once(|_| Ok(stopped_supervisor));
 
         let sub_agent: SubAgent<
             MockStartedOpAMPClient,
-            MockSupervisorAssembler<MockSupervisorStarter>,
+            MockSupervisorBuilder<MockSupervisorStarter>,
             MockRemoteConfigParser,
             MockHashRepository,
             MockYAMLConfigRepository,
@@ -937,7 +926,7 @@ pub mod tests {
         > = SubAgent::new(
             agent_identity,
             None,
-            Arc::new(supervisor_assembler),
+            Arc::new(supervisor_builder),
             sub_agent_publisher,
             None,
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
@@ -1013,14 +1002,7 @@ pub mod tests {
         // opamp client expects to be stopped
         opamp_client.should_stop(1);
 
-        // Assemble once on start
-        let mut started_supervisor = MockSupervisorStopper::new();
-        started_supervisor.should_stop();
-
-        let mut stopped_supervisor = MockSupervisorStarter::new();
-        stopped_supervisor.should_start(started_supervisor);
-
-        let mut supervisor_assembler = MockSupervisorAssembler::new();
+        let mut supervisor_builder = MockSupervisorBuilder::new();
 
         let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
         let effective_agent = EffectiveAgent::new(
@@ -1037,11 +1019,17 @@ pub mod tests {
             1,
         );
 
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-            effective_agent.clone(),
-        );
+        supervisor_builder
+            .expect_build_supervisor()
+            .with(predicate::eq(effective_agent.clone()))
+            .returning(|_| {
+                // Assemble once on start
+                let mut started_supervisor = MockSupervisorStopper::new();
+                started_supervisor.should_stop();
+                let mut stopped_supervisor = MockSupervisorStarter::new();
+                stopped_supervisor.should_start(started_supervisor);
+                Ok(stopped_supervisor)
+            });
 
         let mut hash_repository = MockHashRepository::new();
         hash_repository
@@ -1070,16 +1058,18 @@ pub mod tests {
         );
         hash_repository.should_save_hash(&agent_identity.id, &applied_hash);
 
-        // Assemble again on config received
-        let mut started_supervisor = MockSupervisorStopper::new();
-        started_supervisor.should_stop();
-        let mut stopped_supervisor = MockSupervisorStarter::new();
-        stopped_supervisor.should_start(started_supervisor);
-        supervisor_assembler.should_assemble::<MockStartedOpAMPClient>(
-            stopped_supervisor,
-            agent_identity.clone(),
-            effective_agent.clone(),
-        );
+        supervisor_builder
+            .expect_build_supervisor()
+            .with(predicate::eq(effective_agent.clone()))
+            .returning(|_| {
+                // Assemble again on config received
+                let mut started_supervisor = MockSupervisorStopper::new();
+                started_supervisor.should_stop();
+                let mut stopped_supervisor = MockSupervisorStarter::new();
+                stopped_supervisor.should_start(started_supervisor);
+                Ok(stopped_supervisor)
+            });
+
         effective_agents_assembler.should_assemble_agent(
             &agent_identity,
             &yaml_config,
@@ -1091,7 +1081,7 @@ pub mod tests {
         let sub_agent = SubAgent::new(
             agent_identity,
             Some(opamp_client),
-            Arc::new(supervisor_assembler),
+            Arc::new(supervisor_builder),
             sub_agent_publisher,
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),

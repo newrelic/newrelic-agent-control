@@ -259,7 +259,7 @@ pub mod tests {
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
-    use crate::sub_agent::supervisor::assembler::tests::MockSupervisorAssembler;
+    use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
     use crate::values::yaml_config::YAMLConfig;
     use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
@@ -552,15 +552,11 @@ pub mod tests {
         );
 
         let agent_identity_clone = agent_identity.clone();
-        let mut supervisor_assembler = MockSupervisorAssembler::new();
-        supervisor_assembler
-            .expect_assemble_supervisor()
-            .with(
-                predicate::always(),
-                predicate::eq(agent_identity.clone()),
-                predicate::eq(effective_agent),
-            )
-            .returning(move |_: &Option<MockStartedOpAMPClient>, _, _| {
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder
+            .expect_build_supervisor()
+            .with(predicate::eq(effective_agent))
+            .returning(move |_| {
                 Ok(NotStartedSupervisorK8s::new(
                     agent_identity_clone.clone(),
                     mocked_client.clone(),
@@ -571,7 +567,7 @@ pub mod tests {
         SubAgent::new(
             agent_identity,
             Option::<MockStartedOpAMPClient>::None,
-            Arc::new(supervisor_assembler),
+            Arc::new(supervisor_builder),
             sub_agent_publisher,
             None,
             (
