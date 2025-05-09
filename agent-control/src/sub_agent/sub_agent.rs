@@ -296,7 +296,7 @@ where
                                 trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
                                 // Refresh the supervisor according to the received config
-                                supervisor = self.handle_remote_config(
+                                supervisor = self.build_supervisor_from_remote_config_event(
                                     opamp_client,
                                     config,
                                     supervisor,
@@ -349,7 +349,7 @@ where
         })
     }
 
-    fn handle_remote_config(
+    fn build_supervisor_from_remote_config_event(
         &self,
         opamp_client: &C,
         config: RemoteConfig,
