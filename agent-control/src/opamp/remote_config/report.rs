@@ -1,3 +1,4 @@
+use super::hash::ConfigState;
 use super::hash::Hash;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -35,5 +36,15 @@ impl OpampRemoteConfigStatus {
             status: self.as_remote_config_status_i32(),
             error_message: self.err_message().unwrap_or_default(),
         })
+    }
+}
+
+impl From<&Hash> for OpampRemoteConfigStatus {
+    fn from(hash: &Hash) -> Self {
+        match &hash.state {
+            ConfigState::Applying => Self::Applying,
+            ConfigState::Applied => Self::Applied,
+            ConfigState::Failed { error_message } => Self::Error(error_message.to_owned()),
+        }
     }
 }

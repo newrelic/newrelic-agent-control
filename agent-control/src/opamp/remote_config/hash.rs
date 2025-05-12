@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
-enum ConfigState {
+pub(crate) enum ConfigState {
     Applying,
     Applied,
     Failed { error_message: String },
@@ -13,7 +13,7 @@ enum ConfigState {
 pub struct Hash {
     hash: String,
     #[serde(flatten)]
-    state: ConfigState,
+    pub(crate) state: ConfigState,
 }
 
 impl Hash {

@@ -230,18 +230,15 @@ where
                 .map_err(SupervisorCreationError::from)
         });
 
-        let mut remote_config_status = OpampRemoteConfigStatus::Applying;
         // Operate over the hash depending on the `started_supervisor` result
         if let Some(hash) = maybe_hash.as_mut() {
             match &started_supervisor {
                 Ok(_) => {
                     hash.apply();
-                    remote_config_status = OpampRemoteConfigStatus::Applied;
                 }
                 Err(e) => {
                     // mutate hash and remote config status
                     hash.fail(e.to_string());
-                    remote_config_status = OpampRemoteConfigStatus::Error(e.to_string());
                 }
             }
         }
@@ -251,7 +248,7 @@ where
         // the hash and the remote config are part of the same structure.
         maybe_hash.inspect(|hash| {
             self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                self.report_config_status(hash, opamp_client, remote_config_status);
+                self.report_config_status(hash, opamp_client, hash.into());
             });
             // As the hash might change state from the above operations, we store it
             self.store_remote_config_hash(hash);
@@ -407,35 +404,91 @@ where
     ) -> Option<
         <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
     > {
-        // Extract the hash
-        let mut hash = config.hash.clone();
-        let mut remote_config_status = OpampRemoteConfigStatus::Applying;
         // We return early if the hash comes failed. This might happen if the pre-processing steps
         // of the incoming remote config (performed in the OpAMP client callbacks, see
         // `process_remote_config` in `opamp::callbacks`) fails for any reason.
-        if hash.is_failed() {
-            let err = hash
-                .error_message()
-                .unwrap_or_else(|| "Unknown error".to_owned());
+        if let Some(err) = config.hash.error_message() {
             warn!(
-                hash = hash.get(),
+                hash = config.hash.get(),
                 "Remote configuration cannot be applied: {err}"
             );
-            remote_config_status = OpampRemoteConfigStatus::Error(err.to_string());
-
-            self.report_config_status(&hash, opamp_client, remote_config_status.clone());
+            self.report_config_status(
+                &config.hash,
+                opamp_client,
+                OpampRemoteConfigStatus::Error(err.to_string()),
+            );
             self.store_remote_config_hash(&config.hash);
             return None;
         }
 
-        info!(hash = %hash.get(), "Applying remote config");
-        self.report_config_status(&config.hash, opamp_client, remote_config_status.clone());
+        info!(hash = config.hash.get(), "Applying remote config");
+        self.report_config_status(
+            &config.hash,
+            opamp_client,
+            OpampRemoteConfigStatus::Applying,
+        );
 
+        let stopped_supervisor = self.create_supervisor(opamp_client, &config);
+
+        // Now, we should have either a Supervisor or an error to handle later,
+        // which can come from either:
+        //   - a parse failure
+        //   - having empty values
+        //   - the EffectiveAgent assembly attempt
+        //   - the Supervisor assembly attempt
+        // Let's continue.
+        let started_supervisor = stopped_supervisor.and_then(|stopped_supervisor| {
+            self.start_supervisor(stopped_supervisor)
+                .map_err(SupervisorCreationError::from)
+        });
+
+        // At this point, we should have either a Supervisor or an error, which can come from:
+        //   - a parse failure
+        //   - having empty values
+        //   - the EffectiveAgent assembly attempt
+        //   - the Supervisor assembly attempt
+        //   - the Supervisor start attempt
+        // Now is the time to handle these possibilities.
+        // We compute the hash and derive the remote config status to report from it.
+        let hash = match &started_supervisor {
+            // If successful...
+            Ok(_)
+            // ...or if we stopped when we found no config these are expected outcomes, we stop the supervisor and mark the hash as applied
+            | Err(SupervisorCreationError::NoConfiguration) => {
+                stop_supervisor(old_supervisor);
+                let mut hash = config.hash;
+                hash.apply();
+                hash
+            }
+            // For all other failures, we set the hash to failed but WE DO NOT STOP the supervisor
+            Err(e) => {
+                let mut hash = config.hash;
+                warn!(hash = %hash.get(), "Failed to create supervisor: {e}");
+                hash.fail(e.to_string());
+                hash
+            }
+        };
+
+        // In the end, irrespective of succeeding or failing,
+        // we store the hash and report the status
+        self.store_remote_config_hash(&hash);
+        self.report_config_status(&hash, opamp_client, (&hash).into());
+
+        // With everything already handled, return the supervisor if any
+        started_supervisor.ok()
+    }
+
+    /// Parses incoming remote config, assembles and builds the supervisor.
+    fn create_supervisor(
+        &self,
+        opamp_client: &C,
+        config: &RemoteConfig,
+    ) -> Result<<SA as SupervisorAssembler>::SupervisorStarter, SupervisorCreationError> {
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
         let parsed_remote = self
             .remote_config_parser
-            .parse(self.identity.clone(), &config) // does this need the whole config or only the values? We have to clone the hash above due to this
+            .parse(self.identity.clone(), config) // does this need the whole config or only the values? We have to clone the hash above due to this
             .map_err(SupervisorCreationError::from);
 
         // The below variable will signal if, at the end of this whole handler, we need to delete
@@ -519,54 +572,7 @@ where
                 .inspect_err(|e| error!( %e, "effective config update failed"));
         }
 
-        // Now, we should have either a Supervisor or an error to handle later,
-        // which can come from either:
-        //   - a parse failure
-        //   - having empty values
-        //   - the EffectiveAgent assembly attempt
-        //   - the Supervisor assembly attempt
-        // Let's continue.
-        let started_supervisor = stopped_supervisor.and_then(|stopped_supervisor| {
-            self.start_supervisor(stopped_supervisor)
-                .map_err(SupervisorCreationError::from)
-        });
-
-        // At this point, we should have either a Supervisor or an error, which can come from:
-        //   - a parse failure
-        //   - having empty values
-        //   - the EffectiveAgent assembly attempt
-        //   - the Supervisor assembly attempt
-        //   - the Supervisor start attempt
-        // Now is the time to handle these possibilities
-        match &started_supervisor {
-            // If successful...
-            Ok(_) => {
-                hash.apply();
-                remote_config_status = OpampRemoteConfigStatus::Applied;
-                stop_supervisor(old_supervisor)
-            }
-            // If we stopped when we found no config this is an expected outcome,
-            // we just delete the remote config if any and stop the supervisor
-            Err(SupervisorCreationError::NoConfiguration) => {
-                hash.apply();
-                remote_config_status = OpampRemoteConfigStatus::Applied;
-                stop_supervisor(old_supervisor);
-            }
-            // For all other failures, we set the hash to failed but WE DO NOT STOP the supervisor
-            Err(e) => {
-                warn!(hash = %hash.get(), "Failed to create supervisor: {e}");
-                hash.fail(e.to_string());
-                remote_config_status = OpampRemoteConfigStatus::Error(e.to_string());
-            }
-        }
-
-        // In the end, irrespective of succeeding or failing,
-        // we store the hash and report the status
-        self.store_remote_config_hash(&hash);
-        self.report_config_status(&hash, opamp_client, remote_config_status);
-
-        // With everything already handled, return the supervisor if any
-        started_supervisor.ok()
+        stopped_supervisor
     }
 
     pub(crate) fn start_supervisor(
@@ -996,7 +1002,7 @@ pub mod tests {
             .times(2)
             .returning(|| Ok(()));
 
-        // This one is called two times when a remote config is received. One to indicate we are 
+        // This one is called two times when a remote config is received. One to indicate we are
         // Applying and another one when we successfully Applied.
         opamp_client.should_set_any_remote_config_status(2);
 
