@@ -78,8 +78,8 @@ fn helmrepository_type_meta() -> TypeMeta {
 }
 
 fn helm_repository(
-    labels: Option<BTreeMap<String, String>>,
-    annotations: Option<BTreeMap<String, String>>,
+    labels: BTreeMap<String, String>,
+    annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
     info!(
         "Creating Helm repository representation with name \"{}\"",
@@ -89,8 +89,8 @@ fn helm_repository(
         types: Some(helmrepository_type_meta()),
         metadata: ObjectMeta {
             name: Some(REPOSITORY_NAME.to_string()),
-            labels,
-            annotations,
+            labels: Some(labels),
+            annotations: Some(annotations),
             ..Default::default()
         },
         data: serde_json::json!({
@@ -110,9 +110,9 @@ fn helm_repository(
 
 fn helm_release(
     value: &AgentControlData,
-    secrets: Option<BTreeMap<String, String>>,
-    labels: Option<BTreeMap<String, String>>,
-    annotations: Option<BTreeMap<String, String>>,
+    secrets: BTreeMap<String, String>,
+    labels: BTreeMap<String, String>,
+    annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
     info!(
         "Creating Helm release representation with name \"{}\"",
@@ -140,8 +140,8 @@ fn helm_release(
         }
     });
 
-    let secrets_data = secrets.iter().flatten();
-    let secrets_json = secrets_data
+    let secrets_json = secrets
+        .iter()
         .map(|(name, values_key)| {
             serde_json::json!({
                 "kind": "Secret",
@@ -158,8 +158,8 @@ fn helm_release(
         types: Some(helmrelease_v2_type_meta()),
         metadata: ObjectMeta {
             name: Some(value.release_name.clone()),
-            labels,
-            annotations,
+            labels: Some(labels),
+            annotations: Some(annotations),
             ..Default::default()
         },
         data,
@@ -196,6 +196,8 @@ mod tests {
             types: Some(helmrepository_type_meta()),
             metadata: ObjectMeta {
                 name: Some(REPOSITORY_NAME.to_string()),
+                labels: Some(BTreeMap::new()),
+                annotations: Some(BTreeMap::new()),
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -212,6 +214,8 @@ mod tests {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
                 name: Some(RELEASE_NAME.to_string()),
+                labels: Some(BTreeMap::new()),
+                annotations: Some(BTreeMap::new()),
                 ..Default::default()
             },
             data: serde_json::json!({
