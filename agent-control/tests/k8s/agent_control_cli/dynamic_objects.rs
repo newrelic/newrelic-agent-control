@@ -1,9 +1,6 @@
-use std::io::Write;
-
 use assert_cmd::Command;
 use kube::api::TypeMeta;
-use serde_json::Value;
-use tempfile::NamedTempFile;
+use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
@@ -40,8 +37,29 @@ fn assert_helm_repository(k8s_client: &SyncK8sClient) {
         "https://helm-charts.newrelic.com"
     );
     assert_eq!(repository.data["spec"]["interval"], "300s");
-    assert_eq!(repository.metadata.labels, None);
-    assert_eq!(repository.metadata.annotations, None);
+
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+    assert_eq!(
+        repository.metadata.labels,
+        Some(
+            [
+                ("app.kubernetes.io/managed-by", "newrelic-agent-control",),
+                ("newrelic.io/agent-id", &agent_identity.id),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+        )
+    );
+    assert_eq!(
+        repository.metadata.annotations,
+        Some(
+            vec![("newrelic.io/agent-type-id", agent_identity.agent_type_id)]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        )
+    );
 }
 
 fn assert_helm_release(k8s_client: &SyncK8sClient) {
@@ -52,8 +70,28 @@ fn assert_helm_release(k8s_client: &SyncK8sClient) {
 
     assert_eq!(release.data["spec"]["interval"], "300s");
     assert_eq!(release.data["spec"]["timeout"], "300s");
-    assert_eq!(release.metadata.labels, None);
-    assert_eq!(release.metadata.annotations, None);
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+    assert_eq!(
+        release.metadata.labels,
+        Some(
+            [
+                ("app.kubernetes.io/managed-by", "newrelic-agent-control",),
+                ("newrelic.io/agent-id", &agent_identity.id),
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+        )
+    );
+    assert_eq!(
+        release.metadata.annotations,
+        Some(
+            vec![("newrelic.io/agent-type-id", agent_identity.agent_type_id)]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
+        )
+    );
 
     let chart_data = release.data["spec"]["chart"]["spec"].clone();
     assert_eq!(chart_data["chart"], "agent-control-deployment");
@@ -131,8 +169,6 @@ fn k8s_cli_install_agent_control_with_labels_and_annotations() {
     let mut cmd = install_agent_control_command(namespace.clone());
     cmd.arg("--labels")
         .arg("chart=podinfo, env=testing, app=ac");
-    cmd.arg("--annotations")
-        .arg("test/type=integration, test/name=install-agent-control");
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
@@ -153,25 +189,29 @@ fn k8s_cli_install_agent_control_with_labels_and_annotations() {
         release.metadata.annotations
     );
 
+    let agent_identity = AgentIdentity::new_agent_control_identity();
     assert_eq!(
         release.metadata.labels,
         Some(
-            [("chart", "podinfo"), ("env", "testing"), ("app", "ac")]
-                .iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect()
+            [
+                ("app.kubernetes.io/managed-by", "newrelic-agent-control",),
+                ("newrelic.io/agent-id", &agent_identity.id,),
+                ("chart", "podinfo"),
+                ("env", "testing"),
+                ("app", "ac")
+            ]
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
         )
     );
     assert_eq!(
         release.metadata.annotations,
         Some(
-            vec![
-                ("test/type", "integration"),
-                ("test/name", "install-agent-control"),
-            ]
-            .into_iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect()
+            vec![("newrelic.io/agent-type-id", agent_identity.agent_type_id,)]
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect()
         )
     );
 }

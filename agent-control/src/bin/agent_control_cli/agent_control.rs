@@ -5,7 +5,11 @@ use kube::{
     api::{DynamicObject, ObjectMeta, TypeMeta},
     core::Duration,
 };
-use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
+use newrelic_agent_control::{
+    agent_control::config::helmrelease_v2_type_meta,
+    k8s::{annotations::Annotations, labels::Labels},
+    sub_agent::identity::AgentIdentity,
+};
 use tracing::{debug, info};
 
 use crate::utils::parse_key_value_pairs;
@@ -39,25 +43,22 @@ pub struct AgentControlData {
     /// **Format**: label1=value1,label2=value2.
     #[arg(long)]
     pub labels: Option<String>,
-
-    /// Non-identifying metadata
-    ///
-    /// They will be applied to every resource created for Agent Control.
-    ///
-    /// **Format**: annotation1=value1,annotation2=value2.
-    #[arg(long)]
-    pub annotations: Option<String>,
 }
 
 impl From<AgentControlData> for Vec<DynamicObject> {
     fn from(value: AgentControlData) -> Vec<DynamicObject> {
         info!("Creating Agent Control resources representations");
 
-        let labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+
+        let mut labels = Labels::new(&agent_identity.id);
+        let extra_labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
+        labels.append_extra_labels(&extra_labels);
+        let labels = labels.get();
         debug!("Parsed labels: {:?}", labels);
 
-        let annotations = parse_key_value_pairs(value.annotations.as_deref().unwrap_or_default());
-        debug!("Parsed annotations: {:?}", annotations);
+        let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
+        let annotations = annotations.get();
 
         let repository_object = helm_repository(labels.clone(), annotations.clone());
 
@@ -187,17 +188,30 @@ mod tests {
             chart_version: VERSION.to_string(),
             secrets: None,
             labels: None,
-            annotations: None,
         }
     }
 
     fn repository_object() -> DynamicObject {
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+
         DynamicObject {
             types: Some(helmrepository_type_meta()),
             metadata: ObjectMeta {
                 name: Some(REPOSITORY_NAME.to_string()),
-                labels: Some(BTreeMap::new()),
-                annotations: Some(BTreeMap::new()),
+                labels: Some(BTreeMap::from_iter(vec![
+                    (
+                        "app.kubernetes.io/managed-by".to_string(),
+                        "newrelic-agent-control".to_string(),
+                    ),
+                    (
+                        "newrelic.io/agent-id".to_string(),
+                        agent_identity.id.to_string(),
+                    ),
+                ])),
+                annotations: Some(BTreeMap::from_iter(vec![(
+                    "newrelic.io/agent-type-id".to_string(),
+                    agent_identity.agent_type_id.to_string(),
+                )])),
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -210,12 +224,26 @@ mod tests {
     }
 
     fn release_object() -> DynamicObject {
+        let agent_identity = AgentIdentity::new_agent_control_identity();
+
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
                 name: Some(RELEASE_NAME.to_string()),
-                labels: Some(BTreeMap::new()),
-                annotations: Some(BTreeMap::new()),
+                labels: Some(BTreeMap::from_iter(vec![
+                    (
+                        "app.kubernetes.io/managed-by".to_string(),
+                        "newrelic-agent-control".to_string(),
+                    ),
+                    (
+                        "newrelic.io/agent-id".to_string(),
+                        agent_identity.id.to_string(),
+                    ),
+                ])),
+                annotations: Some(BTreeMap::from_iter(vec![(
+                    "newrelic.io/agent-type-id".to_string(),
+                    agent_identity.agent_type_id.to_string(),
+                )])),
                 ..Default::default()
             },
             data: serde_json::json!({
@@ -278,11 +306,19 @@ mod tests {
     fn test_to_dynamic_objects_with_labels_and_annotations() {
         let mut agent_control_data = agent_control_data();
         agent_control_data.labels = Some("label1=value1,label2=value2".to_string());
-        agent_control_data.annotations = Some("annotation1=value1,annotation2=value2".to_string());
         let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
 
+        let agent_identity = AgentIdentity::new_agent_control_identity();
         let labels = Some(
             vec![
+                (
+                    "app.kubernetes.io/managed-by".to_string(),
+                    "newrelic-agent-control".to_string(),
+                ),
+                (
+                    "newrelic.io/agent-id".to_string(),
+                    agent_identity.id.to_string(),
+                ),
                 ("label1".to_string(), "value1".to_string()),
                 ("label2".to_string(), "value2".to_string()),
             ]
@@ -290,10 +326,10 @@ mod tests {
             .collect(),
         );
         let annotations = Some(
-            vec![
-                ("annotation1".to_string(), "value1".to_string()),
-                ("annotation2".to_string(), "value2".to_string()),
-            ]
+            vec![(
+                "newrelic.io/agent-type-id".to_string(),
+                agent_identity.agent_type_id.to_string(),
+            )]
             .into_iter()
             .collect(),
         );
