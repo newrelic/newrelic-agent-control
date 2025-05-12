@@ -176,8 +176,8 @@ where
     /// Attempt to build a supervisor specific for this sub-agent given an existing YAML config.
     ///
     /// This function retrieves the stored remote config hash (if any) for this sub-agent identity,
-    /// though it does not cancel the operation if the hash is failed as the yaml config can be from
-    /// a local config.
+    /// though it does not cancel the operation if the hash is failed as we can still have a valid configuration (either
+    /// a previous valid remote configuration or a local configuration).
     ///
     /// Any failure to assemble the effective agent or the supervisor, or failure to start the
     /// supervisor will be mark the existing hash as failed and report the error if there's an
