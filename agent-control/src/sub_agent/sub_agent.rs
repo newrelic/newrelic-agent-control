@@ -162,7 +162,7 @@ where
             debug!("No remote config hash found for sub-agent.");
         }
 
-        // If the retrieved hash is failed at this point, we just report remote config status
+        // If the retrieved hash is failed at this point, we report remote config status
         maybe_hash.as_ref().inspect(|hash| {
             if let Some(err) = hash.error_message() {
                 debug!(
@@ -196,6 +196,12 @@ where
             // Communicate the config that we will be using
             // FIXME: only if we successfully build a supervisor?
             // What if we fail and we don't have a supervisor? Should we report?
+
+            // During the sub-agent runtime we need to persist the configuration before updating the
+            // effective_config (the callback reads from the storage) but, since the configuration
+            // is already in storage because we are just starting the agent for the first time, and
+            // we retrieved the information we work with in this function from the storage, we don't
+            // need to perform any storing at this point, the data was already present there.
             self.maybe_opamp_client.as_ref().inspect(|c| {
                 let _ = c
                     .update_effective_config()
