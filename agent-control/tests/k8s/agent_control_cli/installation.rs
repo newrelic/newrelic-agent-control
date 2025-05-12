@@ -4,7 +4,7 @@ use crate::k8s::tools::k8s_env::K8sEnv;
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_creates_pods() {
+fn k8s_cli_install_agent_control_installation() {
     let runtime = crate::common::runtime::tokio_runtime();
 
     let mut k8s_env = runtime.block_on(K8sEnv::new());
