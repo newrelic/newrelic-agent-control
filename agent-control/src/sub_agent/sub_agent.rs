@@ -141,6 +141,38 @@ where
         }
     }
 
+    /// Retrieve the hash from the hash repository for this sub-agent identity.
+    ///
+    /// Logs if missing and reports the config status through the OpAMP client (if any) if the hash is failed.
+    fn get_init_hash(&self) -> Option<Hash> {
+        let maybe_hash = self
+            .hash_repository
+            .get(&self.identity.id)
+            .inspect_err(|e| debug!(err = %e, "Failed to get hash from repository."))
+            .unwrap_or_default();
+
+        if maybe_hash.is_none() {
+            debug!("No previous remote config hash found for sub-agent.");
+        }
+
+        // If the retrieved hash exists but is failed at this point, we report remote config status
+        maybe_hash.inspect(|hash| {
+            if let Some(err) = hash.error_message() {
+                debug!(
+                    hash = &hash.get(),
+                    "Previously stored configuration could not be applied: {err}"
+                );
+                self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
+                    self.report_config_status(
+                        hash,
+                        opamp_client,
+                        OpampRemoteConfigStatus::Error(err.to_string()),
+                    );
+                });
+            }
+        })
+    }
+
     /// Attempt to build a supervisor specific for this sub-agent given an existing YAML config.
     ///
     /// This function retrieves the stored remote config hash (if any) for this sub-agent identity,
@@ -161,32 +193,7 @@ where
         // falling back to a local config if there's no remote config.
         // Note that, as of now, this is the only information we have, so there's no guarantee
         // that the hash we retrieve is the one linked to the remote config we are applying.
-        let mut maybe_hash = self
-            .hash_repository
-            .get(&self.identity.id)
-            .inspect_err(|e| debug!(err = %e, "Failed to get hash from repository."))
-            .unwrap_or_default();
-
-        if maybe_hash.is_none() {
-            debug!("No remote config hash found for sub-agent.");
-        }
-
-        // If the retrieved hash is failed at this point, we report remote config status
-        maybe_hash.as_ref().inspect(|hash| {
-            if let Some(err) = hash.error_message() {
-                debug!(
-                    hash = &hash.get(),
-                    "Previously stored configuration could not be applied: {err}"
-                );
-                self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                    self.report_config_status(
-                        hash,
-                        opamp_client,
-                        OpampRemoteConfigStatus::Error(err.to_string()),
-                    );
-                });
-            }
-        });
+        let mut maybe_hash = self.get_init_hash();
 
         let effective_agent = self
             .effective_agent(yaml_config)
