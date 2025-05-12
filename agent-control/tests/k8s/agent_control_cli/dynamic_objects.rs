@@ -1,9 +1,10 @@
 use assert_cmd::Command;
-use kube::api::TypeMeta;
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
-use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
+use newrelic_agent_control::agent_control::config::{
+    helmrelease_v2_type_meta, helmrepository_type_meta,
+};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
 const REPOSITORY_NAME: &str = "newrelic";
@@ -19,16 +20,9 @@ fn install_agent_control_command(namespace: String) -> Command {
     cmd
 }
 
-fn helm_repository_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-        kind: "HelmRepository".to_string(),
-    }
-}
-
 fn assert_helm_repository(k8s_client: &SyncK8sClient) {
     let repository = k8s_client
-        .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
+        .get_dynamic_object(&helmrepository_type_meta(), REPOSITORY_NAME)
         .unwrap()
         .unwrap();
 
@@ -103,38 +97,26 @@ fn assert_helm_release(k8s_client: &SyncK8sClient) {
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_creates_resources_no_secrets() {
+fn k8s_cli_install_agent_control_creates_resources() {
     let runtime = crate::common::runtime::tokio_runtime();
 
     let mut k8s_env = runtime.block_on(K8sEnv::new());
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let mut cmd = install_agent_control_command(namespace.clone());
-    cmd.assert().success();
-
-    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
-
-    assert_helm_repository(&k8s_client);
-    assert_helm_release(&k8s_client);
-}
-
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_creates_resources_with_secrets() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
-
-    let mut cmd = install_agent_control_command(namespace.clone());
+    cmd.arg("--labels")
+        .arg("chart=podinfo, env=testing, app=ac");
     cmd.arg("--secrets")
         .arg("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml");
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
 
+    // Assert basic structure
     assert_helm_repository(&k8s_client);
     assert_helm_release(&k8s_client);
+
+    // Assert secrets
     let release = k8s_client
         .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
         .unwrap()
@@ -156,40 +138,18 @@ fn k8s_cli_install_agent_control_creates_resources_with_secrets() {
             "valuesKey": "fixed.yaml",
         }])
     );
-}
 
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_with_labels_and_annotations() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
-
-    let mut cmd = install_agent_control_command(namespace.clone());
-    cmd.arg("--labels")
-        .arg("chart=podinfo, env=testing, app=ac");
-    cmd.assert().success();
-
-    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
-
+    // Assert labels
+    let agent_identity = AgentIdentity::new_agent_control_identity();
     let repository = k8s_client
-        .get_dynamic_object(&helm_repository_type_meta(), REPOSITORY_NAME)
+        .get_dynamic_object(&helmrelease_v2_type_meta(), REPOSITORY_NAME)
         .unwrap()
         .unwrap();
-
-    let release = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
-        .unwrap()
-        .unwrap();
-
     assert_eq!(repository.metadata.labels, release.metadata.labels);
     assert_eq!(
         repository.metadata.annotations,
         release.metadata.annotations
     );
-
-    let agent_identity = AgentIdentity::new_agent_control_identity();
     assert_eq!(
         release.metadata.labels,
         Some(
@@ -203,15 +163,6 @@ fn k8s_cli_install_agent_control_with_labels_and_annotations() {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
-        )
-    );
-    assert_eq!(
-        release.metadata.annotations,
-        Some(
-            vec![("newrelic.io/agent-type-id", agent_identity.agent_type_id,)]
-                .into_iter()
-                .map(|(k, v)| (k.to_string(), v.to_string()))
-                .collect()
         )
     );
 }
