@@ -141,6 +141,15 @@ where
         }
     }
 
+    /// Attempt to build a supervisor specific for this sub-agent given an existing YAML config.
+    ///
+    /// This function retrieves the stored remote config hash (if any) for this sub-agent identity,
+    /// though it does not cancel the operation if the hash is failed as the yaml config can be from
+    /// a local config.
+    ///
+    /// Any failure to assemble the effective agent or the supervisor, or failure to start the
+    /// supervisor will be mark the existing hash as failed and report the error if there's an
+    /// OpAMP client present in the sub-agent.
     fn init_supervisor(
         &self,
         yaml_config: YAMLConfig,
@@ -372,6 +381,16 @@ where
         })
     }
 
+    /// This function handles the remote config received from OpAMP.
+    ///
+    /// Besides the config itself, it receives the old supervisor so we can operate over it
+    /// depending on the outcome of the build attempt of a new supervisor using the provided config:
+    ///
+    ///   - If the build is successful, the old supervisor is stopped and the new one is returned.
+    ///   - If the build fails, the old supervisor is not stopped and the new one is not returned.
+    ///   - A specific case is when the received remote config comes specifically empty, in which
+    ///     case we intentionally stop the supervisor and leave the runtime without it, waiting for
+    ///     a new incoming remote config which will call this function again.
     fn handle_remote_config(
         &self,
         opamp_client: &C,
