@@ -377,7 +377,7 @@ fn wait_for_termination(
     spawn_named_thread("OnHost Termination signal listener", move || {
         let (lck, cvar) = Context::get_lock_cvar(&ctx);
         drop(cvar.wait_while(lck.lock().unwrap(), |finish| !*finish));
-        let _span = span.entered();
+        let _span_guard = span.enter();
 
         // context is unlocked here so locking it again in other thread that is blocking current_pid is safe.
         if let Some(pid) = *current_pid.lock().unwrap() {
