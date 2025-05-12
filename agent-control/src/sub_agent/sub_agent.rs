@@ -400,10 +400,12 @@ where
     ) -> Option<
         <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
     > {
-        // extract the hash
+        // Extract the hash
         let mut hash = config.hash.clone();
         let mut remote_config_status = OpampRemoteConfigStatus::Applying;
-        // we return early if the hash comes failed
+        // We return early if the hash comes failed. This might happen if the pre-processing steps
+        // of the incoming remote config (performed in the OpAMP client callbacks, see
+        // `process_remote_config` in `opamp::callbacks`) fails for any reason.
         if hash.is_failed() {
             let err = hash
                 .error_message()
