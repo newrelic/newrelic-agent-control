@@ -38,6 +38,8 @@ pub enum SubAgentError {
 /// Errors that can occur when creating a supervisor, including when receiving a remote config.
 #[derive(Error, Debug)]
 pub enum SupervisorCreationError {
+    #[error("failed remote config hash for remote config: `{0}`")]
+    RemoteConfigHash(String),
     #[error("could not parse the remote config: `{0}`")]
     RemoteConfigParse(#[from] RemoteConfigParserError),
     #[error("no configuration found")]
