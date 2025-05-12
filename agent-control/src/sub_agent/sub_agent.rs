@@ -988,13 +988,16 @@ pub mod tests {
             RemoteConfig::new(agent_identity.id.clone(), hash.clone(), Some(config_map));
 
         let mut opamp_client = MockStartedOpAMPClient::new();
-        // Give we build the sub-agent two times and we operate with the opamp client in the sub-agent logic,
-        // we expect the below mock to be called two times.
+        // Given we build the sub-agent two times (initial and when receiving a remote config) and
+        // we operate with the opamp client in the sub-agent logic, we expect the below mock to be
+        // called two times.
         opamp_client
             .expect_update_effective_config()
             .times(2)
             .returning(|| Ok(()));
-        // Applying + Applied
+
+        // This one is called two times when a remote config is received. One to indicate we are 
+        // Applying and another one when we successfully Applied.
         opamp_client.should_set_any_remote_config_status(2);
 
         // opamp client expects to be stopped
