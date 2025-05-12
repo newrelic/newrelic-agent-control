@@ -432,7 +432,7 @@ where
         // The below variable will signal if, at the end of this whole handler, we need to delete
         // the existing remote config because we fell back to local (None), or if we need to store
         // the remote config (Some(yaml)).
-        let remote_to_store = parsed_remote
+        let existing_remote_config = parsed_remote
             .as_ref()
             .ok()
             .and_then(|remote_yaml_config| remote_yaml_config.clone());
@@ -480,7 +480,7 @@ where
         });
 
         if stopped_supervisor.is_ok() {
-            match remote_to_store {
+            match existing_remote_config {
                 // If we were operating over a remote config, we store it
                 Some(remote_config) => {
                     let _ = self
