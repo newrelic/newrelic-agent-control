@@ -215,6 +215,13 @@ pub fn instrumentation_v1beta1_type_meta() -> TypeMeta {
     }
 }
 
+pub fn helmrepository_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        kind: "HelmRepository".to_string(),
+    }
+}
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health

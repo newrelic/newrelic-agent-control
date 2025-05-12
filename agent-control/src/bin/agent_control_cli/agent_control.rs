@@ -2,11 +2,11 @@ use std::{collections::BTreeMap, str::FromStr};
 
 use clap::Parser;
 use kube::{
-    api::{DynamicObject, ObjectMeta, TypeMeta},
+    api::{DynamicObject, ObjectMeta},
     core::Duration,
 };
 use newrelic_agent_control::{
-    agent_control::config::helmrelease_v2_type_meta,
+    agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
     k8s::{annotations::Annotations, labels::Labels},
     sub_agent::identity::AgentIdentity,
 };
@@ -68,13 +68,6 @@ impl From<AgentControlData> for Vec<DynamicObject> {
         info!("Agent Control resources representations created");
 
         vec![repository_object, release_object]
-    }
-}
-
-fn helmrepository_type_meta() -> TypeMeta {
-    TypeMeta {
-        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-        kind: "HelmRepository".to_string(),
     }
 }
 
