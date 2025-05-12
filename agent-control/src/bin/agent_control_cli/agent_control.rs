@@ -147,7 +147,6 @@ fn helm_release(
                 "kind": "Secret",
                 "name": name,
                 "valuesKey": values_key,
-                "optional": true,
             })
         })
         .collect::<Vec<serde_json::Value>>();
@@ -254,19 +253,16 @@ mod tests {
             "kind": "Secret",
             "name": "secret1",
             "valuesKey": "default.yaml",
-            "optional": true,
         },
         {
             "kind": "Secret",
             "name": "secret2",
             "valuesKey": "values.yaml",
-            "optional": true,
         },
         {
             "kind": "Secret",
             "name": "secret3",
             "valuesKey": "fixed.yaml",
-            "optional": true
         }]);
         assert_eq!(
             dynamic_objects,

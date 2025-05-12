@@ -108,17 +108,14 @@ fn k8s_cli_install_agent_control_creates_resources_with_secrets() {
             "kind": "Secret",
             "name": "secret1",
             "valuesKey": "default.yaml",
-            "optional": true,
         }, {
             "kind": "Secret",
             "name": "secret2",
             "valuesKey": "values.yaml",
-            "optional": true,
         }, {
             "kind": "Secret",
             "name": "secret3",
             "valuesKey": "fixed.yaml",
-            "optional": true,
         }])
     );
 }
