@@ -54,7 +54,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
 
     let logging_config: LoggingConfig =
-        serde_yaml::from_str(&format!("level: {}", cli.log_level)).unwrap();
+        serde_yaml::from_str(&format!("level: {}", cli.log_level)).expect("Logging config should be valid");
     let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR))
         .with_logging_config(logging_config);
     let tracer = try_init_tracing(tracing_config).map_err(CliError::Tracing);
