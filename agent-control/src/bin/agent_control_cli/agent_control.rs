@@ -75,10 +75,7 @@ fn helm_repository(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    info!(
-        "Creating Helm repository representation with name \"{}\"",
-        REPOSITORY_NAME
-    );
+    info!("Parsing HelmRepository with name \"{}\"", REPOSITORY_NAME);
     let dynamic_object = DynamicObject {
         types: Some(helmrepository_type_meta()),
         metadata: ObjectMeta {
@@ -95,7 +92,7 @@ fn helm_repository(
         }),
     };
     info!(
-        "Helm repository representation with name \"{}\" created",
+        "HelmRepository with name \"{}\" parsed successfully",
         REPOSITORY_NAME
     );
 
@@ -108,10 +105,7 @@ fn helm_release(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    info!(
-        "Creating Helm release representation with name \"{}\"",
-        value.release_name
-    );
+    info!("Parsing HelmRelease with name \"{}\"", value.release_name);
 
     let interval = Duration::from_str("5m").expect("Hardcoded value should be correct");
     let timeout = Duration::from_str("5m").expect("Hardcoded value should be correct");
@@ -159,7 +153,7 @@ fn helm_release(
         data,
     };
     info!(
-        "Helm release representation with name \"{}\" created",
+        "HelmRelease with name \"{}\" parsed successfully",
         value.release_name
     );
 

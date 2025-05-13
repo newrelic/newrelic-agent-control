@@ -109,11 +109,11 @@ fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<
         .map(|t| t.kind)
         .unwrap_or_else(|| "Unknown kind".to_string());
 
-    info!("Applying \"{}\" with name \"{}\"", kind, name);
+    info!("Applying {} with name \"{}\"", kind, name);
     k8s_client
         .apply_dynamic_object(object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-    info!("\"{}\" with name \"{}\" applied successfully", kind, name);
+    info!("{} with name {} applied successfully", kind, name);
 
     Ok(())
 }
