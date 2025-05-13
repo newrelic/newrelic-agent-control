@@ -92,6 +92,12 @@ pub(crate) mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::AGENT_CONTROL_ID;
 
+    impl Default for AgentID {
+        fn default() -> Self {
+            AgentID::new("default").unwrap()
+        }
+    }
+
     #[test]
     fn agent_control_id() {
         let agent_id = AgentID::new_agent_control_id();

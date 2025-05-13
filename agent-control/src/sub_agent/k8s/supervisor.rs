@@ -11,7 +11,7 @@ use crate::k8s::labels::Labels;
 use crate::sub_agent::health::health_checker::spawn_health_checker;
 use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
 use crate::sub_agent::health::with_start_time::StartTime;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
@@ -24,10 +24,10 @@ use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, info_span, trace, warn};
 
 const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
-const SUPERVISOR_THREAD_NAME: &str = "k8s objects supervisor";
+const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
 pub struct NotStartedSupervisorK8s {
     agent_identity: AgentIdentity,
@@ -126,7 +126,15 @@ impl NotStartedSupervisorK8s {
     ) -> StartedThreadContext {
         let k8s_client = self.k8s_client.clone();
         let interval = self.interval;
+        let agent_id = self.agent_identity.id.clone();
+
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+            let span = info_span!(
+                "reconcile_resources",
+                { ID_ATTRIBUTE_NAME } = %agent_id
+            );
+            let _guard = span.enter();
+
             // Check and apply k8s objects
             if let Err(err) = Self::apply_resources(resources.iter(), k8s_client.clone()) {
                 warn!(%err, "K8s resources apply failed");
@@ -161,6 +169,7 @@ impl NotStartedSupervisorK8s {
         };
 
         let started_thread_context = spawn_health_checker(
+            self.agent_identity.id.clone(),
             k8s_health_checker,
             sub_agent_internal_publisher,
             health_config.interval,
@@ -182,6 +191,7 @@ impl NotStartedSupervisorK8s {
         )?;
 
         Some(spawn_version_checker(
+            self.agent_identity.id.clone(),
             k8s_version_checker,
             sub_agent_internal_publisher,
             VersionCheckerInterval::default(),

@@ -129,9 +129,9 @@ where
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
-        let s = info_span!("agent", id=%self.identity.id);
         spawn_named_thread("Subagent runtime", move || {
-            let _guards = s.enter();
+            let span = info_span!("start_agent", id=%self.identity.id);
+            let _span_guard = span.enter();
 
             let mut supervisor = self.assemble_and_start_supervisor();
             // Stores the current health state for logging purposes.
@@ -142,7 +142,9 @@ where
                 .publish(SubAgentStarted(self.identity.clone(),SystemTime::now()))
                 .inspect_err(|err| error!(error_msg = %err,"Cannot publish sub_agent_event::sub_agent_started"));
 
-            Option::as_ref(&self.maybe_opamp_client).map(|client| client.update_effective_config());
+            self.maybe_opamp_client
+                .as_ref()
+                .map(|client| client.update_effective_config());
 
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
@@ -166,11 +168,15 @@ where
                 let _ = uptime_reporter.report();
             }
 
+            drop(_span_guard);
+
             // Count the received remote configs during execution
             let mut remote_config_count = 0;
             loop {
                 select! {
                     recv(opamp_receiver.as_ref()) -> opamp_event_res => {
+                        let span = info_span!("process_fleet_event", id=%self.identity.id);
+                        let _span_guard = span.enter();
                         match opamp_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_opamp_consumer", "Channel closed");
@@ -220,6 +226,8 @@ where
                         }
                     },
                     recv(&self.sub_agent_internal_consumer.as_ref()) -> sub_agent_internal_event_res => {
+                        let span = info_span!("process_event", id=%self.identity.id);
+                        let _span_guard = span.enter();
                         match sub_agent_internal_event_res {
                             Err(e) => {
                                 debug!(error = %e, select_arm = "sub_agent_internal_consumer", "Channel closed");

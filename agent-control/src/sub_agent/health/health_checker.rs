@@ -1,4 +1,5 @@
 use super::with_start_time::StartTime;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::HealthCheckInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
@@ -6,12 +7,13 @@ use crate::event::channel::{EventConsumer, EventPublisher};
 
 use crate::k8s;
 use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use std::time::{SystemTime, SystemTimeError};
-use tracing::{debug, error};
+use tracing::{debug, error, info_span};
 
-const HEALTH_CHECKER_THREAD_NAME: &str = "health checker";
+const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
 
 pub type StatusTime = SystemTime;
 
@@ -212,6 +214,7 @@ pub trait HealthChecker {
 }
 
 pub(crate) fn spawn_health_checker<H>(
+    agent_id: AgentID,
     health_checker: H,
     sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     interval: HealthCheckInterval,
@@ -221,6 +224,12 @@ where
     H: HealthChecker + Send + 'static,
 {
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+        let span = info_span!(
+            "health_check",
+            { ID_ATTRIBUTE_NAME } = %agent_id
+        );
+        let _guard = span.enter();
+
         debug!("starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
@@ -378,6 +387,7 @@ pub mod tests {
             });
 
         let started_thread_context = spawn_health_checker(
+            AgentID::default(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
@@ -441,6 +451,7 @@ pub mod tests {
             });
 
         let started_thread_context = spawn_health_checker(
+            AgentID::default(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
@@ -499,6 +510,7 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         let started_thread_context = spawn_health_checker(
+            AgentID::default(),
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
