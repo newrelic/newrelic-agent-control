@@ -17,6 +17,7 @@ use crate::utils::parse_key_value_pairs;
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "5m";
+const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 
 #[derive(Debug, Parser)]
 pub struct AgentControlData {
@@ -106,7 +107,7 @@ fn helm_release(
             "timeout": timeout,
             "chart": {
                 "spec": {
-                    "chart": "agent-control-deployment",
+                    "chart": AC_DEPLOYMENT_CHART_NAME,
                     "version": value.chart_version,
                     "sourceRef": {
                         "kind": "HelmRepository",
@@ -225,7 +226,7 @@ mod tests {
                     "timeout": "300s",
                     "chart": {
                         "spec": {
-                            "chart": "agent-control-deployment",
+                            "chart": AC_DEPLOYMENT_CHART_NAME,
                             "version": VERSION,
                             "sourceRef": {
                                 "kind": "HelmRepository",
