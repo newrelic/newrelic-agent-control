@@ -119,18 +119,8 @@ fn helm_release(
         }
     });
 
-    let secrets_json = secrets
-        .iter()
-        .map(|(name, values_key)| {
-            serde_json::json!({
-                "kind": "Secret",
-                "name": name,
-                "valuesKey": values_key,
-            })
-        })
-        .collect::<Vec<serde_json::Value>>();
-    if !secrets_json.is_empty() {
-        data["spec"]["valuesFrom"] = serde_json::json!(secrets_json);
+    if !secrets.is_empty() {
+        data["spec"]["valuesFrom"] = secrets_to_json(secrets);
     }
 
     let dynamic_object = DynamicObject {
@@ -145,6 +135,21 @@ fn helm_release(
     };
 
     dynamic_object
+}
+
+fn secrets_to_json(secrets: BTreeMap<String, String>) -> serde_json::Value {
+    let items = secrets
+        .iter()
+        .map(|(name, values_key)| {
+            serde_json::json!({
+                "kind": "Secret",
+                "name": name,
+                "valuesKey": values_key,
+            })
+        })
+        .collect::<Vec<serde_json::Value>>();
+
+    serde_json::json!(items)
 }
 
 #[cfg(test)]
