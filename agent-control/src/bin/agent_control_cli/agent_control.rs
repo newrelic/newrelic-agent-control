@@ -45,10 +45,10 @@ pub struct AgentControlData {
     /// rules for labels names and values.
     ///
     /// **Format**: label1=value1,label2=value2.
-    /// 
+    ///
     /// [k8s labels]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
     #[arg(long)]
-    pub labels: Option<String>,
+    pub extra_labels: Option<String>,
 }
 
 impl From<AgentControlData> for Vec<DynamicObject> {
@@ -56,7 +56,7 @@ impl From<AgentControlData> for Vec<DynamicObject> {
         let agent_identity = AgentIdentity::new_agent_control_identity();
 
         let mut labels = Labels::new(&agent_identity.id);
-        let extra_labels = parse_key_value_pairs(value.labels.as_deref().unwrap_or_default());
+        let extra_labels = parse_key_value_pairs(value.extra_labels.as_deref().unwrap_or_default());
         labels.append_extra_labels(&extra_labels);
         let labels = labels.get();
         debug!("Parsed labels: {:?}", labels);
@@ -165,7 +165,7 @@ mod tests {
             release_name: RELEASE_NAME.to_string(),
             chart_version: VERSION.to_string(),
             secrets: None,
-            labels: None,
+            extra_labels: None,
         }
     }
 
@@ -283,7 +283,7 @@ mod tests {
     #[test]
     fn test_to_dynamic_objects_with_labels_and_annotations() {
         let mut agent_control_data = agent_control_data();
-        agent_control_data.labels = Some("label1=value1,label2=value2".to_string());
+        agent_control_data.extra_labels = Some("label1=value1,label2=value2".to_string());
         let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
 
         let agent_identity = AgentIdentity::new_agent_control_identity();

@@ -23,7 +23,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     cmd.arg("--release-name").arg(RELEASE_NAME);
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());
-    cmd.arg("--labels")
+    cmd.arg("--extra_labels")
         .arg("chart=podinfo, env=testing, app=ac");
     cmd.arg("--secrets")
         .arg("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml");
