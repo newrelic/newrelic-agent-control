@@ -41,8 +41,12 @@ pub struct AgentControlData {
     ///
     /// Labels are used to select and find collection of objects.
     /// They will be applied to every resource created for Agent Control.
+    /// Check out [k8s labels] for more information on the restrictions and
+    /// rules for labels names and values.
     ///
     /// **Format**: label1=value1,label2=value2.
+    /// 
+    /// [k8s labels]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
     #[arg(long)]
     pub labels: Option<String>,
 }
