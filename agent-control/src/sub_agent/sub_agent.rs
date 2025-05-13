@@ -583,17 +583,10 @@ where
     ///
     /// Will return either the new supervisor, the old one or neither depending on new supervisor's
     /// build attempt result.
-    fn refresh_supervisor(
-        // these types...
-        old_supervisor: Option<
-                    <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>,
-        new_supervisor: Result<
-            <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-            SupervisorCreationError,
-        >,
-    ) -> Option<
-        <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-    > {
+    fn refresh_supervisor<S: SupervisorStopper>(
+        old_supervisor: Option<S>,
+        new_supervisor: Result<S, SupervisorCreationError>,
+    ) -> Option<S> {
         match new_supervisor {
             Ok(supervisor) => {
                 // Stop the old supervisor if any
