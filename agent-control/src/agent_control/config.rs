@@ -235,10 +235,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
             api_version: "v1".to_string(),
             kind: "Secret".to_string(),
         },
-        TypeMeta {
-            api_version: "source.toolkit.fluxcd.io/v1".to_string(),
-            kind: "HelmRepository".to_string(),
-        },
+        helmrepository_type_meta(),
         helmrelease_v2_type_meta(),
     ]
 }
