@@ -78,7 +78,7 @@ fn main() -> ExitCode {
     match result {
         Ok(_) => ExitCode::SUCCESS,
         Err(err) => {
-            error!("Operation failed: {:?}", err);
+            error!("Operation failed: {}", err);
             err.to_exit_code()
         }
     }
