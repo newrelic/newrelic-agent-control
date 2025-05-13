@@ -90,6 +90,10 @@ fn install_agent_control(data: AgentControlData, namespace: String) -> Result<()
     let dynamic_objects = Vec::<DynamicObject>::from(data);
 
     let k8s_client = k8s_client(namespace.clone())?;
+
+    // TODO: Take care of upgrade.
+    // For example, what happens if the user applies a remote configuration with a lower version
+    // that includes a breaking change?
     info!("Applying agent control resources");
     for object in dynamic_objects {
         apply_resource(&k8s_client, &object)?;
