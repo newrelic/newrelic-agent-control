@@ -184,15 +184,30 @@ where
     /// OpAMP client present in the sub-agent.
     fn init_supervisor(
         &self,
-        yaml_config: YAMLConfig,
     ) -> Option<
         <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
     > {
         // An earlier run of Agent Control might have data for this agent identity, so we
         // attempt to retrieve an existing remote config hash and also the remote config itself,
         // falling back to a local config if there's no remote config.
-        // Note that, as of now, this is the only information we have, so there's no guarantee
-        // that the hash we retrieve is the one linked to the remote config we are applying.
+        // If there's no config at all, we cannot assemble a supervisor, so we just return immediately.
+        let Some(yaml_config) = load_remote_fallback_local(
+            self.yaml_config_repository.as_ref(),
+            &self.identity.id,
+            &default_capabilities(),
+        )
+        .inspect_err(|e| {
+            warn!(error = %e, "Failed to load remote or local configuration");
+        })
+        .ok()
+        .flatten() else {
+            debug!("No configuration found for sub-agent.");
+            return None;
+        };
+
+        // Note that, as of now, this is the only information we have about the hash, so there's
+        // no actual guarantee that the hash we retrieve is the one linked to the config we are
+        // applying, which as the step above shows, might as well be a local one.
         let mut maybe_hash = self.get_init_hash();
 
         let effective_agent = self
@@ -262,14 +277,7 @@ where
             let span = info_span!("start_agent", id=%self.identity.id);
             let _span_guard = span.enter();
 
-            let maybe_yaml_config = load_remote_fallback_local(
-                self.yaml_config_repository.as_ref(),
-                &self.identity.id,
-                &default_capabilities(),
-            )?;
-
-            let mut supervisor =
-                maybe_yaml_config.and_then(|yaml_config| self.init_supervisor(yaml_config));
+            let mut supervisor = self.init_supervisor();
 
             // Stores the current health state for logging purposes.
             let mut previous_health = None;
