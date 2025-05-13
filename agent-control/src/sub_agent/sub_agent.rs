@@ -338,8 +338,7 @@ where
                                 trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
                                 // Refresh the supervisor according to the received config
-                                let new_supervisor = self.handle_remote_config(opamp_client, config);
-                                supervisor = Self::refresh_supervisor(supervisor, new_supervisor);
+                                supervisor = self.handle_remote_config(opamp_client, config, supervisor);
                             },
                             Ok(OpAMPEvent::Connected) | Ok(OpAMPEvent::ConnectFailed(_, _)) => {},
                         }
@@ -404,9 +403,10 @@ where
         &self,
         opamp_client: &C,
         config: RemoteConfig,
-    ) -> Result<
+        old_supervisor: Option<
+            <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>,
+    ) -> Option<
         <<SA as SupervisorAssembler>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-        SupervisorCreationError,
     > {
         // We return early if the hash comes failed. This might happen if the pre-processing steps
         // of the incoming remote config (performed in the OpAMP client callbacks, see
@@ -422,7 +422,8 @@ where
                 OpampRemoteConfigStatus::Error(err.to_string()),
             );
             self.store_remote_config_hash(&config.hash);
-            return Err(SupervisorCreationError::RemoteConfigHash(err));
+            // On failed hash we keep the old supervisor running
+            return old_supervisor;
         }
 
         info!(hash = config.hash.get(), "Applying remote config");
@@ -441,35 +442,37 @@ where
         //   - the EffectiveAgent assembly attempt
         //   - the Supervisor assembly attempt
         // Let's continue.
-        let started_supervisor = stopped_supervisor.and_then(|stopped_supervisor| {
-            self.start_supervisor(stopped_supervisor)
-                .map_err(SupervisorCreationError::from)
-        });
+        // Prepare hash to register outcome
+        let mut hash = config.hash;
+        let refreshed_supervisor = match stopped_supervisor {
+            Ok(new_supervisor) => {
+                // Stop old supervisor if any. This needs to happen before starting the new one
+                stop_supervisor(old_supervisor);
 
-        // At this point, we should have either a Supervisor or an error, which can come from:
-        //   - a parse failure
-        //   - having empty values
-        //   - the EffectiveAgent assembly attempt
-        //   - the Supervisor assembly attempt
-        //   - the Supervisor start attempt
-        // Now is the time to handle these possibilities.
-        // We first compute the hash and derive the remote config status to report from it.
-        let hash = match &started_supervisor {
-            // If successful...
-            Ok(_)
-            // ...or if we stopped when we found no config these are expected outcomes,
-            // we mark the hash as applied
-            | Err(SupervisorCreationError::NoConfiguration) => {
-                let mut hash = config.hash;
-                hash.apply();
-                hash
+                // Start the new supervisor
+                self.start_supervisor(new_supervisor)
+                    // Alter the hash depending on the outcome
+                    .inspect(|_| hash.apply())
+                    .inspect_err(|e| hash.fail(e.to_string()))
+                    // Return it
+                    .ok()
             }
-            // For all other failures, we set the hash to failed
+            // If we have no configuration, stop the old supervisor if any. Expected outcome.
+            Err(SupervisorCreationError::NoConfiguration) => {
+                // Stop old supervisor if any
+                stop_supervisor(old_supervisor);
+                // Mark hash as applied
+                hash.apply();
+                // Remove supervisor
+                None
+            }
             Err(e) => {
-                let mut hash = config.hash;
+                // If we fail to build the supervisor, we don't stop the old one and return it back
+                warn!("Failed to build supervisor: {e}");
+                // Mark hash as failed
                 hash.fail(e.to_string());
-                warn!(hash = %hash.get(), "Failed to create supervisor: {e}");
-                hash
+                // Use existing supervisor
+                old_supervisor
             }
         };
 
@@ -479,7 +482,7 @@ where
         self.report_config_status(&hash, opamp_client, (&hash).into());
 
         // With everything already handled, return the supervisor if any
-        started_supervisor
+        refreshed_supervisor
     }
 
     /// Parses incoming remote config, assembles and builds the supervisor.
@@ -577,33 +580,6 @@ where
         }
 
         stopped_supervisor
-    }
-
-    /// Takes the old running supervisor and an attempt to build and run a new supervisor.
-    ///
-    /// Will return either the new supervisor, the old one or neither depending on new supervisor's
-    /// build attempt result.
-    fn refresh_supervisor<S: SupervisorStopper>(
-        old_supervisor: Option<S>,
-        new_supervisor: Result<S, SupervisorCreationError>,
-    ) -> Option<S> {
-        match new_supervisor {
-            Ok(supervisor) => {
-                // Stop the old supervisor if any
-                stop_supervisor(old_supervisor);
-                Some(supervisor)
-            }
-            Err(SupervisorCreationError::NoConfiguration) => {
-                // If we have no configuration, stop the old supervisor if any. Expected outcome.
-                stop_supervisor(old_supervisor);
-                None
-            }
-            Err(e) => {
-                // If we fail to build the supervisor, we don't stop the old one and return it back
-                warn!("Failed to build supervisor: {e}");
-                old_supervisor
-            }
-        }
     }
 
     pub(crate) fn start_supervisor(
