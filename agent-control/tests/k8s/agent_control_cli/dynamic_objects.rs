@@ -8,7 +8,7 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
 const REPOSITORY_NAME: &str = "newrelic";
-const RELEASE_NAME: &str = "agent-control-deployment-release";
+const RELEASE_NAME: &str = "agent-control-deployment";
 
 #[test]
 #[ignore = "needs k8s cluster"]
