@@ -1,6 +1,6 @@
 use std::{path::PathBuf, process::ExitCode, sync::Arc};
 
-use agent_control::AgentControlDeploymentData;
+use agent_control::AgentControlData;
 use clap::{Parser, Subcommand};
 use errors::CliError;
 use kube::{Resource, api::DynamicObject};
@@ -47,7 +47,7 @@ enum Operations {
 #[derive(Debug, Subcommand)]
 enum Application {
     /// Operate over an application
-    AgentControl(AgentControlDeploymentData),
+    AgentControl(AgentControlData),
 }
 
 fn main() -> ExitCode {
@@ -84,7 +84,7 @@ fn main() -> ExitCode {
     }
 }
 
-fn install_agent_control(data: AgentControlDeploymentData, namespace: String) -> Result<(), CliError> {
+fn install_agent_control(data: AgentControlData, namespace: String) -> Result<(), CliError> {
     info!("Installing agent control");
 
     let dynamic_objects = Vec::<DynamicObject>::from(data);

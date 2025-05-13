@@ -20,7 +20,7 @@ const FIVE_MINUTES: &str = "5m";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 
 #[derive(Debug, Parser)]
-pub struct AgentControlDeploymentData {
+pub struct AgentControlData {
     /// Release name
     #[arg(long)]
     pub release_name: String,
@@ -47,8 +47,8 @@ pub struct AgentControlDeploymentData {
     pub labels: Option<String>,
 }
 
-impl From<AgentControlDeploymentData> for Vec<DynamicObject> {
-    fn from(value: AgentControlDeploymentData) -> Vec<DynamicObject> {
+impl From<AgentControlData> for Vec<DynamicObject> {
+    fn from(value: AgentControlData) -> Vec<DynamicObject> {
         let agent_identity = AgentIdentity::new_agent_control_identity();
 
         let mut labels = Labels::new(&agent_identity.id);
@@ -91,7 +91,7 @@ fn helm_repository(
 }
 
 fn helm_release(
-    value: &AgentControlDeploymentData,
+    value: &AgentControlData,
     secrets: BTreeMap<String, String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
@@ -156,8 +156,8 @@ mod tests {
     const RELEASE_NAME: &str = "agent-control-deployment-release";
     const VERSION: &str = "1.0.0";
 
-    fn agent_control_data() -> AgentControlDeploymentData {
-        AgentControlDeploymentData {
+    fn agent_control_data() -> AgentControlData {
+        AgentControlData {
             release_name: RELEASE_NAME.to_string(),
             chart_version: VERSION.to_string(),
             secrets: None,
