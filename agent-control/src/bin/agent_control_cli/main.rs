@@ -57,7 +57,7 @@ fn main() -> ExitCode {
         .expect("Logging config should be valid");
     let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR))
         .with_logging_config(logging_config);
-    let tracer = try_init_tracing(tracing_config).map_err(CliError::Tracing);
+    let tracer = try_init_tracing(tracing_config).map_err(|err| CliError::Tracing(err.to_string()));
 
     if let Err(err) = tracer {
         eprintln!("Failed to initialize tracing: {:?}", err);
@@ -128,5 +128,5 @@ fn k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
     );
 
     debug!("Starting the k8s client");
-    Ok(SyncK8sClient::try_new(runtime, namespace)?)
+    SyncK8sClient::try_new(runtime, namespace).map_err(|err| CliError::K8sClient(err.to_string()))
 }

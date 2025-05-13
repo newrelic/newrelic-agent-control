@@ -2,17 +2,15 @@ use std::process::ExitCode;
 
 use thiserror::Error;
 
-use newrelic_agent_control::{instrumentation::tracing::TracingError, k8s::error::K8sError};
-
 #[derive(Debug, Error)]
 pub enum CliError {
-    #[error("Failed to create k8s client: {0}")]
-    K8sClient(#[from] K8sError),
+    #[error("failed to create k8s client: {0}")]
+    K8sClient(String),
 
-    #[error("Failed to create tracing: {0}")]
-    Tracing(#[from] TracingError),
+    #[error("failed to create tracing: {0}")]
+    Tracing(String),
 
-    #[error("Failed to apply resource: {0}")]
+    #[error("failed to apply resource: {0}")]
     ApplyResource(String),
 }
 
