@@ -16,6 +16,7 @@ use crate::utils::parse_key_value_pairs;
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
+const FIVE_MINUTES: &str = "5m";
 
 #[derive(Debug, Parser)]
 pub struct AgentControlData {
@@ -87,7 +88,7 @@ fn helm_repository(
         data: serde_json::json!({
             "spec": {
                 "url": REPOSITORY_URL,
-                "interval": Duration::from_str("5m").expect("Hardcoded value should be correct"),
+                "interval": Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct"),
             }
         }),
     };
@@ -107,8 +108,8 @@ fn helm_release(
 ) -> DynamicObject {
     info!("Parsing HelmRelease with name \"{}\"", value.release_name);
 
-    let interval = Duration::from_str("5m").expect("Hardcoded value should be correct");
-    let timeout = Duration::from_str("5m").expect("Hardcoded value should be correct");
+    let interval = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
+    let timeout = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
 
     let mut data = serde_json::json!({
         "spec": {
