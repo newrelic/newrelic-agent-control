@@ -10,7 +10,7 @@ use newrelic_agent_control::{
     k8s::{annotations::Annotations, labels::Labels},
     sub_agent::identity::AgentIdentity,
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::utils::parse_key_value_pairs;
 
@@ -48,8 +48,6 @@ pub struct AgentControlData {
 
 impl From<AgentControlData> for Vec<DynamicObject> {
     fn from(value: AgentControlData) -> Vec<DynamicObject> {
-        info!("Creating Agent Control resources representations");
-
         let agent_identity = AgentIdentity::new_agent_control_identity();
 
         let mut labels = Labels::new(&agent_identity.id);
@@ -66,8 +64,6 @@ impl From<AgentControlData> for Vec<DynamicObject> {
         let secrets = parse_key_value_pairs(value.secrets.as_deref().unwrap_or_default());
         let release_object = helm_release(&value, secrets, labels, annotations);
 
-        info!("Agent Control resources representations created");
-
         vec![repository_object, release_object]
     }
 }
@@ -76,7 +72,6 @@ fn helm_repository(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    info!("Parsing HelmRepository with name \"{}\"", REPOSITORY_NAME);
     let dynamic_object = DynamicObject {
         types: Some(helmrepository_type_meta()),
         metadata: ObjectMeta {
@@ -92,10 +87,6 @@ fn helm_repository(
             }
         }),
     };
-    info!(
-        "HelmRepository with name \"{}\" parsed successfully",
-        REPOSITORY_NAME
-    );
 
     dynamic_object
 }
@@ -106,8 +97,6 @@ fn helm_release(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    info!("Parsing HelmRelease with name \"{}\"", value.release_name);
-
     let interval = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
     let timeout = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
 
@@ -153,10 +142,6 @@ fn helm_release(
         },
         data,
     };
-    info!(
-        "HelmRelease with name \"{}\" parsed successfully",
-        value.release_name
-    );
 
     dynamic_object
 }
