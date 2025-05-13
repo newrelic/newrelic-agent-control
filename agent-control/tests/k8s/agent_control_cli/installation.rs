@@ -6,6 +6,9 @@ use kube::{Api, api::PostParams};
 
 use crate::{common::retry::retry, k8s::tools::k8s_env::K8sEnv};
 
+// This test can break if the chart introduces any breaking changes.
+// If this situation occurs, we will need to disable the test or use
+// a similar workaround than the one we use in the tiltfile.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_installation() {
