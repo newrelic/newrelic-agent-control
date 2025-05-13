@@ -73,7 +73,7 @@ fn helm_repository(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    let dynamic_object = DynamicObject {
+    DynamicObject {
         types: Some(helmrepository_type_meta()),
         metadata: ObjectMeta {
             name: Some(REPOSITORY_NAME.to_string()),
@@ -87,9 +87,7 @@ fn helm_repository(
                 "interval": Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct"),
             }
         }),
-    };
-
-    dynamic_object
+    }
 }
 
 fn helm_release(
@@ -100,7 +98,6 @@ fn helm_release(
 ) -> DynamicObject {
     let interval = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
     let timeout = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
-
     let mut data = serde_json::json!({
         "spec": {
             "interval": interval,
@@ -123,7 +120,7 @@ fn helm_release(
         data["spec"]["valuesFrom"] = secrets_to_json(secrets);
     }
 
-    let dynamic_object = DynamicObject {
+    DynamicObject {
         types: Some(helmrelease_v2_type_meta()),
         metadata: ObjectMeta {
             name: Some(value.release_name.clone()),
@@ -132,9 +129,7 @@ fn helm_release(
             ..Default::default()
         },
         data,
-    };
-
-    dynamic_object
+    }
 }
 
 fn secrets_to_json(secrets: BTreeMap<String, String>) -> serde_json::Value {
