@@ -27,6 +27,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
         .arg("chart=podinfo, env=testing, app=ac");
     cmd.arg("--secrets")
         .arg("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml");
+    cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
     cmd.assert().success();
 
     let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();

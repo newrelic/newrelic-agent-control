@@ -10,7 +10,8 @@ use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
-use std::time::{SystemTime, SystemTimeError};
+use std::thread::sleep;
+use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, error, info_span};
 
 const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
@@ -211,6 +212,36 @@ pub trait HealthChecker {
     /// See OpAMP's [spec](https://github.com/open-telemetry/opamp-spec/blob/main/specification.md#componenthealthstatus)
     /// for more details.
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError>;
+
+    /// Checks health and perform retries if the result is unhealthy or there was an error executing health check.
+    /// The retries are performed as specified by provided limit and retry_interval.
+    fn check_health_with_retry(
+        &self,
+        limit: i32,
+        retry_interval: Duration,
+    ) -> Result<HealthWithStartTime, HealthCheckerError> {
+        let mut last_health = Err(HealthCheckerError::Generic("initial value".into()));
+        for attempt in 1..=limit {
+            debug!("Checking health with retries {attempt}/{limit}");
+            last_health = self.check_health();
+            match last_health.as_ref() {
+                Ok(health) => {
+                    if health.is_healthy() {
+                        debug!("Health check result was healthy");
+                        return last_health;
+                    }
+                    if let Some(err) = health.last_error() {
+                        debug!("Health check result was unhealthy: {err}");
+                    }
+                }
+                Err(err) => {
+                    debug!("Failure to check health: {err}");
+                }
+            }
+            sleep(retry_interval);
+        }
+        last_health
+    }
 }
 
 pub(crate) fn spawn_health_checker<H>(
@@ -292,6 +323,7 @@ pub mod tests {
     use crate::event::channel::pub_sub;
 
     use super::*;
+    use assert_matches::assert_matches;
     use mockall::{Sequence, mock};
 
     impl Default for Healthy {
@@ -356,6 +388,95 @@ pub mod tests {
                 .returning(|| Err(HealthCheckerError::Generic("test".to_string())));
             unhealthy
         }
+    }
+
+    #[test]
+    fn test_health_check_with_retry_success_on_first_attempt() {
+        let health_checker = MockHealthCheck::new_healthy();
+
+        let result = health_checker.check_health_with_retry(3, Duration::from_millis(10));
+
+        assert_matches!(result, Ok(health) => {
+            assert!(health.is_healthy());
+        });
+    }
+
+    #[test]
+    fn test_health_check_with_retry_success_after_retries() {
+        let mut health_checker = MockHealthCheck::new();
+        let mut seq = Sequence::new();
+
+        health_checker
+            .expect_check_health()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|| {
+                Err(HealthCheckerError::Generic(
+                    "error on first attempt".to_string(),
+                ))
+            });
+        health_checker
+            .expect_check_health()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|| {
+                Ok(HealthWithStartTime::from_unhealthy(
+                    Unhealthy::new(
+                        "Unhealthy".to_string(),
+                        "Unhealthy on second attempt".to_string(),
+                    ),
+                    UNIX_EPOCH,
+                ))
+            });
+        health_checker
+            .expect_check_health()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|| {
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::default(),
+                    UNIX_EPOCH,
+                ))
+            });
+
+        let result = health_checker.check_health_with_retry(3, Duration::from_millis(10));
+
+        assert_matches!(result, Ok(health) => {
+            assert!(health.is_healthy());
+        });
+    }
+
+    #[test]
+    fn test_health_check_with_retry_failure_after_all_attempts() {
+        let mut health_checker = MockHealthCheck::new();
+        health_checker
+            .expect_check_health()
+            .times(3)
+            .returning(|| Err(HealthCheckerError::Generic("persistent error".to_string())));
+
+        let result = health_checker.check_health_with_retry(3, Duration::from_millis(10));
+
+        assert_matches!(result, Err(HealthCheckerError::Generic(s)) => {
+            assert_eq!(s, "persistent error".to_string());
+        });
+    }
+
+    #[test]
+    fn test_health_check_with_retry_unhealthy_result() {
+        let mut health_checker = MockHealthCheck::new();
+        health_checker.expect_check_health().times(3).returning(|| {
+            Ok(HealthWithStartTime::from_unhealthy(
+                Unhealthy::new("Unhealthy".to_string(), "persistent unhealthy".to_string()),
+                UNIX_EPOCH,
+            ))
+        });
+
+        let result = health_checker.check_health_with_retry(3, Duration::from_millis(10));
+
+        assert_matches!(result, Ok(health) => {
+            assert!(!health.is_healthy());
+            assert_eq!(health.last_error().unwrap(), "persistent unhealthy".to_string());
+        });
     }
 
     #[test]
