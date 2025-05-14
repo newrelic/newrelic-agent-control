@@ -34,9 +34,11 @@ impl Hash {
     pub fn fail(&mut self, error_message: String) {
         self.state = ConfigState::Failed { error_message };
     }
+
     pub fn get(&self) -> String {
         self.hash.clone()
     }
+
     pub fn is_applied(&self) -> bool {
         self.state == ConfigState::Applied
     }
