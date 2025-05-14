@@ -19,15 +19,17 @@ use tracing::{error, info, trace};
 const AGENT_CONTROL_MODE: Environment = Environment::K8s;
 
 fn main() -> ExitCode {
-    let Ok(cli_command) = Flags::init(AGENT_CONTROL_MODE)
-        .inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
+    let Ok(command) = Flags::init(AGENT_CONTROL_MODE)
+        .inspect_err(|init_err| println!("Error parsing Flags: {}", init_err))
     else {
         return ExitCode::FAILURE;
     };
 
-    let (agent_control_config, tracer) = match cli_command {
+    let (agent_control_config, tracer) = match command {
         // Agent Control command call instructs normal operation. Continue with required data.
-        Command::InitAgentControl(cli, tracer) => (cli, tracer),
+        Command::InitAgentControl(agent_control_init_config, tracer) => {
+            (agent_control_init_config, tracer)
+        }
 
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
         Command::OneShot(op) => {
