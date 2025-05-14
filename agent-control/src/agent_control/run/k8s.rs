@@ -23,7 +23,6 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::sub_agent::supervisor::assembler::AgentSupervisorAssembler;
 use crate::{
     agent_control::error::AgentError,
     opamp::{
@@ -123,9 +122,6 @@ impl AgentControlRunner {
         let supervisor_builder =
             SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
 
-        let supervisor_assembler =
-            AgentSupervisorAssembler::new(hash_repository.clone(), supervisor_builder);
-
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
@@ -138,7 +134,7 @@ impl AgentControlRunner {
             opamp_client_builder.as_ref(),
             &instance_id_getter,
             self.k8s_config.clone(),
-            Arc::new(supervisor_assembler),
+            Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
             hash_repository.clone(),
             yaml_config_repository.clone(),
