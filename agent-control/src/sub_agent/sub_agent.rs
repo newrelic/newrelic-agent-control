@@ -148,11 +148,11 @@ where
         let maybe_hash = self
             .hash_repository
             .get(&self.identity.id)
-            .inspect_err(|e| debug!(err = %e, "Failed to get hash from repository."))
+            .inspect_err(|e| debug!("Failed to get hash from repository: {e}"))
             .unwrap_or_default();
 
         if maybe_hash.is_none() {
-            debug!("No previous remote config hash found for sub-agent.");
+            debug!("No previous remote config hash found for sub-agent");
         }
 
         // If the retrieved hash exists but is failed at this point, we report remote config status
@@ -166,7 +166,7 @@ where
                     self.report_config_status(
                         hash,
                         opamp_client,
-                        OpampRemoteConfigStatus::Error(err.to_string()),
+                        OpampRemoteConfigStatus::Error(err),
                     );
                 });
             }
@@ -201,7 +201,7 @@ where
         })
         .ok()
         .flatten() else {
-            debug!("No configuration found for sub-agent.");
+            debug!("No configuration found for sub-agent");
             return None;
         };
 
@@ -213,7 +213,7 @@ where
         let effective_agent = self
             .effective_agent(yaml_config)
             .map_err(SupervisorCreationError::from);
-        let stopped_supervisor = effective_agent.and_then(|effective_agent| {
+        let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_assembler
                 .assemble_supervisor(
                     &self.maybe_opamp_client,
@@ -223,7 +223,7 @@ where
                 .map_err(SupervisorCreationError::from)
         });
 
-        if stopped_supervisor.is_ok() {
+        if not_started_supervisor.is_ok() {
             // Communicate the config that we will be using
             // FIXME: only if we successfully build a supervisor?
             // What if we fail and we don't have a supervisor? Should we report?
@@ -236,11 +236,11 @@ where
             self.maybe_opamp_client.as_ref().inspect(|c| {
                 let _ = c
                     .update_effective_config()
-                    .inspect_err(|e| error!( %e, "effective config update failed"));
+                    .inspect_err(|e| error!("Effective config update failed: {e}"));
             });
         }
 
-        let started_supervisor = stopped_supervisor.and_then(|stopped_supervisor| {
+        let started_supervisor = not_started_supervisor.and_then(|stopped_supervisor| {
             self.start_supervisor(stopped_supervisor)
                 .map_err(SupervisorCreationError::from)
         });
@@ -416,7 +416,7 @@ where
             self.report_config_status(
                 &config.hash,
                 opamp_client,
-                OpampRemoteConfigStatus::Error(err.to_string()),
+                OpampRemoteConfigStatus::Error(err),
             );
             self.store_remote_config_hash(&config.hash);
             // On failed hash we keep the old supervisor running
@@ -430,7 +430,8 @@ where
             OpampRemoteConfigStatus::Applying,
         );
 
-        let stopped_supervisor = self.create_supervisor_from_remote_config(opamp_client, &config);
+        let not_started_supervisor =
+            self.create_supervisor_from_remote_config(opamp_client, &config);
 
         // Now, we should have either a Supervisor or an error to handle later,
         // which can come from either:
@@ -441,7 +442,7 @@ where
         // Let's continue.
         // Prepare hash to register outcome
         let mut hash = config.hash;
-        let refreshed_supervisor = match stopped_supervisor {
+        let refreshed_supervisor = match not_started_supervisor {
             Ok(new_supervisor) => {
                 // Stop old supervisor if any. This needs to happen before starting the new one
                 stop_supervisor(old_supervisor);
@@ -509,7 +510,7 @@ where
         let yaml_config = parsed_remote.and_then(|remote_yaml_config| {
             remote_yaml_config
                 .or_else(|| {
-                    debug!("Empty remote config received. Falling back to local configuration.");
+                    debug!("Empty remote config received, falling back to local configuration");
                     self.yaml_config_repository
                         .load_local(&self.identity.id)
                         .inspect_err(|e| warn!("Failed to load local configuration: {e}"))
@@ -535,7 +536,7 @@ where
         //   - the EffectiveAgent assembly attempt
         // Let's continue.
         // TODO remove the supervisor assembler or trait in the next task!
-        let stopped_supervisor = effective_agent.and_then(|effective_agent| {
+        let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_assembler
                 .assemble_supervisor(
                     &self.maybe_opamp_client,
@@ -545,7 +546,7 @@ where
                 .map_err(SupervisorCreationError::from)
         });
 
-        if stopped_supervisor.is_ok() {
+        if not_started_supervisor.is_ok() {
             match existing_remote_config {
                 // If we were operating over a remote config, we store it
                 Some(remote_config) => {
@@ -566,17 +567,17 @@ where
                         .yaml_config_repository
                         .delete_remote(agent_id)
                         .inspect_err(
-                            |err| warn!(%agent_id, %err, "Failed to delete remote configuration"),
+                            |err| warn!(%agent_id, "Failed to delete remote configuration: {err}"),
                         );
                 }
             }
             // update effective config
             let _ = opamp_client
                 .update_effective_config()
-                .inspect_err(|e| error!( %e, "effective config update failed"));
+                .inspect_err(|e| error!("Effective config update failed: {e}"));
         }
 
-        stopped_supervisor
+        not_started_supervisor
     }
 
     pub(crate) fn start_supervisor(
@@ -719,7 +720,6 @@ pub mod tests {
 
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::onhost::OnHost;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
@@ -1153,27 +1153,6 @@ pub mod tests {
             &previous_state,
             &current_state
         ));
-    }
-
-    #[fixture]
-    fn agent_identity() -> AgentIdentity {
-        AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
-            AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-        ))
-    }
-
-    #[fixture]
-    fn final_agent(agent_identity: AgentIdentity) -> EffectiveAgent {
-        EffectiveAgent::new(
-            agent_identity,
-            Runtime {
-                deployment: Deployment {
-                    on_host: Some(OnHost::default()),
-                    k8s: None,
-                },
-            },
-        )
     }
 
     fn healthy(status: &str) -> Health {
