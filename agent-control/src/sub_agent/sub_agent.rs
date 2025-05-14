@@ -245,29 +245,26 @@ where
                 .map_err(SupervisorCreationError::from)
         });
 
-        // Operate over the hash depending on the `started_supervisor` result
+        // After all operations, set the hash to a final state
+        // only if it was in the `applying` state.
+
+        // Note: this hash is the one we have at this point, but it's not necessarily the one
+        // linked to the remote config we are applying, hence the need of refactoring so
+        // in the future the hash, the status and the remote config are part of the same structure.
         if let Some(hash) = maybe_hash.as_mut() {
-            match &started_supervisor {
-                Ok(_) => {
-                    hash.apply();
-                }
-                Err(e) => {
-                    // mutate hash and remote config status
-                    hash.fail(e.to_string());
-                }
+            if hash.is_applying() {
+                match &started_supervisor {
+                    Ok(_) => hash.apply(),
+                    Err(e) => hash.fail(e.to_string()),
+                };
+
+                self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
+                    self.report_config_status(hash, opamp_client, (hash as &Hash).into());
+                });
+                // As the hash might change state from the above operations, we store it
+                self.store_remote_config_hash(hash);
             }
         }
-
-        // This hash is the one we have at this point, but it's not necessarily the one
-        // linked to the remote config we are applying, hence the need of refactoring so
-        // the hash and the remote config are part of the same structure.
-        maybe_hash.inspect(|hash| {
-            self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                self.report_config_status(hash, opamp_client, hash.into());
-            });
-            // As the hash might change state from the above operations, we store it
-            self.store_remote_config_hash(hash);
-        });
 
         started_supervisor.ok()
     }
