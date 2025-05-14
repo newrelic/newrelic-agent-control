@@ -147,7 +147,8 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn load_agents_local_remote() {
-        let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
+        let local_temp_dir = tempfile::tempdir().unwrap();
+        let local_dir = local_temp_dir.path().to_path_buf();
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
         let local_config = r#"
 agents: {}
@@ -156,7 +157,8 @@ fleet_control:
 "#;
         std::fs::write(local_file.as_path(), local_config).unwrap();
 
-        let remote_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
+        let remote_temp_dir = tempfile::tempdir().unwrap();
+        let remote_dir = remote_temp_dir.path().to_path_buf();
         let remote_file = remote_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
 
         let remote_config = r#"
@@ -195,7 +197,8 @@ fleet_control:
     #[test]
     #[serial]
     fn load_config_env_vars() {
-        let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let local_dir = temp_dir.path().to_path_buf();
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
 
         // Note the file contains no `agents` key, which would fail if this config was the only
@@ -244,7 +247,8 @@ fleet_control:
     #[test]
     #[serial]
     fn load_config_env_vars_override() {
-        let local_dir = tempfile::tempdir().unwrap().into_path().to_path_buf();
+        let temp_dir = tempfile::tempdir().unwrap();
+        let local_dir = temp_dir.path().to_path_buf();
         let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
         let local_config = r#"
 fleet_control:

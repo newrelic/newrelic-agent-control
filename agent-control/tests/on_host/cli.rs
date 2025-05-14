@@ -229,7 +229,7 @@ agents: {{}}
 fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};
 
-    let dir = TempDir::new()?;
+    let dir = tempfile::tempdir()?;
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
 
@@ -249,7 +249,7 @@ fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     cmd.assert().failure().stdout(
         predicate::str::is_match(format!(
             ".*Could not read Agent Control config from `{}`.*",
-            dir.into_path().to_string_lossy()
+            dir.path().to_string_lossy()
         ))
         .unwrap(),
     );
