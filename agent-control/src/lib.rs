@@ -9,6 +9,7 @@ pub mod cli;
 pub mod config_migrate;
 pub mod context;
 pub mod event;
+pub mod flags;
 pub mod http;
 pub mod instrumentation;
 pub mod k8s;

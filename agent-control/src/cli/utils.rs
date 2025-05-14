@@ -8,13 +8,16 @@ use std::collections::BTreeMap;
 /// # Examples
 ///
 /// ```
+/// use std::collections::BTreeMap;
+/// use newrelic_agent_control::cli::utils::parse_key_value_pairs;
+///
 /// let data = "key1=value1, key2=value2, key3=value3";
 /// let parsed = parse_key_value_pairs(data);
-/// assert_eq!(parsed, Some(BTreeMap::from([
+/// assert_eq!(parsed, BTreeMap::from([
 ///     ("key1".to_string(), "value1".to_string()),
 ///     ("key2".to_string(), "value2".to_string()),
 ///     ("key3".to_string(), "value3".to_string()),
-/// ])));
+/// ]));
 /// ```
 pub fn parse_key_value_pairs(data: &str) -> BTreeMap<String, String> {
     let pairs = data.split(',');

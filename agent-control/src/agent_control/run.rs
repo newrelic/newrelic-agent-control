@@ -184,7 +184,7 @@ impl AgentControlRunner {
 
 #[cfg(debug_assertions)]
 /// Set path override if local_dir, remote_dir, and logs_dir flags are set
-pub fn set_debug_dirs(base_paths: BasePaths, cli: &crate::cli::Cli) -> BasePaths {
+pub fn set_debug_dirs(base_paths: BasePaths, cli: &crate::flags::Flags) -> BasePaths {
     let mut base_paths = base_paths;
 
     if let Some(ref local_path) = cli.local_dir {
