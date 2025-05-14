@@ -19,7 +19,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     let namespace = runtime.block_on(k8s_env.test_namespace());
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("install").arg("agent-control");
+    cmd.arg("install-agent-control");
     cmd.arg("--release-name").arg(RELEASE_NAME);
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());

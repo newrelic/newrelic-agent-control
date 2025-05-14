@@ -4,10 +4,12 @@
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
 
-use newrelic_agent_control::agent_control::run::{AgentControlRunner, Environment};
-use newrelic_agent_control::cli::{AgentControlCliConfig, Cli, CliCommand};
+use newrelic_agent_control::agent_control::run::{
+    AgentControlRunConfig, AgentControlRunner, Environment,
+};
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
+use newrelic_agent_control::flags::{Command, Flags};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
@@ -17,7 +19,7 @@ use tracing::{error, info, trace};
 const AGENT_CONTROL_MODE: Environment = Environment::K8s;
 
 fn main() -> ExitCode {
-    let Ok(cli_command) = Cli::init(AGENT_CONTROL_MODE)
+    let Ok(cli_command) = Flags::init(AGENT_CONTROL_MODE)
         .inspect_err(|cli_err| println!("Error parsing CLI arguments: {}", cli_err))
     else {
         return ExitCode::FAILURE;
@@ -25,10 +27,10 @@ fn main() -> ExitCode {
 
     let (agent_control_config, tracer) = match cli_command {
         // Agent Control command call instructs normal operation. Continue with required data.
-        CliCommand::InitAgentControl(cli, tracer) => (cli, tracer),
+        Command::InitAgentControl(cli, tracer) => (cli, tracer),
 
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
-        CliCommand::OneShot(op) => {
+        Command::OneShot(op) => {
             op.run_one_shot(AGENT_CONTROL_MODE);
             return ExitCode::SUCCESS;
         }
@@ -57,7 +59,7 @@ fn main() -> ExitCode {
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
 fn _main(
-    agent_control_config: AgentControlCliConfig,
+    agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
     install_rustls_default_crypto_provider();
@@ -69,7 +71,7 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_config.run_config, application_event_consumer)?
+    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?
         .run(AGENT_CONTROL_MODE)?;
 
     info!("exiting gracefully");

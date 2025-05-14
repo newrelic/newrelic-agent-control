@@ -1,18 +1,19 @@
-use std::{collections::BTreeMap, str::FromStr};
-
+use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta};
+use crate::cli::errors::CliError;
+use crate::cli::utils::parse_key_value_pairs;
+use crate::k8s::annotations::Annotations;
+use crate::k8s::client::SyncK8sClient;
+use crate::k8s::labels::Labels;
+use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
 use kube::{
+    Resource,
     api::{DynamicObject, ObjectMeta},
     core::Duration,
 };
-use newrelic_agent_control::{
-    agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
-    k8s::{annotations::Annotations, labels::Labels},
-    sub_agent::identity::AgentIdentity,
-};
-use tracing::debug;
-
-use crate::utils::parse_key_value_pairs;
+use std::sync::Arc;
+use std::{collections::BTreeMap, str::FromStr};
+use tracing::{debug, info};
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
@@ -20,7 +21,7 @@ const FIVE_MINUTES: &str = "5m";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 
 #[derive(Debug, Parser)]
-pub struct AgentControlData {
+pub struct AgentControlInstallData {
     /// Release name
     #[arg(long)]
     pub release_name: String,
@@ -51,8 +52,62 @@ pub struct AgentControlData {
     pub extra_labels: Option<String>,
 }
 
-impl From<AgentControlData> for Vec<DynamicObject> {
-    fn from(value: AgentControlData) -> Vec<DynamicObject> {
+pub fn install_agent_control(
+    data: AgentControlInstallData,
+    namespace: String,
+) -> Result<(), CliError> {
+    info!("Installing agent control");
+
+    let dynamic_objects = Vec::<DynamicObject>::from(data);
+
+    let k8s_client = k8s_client(namespace.clone())?;
+
+    // TODO: Take care of upgrade.
+    // For example, what happens if the user applies a remote configuration with a lower version
+    // that includes a breaking change?
+    info!("Applying agent control resources");
+    for object in dynamic_objects {
+        apply_resource(&k8s_client, &object)?;
+    }
+    info!("Agent control resources applied successfully");
+
+    info!("Agent control installed successfully");
+
+    Ok(())
+}
+
+fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<(), CliError> {
+    let name = object.meta().name.clone().expect("Name should be present");
+    let kind = object
+        .types
+        .clone()
+        .map(|t| t.kind)
+        .unwrap_or_else(|| "Unknown kind".to_string());
+
+    info!("Applying {} with name \"{}\"", kind, name);
+    k8s_client
+        .apply_dynamic_object(object)
+        .map_err(|err| CliError::ApplyResource(err.to_string()))?;
+    info!("{} with name {} applied successfully", kind, name);
+
+    Ok(())
+}
+
+fn k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
+    debug!("Starting the runtime");
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Tokio should be able to create a runtime"),
+    );
+
+    debug!("Starting the k8s client");
+    SyncK8sClient::try_new(runtime, namespace).map_err(|err| CliError::K8sClient(err.to_string()))
+}
+
+impl From<AgentControlInstallData> for Vec<DynamicObject> {
+    fn from(value: AgentControlInstallData) -> Vec<DynamicObject> {
         let agent_identity = AgentIdentity::new_agent_control_identity();
 
         let mut labels = Labels::new(&agent_identity.id);
@@ -95,7 +150,7 @@ fn helm_repository(
 }
 
 fn helm_release(
-    value: &AgentControlData,
+    value: &AgentControlInstallData,
     secrets: BTreeMap<String, String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
@@ -153,15 +208,13 @@ fn secrets_to_json(secrets: BTreeMap<String, String>) -> serde_json::Value {
 
 #[cfg(test)]
 mod tests {
-    use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-
     use super::*;
 
     const RELEASE_NAME: &str = "agent-control-deployment-release";
     const VERSION: &str = "1.0.0";
 
-    fn agent_control_data() -> AgentControlData {
-        AgentControlData {
+    fn agent_control_data() -> AgentControlInstallData {
+        AgentControlInstallData {
             release_name: RELEASE_NAME.to_string(),
             chart_version: VERSION.to_string(),
             secrets: None,
@@ -274,10 +327,10 @@ mod tests {
             "name": "secret3",
             "valuesKey": "fixed.yaml",
         }]);
-        assert_eq!(
-            dynamic_objects,
-            vec![repository_object(), expected_release_object]
-        );
+        assert_eq!(dynamic_objects, vec![
+            repository_object(),
+            expected_release_object
+        ]);
     }
 
     #[test]
@@ -320,9 +373,9 @@ mod tests {
         expected_release_object.metadata.labels = labels;
         expected_release_object.metadata.annotations = annotations;
 
-        assert_eq!(
-            dynamic_objects,
-            vec![expected_repository_object, expected_release_object]
-        );
+        assert_eq!(dynamic_objects, vec![
+            expected_repository_object,
+            expected_release_object
+        ]);
     }
 }
