@@ -261,7 +261,7 @@ where
                 self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
                     self.report_config_status(hash, opamp_client, (hash as &Hash).into());
                 });
-                // As the hash might change state from the above operations, we store it
+                // As the hash might have changed state from the above operations, we store it
                 self.store_remote_config_hash(hash);
             }
         }
