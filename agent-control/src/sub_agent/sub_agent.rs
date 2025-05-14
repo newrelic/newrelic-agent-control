@@ -115,13 +115,13 @@ where
         supervisor_assembler: Arc<SA>,
         sub_agent_publisher: EventPublisher<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
-        internal_pub_sub: (
+        (sub_agent_internal_publisher, sub_agent_internal_consumer): (
             EventPublisher<SubAgentInternalEvent>,
             EventConsumer<SubAgentInternalEvent>,
         ),
         remote_config_parser: Arc<R>,
         hash_repository: Arc<H>,
-        values_repository: Arc<Y>,
+        yaml_config_repository: Arc<Y>,
         effective_agent_assembler: Arc<A>,
         environment: Environment,
     ) -> Self {
@@ -131,11 +131,11 @@ where
             supervisor_assembler,
             sub_agent_publisher,
             sub_agent_opamp_consumer,
-            sub_agent_internal_publisher: internal_pub_sub.0,
-            sub_agent_internal_consumer: internal_pub_sub.1,
+            sub_agent_internal_publisher,
+            sub_agent_internal_consumer,
             remote_config_parser,
             hash_repository,
-            yaml_config_repository: values_repository,
+            yaml_config_repository,
             effective_agent_assembler,
             environment,
         }
