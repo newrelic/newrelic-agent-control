@@ -327,10 +327,10 @@ mod tests {
             "name": "secret3",
             "valuesKey": "fixed.yaml",
         }]);
-        assert_eq!(dynamic_objects, vec![
-            repository_object(),
-            expected_release_object
-        ]);
+        assert_eq!(
+            dynamic_objects,
+            vec![repository_object(), expected_release_object]
+        );
     }
 
     #[test]
@@ -373,9 +373,9 @@ mod tests {
         expected_release_object.metadata.labels = labels;
         expected_release_object.metadata.annotations = annotations;
 
-        assert_eq!(dynamic_objects, vec![
-            expected_repository_object,
-            expected_release_object
-        ]);
+        assert_eq!(
+            dynamic_objects,
+            vec![expected_repository_object, expected_release_object]
+        );
     }
 }
