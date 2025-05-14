@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::report::OpampRemoteConfigStatus;
+
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
@@ -17,9 +19,26 @@ pub struct Hash {
 }
 
 impl Hash {
+    pub fn new(hash: String) -> Self {
+        Self {
+            hash,
+            state: ConfigState::Applying,
+        }
+    }
+
+    pub fn apply(&mut self) {
+        self.state = ConfigState::Applied;
+    }
+
+    // It is mandatory for a failed hash to have the error
+    pub fn fail(&mut self, error_message: String) {
+        self.state = ConfigState::Failed { error_message };
+    }
+
     pub fn get(&self) -> String {
         self.hash.clone()
     }
+
     pub fn is_applied(&self) -> bool {
         self.state == ConfigState::Applied
     }
@@ -41,20 +60,13 @@ impl Hash {
     }
 }
 
-impl Hash {
-    pub fn new(hash: String) -> Self {
-        Self {
-            hash,
-            state: ConfigState::Applying,
+impl From<&Hash> for OpampRemoteConfigStatus {
+    fn from(hash: &Hash) -> Self {
+        match &hash.state {
+            ConfigState::Applying => Self::Applying,
+            ConfigState::Applied => Self::Applied,
+            ConfigState::Failed { error_message } => Self::Error(error_message.to_owned()),
         }
-    }
-    pub fn apply(&mut self) {
-        self.state = ConfigState::Applied;
-    }
-
-    // It is mandatory for a failed hash to have the error
-    pub fn fail(&mut self, error_message: String) {
-        self.state = ConfigState::Failed { error_message };
     }
 }
 

@@ -124,19 +124,14 @@ impl AgentControlRunner {
         let supervisor_builder =
             SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
 
-        let supervisor_assembler = AgentSupervisorAssembler::new(
-            hash_repository.clone(),
-            supervisor_builder,
-            agents_assembler.clone(),
-            yaml_config_repository.clone(),
-            Environment::K8s,
-        );
+        let supervisor_assembler =
+            AgentSupervisorAssembler::new(hash_repository.clone(), supervisor_builder);
 
         let remote_config_validators = vec![
             SupportedRemoteConfigValidator::Signature(self.signature_validator),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
             SupportedRemoteConfigValidator::Values(ValuesValidator::new(
-                agents_assembler,
+                agents_assembler.clone(),
                 Environment::K8s,
             )),
         ];
@@ -152,6 +147,7 @@ impl AgentControlRunner {
             Arc::new(remote_config_parser),
             hash_repository.clone(),
             yaml_config_repository.clone(),
+            agents_assembler.clone(),
         );
 
         let garbage_collector = K8sGarbageCollector {

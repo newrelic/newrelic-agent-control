@@ -35,7 +35,7 @@ pub enum SupportedRemoteConfigValidator<A> {
 
 impl<A> RemoteConfigValidator for SupportedRemoteConfigValidator<A>
 where
-    A: EffectiveAgentsAssembler,
+    A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     type Err = SupportedRemoteConfigValidatorError;
     fn validate(

@@ -212,7 +212,7 @@ pub(crate) mod tests {
     use mockall::{mock, predicate};
 
     mock! {
-        pub(crate) EffectiveAgentAssembler {}
+        pub EffectiveAgentAssembler {}
 
         impl EffectiveAgentsAssembler for EffectiveAgentAssembler {
             fn assemble_agent(
