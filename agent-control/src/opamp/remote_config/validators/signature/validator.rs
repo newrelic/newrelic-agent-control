@@ -217,7 +217,6 @@ mod tests {
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
     use crate::sub_agent::identity::AgentIdentity;
-    use crate::sub_agent::identity::tests::test_agent_identity;
     use assert_matches::assert_matches;
 
     #[test]
@@ -335,7 +334,9 @@ certificate_pem_file_path: /path/to/file
         let noop_validator = SignatureValidator::Noop;
 
         assert!(
-            noop_validator.validate(&test_agent_identity(), &rc).is_ok(),
+            noop_validator
+                .validate(&AgentIdentity::default(), &rc)
+                .is_ok(),
             "The config should be valid even if the signature is missing when no-op validator is used",
         )
     }
@@ -359,7 +360,7 @@ certificate_pem_file_path: /path/to/file
                 );
 
                 let result =
-                    signature_validator.validate(&test_agent_identity(), &self.remote_config);
+                    signature_validator.validate(&AgentIdentity::default(), &self.remote_config);
                 assert_matches!(
                     result,
                     Err(SignatureValidatorError::VerifySignature(_)),
@@ -468,7 +469,7 @@ certificate_pem_file_path: /path/to/file
 
         assert!(
             signature_validator
-                .validate(&test_agent_identity(), &remote_config)
+                .validate(&AgentIdentity::default(), &remote_config)
                 .is_ok()
         )
     }
