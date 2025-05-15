@@ -391,7 +391,7 @@ pub mod tests {
             Permissions::from_mode(0o600),
         );
 
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]), None);
         repo.store_remote(&agent_id, &yaml_config).unwrap();
     }
 
@@ -405,7 +405,7 @@ pub mod tests {
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]), None);
         let result = repo.store_remote(&agent_id, &yaml_config);
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
@@ -428,7 +428,7 @@ pub mod tests {
             Permissions::from_mode(0o600),
         );
 
-        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]), None);
         let result = repo.store_remote(&agent_id, &yaml_config);
         let err = result.unwrap_err();
         assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {

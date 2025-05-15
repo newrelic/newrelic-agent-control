@@ -146,39 +146,12 @@ where
         spawn_named_thread("Subagent runtime", move || {
             let _guards = s.enter();
 
-            let mut maybe_hash = self
-                .hash_repository
-                .get(&self.identity.id)
-                .inspect_err(|e| debug!(err = %e, "Failed to get hash from repository."))
-                .unwrap_or_default();
             let maybe_yaml_config = load_remote_fallback_local(
                 self.yaml_config_repository.as_ref(),
                 &self.identity.id,
                 &default_capabilities(),
             )?;
 
-            // If the retrieved hash is failed at this point, we just:
-            // - store this hash
-            // - report remote config status as failed
-            // - do nothing else
-            maybe_hash.as_ref().inspect(|hash| {
-                if hash.is_failed() {
-                    let err = &hash
-                        .error_message()
-                        .unwrap_or_else(|| "Unknown error".to_owned());
-                    warn!(
-                        hash = &hash.get(),
-                        "Remote configuration cannot be applied: {err}"
-                    );
-                    self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                        self.report_config_status(
-                            hash,
-                            opamp_client,
-                            OpampRemoteConfigStatus::Error(err.to_string()),
-                        );
-                    });
-                }
-            });
 
             let mut supervisor = None;
             if let Some(yaml_config) = maybe_yaml_config {
@@ -211,34 +184,33 @@ where
                         .map_err(SupervisorCreationError::from)
                 });
 
-                let mut remote_config_status = OpampRemoteConfigStatus::Applying;
-                match started_supervisor {
-                    Ok(s) => {
-                        if let Some(hash) = maybe_hash.as_mut() {
-                            hash.apply();
-                            remote_config_status = OpampRemoteConfigStatus::Applied;
+                if let Some(hash) = yaml_config.clone().config_hash.as_mut() {
+                    if !hash.is_applied() {
+                        let mut remote_config_status = OpampRemoteConfigStatus::Applying;
+                        match started_supervisor {
+                            Ok(s) => {
+                                if let Some(hash) = hash.as_mut() {
+                                    hash.apply();
+                                    remote_config_status = OpampRemoteConfigStatus::Applied;
+                                }
+                                supervisor = Some(s);
+                            }
+                            Err(e) => {
+                                // mutate hash and remote config status
+                                if let Some(hash) = hash.as_mut() {
+                                    hash.fail(e.to_string());
+                                    remote_config_status = OpampRemoteConfigStatus::Error(e.to_string());
+                                }
+                            }
                         }
-                        supervisor = Some(s);
-                    }
-                    Err(e) => {
-                        // mutate hash and remote config status
-                        if let Some(hash) = maybe_hash.as_mut() {
-                            hash.fail(e.to_string());
-                            remote_config_status = OpampRemoteConfigStatus::Error(e.to_string());
-                        }
+                        self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
+                            self.report_config_status(hash, opamp_client, remote_config_status);
+                        });
+
+                        // This should update YAMLConfig
+                        self.store_remote_config_hash(hash);
                     }
                 }
-
-                // This hash is the one we have at this point, but it's not necessarily the one
-                // linked to the remote config we are applying, hence the need of refactoring so
-                // the hash and the remote config are part of the same structure.
-                maybe_hash.inspect(|hash| {
-                    self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                        self.report_config_status(hash, opamp_client, remote_config_status);
-                    });
-                    // As the hash might change state from the above operations, we store it
-                    self.store_remote_config_hash(hash);
-                });
             };
 
             // Stores the current health state for logging purposes.
@@ -373,7 +345,6 @@ where
             remote_config_status = OpampRemoteConfigStatus::Error(err.to_string());
 
             self.report_config_status(&hash, opamp_client, remote_config_status.clone());
-            self.store_remote_config_hash(&config.hash);
             return None;
         }
 
@@ -492,6 +463,8 @@ where
             Ok(_) => {
                 hash.apply();
                 remote_config_status = OpampRemoteConfigStatus::Applied;
+                // This should update yamlconfig with the hash
+                self.store_remote_config_hash(&hash);
                 stop_supervisor(old_supervisor)
             }
             // If we stopped when we found no config this is an expected outcome,
@@ -510,8 +483,7 @@ where
         }
 
         // In the end, irrespective of succeeding or failing,
-        // we store the hash and report the status
-        self.store_remote_config_hash(&hash);
+        // we  report the status
         self.report_config_status(&hash, opamp_client, remote_config_status);
 
         // With everything already handled, return the supervisor if any
@@ -550,6 +522,10 @@ where
     }
 
     fn store_remote_config_hash(&self, config_hash: &Hash) {
+
+
+        //This should update YAMLCONFIG
+
         let _ = self
             .hash_repository
             .save(&self.identity.id, config_hash)

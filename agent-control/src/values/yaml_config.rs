@@ -6,11 +6,16 @@ use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
+use crate::opamp::remote_config::hash::Hash;
 
 /// The YAMLConfig represent any YAML config that the AgentControl can read and store.
 /// It enforces that the root of the tree is a hashmap and not an array or a single element.
-#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
-pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
+///
+#[derive(Debug, PartialEq, Default, Deserialize, Serialize, Clone)]
+pub struct YAMLConfig {
+    pub config: HashMap<String, serde_yaml::Value>,
+    pub config_hash: Option<Hash>,
+}
 
 #[derive(Error, Debug)]
 pub enum YAMLConfigError {
@@ -18,9 +23,23 @@ pub enum YAMLConfigError {
     FormatError(#[from] serde_yaml::Error),
 }
 
+impl YAMLConfig {
+    pub fn new(config: HashMap<String, serde_yaml::Value>,  config_hash: Option<Hash>) -> Self {
+        Self {
+            config,
+            config_hash,
+        }
+    }
+}
+
 impl Templateable for YAMLConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self(self.0.template_with(variables)?))
+        Ok(
+            Self{
+                config: self.config.template_with(variables)?,
+                config_hash: self.config_hash,
+            }
+        )
     }
 }
 
@@ -32,24 +51,11 @@ impl Templateable for HashMap<String, serde_yaml::Value> {
     }
 }
 
-impl From<YAMLConfig> for HashMap<String, serde_yaml::Value> {
-    fn from(values: YAMLConfig) -> Self {
-        values.0
-    }
-}
-
 impl TryFrom<String> for YAMLConfig {
     type Error = YAMLConfigError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Ok(serde_yaml::from_str::<YAMLConfig>(value.as_str())?)
-    }
-}
-impl TryFrom<&str> for YAMLConfig {
-    type Error = YAMLConfigError;
-
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        Ok(serde_yaml::from_str::<YAMLConfig>(value)?)
     }
 }
 
@@ -58,10 +64,10 @@ impl TryFrom<YAMLConfig> for String {
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
         //serde_yaml::to_string returns "{}\n" if value is empty
-        if value.0.is_empty() {
+        if value.config.is_empty() {
             return Ok("".to_string());
         }
-        Ok(serde_yaml::to_string(&value)?)
+        Ok(serde_yaml::to_string(&value.config)?)
     }
 }
 
@@ -82,36 +88,37 @@ mod tests {
             variable::definition::{VariableDefinition, VariableDefinitionTree},
         },
     };
+    use crate::opamp::remote_config::hash::Hash;
 
     use super::*;
 
     impl YAMLConfig {
-        pub(crate) fn new(values: HashMap<String, Value>) -> Self {
-            Self(values)
-        }
-
         #[allow(dead_code)]
         pub(crate) fn get(&self, key: &str) -> Option<&Value> {
-            self.0.get(key)
+            self.config.get(key)
         }
     }
 
     const EXAMPLE_CONFIG: &str = r#"
-description:
-  name: newrelic-infra
-  float_val: 0.14
-  logs: -4
-configuration: |
-  license: abc123
-  staging: true
-  extra_list:
-    key: value
-    key2: value2
 config:
-  envs:
-    name: newrelic-infra
-    name2: newrelic-infra2
-verbose: true
+    description:
+      name: newrelic-infra
+      float_val: 0.14
+      logs: -4
+    configuration: |
+      license: abc123
+      staging: true
+      extra_list:
+        key: value
+        key2: value2
+    config:
+      envs:
+        name: newrelic-infra
+        name2: newrelic-infra2
+    verbose: true
+config_hash:
+    hash: some-hash
+    state: applied
 "#;
 
     #[test]
@@ -168,19 +175,24 @@ verbose: true
             (Value::String("verbose".to_string()), Value::Bool(true)),
         ]));
 
-        assert_eq!(actual.0, serde_yaml::from_value(expected).unwrap());
+        let mut hash = Hash::new("some-hash".into());
+        hash.apply();
+
+        assert_eq!(actual.config, serde_yaml::from_value(expected).unwrap());
+        assert_eq!(actual.config_hash, Some(hash));
     }
 
     const EXAMPLE_CONFIG_REPLACE: &str = r#"
-deployment:
-  on_host:
-    path: "/etc"
-    args: --verbose true
-config: |
-  test
-integrations:
-  kafka: |
-    strategy: bootstrap
+config:
+    deployment:
+      on_host:
+        path: "/etc"
+        args: --verbose true
+    config: |
+      test
+    integrations:
+      kafka: |
+        strategy: bootstrap
 "#;
     const EXAMPLE_AGENT_YAML_REPLACE: &str = r#"
 name: nrdot
@@ -288,6 +300,7 @@ deployment:
     }
 
     const EXAMPLE_CONFIG_REPLACE_WRONG_TYPE: &str = r#"
+config:
     config: |
       test
     deployment:

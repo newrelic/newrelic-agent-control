@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use super::agent_id::AgentID;
 use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
@@ -319,12 +320,12 @@ where
         )?;
 
         if !remote_config_value.is_empty() {
-            self.sa_dynamic_config_store
-                .store(&YAMLConfig::try_from(remote_config_value.to_string())?)?;
+            let config = YAMLConfig::new(
+                serde_yaml::from_str::<HashMap<String, serde_yaml::Value>>(remote_config_value)?,
+                Some(remote_config.hash.clone()),
+            );
+            self.sa_dynamic_config_store.store(&config)?;
         }
-
-        self.remote_config_hash_repository
-            .save(&self.agent_id, &remote_config.hash)?;
 
         Ok(())
     }

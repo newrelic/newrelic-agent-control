@@ -87,7 +87,7 @@ impl VariableTree {
     /// Returns a new [VariableTree] with the provided values assigned.
     pub fn fill_with_values(self, values: YAMLConfig) -> Result<Self, AgentTypeError> {
         let mut vars = self.0.clone();
-        update_specs(values.into(), &mut vars)?;
+        update_specs(values.config.into(), &mut vars)?;
         Ok(Self(vars))
     }
 
