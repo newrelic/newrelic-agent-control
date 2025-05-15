@@ -493,17 +493,14 @@ where
         // Attempt to parse/validate the remote config
         let parsed_remote = self
             .remote_config_parser
-            .parse(self.identity.clone(), config) // does this need the whole config or only the values? We have to clone the hash above due to this
-            .map_err(SupervisorCreationError::from)?;
+            .parse(self.identity.clone(), config)?;
 
         match parsed_remote {
             // Apply the remote config:
             // - Build supervisor
             // - Store if remote if build was successful
             Some(yaml_config) => {
-                let effective_agent = self
-                    .effective_agent(yaml_config.clone())
-                    .map_err(SupervisorCreationError::from)?;
+                let effective_agent = self.effective_agent(yaml_config.clone())?;
 
                 self.supervisor_builder
                     .build_supervisor(effective_agent)
@@ -512,13 +509,9 @@ where
                             .yaml_config_repository
                             .store_remote(&self.identity.id, &yaml_config)
                             .inspect_err(|e| {
-                                warn!(
-                                    agent_id = %self.identity.id,
-                                    "Failed to store remote configuration: {e}"
-                                );
+                                warn!("Failed to store remote configuration: {e}");
                             });
                     })
-                    .map_err(SupervisorCreationError::from)
             }
             // Reset to local config:
             // - Removes remote config
@@ -527,7 +520,7 @@ where
                 let _ = self
                     .yaml_config_repository
                     .delete_remote(&self.identity.id)
-                    .inspect_err(|err| warn!("Failed to delete remote configuration: {err}"));
+                    .inspect_err(|e| warn!("Failed to delete remote configuration: {e}"));
 
                 let yaml_config = self
                     .yaml_config_repository
@@ -536,15 +529,12 @@ where
                     .unwrap_or_default()
                     .ok_or(SupervisorCreationError::NoConfiguration)?;
 
-                let effective_agent = self
-                    .effective_agent(yaml_config)
-                    .map_err(SupervisorCreationError::from)?;
+                let effective_agent = self.effective_agent(yaml_config)?;
 
-                self.supervisor_builder
-                    .build_supervisor(effective_agent)
-                    .map_err(SupervisorCreationError::from)
+                self.supervisor_builder.build_supervisor(effective_agent)
             }
         }
+        .map_err(SupervisorCreationError::from)
     }
 
     pub(crate) fn start_supervisor(
