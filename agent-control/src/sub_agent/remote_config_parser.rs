@@ -99,7 +99,6 @@ pub mod tests {
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::identity::AgentIdentity;
-    use crate::sub_agent::identity::tests::test_agent_identity;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::mock;
@@ -134,7 +133,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_config_with_previous_errors() {
-        let agent_identity = test_agent_identity();
+        let agent_identity = AgentIdentity::default();
         // The hash had some previous errors
         let hash = Hash::failed("some-hash".into(), "some error".into());
         let remote_config = RemoteConfig::new(
@@ -152,7 +151,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_config_validation_error() {
-        let agent_identity = test_agent_identity();
+        let agent_identity = AgentIdentity::default();
 
         let hash = Hash::new("some-hash".into());
         let remote_config = RemoteConfig::new(
@@ -188,7 +187,7 @@ pub mod tests {
     #[case::invalid_yaml_config_single_value(r#"{"config": "single-value"}"#)]
     #[case::invalid_yaml_config_array(r#"{"config": "[1, 2, 3]"}"#)]
     fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
-        let agent_identity = test_agent_identity();
+        let agent_identity = AgentIdentity::default();
 
         let hash = Hash::new("some-hash".into());
         let config_map =
@@ -203,7 +202,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_some_config() {
-        let agent_identity = test_agent_identity();
+        let agent_identity = AgentIdentity::default();
 
         let hash = Hash::new("some-hash".into());
         let config_map = ConfigurationMap::new(
@@ -229,7 +228,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_empty_config() {
-        let agent_identity = test_agent_identity();
+        let agent_identity = AgentIdentity::default();
 
         let hash = Hash::new("some-hash".into());
         let config_map = ConfigurationMap::new(
