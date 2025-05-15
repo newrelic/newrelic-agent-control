@@ -58,6 +58,16 @@ impl Display for AgentIdentity {
 pub mod tests {
     use super::*;
 
+    impl Default for AgentIdentity {
+        fn default() -> Self {
+            AgentIdentity {
+                id: AgentID::new("default").unwrap(),
+                agent_type_id: AgentTypeID::try_from("default/default:0.0.1").unwrap(),
+            }
+        }
+    }
+
+    // TODO replace for default
     pub fn test_agent_identity() -> AgentIdentity {
         AgentIdentity {
             id: AgentID::new("test").unwrap(),

@@ -108,6 +108,14 @@ pub mod tests {
         }
     }
 
+    impl From<AgentTypeDefinition> for EmbeddedRegistry {
+        fn from(value: AgentTypeDefinition) -> Self {
+            let mut registry = Self(HashMap::new());
+            registry.insert(value).unwrap();
+            registry
+        }
+    }
+
     const AGENT_TYPE_AMOUNT: usize = 11;
 
     #[test]
