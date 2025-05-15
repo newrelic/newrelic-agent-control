@@ -426,8 +426,13 @@ where
             OpampRemoteConfigStatus::Applying,
         );
 
-        let not_started_supervisor =
-            self.create_supervisor_from_remote_config(opamp_client, &config);
+        let not_started_supervisor = self.create_supervisor_from_remote_config(&config);
+
+        if not_started_supervisor.is_ok() {
+            let _ = opamp_client
+                .update_effective_config()
+                .inspect_err(|e| error!("Effective config update failed: {e}"));
+        }
 
         // Now, we should have either a Supervisor or an error to handle later,
         // which can come from either:
@@ -482,93 +487,54 @@ where
     /// Parses incoming remote config, assembles and builds the supervisor.
     fn create_supervisor_from_remote_config(
         &self,
-        opamp_client: &C,
         config: &RemoteConfig,
     ) -> Result<<B as SupervisorBuilder>::SupervisorStarter, SupervisorCreationError> {
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
         let parsed_remote = self
             .remote_config_parser
-            .parse(self.identity.clone(), config) // does this need the whole config or only the values? We have to clone the hash above due to this
-            .map_err(SupervisorCreationError::from);
+            .parse(self.identity.clone(), config)?;
 
-        // The below variable will signal if, at the end of this whole handler, we need to delete
-        // the existing remote config because we fell back to local (None), or if we need to store
-        // the remote config (Some(yaml)).
-        let existing_remote_config = parsed_remote
-            .as_ref()
-            .ok()
-            .and_then(|remote_yaml_config| remote_yaml_config.clone());
+        match parsed_remote {
+            // Apply the remote config:
+            // - Build supervisor
+            // - Store if remote if build was successful
+            Some(yaml_config) => {
+                let effective_agent = self.effective_agent(yaml_config.clone())?;
 
-        // At this point, we might have a parsed remote config or a parse error to handle later.
-        // We continue, handling the case where the remote config was empty by fallback to local.
-        // If the local config is empty as well, we just generate an error to interrupt the chain.
-        let yaml_config = parsed_remote.and_then(|remote_yaml_config| {
-            remote_yaml_config
-                .or_else(|| {
-                    debug!("Empty remote config received, falling back to local configuration");
-                    self.yaml_config_repository
-                        .load_local(&self.identity.id)
-                        .inspect_err(|e| warn!("Failed to load local configuration: {e}"))
-                        .unwrap_or_default()
-                })
-                .ok_or_else(|| SupervisorCreationError::NoConfiguration)
-        });
-
-        // From here, we should have either a YAMLConfig or an error to handle later,
-        // Which can come from either:
-        //   - a parse failure
-        //   - having empty values
-        // Let's continue.
-        let effective_agent = yaml_config.and_then(|yaml_config| {
-            self.effective_agent(yaml_config)
-                .map_err(SupervisorCreationError::from)
-        });
-
-        // Now, we should have either an EffectiveAgent or an error to handle later,
-        // which can come from either:
-        //   - a parse failure
-        //   - having empty values
-        //   - the EffectiveAgent assembly attempt
-        // Let's continue.
-        let not_started_supervisor = effective_agent.and_then(|effective_agent| {
-            self.supervisor_builder
-                .build_supervisor(effective_agent)
-                .map_err(SupervisorCreationError::from)
-        });
-
-        if not_started_supervisor.is_ok() {
-            match existing_remote_config {
-                // If we were operating over a remote config, we store it
-                Some(remote_config) => {
-                    let _ = self
-                        .yaml_config_repository
-                        .store_remote(&self.identity.id, &remote_config)
-                        .inspect_err(|e| {
-                            warn!(
-                                agent_id = %self.identity.id,
-                                "Failed to store remote configuration: {e}"
-                            );
-                        });
-                }
-                // Else, we remove any existing remote config for this agent
-                None => {
-                    let agent_id = &self.identity.id;
-                    let _ = self
-                        .yaml_config_repository
-                        .delete_remote(agent_id)
-                        .inspect_err(
-                            |err| warn!(%agent_id, "Failed to delete remote configuration: {err}"),
-                        );
-                }
+                self.supervisor_builder
+                    .build_supervisor(effective_agent)
+                    .inspect(|_| {
+                        let _ = self
+                            .yaml_config_repository
+                            .store_remote(&self.identity.id, &yaml_config)
+                            .inspect_err(|e| {
+                                warn!("Failed to store remote configuration: {e}");
+                            });
+                    })
             }
-            // update effective config
-            let _ = opamp_client
-                .update_effective_config()
-                .inspect_err(|e| error!("Effective config update failed: {e}"));
-        }
+            // Reset to local config:
+            // - Removes remote config
+            // - Build supervisor from local config if exists
+            None => {
+                let _ = self
+                    .yaml_config_repository
+                    .delete_remote(&self.identity.id)
+                    .inspect_err(|e| warn!("Failed to delete remote configuration: {e}"));
 
-        not_started_supervisor
+                let yaml_config = self
+                    .yaml_config_repository
+                    .load_local(&self.identity.id)
+                    .inspect_err(|e| warn!("Failed to load local configuration: {e}"))
+                    .unwrap_or_default()
+                    .ok_or(SupervisorCreationError::NoConfiguration)?;
+
+                let effective_agent = self.effective_agent(yaml_config)?;
+
+                self.supervisor_builder.build_supervisor(effective_agent)
+            }
+        }
+        .map_err(SupervisorCreationError::from)
     }
 
     pub(crate) fn start_supervisor(
@@ -1016,7 +982,13 @@ deployment:
         let mut supervisor_builder = MockSupervisorBuilder::new();
         supervisor_builder
             .expect_build_supervisor()
+            .once()
             .return_once(|_| Err(SubAgentError::NoConfiguration.into()));
+        supervisor_builder
+    }
+    fn expect_supervisor_do_not_build() -> MockSupervisorBuilder<MockSupervisorStarter> {
+        let mut supervisor_builder = MockSupervisorBuilder::new();
+        supervisor_builder.expect_build_supervisor().never();
         supervisor_builder
     }
     fn expect_build_supervisor_with(
@@ -1028,6 +1000,7 @@ deployment:
         stopped_supervisor.should_start(started_supervisor);
         supervisor_builder
             .expect_build_supervisor()
+            .once()
             .withf(move |effective_agent| {
                 effective_agent
                     .get_onhost_config()
@@ -1058,7 +1031,7 @@ deployment:
     fn test_gracefully_stop_empty_sub_agent() {
         let (hash_repository, yaml_repository, mut opamp_client) = test_mocks();
 
-        let supervisor_builder = MockSupervisorBuilder::new();
+        let supervisor_builder = expect_supervisor_do_not_build();
         opamp_client.should_stop(1);
 
         sub_agent(
@@ -1149,7 +1122,7 @@ deployment:
     fn test_remote_config_failed_to_failed() {
         let (hash_repository, yaml_repository, mut opamp_client) = test_mocks();
 
-        let supervisor_builder = MockSupervisorBuilder::new();
+        let supervisor_builder = expect_supervisor_do_not_build();
         opamp_client.should_set_remote_config_status(RemoteConfigStatus {
             status: RemoteConfigStatuses::Failed as i32,
             last_remote_config_hash: TestAgent::failed_remote_config().hash.get().into_bytes(),
@@ -1234,10 +1207,52 @@ deployment:
         assert!(new_supervisor.is_some());
     }
     #[test]
+    fn test_remote_config_reset_to_empty_local() {
+        let (hash_repository, yaml_repository, mut opamp_client) = test_mocks();
+
+        yaml_repository
+            .store_remote(&TestAgent::id(), &TestAgent::valid_config_yaml())
+            .unwrap();
+
+        let supervisor_builder = expect_supervisor_do_not_build();
+        opamp_client.should_set_remote_config_status_seq(vec![
+            TestAgent::status_applying(),
+            TestAgent::status_applied(),
+        ]);
+
+        let sub_agent = sub_agent(
+            Some(opamp_client),
+            supervisor_builder,
+            hash_repository.clone(),
+            yaml_repository.clone(),
+        );
+
+        let old_supervisor = Some(expect_supervisor_shut_down());
+
+        let new_supervisor = sub_agent.handle_remote_config(
+            sub_agent.maybe_opamp_client.as_ref().unwrap(),
+            TestAgent::reset_remote_config(),
+            old_supervisor,
+        );
+
+        let current_hash = hash_repository.get(&TestAgent::id()).unwrap().unwrap();
+        assert_eq!(current_hash.get(), TestAgent::hash().get());
+        assert!(current_hash.is_applied());
+
+        assert!(
+            yaml_repository
+                .load_remote(&TestAgent::id(), &Capabilities::default())
+                .unwrap()
+                .is_none()
+        );
+
+        assert!(new_supervisor.is_none());
+    }
+    #[test]
     fn test_bootstrap_empty_config() {
         let (hash_repository, yaml_repository, opamp_client) = test_mocks();
 
-        let supervisor_builder = MockSupervisorBuilder::new();
+        let supervisor_builder = expect_supervisor_do_not_build();
 
         let supervisor = sub_agent(
             Some(opamp_client),
