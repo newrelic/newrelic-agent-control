@@ -6,9 +6,13 @@ use super::{
     reflector::definition::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
+use crate::k8s::client::delete_collection;
 use base64::engine::general_purpose::STANDARD;
+use either::Either;
+use kube::api::ObjectList;
+use kube::client::Status;
 use kube::{
-    Api, Resource,
+    Api, Error, Resource,
     api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
     core::GroupVersion,
     discovery::pinned_kind,
@@ -117,8 +121,18 @@ impl DynamicObjectManager {
     }
 
     /// Deletes the [DynamicObject] whose name if provieds, returns an error if it does not exist.
-    pub async fn delete(&self, name: &str) -> Result<(), K8sError> {
-        match self.api.delete(name, &DeleteParams::default()).await? {
+    pub async fn delete(&self, name: &str) -> Result<Either<DynamicObject, Status>, K8sError> {
+        let result = self.api.delete(name, &DeleteParams::default()).await;
+
+        if let Err(Error::Api(api)) = result.as_ref() {
+            if api.clone().code == 404 {
+                return Ok(Either::Right(Status::success()));
+            }
+        }
+
+        let either = result?;
+
+        match either.clone() {
             // List of objects being deleted.
             either::Left(dynamic_object) => {
                 debug!("Deleting object: {:?}", dynamic_object.meta().name);
@@ -128,7 +142,7 @@ impl DynamicObjectManager {
                 debug!("Deleted collection: status={:?}", status);
             }
         }
-        Ok(())
+        Ok(either)
     }
 }
 
@@ -157,7 +171,22 @@ impl DynamicObjectManagers {
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         Ok(self.get_or_create_manager(type_meta).await?.get(name))
     }
-    pub async fn delete(&self, type_meta: &TypeMeta, name: &str) -> Result<(), K8sError> {
+
+    pub async fn delete_collection(
+        &self,
+        type_meta: &TypeMeta,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        let api = self.get_or_create_manager(type_meta).await?.api.clone();
+
+        delete_collection(&api, label_selector).await
+    }
+
+    pub async fn delete(
+        &self,
+        type_meta: &TypeMeta,
+        name: &str,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.get_or_create_manager(type_meta)
             .await?
             .delete(name)
