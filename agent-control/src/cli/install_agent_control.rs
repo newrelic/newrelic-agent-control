@@ -33,6 +33,7 @@ pub struct AgentControlInstallData {
     /// Secret values
     ///
     /// List of secret names and values keys to be used in the Helm release.
+    /// Duplicate names are allowed.
     ///
     /// **Format**: secret_name_1=values_key_1,secret_name_2=values_key_2.
     #[arg(long)]
@@ -44,6 +45,9 @@ pub struct AgentControlInstallData {
     /// They will be applied to every resource created for Agent Control.
     /// Check out [k8s labels] for more information on the restrictions and
     /// rules for labels names and values.
+    ///
+    /// Multiple labels with the same name are **NOT** allowed. Only one label
+    /// will be kept for each name.
     ///
     /// **Format**: label1=value1,label2=value2.
     ///
@@ -119,12 +123,10 @@ impl From<AgentControlInstallData> for Vec<DynamicObject> {
         let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
         let annotations = annotations.get();
 
-        let repository_object = helm_repository(labels.clone(), annotations.clone());
-
-        let secrets = parse_key_value_pairs(value.secrets.as_deref().unwrap_or_default());
-        let release_object = helm_release(&value, secrets, labels, annotations);
-
-        vec![repository_object, release_object]
+        vec![
+            helm_repository(labels.clone(), annotations.clone()),
+            helm_release(&value, labels, annotations),
+        ]
     }
 }
 
@@ -151,7 +153,6 @@ fn helm_repository(
 
 fn helm_release(
     value: &AgentControlInstallData,
-    secrets: BTreeMap<String, String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
@@ -175,7 +176,7 @@ fn helm_release(
         }
     });
 
-    if !secrets.is_empty() {
+    if let Some(secrets) = value.secrets.as_deref() {
         data["spec"]["valuesFrom"] = secrets_to_json(secrets);
     }
 
@@ -191,9 +192,10 @@ fn helm_release(
     }
 }
 
-fn secrets_to_json(secrets: BTreeMap<String, String>) -> serde_json::Value {
-    let items = secrets
-        .iter()
+fn secrets_to_json(secrets: &str) -> serde_json::Value {
+    let pairs = secrets.split(',');
+    let key_values = pairs.filter_map(|pair| pair.split_once('='));
+    let items = key_values
         .map(|(name, values_key)| {
             serde_json::json!({
                 "kind": "Secret",
@@ -376,6 +378,24 @@ mod tests {
         assert_eq!(
             dynamic_objects,
             vec![expected_repository_object, expected_release_object]
+        );
+    }
+
+    #[test]
+    fn test_secrets_to_json_allow_duplicates() {
+        assert_eq!(
+            secrets_to_json("secret1=fixed.yaml,secret1=global.yaml"),
+            serde_json::json!([
+            {
+                "kind": "Secret",
+                "name": "secret1",
+                "valuesKey": "fixed.yaml",
+            },
+            {
+                "kind": "Secret",
+                "name": "secret1",
+                "valuesKey": "global.yaml",
+            }])
         );
     }
 }
