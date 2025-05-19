@@ -7,9 +7,11 @@ use tokio::runtime::Runtime;
 
 use crate::{common::retry::retry, k8s::tools::k8s_env::K8sEnv};
 
-// This test can break if the chart introduces any breaking changes.
-// If this situation occurs, we will need to disable the test or use
-// a similar workaround than the one we use in the tiltfile.
+// NOTE: The tests below are using the latest '*' chart version and they will likely fail
+// if breaking changes need to be introduced in the chart.
+// If this situation occurs, we need to temporarily skip the tests or use
+// a similar workaround than the one we use for e2e documented in the corresponding Tiltfile.
+
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_installation() {
@@ -26,7 +28,7 @@ fn k8s_cli_install_agent_control_installation() {
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&namespace, "0.0.45", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
     cmd.assert().success();
 
     let pods: Api<Pod> = Api::namespaced(k8s_env.client.clone(), &namespace);
@@ -73,7 +75,7 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&namespace, "0.0.45", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
     cmd.assert().failure(); // The installation check should detect that AC workloads cannot be created due to invalid image
 }
 
@@ -93,7 +95,7 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&namespace, "0.0.45", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
     cmd.assert().success(); // Install successfully
 
     // The chart version does not exist
