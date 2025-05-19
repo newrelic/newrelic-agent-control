@@ -47,6 +47,19 @@
         // Capture en var name and version from goreleaser.yml.
         " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
       ]
+    },
+    {
+      // Extract version for embedded binary for nr-auth-cli-releases.
+      "fileMatch": [
+        "^.goreleaser.yml$"
+      ],
+      "depNameTemplate": "newrelic/newrelic-auth-rs",
+      "datasourceTemplate": "github-releases",
+      // Version info is fetched from GitHub.
+      "matchStrings": [
+        // Capture en var name and version from goreleaser.yml.
+        " *- NR_AUTH_CLIENT_VERSION=(?<currentValue>.+)"
+      ]
     }
   ],
   "rangeStrategy": "auto",

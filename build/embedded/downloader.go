@@ -33,6 +33,8 @@ func (d DefaultDownloader) Download(url string) (string, error) {
 		return "", errors.Join(errDownloadingArtifact, err)
 	}
 
+    fmt.Println("URLS:", url)
+
 	response, err := httpGetter(url)
 	if err != nil {
 		return "", errors.Join(errDownloadingFile, err)
