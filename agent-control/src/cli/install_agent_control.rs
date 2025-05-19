@@ -2,25 +2,34 @@ use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type
 use crate::cli::errors::CliError;
 use crate::cli::utils::parse_key_value_pairs;
 use crate::k8s::annotations::Annotations;
+#[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
+use crate::sub_agent::health::health_checker::HealthChecker;
+use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
+use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
 use kube::{
     Resource,
     api::{DynamicObject, ObjectMeta},
-    core::Duration,
 };
+use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::{collections::BTreeMap, str::FromStr};
+use std::thread::sleep;
+use std::time::Duration;
 use tracing::{debug, info};
 
 const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
-const FIVE_MINUTES: &str = "5m";
+const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 
-#[derive(Debug, Parser)]
+const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
+const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
+const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(3);
+
+#[derive(Debug, Clone, Parser)]
 pub struct AgentControlInstallData {
     /// Release name
     #[arg(long)]
@@ -50,6 +59,24 @@ pub struct AgentControlInstallData {
     /// [k8s labels]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
     #[arg(long)]
     pub extra_labels: Option<String>,
+
+    /// Skip the installation check if set
+    #[arg(long)]
+    pub skip_installation_check: bool,
+
+    /// Timeout for installation check
+    #[arg(long, default_value = INSTALLATION_CHECK_DEFAULT_TIMEOUT, value_parser = parse_duration_arg)]
+    pub installation_check_timeout: Duration,
+
+    /// Initial delay for installation check
+    #[arg(long, default_value = INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY, value_parser = parse_duration_arg)]
+    pub installation_check_initial_delay: Duration,
+}
+
+// helper needed because the arguments from the duration_str's parse function and the one expected by the clap
+// `value_parser` argument have incompatible lifetimes.
+fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
+    duration_str::parse(arg)
 }
 
 pub fn install_agent_control(
@@ -58,7 +85,7 @@ pub fn install_agent_control(
 ) -> Result<(), CliError> {
     info!("Installing agent control");
 
-    let dynamic_objects = Vec::<DynamicObject>::from(data);
+    let dynamic_objects = Vec::<DynamicObject>::from(data.clone());
 
     let k8s_client = k8s_client(namespace.clone())?;
 
@@ -66,12 +93,21 @@ pub fn install_agent_control(
     // For example, what happens if the user applies a remote configuration with a lower version
     // that includes a breaking change?
     info!("Applying agent control resources");
-    for object in dynamic_objects {
-        apply_resource(&k8s_client, &object)?;
+    for object in dynamic_objects.iter() {
+        apply_resource(&k8s_client, object)?;
     }
     info!("Agent control resources applied successfully");
 
-    info!("Agent control installed successfully");
+    if !data.skip_installation_check {
+        info!("Checking Agent control installation");
+        check_installation(
+            k8s_client,
+            data.installation_check_timeout,
+            data.installation_check_initial_delay,
+            dynamic_objects,
+        )?;
+        info!("Agent control installed successfully");
+    }
 
     Ok(())
 }
@@ -143,7 +179,7 @@ fn helm_repository(
         data: serde_json::json!({
             "spec": {
                 "url": REPOSITORY_URL,
-                "interval": Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct"),
+                "interval": FIVE_MINUTES,
             }
         }),
     }
@@ -155,12 +191,10 @@ fn helm_release(
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
-    let interval = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
-    let timeout = Duration::from_str(FIVE_MINUTES).expect("Hardcoded value should be correct");
     let mut data = serde_json::json!({
         "spec": {
-            "interval": interval,
-            "timeout": timeout,
+            "interval": FIVE_MINUTES,
+            "timeout": FIVE_MINUTES,
             "chart": {
                 "spec": {
                     "chart": AC_DEPLOYMENT_CHART_NAME,
@@ -169,7 +203,7 @@ fn helm_release(
                         "kind": "HelmRepository",
                         "name": REPOSITORY_NAME,
                     },
-                    "interval": interval,
+                    "interval": FIVE_MINUTES,
                 },
             }
         }
@@ -206,6 +240,58 @@ fn secrets_to_json(secrets: BTreeMap<String, String>) -> serde_json::Value {
     serde_json::json!(items)
 }
 
+fn check_installation(
+    k8s_client: SyncK8sClient,
+    timeout: Duration,
+    initial_delay: Duration,
+    objects: Vec<DynamicObject>,
+) -> Result<(), CliError> {
+    let health_checker =
+        SubAgentHealthChecker::try_new(Arc::new(k8s_client), Arc::new(objects), StartTime::now())
+            .map_err(|err| {
+                CliError::InstallationCheck(format!("could not build health-checker: {err}"))
+            })?
+            .ok_or_else(|| {
+                CliError::InstallationCheck("no resources to check health were found".to_string())
+            })?;
+
+    let max_retries = timeout.as_secs() / INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL.as_secs();
+
+    // An initial delay is needed because the api-server can take a while to actually apply the changes and we could
+    // perform the health check to previous objects which could lead to false positives.
+    info!(
+        "Waiting for installation check initial delay: {}s",
+        initial_delay.as_secs()
+    );
+
+    sleep(initial_delay);
+
+    let retry_err = |err| {
+        CliError::InstallationCheck(format!(
+            "installation check failed after {} seconds timeout ({} attempts): {}",
+            timeout.as_secs(),
+            max_retries,
+            err,
+        ))
+    };
+
+    info!(
+        "Performing installation check with {} attempts and {}s check interval",
+        max_retries,
+        INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL.as_secs()
+    );
+
+    let health = health_checker
+        .check_health_with_retry(max_retries, INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL)
+        .map_err(|err| retry_err(err.to_string()))?;
+
+    if let Some(err) = health.last_error() {
+        return Err(retry_err(err));
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,6 +305,9 @@ mod tests {
             chart_version: VERSION.to_string(),
             secrets: None,
             extra_labels: None,
+            skip_installation_check: false,
+            installation_check_initial_delay: Duration::from_secs(10),
+            installation_check_timeout: Duration::from_secs(300),
         }
     }
 
