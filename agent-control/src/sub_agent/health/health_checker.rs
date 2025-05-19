@@ -217,7 +217,7 @@ pub trait HealthChecker {
     /// The retries are performed as specified by provided limit and retry_interval.
     fn check_health_with_retry(
         &self,
-        limit: i32,
+        limit: u64,
         retry_interval: Duration,
     ) -> Result<HealthWithStartTime, HealthCheckerError> {
         let mut last_health = Err(HealthCheckerError::Generic("initial value".into()));
