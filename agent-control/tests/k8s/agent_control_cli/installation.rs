@@ -1,10 +1,9 @@
-use crate::{common::retry::retry, k8s::tools::k8s_env::K8sEnv};
+use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
-use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::Secret;
 use kube::{Api, Client, api::PostParams};
 use predicates::prelude::predicate;
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
 
 #[test]
@@ -14,7 +13,7 @@ fn cli_install_agent_control_fails_when_no_kubernetes() {
     cmd.assert().code(predicate::eq(69));
 }
 
-// NOTE: The tests below are using the latest '*' chart version and they will likely fail
+// NOTE: The tests below are using the latest '*' chart version, and they will likely fail
 // if breaking changes need to be introduced in the chart.
 // If this situation occurs, we need to temporarily skip the tests or use
 // a similar workaround than the one we use for e2e documented in the corresponding Tiltfile.
@@ -86,7 +85,7 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
     cmd.assert().failure(); // The installation check should detect that the upgrade failed
 }
 
-/// Builds a installation command for testing purposes with a curated set of defaults and the provided arguments.
+/// Builds an installation command for testing purposes with a curated set of defaults and the provided arguments.
 pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
@@ -98,7 +97,7 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
     cmd
 }
 
-/// Create the most simple `values.yaml` secret to install AC (OpAMP disabled and empty list of agents)
+/// Create a simple `values.yaml` secret to install AC with a single agent
 pub(crate) fn create_simple_values_secret(
     runtime: Arc<Runtime>,
     client: Client,

@@ -68,13 +68,10 @@ fn delete_owned_objects(
             let res = k8s_client
                 .delete_dynamic_object_collection(&tm, ac_owned_label_selector.as_str())
                 .map_err(|err| {
-                    CliError::K8sClient(format!(
-                        "failed to delete resources {:?}: {}",
-                        &tm.kind, err
-                    ))
+                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
                 })?;
             if is_collection_deleted(res) {
-                info!("Resources of type {:?} deleted", tm.kind);
+                info!("Resources of type {} deleted", tm.kind);
                 return Ok(());
             }
             Err(CliError::DeleteResource(format!("{tm:?}")))
@@ -109,25 +106,16 @@ fn delete_agent_control_crs(
         (helmrepository_type_meta(), REPOSITORY_NAME),
     ];
 
-    info!("Deleting resources of type {:?}", kinds_available);
-
     crs_to_delete.retain(|(tm, _)| kinds_available.contains(tm));
-    info!("Deleting resources of type {:?}", crs_to_delete);
-
     for (tm, object_name) in crs_to_delete {
         retry(30, Duration::from_secs(10), || {
-            info!("Deleting resources of type {:?}", tm.kind);
-
             let res = k8s_client
                 .delete_dynamic_object(&tm, object_name)
                 .map_err(|err| {
-                    CliError::K8sClient(format!(
-                        "failed to delete resources {:?}: {}",
-                        &tm.kind, err
-                    ))
+                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
                 })?;
             if is_resource_deleted(res) {
-                info!("Resources of type {:?} deleted", tm.kind);
+                info!("Resources of type {} deleted", tm.kind);
                 return Ok(());
             }
             Err(CliError::DeleteResource(format!("{tm:?}")))

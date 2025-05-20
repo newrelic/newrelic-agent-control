@@ -20,6 +20,9 @@ fn cli_uninstall_agent_control_fails_when_no_kubernetes() {
 
 #[test]
 #[ignore = "needs k8s cluster"]
+// This test can break if the chart introduces any breaking changes.
+// If this situation occurs, we will need to disable the test or use
+// a similar workaround than the one we use in the tiltfile.
 fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     let runtime = crate::common::runtime::tokio_runtime();
 
@@ -68,9 +71,6 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         .expect_err("SubAgent secret should be deleted");
 }
 
-// This test can break if the chart introduces any breaking changes.
-// If this situation occurs, we will need to disable the test or use
-// a similar workaround than the one we use in the tiltfile.
 #[test]
 #[ignore = "needs k8s cluster"]
 fn cli_uninstall_agent_control_fails_when_no_kubernetes_namespace() {
