@@ -24,7 +24,6 @@ pub const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
-
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
 const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(3);

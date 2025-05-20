@@ -59,13 +59,13 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
 
     let _ = runtime
         .block_on(deployments.get("test-release-agent-control"))
-        .expect_err("AC pods should be deleted");
+        .expect_err("AC deployment should be deleted");
     let _ = runtime
         .block_on(config_maps.get("local-data-nr-infra"))
-        .expect_err("AC pods should be deleted");
+        .expect_err("SubAgent config_map should be deleted");
     let _ = runtime
         .block_on(secrets.get("values-nr-infra"))
-        .expect_err("AC pods should be deleted");
+        .expect_err("SubAgent secret should be deleted");
 }
 
 // This test can break if the chart introduces any breaking changes.

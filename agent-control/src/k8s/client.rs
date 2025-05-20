@@ -49,7 +49,7 @@ impl SyncK8sClient {
         })
     }
 
-    pub fn list_api_resources(&self) -> Result<APIResourceList, K8sError> {
+    pub fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
         self.runtime
             .block_on(self.async_client.list_api_resources())
     }
@@ -215,20 +215,16 @@ impl AsyncK8sClient {
         &self.dynamic_object_managers
     }
 
-    /// Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
-    pub async fn list_api_resources(&self) -> Result<APIResourceList, K8sError> {
-        let mut list = APIResourceList::default();
+    // Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
+    pub async fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
+        let mut list = vec![];
         for v in self.client.list_core_api_versions().await?.versions {
-            let mut new = self
-                .client
-                .list_core_api_resources(v.as_str())
-                .await?
-                .resources;
-            list.resources.append(&mut new);
+            let new = self.client.list_core_api_resources(v.as_str()).await?;
+            list.push(new);
         }
 
         for v in self.client.list_api_groups().await?.groups {
-            let mut new = self
+            let new = self
                 .client
                 .list_api_group_resources(
                     v.preferred_version
@@ -237,9 +233,8 @@ impl AsyncK8sClient {
                         .group_version
                         .as_str(),
                 )
-                .await?
-                .resources;
-            list.resources.append(&mut new);
+                .await?;
+            list.push(new);
         }
 
         Ok(list)
@@ -359,7 +354,7 @@ where
         )
         .await?;
 
-    match result.clone() {
+    match result.as_ref() {
         // List of objects being deleted.
         either::Left(list) => {
             list.iter().for_each(|obj| {
