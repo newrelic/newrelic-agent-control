@@ -108,7 +108,7 @@ impl K8sGarbageCollector {
         mode: &K8sGarbageCollectorMode,
     ) -> Result<bool, K8sGarbageCollectorError> {
         // I only need to work with references here, so I pre-define an empty BTreeMap which does
-        // no allocate anything on its own and use it as default value for labels and annotations
+        // not allocate anything on its own and use it as default value for labels and annotations
         // in case any of them are None.
         let empty_map = BTreeMap::new();
         let labels = obj_meta.labels.as_ref().unwrap_or(&empty_map);

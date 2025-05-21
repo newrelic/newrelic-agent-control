@@ -3,11 +3,13 @@ use super::{
     error::K8sError,
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
+use either::Either;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
 use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{APIResourceList, ObjectMeta};
 use kube::api::ObjectList;
 use kube::api::entry::Entry;
+use kube::client::Status;
 use kube::{
     Api, Client, Config, Resource,
     api::{DeleteParams, ListParams, PostParams},
@@ -47,6 +49,11 @@ impl SyncK8sClient {
         })
     }
 
+    pub fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_api_resources())
+    }
+
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
             .block_on(self.async_client.dynamic_object_managers.apply(obj))
@@ -73,9 +80,25 @@ impl SyncK8sClient {
         self.runtime
             .block_on(self.async_client.dynamic_object_managers.get(tm, name))
     }
-    pub fn delete_dynamic_object(&self, tm: &TypeMeta, name: &str) -> Result<(), K8sError> {
+    pub fn delete_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.runtime
             .block_on(self.async_client.dynamic_object_managers.delete(tm, name))
+    }
+
+    pub fn delete_dynamic_object_collection(
+        &self,
+        tm: &TypeMeta,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .dynamic_object_managers
+                .delete_collection(tm, label_selector),
+        )
     }
 
     pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
@@ -192,10 +215,36 @@ impl AsyncK8sClient {
         &self.dynamic_object_managers
     }
 
+    // Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
+    pub async fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
+        let mut list = vec![];
+        for v in self.client.list_core_api_versions().await?.versions {
+            let new = self.client.list_core_api_resources(v.as_str()).await?;
+            list.push(new);
+        }
+
+        for v in self.client.list_api_groups().await?.groups {
+            let new = self
+                .client
+                .list_api_group_resources(
+                    v.preferred_version
+                        .or_else(|| v.versions.first().cloned())
+                        .unwrap_or_default()
+                        .group_version
+                        .as_str(),
+                )
+                .await?;
+            list.push(new);
+        }
+
+        Ok(list)
+    }
+
     pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
         let api: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
 
-        delete_collection(&api, label_selector).await
+        delete_collection(&api, label_selector).await?;
+        Ok(())
     }
 
     pub async fn get_configmap_key(
@@ -288,11 +337,14 @@ impl AsyncK8sClient {
 
 //  delete_collection has been moved outside the client to be able to use mockall in the client
 //  without having to make K 'static.
-pub(super) async fn delete_collection<K>(api: &Api<K>, label_selector: &str) -> Result<(), K8sError>
+pub(super) async fn delete_collection<K>(
+    api: &Api<K>,
+    label_selector: &str,
+) -> Result<Either<ObjectList<K>, Status>, K8sError>
 where
     K: Resource + Clone + DeserializeOwned + Debug,
 {
-    match api
+    let result = api
         .delete_collection(
             &DeleteParams::default(),
             &ListParams {
@@ -300,8 +352,9 @@ where
                 ..Default::default()
             },
         )
-        .await?
-    {
+        .await?;
+
+    match result.as_ref() {
         // List of objects being deleted.
         either::Left(list) => {
             list.iter().for_each(|obj| {
@@ -318,7 +371,7 @@ where
         }
     }
 
-    Ok(())
+    Ok(result)
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {

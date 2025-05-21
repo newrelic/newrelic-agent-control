@@ -1,6 +1,6 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta};
 use crate::cli::errors::CliError;
-use crate::cli::utils::parse_key_value_pairs;
+use crate::cli::utils::*;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -20,11 +20,10 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::{debug, info};
 
-const REPOSITORY_NAME: &str = "newrelic";
+pub const REPOSITORY_NAME: &str = "newrelic";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
-
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
 const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(3);
@@ -91,7 +90,7 @@ pub fn install_agent_control(
 
     let dynamic_objects = Vec::<DynamicObject>::from(data.clone());
 
-    let k8s_client = k8s_client(namespace.clone())?;
+    let k8s_client = try_new_k8s_client(namespace.clone())?;
 
     // TODO: Take care of upgrade.
     // For example, what happens if the user applies a remote configuration with a lower version
@@ -131,19 +130,6 @@ fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<
     info!("{} with name {} applied successfully", kind, name);
 
     Ok(())
-}
-
-fn k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
-    debug!("Starting the runtime");
-    let runtime = Arc::new(
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Tokio should be able to create a runtime"),
-    );
-
-    debug!("Starting the k8s client");
-    SyncK8sClient::try_new(runtime, namespace).map_err(|err| CliError::K8sClient(err.to_string()))
 }
 
 impl From<AgentControlInstallData> for Vec<DynamicObject> {

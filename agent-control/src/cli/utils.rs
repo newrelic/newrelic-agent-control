@@ -1,4 +1,10 @@
+use crate::cli::errors::CliError;
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tracing::debug;
 
 /// Parses a string of key-value pairs separated by commas.
 ///
@@ -28,6 +34,34 @@ pub fn parse_key_value_pairs(data: &str) -> BTreeMap<String, String> {
         .collect();
 
     parsed_key_values
+}
+
+pub fn try_new_k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
+    debug!("Starting the runtime");
+    let runtime = Arc::new(
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Tokio should be able to create a runtime"),
+    );
+
+    debug!("Starting the k8s client");
+    SyncK8sClient::try_new(runtime, namespace).map_err(|err| CliError::K8sClient(err.to_string()))
+}
+
+pub fn retry<F>(max_attempts: usize, interval: Duration, mut f: F) -> Result<(), CliError>
+where
+    F: FnMut() -> Result<(), CliError>,
+{
+    let mut last_err = Ok(());
+    for _ in 0..max_attempts {
+        let Err(err) = f() else {
+            return Ok(());
+        };
+        last_err = Err(err);
+        std::thread::sleep(interval);
+    }
+    last_err
 }
 
 #[cfg(test)]

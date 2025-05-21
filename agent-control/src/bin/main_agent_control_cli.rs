@@ -3,6 +3,9 @@ use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install_agent_control::{
     AgentControlInstallData, install_agent_control,
 };
+use newrelic_agent_control::cli::uninstall_agent_control::{
+    AgentControlUninstallData, uninstall_agent_control,
+};
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
     http::tls::install_rustls_default_crypto_provider,
@@ -14,7 +17,7 @@ use newrelic_agent_control::{
 use std::{path::PathBuf, process::ExitCode};
 use tracing::{Level, debug, error};
 
-/// Manage Helm releases and repositories in Kubernetes.
+/// Manage agent control resources
 #[derive(Debug, Parser)]
 #[command()]
 struct Cli {
@@ -32,8 +35,10 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Operations {
-    /// Install a helm chart and create required resources
+    /// Install agent control chart and create required resources
     InstallAgentControl(AgentControlInstallData),
+    /// Uninstall agent control and delete related resources
+    UninstallAgentControl(AgentControlUninstallData),
 }
 
 fn main() -> ExitCode {
@@ -46,7 +51,7 @@ fn main() -> ExitCode {
     let tracer = try_init_tracing(tracing_config).map_err(|err| CliError::Tracing(err.to_string()));
 
     if let Err(err) = tracer {
-        eprintln!("Failed to initialize tracing: {:?}", err);
+        eprintln!("Failed to initialize tracing: {err:?}");
         return err.to_exit_code();
     }
 
@@ -56,6 +61,9 @@ fn main() -> ExitCode {
     let result = match cli.operation {
         Operations::InstallAgentControl(agent_control_data) => {
             install_agent_control(agent_control_data, cli.namespace)
+        }
+        Operations::UninstallAgentControl(agent_control_data) => {
+            uninstall_agent_control(agent_control_data, cli.namespace)
         }
     };
 

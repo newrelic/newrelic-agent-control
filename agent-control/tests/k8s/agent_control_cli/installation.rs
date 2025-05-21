@@ -1,42 +1,24 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
-
+use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
-use k8s_openapi::api::core::v1::{Pod, Secret};
+use k8s_openapi::api::core::v1::Secret;
 use kube::{Api, Client, api::PostParams};
+use predicates::prelude::predicate;
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
 
-use crate::{common::retry::retry, k8s::tools::k8s_env::K8sEnv};
+#[test]
+fn cli_install_agent_control_fails_when_no_kubernetes() {
+    let mut cmd = ac_install_cmd("default", "0.0.45", "test-secret=values.yaml");
+    cmd.assert().failure();
+    cmd.assert().code(predicate::eq(69));
+}
 
-// NOTE: The tests below are using the latest '*' chart version and they will likely fail
+// NOTE: The tests below are using the latest '*' chart version, and they will likely fail
 // if breaking changes need to be introduced in the chart.
 // If this situation occurs, we need to temporarily skip the tests or use
 // a similar workaround than the one we use for e2e documented in the corresponding Tiltfile.
-
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_installation() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
-
-    create_simple_values_secret(
-        runtime.clone(),
-        k8s_env.client.clone(),
-        &namespace,
-        "test-secret",
-        "values.yaml",
-    );
-
-    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
-    cmd.assert().success();
-
-    let pods: Api<Pod> = Api::namespaced(k8s_env.client.clone(), &namespace);
-    retry(10, Duration::from_secs(1), || {
-        let _ = runtime.block_on(pods.get("test-release-agent-control"));
-        Ok(())
-    });
-}
+// Moreover, a complete installation and uninstallation test
+// can be found in k8s_cli_install_agent_control_installation_and_uninstallation
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -103,8 +85,8 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
     cmd.assert().failure(); // The installation check should detect that the upgrade failed
 }
 
-/// Builds a installation command for testing purposes with a curated set of defaults and the provided arguments.
-fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Command {
+/// Builds an installation command for testing purposes with a curated set of defaults and the provided arguments.
+pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
     cmd.arg("--release-name").arg("test-release");
@@ -115,24 +97,34 @@ fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Comman
     cmd
 }
 
-/// Create the most simple `values.yaml` secret to install AC (OpAMP disabled and empty list of agents)
-fn create_simple_values_secret(
+/// Create a simple `values.yaml` secret to install AC with a single agent
+pub(crate) fn create_simple_values_secret(
     runtime: Arc<Runtime>,
     client: Client,
     ns: &str,
     secret_name: &str,
     values_key: &str,
 ) {
+    // We set cleanupManagedResources: false to avoid race conditions between the old way to uninstall and the new one
+    // TODO remove it once it is not needed anymore.
     let values = serde_json::json!({
+        "cleanupManagedResources": false,
         "config": {
             "fleet_control": {
                 "enabled": false,
             },
-            "subAgents": {},
+            "subAgents": {
+                "nr-infra": {
+                    "type" : "newrelic/com.newrelic.infrastructure:0.1.0",
+                    "content": {
+                        "chart_version" : "*"
+                    }
+                },
+            }
         },
         "global": {
             "cluster": "test-cluster",
-            "licenseKey": "***",
+            "licenseKey": "thisisafakelicensekey",
         },
     })
     .to_string();

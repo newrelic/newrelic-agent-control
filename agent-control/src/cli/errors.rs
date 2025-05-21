@@ -15,6 +15,9 @@ pub enum CliError {
 
     #[error("installation check failure: {0}")]
     InstallationCheck(String),
+
+    #[error("failed to delete resource: {0}")]
+    DeleteResource(String),
 }
 
 impl CliError {
@@ -29,7 +32,9 @@ impl CliError {
         match self {
             CliError::K8sClient(_) => ExitCode::from(69),
             CliError::Tracing(_) => ExitCode::from(70),
-            CliError::ApplyResource(_) | CliError::InstallationCheck(_) => ExitCode::from(1),
+            CliError::DeleteResource(_)
+            | CliError::ApplyResource(_)
+            | CliError::InstallationCheck(_) => ExitCode::from(1),
         }
     }
 }
