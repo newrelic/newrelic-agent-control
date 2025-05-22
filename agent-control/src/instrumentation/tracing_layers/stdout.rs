@@ -13,6 +13,7 @@ pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
         .with_writer(std::io::stdout)
         .with_ansi(config.format.ansi_colors)
         .with_target(target)
+        .with_span_events(config.fmt_span_events())
         .with_timer(ChronoLocal::new(timestamp_fmt))
         .fmt_fields(PrettyFields::new())
         .with_filter(config.filter()?)

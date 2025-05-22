@@ -7,6 +7,7 @@ use thiserror::Error;
 use tracing::Level;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::filter::{Directive, FilterExt, FilterFn};
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::Filter;
 use tracing_subscriber::{EnvFilter, Registry};
 
@@ -45,6 +46,9 @@ pub struct LoggingConfig {
     /// Defines options to report logs to files
     #[serde(default)]
     pub(crate) file: FileLoggingConfig,
+    /// When set, tracing information is also shown as logs
+    #[serde(default)]
+    pub(crate) show_spans: bool,
 }
 
 impl LoggingConfig {
@@ -60,6 +64,14 @@ impl LoggingConfig {
         let filter = allow_spans_filter.or(configured_logs_filter);
 
         Ok(filter)
+    }
+
+    pub fn fmt_span_events(&self) -> FmtSpan {
+        if self.show_spans {
+            FmtSpan::CLOSE // Show a line when the span is close, including busy and idle time
+        } else {
+            FmtSpan::NONE
+        }
     }
 
     fn logging_filter(&self) -> Result<EnvFilter, LoggingConfigError> {

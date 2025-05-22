@@ -39,6 +39,7 @@ log:
   file:
     enabled: true # Enabled logging to files.
     path: /some/path/logs.log # Optional path to write logs to, if not set it will use 'newrelic-agent-control.log' in the application logging directory.
+  show_spans: false # Show spans information as logs. It includes additional details which may be useful for debugging purposes.
 ```
 
 ### fleet_control

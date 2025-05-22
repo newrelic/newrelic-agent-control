@@ -29,6 +29,7 @@ pub fn file(
             let layer = tracing_subscriber::fmt::layer()
                 .with_writer(file_writer)
                 .with_ansi(false) // Disable colors for file
+                .with_span_events(config.fmt_span_events())
                 .with_target(target)
                 .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
                 .fmt_fields(PrettyFields::new())
