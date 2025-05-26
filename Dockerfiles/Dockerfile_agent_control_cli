@@ -1,6 +1,6 @@
 # Docker file used for the installation of the the Agent Control on k8s.
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG TARGETARCH
 
