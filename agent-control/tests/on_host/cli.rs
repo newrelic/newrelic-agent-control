@@ -75,7 +75,15 @@ fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     use crate::on_host::logging::level::TIME_FORMAT;
 
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
+    let _file_path = create_temp_file(
+        &dir,
+        AGENT_CONTROL_CONFIG_FILENAME,
+        r#"
+agents: {}
+server:
+  enabled: false
+"#,
+    )?;
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
@@ -121,6 +129,8 @@ log:
   format:
     target: true
     timestamp: "%Y"
+server:
+  enabled: false
 "#,
     )?;
 
@@ -181,6 +191,8 @@ log:
   file:
     enabled: true
 agents: {{}}
+server:
+  enabled: false
     "#,
             opamp_server.url("/"),
         )
