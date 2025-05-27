@@ -1,8 +1,9 @@
 use super::agent_id::AgentID;
 use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap};
 use super::config_storer::loader_storer::{
-    AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
-    AgentControlDynamicConfigStorer,
+    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashUpdater,
+    AgentControlRemoteConfigStorer,
 };
 use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::VersionUpdater;
@@ -17,13 +18,13 @@ use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::{
-    hash_repository::HashRepository,
     remote_config::hash::Hash,
     remote_config::{RemoteConfig, RemoteConfigError},
 };
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
+use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
 use crossbeam::select;
@@ -32,13 +33,14 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-pub struct AgentControl<S, O, HR, SL, DV, RC, VU>
+pub struct AgentControl<S, O, SL, DV, RC, VU>
 where
     O: StartedClient,
-    HR: HashRepository,
-    SL: AgentControlDynamicConfigStorer
+    SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
-        + AgentControlDynamicConfigDeleter,
+        + AgentControlRemoteConfigDeleter
+        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashGetter,
     S: SubAgentBuilder,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
@@ -46,8 +48,6 @@ where
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
-    remote_config_hash_repository: Arc<HR>,
-    agent_id: AgentID,
     start_time: SystemTime,
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
@@ -60,14 +60,15 @@ where
     initial_config: AgentControlConfig,
 }
 
-impl<S, O, HR, SL, DV, RC, VU> AgentControl<S, O, HR, SL, DV, RC, VU>
+impl<S, O, SL, DV, RC, VU> AgentControl<S, O, SL, DV, RC, VU>
 where
     O: StartedClient,
-    HR: HashRepository,
     S: SubAgentBuilder,
-    SL: AgentControlDynamicConfigStorer
+    SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
-        + AgentControlDynamicConfigDeleter,
+        + AgentControlRemoteConfigDeleter
+        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashGetter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
@@ -75,9 +76,8 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_client: Option<O>,
-        remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
-        sub_agents_config_store: Arc<SL>,
+        sa_dynamic_config_store: Arc<SL>,
         agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
         sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
@@ -89,12 +89,10 @@ where
     ) -> Self {
         Self {
             opamp_client,
-            remote_config_hash_repository,
             sub_agent_builder,
             // unwrap as we control content of the AGENT_CONTROL_ID constant
-            agent_id: AgentID::new_agent_control_id(),
             start_time: SystemTime::now(),
-            sa_dynamic_config_store: sub_agents_config_store,
+            sa_dynamic_config_store,
             agent_control_publisher,
             sub_agent_publisher,
             application_event_consumer,
@@ -109,7 +107,7 @@ where
     pub fn run(self) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
         if let Some(opamp_client) = &self.opamp_client {
-            match self.remote_config_hash_repository.get(&self.agent_id) {
+            match self.sa_dynamic_config_store.get_hash() {
                 Err(e) => {
                     warn!("Failed getting remote config hash from the store: {}", e);
                 }
@@ -148,8 +146,7 @@ where
 
     pub(super) fn set_config_hash_as_applied(&self, hash: &mut Hash) -> Result<(), AgentError> {
         hash.apply();
-        self.remote_config_hash_repository
-            .save(&self.agent_id, hash)?;
+        self.sa_dynamic_config_store.update_hash(hash)?;
 
         Ok(())
     }
@@ -313,12 +310,12 @@ where
         )?;
 
         if !remote_config_value.is_empty() {
-            self.sa_dynamic_config_store
-                .store(&YAMLConfig::try_from(remote_config_value.to_string())?)?;
+            let config = RemoteConfigValues::new(
+                YAMLConfig::try_from(remote_config_value.to_string())?,
+                remote_config.hash.clone(),
+            );
+            self.sa_dynamic_config_store.store(&config)?;
         }
-
-        self.remote_config_hash_repository
-            .save(&self.agent_id, &remote_config.hash)?;
 
         Ok(())
     }
@@ -443,12 +440,12 @@ mod tests {
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
+    use crate::values::config::RemoteConfig;
     use mockall::{Sequence, predicate};
     use std::collections::HashMap;
     use std::sync::Arc;
@@ -457,23 +454,25 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors_no_agents() {
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let mut hash_repository_mock = MockHashRepository::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         let mut started_client = MockStartedOpAMPClient::new();
         let dynamic_config_validator = MockDynamicConfigValidator::new();
         started_client.should_set_healthy();
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .returning(|| Ok(HashMap::new().into()));
 
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let mut hash = Hash::new("a-hash".to_string());
-            hash.apply();
-            Ok(Some(hash))
-        });
+        sa_dynamic_config_store
+            .expect_get_hash()
+            .times(1)
+            .returning(|| {
+                let mut hash = Hash::new("a-hash".to_string());
+                hash.apply();
+                Ok(Some(hash))
+            });
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
@@ -481,9 +480,8 @@ mod tests {
         // no agents in the supervisor group
         let agent = AgentControl::new(
             Some(started_client),
-            Arc::new(hash_repository_mock),
             MockSubAgentBuilder::new(),
-            Arc::new(sub_agents_config_store),
+            Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             application_event_consumer,
@@ -503,8 +501,8 @@ mod tests {
 
     #[test]
     fn run_and_stop_supervisors() {
-        let mut hash_repository_mock = MockHashRepository::new();
         let mut sub_agent_builder = MockSubAgentBuilder::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let ac_config = AgentControlConfig {
             dynamic: sub_agents_default_config(),
@@ -519,11 +517,14 @@ mod tests {
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
-        hash_repository_mock.expect_get().times(1).returning(|_| {
-            let mut hash = Hash::new("a-hash".to_string());
-            hash.apply();
-            Ok(Some(hash))
-        });
+        sa_dynamic_config_store
+            .expect_get_hash()
+            .times(1)
+            .returning(|| {
+                let mut hash = Hash::new("a-hash".to_string());
+                hash.apply();
+                Ok(Some(hash))
+            });
 
         // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
@@ -533,9 +534,8 @@ mod tests {
 
         let agent = AgentControl::new(
             Some(started_client),
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(MockAgentControlDynamicConfigStore::new()),
+            Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             application_event_consumer,
@@ -555,7 +555,6 @@ mod tests {
 
     #[test]
     fn receive_opamp_remote_config() {
-        let mut hash_repository_mock = MockHashRepository::new();
         let mut sub_agent_builder = MockSubAgentBuilder::new();
 
         let ac_config = AgentControlConfig {
@@ -580,44 +579,31 @@ mod tests {
             .times(1)
             .returning(|_| Ok(()));
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        sub_agents_config_store
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+        sa_dynamic_config_store
             .expect_load()
             .once()
             .returning(|| Ok(sub_agents_default_config()));
         // updated agent
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_store()
             .once()
             .returning(|_| Ok(()));
 
-        hash_repository_mock
-            .expect_get()
-            .with(predicate::eq(AgentID::new_agent_control_id()))
+        sa_dynamic_config_store
+            .expect_get_hash()
             .times(1)
-            .returning(|_| {
+            .returning(|| {
                 let mut hash = Hash::new("a-hash".to_string());
                 hash.apply();
                 Ok(Some(hash))
             });
 
-        hash_repository_mock
-            .expect_save()
-            .with(
-                predicate::eq(AgentID::new_agent_control_id()),
-                predicate::eq(Hash::new("a-hash".to_string())),
-            )
+        sa_dynamic_config_store
+            .expect_update_hash()
+            .with(predicate::eq(Hash::applied("a-hash".to_string())))
             .times(1)
-            .returning(|_, _| Ok(()));
-
-        hash_repository_mock
-            .expect_save()
-            .with(
-                predicate::eq(AgentID::new_agent_control_id()),
-                predicate::eq(Hash::applied("a-hash".to_string())),
-            )
-            .times(1)
-            .returning(|_, _| Ok(()));
+            .returning(|_| Ok(()));
 
         // it should build two subagents: nrdot + infra-agent
         sub_agent_builder.should_build(2);
@@ -629,9 +615,8 @@ mod tests {
                 // two agents in the supervisor group
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     UnboundedBroadcast::default(),
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -645,7 +630,7 @@ mod tests {
             }
         });
 
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -660,7 +645,7 @@ agents:
         );
 
         opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
             .unwrap();
         sleep(Duration::from_millis(500));
         application_event_publisher
@@ -672,14 +657,13 @@ agents:
 
     #[test]
     fn receive_opamp_connected() {
-        let hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
         let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(1);
 
-        let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
@@ -695,9 +679,8 @@ agents:
                 // two agents in the supervisor group
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -731,14 +714,13 @@ agents:
 
     #[test]
     fn receive_opamp_connect_failed() {
-        let hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
         let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_set_health(1);
 
-        let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
@@ -754,9 +736,8 @@ agents:
                 // two agents in the supervisor group
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -809,14 +790,14 @@ agents:
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         // all agents on first load
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .times(1)
             .returning(|| Ok(sub_agents_default_config()));
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .once()
             .return_once(|| {
@@ -832,25 +813,16 @@ agents:
                 .into())
             });
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_store()
             .times(1)
             .returning(|_| Ok(()));
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_store()
             .times(1)
             .returning(|_| Ok(()));
 
-        let mut hash_repository_mock = MockHashRepository::new();
-        hash_repository_mock.should_save_hash(
-            &AgentID::new_agent_control_id(),
-            &Hash::new("a-hash".to_string()),
-        );
-        hash_repository_mock.should_save_hash(
-            &AgentID::new_agent_control_id(),
-            &Hash::new("b-hash".to_string()),
-        );
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
         let mut resource_cleaner = MockResourceCleaner::new();
@@ -890,9 +862,8 @@ agents:
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -908,7 +879,7 @@ agents:
             .unwrap();
 
         // just one agent, it should remove the infra-agent
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -925,13 +896,13 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
 
         // remove nrdot and create new infra-agent sub_agent
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("b-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -946,7 +917,7 @@ agents:
         );
 
         agent_control
-            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
@@ -969,14 +940,14 @@ agents:
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         // all agents on first load
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .times(1)
             .returning(|| Ok(sub_agents_default_config()));
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .once()
             .return_once(|| {
@@ -992,16 +963,11 @@ agents:
                 .into())
             });
 
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_store()
             .times(1)
             .returning(|_| Ok(()));
 
-        let mut hash_repository_mock = MockHashRepository::new();
-        hash_repository_mock.should_save_hash(
-            &AgentID::new_agent_control_id(),
-            &Hash::new("a-hash".to_string()),
-        );
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
         let mut resource_cleaner = MockResourceCleaner::new();
@@ -1045,9 +1011,8 @@ agents:
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1063,7 +1028,7 @@ agents:
             .unwrap();
 
         // just one agent, it should remove the infra-agent
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -1080,13 +1045,13 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
 
         // remove nrdot and create new infra-agent sub_agent
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("b-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -1102,7 +1067,7 @@ agents:
 
         assert!(
             agent_control
-                .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents)
+                .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
                 .is_err()
         );
 
@@ -1129,22 +1094,20 @@ agents:
                 ))
             });
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         // all agents on first load
-        sub_agents_config_store
+        sa_dynamic_config_store
             .expect_load()
             .times(1)
             .returning(|| Ok(sub_agents_default_config()));
 
-        let hash_repository_mock = MockHashRepository::new();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1160,7 +1123,7 @@ agents:
             .unwrap();
 
         // just one agent, it should remove the infra-agent
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -1178,7 +1141,7 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         let apply_remote = agent_control
-            .apply_remote_agent_control_config(&remote_config, &mut running_sub_agents);
+            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents);
 
         assert!(apply_remote.is_err());
 
@@ -1193,7 +1156,6 @@ agents:
     // and we assert on Agent Control Healthy event
     #[test]
     fn test_config_updated_should_publish_agent_control_healthy() {
-        let mut hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
@@ -1206,7 +1168,7 @@ agents:
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
@@ -1216,13 +1178,10 @@ agents:
 
         // load local config
         let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
-        sub_agents_config_store.should_load(&sub_agents_config);
-
-        // store remote config
-        sub_agents_config_store.should_store(&sub_agents_config);
+        sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             remote_config_hash.clone(),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -1231,14 +1190,18 @@ agents:
             )]))),
         );
 
-        // persist remote config hash as applying
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config_hash);
+        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
+        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        // store remote config
+        sa_dynamic_config_store.should_store(remote_config_values);
 
         // store agent control remote config hash
         remote_config_hash.apply();
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config_hash);
+        sa_dynamic_config_store
+            .expect_update_hash()
+            .with(predicate::eq(remote_config_hash))
+            .times(1)
+            .returning(|_| Ok(()));
 
         // the running sub agent that will be stopped
         let mut sub_agent = MockStartedSubAgent::new();
@@ -1259,9 +1222,8 @@ agents:
             move || {
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -1277,7 +1239,7 @@ agents:
         });
 
         opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
             .unwrap();
         sleep(Duration::from_millis(10));
         application_event_publisher
@@ -1299,7 +1261,6 @@ agents:
     // Receive an OpAMP Invalid Config should publish Unhealthy Event
     #[test]
     fn test_invalid_config_should_publish_agent_control_unhealthy() {
-        let hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
@@ -1314,15 +1275,15 @@ agents:
             .times(2)
             .returning(|_| Ok(()));
 
-        let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
         remote_config_hash.fail(String::from("some error message"));
 
-        let remote_config =
-            RemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
+        let opamp_remote_config =
+            OpampRemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
 
         // the running sub agents
         let sub_agents = StartedSubAgents::from(HashMap::default());
@@ -1336,9 +1297,8 @@ agents:
             move || {
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -1354,7 +1314,7 @@ agents:
         });
 
         opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
             .unwrap();
 
         sleep(Duration::from_millis(10));
@@ -1383,7 +1343,6 @@ agents:
     // Receive an StopRequest event should publish AgentControlStopped
     #[test]
     fn test_stop_request_should_publish_agent_control_stopped() {
-        let hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
@@ -1391,7 +1350,7 @@ agents:
         // set healthy on start processing events
         started_client.should_set_healthy();
 
-        let sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
@@ -1407,9 +1366,8 @@ agents:
             move || {
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -1447,7 +1405,6 @@ agents:
     // And it should publish SubAgentRemoved
     #[test]
     fn test_removing_a_sub_agent_should_publish_sub_agent_removed() {
-        let mut hash_repository_mock = MockHashRepository::new();
         let sub_agent_builder = MockSubAgentBuilder::new();
 
         // Agent Control OpAMP
@@ -1460,7 +1417,7 @@ agents:
             .times(2)
             .returning(|_| Ok(()));
 
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
@@ -1477,14 +1434,10 @@ agents:
                 agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
             },
         )]));
-        sub_agents_config_store.should_load(&sub_agents_config);
-
-        // store remote config
-        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
-        sub_agents_config_store.should_store(&sub_agents_config);
+        sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             remote_config_hash.clone(),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -1493,14 +1446,18 @@ agents:
             )]))),
         );
 
-        // persist remote config hash as applying
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config_hash);
+        // store remote config
+        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
+        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        sa_dynamic_config_store.should_store(remote_config_values);
 
         // store agent control remote config hash
         remote_config_hash.apply();
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config_hash);
+        sa_dynamic_config_store
+            .expect_update_hash()
+            .with(predicate::eq(remote_config_hash))
+            .times(1)
+            .returning(|_| Ok(()));
 
         // the running sub agent that will be stopped
         let mut sub_agent = MockStartedSubAgent::new();
@@ -1518,9 +1475,8 @@ agents:
             move || {
                 let agent = AgentControl::new(
                     Some(started_client),
-                    Arc::new(hash_repository_mock),
                     sub_agent_builder,
-                    Arc::new(sub_agents_config_store),
+                    Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -1536,7 +1492,7 @@ agents:
         });
 
         opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(remote_config))
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
             .unwrap();
         sleep(Duration::from_millis(10));
         application_event_publisher

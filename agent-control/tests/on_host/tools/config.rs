@@ -7,8 +7,8 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME, default_capabilities,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
-use newrelic_agent_control::values::yaml_config_repository::YAMLConfigRepository;
+use newrelic_agent_control::values::config_repository::ConfigRepository;
+use newrelic_agent_control::values::file::ConfigRepositoryFile;
 
 /// Creates the agent-control config given an opamp_server_endpoint
 /// and a list of agents on the specified local_dir.
@@ -78,11 +78,11 @@ pub fn create_sub_agent_values(agent_id: String, config: String, base_dir: PathB
 
 pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> Option<String> {
     let yaml_config_repo =
-        YAMLConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone())
+        ConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone())
             .with_remote();
 
     yaml_config_repo
         .load_remote(agent_id, &default_capabilities())
         .unwrap()
-        .map(|rc| serde_yaml::to_string(&rc).unwrap())
+        .map(|rc| serde_yaml::to_string(&rc.get_yaml_config()).unwrap())
 }

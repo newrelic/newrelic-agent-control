@@ -14,10 +14,11 @@ use crate::on_host::tools::custom_agent_type::{
 };
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::config::AgentControlDynamicConfig;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
+use newrelic_agent_control::values::config::RemoteConfig;
+use newrelic_agent_control::values::yaml_config::YAMLConfig;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::env;
 use std::time::Duration;
@@ -133,17 +134,15 @@ agents:
 "#,
         sleep_agent_type
     );
-
     let expected_config_parsed =
-        serde_yaml::from_str::<AgentControlDynamicConfig>(expected_config.as_str()).unwrap();
+        serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
 
     retry(60, Duration::from_secs(1), || {
         let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
-        let remote_config =
-            std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
-        let content_parsed =
-            serde_yaml::from_str::<AgentControlDynamicConfig>(remote_config.as_str()).unwrap();
-        if content_parsed != expected_config_parsed {
+        let remote_config = std::fs::read_to_string(remote_file.as_path())
+            .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
+        let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
+        if content_parsed.config != expected_config_parsed {
             return Err(format!(
                 "Agent Control config not as expected, Expected: {:?}, Found: {:?}",
                 expected_config, remote_config,
@@ -154,7 +153,7 @@ agents:
         check_latest_effective_config_is_expected(
             &opamp_server,
             &agent_control_instance_id,
-            remote_config,
+            serde_yaml::to_string(&content_parsed.config).unwrap(),
         )?;
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
     });
@@ -370,7 +369,11 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     );
 
     // And the custom-agent has also remote config values
-    let remote_values_config = "fake_variable: from remote\n";
+    let remote_values_config_body = "fake_variable: from remote\n";
+    let remote_values_config = format!(
+        "config:\n  {}hash: hash-test\nstate: applying\n",
+        remote_values_config_body
+    );
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
@@ -393,7 +396,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
             check_latest_effective_config_is_expected(
                 &opamp_server,
                 &sub_agent_instance_id,
-                remote_values_config.to_string(),
+                remote_values_config_body.to_string(),
             )
         }
     });

@@ -1,7 +1,8 @@
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
-use crate::values::yaml_config::YAMLConfig;
+use crate::opamp::remote_config::hash::Hash;
+use crate::values::config::RemoteConfig;
 
 /// AgentControlConfigLoader loads a whole AgentControlConfig
 #[cfg_attr(test, mockall::automock)]
@@ -9,9 +10,27 @@ pub trait AgentControlConfigLoader {
     fn load(&self) -> Result<AgentControlConfig, AgentControlConfigError>;
 }
 
-/// AgentControlDynamicConfigStorer stores the dynamic part of the AgentControlConfig
-pub trait AgentControlDynamicConfigStorer {
-    fn store(&self, config: &YAMLConfig) -> Result<(), AgentControlConfigError>;
+/// AgentControlRemoteConfigStorer stores a remote_config containing
+/// the dynamic part of the AgentControlConfig and the remote config hash and status
+pub trait AgentControlRemoteConfigStorer {
+    fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
+}
+
+/// AgentControlRemoteConfigHashUpdater stores a remote_config containing
+/// the dynamic part of the AgentControlConfig and the remote config hash and status
+pub trait AgentControlRemoteConfigHashUpdater {
+    fn update_hash(&self, hash: &Hash) -> Result<(), AgentControlConfigError>;
+}
+
+/// AgentControlRemoteConfigHashGetter retrieves the hash and status
+/// from the stored remote_config if exists
+pub trait AgentControlRemoteConfigHashGetter {
+    fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+}
+
+/// AgentControlRemoteConfigDeleter deletes the dynamic part of the AgentControlConfig
+pub trait AgentControlRemoteConfigDeleter {
+    fn delete(&self) -> Result<(), AgentControlConfigError>;
 }
 
 /// AgentControlDynamicConfigLoader loads the dynamic part of the AgentControlConfig
@@ -20,33 +39,35 @@ pub trait AgentControlDynamicConfigLoader {
     fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
 }
 
-/// AgentControlDynamicConfigDeleter deletes the dynamic part of the AgentControlConfig
-pub trait AgentControlDynamicConfigDeleter {
-    fn delete(&self) -> Result<(), AgentControlConfigError>;
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::AgentControlConfigError;
+    use super::{AgentControlConfigError, AgentControlRemoteConfigHashGetter};
     use super::{
-        AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
-        AgentControlDynamicConfigStorer,
+        AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+        AgentControlRemoteConfigHashUpdater, AgentControlRemoteConfigStorer,
     };
     use crate::agent_control::config::AgentControlDynamicConfig;
-    use crate::values::yaml_config::YAMLConfig;
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::values::config::RemoteConfig;
     use mockall::{mock, predicate};
 
     mock! {
         pub AgentControlDynamicConfigStore {}
 
-        impl AgentControlDynamicConfigStorer for AgentControlDynamicConfigStore {
-            fn store(&self, config: &YAMLConfig) -> Result<(), AgentControlConfigError>;
+        impl AgentControlRemoteConfigStorer for AgentControlDynamicConfigStore {
+            fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
         }
         impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigStore {
             fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
         }
-        impl AgentControlDynamicConfigDeleter for AgentControlDynamicConfigStore {
+        impl AgentControlRemoteConfigDeleter for AgentControlDynamicConfigStore {
             fn delete(&self) -> Result<(), AgentControlConfigError>;
+        }
+        impl AgentControlRemoteConfigHashUpdater for AgentControlDynamicConfigStore {
+            fn update_hash(&self, hash: &Hash) -> Result<(), AgentControlConfigError>;
+        }
+        impl AgentControlRemoteConfigHashGetter for AgentControlDynamicConfigStore {
+            fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
         }
     }
 
@@ -58,11 +79,10 @@ pub(crate) mod tests {
                 .returning(move || Ok(sub_agents_config.clone()));
         }
 
-        pub fn should_store(&mut self, sub_agents_config: &AgentControlDynamicConfig) {
-            let sub_agents_config: YAMLConfig = sub_agents_config.try_into().unwrap();
+        pub fn should_store(&mut self, remote_config: RemoteConfig) {
             self.expect_store()
                 .once()
-                .with(predicate::eq(sub_agents_config))
+                .with(predicate::eq(remote_config))
                 .returning(move |_| Ok(()));
         }
     }

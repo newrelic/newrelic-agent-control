@@ -12,7 +12,7 @@ use crate::config_migrate::migration::converter::ConversionError;
 use crate::config_migrate::migration::persister::values_persister_file::PersistError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
-use crate::values::file::YAMLConfigRepositoryFile;
+use crate::values::file::ConfigRepositoryFile;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
@@ -51,7 +51,7 @@ pub struct ConfigMigrator<
 impl
     ConfigMigrator<
         EmbeddedRegistry,
-        AgentControlConfigStore<YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
+        AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
         DirectoryManagerFs,
         LocalFile,
     >
@@ -59,7 +59,7 @@ impl
     pub fn new(
         config_converter: ConfigConverter<EmbeddedRegistry, LocalFile>,
         agent_config_getter: AgentConfigGetter<
-            AgentControlConfigStore<YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
+            AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
         >,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {

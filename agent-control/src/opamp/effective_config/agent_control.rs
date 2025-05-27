@@ -7,8 +7,8 @@ use thiserror::Error;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
+use crate::values::config_repository::{ConfigRepository, load_remote_fallback_local};
 use crate::values::yaml_config::YAMLConfig;
-use crate::values::yaml_config_repository::{YAMLConfigRepository, load_remote_fallback_local};
 
 use super::error::LoaderError;
 use super::loader::EffectiveConfigLoader;
@@ -17,7 +17,7 @@ use super::loader::EffectiveConfigLoader;
 #[derive(Debug)]
 pub struct AgentControlEffectiveConfigLoader<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     yaml_config_repository: Arc<Y>,
     agent_id: AgentID,
@@ -26,7 +26,7 @@ where
 
 impl<Y> AgentControlEffectiveConfigLoader<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
@@ -78,7 +78,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
 
 impl<Y> EffectiveConfigLoader for AgentControlEffectiveConfigLoader<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         // Given the effective config constraints mentionend in the `EffectiveConfigLoader` trait,
@@ -103,12 +103,13 @@ where
         let config = maybe_config.unwrap_or_default();
 
         // Deserialize only effective config making sure that not default values are reported.
-        let dynamic_config: AgentControlEffectiveConfig = config.try_into().map_err(|err| {
-            LoaderError::from(format!(
-                "building {} effective config: {}",
-                &self.agent_id, err
-            ))
-        })?;
+        let dynamic_config: AgentControlEffectiveConfig =
+            config.get_yaml_config().try_into().map_err(|err| {
+                LoaderError::from(format!(
+                    "building {} effective config: {}",
+                    &self.agent_id, err
+                ))
+            })?;
 
         let effective_config = ConfigurationMap::new(HashMap::from([(
             // OpAMP effective config expects an empty key whenever there is only one config for an agent.
@@ -132,8 +133,10 @@ mod tests {
     use crate::opamp::effective_config::agent_control::AgentControlEffectiveConfigLoader;
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::values::config::{Config, RemoteConfig};
+    use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use std::collections::HashMap;
     use std::sync::Arc;
 
@@ -149,19 +152,19 @@ mod tests {
                 let agent_id = AgentID::new_agent_control_id();
                 let capabilities = default_capabilities();
 
-                // Prepare the mock repository to load from remote
-                let mut yaml_config_repository = MockYAMLConfigRepository::default();
-                yaml_config_repository.should_load_remote(
-                    &agent_id,
-                    capabilities,
-                    &YAMLConfig::try_from(String::from(self.yaml_config)).unwrap(),
-                );
+                let yaml_config = YAMLConfig::try_from(String::from(self.yaml_config)).unwrap();
+                let remote_config_values =
+                    RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
 
-                self.assert("load_from_remote", yaml_config_repository);
+                // Prepare the mock repository to load from remote
+                let mut config_repository = MockConfigRepository::default();
+                config_repository.should_load_remote(&agent_id, capabilities, remote_config_values);
+
+                self.assert("load_from_remote", config_repository);
 
                 // Prepare the mock repository to load from fallback local
-                let mut yaml_config_repository = MockYAMLConfigRepository::default();
-                yaml_config_repository
+                let mut config_repository = MockConfigRepository::default();
+                config_repository
                     .expect_load_remote()
                     .once()
                     .returning(move |agent_id, c| {
@@ -169,20 +172,20 @@ mod tests {
                         assert!(agent_id.is_agent_control_id());
                         Ok(None)
                     });
-                yaml_config_repository
+                config_repository
                     .expect_load_local()
                     .once()
                     .returning(move |agent_id| {
                         assert!(agent_id.is_agent_control_id());
-                        Ok(Some(
+                        Ok(Some(Config::LocalConfig(
                             YAMLConfig::try_from(String::from(self.yaml_config)).unwrap(),
-                        ))
+                        )))
                     });
 
-                self.assert("load_fallback_local", yaml_config_repository);
+                self.assert("load_fallback_local", config_repository);
             }
 
-            fn assert(&self, scenario: &str, yaml_config_repository: MockYAMLConfigRepository) {
+            fn assert(&self, scenario: &str, yaml_config_repository: MockConfigRepository) {
                 let loader =
                     AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));
 
@@ -248,7 +251,7 @@ agents:
         let capabilities = default_capabilities();
 
         // Prepare the mock repository to load from remote
-        let mut yaml_config_repository = MockYAMLConfigRepository::default();
+        let mut yaml_config_repository = MockConfigRepository::default();
         yaml_config_repository.should_not_load_remote(&agent_id, capabilities);
 
         let loader = AgentControlEffectiveConfigLoader::new(Arc::new(yaml_config_repository));

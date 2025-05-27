@@ -3,8 +3,7 @@ use super::remote_config_parser::RemoteConfigParserError;
 use super::supervisor::starter::SupervisorStarterError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::opamp::hash_repository::repository::HashRepositoryError;
-use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
+use crate::values::config_repository::ConfigRepositoryError;
 use opamp_client::StartedClientError;
 use opamp_client::{ClientError, NotStartedClientError};
 use std::time::SystemTimeError;
@@ -22,12 +21,10 @@ pub enum SubAgentError {
     StartedOpampClientError(#[from] StartedClientError),
     #[error("not started opamp client error: `{0}`")]
     NotStartedOpampClientError(#[from] NotStartedClientError),
-    #[error("remote config hash error: `{0}`")]
-    RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("sub agent yaml config repository error: `{0}`")]
-    YAMLConfigRepositoryError(#[from] YAMLConfigRepositoryError),
+    ConfigRepositoryError(#[from] ConfigRepositoryError),
     #[error("Error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
     #[error("no configuration found")]
@@ -57,8 +54,6 @@ pub enum SubAgentBuilderError {
     SubAgent(#[from] SubAgentError),
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
-    #[error("remote config hash error: `{0}`")]
-    RemoteConfigHashError(#[from] HashRepositoryError),
     #[error("OpAMP client error: `{0}`")]
     OpampClientBuilderError(#[from] OpAMPClientBuilderError),
     #[error("unsupported K8s object: `{0}`")]

@@ -255,15 +255,16 @@ pub mod tests {
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::{NotStartedSubAgent, SubAgent};
+    use crate::values::config::{Config, RemoteConfig};
+    use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use k8s_openapi::serde_json;
@@ -520,22 +521,28 @@ pub mod tests {
         });
         let mocked_client = Arc::new(mock_client);
 
-        let mut sub_agent_remote_config_hash_repository = MockHashRepository::default();
-        sub_agent_remote_config_hash_repository
-            .expect_get()
-            .with(predicate::eq(agent_identity.id.clone()))
-            .return_const(Ok(None));
-
-        let mut yaml_config_repository = MockYAMLConfigRepository::new();
+        let mut config_repository = MockConfigRepository::new();
         let yaml_config = YAMLConfig::default();
-        let yaml_config_clone = yaml_config.clone();
-        yaml_config_repository
+        let mut hash = Hash::new("a-hash".to_string());
+        let remote_config = RemoteConfig::new(yaml_config.clone(), hash.clone());
+        config_repository
             .expect_load_remote()
             .with(
                 predicate::eq(agent_identity.id.clone()),
                 predicate::always(),
             )
-            .return_once(|_, _| Ok(Some(yaml_config_clone)));
+            .return_once(|_, _| Ok(Some(Config::RemoteConfig(remote_config))));
+
+        hash.apply();
+        config_repository
+            .expect_update_hash()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(hash),
+            )
+            .times(1)
+            .returning(|_, _| Ok(()));
+
         let remote_config_parser = MockRemoteConfigParser::new();
 
         let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
@@ -577,8 +584,7 @@ pub mod tests {
                 sub_agent_internal_consumer,
             ),
             Arc::new(remote_config_parser),
-            Arc::new(sub_agent_remote_config_hash_repository),
-            Arc::new(yaml_config_repository),
+            Arc::new(config_repository),
             Arc::new(effective_agents_assembler),
             Environment::K8s,
         )

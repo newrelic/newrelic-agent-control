@@ -25,15 +25,10 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::{
-    agent_control::error::AgentError,
-    opamp::{
-        client_builder::DefaultOpAMPClientBuilder, hash_repository::k8s::HashRepositoryConfigMap,
-    },
-};
+use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
-    values::k8s::YAMLConfigRepositoryConfigMap,
+    values::k8s::ConfigRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
@@ -52,9 +47,9 @@ impl AgentControlRunner {
 
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
+            Arc::new(ConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
         } else {
-            Arc::new(YAMLConfigRepositoryConfigMap::new(k8s_store.clone()))
+            Arc::new(ConfigRepositoryConfigMap::new(k8s_store.clone()))
         };
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
@@ -119,8 +114,6 @@ impl AgentControlRunner {
             template_renderer,
         ));
 
-        let hash_repository = Arc::new(HashRepositoryConfigMap::new(k8s_store.clone()));
-
         let supervisor_builder =
             SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
 
@@ -138,7 +131,6 @@ impl AgentControlRunner {
             self.k8s_config.clone(),
             Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
-            hash_repository.clone(),
             yaml_config_repository.clone(),
             agents_assembler.clone(),
         );
@@ -163,7 +155,6 @@ impl AgentControlRunner {
 
         AgentControl::new(
             maybe_client,
-            hash_repository,
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,

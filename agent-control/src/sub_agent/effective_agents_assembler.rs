@@ -92,7 +92,7 @@ pub trait EffectiveAgentsAssembler {
 
 /// Implements [EffectiveAgentsAssembler] and is responsible for:
 /// - Getting [AgentType] from [AgentRegistry]
-/// - Getting Local or Remote configs from [YAMLConfigRepository]
+/// - Getting Local or Remote configs from [ConfigRepository]
 /// - Rendering the [Runtime] configuration of an Agent
 ///
 /// Important: Assembling an Agent may mutate the state of external resources by creating

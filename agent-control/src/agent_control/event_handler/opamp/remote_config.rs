@@ -1,6 +1,7 @@
 use crate::agent_control::config_storer::loader_storer::{
-    AgentControlDynamicConfigDeleter, AgentControlDynamicConfigLoader,
-    AgentControlDynamicConfigStorer,
+    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashUpdater,
+    AgentControlRemoteConfigStorer,
 };
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::resource_cleaner::ResourceCleaner;
@@ -9,20 +10,21 @@ use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::{
     agent_control::{agent_control::AgentControl, error::AgentError},
-    opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},
+    opamp::remote_config::RemoteConfig,
     sub_agent::{NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents},
 };
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
-impl<S, O, HR, SL, DV, RC, VU> AgentControl<S, O, HR, SL, DV, RC, VU>
+impl<S, O, SL, DV, RC, VU> AgentControl<S, O, SL, DV, RC, VU>
 where
     O: StartedClient,
-    HR: HashRepository,
     S: SubAgentBuilder,
-    SL: AgentControlDynamicConfigStorer
+    SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
-        + AgentControlDynamicConfigDeleter,
+        + AgentControlRemoteConfigDeleter
+        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashGetter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
@@ -71,6 +73,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::values::config::RemoteConfig;
     use crate::{
         agent_control::{
             agent_control::AgentControl,
@@ -84,8 +87,7 @@ mod tests {
         event::{broadcaster::unbounded::UnboundedBroadcast, channel::pub_sub},
         opamp::{
             client_builder::tests::MockStartedOpAMPClient,
-            hash_repository::repository::tests::MockHashRepository,
-            remote_config::{ConfigurationMap, RemoteConfig, hash::Hash},
+            remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig, hash::Hash},
         },
         sub_agent::{
             collection::StartedSubAgents,
@@ -94,6 +96,7 @@ mod tests {
     };
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
+    use predicates::prelude::predicate;
 
     // Invalid configuration should be reported to OpAMP as Failed and the Agent Control should
     // not apply it nor crash execution.
@@ -101,14 +104,13 @@ mod tests {
     fn agent_control_invalid_remote_config_should_be_reported_as_failed() {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilder::new();
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let hash_repository_mock = Arc::new(MockHashRepository::new());
+        let mut dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         let mut started_client = MockStartedOpAMPClient::new();
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
         let old_sub_agents_config = AgentControlDynamicConfig::default();
         let agent_id = AgentID::new_agent_control_id();
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             agent_id,
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -123,18 +125,18 @@ mod tests {
         // Report config status as applying
         let status = RemoteConfigStatus {
             status: Applying as i32,
-            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
 
         // load current sub agents config
-        sub_agents_config_store.should_load(&old_sub_agents_config);
+        dynamic_config_store.should_load(&old_sub_agents_config);
 
         // report failed after trying to unserialize
         let status = RemoteConfigStatus {
             status: Failed as i32,
-            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
             error_message: "Error applying Agent Control remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct AgentControlDynamicConfig``".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -145,9 +147,8 @@ mod tests {
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
-            hash_repository_mock,
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -159,7 +160,7 @@ mod tests {
         );
 
         agent_control
-            .remote_config(remote_config, &mut running_sub_agents)
+            .remote_config(opamp_remote_config, &mut running_sub_agents)
             .unwrap();
     }
 
@@ -167,8 +168,8 @@ mod tests {
     fn agent_control_valid_remote_config_should_be_reported_as_applied() {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilder::new();
-        let mut sub_agents_config_store = MockAgentControlDynamicConfigStore::new();
-        let mut hash_repository_mock = MockHashRepository::new();
+        let mut dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
         let mut started_client = MockStartedOpAMPClient::new();
         // Structs
         let mut started_sub_agent = MockStartedSubAgent::new();
@@ -186,7 +187,7 @@ mod tests {
         )]));
 
         let agent_id = AgentID::new_agent_control_id();
-        let remote_config = RemoteConfig::new(
+        let opamp_remote_config = OpampRemoteConfig::new(
             agent_id,
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -201,31 +202,34 @@ mod tests {
         // Report config status as applying
         let status = RemoteConfigStatus {
             status: Applying as i32,
-            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
         started_client.should_update_effective_config(1);
 
         // load current sub agents config
-        sub_agents_config_store.should_load(&old_sub_agents_config);
+        dynamic_config_store.should_load(&old_sub_agents_config);
 
         // store remote config with empty agents
-        sub_agents_config_store.should_store(&AgentControlDynamicConfig::default());
+        let remote_config_values = RemoteConfig::new(
+            serde_yaml::from_str("agents: {}").unwrap(),
+            opamp_remote_config.hash.clone(),
+        );
+        dynamic_config_store.should_store(remote_config_values);
 
-        // persist hash
-        hash_repository_mock
-            .should_save_hash(&AgentID::new_agent_control_id(), &remote_config.hash);
-
-        // persist hash after applied
-        let mut applied_hash = remote_config.hash.clone();
+        let mut applied_hash = opamp_remote_config.hash.clone();
         applied_hash.apply();
-        hash_repository_mock.should_save_hash(&AgentID::new_agent_control_id(), &applied_hash);
+        dynamic_config_store
+            .expect_update_hash()
+            .with(predicate::eq(applied_hash))
+            .times(1)
+            .returning(|_| Ok(()));
 
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: Applied as i32,
-            last_remote_config_hash: remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -241,9 +245,8 @@ mod tests {
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
-            Arc::new(hash_repository_mock),
             sub_agent_builder,
-            Arc::new(sub_agents_config_store),
+            Arc::new(dynamic_config_store),
             UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -255,7 +258,7 @@ mod tests {
         );
 
         agent_control
-            .remote_config(remote_config, &mut running_sub_agents)
+            .remote_config(opamp_remote_config, &mut running_sub_agents)
             .unwrap();
     }
 }

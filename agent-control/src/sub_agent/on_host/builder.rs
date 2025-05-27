@@ -4,7 +4,6 @@ use crate::context::Context;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
-use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
@@ -14,7 +13,7 @@ use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::values::config_repository::ConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
@@ -26,33 +25,30 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct OnHostSubAgentBuilder<'a, O, I, B, R, H, Y, A>
+pub struct OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
     instance_id_getter: &'a I,
     supervisor_builder: Arc<B>,
     remote_config_parser: Arc<R>,
-    hash_repository: Arc<H>,
     yaml_config_repository: Arc<Y>,
     effective_agents_assembler: Arc<A>,
 }
 
-impl<'a, O, I, B, R, H, Y, A> OnHostSubAgentBuilder<'a, O, I, B, R, H, Y, A>
+impl<'a, O, I, B, R, Y, A> OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     pub fn new(
@@ -60,7 +56,6 @@ where
         instance_id_getter: &'a I,
         supervisor_builder: Arc<B>,
         remote_config_parser: Arc<R>,
-        hash_repository: Arc<H>,
         yaml_config_repository: Arc<Y>,
         effective_agents_assembler: Arc<A>,
     ) -> Self {
@@ -69,24 +64,22 @@ where
             instance_id_getter,
             supervisor_builder,
             remote_config_parser,
-            hash_repository,
             yaml_config_repository,
             effective_agents_assembler,
         }
     }
 }
 
-impl<O, I, B, R, H, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, H, Y, A>
+impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, B, R, H, Y, A>;
+    type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
@@ -123,7 +116,6 @@ where
             sub_agent_opamp_consumer,
             pub_sub(),
             self.remote_config_parser.clone(),
-            self.hash_repository.clone(),
             self.yaml_config_repository.clone(),
             self.effective_agents_assembler.clone(),
             Environment::OnHost,
@@ -197,19 +189,21 @@ mod tests {
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
+    use crate::opamp::remote_config::hash::Hash;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
     use crate::sub_agent::supervisor::stopper::tests::MockSupervisorStopper;
     use crate::sub_agent::{NotStartedSubAgent, StartedSubAgent};
+    use crate::values::config::{Config, RemoteConfig};
+    use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
     use mockall::predicate;
     use nix::unistd::gethostname;
+    use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
     };
@@ -228,6 +222,9 @@ mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
+        let remote_config_values =
+            RemoteConfig::new(YAMLConfig::default(), Hash::new("a-hash".to_string()));
+
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
 
@@ -241,6 +238,13 @@ mod tests {
         let agent_control_id = AgentID::new_agent_control_id();
 
         let mut started_client = MockStartedOpAMPClient::new();
+        // Report config status as applied
+        let status = RemoteConfigStatus {
+            status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
+            last_remote_config_hash: Hash::new("a-hash".to_string()).get().into_bytes(),
+            error_message: "".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
         started_client.should_update_effective_config(1);
         started_client.should_stop(1);
 
@@ -254,21 +258,26 @@ mod tests {
             Duration::from_millis(10),
         );
 
-        let mut hash_repository = MockHashRepository::new();
-        hash_repository
-            .expect_get()
-            .with(predicate::eq(agent_identity.id.clone()))
-            .once()
-            .return_once(move |_| Ok(None));
-        let mut yaml_config_repository = MockYAMLConfigRepository::new();
-        yaml_config_repository
+        let mut config_repository = MockConfigRepository::new();
+        config_repository
             .expect_load_remote()
             .with(
                 predicate::eq(agent_identity.id.clone()),
                 predicate::always(),
             )
             .once()
-            .return_once(move |_, _| Ok(Some(YAMLConfig::default())));
+            .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values))));
+
+        let mut hash = Hash::new("a-hash".to_string());
+        hash.apply();
+        config_repository
+            .expect_update_hash()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(hash),
+            )
+            .times(1)
+            .returning(|_, _| Ok(()));
 
         let mut instance_id_getter = MockInstanceIDGetter::new();
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
@@ -308,8 +317,7 @@ mod tests {
             &instance_id_getter,
             Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
-            Arc::new(hash_repository),
-            Arc::new(yaml_config_repository),
+            Arc::new(config_repository),
             Arc::new(effective_agents_assembler),
         );
 
@@ -345,6 +353,9 @@ mod tests {
             &agent_identity.agent_type_id,
         );
 
+        let remote_config_values =
+            RemoteConfig::new(YAMLConfig::default(), Hash::new("a-hash".to_string()));
+
         let agent_control_id = AgentID::new_agent_control_id();
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
@@ -353,6 +364,14 @@ mod tests {
 
         let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_update_effective_config(1);
+
+        // Report config status as applied
+        let status = RemoteConfigStatus {
+            status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
+            last_remote_config_hash: remote_config_values.config_hash.get().into_bytes(),
+            error_message: "".to_string(),
+        };
+        started_client.should_set_remote_config_status(status);
         started_client.should_stop(1);
 
         // TODO: We should discuss if this is a valid approach once we refactor the unit tests
@@ -364,21 +383,26 @@ mod tests {
             Duration::from_millis(10),
         );
 
-        let mut hash_repository = MockHashRepository::new();
-        hash_repository
-            .expect_get()
-            .with(predicate::eq(agent_identity.id.clone()))
-            .once()
-            .return_once(move |_| Ok(None));
-        let mut yaml_config_repository = MockYAMLConfigRepository::new();
-        yaml_config_repository
+        let mut config_repository = MockConfigRepository::new();
+        config_repository
             .expect_load_remote()
             .with(
                 predicate::eq(agent_identity.id.clone()),
                 predicate::always(),
             )
             .once()
-            .return_once(move |_, _| Ok(Some(YAMLConfig::default())));
+            .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values.clone()))));
+
+        let mut hash = Hash::new("a-hash".to_string());
+        hash.apply();
+        config_repository
+            .expect_update_hash()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(hash),
+            )
+            .times(1)
+            .returning(|_, _| Ok(()));
 
         let mut started_supervisor = MockSupervisorStopper::new();
         started_supervisor.should_stop();
@@ -415,8 +439,7 @@ mod tests {
             &instance_id_getter,
             Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
-            Arc::new(hash_repository),
-            Arc::new(yaml_config_repository),
+            Arc::new(config_repository),
             Arc::new(effective_agents_assembler),
         );
 

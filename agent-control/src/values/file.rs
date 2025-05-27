@@ -2,8 +2,10 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
-use crate::values::yaml_config::{YAMLConfig, has_remote_management};
-use crate::values::yaml_config_repository::{YAMLConfigRepository, YAMLConfigRepositoryError};
+use crate::opamp::remote_config::hash::Hash;
+use crate::values::config::{Config, RemoteConfig};
+use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
+use crate::values::yaml_config::has_remote_management;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
@@ -23,8 +25,13 @@ pub const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
+enum ConfigOrigin {
+    Local,
+    Remote,
+}
+
 #[derive(Error, Debug)]
-pub enum OnHostYAMLConfigRepositoryError {
+pub enum OnHostConfigRepositoryError {
     #[error("serialize error loading SubAgentConfig: `{0}`")]
     StoreSerializeError(#[from] serde_yaml::Error),
     #[error("directory manager error: `{0}`")]
@@ -38,7 +45,7 @@ pub enum OnHostYAMLConfigRepositoryError {
     Generic,
 }
 
-pub struct YAMLConfigRepositoryFile<F, S>
+pub struct ConfigRepositoryFile<F, S>
 where
     S: DirectoryManager,
     F: FileWriter + FileReader,
@@ -51,9 +58,9 @@ where
     rw_lock: RwLock<()>,
 }
 
-impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
+impl ConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     pub fn new(local_path: PathBuf, remote_path: PathBuf) -> Self {
-        YAMLConfigRepositoryFile {
+        ConfigRepositoryFile {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
             remote_conf_path: remote_path,
@@ -69,7 +76,7 @@ impl YAMLConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     }
 }
 
-impl<F, S> YAMLConfigRepositoryFile<F, S>
+impl<F, S> ConfigRepositoryFile<F, S>
 where
     S: DirectoryManager,
     F: FileWriter + FileReader,
@@ -95,7 +102,8 @@ where
     fn load_file_if_present(
         &self,
         path: PathBuf,
-    ) -> Result<Option<YAMLConfig>, OnHostYAMLConfigRepositoryError> {
+        origin: ConfigOrigin,
+    ) -> Result<Option<Config>, OnHostConfigRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(e)) => {
@@ -103,7 +111,10 @@ where
                 //actively fallback to load local file
                 Ok(None)
             }
-            Ok(res) => Ok(Some(serde_yaml::from_str(&res)?)),
+            Ok(res) => match origin {
+                ConfigOrigin::Local => Ok(Some(Config::LocalConfig(serde_yaml::from_str(&res)?))),
+                ConfigOrigin::Remote => Ok(Some(Config::RemoteConfig(serde_yaml::from_str(&res)?))),
+            },
             Err(err) => {
                 // we log any unexpected error for now but maybe we should propagate it
                 error!("error loading remote file {}", path.display());
@@ -116,7 +127,7 @@ where
     fn ensure_directory_existence(
         &self,
         values_file_path: &PathBuf,
-    ) -> Result<(), OnHostYAMLConfigRepositoryError> {
+    ) -> Result<(), OnHostConfigRepositoryError> {
         let mut values_dir_path = PathBuf::from(&values_file_path);
         values_dir_path.pop();
 
@@ -130,21 +141,18 @@ where
     }
 }
 
-impl<F, S> YAMLConfigRepository for YAMLConfigRepositoryFile<F, S>
+impl<F, S> ConfigRepository for ConfigRepositoryFile<F, S>
 where
     S: DirectoryManager + Send + Sync + 'static,
     F: FileWriter + FileReader + Send + Sync + 'static,
 {
     #[tracing::instrument(skip_all, err)]
-    fn load_local(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
+    fn load_local(&self, agent_id: &AgentID) -> Result<Option<Config>, ConfigRepositoryError> {
         let _read_guard = self.rw_lock.read().unwrap();
-
         let local_values_path = self.get_values_file_path(agent_id);
-        self.load_file_if_present(local_values_path)
-            .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
+
+        self.load_file_if_present(local_values_path, ConfigOrigin::Local)
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
     }
 
     #[tracing::instrument(skip_all, err)]
@@ -152,32 +160,33 @@ where
         &self,
         agent_id: &AgentID,
         capabilities: &Capabilities,
-    ) -> Result<Option<YAMLConfig>, YAMLConfigRepositoryError> {
+    ) -> Result<Option<Config>, ConfigRepositoryError> {
         if !self.remote_enabled || !has_remote_management(capabilities) {
             return Ok(None);
         }
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
-        self.load_file_if_present(remote_values_path)
-            .map_err(|err| YAMLConfigRepositoryError::LoadError(err.to_string()))
+
+        self.load_file_if_present(remote_values_path, ConfigOrigin::Remote)
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
     }
 
     #[tracing::instrument(skip_all, err)]
     fn store_remote(
         &self,
         agent_id: &AgentID,
-        yaml_config: &YAMLConfig,
-    ) -> Result<(), YAMLConfigRepositoryError> {
+        remote_config: &RemoteConfig,
+    ) -> Result<(), ConfigRepositoryError> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let values_file_path = self.get_remote_values_file_path(agent_id);
 
         self.ensure_directory_existence(&values_file_path)
-            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
 
-        let content = serde_yaml::to_string(yaml_config)
-            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
+        let content = serde_yaml::to_string(remote_config)
+            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
 
         self.file_rw
             .write(
@@ -185,16 +194,64 @@ where
                 content,
                 Permissions::from_mode(FILE_PERMISSIONS),
             )
-            .map_err(|err| YAMLConfigRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
 
         Ok(())
+    }
+
+    fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError> {
+        let _read_guard = self.rw_lock.read().unwrap();
+        let remote_values_path = self.get_remote_values_file_path(agent_id);
+
+        let maybe_remote = self
+            .load_file_if_present(remote_values_path, ConfigOrigin::Remote)
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+
+        if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
+            return Ok(Some(remote_config.config_hash));
+        }
+
+        Ok(None)
+    }
+
+    fn update_hash(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), ConfigRepositoryError> {
+        debug!(
+            agent_id = agent_id.to_string(),
+            "updating remote config hash"
+        );
+
+        let _read_guard = self.rw_lock.read().unwrap();
+        let remote_values_path = self.get_remote_values_file_path(agent_id);
+
+        let maybe_remote = self
+            .load_file_if_present(remote_values_path.clone(), ConfigOrigin::Remote)
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+
+        if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
+            remote_config.config_hash = hash.clone();
+
+            let content = serde_yaml::to_string(&remote_config)
+                .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+
+            self.file_rw
+                .write(
+                    remote_values_path.as_path(),
+                    content,
+                    Permissions::from_mode(FILE_PERMISSIONS),
+                )
+                .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+
+            Ok(())
+        } else {
+            Err(ConfigRepositoryError::UpdateHashError)
+        }
     }
 
     // TODO Currently we are not deleting the whole folder, therefore multiple files are not supported
     // Moreover, we are also loading one file only, therefore we should review this once support is added
     // Notice that in that case we will likely need to move AgentControlConfig file to a folder
     #[tracing::instrument(skip_all err)]
-    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), YAMLConfigRepositoryError> {
+    fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
@@ -202,7 +259,7 @@ where
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
             std::fs::remove_file(remote_path_file)
-                .map_err(|e| YAMLConfigRepositoryError::DeleteError(e.to_string()))?;
+                .map_err(|e| ConfigRepositoryError::DeleteError(e.to_string()))?;
         }
 
         Ok(())
@@ -220,12 +277,14 @@ pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf
 pub mod tests {
     use rstest::*;
 
-    use super::{YAMLConfigRepositoryFile, concatenate_sub_agent_dir_path};
+    use super::{ConfigRepositoryFile, concatenate_sub_agent_dir_path};
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
-    use crate::values::yaml_config::YAMLConfig;
-    use crate::values::yaml_config_repository::{
-        YAMLConfigRepository, YAMLConfigRepositoryError, load_remote_fallback_local,
+    use crate::opamp::remote_config::hash::Hash;
+    use crate::values;
+    use crate::values::config::RemoteConfig;
+    use crate::values::config_repository::{
+        ConfigRepository, ConfigRepositoryError, load_remote_fallback_local,
     };
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError::ErrorCreatingDirectory;
@@ -241,8 +300,9 @@ pub mod tests {
     use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::sync::RwLock;
+    use values::yaml_config::YAMLConfig;
 
-    impl<F, S> YAMLConfigRepositoryFile<F, S>
+    impl<F, S> ConfigRepositoryFile<F, S>
     where
         S: DirectoryManager,
         F: FileWriter + FileReader,
@@ -254,7 +314,7 @@ pub mod tests {
             remote_path: &Path,
             remote_enabled: bool,
         ) -> Self {
-            YAMLConfigRepositoryFile {
+            ConfigRepositoryFile {
                 file_rw,
                 directory_manager,
                 remote_conf_path: remote_path.to_path_buf(),
@@ -267,13 +327,13 @@ pub mod tests {
 
     fn yaml_config_repository_file_mock(
         remote_enabled: bool,
-    ) -> YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManager> {
+    ) -> ConfigRepositoryFile<MockLocalFile, MockDirectoryManager> {
         let file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = Path::new("some/remote/path");
         let local_dir_path = Path::new("some/local/path");
 
-        YAMLConfigRepositoryFile::with_mocks(
+        ConfigRepositoryFile::with_mocks(
             file_rw,
             dir_manager,
             local_dir_path,
@@ -283,7 +343,7 @@ pub mod tests {
     }
 
     fn get_conf_path(
-        yaml_config: &YAMLConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
+        yaml_config: &ConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
     ) -> &Path {
         if yaml_config.remote_enabled {
             &yaml_config.remote_conf_path
@@ -301,7 +361,16 @@ pub mod tests {
     #[case::remote_enabled(true)]
     #[case::remote_disabled(false)]
     fn test_load_with(#[case] remote_enabled: bool, agent_id: AgentID) {
-        let yaml_config_content = "some_config: true\nanother_item: false";
+        let mut yaml_config_content = "some_config: true\nanother_item: false";
+        if remote_enabled {
+            yaml_config_content = r#"
+config:
+    some_config: true
+    another_item: false
+hash: a-hash
+state: applied
+"#;
+        }
 
         let mut repo = yaml_config_repository_file_mock(remote_enabled);
         repo.file_rw.should_read(
@@ -309,13 +378,16 @@ pub mod tests {
             yaml_config_content.to_string(),
         );
 
-        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+        let config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
             .expect("unexpected error loading config")
             .expect("expected some configuration, got None");
 
-        assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            yaml_config.get("another_item").unwrap(),
+            config.get_yaml_config().get("some_config").unwrap(),
+            &Value::Bool(true)
+        );
+        assert_eq!(
+            config.get_yaml_config().get("another_item").unwrap(),
             &Value::Bool(false)
         );
     }
@@ -335,13 +407,16 @@ pub mod tests {
             yaml_config_content.to_string(),
         );
 
-        let yaml_config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+        let config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
             .expect("unexpected error loading config")
             .expect("expected some configuration, got None");
 
-        assert_eq!(yaml_config.get("some_config").unwrap(), &Value::Bool(true));
         assert_eq!(
-            yaml_config.get("another_item").unwrap(),
+            config.get_yaml_config().get("some_config").unwrap(),
+            &Value::Bool(true)
+        );
+        assert_eq!(
+            config.get_yaml_config().get("another_item").unwrap(),
             &Value::Bool(false)
         );
     }
@@ -371,7 +446,7 @@ pub mod tests {
 
         let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
         let err = result.unwrap_err();
-        assert_matches!(err, YAMLConfigRepositoryError::LoadError(s) => {
+        assert_matches!(err, ConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("file read error"));
         });
     }
@@ -387,12 +462,13 @@ pub mod tests {
 
         repo.file_rw.should_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
-            "one_item: one value\n".to_string(),
+            "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
             Permissions::from_mode(0o600),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        repo.store_remote(&agent_id, &yaml_config).unwrap();
+        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        repo.store_remote(&agent_id, &remote_config).unwrap();
     }
 
     #[rstest]
@@ -406,9 +482,10 @@ pub mod tests {
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        let result = repo.store_remote(&agent_id, &yaml_config);
+        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        let result = repo.store_remote(&agent_id, &remote_config);
         let err = result.unwrap_err();
-        assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
+        assert_matches!(err, ConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("cannot create directory"));
         });
     }
@@ -424,14 +501,15 @@ pub mod tests {
 
         repo.file_rw.should_not_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
-            "one_item: one value\n".to_string(),
+            "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
             Permissions::from_mode(0o600),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        let result = repo.store_remote(&agent_id, &yaml_config);
+        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        let result = repo.store_remote(&agent_id, &remote_config);
         let err = result.unwrap_err();
-        assert_matches!(err, YAMLConfigRepositoryError::StoreError(s) => {
+        assert_matches!(err, ConfigRepositoryError::StoreError(s) => {
             assert!(s.contains("error creating file"));
         });
     }
