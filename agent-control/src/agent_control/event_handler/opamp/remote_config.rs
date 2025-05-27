@@ -4,6 +4,7 @@ use crate::agent_control::config_storer::loader_storer::{
 };
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::resource_cleaner::ResourceCleaner;
+use crate::agent_control::updater::Updater;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
 use opamp_client::StartedClient;
 use tracing::{error, info};
 
-impl<S, O, HR, SL, DV, RC> AgentControl<S, O, HR, SL, DV, RC>
+impl<S, O, HR, SL, DV, RC, U> AgentControl<S, O, HR, SL, DV, RC, U>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -24,6 +25,7 @@ where
         + AgentControlDynamicConfigDeleter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
+    U: Updater,
 {
     // Agent Control on remote config
     // Configuration will be reported as applying to OpAMP
@@ -77,6 +79,7 @@ mod tests {
             config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore,
             config_validator::tests::MockDynamicConfigValidator,
             resource_cleaner::no_op::NoOpResourceCleaner,
+            updater::NoOpUpdater,
         },
         event::channel::pub_sub,
         opamp::{
@@ -153,6 +156,7 @@ mod tests {
             Some(opamp_consumer),
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 
@@ -250,6 +254,7 @@ mod tests {
             Some(opamp_consumer),
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 

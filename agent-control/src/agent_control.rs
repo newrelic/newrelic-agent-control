@@ -12,4 +12,5 @@ pub mod http_server;
 pub mod pid_cache;
 pub mod resource_cleaner;
 pub mod run;
-pub mod uptime_report;
+pub mod updater;
+pub(super) mod uptime_report;
