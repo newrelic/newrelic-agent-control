@@ -7,7 +7,6 @@ jobs:
   audit:
     name: Rust audit scanner
     runs-on: ubuntu-latest
-    if: ${{ ! github.event.schedule }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,20 +18,3 @@ jobs:
 
       - name: Run cargo audit
         run: cargo audit
-
-  audit_scheduled:
-    name: Scheduled rust audit scanner
-    runs-on: ubuntu-latest
-    if: ${{ github.event.schedule }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install cargo-audit
-        run: cargo install cargo-audit
-
-      - name: Run cargo audit
-        run: cargo audit
-
