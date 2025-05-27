@@ -1,7 +1,7 @@
 # Docker file use for the released version of the Agent Control.
 
 # Using debian image until the agent control is statically compiled, and move to Alpine.
-FROM debian:bookworm-slim
+FROM debian:trixie-slim
 
 ARG TARGETARCH
 
