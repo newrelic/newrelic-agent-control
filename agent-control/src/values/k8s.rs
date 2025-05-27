@@ -47,7 +47,7 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
 
         match maybe_yaml_config {
-            Some(yaml_config) => Ok(Some(Config::LocalConfig(yaml_config))),
+            Some(yaml_config) => Ok(Some(Config::LocalConfig(yaml_config.into()))),
             None => Ok(None),
         }
     }

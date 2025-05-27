@@ -118,7 +118,9 @@ mod tests {
                     .returning(move |agent_id| {
                         assert_eq!(agent_id, &test_agent());
                         Ok(Some(Config::LocalConfig(
-                            YAMLConfig::try_from(String::from(self.yaml_config)).unwrap(),
+                            YAMLConfig::try_from(String::from(self.yaml_config))
+                                .unwrap()
+                                .into(),
                         )))
                     });
 

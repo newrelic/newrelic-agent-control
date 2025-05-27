@@ -81,10 +81,10 @@ pub mod tests {
             agent_id: &AgentID,
             yaml_config: &YAMLConfig,
         ) -> Result<(), ConfigRepositoryError> {
-            self.local_config
-                .lock()
-                .unwrap()
-                .insert(agent_id.clone(), Config::LocalConfig(yaml_config.clone()));
+            self.local_config.lock().unwrap().insert(
+                agent_id.clone(),
+                Config::LocalConfig(yaml_config.clone().into()),
+            );
             Ok(())
         }
         pub fn assert_no_config_for_agent(&self, agent_id: &AgentID) {
@@ -120,7 +120,7 @@ pub mod tests {
                 .lock()
                 .unwrap()
                 .get(agent_id)
-                .map(|config| Config::LocalConfig(config.get_yaml_config())))
+                .map(|config| Config::LocalConfig(config.get_yaml_config().into())))
         }
 
         fn load_remote(

@@ -6,20 +6,20 @@ use serde::{Deserialize, Serialize};
 /// and the Remote Config including also the hash and status.
 #[derive(Debug, PartialEq)]
 pub enum Config {
-    LocalConfig(YAMLConfig),
+    LocalConfig(LocalConfig),
     RemoteConfig(RemoteConfig),
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Config::LocalConfig(YAMLConfig::default())
+        Config::LocalConfig(LocalConfig::default())
     }
 }
 
 impl Config {
     pub fn get_yaml_config(&self) -> YAMLConfig {
         match self {
-            Config::LocalConfig(yaml_config) => yaml_config.clone(),
+            Config::LocalConfig(local_config) => local_config.0.clone(),
             Config::RemoteConfig(remote_config) => remote_config.config.clone(),
         }
     }
@@ -29,6 +29,15 @@ impl Config {
             Config::LocalConfig(_) => None,
             Config::RemoteConfig(remote_config) => Some(remote_config.config_hash.clone()),
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Deserialize, Serialize, Default, Clone)]
+pub struct LocalConfig(YAMLConfig);
+
+impl From<YAMLConfig> for LocalConfig {
+    fn from(yaml_config: YAMLConfig) -> Self {
+        LocalConfig(yaml_config)
     }
 }
 
