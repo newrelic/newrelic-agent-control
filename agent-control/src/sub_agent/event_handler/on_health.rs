@@ -8,7 +8,7 @@ use opamp_client::StartedClient;
 pub fn on_health<C>(
     health: HealthWithStartTime,
     maybe_opamp_client: Option<&C>,
-    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     agent_identity: AgentIdentity,
 ) -> Result<(), SubAgentError>
 where
@@ -17,5 +17,9 @@ where
     if let Some(client) = maybe_opamp_client.as_ref() {
         client.set_health(health.clone().into())?;
     }
-    Ok(sub_agent_publisher.publish(SubAgentEvent::new_health(agent_identity, health))?)
+    sub_agent_publisher
+        .as_ref()
+        .map(|c| c.publish(SubAgentEvent::new_health(agent_identity, health)))
+        .transpose()?;
+    Ok(())
 }

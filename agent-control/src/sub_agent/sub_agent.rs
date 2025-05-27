@@ -55,7 +55,7 @@ pub trait SubAgentBuilder {
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
@@ -87,7 +87,7 @@ where
 {
     pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
-    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    pub(super) sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -113,7 +113,7 @@ where
         identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
         supervisor_builder: Arc<B>,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         (sub_agent_internal_publisher, sub_agent_internal_consumer): (
             EventPublisher<SubAgentInternalEvent>,
@@ -276,8 +276,9 @@ where
             let mut previous_health = None;
 
             debug!("runtime started");
-            let _ = self.sub_agent_publisher
-                .publish(SubAgentStarted(self.identity.clone(), SystemTime::now()))
+            let _ = self.sub_agent_publisher.as_ref()
+                .map(|c| c.publish(SubAgentStarted(self.identity.clone(), SystemTime::now())))
+                .transpose()
                 .inspect_err(|err| error!(error_msg = %err,"Cannot publish sub_agent_event::sub_agent_started"));
 
             // The below two lines are used to create a channel that never receives any message
@@ -754,7 +755,7 @@ pub mod tests {
             fn build(
                 &self,
                 agent_identity: &AgentIdentity,
-                sub_agent_publisher: EventPublisher<SubAgentEvent>,
+                sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
     }
@@ -944,7 +945,6 @@ deployment:
         yaml_repository: Arc<InMemoryYAMLConfigRepository>,
     ) -> TestSubAgent {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
@@ -956,7 +956,7 @@ deployment:
             TestAgent::identity(),
             opamp_client,
             Arc::new(supervisor_builder),
-            sub_agent_publisher,
+            None,
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(

@@ -6,6 +6,7 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
 };
+use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
@@ -168,7 +169,7 @@ impl AgentControlRunner {
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
-        let _http_server = self.http_server_runner.start();
+        let _http_server = self.http_server_runner.map(Runner::start);
 
         AgentControl::new(
             maybe_client,

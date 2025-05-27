@@ -84,8 +84,8 @@ pub struct AgentControlRunner {
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
     opamp_poll_interval: Duration,
-    agent_control_publisher: EventPublisher<AgentControlEvent>,
-    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    agent_control_publisher: Option<EventPublisher<AgentControlEvent>>,
+    sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     signature_validator: SignatureValidator,
     #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
@@ -94,7 +94,7 @@ pub struct AgentControlRunner {
 
     runtime: Arc<Runtime>,
 
-    http_server_runner: Runner,
+    http_server_runner: Option<Runner>,
 }
 
 impl AgentControlRunner {
@@ -127,21 +127,34 @@ impl AgentControlRunner {
             }
             None => None,
         };
-        let (agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()?,
         );
-        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
 
-        let http_server_runner = Runner::new(
-            config.http_server,
-            runtime.clone(),
-            agent_control_consumer,
-            sub_agent_consumer,
-            config.opamp.clone(),
-        );
+        let (http_server_runner, agent_control_publisher, sub_agent_publisher) = config
+            .http_server
+            .enabled
+            .then(|| {
+                let (agent_control_publisher, agent_control_consumer) =
+                    pub_sub::<AgentControlEvent>();
+                let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+                let http_server_runner = Runner::new(
+                    config.http_server,
+                    runtime.clone(),
+                    agent_control_consumer,
+                    sub_agent_consumer,
+                    config.opamp.clone(),
+                );
+
+                (
+                    Some(http_server_runner),
+                    Some(agent_control_publisher),
+                    Some(sub_agent_publisher),
+                )
+            })
+            .unwrap_or_default();
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
             config

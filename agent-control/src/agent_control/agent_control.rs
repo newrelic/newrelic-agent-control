@@ -48,8 +48,8 @@ where
     agent_id: AgentID,
     start_time: SystemTime,
     pub(super) sa_dynamic_config_store: Arc<SL>,
-    pub(super) agent_control_publisher: EventPublisher<AgentControlEvent>,
-    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    pub(super) agent_control_publisher: Option<EventPublisher<AgentControlEvent>>,
+    sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     dynamic_config_validator: DV,
@@ -74,8 +74,8 @@ where
         remote_config_hash_repository: Arc<HR>,
         sub_agent_builder: S,
         sub_agents_config_store: Arc<SL>,
-        agent_control_publisher: EventPublisher<AgentControlEvent>,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        agent_control_publisher: Option<EventPublisher<AgentControlEvent>>,
+        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         dynamic_config_validator: DV,
@@ -251,12 +251,16 @@ where
                                 }
                                 OpAMPEvent::Connected => {
                                     let _ = self.agent_control_publisher
-                                        .publish(AgentControlEvent::OpAMPConnected)
+                                        .as_ref()
+                                        .map(|c| c.publish(AgentControlEvent::OpAMPConnected))
+                                        .transpose()
                                         .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connected"));
                                 }
                                 OpAMPEvent::ConnectFailed(error_code, error_message) => {
                                     let _ = self.agent_control_publisher
-                                        .publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
+                                        .as_ref()
+                                        .map(|c| c.publish(AgentControlEvent::OpAMPConnectFailed(error_code, error_message)))
+                                        .transpose()
                                         .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_opamp_connect_failed"));
                                 }
                             }
@@ -267,8 +271,10 @@ where
                     debug!("stopping Agent Control event processor");
 
                     let _ = self.agent_control_publisher
-                    .publish(AgentControlEvent::AgentControlStopped)
-                    .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_stopped"));
+                        .as_ref()
+                        .map(|c| c.publish(AgentControlEvent::AgentControlStopped))
+                        .transpose()
+                        .inspect_err(|err| error!(error_msg = %err,"cannot publish agent_control_event::agent_control_stopped"));
 
                     break sub_agents.stop();
                 },
@@ -375,7 +381,9 @@ where
             |(agent_id, agent_config)| -> Result<(), AgentError> {
                 let _ = self
                     .agent_control_publisher
-                    .publish(AgentControlEvent::SubAgentRemoved(agent_id.clone()))
+                    .as_ref()
+                    .map(|c| c.publish(AgentControlEvent::SubAgentRemoved(agent_id.clone())))
+                    .transpose()
                     .inspect_err(|err| {
                         error!(
                             error_msg = %err,
@@ -395,16 +403,20 @@ where
 
     pub(crate) fn report_healthy(&self, healthy: Healthy) -> Result<(), AgentError> {
         self.report_health(healthy.clone().into())?;
-        Ok(self
-            .agent_control_publisher
-            .publish(AgentControlEvent::AgentControlBecameHealthy(healthy))?)
+        self.agent_control_publisher
+            .as_ref()
+            .map(|c| c.publish(AgentControlEvent::AgentControlBecameHealthy(healthy)))
+            .transpose()?;
+        Ok(())
     }
 
     pub(crate) fn report_unhealthy(&self, unhealthy: Unhealthy) -> Result<(), AgentError> {
         self.report_health(unhealthy.clone().into())?;
-        Ok(self
-            .agent_control_publisher
-            .publish(AgentControlEvent::AgentControlBecameUnhealthy(unhealthy))?)
+        self.agent_control_publisher
+            .as_ref()
+            .map(|c| c.publish(AgentControlEvent::AgentControlBecameUnhealthy(unhealthy)))
+            .transpose()?;
+        Ok(())
     }
 
     fn report_health(&self, health: Health) -> Result<(), AgentError> {
@@ -488,8 +500,6 @@ mod tests {
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // no agents in the supervisor group
         let agent = AgentControl::new(
@@ -497,8 +507,8 @@ mod tests {
             Arc::new(hash_repository_mock),
             MockSubAgentBuilder::new(),
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            None,
+            None,
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -542,16 +552,14 @@ mod tests {
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let agent = AgentControl::new(
             Some(started_client),
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(MockAgentControlDynamicConfigStore::new()),
-            agent_control_publisher,
-            sub_agent_publisher,
+            None,
+            None,
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -636,8 +644,6 @@ mod tests {
         sub_agent_builder.should_build(2);
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let running_agent = spawn({
             move || {
@@ -647,8 +653,8 @@ mod tests {
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    None,
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -700,7 +706,6 @@ agents:
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let sub_agents = StartedSubAgents::from(HashMap::default());
 
@@ -712,8 +717,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -758,7 +763,7 @@ agents:
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
+
         let sub_agents = StartedSubAgents::from(HashMap::default());
 
         let running_agent = spawn({
@@ -769,8 +774,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -863,8 +868,6 @@ agents:
             &Hash::new("b-hash".to_string()),
         );
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut resource_cleaner = MockResourceCleaner::new();
         let mut resource_cleaning_seq = Sequence::new();
@@ -906,8 +909,8 @@ agents:
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            None,
+            None,
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1015,8 +1018,6 @@ agents:
             &Hash::new("a-hash".to_string()),
         );
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let mut resource_cleaner = MockResourceCleaner::new();
         let mut resource_cleaning_seq = Sequence::new();
@@ -1062,8 +1063,8 @@ agents:
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            None,
+            None,
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1151,8 +1152,6 @@ agents:
 
         let hash_repository_mock = MockHashRepository::new();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
@@ -1160,8 +1159,8 @@ agents:
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            None,
+            None,
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1267,7 +1266,6 @@ agents:
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let event_processor = spawn({
             move || {
@@ -1276,8 +1274,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1343,7 +1341,6 @@ agents:
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let event_processor = spawn({
             move || {
@@ -1352,8 +1349,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1412,7 +1409,6 @@ agents:
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
         let event_processor = spawn({
@@ -1422,8 +1418,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1523,7 +1519,6 @@ agents:
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (agent_control_publisher, agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         let event_processor = spawn({
             move || {
@@ -1532,8 +1527,8 @@ agents:
                     Arc::new(hash_repository_mock),
                     sub_agent_builder,
                     Arc::new(sub_agents_config_store),
-                    agent_control_publisher,
-                    sub_agent_publisher,
+                    agent_control_publisher.into(),
+                    None,
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,

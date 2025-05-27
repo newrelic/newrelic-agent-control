@@ -95,7 +95,7 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -199,7 +199,6 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::{Deployment, Runtime};
-    use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
@@ -257,10 +256,7 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        let (application_event_publisher, _) = pub_sub();
-        builder
-            .build(&agent_identity, application_event_publisher)
-            .unwrap();
+        builder.build(&agent_identity, None).unwrap();
     }
 
     #[test]
@@ -296,8 +292,7 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        let (application_event_publisher, _) = pub_sub();
-        let result = builder.build(&agent_identity, application_event_publisher);
+        let result = builder.build(&agent_identity, None);
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::OpampClientBuilderError(_)

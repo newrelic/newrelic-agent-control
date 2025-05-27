@@ -568,7 +568,7 @@ pub mod tests {
             agent_identity,
             Option::<MockStartedOpAMPClient>::None,
             Arc::new(supervisor_builder),
-            sub_agent_publisher,
+            sub_agent_publisher.into(),
             None,
             (
                 sub_agent_internal_publisher.clone(),
