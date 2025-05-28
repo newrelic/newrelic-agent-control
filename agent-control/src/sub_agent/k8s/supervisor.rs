@@ -249,6 +249,7 @@ pub mod tests {
     use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::event::SubAgentEvent;
+    use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::pub_sub;
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
@@ -489,7 +490,8 @@ pub mod tests {
     #[test]
     fn k8s_sub_agent_start_and_monitor_health() {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
+        let mut sub_agent_publisher = UnboundedBroadcast::default();
+        let sub_agent_consumer = sub_agent_publisher.subscribe();
 
         let agent_identity = AgentIdentity::from((
             AgentID::new(TEST_AGENT_ID).unwrap(),
@@ -568,7 +570,7 @@ pub mod tests {
             agent_identity,
             Option::<MockStartedOpAMPClient>::None,
             Arc::new(supervisor_builder),
-            sub_agent_publisher.into(),
+            sub_agent_publisher,
             None,
             (
                 sub_agent_internal_publisher.clone(),
@@ -585,7 +587,7 @@ pub mod tests {
         let timeout = Duration::from_secs(3);
 
         // sub agent will publish first SubAgentStarted event
-        match sub_agent_consumer.as_ref().recv_timeout(timeout).unwrap() {
+        match sub_agent_consumer.recv_timeout(timeout).unwrap() {
             SubAgentEvent::SubAgentHealthInfo(_, _) => {
                 panic!("SubAgentStarted event expected")
             }
@@ -594,7 +596,7 @@ pub mod tests {
             }
         }
 
-        match sub_agent_consumer.as_ref().recv_timeout(timeout).unwrap() {
+        match sub_agent_consumer.recv_timeout(timeout).unwrap() {
             SubAgentEvent::SubAgentHealthInfo(_, h) => {
                 if h.is_healthy() {
                     panic!("unhealthy event expected")

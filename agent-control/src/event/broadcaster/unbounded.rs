@@ -1,7 +1,6 @@
 use crossbeam::channel::{Receiver, Sender, unbounded};
 use std::sync::{Arc, Mutex};
 
-#[derive(Debug, Clone, Default)]
 /// A simple, unbounded broadcast channel for low-throughput use cases.
 ///
 /// This struct allows multiple subscribers to receive broadcasted messages. Each subscriber
@@ -28,8 +27,17 @@ use std::sync::{Arc, Mutex};
 /// - This implementation is not optimized for high-throughput scenarios.
 /// - Broadcasters aren't notified whenever a subscriber gets disconnected.
 /// - Use with caution! these are unbounded channels!
+#[derive(Debug, Clone)]
 pub struct UnboundedBroadcast<T> {
     subscribed_senders: Arc<Mutex<Vec<Sender<T>>>>,
+}
+
+impl<T> Default for UnboundedBroadcast<T> {
+    fn default() -> Self {
+        Self {
+            subscribed_senders: Default::default(),
+        }
+    }
 }
 
 impl<T> UnboundedBroadcast<T>

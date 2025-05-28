@@ -2,7 +2,8 @@ use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
@@ -95,7 +96,7 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -256,7 +257,9 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        builder.build(&agent_identity, None).unwrap();
+        builder
+            .build(&agent_identity, UnboundedBroadcast::default())
+            .unwrap();
     }
 
     #[test]
@@ -292,7 +295,7 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        let result = builder.build(&agent_identity, None);
+        let result = builder.build(&agent_identity, UnboundedBroadcast::default());
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::OpampClientBuilderError(_)

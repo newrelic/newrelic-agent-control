@@ -2,7 +2,8 @@ use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERS
 use crate::agent_control::run::Environment;
 use crate::context::Context;
 use crate::event::SubAgentEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+use crate::event::channel::pub_sub;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
@@ -91,7 +92,7 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: Option<EventPublisher<SubAgentEvent>>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -313,7 +314,7 @@ mod tests {
         );
 
         on_host_builder
-            .build(&agent_identity, None)
+            .build(&agent_identity, UnboundedBroadcast::default())
             .unwrap()
             .run()
             .stop()
@@ -420,7 +421,7 @@ mod tests {
         );
 
         let sub_agent = on_host_builder
-            .build(&agent_identity, None)
+            .build(&agent_identity, UnboundedBroadcast::default())
             .expect("Subagent build should be OK");
         let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
         started_sub_agent.stop().unwrap();
