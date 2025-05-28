@@ -143,6 +143,7 @@ agents:
                             },
                         ),
                     ]),
+                    ..Default::default()
                 },
             },
             TestCase {
@@ -191,6 +192,7 @@ agents:
                             },
                         ),
                     ]),
+                    ..Default::default()
                 },
             },
         ];

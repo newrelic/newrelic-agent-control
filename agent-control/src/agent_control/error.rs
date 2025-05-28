@@ -1,5 +1,6 @@
 use super::config::AgentControlConfigError;
 use super::resource_cleaner::ResourceCleanerError;
+use super::updater::UpdaterError;
 use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::error::AgentTypeError;
@@ -106,4 +107,7 @@ pub enum AgentError {
 
     #[error("resource cleaner error: `{0}`")]
     ResourceCleaner(#[from] ResourceCleanerError),
+
+    #[error("updater error: `{0}`")]
+    Updater(#[from] UpdaterError),
 }

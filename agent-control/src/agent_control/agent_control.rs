@@ -308,7 +308,11 @@ where
             self.sa_dynamic_config_store.delete()?;
             self.sa_dynamic_config_store.load()?
         } else {
-            AgentControlDynamicConfig::try_from(remote_config_value)?
+            let config = AgentControlDynamicConfig::try_from(remote_config_value)?;
+            // TODO probably not that simple asi this. we should take care of the reset at least.
+            // TODO if fails we return or try to apply the rest of the config?
+            self.updater.update(&config)?;
+            config
         };
 
         debug!(

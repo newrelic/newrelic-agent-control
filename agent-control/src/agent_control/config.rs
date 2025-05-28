@@ -78,6 +78,7 @@ pub enum AgentControlConfigError {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
+    pub chart_version: String,
 }
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
@@ -383,7 +384,10 @@ agents: {}
 
     impl From<HashMap<AgentID, SubAgentConfig>> for AgentControlDynamicConfig {
         fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
-            Self { agents: value }
+            Self {
+                agents: value,
+                ..Default::default()
+            }
         }
     }
 
