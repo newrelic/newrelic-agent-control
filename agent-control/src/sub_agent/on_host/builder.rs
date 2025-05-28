@@ -2,7 +2,8 @@ use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERS
 use crate::agent_control::run::Environment;
 use crate::context::Context;
 use crate::event::SubAgentEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+use crate::event::channel::pub_sub;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
@@ -91,7 +92,7 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -194,7 +195,6 @@ mod tests {
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::{Deployment, Runtime};
-    use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
@@ -221,7 +221,6 @@ mod tests {
     // We should re-consider their scope.
     #[test]
     fn build_start_stop() {
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
@@ -315,7 +314,7 @@ mod tests {
         );
 
         on_host_builder
-            .build(&agent_identity, opamp_publisher)
+            .build(&agent_identity, UnboundedBroadcast::default())
             .unwrap()
             .run()
             .stop()
@@ -326,8 +325,6 @@ mod tests {
     #[traced_test]
     #[test]
     fn test_subagent_should_report_failed_config() {
-        let (opamp_publisher, _opamp_consumer) = pub_sub();
-
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let mut instance_id_getter = MockInstanceIDGetter::new();
@@ -424,7 +421,7 @@ mod tests {
         );
 
         let sub_agent = on_host_builder
-            .build(&agent_identity, opamp_publisher)
+            .build(&agent_identity, UnboundedBroadcast::default())
             .expect("Subagent build should be OK");
         let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
         started_sub_agent.stop().unwrap();

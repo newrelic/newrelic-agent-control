@@ -6,6 +6,7 @@ use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
 use crate::agent_control::uptime_report::{UptimeReportConfig, UptimeReporter};
 use crate::event::SubAgentEvent::SubAgentStarted;
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::opamp::hash_repository::HashRepository;
@@ -55,7 +56,7 @@ pub trait SubAgentBuilder {
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
@@ -87,7 +88,7 @@ where
 {
     pub(super) identity: AgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
-    pub(super) sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    pub(super) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     pub(super) sub_agent_internal_consumer: EventConsumer<SubAgentInternalEvent>,
     pub(super) sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
@@ -113,7 +114,7 @@ where
         identity: AgentIdentity,
         maybe_opamp_client: Option<C>,
         supervisor_builder: Arc<B>,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
         sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         (sub_agent_internal_publisher, sub_agent_internal_consumer): (
             EventPublisher<SubAgentInternalEvent>,
@@ -276,9 +277,8 @@ where
             let mut previous_health = None;
 
             debug!("runtime started");
-            let _ = self.sub_agent_publisher
-                .publish(SubAgentStarted(self.identity.clone(), SystemTime::now()))
-                .inspect_err(|err| error!(error_msg = %err,"Cannot publish sub_agent_event::sub_agent_started"));
+            self.sub_agent_publisher
+                .broadcast(SubAgentStarted(self.identity.clone(), SystemTime::now()));
 
             // The below two lines are used to create a channel that never receives any message
             // if the sub_agent_opamp_consumer is None. Thus, we avoid erroring if there is no
@@ -754,7 +754,7 @@ pub mod tests {
             fn build(
                 &self,
                 agent_identity: &AgentIdentity,
-                sub_agent_publisher: EventPublisher<SubAgentEvent>,
+                sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
     }
@@ -944,7 +944,6 @@ deployment:
         yaml_repository: Arc<InMemoryYAMLConfigRepository>,
     ) -> TestSubAgent {
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
         let (_sub_agent_opamp_publisher, sub_agent_opamp_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
@@ -956,7 +955,7 @@ deployment:
             TestAgent::identity(),
             opamp_client,
             Arc::new(supervisor_builder),
-            sub_agent_publisher,
+            UnboundedBroadcast::default(),
             Some(sub_agent_opamp_consumer),
             (sub_agent_internal_publisher, sub_agent_internal_consumer),
             Arc::new(AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(

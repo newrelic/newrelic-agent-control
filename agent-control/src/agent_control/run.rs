@@ -7,11 +7,9 @@ use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::event::channel::pub_sub;
-use crate::event::{
-    AgentControlEvent, ApplicationEvent, SubAgentEvent,
-    channel::{EventConsumer, EventPublisher},
-};
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+
+use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
@@ -84,8 +82,8 @@ pub struct AgentControlRunner {
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
     opamp_poll_interval: Duration,
-    agent_control_publisher: EventPublisher<AgentControlEvent>,
-    sub_agent_publisher: EventPublisher<SubAgentEvent>,
+    agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
+    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     signature_validator: SignatureValidator,
     #[allow(dead_code, reason = "used by onhost")]
     base_paths: BasePaths,
@@ -94,7 +92,7 @@ pub struct AgentControlRunner {
 
     runtime: Arc<Runtime>,
 
-    http_server_runner: Runner,
+    http_server_runner: Option<Runner>,
 }
 
 impl AgentControlRunner {
@@ -127,21 +125,25 @@ impl AgentControlRunner {
             }
             None => None,
         };
-        let (agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let runtime = Arc::new(
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()?,
         );
-        let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
 
-        let http_server_runner = Runner::new(
-            config.http_server,
-            runtime.clone(),
-            agent_control_consumer,
-            sub_agent_consumer,
-            config.opamp.clone(),
-        );
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let mut sub_agent_publisher = UnboundedBroadcast::default();
+        let http_server_runner = config.http_server.enabled.then(|| {
+            let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+            let sub_agent_consumer = EventConsumer::from(sub_agent_publisher.subscribe());
+            Runner::new(
+                config.http_server,
+                runtime.clone(),
+                agent_control_consumer,
+                sub_agent_consumer,
+                config.opamp.clone(),
+            )
+        });
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
             config

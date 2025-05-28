@@ -78,7 +78,7 @@ mod tests {
             config_validator::tests::MockDynamicConfigValidator,
             resource_cleaner::no_op::NoOpResourceCleaner,
         },
-        event::channel::pub_sub,
+        event::{broadcaster::unbounded::UnboundedBroadcast, channel::pub_sub},
         opamp::{
             client_builder::tests::MockStartedOpAMPClient,
             hash_repository::repository::tests::MockHashRepository,
@@ -138,8 +138,6 @@ mod tests {
 
         started_client.should_set_unhealthy();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         // Create the Agent Control and rub Sub Agents
         let agent_control = AgentControl::new(
@@ -147,8 +145,8 @@ mod tests {
             hash_repository_mock,
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            UnboundedBroadcast::default(),
+            UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -230,8 +228,6 @@ mod tests {
 
         started_client.should_set_healthy();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
-        let (agent_control_publisher, _agent_control_consumer) = pub_sub();
-        let (sub_agent_publisher, _sub_agent_consumer) = pub_sub();
 
         dynamic_config_validator
             .expect_validate()
@@ -244,8 +240,8 @@ mod tests {
             Arc::new(hash_repository_mock),
             sub_agent_builder,
             Arc::new(sub_agents_config_store),
-            agent_control_publisher,
-            sub_agent_publisher,
+            UnboundedBroadcast::default(),
+            UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,

@@ -2,7 +2,8 @@ use crate::agent_control::config::K8sConfig;
 use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_control::run::Environment;
 use crate::event::SubAgentEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::broadcaster::unbounded::UnboundedBroadcast;
+use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::hash_repository::HashRepository;
@@ -95,7 +96,7 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: EventPublisher<SubAgentEvent>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -199,7 +200,6 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::{Deployment, Runtime};
-    use crate::event::channel::pub_sub;
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
@@ -257,9 +257,8 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        let (application_event_publisher, _) = pub_sub();
         builder
-            .build(&agent_identity, application_event_publisher)
+            .build(&agent_identity, UnboundedBroadcast::default())
             .unwrap();
     }
 
@@ -296,8 +295,7 @@ pub mod tests {
             Arc::new(effective_agents_assembler),
         );
 
-        let (application_event_publisher, _) = pub_sub();
-        let result = builder.build(&agent_identity, application_event_publisher);
+        let result = builder.build(&agent_identity, UnboundedBroadcast::default());
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::OpampClientBuilderError(_)

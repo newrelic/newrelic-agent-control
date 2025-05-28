@@ -5,7 +5,6 @@ use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::EventConsumer;
 use crate::event::{AgentControlEvent, SubAgentEvent};
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
-use crossbeam::select;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -49,19 +48,10 @@ impl Runner {
     /// with a consumer that will just consume events with no action
     /// to drain the channel and avoid memory leaks
     pub fn start(self) -> StartedHttpServer {
-        let thread_context = if self.config.enabled {
-            let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-                self.spawn_server(stop_consumer)
-            };
-            NotStartedThreadContext::new("Http server", callback).start()
-        } else {
-            let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-                self.noop_consumer_loop(stop_consumer)
-            };
-            // Spawn a thread with a no-action consumer to drain the channel and
-            // avoid memory leaks
-            NotStartedThreadContext::new("No-action consumer", callback).start()
+        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+            self.spawn_server(stop_consumer)
         };
+        let thread_context = NotStartedThreadContext::new("Http server", callback).start();
 
         StartedHttpServer {
             thread_context: Some(thread_context),
@@ -104,41 +94,6 @@ impl Runner {
         // Wait until the bridge is closed
         bridge_join_handle.join().unwrap();
     }
-
-    fn noop_consumer_loop(self, stop_rx: EventConsumer<CancellationMessage>) {
-        loop {
-            select! {
-                recv(self.agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
-                    match agent_control_consumer_res {
-                        Ok(_) => {}
-                        Err(err) => {
-                            debug!(
-                                error_msg = %err,
-                                "http server event drain processor closed"
-                            );
-                            break;
-                        }
-                    }
-                },
-                recv(self.sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
-                    match sub_agent_consumer_res {
-                        Ok(_) => {}
-                        Err(err) => {
-                            debug!(
-                                error_msg = %err,
-                                "http server event drain processor closed"
-                            );
-                            break;
-                        }
-                    }
-                },
-                recv(stop_rx.as_ref()) -> _ => {
-                    debug!("http server event drain processor stopped");
-                    break;
-                },
-            }
-        }
-    }
 }
 
 impl Drop for StartedHttpServer {
@@ -171,34 +126,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    #[traced_test]
-    fn test_noop_consumer_stops_gracefully_when_dropped() {
-        let runtime = Arc::new(
-            tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap(),
-        );
-        let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
-        let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _started_http_server = Runner::new(
-            ServerConfig::default(),
-            runtime,
-            agent_control_consumer,
-            sub_agent_consumer,
-            None,
-        )
-        .start();
-        drop(_started_http_server);
-
-        // wait for logs to be flushed
-        sleep(Duration::from_millis(100));
-        assert!(logs_with_scope_contain(
-            "newrelic_agent_control::agent_control::http_server::runner",
-            "http server event drain processor stopped",
-        ));
-    }
     #[test]
     #[traced_test]
     fn test_server_stops_gracefully_when_dropped() {
