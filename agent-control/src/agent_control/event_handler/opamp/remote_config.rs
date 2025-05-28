@@ -1,8 +1,4 @@
-use crate::agent_control::config_storer::loader_storer::{
-    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashUpdater,
-    AgentControlRemoteConfigStorer,
-};
+use crate::agent_control::config_storer::loader_storer::{AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter, AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater, AgentControlRemoteConfigStorer};
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::resource_cleaner::ResourceCleaner;
 use crate::agent_control::version_updater::VersionUpdater;
@@ -23,7 +19,7 @@ where
     SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
         + AgentControlRemoteConfigDeleter
-        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashStateUpdater
         + AgentControlRemoteConfigHashGetter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
@@ -221,8 +217,8 @@ mod tests {
         let mut applied_hash = opamp_remote_config.hash.clone();
         applied_hash.apply();
         dynamic_config_store
-            .expect_update_hash()
-            .with(predicate::eq(applied_hash))
+            .expect_update_hash_state()
+            .with(predicate::eq(applied_hash.state()))
             .times(1)
             .returning(|_| Ok(()));
 

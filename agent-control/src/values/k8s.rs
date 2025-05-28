@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::{YAMLConfig, has_remote_management};
@@ -100,26 +100,26 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         Ok(None)
     }
 
-    fn update_hash(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), ConfigRepositoryError> {
+    fn update_hash_state(&self, agent_id: &AgentID, state: &ConfigState) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
             "updating remote config hash"
         );
 
-        let maybe_yaml_config = self
+        let maybe_config = self
             .k8s_store
             .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
 
-        match maybe_yaml_config {
+        match maybe_config {
             Some(mut remote_config) => {
-                remote_config.config_hash = hash.clone();
+                remote_config.config_hash.update_state(state);
                 self.k8s_store
                     .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, &remote_config)
                     .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
                 Ok(())
             }
-            None => Err(ConfigRepositoryError::UpdateHashError),
+            None => Err(ConfigRepositoryError::UpdateHashStateError),
         }
     }
 

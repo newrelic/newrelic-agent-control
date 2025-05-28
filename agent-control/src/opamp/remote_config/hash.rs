@@ -5,7 +5,7 @@ use super::report::OpampRemoteConfigStatus;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
-enum ConfigState {
+pub enum ConfigState {
     Applying,
     Applied,
     Failed { error_message: String },
@@ -37,6 +37,14 @@ impl Hash {
 
     pub fn get(&self) -> String {
         self.hash.clone()
+    }
+
+    pub fn state(&self) -> ConfigState {
+        self.state.clone()
+    }
+
+    pub fn update_state(&mut self, config_state: &ConfigState) {
+        self.state = config_state.clone()
     }
 
     pub fn is_applied(&self) -> bool {

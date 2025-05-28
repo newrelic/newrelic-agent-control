@@ -1,10 +1,6 @@
 use super::agent_id::AgentID;
 use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap};
-use super::config_storer::loader_storer::{
-    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashUpdater,
-    AgentControlRemoteConfigStorer,
-};
+use super::config_storer::loader_storer::{AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter, AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater, AgentControlRemoteConfigStorer};
 use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::VersionUpdater;
 use crate::agent_control::config_validator::DynamicConfigValidator;
@@ -39,7 +35,7 @@ where
     SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
         + AgentControlRemoteConfigDeleter
-        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashStateUpdater
         + AgentControlRemoteConfigHashGetter,
     S: SubAgentBuilder,
     DV: DynamicConfigValidator,
@@ -67,7 +63,7 @@ where
     SL: AgentControlRemoteConfigStorer
         + AgentControlDynamicConfigLoader
         + AgentControlRemoteConfigDeleter
-        + AgentControlRemoteConfigHashUpdater
+        + AgentControlRemoteConfigHashStateUpdater
         + AgentControlRemoteConfigHashGetter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
@@ -146,7 +142,7 @@ where
 
     pub(super) fn set_config_hash_as_applied(&self, hash: &mut Hash) -> Result<(), AgentError> {
         hash.apply();
-        self.sa_dynamic_config_store.update_hash(hash)?;
+        self.sa_dynamic_config_store.update_hash_state(&hash.state())?;
 
         Ok(())
     }
@@ -440,7 +436,7 @@ mod tests {
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::tests::MockStartedSubAgent;
@@ -600,8 +596,8 @@ mod tests {
             });
 
         sa_dynamic_config_store
-            .expect_update_hash()
-            .with(predicate::eq(Hash::applied("a-hash".to_string())))
+            .expect_update_hash_state()
+            .with(predicate::eq(ConfigState::Applied))
             .times(1)
             .returning(|_| Ok(()));
 
@@ -1198,8 +1194,8 @@ agents:
         // store agent control remote config hash
         remote_config_hash.apply();
         sa_dynamic_config_store
-            .expect_update_hash()
-            .with(predicate::eq(remote_config_hash))
+            .expect_update_hash_state()
+            .with(predicate::eq(remote_config_hash.state()))
             .times(1)
             .returning(|_| Ok(()));
 
@@ -1454,8 +1450,8 @@ agents:
         // store agent control remote config hash
         remote_config_hash.apply();
         sa_dynamic_config_store
-            .expect_update_hash()
-            .with(predicate::eq(remote_config_hash))
+            .expect_update_hash_state()
+            .with(predicate::eq(remote_config_hash.state()))
             .times(1)
             .returning(|_| Ok(()));
 

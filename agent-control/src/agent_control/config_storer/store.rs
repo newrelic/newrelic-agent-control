@@ -4,11 +4,11 @@ use crate::agent_control::config::{
 };
 use crate::agent_control::config_storer::loader_storer::{
     AgentControlConfigLoader, AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashUpdater,
+    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
     AgentControlRemoteConfigStorer,
 };
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::config::Config as ConfigValues;
 use crate::values::config::RemoteConfig;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
@@ -68,13 +68,13 @@ where
     }
 }
 
-impl<Y> AgentControlRemoteConfigHashUpdater for AgentControlConfigStore<Y>
+impl<Y> AgentControlRemoteConfigHashStateUpdater for AgentControlConfigStore<Y>
 where
     Y: ConfigRepository,
 {
-    fn update_hash(&self, hash: &Hash) -> Result<(), AgentControlConfigError> {
+    fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .update_hash(&self.agent_control_id, hash)?;
+            .update_hash_state(&self.agent_control_id, state)?;
         Ok(())
     }
 }
@@ -135,11 +135,11 @@ where
             .build()?
             .try_deserialize::<AgentControlConfig>()?;
 
-        if let Some(ConfigValues::RemoteConfig(remote_config)) = self
+        if let Some(remote_config) = self
             .values_repository
             .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
         {
-            let dynamic_config: AgentControlDynamicConfig = remote_config.config.try_into()?;
+            let dynamic_config: AgentControlDynamicConfig =  remote_config.get_yaml_config().try_into()?;
             config.dynamic = dynamic_config;
         }
 
@@ -153,7 +153,7 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
             ConfigRepositoryError::LoadError(e) => AgentControlConfigError::Load(e),
             ConfigRepositoryError::StoreError(e) => AgentControlConfigError::Store(e),
             ConfigRepositoryError::DeleteError(e) => AgentControlConfigError::Delete(e),
-            ConfigRepositoryError::UpdateHashError => {
+            ConfigRepositoryError::UpdateHashStateError => {
                 AgentControlConfigError::Store("error updating hash".to_string())
             }
         }

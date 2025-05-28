@@ -12,7 +12,7 @@ use crate::health::health_checker::Health;
 use crate::health::health_checker::log_and_report_unhealthy;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
@@ -212,7 +212,7 @@ where
                     self.report_config_status(hash, opamp_client, (hash as &Hash).into());
                 });
                 // As the hash might have changed state from the above operations, we store it
-                self.update_remote_config_hash(hash);
+                self.update_remote_config_hash_state(&hash.state());
             }
         }
 
@@ -376,6 +376,9 @@ where
             return old_supervisor;
         }
 
+        //TODO: Handle a remote config coming with the same hash as the stored, it shouldn't
+        // restart the supervisor but the status applied should be reported again.
+
         info!(hash = config.hash.get(), "Applying remote config");
         self.report_config_status(
             &config.hash,
@@ -410,11 +413,11 @@ where
                     // Alter the hash depending on the outcome
                     .inspect(|_| {
                         hash.apply();
-                        self.update_remote_config_hash(&hash);
+                        self.update_remote_config_hash_state(&hash.state());
                     })
                     .inspect_err(|e| {
                         hash.fail(e.to_string());
-                        self.update_remote_config_hash(&hash);
+                        self.update_remote_config_hash_state(&hash.state());
                     })
                     // Return it
                     .ok()
@@ -529,14 +532,13 @@ where
         )
     }
 
-    fn update_remote_config_hash(&self, config_hash: &Hash) {
+    fn update_remote_config_hash_state(&self, config_state: &ConfigState) {
         let _ = self
             .config_repository
-            .update_hash(&self.identity.id, config_hash)
+            .update_hash_state(&self.identity.id, config_state)
             .inspect_err(|err| {
                 warn!(
-                    hash = config_hash.get(),
-                    "Could not update the config hash: {err}"
+                    "Could not update the config state: {err}"
                 );
             });
     }

@@ -271,10 +271,10 @@ mod tests {
         let mut hash = Hash::new("a-hash".to_string());
         hash.apply();
         config_repository
-            .expect_update_hash()
+            .expect_update_hash_state()
             .with(
                 predicate::eq(agent_identity.id.clone()),
-                predicate::eq(hash),
+                predicate::eq(hash.state()),
             )
             .times(1)
             .returning(|_, _| Ok(()));
@@ -396,10 +396,10 @@ mod tests {
         let mut hash = Hash::new("a-hash".to_string());
         hash.apply();
         config_repository
-            .expect_update_hash()
+            .expect_update_hash_state()
             .with(
                 predicate::eq(agent_identity.id.clone()),
-                predicate::eq(hash),
+                predicate::eq(hash.state()),
             )
             .times(1)
             .returning(|_, _| Ok(()));

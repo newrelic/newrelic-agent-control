@@ -2,7 +2,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::has_remote_management;
@@ -214,7 +214,7 @@ where
         Ok(None)
     }
 
-    fn update_hash(&self, agent_id: &AgentID, hash: &Hash) -> Result<(), ConfigRepositoryError> {
+    fn update_hash_state(&self, agent_id: &AgentID, state: &ConfigState) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
             "updating remote config hash"
@@ -228,7 +228,7 @@ where
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
 
         if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
-            remote_config.config_hash = hash.clone();
+            remote_config.config_hash.update_state(state);
 
             let content = serde_yaml::to_string(&remote_config)
                 .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
@@ -243,7 +243,7 @@ where
 
             Ok(())
         } else {
-            Err(ConfigRepositoryError::UpdateHashError)
+            Err(ConfigRepositoryError::UpdateHashStateError)
         }
     }
 
