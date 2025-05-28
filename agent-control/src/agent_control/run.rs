@@ -94,9 +94,7 @@ pub struct AgentControlRunner {
 
     runtime: Arc<Runtime>,
 
-    // Since _http_server_runner drop depends on agent_control_publisher being drop before we need it
-    // to be the last field of the struct. TODO Refactor runner so that this is not a risk anymore.
-    _http_server_runner: Runner,
+    http_server_runner: Runner,
 }
 
 impl AgentControlRunner {
@@ -136,7 +134,8 @@ impl AgentControlRunner {
                 .build()?,
         );
         let (sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _http_server_runner = Runner::start(
+
+        let http_server_runner = Runner::new(
             config.http_server,
             runtime.clone(),
             agent_control_consumer,
@@ -160,7 +159,7 @@ impl AgentControlRunner {
             .unwrap_or(SignatureValidator::Noop);
 
         Ok(AgentControlRunner {
-            _http_server_runner,
+            http_server_runner,
             runtime,
             k8s_config: config.k8s_config,
             agent_type_registry,

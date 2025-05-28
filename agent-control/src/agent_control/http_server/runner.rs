@@ -11,59 +11,64 @@ use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info};
 
-/// Runner will be responsible for spawning the OS Thread for the HTTP Server
-/// and owning the JoinHandle. It controls the server stop implementing drop
+/// This struct holds the information required to start the HTTP Server and it is
+/// responsible for starting it.
 pub struct Runner {
+    config: ServerConfig,
+    runtime: Arc<Runtime>,
+    agent_control_consumer: EventConsumer<AgentControlEvent>,
+    sub_agent_consumer: EventConsumer<SubAgentEvent>,
+    maybe_opamp_client_config: Option<OpAMPClientConfig>,
+}
+
+/// This struct is responsible for spawning the OS Thread for the HTTP Server
+/// and owning the JoinHandle. It controls the server stop implementing drop
+pub struct StartedHttpServer {
     thread_context: Option<StartedThreadContext>,
 }
 
 impl Runner {
-    /// start the OS Thread with the HTTP Server and return a struct
-    /// that holds the JoinHandle until drop
-    /// When the HTTP Server is disabled, it will spawn a thread
-    /// with a consumer that will just consume events with no action
-    /// to drain the channel and avoid memory leaks
-    pub fn start(
+    pub fn new(
         config: ServerConfig,
         runtime: Arc<Runtime>,
         agent_control_consumer: EventConsumer<AgentControlEvent>,
         sub_agent_consumer: EventConsumer<SubAgentEvent>,
         maybe_opamp_client_config: Option<OpAMPClientConfig>,
     ) -> Self {
-        let thread_context = if config.enabled {
+        Self {
+            config,
+            runtime,
+            agent_control_consumer,
+            sub_agent_consumer,
+            maybe_opamp_client_config,
+        }
+    }
+    /// start the OS Thread with the HTTP Server and return a struct
+    /// that holds the JoinHandle until drop
+    /// When the HTTP Server is disabled, it will spawn a thread
+    /// with a consumer that will just consume events with no action
+    /// to drain the channel and avoid memory leaks
+    pub fn start(self) -> StartedHttpServer {
+        let thread_context = if self.config.enabled {
             let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-                Self::spawn_server(
-                    config,
-                    runtime,
-                    agent_control_consumer,
-                    sub_agent_consumer,
-                    maybe_opamp_client_config,
-                    stop_consumer,
-                )
+                self.spawn_server(stop_consumer)
             };
             NotStartedThreadContext::new("Http server", callback).start()
         } else {
             let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-                Self::noop_consumer_loop(agent_control_consumer, sub_agent_consumer, stop_consumer)
+                self.noop_consumer_loop(stop_consumer)
             };
             // Spawn a thread with a no-action consumer to drain the channel and
             // avoid memory leaks
             NotStartedThreadContext::new("No-action consumer", callback).start()
         };
 
-        Runner {
+        StartedHttpServer {
             thread_context: Some(thread_context),
         }
     }
 
-    fn spawn_server(
-        config: ServerConfig,
-        runtime: Arc<Runtime>,
-        agent_control_consumer: EventConsumer<AgentControlEvent>,
-        sub_agent_consumer: EventConsumer<SubAgentEvent>,
-        maybe_opamp_client_config: Option<OpAMPClientConfig>,
-        stop_rx: EventConsumer<CancellationMessage>,
-    ) {
+    fn spawn_server(self, stop_rx: EventConsumer<CancellationMessage>) {
         // Create 2 unbounded channel to send the Agent Control and Sub Agent Sync events
         // to the Async Status Server
         let (async_agent_control_event_publisher, async_agent_control_event_consumer) =
@@ -76,19 +81,20 @@ impl Runner {
         let bridge_join_handle = run_async_sync_bridge(
             async_agent_control_event_publisher,
             async_sub_agent_event_publisher,
-            agent_control_consumer,
-            sub_agent_consumer,
+            self.agent_control_consumer,
+            self.sub_agent_consumer,
             stop_rx,
         );
 
         // Run the async status server
-        let _ = runtime
+        let _ = self
+            .runtime
             .block_on(
                 crate::agent_control::http_server::server::run_status_server(
-                    config.clone(),
+                    self.config.clone(),
                     async_agent_control_event_consumer,
                     async_sub_agent_event_consumer,
-                    maybe_opamp_client_config,
+                    self.maybe_opamp_client_config,
                 ),
             )
             .inspect_err(|err| {
@@ -99,14 +105,10 @@ impl Runner {
         bridge_join_handle.join().unwrap();
     }
 
-    fn noop_consumer_loop(
-        agent_control_consumer: EventConsumer<AgentControlEvent>,
-        sub_agent_consumer: EventConsumer<SubAgentEvent>,
-        stop_rx: EventConsumer<CancellationMessage>,
-    ) {
+    fn noop_consumer_loop(self, stop_rx: EventConsumer<CancellationMessage>) {
         loop {
             select! {
-                recv(agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
+                recv(self.agent_control_consumer.as_ref()) -> agent_control_consumer_res => {
                     match agent_control_consumer_res {
                         Ok(_) => {}
                         Err(err) => {
@@ -118,7 +120,7 @@ impl Runner {
                         }
                     }
                 },
-                recv(sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
+                recv(self.sub_agent_consumer.as_ref()) -> sub_agent_consumer_res => {
                     match sub_agent_consumer_res {
                         Ok(_) => {}
                         Err(err) => {
@@ -139,7 +141,7 @@ impl Runner {
     }
 }
 
-impl Drop for Runner {
+impl Drop for StartedHttpServer {
     fn drop(&mut self) {
         info!("waiting for status server to stop gracefully...");
 
@@ -167,7 +169,7 @@ mod tests {
     use crate::event::AgentControlEvent;
     use crate::event::channel::pub_sub;
 
-    use super::Runner;
+    use super::*;
 
     #[test]
     #[traced_test]
@@ -180,14 +182,15 @@ mod tests {
         );
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _http_server_runner = Runner::start(
+        let _started_http_server = Runner::new(
             ServerConfig::default(),
             runtime,
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        );
-        drop(_http_server_runner);
+        )
+        .start();
+        drop(_started_http_server);
 
         // wait for logs to be flushed
         sleep(Duration::from_millis(100));
@@ -207,7 +210,7 @@ mod tests {
         );
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _http_server_runner = Runner::start(
+        let _started_http_server = Runner::new(
             ServerConfig {
                 enabled: true,
                 port: 0.into(),
@@ -217,11 +220,12 @@ mod tests {
             agent_control_consumer,
             sub_agent_consumer,
             None,
-        );
+        )
+        .start();
         // server warm up
         sleep(Duration::from_millis(100));
 
-        drop(_http_server_runner);
+        drop(_started_http_server);
 
         // wait for logs to be flushed
         sleep(Duration::from_millis(100));
@@ -241,7 +245,7 @@ mod tests {
         );
         let (_agent_control_publisher, agent_control_consumer) = pub_sub::<AgentControlEvent>();
         let (_sub_agent_publisher, sub_agent_consumer) = pub_sub();
-        let _http_server_runner = Runner::start(
+        let _http_server_runner = Runner::new(
             ServerConfig {
                 enabled: true,
                 port: 0.into(),
