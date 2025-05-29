@@ -119,7 +119,7 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
                     .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
                 Ok(())
             }
-            None => Err(ConfigRepositoryError::UpdateHashStateError),
+            None => Err(ConfigRepositoryError::UpdateHashStateError("No remote config found".to_string())),
         }
     }
 

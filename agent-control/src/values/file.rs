@@ -243,7 +243,7 @@ where
 
             Ok(())
         } else {
-            Err(ConfigRepositoryError::UpdateHashStateError)
+            Err(ConfigRepositoryError::UpdateHashStateError("No remote config found".to_string()))
         }
     }
 

@@ -61,6 +61,8 @@ pub enum AgentControlConfigError {
     Load(String),
     #[error("storing agent control config: `{0}`")]
     Store(String),
+    #[error("updating agent control config: `{0}`")]
+    Update(String),
     #[error("building source to parse environment variables: `{0}`")]
     ConfigError(#[from] config::ConfigError),
     #[error("sub agent configuration `{0}` not found")]

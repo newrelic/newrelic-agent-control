@@ -14,8 +14,8 @@ pub enum ConfigRepositoryError {
     StoreError(String),
     #[error("error deleting values: `{0}`")]
     DeleteError(String),
-    #[error("error updating hash, no remote config to update")]
-    UpdateHashStateError,
+    #[error("error updating hash, no remote config to update: `{0}`")]
+    UpdateHashStateError(String),
 }
 
 pub trait ConfigRepository: Send + Sync + 'static {

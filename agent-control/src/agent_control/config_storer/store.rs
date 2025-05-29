@@ -153,8 +153,7 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
             ConfigRepositoryError::LoadError(e) => AgentControlConfigError::Load(e),
             ConfigRepositoryError::StoreError(e) => AgentControlConfigError::Store(e),
             ConfigRepositoryError::DeleteError(e) => AgentControlConfigError::Delete(e),
-            ConfigRepositoryError::UpdateHashStateError => {
-                AgentControlConfigError::Store("error updating hash".to_string())
+            ConfigRepositoryError::UpdateHashStateError(e) => { AgentControlConfigError::Update(e)
             }
         }
     }
