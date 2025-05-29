@@ -25,11 +25,6 @@ pub const FILE_PERMISSIONS: u32 = 0o600;
 #[cfg(target_family = "unix")]
 const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
-enum ConfigOrigin {
-    Local,
-    Remote,
-}
-
 #[derive(Error, Debug)]
 pub enum OnHostConfigRepositoryError {
     #[error("serialize error loading SubAgentConfig: `{0}`")]
@@ -60,7 +55,7 @@ where
 
 impl ConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
     pub fn new(local_path: PathBuf, remote_path: PathBuf) -> Self {
-        ConfigRepositoryFile {
+        Self {
             directory_manager: DirectoryManagerFs {},
             file_rw: LocalFile,
             remote_conf_path: remote_path,
@@ -102,8 +97,7 @@ where
     fn load_file_if_present(
         &self,
         path: PathBuf,
-        origin: ConfigOrigin,
-    ) -> Result<Option<Config>, OnHostConfigRepositoryError> {
+    ) -> Result<Option<String>, OnHostConfigRepositoryError> {
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(e)) => {
@@ -111,10 +105,7 @@ where
                 //actively fallback to load local file
                 Ok(None)
             }
-            Ok(res) => match origin {
-                ConfigOrigin::Local => Ok(Some(Config::LocalConfig(serde_yaml::from_str(&res)?))),
-                ConfigOrigin::Remote => Ok(Some(Config::RemoteConfig(serde_yaml::from_str(&res)?))),
-            },
+            Ok(res) => Ok(Some(res)),
             Err(err) => {
                 // we log any unexpected error for now but maybe we should propagate it
                 error!("error loading remote file {}", path.display());
@@ -151,8 +142,14 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let local_values_path = self.get_values_file_path(agent_id);
 
-        self.load_file_if_present(local_values_path, ConfigOrigin::Local)
+        self.load_file_if_present(local_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map(|maybe_values| {
+                if let Some(values) = maybe_values {
+                    return Some(Config::LocalConfig(serde_yaml::from_str(&values)?))
+                }
+                None
+            } )
     }
 
     #[tracing::instrument(skip_all, err)]
@@ -167,8 +164,14 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
-        self.load_file_if_present(remote_values_path, ConfigOrigin::Remote)
+        self.load_file_if_present(remote_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map(|maybe_values| {
+                if let Some(values) = maybe_values {
+                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
+                }
+                None
+            })
     }
 
     #[tracing::instrument(skip_all, err)]
@@ -203,9 +206,14 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
-        let maybe_remote = self
-            .load_file_if_present(remote_values_path, ConfigOrigin::Remote)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+        let maybe_remote = self.load_file_if_present(remote_values_path)
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map(|maybe_values| {
+                if let Some(values) = maybe_values {
+                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
+                }
+                None
+            })?;
 
         if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
             return Ok(Some(remote_config.config_hash));
@@ -223,9 +231,14 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
-        let maybe_remote = self
-            .load_file_if_present(remote_values_path.clone(), ConfigOrigin::Remote)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+        let maybe_remote = self.load_file_if_present(remote_values_path.clone())
+            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map(|maybe_values| {
+                if let Some(values) = maybe_values {
+                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
+                }
+                None
+            })?;
 
         if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
             remote_config.config_hash.update_state(state);
