@@ -41,7 +41,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
 }
 
 /// Looks for remote configs first, if unavailable checks the local ones.
-/// It returns an error if no configuration is found.
+/// It returns none if no configuration is found.
 pub fn load_remote_fallback_local<R: ConfigRepository>(
     config_repository: &R,
     agent_id: &AgentID,
