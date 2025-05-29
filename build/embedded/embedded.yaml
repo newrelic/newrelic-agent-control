@@ -59,7 +59,15 @@ artifacts:
     # Version now should be added in goreleaser.yaml global envs
     url: https://github.com/newrelic/nrdot-collector-releases/releases/download/{{.Version | trimv}}/nrdot-collector-host_{{.Version | trimv}}_linux_{{.Arch}}.deb
     files:
-     # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
+      # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
       - name: nt-otel-collector binary
         src: usr/bin/nrdot-collector-host
         dest: artifacts/{{.Arch}}/nr-otel-collector
+
+  - name: newrelic-auth-cli
+    # Version now should be added in goreleaser.yaml global envs
+    url: https://github.com/newrelic/newrelic-auth-rs/releases/download/{{.Version | trimv}}/newrelic-auth-cli-{{.Arch}}
+    files:
+      - name: newrelic-auth-cli binary
+        src: newrelic-auth-cli-{{.Arch}}
+        dest: artifacts/{{.Arch}}/newrelic-auth-cli

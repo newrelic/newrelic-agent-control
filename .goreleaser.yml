@@ -4,6 +4,7 @@ env:
   # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
   - NEWRELIC_INFRA_AGENT_VERSION=1.63.1
   - NR_OTEL_COLLECTOR_VERSION=1.1.0
+  - NR_AUTH_CLIENT_VERSION=0.0.4
   #
 builds:
   - id: newrelic-agent-control
@@ -23,6 +24,7 @@ builds:
             - AGENT_CONTROL_VERSION={{ .Version }}
             - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
+            - NR_AUTH_CLIENT_VERSION={{ .Env.NR_AUTH_CLIENT_VERSION }}
             - PKG=newrelic_agent_control
         - cmd: sh ./build/scripts/replace_go_with_rust.sh
           env:
@@ -31,7 +33,7 @@ builds:
         - cmd: sh ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
-            - ARTIFACTS_VERSIONS={"newrelic-infra":"{{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}","nr-otel-collector":"{{ .Env.NR_OTEL_COLLECTOR_VERSION }}"}
+            - ARTIFACTS_VERSIONS={"newrelic-infra":"{{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}","nr-otel-collector":"{{ .Env.NR_OTEL_COLLECTOR_VERSION }}","newrelic-auth-cli":"{{ .Env.NR_AUTH_CLIENT_VERSION }}"}
         - cmd: sh ./build/scripts/download_collector_config.sh
           env:
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
@@ -162,6 +164,8 @@ nfpms:
       # NR Otel Collector - Important to note the binary name is nrdot-collector-host matching nrdot binary
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nrdot-collector-host
         dst: /usr/bin/nrdot-collector-host
+      - src: build/embedded/artifacts/{{- .Arch }}/newrelic-auth-cli
+        dst: /usr/bin/newrelic-auth-cli
       - src: build/examples/
         dst: /etc/newrelic-agent-control/examples
 
