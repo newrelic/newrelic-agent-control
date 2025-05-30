@@ -8,4 +8,4 @@ mod opamp_auth;
 mod proxy;
 mod scenarios;
 mod tools;
-mod yaml_config_repository;
+mod config_repository;
