@@ -1,7 +1,7 @@
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::health::health_checker::HealthCheckerError;
+use crate::health::health_checker::HealthCheckerError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use thiserror::Error;
 

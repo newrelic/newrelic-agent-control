@@ -2,8 +2,8 @@ use crate::agent_control::agent_id::AgentID;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
-use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::health::health_checker::{Healthy, Unhealthy};
+use crate::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Serialize;
 use std::collections::HashMap;

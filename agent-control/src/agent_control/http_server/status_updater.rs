@@ -145,8 +145,8 @@ mod tests {
     };
     use crate::event::SubAgentEvent;
     use crate::event::SubAgentEvent::SubAgentHealthInfo;
-    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+    use crate::health::health_checker::{Healthy, Unhealthy};
+    use crate::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
 
     #[tokio::test(flavor = "multi_thread")]

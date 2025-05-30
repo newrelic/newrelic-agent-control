@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::sub_agent::health::health_checker::{
+use crate::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::health::with_start_time::HealthWithStartTime;
 use crate::utils::time::sys_time_from_unix_timestamp;
 
 pub struct FileHealthChecker {
@@ -77,8 +77,8 @@ mod tests {
     use std::time::{Duration, UNIX_EPOCH};
     use tempfile::TempDir;
 
-    use crate::sub_agent::health::health_checker::{HealthChecker, Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+    use crate::health::health_checker::{HealthChecker, Healthy, Unhealthy};
+    use crate::health::with_start_time::HealthWithStartTime;
 
     use super::FileHealthChecker;
 

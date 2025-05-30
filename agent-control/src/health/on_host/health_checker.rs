@@ -1,7 +1,7 @@
 use crate::agent_type::runtime_config::health_config::{OnHostHealthCheck, OnHostHealthConfig};
 use crate::http::client::HttpClient;
-use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::health::health_checker::{HealthChecker, HealthCheckerError};
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use std::path::PathBuf;
 
 use super::file::FileHealthChecker;

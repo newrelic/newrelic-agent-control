@@ -1,11 +1,11 @@
 use super::utils;
+use crate::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
-};
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
 
@@ -136,11 +136,11 @@ fn is_daemon_set_update_strategy_rolling_update(
 pub mod tests {
     use super::*;
     use crate::{
-        k8s::client::MockSyncK8sClient,
-        sub_agent::health::{
+        health::{
             health_checker::{Healthy, Unhealthy},
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
+        k8s::client::MockSyncK8sClient,
     };
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;

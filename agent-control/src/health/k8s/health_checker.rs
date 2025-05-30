@@ -1,12 +1,12 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
-use crate::sub_agent::health::k8s::daemon_set::K8sHealthDaemonSet;
-use crate::sub_agent::health::k8s::deployment::K8sHealthDeployment;
-use crate::sub_agent::health::k8s::helm_release::K8sHealthFluxHelmRelease;
-use crate::sub_agent::health::k8s::instrumentation::K8sHealthNRInstrumentation;
-use crate::sub_agent::health::k8s::stateful_set::K8sHealthStatefulSet;
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
+use crate::health::k8s::daemon_set::K8sHealthDaemonSet;
+use crate::health::k8s::deployment::K8sHealthDeployment;
+use crate::health::k8s::helm_release::K8sHealthFluxHelmRelease;
+use crate::health::k8s::instrumentation::K8sHealthNRInstrumentation;
+use crate::health::k8s::stateful_set::K8sHealthStatefulSet;
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use kube::api::DynamicObject;
 use resource_type::ResourceType;
 use std::sync::Arc;
@@ -144,10 +144,10 @@ where
 pub mod tests {
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::client::MockSyncK8sClient;
-    use crate::sub_agent::health::health_checker::tests::MockHealthCheck;
-    use crate::sub_agent::health::health_checker::{HealthChecker, HealthCheckerError};
-    use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
-    use crate::sub_agent::health::with_start_time::StartTime;
+    use crate::health::health_checker::tests::MockHealthCheck;
+    use crate::health::health_checker::{HealthChecker, HealthCheckerError};
+    use crate::health::k8s::health_checker::SubAgentHealthChecker;
+    use crate::health::with_start_time::StartTime;
     use assert_matches::assert_matches;
     use kube::api::DynamicObject;
     use std::sync::Arc;

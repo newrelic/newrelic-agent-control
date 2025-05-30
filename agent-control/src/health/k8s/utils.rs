@@ -1,7 +1,7 @@
 //! This module contains functions to deal with the health-check of a list of items.
 //!
 use super::health_checker::LABEL_RELEASE_FLUX;
-use crate::sub_agent::health::health_checker::{Health, HealthCheckerError, Healthy};
+use crate::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
@@ -65,7 +65,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sub_agent::health::health_checker::Unhealthy;
+    use crate::health::health_checker::Unhealthy;
     use assert_matches::assert_matches;
     use k8s_openapi::api::core::v1::Pod;
 

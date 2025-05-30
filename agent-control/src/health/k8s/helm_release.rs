@@ -1,9 +1,9 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{
+use crate::health::health_checker::{
     HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::serde_json::{Map, Value};
 use kube::api::TypeMeta;
 use std::sync::Arc;
@@ -176,7 +176,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::{Error, client::MockSyncK8sClient};
-    use crate::sub_agent::health::health_checker::Health;
+    use crate::health::health_checker::Health;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;
     use serde_json::json;

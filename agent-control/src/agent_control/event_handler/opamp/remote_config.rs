@@ -5,7 +5,7 @@ use crate::agent_control::config_storer::loader_storer::{
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::resource_cleaner::ResourceCleaner;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
-use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
+use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::{
     agent_control::{agent_control::AgentControl, error::AgentError},
     opamp::{hash_repository::HashRepository, remote_config::RemoteConfig},

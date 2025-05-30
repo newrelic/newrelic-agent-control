@@ -1,7 +1,7 @@
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+use crate::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::StartedClient;
 

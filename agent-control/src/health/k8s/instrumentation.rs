@@ -1,9 +1,9 @@
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::health::health_checker::{
+use crate::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use kube::api::TypeMeta;
 use serde::Deserialize;
 use std::fmt::Display;

@@ -6,12 +6,12 @@ use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
-use crate::sub_agent::health::health_checker::{
+use crate::health::health_checker::{
     HealthCheckerError, publish_health_event, spawn_health_checker,
 };
-use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-use crate::sub_agent::health::on_host::health_checker::OnHostHealthChecker;
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::health::health_checker::{Healthy, Unhealthy};
+use crate::health::on_host::health_checker::OnHostHealthChecker;
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
@@ -398,7 +398,7 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::health::health_checker::Healthy;
+    use crate::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::version::version_checker::AgentVersion;
