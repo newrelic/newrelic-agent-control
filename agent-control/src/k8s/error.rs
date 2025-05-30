@@ -22,6 +22,9 @@ pub enum K8sError {
     #[error("cannot post object `{0:?}`")]
     CommitError(#[from] api::entry::CommitError),
 
+    #[error("cannot patch object {0} with `{0}`")]
+    PatchError(String, String),
+
     #[error("the kind of the cr is missing")]
     MissingCRKind,
 
