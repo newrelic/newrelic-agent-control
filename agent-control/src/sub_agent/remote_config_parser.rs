@@ -1,4 +1,4 @@
-use crate::opamp::remote_config::RemoteConfig as OpampRemoteConfig;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::config::RemoteConfig;
@@ -102,7 +102,7 @@ pub mod tests {
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::identity::AgentIdentity;
     use crate::values::config::RemoteConfig;
     use assert_matches::assert_matches;

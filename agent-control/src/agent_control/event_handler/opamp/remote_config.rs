@@ -35,7 +35,7 @@ where
     // Valid configuration will be applied and reported as applied to OpAMP
     pub(crate) fn remote_config(
         &self,
-        remote_config: OpampRemoteConfig,
+        opamp_remote_config: OpampRemoteConfig,
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -45,20 +45,21 @@ where
         };
 
         info!("Applying remote config");
-        OpampRemoteConfigStatus::Applying.report(opamp_client, remote_config.hash.get())?;
+        OpampRemoteConfigStatus::Applying.report(opamp_client, opamp_remote_config.hash.get())?;
 
-        match self.apply_remote_agent_control_config(&remote_config, sub_agents) {
+        match self.apply_remote_agent_control_config(&opamp_remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
                 OpampRemoteConfigStatus::Error(error_message.clone())
-                    .report(opamp_client, remote_config.hash.get())?;
+                    .report(opamp_client, opamp_remote_config.hash.get())?;
                 Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
                 self.sa_dynamic_config_store
                     .update_hash_state(&ConfigState::Applied)?;
-                OpampRemoteConfigStatus::Applied.report(opamp_client, remote_config.hash.get())?;
+                OpampRemoteConfigStatus::Applied
+                    .report(opamp_client, opamp_remote_config.hash.get())?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
             }

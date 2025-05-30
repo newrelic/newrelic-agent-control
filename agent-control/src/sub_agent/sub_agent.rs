@@ -12,7 +12,7 @@ use crate::health::health_checker::Health;
 use crate::health::health_checker::log_and_report_unhealthy;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
@@ -656,7 +656,7 @@ pub mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
     use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
@@ -1327,7 +1327,7 @@ deployment:
         assert!(hash.is_failed())
     }
     #[test]
-    fn test_bootstrap_remote_config_failed_hash_use_it_and_dont_report_it_again() {
+    fn test_bootstrap_stored_remote_config_failed_to_failed() {
         let (config_repository, mut opamp_client) = test_mocks();
 
         // In case a remote_config was marked as failed after being in applying state,

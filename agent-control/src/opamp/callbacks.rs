@@ -1,8 +1,10 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
-use crate::opamp::remote_config::hash::ConfigState;
-use crate::opamp::remote_config::signature::Signatures;
-use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig, hash::Hash};
-use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfigError};
+use crate::agent_control::agent_id::AgentID;
+use crate::opamp::remote_config::{
+    ConfigurationMap, OpampRemoteConfig, OpampRemoteConfigError,
+    hash::{ConfigState, Hash},
+    signature::Signatures,
+};
 use crate::{
     event::{
         OpAMPEvent,
@@ -28,7 +30,7 @@ use tracing::{debug, error, trace};
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
     #[error("deserialization error: `{0}`")]
-    DeserializationError(#[from] RemoteConfigError),
+    DeserializationError(#[from] OpampRemoteConfigError),
 
     #[error("Invalid UTF-8 sequence: `{0}`")]
     UTF8(#[from] FromUtf8Error),
@@ -92,7 +94,7 @@ where
         let config_map: Option<ConfigurationMap> = match msg_remote_config.config {
             Some(msg_config_map) => msg_config_map
                 .try_into()
-                .inspect_err(|err: &RemoteConfigError| {
+                .inspect_err(|err: &OpampRemoteConfigError| {
                     hash.update_state(&ConfigState::Failed {
                         error_message: format!("Invalid remote config format: {}", err),
                     });
@@ -123,7 +125,7 @@ where
                 }).ok()
             );
 
-        let mut remote_config = RemoteConfig::new(self.agent_id.clone(), hash, config_map);
+        let mut remote_config = OpampRemoteConfig::new(self.agent_id.clone(), hash, config_map);
         if let Some(config_signature) = maybe_config_signature {
             remote_config = remote_config.with_signature(config_signature);
         }
@@ -267,7 +269,7 @@ pub(crate) mod tests {
     use crate::opamp::remote_config::signature::{
         ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
     };
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;
@@ -378,7 +380,7 @@ pub(crate) mod tests {
                     .recv_timeout(Duration::from_millis(1))
                     .unwrap();
 
-                let mut remote_config = RemoteConfig::new(
+                let mut remote_config = OpampRemoteConfig::new(
                     agent_id.clone(),
                     self.expected_remote_config_hash.clone(),
                     self.expected_remote_config_config_map.clone(),

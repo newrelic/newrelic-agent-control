@@ -14,7 +14,7 @@ pub mod validators;
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
 #[derive(Debug, PartialEq, Clone)]
-pub struct RemoteConfig {
+pub struct OpampRemoteConfig {
     pub agent_id: AgentID,
     pub hash: Hash,
     signatures: Option<Signatures>,
@@ -22,7 +22,7 @@ pub struct RemoteConfig {
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
-pub enum RemoteConfigError {
+pub enum OpampRemoteConfigError {
     #[error("invalid UTF-8 sequence: `{0}`")]
     UTF8(#[from] FromUtf8Error),
 
@@ -34,7 +34,7 @@ pub enum RemoteConfigError {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ConfigurationMap(HashMap<String, String>);
 
-impl RemoteConfig {
+impl OpampRemoteConfig {
     pub fn new(agent_id: AgentID, hash: Hash, config_map: Option<ConfigurationMap>) -> Self {
         Self {
             agent_id,
@@ -50,17 +50,17 @@ impl RemoteConfig {
         }
     }
     //TODO : This is temporal as when there is only one conf item we should receive an empty string as key
-    pub fn get_unique(&self) -> Result<&str, RemoteConfigError> {
+    pub fn get_unique(&self) -> Result<&str, OpampRemoteConfigError> {
         let config_map = self
             .config_map
             .as_ref()
-            .ok_or(RemoteConfigError::InvalidConfig(
+            .ok_or(OpampRemoteConfigError::InvalidConfig(
                 self.hash.get(),
                 "missing config".to_string(),
             ))?;
 
         match config_map.0.len() {
-            0 => Err(RemoteConfigError::InvalidConfig(
+            0 => Err(OpampRemoteConfigError::InvalidConfig(
                 self.hash.get(),
                 "empty config map".to_string(),
             )),
@@ -69,7 +69,7 @@ impl RemoteConfig {
                 .values()
                 .next()
                 .expect("at least one config has been provided")),
-            _ => Err(RemoteConfigError::InvalidConfig(
+            _ => Err(OpampRemoteConfigError::InvalidConfig(
                 self.hash.get(),
                 "too many config items".to_string(),
             )),
@@ -77,10 +77,10 @@ impl RemoteConfig {
     }
 
     // gets the config signature if it exists. It fails if there are multiple signatures.
-    pub fn get_unique_signature(&self) -> Result<Option<SignatureData>, RemoteConfigError> {
+    pub fn get_unique_signature(&self) -> Result<Option<SignatureData>, OpampRemoteConfigError> {
         if let Some(signatures) = &self.signatures {
             match signatures.len() {
-                0 => Err(RemoteConfigError::InvalidConfig(
+                0 => Err(OpampRemoteConfigError::InvalidConfig(
                     self.hash.get(),
                     "empty signature".to_string(),
                 )),
@@ -90,12 +90,12 @@ impl RemoteConfig {
                         .next()
                         // assumes that the sigunature corresponds to the unique config item
                         .map(|(_, signature)| signature.clone())
-                        .ok_or(RemoteConfigError::InvalidConfig(
+                        .ok_or(OpampRemoteConfigError::InvalidConfig(
                             self.hash.get(),
                             "getting unique signature".to_string(),
                         ))?,
                 )),
-                _ => Err(RemoteConfigError::InvalidConfig(
+                _ => Err(OpampRemoteConfigError::InvalidConfig(
                     self.hash.get(),
                     "too many signature items".to_string(),
                 )),
@@ -114,7 +114,7 @@ impl ConfigurationMap {
 }
 
 impl TryFrom<AgentConfigMap> for ConfigurationMap {
-    type Error = RemoteConfigError;
+    type Error = OpampRemoteConfigError;
 
     fn try_from(agent_config_map: AgentConfigMap) -> Result<Self, Self::Error> {
         agent_config_map.config_map.into_iter().try_fold(

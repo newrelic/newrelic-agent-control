@@ -1,6 +1,7 @@
 mod cli;
 mod command;
 mod config_persister;
+mod config_repository;
 mod consts;
 mod id;
 mod logging;
@@ -8,4 +9,3 @@ mod opamp_auth;
 mod proxy;
 mod scenarios;
 mod tools;
-mod config_repository;

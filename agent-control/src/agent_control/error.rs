@@ -9,7 +9,7 @@ use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::instance_id;
 
 use crate::opamp::instance_id::on_host::getter::IdentifiersProviderError;
-use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
 use crate::values::config_repository::ConfigRepositoryError;
@@ -74,7 +74,7 @@ pub enum AgentError {
     EffectiveAgentsAssembler(#[from] EffectiveAgentsAssemblerError),
 
     #[error("remote config error: `{0}`")]
-    RemoteConfig(#[from] RemoteConfigError),
+    RemoteConfig(#[from] OpampRemoteConfigError),
 
     #[error("sub agent remote config error: `{0}`")]
     SubAgentRemoteConfig(#[from] ConfigRepositoryError),

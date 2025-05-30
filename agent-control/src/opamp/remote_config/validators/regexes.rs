@@ -1,7 +1,7 @@
 use super::RemoteConfigValidator;
 use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
 use regex::Regex;
 use std::collections::HashMap;
@@ -36,10 +36,10 @@ impl RemoteConfigValidator for RegexValidator {
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
-        remote_config: &RemoteConfig,
+        opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
-        if let Ok(raw_config) = remote_config.get_unique() {
+        if let Ok(raw_config) = opamp_remote_config.get_unique() {
             self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)?;
             self.validate_nrdot_repository(&agent_identity.agent_type_id, raw_config)?;
         }
@@ -184,7 +184,7 @@ pub(super) mod tests {
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
@@ -225,7 +225,7 @@ pub(super) mod tests {
                 exec: /bin/crowdstrike-falcon
                 interval: 15s
         "#;
-        let remote_config = RemoteConfig::new(
+        let remote_config = OpampRemoteConfig::new(
             test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(
@@ -258,7 +258,7 @@ pub(super) mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let remote_config = RemoteConfig::new(
+                let remote_config = OpampRemoteConfig::new(
                     test_id(),
                     Hash::new("fake".to_string()),
                     Some(ConfigurationMap::new(HashMap::from([(
@@ -666,8 +666,8 @@ config: |
         }
     }
 
-    fn remote_config(config: &str) -> RemoteConfig {
-        RemoteConfig::new(
+    fn remote_config(config: &str) -> OpampRemoteConfig {
+        OpampRemoteConfig::new(
             test_id(),
             Hash::new("this-is-a-hash".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(

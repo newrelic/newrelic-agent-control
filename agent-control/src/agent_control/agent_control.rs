@@ -264,18 +264,20 @@ where
     // apply an agent control remote config
     pub(super) fn apply_remote_agent_control_config(
         &self,
-        remote_config: &RemoteConfig,
+        opamp_remote_config: &OpampRemoteConfig,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
         // Fail if the remote config has already identified as failed.
-        if let Some(err) = remote_config.hash.error_message() {
+        if let Some(err) = opamp_remote_config.hash.error_message() {
             // TODO seems like this error should be sent by the remote config itself
-            return Err(RemoteConfigError::InvalidConfig(remote_config.hash.get(), err).into());
+            return Err(
+                OpampRemoteConfigError::InvalidConfig(opamp_remote_config.hash.get(), err).into(),
+            );
         }
 
-        let remote_config_value = remote_config.get_unique()?;
+        let remote_config_value = opamp_remote_config.get_unique()?;
 
         let old_agent_control_dynamic_config = self.sa_dynamic_config_store.load()?;
 
@@ -304,7 +306,7 @@ where
         if !remote_config_value.is_empty() {
             let config = RemoteConfigValues::new(
                 YAMLConfig::try_from(remote_config_value.to_string())?,
-                remote_config.hash.clone(),
+                opamp_remote_config.hash.clone(),
             );
             self.sa_dynamic_config_store.store(&config)?;
         }
@@ -433,7 +435,7 @@ mod tests {
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
-    use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig};
+    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
