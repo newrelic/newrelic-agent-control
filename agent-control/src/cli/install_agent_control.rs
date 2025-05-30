@@ -1,13 +1,13 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta};
 use crate::cli::errors::CliError;
 use crate::cli::utils::*;
+use crate::health::health_checker::HealthChecker;
+use crate::health::k8s::health_checker::K8sHealthChecker;
+use crate::health::with_start_time::StartTime;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
-use crate::health::health_checker::HealthChecker;
-use crate::health::k8s::health_checker::SubAgentHealthChecker;
-use crate::health::with_start_time::StartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
 use kube::{
@@ -235,7 +235,7 @@ fn check_installation(
     objects: Vec<DynamicObject>,
 ) -> Result<(), CliError> {
     let health_checker =
-        SubAgentHealthChecker::try_new(Arc::new(k8s_client), Arc::new(objects), StartTime::now())
+        K8sHealthChecker::try_new(Arc::new(k8s_client), Arc::new(objects), StartTime::now())
             .map_err(|err| {
                 CliError::InstallationCheck(format!("could not build health-checker: {err}"))
             })?
