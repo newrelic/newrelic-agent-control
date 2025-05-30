@@ -5,6 +5,7 @@ use super::config_storer::loader_storer::{
     AgentControlDynamicConfigStorer,
 };
 use super::resource_cleaner::ResourceCleaner;
+use super::version_updater::VersionUpdater;
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::agent_control::uptime_report::UptimeReporter;
@@ -31,7 +32,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-pub struct AgentControl<S, O, HR, SL, DV, RC>
+pub struct AgentControl<S, O, HR, SL, DV, RC, VU>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -41,6 +42,7 @@ where
     S: SubAgentBuilder,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
+    VU: VersionUpdater,
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
@@ -54,10 +56,11 @@ where
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     dynamic_config_validator: DV,
     resource_cleaner: RC,
+    _version_updater: VU,
     initial_config: AgentControlConfig,
 }
 
-impl<S, O, HR, SL, DV, RC> AgentControl<S, O, HR, SL, DV, RC>
+impl<S, O, HR, SL, DV, RC, VU> AgentControl<S, O, HR, SL, DV, RC, VU>
 where
     O: StartedClient,
     HR: HashRepository,
@@ -67,6 +70,7 @@ where
         + AgentControlDynamicConfigDeleter,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
+    VU: VersionUpdater,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -80,6 +84,7 @@ where
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         dynamic_config_validator: DV,
         resource_cleaner: RC,
+        version_updater: VU,
         initial_config: AgentControlConfig,
     ) -> Self {
         Self {
@@ -96,6 +101,7 @@ where
             agent_control_opamp_consumer,
             dynamic_config_validator,
             resource_cleaner,
+            _version_updater: version_updater,
             initial_config,
         }
     }
@@ -429,6 +435,7 @@ mod tests {
     use crate::agent_control::resource_cleaner::ResourceCleanerError;
     use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
     use crate::agent_control::resource_cleaner::tests::MockResourceCleaner;
+    use crate::agent_control::version_updater::NoOpUpdater;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -483,6 +490,7 @@ mod tests {
             Some(opamp_consumer),
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 
@@ -534,6 +542,7 @@ mod tests {
             Some(opamp_consumer),
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             ac_config,
         );
 
@@ -629,6 +638,7 @@ mod tests {
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     ac_config,
                 );
                 agent.run()
@@ -694,6 +704,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
@@ -752,6 +763,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
                 agent.process_events(sub_agents)
@@ -887,6 +899,7 @@ agents:
             Some(opamp_consumer),
             dynamic_config_validator,
             resource_cleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 
@@ -1041,6 +1054,7 @@ agents:
             Some(opamp_consumer),
             dynamic_config_validator,
             resource_cleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 
@@ -1137,6 +1151,7 @@ agents:
             Some(opamp_consumer),
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             AgentControlConfig::default(),
         );
 
@@ -1253,6 +1268,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
 
@@ -1329,6 +1345,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
 
@@ -1399,6 +1416,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
 
@@ -1509,6 +1527,7 @@ agents:
                     Some(opamp_consumer),
                     dynamic_config_validator,
                     NoOpResourceCleaner,
+                    NoOpUpdater,
                     AgentControlConfig::default(),
                 );
 

@@ -11,6 +11,7 @@ use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::version_updater::NoOpUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -171,6 +172,7 @@ impl AgentControlRunner {
             maybe_opamp_consumer,
             dynamic_config_validator,
             garbage_collector,
+            NoOpUpdater,
             agent_control_config,
         )
         .run()
