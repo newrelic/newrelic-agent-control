@@ -1,11 +1,11 @@
-#[cfg_attr(test, mockall_double::double)]
-use crate::k8s::client::SyncK8sClient;
-use crate::k8s::utils as client_utils;
+use super::{check_health_for_items, flux_release_filter, missing_field_error};
 use crate::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
-use crate::health::k8s::utils::{self, check_health_for_items, flux_release_filter};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ impl K8sHealthDeployment {
         let status = deployment
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(deployment, name.as_str(), ".status"))?;
+            .ok_or_else(|| missing_field_error(deployment, name.as_str(), ".status"))?;
 
         // The deployment is unhealthy if any of the pods are unavailable, i.e. not running or not ready.
         if let Some(unavailable_replicas) = status.unavailable_replicas {
@@ -65,9 +65,9 @@ impl K8sHealthDeployment {
         let desired_replicas = deployment
             .spec
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(deployment, name.as_str(), ".spec"))?
+            .ok_or_else(|| missing_field_error(deployment, name.as_str(), ".spec"))?
             .replicas
-            .ok_or_else(|| utils::missing_field_error(deployment, &name, "spec.replicas"))?;
+            .ok_or_else(|| missing_field_error(deployment, &name, "spec.replicas"))?;
 
         // This condition is more of a safe net, as if there are no unavailable replicas, available replicas should match desired replicas.
         // available_replicas is present only if > 0
@@ -88,9 +88,7 @@ impl K8sHealthDeployment {
 mod tests {
     use super::*;
     use crate::health::health_checker::Healthy;
-    use crate::{
-        k8s::client::MockSyncK8sClient, health::k8s::health_checker::LABEL_RELEASE_FLUX,
-    };
+    use crate::{health::k8s::health_checker::LABEL_RELEASE_FLUX, k8s::client::MockSyncK8sClient};
     use k8s_openapi::api::apps::v1::{
         Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, RollingUpdateDeployment,
     };
@@ -277,7 +275,7 @@ mod tests {
                     spec: Some(test_util_create_deployment_spec(10, "30%", "20%")),
                     status: None,
                 },
-                expected_err: utils::missing_field_error(
+                expected_err: missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
                     ".status",
@@ -290,7 +288,7 @@ mod tests {
                     spec: None,
                     status: Some(test_util_create_deployment_status(10)),
                 },
-                expected_err: utils::missing_field_error(
+                expected_err: missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
                     ".spec",
@@ -307,7 +305,7 @@ mod tests {
                         ..Default::default()
                     }),
                 },
-                expected_err: utils::missing_field_error(
+                expected_err: missing_field_error(
                     &Deployment::default(),
                     "test-deployment",
                     "spec.replicas",

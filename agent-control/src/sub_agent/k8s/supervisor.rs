@@ -4,13 +4,13 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::health::health_checker::spawn_health_checker;
+use crate::health::k8s::health_checker::K8sHealthChecker;
+use crate::health::with_start_time::StartTime;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
-use crate::health::health_checker::spawn_health_checker;
-use crate::health::k8s::health_checker::K8sHealthChecker;
-use crate::health::with_start_time::StartTime;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;

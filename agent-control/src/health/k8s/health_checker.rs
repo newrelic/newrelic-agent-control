@@ -1,18 +1,17 @@
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
-use crate::health::k8s::daemon_set::K8sHealthDaemonSet;
-use crate::health::k8s::deployment::K8sHealthDeployment;
-use crate::health::k8s::helm_release::K8sHealthFluxHelmRelease;
-use crate::health::k8s::instrumentation::K8sHealthNRInstrumentation;
-use crate::health::k8s::stateful_set::K8sHealthStatefulSet;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use kube::api::DynamicObject;
-use resource_type::ResourceType;
+use resources::{
+    ResourceType, daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
+    helm_release::K8sHealthFluxHelmRelease, instrumentation::K8sHealthNRInstrumentation,
+    stateful_set::K8sHealthStatefulSet,
+};
 use std::sync::Arc;
 use tracing::trace;
 
-mod resource_type;
+mod resources;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090

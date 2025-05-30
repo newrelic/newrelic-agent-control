@@ -1,19 +1,50 @@
-//! This module contains functions to deal with the health-check of a list of items.
+//! This module includes implementations of health-checkers for individual k8s resources.
 //!
-use super::health_checker::LABEL_RELEASE_FLUX;
+use super::LABEL_RELEASE_FLUX;
+use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 use crate::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
+use kube::api::TypeMeta;
 use kube::core::{Expression, Selector, SelectorExt};
 use std::{any::Any, sync::Arc};
+
+pub mod daemon_set;
+pub mod deployment;
+pub mod helm_release;
+pub mod instrumentation;
+pub mod stateful_set;
+
+/// Represents supported resources types for health check.
+pub(super) enum ResourceType {
+    HelmRelease,
+    InstrumentationCRD,
+}
+
+/// Error returned when trying build a [ResourceType] from an unsupported [TypeMeta].
+pub(super) struct UnsupportedResourceType;
+
+impl TryFrom<&TypeMeta> for ResourceType {
+    type Error = UnsupportedResourceType;
+
+    fn try_from(value: &TypeMeta) -> Result<Self, Self::Error> {
+        if value == &helmrelease_v2_type_meta() {
+            Ok(ResourceType::HelmRelease)
+        } else if value == &instrumentation_v1beta1_type_meta() {
+            Ok(ResourceType::InstrumentationCRD)
+        } else {
+            Err(UnsupportedResourceType)
+        }
+    }
+}
 
 /// Executes the provided health-check function over the items provided. It expects a list
 /// of `Arc<K>` because k8s reflectors provide shared references.
 /// It returns:
 /// * A healthy result if the result of execution is healthy for all the items.
 /// * The first encountered error or unhealthy result, otherwise.
-pub fn check_health_for_items<K, F>(
+pub(super) fn check_health_for_items<K, F>(
     items: impl Iterator<Item = Arc<K>>,
     health_check_fn: F,
 ) -> Result<Health, HealthCheckerError>
@@ -33,7 +64,7 @@ where
 
 /// Returns a closure which can be used as filter predicate. It will filter objects labeled with the key
 /// [LABEL_RELEASE_FLUX] and the provided release name as value.
-pub fn flux_release_filter<K>(release_name: String) -> impl Fn(&Arc<K>) -> bool
+pub(super) fn flux_release_filter<K>(release_name: String) -> impl Fn(&Arc<K>) -> bool
 where
     K: Metadata<Ty = ObjectMeta>,
 {
@@ -51,7 +82,7 @@ where
 }
 
 /// Helper to return an error when an expected field in the StatefulSet object is missing.
-pub fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
+pub(super) fn missing_field_error<K>(_: &K, name: &str, field: &str) -> HealthCheckerError
 where
     K: Resource<Scope = NamespaceResourceScope>,
 {

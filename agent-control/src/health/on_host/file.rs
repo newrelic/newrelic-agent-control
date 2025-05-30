@@ -3,9 +3,7 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
-use crate::health::health_checker::{
-    HealthChecker, HealthCheckerError, Healthy, Unhealthy,
-};
+use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::utils::time::sys_time_from_unix_timestamp;
 

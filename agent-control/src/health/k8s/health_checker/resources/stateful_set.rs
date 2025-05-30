@@ -1,4 +1,3 @@
-use super::utils;
 use crate::health::health_checker::{
     Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
 };
@@ -8,6 +7,8 @@ use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::StatefulSet;
 use std::sync::Arc;
+
+use super::{check_health_for_items, flux_release_filter, missing_field_error};
 
 /// Represents a health checker for the StatefulSets or a release.
 pub struct K8sHealthStatefulSet {
@@ -22,10 +23,9 @@ impl HealthChecker for K8sHealthStatefulSet {
 
         let target_stateful_sets = stateful_sets
             .into_iter()
-            .filter(utils::flux_release_filter(self.release_name.clone()));
+            .filter(flux_release_filter(self.release_name.clone()));
 
-        let health =
-            utils::check_health_for_items(target_stateful_sets, Self::stateful_set_health)?;
+        let health = check_health_for_items(target_stateful_sets, Self::stateful_set_health)?;
 
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
@@ -50,17 +50,17 @@ impl K8sHealthStatefulSet {
         let spec = sts
             .spec
             .as_ref()
-            .ok_or(utils::missing_field_error(sts, &name, ".spec"))?;
+            .ok_or(missing_field_error(sts, &name, ".spec"))?;
         let status = sts
             .status
             .as_ref()
-            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status"))?;
+            .ok_or_else(|| missing_field_error(sts, &name, ".status"))?;
 
         let replicas = spec.replicas.unwrap_or(1);
 
         let ready_replicas = status
             .ready_replicas
-            .ok_or_else(|| utils::missing_field_error(sts, &name, ".status.readyReplicas"))?;
+            .ok_or_else(|| missing_field_error(sts, &name, ".status.readyReplicas"))?;
 
         if replicas != ready_replicas {
             return Ok(Unhealthy::new(

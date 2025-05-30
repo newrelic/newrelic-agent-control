@@ -4,14 +4,14 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::http::client::HttpClient;
-use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::health::health_checker::{
     HealthCheckerError, publish_health_event, spawn_health_checker,
 };
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthChecker;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
+use crate::http::client::HttpClient;
+use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
