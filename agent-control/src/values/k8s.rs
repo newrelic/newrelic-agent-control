@@ -94,13 +94,17 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
 
         if let Some(rc) = remote_config {
-            return Ok(Some(rc.config_hash));
+            return Ok(Some(rc.hash()));
         }
 
         Ok(None)
     }
 
-    fn update_hash_state(&self, agent_id: &AgentID, state: &ConfigState) -> Result<(), ConfigRepositoryError> {
+    fn update_hash_state(
+        &self,
+        agent_id: &AgentID,
+        state: &ConfigState,
+    ) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
             "updating remote config hash"
@@ -113,13 +117,15 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
 
         match maybe_config {
             Some(mut remote_config) => {
-                remote_config.config_hash.update_state(state);
+                remote_config.update_state(state);
                 self.k8s_store
                     .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, &remote_config)
                     .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
                 Ok(())
             }
-            None => Err(ConfigRepositoryError::UpdateHashStateError("No remote config found".to_string())),
+            None => Err(ConfigRepositoryError::UpdateHashStateError(
+                "No remote config found".to_string(),
+            )),
         }
     }
 

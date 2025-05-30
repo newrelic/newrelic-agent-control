@@ -40,9 +40,13 @@ pub trait AgentControlDynamicConfigLoader {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{AgentControlConfigError, AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater};
     use super::{
-        AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter, AgentControlRemoteConfigStorer,
+        AgentControlConfigError, AgentControlRemoteConfigHashGetter,
+        AgentControlRemoteConfigHashStateUpdater,
+    };
+    use super::{
+        AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+        AgentControlRemoteConfigStorer,
     };
     use crate::agent_control::config::AgentControlDynamicConfig;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};

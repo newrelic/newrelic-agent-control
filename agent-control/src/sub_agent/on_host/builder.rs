@@ -191,7 +191,7 @@ mod tests {
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
@@ -269,7 +269,7 @@ mod tests {
             .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values))));
 
         let mut hash = Hash::new("a-hash".to_string());
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         config_repository
             .expect_update_hash_state()
             .with(
@@ -368,7 +368,7 @@ mod tests {
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: remote_config_values.config_hash.get().into_bytes(),
+            last_remote_config_hash: remote_config_values.hash().get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -394,7 +394,7 @@ mod tests {
             .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values.clone()))));
 
         let mut hash = Hash::new("a-hash".to_string());
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         config_repository
             .expect_update_hash_state()
             .with(

@@ -35,7 +35,11 @@ pub trait ConfigRepository: Send + Sync + 'static {
 
     fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError>;
 
-    fn update_hash_state(&self, agent_id: &AgentID, state: &ConfigState) -> Result<(), ConfigRepositoryError>;
+    fn update_hash_state(
+        &self,
+        agent_id: &AgentID,
+        state: &ConfigState,
+    ) -> Result<(), ConfigRepositoryError>;
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
 }
@@ -166,7 +170,7 @@ pub mod tests {
                             hash.update_state(state);
                             let remote_config =
                                 RemoteConfig::new(remote_config.get_yaml_config(), hash);
-                            return Some(Config::RemoteConfig(remote_config))
+                            return Some(Config::RemoteConfig(remote_config));
                         }
                         None
                     });

@@ -1,12 +1,17 @@
-use crate::agent_control::config_storer::loader_storer::{AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter, AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater, AgentControlRemoteConfigStorer};
+use crate::agent_control::config_storer::loader_storer::{
+    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
+    AgentControlRemoteConfigStorer,
+};
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::resource_cleaner::ResourceCleaner;
 use crate::agent_control::version_updater::VersionUpdater;
 use crate::health::health_checker::{Healthy, Unhealthy};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::{
     agent_control::{agent_control::AgentControl, error::AgentError},
-    opamp::remote_config::RemoteConfig,
+    opamp::remote_config::OpampRemoteConfig,
     sub_agent::{NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents},
 };
 use opamp_client::StartedClient;
@@ -30,7 +35,7 @@ where
     // Valid configuration will be applied and reported as applied to OpAMP
     pub(crate) fn remote_config(
         &self,
-        mut remote_config: RemoteConfig,
+        remote_config: OpampRemoteConfig,
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -40,19 +45,20 @@ where
         };
 
         info!("Applying remote config");
-        OpampRemoteConfigStatus::Applying.report(opamp_client, &remote_config.hash)?;
+        OpampRemoteConfigStatus::Applying.report(opamp_client, remote_config.hash.get())?;
 
         match self.apply_remote_agent_control_config(&remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
                 OpampRemoteConfigStatus::Error(error_message.clone())
-                    .report(opamp_client, &remote_config.hash)?;
+                    .report(opamp_client, remote_config.hash.get())?;
                 Ok(self.report_unhealthy(Unhealthy::new(String::default(), error_message))?)
             }
             Ok(()) => {
-                self.set_config_hash_as_applied(&mut remote_config.hash)?;
-                OpampRemoteConfigStatus::Applied.report(opamp_client, &remote_config.hash)?;
+                self.sa_dynamic_config_store
+                    .update_hash_state(&ConfigState::Applied)?;
+                OpampRemoteConfigStatus::Applied.report(opamp_client, remote_config.hash.get())?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_healthy(Healthy::new(String::default()))?)
             }
@@ -69,6 +75,7 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Arc;
 
+    use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::RemoteConfig;
     use crate::{
         agent_control::{
@@ -83,7 +90,7 @@ mod tests {
         event::{broadcaster::unbounded::UnboundedBroadcast, channel::pub_sub},
         opamp::{
             client_builder::tests::MockStartedOpAMPClient,
-            remote_config::{ConfigurationMap, RemoteConfig as OpampRemoteConfig, hash::Hash},
+            remote_config::{ConfigurationMap, OpampRemoteConfig, hash::Hash},
         },
         sub_agent::{
             collection::StartedSubAgents,
@@ -215,7 +222,7 @@ mod tests {
         dynamic_config_store.should_store(remote_config_values);
 
         let mut applied_hash = opamp_remote_config.hash.clone();
-        applied_hash.apply();
+        applied_hash.update_state(&ConfigState::Applied);
         dynamic_config_store
             .expect_update_hash_state()
             .with(predicate::eq(applied_hash.state()))

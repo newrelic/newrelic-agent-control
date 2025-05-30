@@ -1,4 +1,4 @@
-use crate::opamp::remote_config::hash::Hash;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::values::yaml_config::YAMLConfig;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,7 @@ impl Config {
     pub fn get_hash(&self) -> Option<Hash> {
         match self {
             Config::LocalConfig(_) => None,
-            Config::RemoteConfig(remote_config) => Some(remote_config.config_hash.clone()),
+            Config::RemoteConfig(remote_config) => Some(remote_config.hash()),
         }
     }
 }
@@ -45,7 +45,7 @@ impl From<YAMLConfig> for LocalConfig {
 pub struct RemoteConfig {
     pub config: YAMLConfig,
     #[serde(flatten)]
-    pub config_hash: Hash,
+    config_hash: Hash,
 }
 
 impl RemoteConfig {
@@ -54,5 +54,22 @@ impl RemoteConfig {
             config,
             config_hash,
         }
+    }
+
+    pub fn is_applied(&self) -> bool {
+        self.config_hash.is_applied()
+    }
+
+    pub fn is_applying(&self) -> bool {
+        self.config_hash.is_applying()
+    }
+
+    pub fn hash(&self) -> Hash {
+        self.config_hash.clone()
+    }
+
+    pub fn update_state(&mut self, config_state: &ConfigState) {
+        //make private
+        self.config_hash.update_state(config_state)
     }
 }

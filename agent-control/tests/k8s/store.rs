@@ -163,7 +163,7 @@ fn k8s_value_repository_config_map() {
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config(), remote_values.config);
-    assert_eq!(res.get_hash(), Some(remote_values.config_hash));
+    assert_eq!(res.get_hash(), Some(remote_values.hash()));
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
@@ -190,10 +190,7 @@ fn k8s_value_repository_config_map() {
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config(), local_values);
     assert_eq!(res_agent_2.get_yaml_config(), remote_values_agent_2.config);
-    assert_eq!(
-        res_agent_2.get_hash(),
-        Some(remote_values_agent_2.config_hash)
-    );
+    assert_eq!(res_agent_2.get_hash(), Some(remote_values_agent_2.hash()));
 }
 
 #[test]

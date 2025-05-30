@@ -9,7 +9,6 @@ use crate::agent_control::config_storer::loader_storer::{
 };
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
-use crate::values::config::Config as ConfigValues;
 use crate::values::config::RemoteConfig;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::YAMLConfigError;
@@ -139,7 +138,8 @@ where
             .values_repository
             .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
         {
-            let dynamic_config: AgentControlDynamicConfig =  remote_config.get_yaml_config().try_into()?;
+            let dynamic_config: AgentControlDynamicConfig =
+                remote_config.get_yaml_config().try_into()?;
             config.dynamic = dynamic_config;
         }
 
@@ -153,8 +153,7 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
             ConfigRepositoryError::LoadError(e) => AgentControlConfigError::Load(e),
             ConfigRepositoryError::StoreError(e) => AgentControlConfigError::Store(e),
             ConfigRepositoryError::DeleteError(e) => AgentControlConfigError::Delete(e),
-            ConfigRepositoryError::UpdateHashStateError(e) => { AgentControlConfigError::Update(e)
-            }
+            ConfigRepositoryError::UpdateHashStateError(e) => AgentControlConfigError::Update(e),
         }
     }
 }

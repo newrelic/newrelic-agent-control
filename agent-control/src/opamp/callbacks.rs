@@ -1,4 +1,5 @@
 use super::effective_config::{error::EffectiveConfigError, loader::EffectiveConfigLoader};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::signature::Signatures;
 use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig, hash::Hash};
 use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfigError};
@@ -81,7 +82,9 @@ where
             Err(err) => {
                 // the hash must be created to keep track of the failing remote config.
                 let mut hash = Hash::new(String::new());
-                hash.fail(format!("Invalid hash: {}", err));
+                hash.update_state(&ConfigState::Failed {
+                    error_message: format!("Invalid hash: {}", err),
+                });
                 hash
             }
         };
@@ -90,11 +93,15 @@ where
             Some(msg_config_map) => msg_config_map
                 .try_into()
                 .inspect_err(|err: &RemoteConfigError| {
-                    hash.fail(format!("Invalid remote config format: {}", err))
+                    hash.update_state(&ConfigState::Failed {
+                        error_message: format!("Invalid remote config format: {}", err),
+                    });
                 })
                 .ok(),
             None => {
-                hash.fail("Config missing".into());
+                hash.update_state(&ConfigState::Failed {
+                    error_message: "Config missing".into(),
+                });
                 None
             }
         };
@@ -107,11 +114,11 @@ where
                     },
                     SignatureError::InvalidData(err) => {
                         error!(%self.agent_id, %err, "parsing config signature message: {:?}", custom_message);
-                        hash.fail(format!("Invalid remote config signature format: {}", err));
+                        hash.update_state(&ConfigState::Failed { error_message: format!("Invalid remote config signature format: {}", err) });
                     },
                     SignatureError::UnsupportedAlgorithm(err) => {
                         error!(%self.agent_id, %err, "unsupported signature algorithm: {:?}", custom_message);
-                        hash.fail(format!("Unsupported signature algorithm: {}", err));
+                        hash.update_state(&ConfigState::Failed { error_message: format!("Unsupported signature algorithm: {}", err) });
                     }
                 }).ok()
             );
@@ -421,9 +428,9 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: None,
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new(valid_hash.to_string());
-                    expected_hash.fail(
-                        "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
-                    );
+                    expected_hash.update_state(&ConfigState::Failed {
+                        error_message: "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into()
+                    });
                     expected_hash
                 },
                 expected_signature: None,
@@ -440,7 +447,9 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: None,
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new(valid_hash.to_string());
-                    expected_hash.fail("Config missing".into());
+                    expected_hash.update_state(&ConfigState::Failed {
+                        error_message: "Config missing".into(),
+                    });
                     expected_hash
                 },
                 expected_signature: None,
@@ -457,7 +466,9 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: None,
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new("".to_string());
-                    expected_hash.fail("Config missing".into());
+                    expected_hash.update_state(&ConfigState::Failed {
+                        error_message: "Config missing".into(),
+                    });
                     expected_hash
                 },
                 expected_signature: None,
@@ -474,9 +485,10 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new("".to_string());
-                    expected_hash.fail(
-                        "Invalid hash: invalid utf-8 sequence of 1 bytes from index 0".into(),
-                    );
+                    expected_hash.update_state(&ConfigState::Failed {
+                        error_message:
+                            "Invalid hash: invalid utf-8 sequence of 1 bytes from index 0".into(),
+                    });
                     expected_hash
                 },
                 expected_signature: None,
@@ -580,10 +592,9 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: {
                     let mut expected_hash = Hash::new(valid_hash.to_string());
-                    expected_hash.fail(
-                        "Invalid remote config signature format: expected value at line 1 column 1"
-                            .into(),
-                    );
+                    expected_hash.update_state(&ConfigState::Failed {
+                        error_message: "Invalid remote config signature format: expected value at line 1 column 1".into(),
+                    });
                     expected_hash
                 },
                 expected_signature: None,

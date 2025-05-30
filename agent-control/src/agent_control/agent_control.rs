@@ -1,6 +1,10 @@
 use super::agent_id::AgentID;
 use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap};
-use super::config_storer::loader_storer::{AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter, AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater, AgentControlRemoteConfigStorer};
+use super::config_storer::loader_storer::{
+    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
+    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
+    AgentControlRemoteConfigStorer,
+};
 use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::VersionUpdater;
 use crate::agent_control::config_validator::DynamicConfigValidator;
@@ -10,13 +14,11 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent, channel::EventConsumer,
 };
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
-use crate::opamp::{
-    remote_config::hash::Hash,
-    remote_config::{RemoteConfig, RemoteConfigError},
-};
+use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError};
 use crate::sub_agent::collection::StartedSubAgents;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
@@ -107,10 +109,11 @@ where
                 Err(e) => {
                     warn!("Failed getting remote config hash from the store: {}", e);
                 }
-                Ok(Some(mut hash)) => {
+                Ok(Some(hash)) => {
                     if !hash.is_applied() {
-                        OpampRemoteConfigStatus::Applied.report(opamp_client, &hash)?;
-                        self.set_config_hash_as_applied(&mut hash)?;
+                        OpampRemoteConfigStatus::Applied.report(opamp_client, hash.get())?;
+                        self.sa_dynamic_config_store
+                            .update_hash_state(&ConfigState::Applied)?;
                     }
                 }
                 Ok(None) => {
@@ -137,13 +140,6 @@ where
         }
 
         info!("AgentControl finished");
-        Ok(())
-    }
-
-    pub(super) fn set_config_hash_as_applied(&self, hash: &mut Hash) -> Result<(), AgentError> {
-        hash.apply();
-        self.sa_dynamic_config_store.update_hash_state(&hash.state())?;
-
         Ok(())
     }
 
@@ -466,7 +462,7 @@ mod tests {
             .times(1)
             .returning(|| {
                 let mut hash = Hash::new("a-hash".to_string());
-                hash.apply();
+                hash.update_state(&ConfigState::Applied);
                 Ok(Some(hash))
             });
 
@@ -518,7 +514,7 @@ mod tests {
             .times(1)
             .returning(|| {
                 let mut hash = Hash::new("a-hash".to_string());
-                hash.apply();
+                hash.update_state(&ConfigState::Applied);
                 Ok(Some(hash))
             });
 
@@ -591,7 +587,7 @@ mod tests {
             .times(1)
             .returning(|| {
                 let mut hash = Hash::new("a-hash".to_string());
-                hash.apply();
+                hash.update_state(&ConfigState::Applied);
                 Ok(Some(hash))
             });
 
@@ -1192,7 +1188,7 @@ agents:
         sa_dynamic_config_store.should_store(remote_config_values);
 
         // store agent control remote config hash
-        remote_config_hash.apply();
+        remote_config_hash.update_state(&ConfigState::Applied);
         sa_dynamic_config_store
             .expect_update_hash_state()
             .with(predicate::eq(remote_config_hash.state()))
@@ -1276,7 +1272,9 @@ agents:
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
-        remote_config_hash.fail(String::from("some error message"));
+        remote_config_hash.update_state(&ConfigState::Failed {
+            error_message: String::from("some error message"),
+        });
 
         let opamp_remote_config =
             OpampRemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
@@ -1448,7 +1446,7 @@ agents:
         sa_dynamic_config_store.should_store(remote_config_values);
 
         // store agent control remote config hash
-        remote_config_hash.apply();
+        remote_config_hash.update_state(&ConfigState::Applied);
         sa_dynamic_config_store
             .expect_update_hash_state()
             .with(predicate::eq(remote_config_hash.state()))

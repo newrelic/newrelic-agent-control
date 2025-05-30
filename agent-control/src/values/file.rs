@@ -144,12 +144,14 @@ where
 
         self.load_file_if_present(local_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
-            .map(|maybe_values| {
-                if let Some(values) = maybe_values {
-                    return Some(Config::LocalConfig(serde_yaml::from_str(&values)?))
-                }
-                None
-            } )
+            .and_then(|maybe_values| {
+                maybe_values.map_or(Ok(None), |values| {
+                    serde_yaml::from_str(&values)
+                        .map(Config::LocalConfig)
+                        .map(Some)
+                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                })
+            })
     }
 
     #[tracing::instrument(skip_all, err)]
@@ -166,11 +168,13 @@ where
 
         self.load_file_if_present(remote_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
-            .map(|maybe_values| {
-                if let Some(values) = maybe_values {
-                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
-                }
-                None
+            .and_then(|maybe_values| {
+                maybe_values.map_or(Ok(None), |values| {
+                    serde_yaml::from_str(&values)
+                        .map(Config::RemoteConfig)
+                        .map(Some)
+                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                })
             })
     }
 
@@ -206,23 +210,30 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
-        let maybe_remote = self.load_file_if_present(remote_values_path)
+        let maybe_remote = self
+            .load_file_if_present(remote_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
-            .map(|maybe_values| {
-                if let Some(values) = maybe_values {
-                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
-                }
-                None
+            .and_then(|maybe_values| {
+                maybe_values.map_or(Ok(None), |values| {
+                    serde_yaml::from_str(&values)
+                        .map(Config::RemoteConfig)
+                        .map(Some)
+                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                })
             })?;
 
         if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
-            return Ok(Some(remote_config.config_hash));
+            return Ok(Some(remote_config.hash()));
         }
 
         Ok(None)
     }
 
-    fn update_hash_state(&self, agent_id: &AgentID, state: &ConfigState) -> Result<(), ConfigRepositoryError> {
+    fn update_hash_state(
+        &self,
+        agent_id: &AgentID,
+        state: &ConfigState,
+    ) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
             "updating remote config hash"
@@ -231,17 +242,20 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
-        let maybe_remote = self.load_file_if_present(remote_values_path.clone())
+        let maybe_remote = self
+            .load_file_if_present(remote_values_path.clone())
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
-            .map(|maybe_values| {
-                if let Some(values) = maybe_values {
-                    return Some(Config::RemoteConfig(serde_yaml::from_str(&values)?))
-                }
-                None
+            .and_then(|maybe_values| {
+                maybe_values.map_or(Ok(None), |values| {
+                    serde_yaml::from_str(&values)
+                        .map(Config::RemoteConfig)
+                        .map(Some)
+                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                })
             })?;
 
         if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
-            remote_config.config_hash.update_state(state);
+            remote_config.update_state(state);
 
             let content = serde_yaml::to_string(&remote_config)
                 .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
@@ -256,7 +270,9 @@ where
 
             Ok(())
         } else {
-            Err(ConfigRepositoryError::UpdateHashStateError("No remote config found".to_string()))
+            Err(ConfigRepositoryError::UpdateHashStateError(
+                "No remote config found".to_string(),
+            ))
         }
     }
 

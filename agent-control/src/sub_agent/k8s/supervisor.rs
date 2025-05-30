@@ -255,7 +255,7 @@ pub mod tests {
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::AGENT_ID_LABEL_KEY;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::sub_agent::effective_agents_assembler::EffectiveAgent;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::k8s::builder::tests::k8s_sample_runtime_config;
@@ -533,7 +533,7 @@ pub mod tests {
             )
             .return_once(|_, _| Ok(Some(Config::RemoteConfig(remote_config))));
 
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         config_repository
             .expect_update_hash_state()
             .with(
