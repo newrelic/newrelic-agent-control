@@ -110,3 +110,29 @@ fn k8s_cli_install_agent_control_creates_resources() {
         )
     );
 }
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url() {
+    let runtime = crate::common::runtime::tokio_runtime();
+
+    let mut k8s_env = runtime.block_on(K8sEnv::new());
+    let namespace = runtime.block_on(k8s_env.test_namespace());
+
+    let repository_url = "https://cli-charts.newrelic.com";
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    cmd.arg("install-agent-control");
+    cmd.arg("--release-name").arg(RELEASE_NAME);
+    cmd.arg("--chart-version").arg("1.0.0");
+    cmd.arg("--namespace").arg(namespace.clone());
+    cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
+    cmd.arg("--repository-url").arg(repository_url);
+    cmd.assert().success();
+
+    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+    let repository = k8s_client
+        .get_dynamic_object(&helmrepository_type_meta(), REPOSITORY_NAME)
+        .unwrap()
+        .unwrap();
+    assert_eq!(repository.data["spec"]["url"], repository_url);
+}

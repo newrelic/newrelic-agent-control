@@ -74,6 +74,10 @@ pub struct AgentControlInstallData {
     /// Initial delay for installation check
     #[arg(long, default_value = INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY, value_parser = parse_duration_arg)]
     pub installation_check_initial_delay: Duration,
+
+    /// Repository URl from where the chart will be downloaded
+    #[arg(long, default_value = REPOSITORY_URL)]
+    pub repository_url: String,
 }
 
 // helper needed because the arguments from the duration_str's parse function and the one expected by the clap
@@ -146,13 +150,18 @@ impl From<AgentControlInstallData> for Vec<DynamicObject> {
         let annotations = annotations.get();
 
         vec![
-            helm_repository(labels.clone(), annotations.clone()),
+            helm_repository(
+                value.repository_url.clone(),
+                labels.clone(),
+                annotations.clone(),
+            ),
             helm_release(&value, labels, annotations),
         ]
     }
 }
 
 fn helm_repository(
+    repository_url: String,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
@@ -166,7 +175,7 @@ fn helm_repository(
         },
         data: serde_json::json!({
             "spec": {
-                "url": REPOSITORY_URL,
+                "url": repository_url,
                 "interval": FIVE_MINUTES,
             }
         }),
@@ -296,6 +305,7 @@ mod tests {
             skip_installation_check: false,
             installation_check_initial_delay: Duration::from_secs(10),
             installation_check_timeout: Duration::from_secs(300),
+            repository_url: REPOSITORY_URL.to_string(),
         }
     }
 
