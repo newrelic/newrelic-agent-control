@@ -124,9 +124,7 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
             let resource_health_checkers =
                 health_checkers_for_type_meta(type_meta, k8s_client.clone(), name, start_time);
 
-            for health_checker in resource_health_checkers {
-                health_checkers.push(health_checker);
-            }
+            health_checkers.extend(resource_health_checkers);
         }
         if health_checkers.is_empty() {
             return Ok(None);
