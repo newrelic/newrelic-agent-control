@@ -48,7 +48,7 @@ where
         // No configuration is considered as empty effective-configuration
         let values = maybe_values.unwrap_or_default();
 
-        let values_string: String = values.get_yaml_config().try_into().map_err(|err| {
+        let values_string: String = values.get_yaml_config().clone().try_into().map_err(|err| {
             LoaderError::from(format!(
                 "could not load {} config values: {}",
                 &self.agent_id, err

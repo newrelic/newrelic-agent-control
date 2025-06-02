@@ -104,7 +104,7 @@ where
 
         // Deserialize only effective config making sure that not default values are reported.
         let dynamic_config: AgentControlEffectiveConfig =
-            config.get_yaml_config().try_into().map_err(|err| {
+            config.get_yaml_config().clone().try_into().map_err(|err| {
                 LoaderError::from(format!(
                     "building {} effective config: {}",
                     &self.agent_id, err

@@ -151,7 +151,7 @@ where
     ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
     {
         // An earlier run of Agent Control might have data for this agent identity, so we
-        // attempt to retrieve an existing remote config hash and also the remote config itself,
+        // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
         // If there's no config at all, we cannot assemble a supervisor, so we just return immediately.
         let Some(config) = load_remote_fallback_local(
@@ -169,7 +169,7 @@ where
         };
 
         let effective_agent = self
-            .effective_agent(config.get_yaml_config())
+            .effective_agent(config.get_yaml_config().clone())
             .map_err(SupervisorCreationError::from);
 
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
@@ -219,7 +219,7 @@ where
                     );
                 });
                 // As the hash might have changed state from the above operations, we store it
-                self.update_remote_config_hash_state(&remote_config.hash().state());
+                self.update_remote_config_state(&remote_config.hash().state());
             }
         }
 
@@ -420,13 +420,13 @@ where
                     // Alter the hash depending on the outcome
                     .inspect(|_| {
                         hash.update_state(&ConfigState::Applied);
-                        self.update_remote_config_hash_state(&hash.state());
+                        self.update_remote_config_state(&hash.state());
                     })
                     .inspect_err(|e| {
                         hash.update_state(&ConfigState::Failed {
                             error_message: e.to_string(),
                         });
-                        self.update_remote_config_hash_state(&hash.state());
+                        self.update_remote_config_state(&hash.state());
                     })
                     // Return it
                     .ok()
@@ -521,7 +521,8 @@ where
                     .unwrap_or_default()
                     .ok_or(SupervisorCreationError::NoConfiguration)?;
 
-                let effective_agent = self.effective_agent(remote_config.get_yaml_config())?;
+                let effective_agent =
+                    self.effective_agent(remote_config.get_yaml_config().clone())?;
 
                 self.supervisor_builder.build_supervisor(effective_agent)
             }
@@ -560,7 +561,7 @@ where
         )
     }
 
-    fn update_remote_config_hash_state(&self, config_state: &ConfigState) {
+    fn update_remote_config_state(&self, config_state: &ConfigState) {
         let _ = self
             .config_repository
             .update_hash_state(&self.identity.id, config_state)
@@ -1058,7 +1059,8 @@ deployment:
                 .load_remote(&TestAgent::id(), &Capabilities::default())
                 .unwrap()
                 .unwrap()
-                .get_yaml_config(),
+                .get_yaml_config()
+                .clone(),
             TestAgent::valid_config_yaml()
         );
 
@@ -1090,7 +1092,7 @@ deployment:
 
         //The hash should not be persisted since it was detected as failed
         let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
-        assert_eq!(current_hash, None);
+        assert!(current_hash.is_none());
 
         // Yaml config doesn't change
         config_repository.assert_no_config_for_agent(&TestAgent::id());
@@ -1127,7 +1129,7 @@ deployment:
 
         //The hash should not be persisted since it was detected as failed
         let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
-        assert_eq!(current_hash, None);
+        assert!(current_hash.is_none());
 
         // Yaml config doesn't change
         config_repository.assert_no_config_for_agent(&TestAgent::id());
@@ -1172,7 +1174,7 @@ deployment:
 
         // Now config is deleted so no hash exists.
         let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
-        assert_eq!(current_hash, None);
+        assert!(current_hash.is_none());
 
         assert!(
             config_repository
@@ -1216,7 +1218,7 @@ deployment:
         );
 
         let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
-        assert_eq!(current_hash, None);
+        assert!(current_hash.is_none());
 
         assert!(
             config_repository
@@ -1264,7 +1266,7 @@ deployment:
 
         // Now config is deleted so no hash exists.
         let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
-        assert_eq!(current_hash, None);
+        assert!(current_hash.is_none());
 
         assert!(
             config_repository

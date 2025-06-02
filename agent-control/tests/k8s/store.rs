@@ -144,7 +144,7 @@ fn k8s_value_repository_config_map() {
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
 
-    assert_eq!(res.get_yaml_config(), local_values);
+    assert_eq!(res.get_yaml_config().clone(), local_values);
 
     // with remote data we expect we get local without remote
     let remote_values = RemoteConfig::new(
@@ -155,14 +155,17 @@ fn k8s_value_repository_config_map() {
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
-    assert_eq!(res.unwrap().unwrap().get_yaml_config(), local_values);
+    assert_eq!(
+        res.unwrap().unwrap().get_yaml_config().clone(),
+        local_values
+    );
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
-    assert_eq!(res.get_yaml_config(), remote_values.config);
+    assert_eq!(res.get_yaml_config().clone(), remote_values.config);
     assert_eq!(res.get_hash(), Some(remote_values.hash()));
 
     // After deleting remote we expect to get still local data
@@ -170,7 +173,7 @@ fn k8s_value_repository_config_map() {
     let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
-    assert_eq!(res.get_yaml_config(), local_values);
+    assert_eq!(res.get_yaml_config().clone(), local_values);
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
@@ -188,8 +191,11 @@ fn k8s_value_repository_config_map() {
     let res_agent_2 = load_remote_fallback_local(&value_repository, &agent_id_2, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
-    assert_eq!(res.get_yaml_config(), local_values);
-    assert_eq!(res_agent_2.get_yaml_config(), remote_values_agent_2.config);
+    assert_eq!(res.get_yaml_config().clone(), local_values);
+    assert_eq!(
+        res_agent_2.get_yaml_config().clone(),
+        remote_values_agent_2.config
+    );
     assert_eq!(res_agent_2.get_hash(), Some(remote_values_agent_2.hash()));
 }
 

@@ -17,10 +17,10 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn get_yaml_config(&self) -> YAMLConfig {
+    pub fn get_yaml_config(&self) -> &YAMLConfig {
         match self {
-            Config::LocalConfig(local_config) => local_config.0.clone(),
-            Config::RemoteConfig(remote_config) => remote_config.config.clone(),
+            Config::LocalConfig(local_config) => &local_config.0,
+            Config::RemoteConfig(remote_config) => &remote_config.config,
         }
     }
 

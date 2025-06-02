@@ -113,6 +113,7 @@ where
                 "missing local agent control config".to_string(),
             ))?
             .get_yaml_config()
+            .clone()
             .try_into()
             .map_err(|e: YAMLConfigError| AgentControlConfigError::Load(e.to_string()))?;
 
@@ -139,7 +140,7 @@ where
             .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
         {
             let dynamic_config: AgentControlDynamicConfig =
-                remote_config.get_yaml_config().try_into()?;
+                remote_config.get_yaml_config().clone().try_into()?;
             config.dynamic = dynamic_config;
         }
 

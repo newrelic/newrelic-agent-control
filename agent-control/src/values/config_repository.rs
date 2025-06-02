@@ -124,7 +124,7 @@ pub mod tests {
                 .lock()
                 .unwrap()
                 .get(agent_id)
-                .map(|config| Config::LocalConfig(config.get_yaml_config().into())))
+                .map(|config| Config::LocalConfig(config.get_yaml_config().clone().into())))
         }
 
         fn load_remote(
@@ -138,8 +138,10 @@ pub mod tests {
                 .unwrap()
                 .get(agent_id)
                 .map(|config| {
-                    let remote_config =
-                        RemoteConfig::new(config.get_yaml_config(), config.get_hash().unwrap());
+                    let remote_config = RemoteConfig::new(
+                        config.get_yaml_config().clone(),
+                        config.get_hash().unwrap(),
+                    );
                     Config::RemoteConfig(remote_config)
                 }))
         }
@@ -169,7 +171,7 @@ pub mod tests {
                         if let Some(mut hash) = remote_config.get_hash() {
                             hash.update_state(state);
                             let remote_config =
-                                RemoteConfig::new(remote_config.get_yaml_config(), hash);
+                                RemoteConfig::new(remote_config.get_yaml_config().clone(), hash);
                             return Some(Config::RemoteConfig(remote_config));
                         }
                         None
