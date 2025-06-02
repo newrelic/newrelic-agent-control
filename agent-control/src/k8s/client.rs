@@ -59,6 +59,19 @@ impl SyncK8sClient {
             .block_on(self.async_client.dynamic_object_managers.apply(obj))
     }
 
+    pub fn patch_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .dynamic_object_managers
+                .patch(tm, name, patch),
+        )
+    }
+
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         self.runtime
             .block_on(self.async_client.dynamic_object_managers.has_changed(obj))

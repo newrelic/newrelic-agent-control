@@ -5,14 +5,16 @@ use super::tools::{
 
 use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
 use assert_matches::assert_matches;
-use kube::core::DynamicObject;
 use kube::{
     CustomResource,
     api::{Api, DeleteParams, TypeMeta},
 };
 use kube::{CustomResourceExt, ResourceExt};
-use newrelic_agent_control::k8s::Error::MissingAPIResource;
+use kube::{api::ObjectMeta, core::DynamicObject};
 use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
+use newrelic_agent_control::{
+    agent_control::config::helmrelease_v2_type_meta, k8s::Error::MissingAPIResource,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -314,11 +316,11 @@ async fn k8s_delete_dynamic_resource() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
-async fn k8s_patch_dynamic_resource() {
+async fn k8s_update_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    let cr_name = "patch-test";
+    let cr_name = "update-test";
     let mut cr = create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
@@ -328,7 +330,7 @@ async fn k8s_patch_dynamic_resource() {
     )
     .await;
 
-    cr.spec.data = "patched".to_string();
+    cr.spec.data = "updated".to_string();
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
 
@@ -341,16 +343,16 @@ async fn k8s_patch_dynamic_resource() {
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
     let result = api.get(cr_name).await.expect("The CR should exist");
-    assert_eq!(String::from("patched"), result.spec.data);
+    assert_eq!(String::from("updated"), result.spec.data);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
-async fn k8s_patch_dynamic_resource_metadata() {
+async fn k8s_update_dynamic_resource_metadata() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
 
-    let cr_name = "patch-test";
+    let cr_name = "update-test";
     let mut cr = create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
@@ -393,6 +395,60 @@ async fn k8s_patch_dynamic_resource_metadata() {
             .to_string()
     );
     assert!(result.metadata.deletion_grace_period_seconds.is_none());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "needs k8s cluster"]
+async fn k8s_patch_dynamic_resource() {
+    let mut test = K8sEnv::new().await;
+    let test_ns = test.test_namespace().await;
+    let cr_name = "patch-test";
+
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let obj_managers = k8s_client.dynamic_object_managers();
+    assert!(
+        obj_managers
+            .patch(
+                &foo_type_meta(),
+                cr_name,
+                serde_json::json!({
+                    "spec": {
+                        "data": "patched"
+                    }
+                }),
+            )
+            .await
+            .is_err()
+    );
+
+    let cr = Foo::new(
+        cr_name,
+        FooSpec {
+            data: String::from("created"),
+        },
+    );
+    let obj: DynamicObject =
+        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
+    obj_managers.apply(&obj).await.unwrap();
+
+    let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
+    let foo = api.get(cr_name).await.unwrap();
+    assert_eq!(foo.spec.data, "created");
+
+    let _ = obj_managers
+        .patch(
+            &foo_type_meta(),
+            cr_name,
+            serde_json::json!({
+                "spec": {
+                    "data": "patched"
+                }
+            }),
+        )
+        .await
+        .unwrap();
+    let foo = api.get(cr_name).await.expect("The CR should exist");
+    assert_eq!(foo.spec.data, "patched");
 }
 
 #[tokio::test(flavor = "multi_thread")]

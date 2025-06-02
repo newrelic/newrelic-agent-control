@@ -9,7 +9,7 @@ use super::{
 use crate::k8s::client::delete_collection;
 use base64::engine::general_purpose::STANDARD;
 use either::Either;
-use kube::api::ObjectList;
+use kube::api::{ObjectList, Patch, PatchParams};
 use kube::client::Status;
 use kube::{
     Api, Error, Resource,
@@ -120,6 +120,17 @@ impl DynamicObjectManager {
         self.apply(obj).await
     }
 
+    pub async fn patch(
+        &self,
+        name: &str,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.api
+            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+            .await
+            .map_err(|error| K8sError::PatchError(name.to_string(), error.to_string()))
+    }
+
     /// Deletes the [DynamicObject], returns an ok if it does not exist.
     pub async fn delete(&self, name: &str) -> Result<Either<DynamicObject, Status>, K8sError> {
         let result = self.api.delete(name, &DeleteParams::default()).await;
@@ -192,6 +203,7 @@ impl DynamicObjectManagers {
             .delete(name)
             .await
     }
+
     pub async fn list(&self, type_meta: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
         Ok(self.get_or_create_manager(type_meta).await?.list())
     }
@@ -211,6 +223,18 @@ impl DynamicObjectManagers {
         self.get_or_create_manager(type_meta)
             .await?
             .apply_if_changed(obj)
+            .await
+    }
+
+    pub async fn patch(
+        &self,
+        type_meta: &TypeMeta,
+        name: &str,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.get_or_create_manager(type_meta)
+            .await?
+            .patch(name, patch)
             .await
     }
 
