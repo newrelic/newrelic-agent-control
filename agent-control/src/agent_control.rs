@@ -13,3 +13,4 @@ pub mod pid_cache;
 pub mod resource_cleaner;
 pub mod run;
 pub mod uptime_report;
+pub mod version_updater;

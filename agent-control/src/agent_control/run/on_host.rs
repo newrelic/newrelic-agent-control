@@ -9,6 +9,7 @@ use crate::agent_control::defaults::{
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::version_updater::NoOpUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
@@ -182,6 +183,7 @@ impl AgentControlRunner {
             maybe_sa_opamp_consumer,
             dynamic_config_validator,
             NoOpResourceCleaner,
+            NoOpUpdater,
             agent_control_config,
         )
         .run()
