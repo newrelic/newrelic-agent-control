@@ -143,6 +143,7 @@ impl Display for UnhealthyPodError {
 /// This struct is designed to be used within a wrapper that manages multiple
 /// instances, each corresponding to a different instrumentation, allowing for
 /// health checks across several instrumentations within a Kubernetes cluster.
+#[derive(Debug)]
 pub struct K8sHealthNRInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,

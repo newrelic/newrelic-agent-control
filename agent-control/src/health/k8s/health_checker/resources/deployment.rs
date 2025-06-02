@@ -9,6 +9,7 @@ use crate::k8s::utils as client_utils;
 use k8s_openapi::api::apps::v1::Deployment;
 use std::sync::Arc;
 
+#[derive(Debug)]
 pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,

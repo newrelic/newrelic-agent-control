@@ -11,6 +11,7 @@ use std::sync::Arc;
 use super::{check_health_for_items, flux_release_filter, missing_field_error};
 
 /// Represents a health checker for the StatefulSets or a release.
+#[derive(Debug)]
 pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,

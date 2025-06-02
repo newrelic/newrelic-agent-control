@@ -31,6 +31,7 @@ impl From<&str> for ConditionStatus {
 /// This struct is designed to be used within a wrapper that manages multiple
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
+#[derive(Debug)]
 pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,

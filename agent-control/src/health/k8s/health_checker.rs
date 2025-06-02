@@ -1,10 +1,11 @@
+use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use kube::api::DynamicObject;
+use kube::api::{DynamicObject, TypeMeta};
 use resources::{
-    ResourceType, daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
+    daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
     helm_release::K8sHealthFluxHelmRelease, instrumentation::K8sHealthNRInstrumentation,
     stateful_set::K8sHealthStatefulSet,
 };
@@ -18,6 +19,7 @@ mod resources;
 pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
+#[derive(Debug)]
 pub enum K8sResourceHealthChecker {
     Flux(K8sHealthFluxHelmRelease),
     NewRelic(K8sHealthNRInstrumentation),
@@ -37,6 +39,55 @@ impl HealthChecker for K8sResourceHealthChecker {
             K8sResourceHealthChecker::DaemonSet(daemon_set) => daemon_set.check_health(),
             K8sResourceHealthChecker::Deployment(deployment) => deployment.check_health(),
         }
+    }
+}
+
+/// Returns the health-checks corresponding to a type_meta
+pub fn health_checkers_for_type_meta(
+    type_meta: TypeMeta,
+    k8s_client: Arc<SyncK8sClient>,
+    name: String,
+    start_time: StartTime,
+) -> Vec<K8sResourceHealthChecker> {
+    // HelmRelease (Flux CR)
+    if type_meta == helmrelease_v2_type_meta() {
+        vec![
+            K8sResourceHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+                k8s_client.clone(),
+                type_meta,
+                name.clone(),
+                start_time,
+            )),
+            K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
+                k8s_client.clone(),
+                name.clone(),
+                start_time,
+            )),
+            K8sResourceHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
+                k8s_client.clone(),
+                name.clone(),
+                start_time,
+            )),
+            K8sResourceHealthChecker::Deployment(K8sHealthDeployment::new(
+                k8s_client.clone(),
+                name,
+                start_time,
+            )),
+        ]
+    // Instrumentation (Newrelic CR)
+    } else if type_meta == instrumentation_v1beta1_type_meta() {
+        vec![K8sResourceHealthChecker::NewRelic(
+            K8sHealthNRInstrumentation::new(
+                k8s_client.clone(),
+                type_meta,
+                name.clone(),
+                start_time,
+            ),
+        )]
+    // No Health-checkers for any other type meta
+    } else {
+        trace!("No health-checkers for TypeMeta {type_meta:?}");
+        vec![]
     }
 }
 
@@ -62,11 +113,6 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
                 "not able to build flux health checker: type not found".to_string(),
             ))?;
 
-            let Ok(resource_type) = (&type_meta).try_into() else {
-                trace!("Unsupported resource type: {:?}. skipping.", type_meta);
-                continue;
-            };
-
             let name = resource
                 .metadata
                 .clone()
@@ -75,39 +121,11 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
                     "not able to build flux health checker: name not found".to_string(),
                 ))?;
 
-            match resource_type {
-                ResourceType::HelmRelease => {
-                    health_checkers.push(K8sResourceHealthChecker::Flux(
-                        K8sHealthFluxHelmRelease::new(
-                            k8s_client.clone(),
-                            type_meta,
-                            name.clone(),
-                            start_time,
-                        ),
-                    ));
+            let resource_health_checkers =
+                health_checkers_for_type_meta(type_meta, k8s_client.clone(), name, start_time);
 
-                    health_checkers.push(K8sResourceHealthChecker::StatefulSet(
-                        K8sHealthStatefulSet::new(k8s_client.clone(), name.clone(), start_time),
-                    ));
-
-                    health_checkers.push(K8sResourceHealthChecker::DaemonSet(
-                        K8sHealthDaemonSet::new(k8s_client.clone(), name.clone(), start_time),
-                    ));
-
-                    health_checkers.push(K8sResourceHealthChecker::Deployment(
-                        K8sHealthDeployment::new(k8s_client.clone(), name, start_time),
-                    ));
-                }
-                ResourceType::InstrumentationCRD => {
-                    health_checkers.push(K8sResourceHealthChecker::NewRelic(
-                        K8sHealthNRInstrumentation::new(
-                            k8s_client.clone(),
-                            type_meta,
-                            name.clone(),
-                            start_time,
-                        ),
-                    ));
-                }
+            for health_checker in resource_health_checkers {
+                health_checkers.push(health_checker);
             }
         }
         if health_checkers.is_empty() {
@@ -140,14 +158,16 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::config::helmrelease_v2_type_meta;
+    use crate::agent_control::config::{
+        helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta,
+    };
     use crate::health::health_checker::tests::MockHealthCheck;
     use crate::health::health_checker::{HealthChecker, HealthCheckerError};
-    use crate::health::k8s::health_checker::K8sHealthChecker;
+    use crate::health::k8s::health_checker::{K8sHealthChecker, K8sResourceHealthChecker};
     use crate::health::with_start_time::StartTime;
     use crate::k8s::client::MockSyncK8sClient;
     use assert_matches::assert_matches;
-    use kube::api::DynamicObject;
+    use kube::api::{DynamicObject, TypeMeta};
     use std::sync::Arc;
 
     #[test]
@@ -202,6 +222,105 @@ pub mod tests {
             HealthCheckerError::Generic(s) => {
                 assert_eq!(s, "not able to build flux health checker: name not found".to_string())
             }
+        );
+    }
+
+    #[test]
+    fn successful_build_health_check_with_unsupported_type_meta() {
+        let mock_client = MockSyncK8sClient::default();
+
+        // Create a TypeMeta that is not supported by health_checkers_for_type_meta
+        let unsupported_type_meta = TypeMeta {
+            api_version: "unsupported/v1".to_string(),
+            kind: "UnsupportedResource".to_string(),
+        };
+
+        let test_object = DynamicObject {
+            types: Some(unsupported_type_meta),
+            metadata: kube::core::ObjectMeta {
+                name: Some("test-resource".to_string()),
+                ..Default::default()
+            },
+            data: Default::default(),
+        };
+
+        let health_checker = K8sHealthChecker::try_new(
+            Arc::new(mock_client),
+            Arc::new(vec![test_object]),
+            StartTime::now(),
+        )
+        .unwrap();
+
+        assert!(health_checker.is_none());
+    }
+
+    #[test]
+    fn successful_build_health_check_with_helmrelease_v2() {
+        let mock_client = MockSyncK8sClient::default();
+        let start_time = StartTime::now();
+
+        let test_object = DynamicObject {
+            types: Some(helmrelease_v2_type_meta()),
+            metadata: kube::core::ObjectMeta {
+                name: Some("test-helmrelease".to_string()),
+                ..Default::default()
+            },
+            data: Default::default(),
+        };
+
+        let health_checker = K8sHealthChecker::try_new(
+            Arc::new(mock_client),
+            Arc::new(vec![test_object]),
+            start_time,
+        )
+        .unwrap()
+        .expect("the health-checker cannot be empty");
+
+        assert_eq!(health_checker.health_checkers.len(), 4);
+        assert_matches!(
+            health_checker.health_checkers[0],
+            K8sResourceHealthChecker::Flux(_)
+        );
+        assert_matches!(
+            health_checker.health_checkers[1],
+            K8sResourceHealthChecker::StatefulSet(_)
+        );
+        assert_matches!(
+            health_checker.health_checkers[2],
+            K8sResourceHealthChecker::DaemonSet(_)
+        );
+        assert_matches!(
+            health_checker.health_checkers[3],
+            K8sResourceHealthChecker::Deployment(_)
+        );
+    }
+
+    #[test]
+    fn successful_build_health_check_with_instrumentation_v1beta1() {
+        let mock_client = MockSyncK8sClient::default();
+        let start_time = StartTime::now();
+
+        let test_object = DynamicObject {
+            types: Some(instrumentation_v1beta1_type_meta()),
+            metadata: kube::core::ObjectMeta {
+                name: Some("test-instrumentation".to_string()),
+                ..Default::default()
+            },
+            data: Default::default(),
+        };
+
+        let health_checker = K8sHealthChecker::try_new(
+            Arc::new(mock_client),
+            Arc::new(vec![test_object]),
+            start_time,
+        )
+        .unwrap()
+        .expect("The health-checkers cannot be empty");
+
+        assert_eq!(health_checker.health_checkers.len(), 1);
+        assert_matches!(
+            health_checker.health_checkers[0],
+            K8sResourceHealthChecker::NewRelic(_)
         );
     }
 
