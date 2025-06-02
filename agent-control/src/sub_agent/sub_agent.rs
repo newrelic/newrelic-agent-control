@@ -1,6 +1,5 @@
 use super::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use super::error::SubAgentStopError;
-use super::health::health_checker::Health;
 use super::supervisor::builder::SupervisorBuilder;
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
@@ -9,6 +8,8 @@ use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::health::health_checker::Health;
+use crate::health::health_checker::log_and_report_unhealthy;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::RemoteConfig;
@@ -18,7 +19,6 @@ use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgen
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;
-use crate::sub_agent::health::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
@@ -681,13 +681,13 @@ pub mod tests {
     use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
     use crate::agent_type::render::renderer::TemplateRenderer;
     use crate::event::channel::pub_sub;
+    use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::InMemoryHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;

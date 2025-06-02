@@ -12,6 +12,8 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent, channel::EventConsumer,
 };
+use crate::health::health_checker::{Health, Healthy, Unhealthy};
+use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::{
     hash_repository::HashRepository,
@@ -19,8 +21,6 @@ use crate::opamp::{
     remote_config::{RemoteConfig, RemoteConfigError},
 };
 use crate::sub_agent::collection::StartedSubAgents;
-use crate::sub_agent::health::health_checker::{Health, Healthy, Unhealthy};
-use crate::sub_agent::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::{NotStartedSubAgent, SubAgentBuilder};
 use crate::values::yaml_config::YAMLConfig;
@@ -434,12 +434,12 @@ mod tests {
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::{EventConsumer, pub_sub};
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
+    use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::{ConfigurationMap, RemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
-    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
     use mockall::{Sequence, predicate};

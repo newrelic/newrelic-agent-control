@@ -21,8 +21,8 @@ mod tests {
     use crate::agent_control::http_server::status::{Status, SubAgentStatus};
     use crate::agent_control::http_server::status_handler::status_handler;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::sub_agent::health::health_checker::{Healthy, Unhealthy};
-    use crate::sub_agent::health::with_start_time::HealthWithStartTime;
+    use crate::health::health_checker::{Healthy, Unhealthy};
+    use crate::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
     use actix_web::Responder;
     use actix_web::body::MessageBody;

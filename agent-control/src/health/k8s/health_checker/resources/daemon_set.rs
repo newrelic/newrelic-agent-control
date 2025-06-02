@@ -1,13 +1,14 @@
-use super::utils;
+use crate::health::health_checker::{
+    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
+};
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils as client_utils;
-use crate::sub_agent::health::health_checker::{
-    Health, HealthChecker, HealthCheckerError, Healthy, Unhealthy,
-};
-use crate::sub_agent::health::with_start_time::{HealthWithStartTime, StartTime};
 use k8s_openapi::api::apps::v1::{DaemonSet, DaemonSetStatus};
 use std::sync::Arc;
+
+use super::{check_health_for_items, flux_release_filter, missing_field_error};
 
 const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 
@@ -23,12 +24,10 @@ impl HealthChecker for K8sHealthDaemonSet {
 
         let target_daemon_sets = daemon_sets
             .into_iter()
-            .filter(utils::flux_release_filter(self.release_name.clone()));
+            .filter(flux_release_filter(self.release_name.clone()));
 
-        let health = utils::check_health_for_items(
-            target_daemon_sets,
-            Self::check_health_single_daemon_set,
-        )?;
+        let health =
+            check_health_for_items(target_daemon_sets, Self::check_health_single_daemon_set)?;
         Ok(HealthWithStartTime::new(health, self.start_time))
     }
 }
@@ -110,7 +109,7 @@ impl K8sHealthDaemonSet {
         daemon_set
             .status
             .clone()
-            .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".status"))
+            .ok_or_else(|| missing_field_error(daemon_set, name, ".status"))
     }
 }
 
@@ -121,13 +120,11 @@ fn is_daemon_set_update_strategy_rolling_update(
     let update_type = daemon_set
         .spec
         .clone()
-        .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec"))?
+        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec"))?
         .update_strategy
-        .ok_or_else(|| utils::missing_field_error(daemon_set, name, ".spec.updateStrategy"))?
+        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec.updateStrategy"))?
         .type_
-        .ok_or_else(|| {
-            utils::missing_field_error(daemon_set, name, ".spec.updateStrategy.type_")
-        })?;
+        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec.updateStrategy.type_"))?;
 
     Ok(update_type == ROLLING_UPDATE_UPDATE_STRATEGY)
 }
@@ -136,11 +133,11 @@ fn is_daemon_set_update_strategy_rolling_update(
 pub mod tests {
     use super::*;
     use crate::{
-        k8s::client::MockSyncK8sClient,
-        sub_agent::health::{
+        health::{
             health_checker::{Healthy, Unhealthy},
             k8s::health_checker::LABEL_RELEASE_FLUX,
         },
+        k8s::client::MockSyncK8sClient,
     };
     use k8s_openapi::Resource as _; // Needed to access resource's KIND. e.g.: Deployment::KIND
     use k8s_openapi::api::apps::v1::DaemonSetUpdateStrategy;

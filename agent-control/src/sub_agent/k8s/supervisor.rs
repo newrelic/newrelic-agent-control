@@ -4,13 +4,13 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::health::health_checker::spawn_health_checker;
+use crate::health::k8s::health_checker::K8sHealthChecker;
+use crate::health::with_start_time::StartTime;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
-use crate::sub_agent::health::health_checker::spawn_health_checker;
-use crate::sub_agent::health::k8s::health_checker::SubAgentHealthChecker;
-use crate::sub_agent::health::with_start_time::StartTime;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -162,7 +162,7 @@ impl NotStartedSupervisorK8s {
         };
 
         let Some(k8s_health_checker) =
-            SubAgentHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
+            K8sHealthChecker::try_new(self.k8s_client.clone(), resources, start_time)?
         else {
             warn!("Health checks disabled, there aren't compatible k8s resources to check");
             return Ok(None);

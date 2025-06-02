@@ -10,6 +10,7 @@ pub mod config_migrate;
 pub mod context;
 pub mod event;
 pub mod flags;
+pub mod health;
 pub mod http;
 pub mod instrumentation;
 pub mod k8s;
