@@ -402,70 +402,53 @@ async fn k8s_update_dynamic_resource_metadata() {
 async fn k8s_patch_dynamic_resource() {
     let mut test = K8sEnv::new().await;
     let test_ns = test.test_namespace().await;
+    let cr_name = "patch-test";
 
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
     let obj_managers = k8s_client.dynamic_object_managers();
-
-    let name = "patch-test";
     assert!(
         obj_managers
-            .patch(&helmrelease_v2_type_meta(), name, serde_json::json!({}),)
+            .patch(
+                &foo_type_meta(),
+                cr_name,
+                serde_json::json!({
+                    "spec": {
+                        "data": "patched"
+                    }
+                }),
+            )
             .await
             .is_err()
     );
 
-    let obj = DynamicObject {
-        types: Some(helmrelease_v2_type_meta()),
-        metadata: ObjectMeta {
-            name: Some(name.to_string()),
-            ..Default::default()
+    let cr = Foo::new(
+        cr_name,
+        FooSpec {
+            data: String::from("created"),
         },
-        data: serde_json::json!({
-            "spec": {
-                "interval": "1m",
-                "chart": {
-                    "spec": {
-                        "chart": "test-chart",
-                        "version": "1.0.0",
-                        "sourceRef": {
-                            "kind": "HelmRepository",
-                            "name": "repository-name"
-                        }
-                    }
-                }
-            }
-        }),
-    };
+    );
+    let obj: DynamicObject =
+        serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
     obj_managers.apply(&obj).await.unwrap();
-    tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let get_release_version = async |name| {
-        let release_result = obj_managers.get(&helmrelease_v2_type_meta(), name).await;
-        let release = release_result.unwrap().unwrap();
-        let version_value = &release.data["spec"]["chart"]["spec"]["version"];
-
-        version_value.as_str().unwrap().to_string()
-    };
-    assert_eq!(get_release_version(name).await, "1.0.0");
+    let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
+    let foo = api.get(cr_name).await.unwrap();
+    assert_eq!(foo.spec.data, "created");
 
     let _ = obj_managers
         .patch(
-            &helmrelease_v2_type_meta(),
-            name,
+            &foo_type_meta(),
+            cr_name,
             serde_json::json!({
                 "spec": {
-                    "chart": {
-                        "spec": {
-                            "version": "2.0.0"
-                        }
-                    }
+                    "data": "patched"
                 }
             }),
         )
         .await
         .unwrap();
-    tokio::time::sleep(Duration::from_secs(1)).await;
-    assert_eq!(get_release_version(name).await, "2.0.0");
+    let foo = api.get(cr_name).await.expect("The CR should exist");
+    assert_eq!(foo.spec.data, "patched");
 }
 
 #[tokio::test(flavor = "multi_thread")]
