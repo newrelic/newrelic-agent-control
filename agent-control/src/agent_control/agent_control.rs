@@ -14,9 +14,9 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent, channel::EventConsumer,
 };
-use crate::opamp::remote_config::hash::ConfigState;
 use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError};
 use crate::sub_agent::collection::StartedSubAgents;
