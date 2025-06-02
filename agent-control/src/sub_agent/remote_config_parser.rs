@@ -8,7 +8,7 @@ use tracing::{debug, error};
 
 type ErrorMessage = String;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone)]
 pub enum RemoteConfigParserError {
     #[error("remote configuration with validation errors: {0}")]
     Validation(ErrorMessage),

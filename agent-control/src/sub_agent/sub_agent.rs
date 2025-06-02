@@ -23,7 +23,7 @@ use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
-use crate::values::config::Config;
+use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, load_remote_fallback_local};
 use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
@@ -393,7 +393,23 @@ where
             OpampRemoteConfigStatus::Applying,
         );
 
-        let not_started_supervisor = self.create_supervisor_from_remote_config(&config);
+        // Start transforming the remote config
+        // Attempt to parse/validate the remote config
+        let parsed_remote = self
+            .remote_config_parser
+            .parse(self.identity.clone(), &config);
+
+        let not_started_supervisor = match parsed_remote.clone() {
+            Ok(remote_config) => {
+                // If parsing was successful, call the function with Some(remote_config)
+                self.create_supervisor_from_remote_config(&remote_config)
+            }
+            Err(error) => {
+                warn!("Failed to parse remote configuration: {}", error);
+
+                Err(error.into())
+            }
+        };
 
         if not_started_supervisor.is_ok() {
             let _ = opamp_client
@@ -446,18 +462,13 @@ where
 
                 // If the remote config was deleted but creating the supervisor from local failed
                 // the hash should be marked as applied,
-                if self
-                    .config_repository
-                    .get_hash(&self.identity.id)
-                    .unwrap_or(None)
-                    .is_none()
-                {
+                if let Ok(None) = parsed_remote {
                     // Report the empty remote config as applied
                     hash.update_state(&ConfigState::Applied);
                     self.report_config_status(hash.get(), opamp_client, hash.state().into());
 
-                    //TODO: Should we keep the old_supervisor that is still using the old remote?
-                    return old_supervisor;
+                    // TODO: Should we keep the old_supervisor that is still using the old remote?
+                    return None;
                 }
 
                 // Mark hash as failed
@@ -479,14 +490,8 @@ where
     /// Parses incoming remote config, assembles and builds the supervisor.
     fn create_supervisor_from_remote_config(
         &self,
-        config: &OpampRemoteConfig,
+        parsed_remote: &Option<RemoteConfig>,
     ) -> Result<<B as SupervisorBuilder>::SupervisorStarter, SupervisorCreationError> {
-        // Start transforming the remote config
-        // Attempt to parse/validate the remote config
-        let parsed_remote = self
-            .remote_config_parser
-            .parse(self.identity.clone(), config)?;
-
         match parsed_remote {
             // Apply the remote config:
             // - Build supervisor
@@ -499,7 +504,7 @@ where
                     .inspect(|_| {
                         let _ = self
                             .config_repository
-                            .store_remote(&self.identity.id, &remote_config)
+                            .store_remote(&self.identity.id, remote_config)
                             .inspect_err(|e| {
                                 warn!("Failed to store remote configuration: {e}");
                             });
@@ -1275,7 +1280,7 @@ deployment:
                 .is_none()
         );
 
-        assert!(new_supervisor.is_some());
+        assert!(new_supervisor.is_none());
     }
 
     #[test]
