@@ -443,6 +443,23 @@ where
             Err(e) => {
                 // If we fail to build the supervisor, we don't stop the old one and return it back
                 warn!("Failed to build supervisor: {e}");
+
+                // If the remote config was deleted but creating the supervisor from local failed
+                // the hash should be marked as applied,
+                if self
+                    .config_repository
+                    .get_hash(&self.identity.id)
+                    .unwrap_or(None)
+                    .is_none()
+                {
+                    // Report the empty remote config as applied
+                    hash.update_state(&ConfigState::Applied);
+                    self.report_config_status(hash.get(), opamp_client, hash.state().into());
+
+                    //TODO: Should we keep the old_supervisor that is still using the old remote?
+                    return old_supervisor;
+                }
+
                 // Mark hash as failed
                 hash.update_state(&ConfigState::Failed {
                     error_message: e.to_string(),
@@ -1210,6 +1227,55 @@ deployment:
 
         assert!(new_supervisor.is_none());
     }
+    #[test]
+    fn test_remote_config_reset_to_broken_local() {
+        let (config_repository, mut opamp_client) = test_mocks();
+
+        config_repository
+            .store_local(&TestAgent::id(), &TestAgent::valid_config_yaml())
+            .unwrap();
+        let old_remote_config = RemoteConfig::new(
+            "var: some old remote".try_into().unwrap(),
+            Hash::new("a-hash".to_string()),
+        );
+        config_repository
+            .store_remote(&TestAgent::id(), &old_remote_config)
+            .unwrap();
+
+        let supervisor_builder = expect_fail_to_build_supervisor();
+        opamp_client.should_set_remote_config_status_seq(vec![
+            TestAgent::status_applying(),
+            TestAgent::status_applied(),
+        ]);
+
+        let sub_agent = sub_agent(
+            Some(opamp_client),
+            supervisor_builder,
+            config_repository.clone(),
+        );
+
+        let old_supervisor = Some(expect_supervisor_does_not_stop());
+
+        let new_supervisor = sub_agent.handle_remote_config(
+            sub_agent.maybe_opamp_client.as_ref().unwrap(),
+            TestAgent::reset_remote_config(),
+            old_supervisor,
+        );
+
+        // Now config is deleted so no hash exists.
+        let current_hash = config_repository.get_hash(&TestAgent::id()).unwrap();
+        assert_eq!(current_hash, None);
+
+        assert!(
+            config_repository
+                .load_remote(&TestAgent::id(), &Capabilities::default())
+                .unwrap()
+                .is_none()
+        );
+
+        assert!(new_supervisor.is_some());
+    }
+
     #[test]
     fn test_bootstrap_empty_config() {
         let (config_repository, opamp_client) = test_mocks();
