@@ -184,6 +184,10 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-debug
 
       - name: Run k8s integration tests
+        env:
+          # Tilt configs
+          ARCH: amd64
+          BUILD_WITH: cargo
         run: make -C agent-control test/k8s/integration
 
   # These tests are using (by default) the released charts

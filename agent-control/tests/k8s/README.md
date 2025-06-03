@@ -3,12 +3,15 @@
 Requirements:
 
 - Docker
-- [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
+- [Install minikube](https://minikube.sigs.k8s.io/docs/start/) 
+  No external registry should be configured and docker driver must be used so Tilt uses minikube docker engine
+  for image building.
+
 
 On the repo root directory Run:
 
 ```sh
-minikube start
+minikube start --driver='docker'
 make agent-control/tests/k8s
 ```
 
