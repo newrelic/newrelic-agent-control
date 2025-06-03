@@ -17,25 +17,10 @@ use kube::{
     core::{DynamicObject, TypeMeta},
 };
 use serde::de::DeserializeOwned;
-use std::{fmt::Debug, sync};
+use std::fmt::Debug;
 use std::{collections::BTreeMap, sync::Arc};
 use tokio::runtime::Runtime;
 use tracing::debug;
-
-macro_rules! sync_wrap {
-    // No arguments
-    ($vis:vis fn $name:ident (&self) -> $ret:ty) => {
-        $vis fn $name(&self) -> $ret {
-            self.runtime.block_on(self.async_client.$name())
-        }
-    };
-    // With arguments
-    ($vis:vis fn $name:ident (&self, $($arg:ident : $typ:ty),+) -> $ret:ty) => {
-        $vis fn $name(&self, $($arg: $typ),+) -> $ret {
-            self.runtime.block_on(self.async_client.$name($($arg),+))
-        }
-    };
-}
 
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
@@ -64,6 +49,7 @@ impl std::fmt::Debug for SyncK8sClient {
     }
 }
 
+#[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
     pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
         Ok(Self {
@@ -72,19 +58,105 @@ impl SyncK8sClient {
         })
     }
 
-    sync_wrap!(pub fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError>);
-    sync_wrap!(pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError>);
-    sync_wrap!(pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError>);
-    sync_wrap!(pub fn patch_dynamic_object(&self, tm: &TypeMeta, name: &str, patch: serde_json::Value) -> Result<DynamicObject, K8sError>);
-    sync_wrap!(pub fn get_dynamic_object(&self, tm: &TypeMeta, name: &str) -> Result<Option<Arc<DynamicObject>>, K8sError>);
-    sync_wrap!(pub fn delete_dynamic_object(&self, tm: &TypeMeta, name: &str) -> Result<Either<DynamicObject, Status>, K8sError>);
-    sync_wrap!(pub fn delete_dynamic_object_collection(&self, tm: &TypeMeta, label_selector: &str) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError>);
-    sync_wrap!(pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError>);
-    sync_wrap!(pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError>);
-    sync_wrap!(pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError>);
-    sync_wrap!(pub fn get_configmap_key(&self, configmap_name: &str, key: &str) -> Result<Option<String>, K8sError>);
-    sync_wrap!(pub fn set_configmap_key(&self, configmap_name: &str, labels: BTreeMap<String, String>, key: &str, value: &str) -> Result<(), K8sError>);
-    sync_wrap!(pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError>);
+    pub fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_api_resources())
+    }
+
+    pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.apply_dynamic_object(obj))
+    }
+
+    pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
+    }
+
+    pub fn patch_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.runtime
+            .block_on(self.async_client.patch_dynamic_object(tm, name, patch))
+    }
+
+    pub fn get_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.get_dynamic_object(tm, name))
+    }
+
+    pub fn delete_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_dynamic_object(tm, name))
+    }
+
+    pub fn delete_dynamic_object_collection(
+        &self,
+        tm: &TypeMeta,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .delete_dynamic_object_collection(tm, label_selector),
+        )
+    }
+
+    pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_dynamic_objects(tm))
+    }
+
+    pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        self.runtime
+            .block_on(self.async_client.has_dynamic_object_changed(obj))
+    }
+
+    pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .delete_configmap_collection(label_selector),
+        )
+    }
+
+    pub fn get_configmap_key(
+        &self,
+        configmap_name: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.get_configmap_key(configmap_name, key))
+    }
+
+    pub fn set_configmap_key(
+        &self,
+        configmap_name: &str,
+        labels: BTreeMap<String, String>,
+        key: &str,
+        value: &str,
+    ) -> Result<(), K8sError> {
+        self.runtime.block_on(self.async_client.set_configmap_key(
+            configmap_name,
+            labels,
+            key,
+            value,
+        ))
+    }
+
+    pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.delete_configmap_key(configmap_name, key))
+    }
 
     pub fn default_namespace(&self) -> &str {
         self.async_client.default_namespace()
