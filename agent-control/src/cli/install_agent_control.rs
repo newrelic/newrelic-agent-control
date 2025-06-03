@@ -21,7 +21,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::{debug, info};
 
-pub const RELEASE_NAME: &str = AGENT_CONTROL_ID;
+pub const RELEASE_NAME: &str = AC_DEPLOYMENT_CHART_NAME;
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "300s";
