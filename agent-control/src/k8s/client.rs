@@ -40,6 +40,15 @@ pub struct SyncK8sClient {
     runtime: Arc<Runtime>,
 }
 
+impl std::fmt::Debug for SyncK8sClient {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SyncK8sClient")
+            .field("async_client", &"AsyncK8sClient implementation")
+            .field("runtime", &self.runtime)
+            .finish()
+    }
+}
+
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
     pub fn try_new(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {

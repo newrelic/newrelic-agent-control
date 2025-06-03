@@ -12,6 +12,7 @@ use super::{check_health_for_items, flux_release_filter, missing_field_error};
 
 const ROLLING_UPDATE_UPDATE_STRATEGY: &str = "RollingUpdate";
 
+#[derive(Debug)]
 pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,

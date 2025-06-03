@@ -1,12 +1,10 @@
 //! This module includes implementations of health-checkers for individual k8s resources.
 //!
 use super::LABEL_RELEASE_FLUX;
-use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 use crate::health::health_checker::{Health, HealthCheckerError, Healthy};
 use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::apis::meta::v1::ObjectMeta,
 };
-use kube::api::TypeMeta;
 use kube::core::{Expression, Selector, SelectorExt};
 use std::{any::Any, sync::Arc};
 
@@ -15,29 +13,6 @@ pub mod deployment;
 pub mod helm_release;
 pub mod instrumentation;
 pub mod stateful_set;
-
-/// Represents supported resources types for health check.
-pub(super) enum ResourceType {
-    HelmRelease,
-    InstrumentationCRD,
-}
-
-/// Error returned when trying build a [ResourceType] from an unsupported [TypeMeta].
-pub(super) struct UnsupportedResourceType;
-
-impl TryFrom<&TypeMeta> for ResourceType {
-    type Error = UnsupportedResourceType;
-
-    fn try_from(value: &TypeMeta) -> Result<Self, Self::Error> {
-        if value == &helmrelease_v2_type_meta() {
-            Ok(ResourceType::HelmRelease)
-        } else if value == &instrumentation_v1beta1_type_meta() {
-            Ok(ResourceType::InstrumentationCRD)
-        } else {
-            Err(UnsupportedResourceType)
-        }
-    }
-}
 
 /// Executes the provided health-check function over the items provided. It expects a list
 /// of `Arc<K>` because k8s reflectors provide shared references.
