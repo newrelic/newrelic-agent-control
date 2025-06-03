@@ -65,7 +65,12 @@ impl SyncK8sClient {
 
     pub fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.async_client.dynamic_object_managers.apply(obj))
+            .block_on(self.async_client.apply_dynamic_object(obj))
+    }
+
+    pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        self.runtime
+            .block_on(self.async_client.apply_dynamic_object_if_changed(obj))
     }
 
     pub fn patch_dynamic_object(
@@ -74,24 +79,8 @@ impl SyncK8sClient {
         name: &str,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .dynamic_object_managers
-                .patch(tm, name, patch),
-        )
-    }
-
-    pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         self.runtime
-            .block_on(self.async_client.dynamic_object_managers.has_changed(obj))
-    }
-
-    pub fn apply_dynamic_object_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .dynamic_object_managers
-                .apply_if_changed(obj),
-        )
+            .block_on(self.async_client.patch_dynamic_object(tm, name, patch))
     }
 
     pub fn get_dynamic_object(
@@ -100,15 +89,16 @@ impl SyncK8sClient {
         name: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.dynamic_object_managers.get(tm, name))
+            .block_on(self.async_client.get_dynamic_object(tm, name))
     }
+
     pub fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
         name: &str,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.runtime
-            .block_on(self.async_client.dynamic_object_managers.delete(tm, name))
+            .block_on(self.async_client.delete_dynamic_object(tm, name))
     }
 
     pub fn delete_dynamic_object_collection(
@@ -118,14 +108,18 @@ impl SyncK8sClient {
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
         self.runtime.block_on(
             self.async_client
-                .dynamic_object_managers
-                .delete_collection(tm, label_selector),
+                .delete_dynamic_object_collection(tm, label_selector),
         )
     }
 
     pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.dynamic_object_managers.list(tm))
+            .block_on(self.async_client.list_dynamic_objects(tm))
+    }
+
+    pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        self.runtime
+            .block_on(self.async_client.has_dynamic_object_changed(obj))
     }
 
     pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
@@ -354,6 +348,98 @@ impl AsyncK8sClient {
 
     pub fn default_namespace(&self) -> &str {
         self.client.default_namespace()
+    }
+
+    pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
+        let type_meta = get_type_meta(obj)?;
+
+        self.dynamic_object_managers
+            .get_or_create_manager(&type_meta)
+            .await?
+            .apply(obj)
+            .await
+    }
+
+    pub async fn apply_dynamic_object_if_changed(
+        &self,
+        obj: &DynamicObject,
+    ) -> Result<(), K8sError> {
+        let type_meta = get_type_meta(obj)?;
+
+        self.dynamic_object_managers
+            .get_or_create_manager(&type_meta)
+            .await?
+            .apply_if_changed(obj)
+            .await
+    }
+
+    pub async fn patch_dynamic_object(
+        &self,
+        type_meta: &TypeMeta,
+        name: &str,
+        patch: serde_json::Value,
+    ) -> Result<DynamicObject, K8sError> {
+        self.dynamic_object_managers
+            .get_or_create_manager(type_meta)
+            .await?
+            .patch(name, patch)
+            .await
+    }
+
+    pub async fn get_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        Ok(self
+            .dynamic_object_managers
+            .get_or_create_manager(tm)
+            .await?
+            .get(name))
+    }
+
+    pub async fn delete_dynamic_object(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
+        self.dynamic_object_managers
+            .get_or_create_manager(tm)
+            .await?
+            .delete(name)
+            .await
+    }
+
+    pub async fn delete_dynamic_object_collection(
+        &self,
+        tm: &TypeMeta,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        self.dynamic_object_managers
+            .get_or_create_manager(tm)
+            .await?
+            .delete_collection(label_selector)
+            .await
+    }
+
+    pub async fn list_dynamic_objects(
+        &self,
+        tm: &TypeMeta,
+    ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        Ok(self
+            .dynamic_object_managers
+            .get_or_create_manager(tm)
+            .await?
+            .list())
+    }
+
+    pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
+        let tm = get_type_meta(obj)?;
+
+        self.dynamic_object_managers
+            .get_or_create_manager(&tm)
+            .await?
+            .has_changed(obj)
     }
 }
 

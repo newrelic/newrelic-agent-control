@@ -5,16 +5,14 @@ use super::tools::{
 
 use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
 use assert_matches::assert_matches;
+use kube::core::DynamicObject;
 use kube::{
     CustomResource,
     api::{Api, DeleteParams, TypeMeta},
 };
 use kube::{CustomResourceExt, ResourceExt};
-use kube::{api::ObjectMeta, core::DynamicObject};
+use newrelic_agent_control::k8s::Error::MissingAPIResource;
 use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
-use newrelic_agent_control::{
-    agent_control::config::helmrelease_v2_type_meta, k8s::Error::MissingAPIResource,
-};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -49,11 +47,7 @@ async fn k8s_create_dynamic_resource() {
 
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
 
-    k8s_client
-        .dynamic_object_managers()
-        .apply(&obj)
-        .await
-        .unwrap();
+    k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     // Assert that object has been created.
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
@@ -73,8 +67,7 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .get(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name)
             .await
             .unwrap()
             .is_none(),
@@ -91,8 +84,7 @@ async fn k8s_get_dynamic_resource() {
     .await;
 
     let cr = k8s_client
-        .dynamic_object_managers()
-        .get(&foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .unwrap()
         .expect("The object should be found after creation");
@@ -109,8 +101,7 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .get(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name)
             .await
             .unwrap()
             .is_none(),
@@ -130,8 +121,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .get(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name)
             .await
             .unwrap()
             .is_none(),
@@ -148,16 +138,14 @@ async fn k8s_dynamic_resource_has_changed() {
     .await;
 
     let cr = k8s_client
-        .dynamic_object_managers()
-        .get(&foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .unwrap()
         .expect("The object should be found after creation");
 
     assert!(
         !k8s_client
-            .dynamic_object_managers()
-            .has_changed(cr.as_ref())
+            .has_dynamic_object_changed(cr.as_ref())
             .await
             .unwrap(),
         "The object found has not changed"
@@ -173,8 +161,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .has_changed(&cr_labels_modified)
+            .has_dynamic_object_changed(&cr_labels_modified)
             .await
             .unwrap(),
         "The object found has changed after changing the label"
@@ -190,8 +177,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .has_changed(&cr_specs_modified)
+            .has_dynamic_object_changed(&cr_specs_modified)
             .await
             .unwrap(),
         "The object found has changed after changing the specs"
@@ -207,8 +193,7 @@ async fn k8s_dynamic_resource_has_changed() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .has_changed(&cr_specs_modified)
+            .has_dynamic_object_changed(&cr_specs_modified)
             .await
             .unwrap(),
         "The object found has changed after changing the specs"
@@ -237,25 +222,19 @@ async fn k8s_dynamic_resource_has_changed_secret() {
     );
 
     // Create the secret in the cluster and wait some time to be sure it is already and the reflector gets it.
-    k8s_client
-        .dynamic_object_managers()
-        .apply(&secret)
-        .await
-        .unwrap();
+    k8s_client.apply_dynamic_object(&secret).await.unwrap();
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // Get the secret from the cluster (the content of `string_data` is encoded into `data`)
     let stored_secret = k8s_client
-        .dynamic_object_managers()
-        .get(&secret_type_meta, secret_name)
+        .get_dynamic_object(&secret_type_meta, secret_name)
         .await
         .unwrap()
         .expect("The secret should exist");
 
     assert!(
         !k8s_client
-            .dynamic_object_managers()
-            .has_changed(&secret)
+            .has_dynamic_object_changed(&secret)
             .await
             .unwrap(),
         "No changes are expected when comparing to the secret from manifest"
@@ -263,8 +242,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     assert!(
         !k8s_client
-            .dynamic_object_managers()
-            .has_changed(&stored_secret)
+            .has_dynamic_object_changed(&stored_secret)
             .await
             .unwrap(),
         "No changes are expected when comparing to the secret already stored"
@@ -278,8 +256,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .has_changed(&new_content_secret)
+            .has_dynamic_object_changed(&new_content_secret)
             .await
             .unwrap(),
         "Changes are expected when comparing new values"
@@ -305,8 +282,7 @@ async fn k8s_delete_dynamic_resource() {
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
 
     k8s_client
-        .dynamic_object_managers()
-        .delete(&foo_type_meta(), cr_name)
+        .delete_dynamic_object(&foo_type_meta(), cr_name)
         .await
         .expect("Delete should not fail");
 
@@ -336,8 +312,7 @@ async fn k8s_update_dynamic_resource() {
 
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
     k8s_client
-        .dynamic_object_managers()
-        .apply(&obj)
+        .apply_dynamic_object(&obj)
         .await
         .expect("Apply should not fail");
 
@@ -376,8 +351,7 @@ async fn k8s_update_dynamic_resource_metadata() {
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
     k8s_client
-        .dynamic_object_managers()
-        .apply(&obj)
+        .apply_dynamic_object(&obj)
         .await
         .expect("Apply should not fail");
 
@@ -405,10 +379,9 @@ async fn k8s_patch_dynamic_resource() {
     let cr_name = "patch-test";
 
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
-    let obj_managers = k8s_client.dynamic_object_managers();
     assert!(
-        obj_managers
-            .patch(
+        k8s_client
+            .patch_dynamic_object(
                 &foo_type_meta(),
                 cr_name,
                 serde_json::json!({
@@ -429,14 +402,14 @@ async fn k8s_patch_dynamic_resource() {
     );
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
-    obj_managers.apply(&obj).await.unwrap();
+    k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     let api: Api<Foo> = Api::namespaced(test.client.to_owned(), test_ns.as_str());
     let foo = api.get(cr_name).await.unwrap();
     assert_eq!(foo.spec.data, "created");
 
-    let _ = obj_managers
-        .patch(
+    let _ = k8s_client
+        .patch_dynamic_object(
             &foo_type_meta(),
             cr_name,
             serde_json::json!({
@@ -470,45 +443,46 @@ async fn k8s_dynamic_resource_missing_kind() {
 
     let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
 
-    let dynamic_object_managers = k8s_client.dynamic_object_managers();
-
     assert_matches!(
-        dynamic_object_managers
-            .get(&type_meta, cr_name)
+        k8s_client
+            .get_dynamic_object(&type_meta, cr_name)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
     );
     assert_matches!(
-        dynamic_object_managers
-            .apply(&dynamic_object)
+        k8s_client
+            .apply_dynamic_object(&dynamic_object)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
     );
     assert_matches!(
-        dynamic_object_managers
-            .apply_if_changed(&dynamic_object)
+        k8s_client
+            .apply_dynamic_object_if_changed(&dynamic_object)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
     );
     assert_matches!(
-        dynamic_object_managers
-            .delete(&type_meta, cr_name)
+        k8s_client
+            .delete_dynamic_object(&type_meta, cr_name)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
     );
     assert_matches!(
-        dynamic_object_managers
-            .has_changed(&dynamic_object)
+        k8s_client
+            .has_dynamic_object_changed(&dynamic_object)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
     );
     assert_matches!(
-        dynamic_object_managers.list(&type_meta).await.unwrap_err(),
+        k8s_client
+            .list_dynamic_objects(&type_meta)
+            .await
+            .unwrap_err(),
         Error::MissingAPIResource(_)
     );
 }
@@ -550,8 +524,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     let dynamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
 
     k8s_client
-        .dynamic_object_managers()
-        .apply(&dynamic_object)
+        .apply_dynamic_object(&dynamic_object)
         .await
         .unwrap();
 
@@ -564,8 +537,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
 
     assert_matches!(
         k8s_client
-            .dynamic_object_managers()
-            .get(
+            .get_dynamic_object(
                 &dynamic_object.types.clone().unwrap(),
                 &dynamic_object.name_unchecked(),
             )
@@ -575,10 +547,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     );
 
     assert_matches!(
-        k8s_client
-            .dynamic_object_managers()
-            .apply(&dynamic_object)
-            .await,
+        k8s_client.apply_dynamic_object(&dynamic_object).await,
         Err(MissingAPIResource(_)),
         "CRD was removed, client should not be able to create a new object"
     );
@@ -600,8 +569,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     let new_dyn_object = serde_yaml::from_value(serde_yaml::to_value(new_cr).unwrap()).unwrap();
 
     k8s_client
-        .dynamic_object_managers()
-        .apply(&new_dyn_object)
+        .apply_dynamic_object(&new_dyn_object)
         .await
         .expect("CRD was re-created, client should be able to create a new object");
 
@@ -611,8 +579,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     // Old removed CR should not be found
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .get(
+            .get_dynamic_object(
                 &dynamic_object.types.clone().unwrap(),
                 &dynamic_object.name_unchecked(),
             )
@@ -623,8 +590,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     // New CR should be found
     assert!(
         k8s_client
-            .dynamic_object_managers()
-            .get(
+            .get_dynamic_object(
                 &new_dyn_object.types.clone().unwrap(),
                 &new_dyn_object.name_unchecked(),
             )

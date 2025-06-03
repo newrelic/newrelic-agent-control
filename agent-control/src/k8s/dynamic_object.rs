@@ -1,12 +1,11 @@
 //! This module holds helpers and to perform k8s operations with resources whose type is known at runtime
 //! (DynamicObjects).
 use super::{
-    client::{get_name, get_type_meta},
+    client::{delete_collection, get_name},
     error::K8sError,
     reflector::definition::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
-use crate::k8s::client::delete_collection;
 use base64::engine::general_purpose::STANDARD;
 use either::Either;
 use kube::api::{ObjectList, Patch, PatchParams};
@@ -155,6 +154,13 @@ impl DynamicObjectManager {
         }
         Ok(either)
     }
+
+    pub async fn delete_collection(
+        &self,
+        label_selector: &str,
+    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        delete_collection(&self.api, label_selector).await
+    }
 }
 
 /// Holds a collection of [DynamicObjectManager] by [TypeMeta] to perform operations with objects known at runtime.
@@ -175,79 +181,8 @@ impl DynamicObjectManagers {
         }
     }
 
-    pub async fn get(
-        &self,
-        type_meta: &TypeMeta,
-        name: &str,
-    ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
-        Ok(self.get_or_create_manager(type_meta).await?.get(name))
-    }
-
-    pub async fn delete_collection(
-        &self,
-        type_meta: &TypeMeta,
-        label_selector: &str,
-    ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
-        let api = self.get_or_create_manager(type_meta).await?.api.clone();
-
-        delete_collection(&api, label_selector).await
-    }
-
-    pub async fn delete(
-        &self,
-        type_meta: &TypeMeta,
-        name: &str,
-    ) -> Result<Either<DynamicObject, Status>, K8sError> {
-        self.get_or_create_manager(type_meta)
-            .await?
-            .delete(name)
-            .await
-    }
-
-    pub async fn list(&self, type_meta: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
-        Ok(self.get_or_create_manager(type_meta).await?.list())
-    }
-
-    pub async fn apply(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        let type_meta = &get_type_meta(obj)?;
-
-        self.get_or_create_manager(type_meta)
-            .await?
-            .apply(obj)
-            .await
-    }
-
-    pub async fn apply_if_changed(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        let type_meta = &get_type_meta(obj)?;
-
-        self.get_or_create_manager(type_meta)
-            .await?
-            .apply_if_changed(obj)
-            .await
-    }
-
-    pub async fn patch(
-        &self,
-        type_meta: &TypeMeta,
-        name: &str,
-        patch: serde_json::Value,
-    ) -> Result<DynamicObject, K8sError> {
-        self.get_or_create_manager(type_meta)
-            .await?
-            .patch(name, patch)
-            .await
-    }
-
-    pub async fn has_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
-        let type_meta = &get_type_meta(obj)?;
-
-        self.get_or_create_manager(type_meta)
-            .await?
-            .has_changed(obj)
-    }
-
     /// Obtains the manager for the provided [TypeMeta]. If it does not exist it creates it and stores it.
-    async fn get_or_create_manager(
+    pub async fn get_or_create_manager(
         &self,
         type_meta: &TypeMeta,
     ) -> Result<Arc<DynamicObjectManager>, K8sError> {
