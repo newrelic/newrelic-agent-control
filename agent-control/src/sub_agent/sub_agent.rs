@@ -165,6 +165,14 @@ where
         .ok()
         .flatten() else {
             debug!("No configuration found for sub-agent");
+            // The effective config needs to be reported with the local config that failed
+            // to start the supervisor (not ideal but better than leaving the deleted remote),
+            // if not FC could still consider the previous remote that has just been deleted.
+            self.maybe_opamp_client.as_ref().inspect(|c| {
+                let _ = c
+                    .update_effective_config()
+                    .inspect_err(|e| error!("Effective config update failed: {e}"));
+            });
             return None;
         };
 
@@ -384,7 +392,7 @@ where
         }
 
         //TODO: Handle a remote config coming with the same hash as the stored, it shouldn't
-        // restart the supervisor but the status applied should be reported again.
+        // restart the supervisor but the status applied of failed should be reported again.
 
         info!(hash = config.hash.get(), "Applying remote config");
         self.report_config_status(
@@ -463,20 +471,27 @@ where
                 // If the remote config was deleted but creating the supervisor from local failed
                 // the hash should be marked as applied,
                 if let Ok(None) = parsed_remote {
+                    // Stop old supervisor if any. This needs to happen before starting the new one
+                    stop_supervisor(old_supervisor);
+
                     // Report the empty remote config as applied
                     hash.update_state(&ConfigState::Applied);
-                    self.report_config_status(hash.get(), opamp_client, hash.state().into());
+                    // The effective config needs to be reported with the local config that failed
+                    // to start the supervisor (not ideal but better than leaving the deleted remote),
+                    // if not FC could still consider the previous remote that has just been deleted.
+                    let _ = opamp_client
+                        .update_effective_config()
+                        .inspect_err(|e| error!("Effective config update failed: {e}"));
 
-                    // TODO: Should we keep the old_supervisor that is still using the old remote?
-                    return None;
+                    None
+                } else {
+                    // Mark hash as failed
+                    hash.update_state(&ConfigState::Failed {
+                        error_message: e.to_string(),
+                    });
+                    // Use existing supervisor
+                    old_supervisor
                 }
-
-                // Mark hash as failed
-                hash.update_state(&ConfigState::Failed {
-                    error_message: e.to_string(),
-                });
-                // Use existing supervisor
-                old_supervisor
             }
         };
 
@@ -877,15 +892,6 @@ deployment:
             }
         }
 
-        #[allow(dead_code)]
-        fn status_failed_msg(msg: &str) -> RemoteConfigStatus {
-            RemoteConfigStatus {
-                status: RemoteConfigStatuses::Failed as i32,
-                last_remote_config_hash: Self::hash().get().into_bytes(),
-                error_message: msg.to_string(),
-            }
-        }
-
         fn valid_config_yaml() -> YAMLConfig {
             "var: valid".try_into().unwrap()
         }
@@ -1020,6 +1026,7 @@ deployment:
         let (config_repository, mut opamp_client) = test_mocks();
 
         let supervisor_builder = expect_supervisor_do_not_build();
+        opamp_client.should_update_effective_config(1);
         opamp_client.should_stop(1);
 
         sub_agent(Some(opamp_client), supervisor_builder, config_repository)
@@ -1250,6 +1257,7 @@ deployment:
             .unwrap();
 
         let supervisor_builder = expect_fail_to_build_supervisor();
+        opamp_client.should_update_effective_config(1);
         opamp_client.should_set_remote_config_status_seq(vec![
             TestAgent::status_applying(),
             TestAgent::status_applied(),
@@ -1261,7 +1269,7 @@ deployment:
             config_repository.clone(),
         );
 
-        let old_supervisor = Some(expect_supervisor_does_not_stop());
+        let old_supervisor = Some(expect_supervisor_shut_down());
 
         let new_supervisor = sub_agent.handle_remote_config(
             sub_agent.maybe_opamp_client.as_ref().unwrap(),
@@ -1285,7 +1293,8 @@ deployment:
 
     #[test]
     fn test_bootstrap_empty_config() {
-        let (config_repository, opamp_client) = test_mocks();
+        let (config_repository, mut opamp_client) = test_mocks();
+        opamp_client.should_update_effective_config(1);
 
         let supervisor_builder = expect_supervisor_do_not_build();
 
