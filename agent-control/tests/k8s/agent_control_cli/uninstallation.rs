@@ -3,6 +3,7 @@ use crate::common::runtime::block_on;
 use crate::k8s::agent_control_cli::installation::ac_install_cmd;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use assert_cmd::Command;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
@@ -58,6 +59,8 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         "values.yaml",
         values,
     );
+
+    print_pod_logs(k8s_env.client.clone(), &namespace, AC_LABEL_SELECTOR);
 
     let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
     cmd.assert().success();
