@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use newrelic_agent_control::cli::install_agent_control::REPOSITORY_NAME;
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -7,7 +8,6 @@ use newrelic_agent_control::agent_control::config::{
 };
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 
-const REPOSITORY_NAME: &str = "newrelic";
 const RELEASE_NAME: &str = "agent-control-deployment";
 
 #[test]

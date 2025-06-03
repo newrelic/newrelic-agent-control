@@ -1,4 +1,5 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta};
+use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::cli::errors::CliError;
 use crate::cli::utils::*;
 use crate::health::health_checker::HealthChecker;
@@ -20,7 +21,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::{debug, info};
 
-pub const REPOSITORY_NAME: &str = "newrelic";
+pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
