@@ -9,7 +9,6 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
 use crate::health::health_checker::Health;
-use crate::health::health_checker::log_and_report_unhealthy;
 use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::RemoteConfig;
@@ -19,6 +18,7 @@ use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgen
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;
+use crate::sub_agent::health_checker::log_and_report_unhealthy;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};

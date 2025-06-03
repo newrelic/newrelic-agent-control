@@ -1,6 +1,7 @@
 use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
+use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
@@ -51,6 +52,9 @@ pub struct AgentControlConfig {
 
     #[serde(default)]
     pub uptime_report: UptimeReportConfig,
+
+    #[serde(default)]
+    pub health_check: AgentControlHealthCheckerConfig,
 }
 
 #[derive(Error, Debug)]
