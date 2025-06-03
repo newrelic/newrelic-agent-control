@@ -3,9 +3,7 @@ use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install_agent_control::{
     AgentControlInstallData, install_agent_control,
 };
-use newrelic_agent_control::cli::uninstall_agent_control::{
-    AgentControlUninstallData, uninstall_agent_control,
-};
+use newrelic_agent_control::cli::uninstall_agent_control::uninstall_agent_control;
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
     http::tls::install_rustls_default_crypto_provider,
@@ -38,7 +36,7 @@ enum Operations {
     /// Install agent control chart and create required resources
     InstallAgentControl(AgentControlInstallData),
     /// Uninstall agent control and delete related resources
-    UninstallAgentControl(AgentControlUninstallData),
+    UninstallAgentControl,
 }
 
 fn main() -> ExitCode {
@@ -62,9 +60,7 @@ fn main() -> ExitCode {
         Operations::InstallAgentControl(agent_control_data) => {
             install_agent_control(agent_control_data, cli.namespace)
         }
-        Operations::UninstallAgentControl(agent_control_data) => {
-            uninstall_agent_control(agent_control_data, cli.namespace)
-        }
+        Operations::UninstallAgentControl => uninstall_agent_control(cli.namespace),
     };
 
     match result {
