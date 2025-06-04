@@ -5,6 +5,7 @@ use assert_cmd::Command;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
+use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
 use predicates::prelude::predicate;
 use std::time::Duration;
 
@@ -44,7 +45,10 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     let secrets: Api<Secret> = Api::namespaced(k8s_env.client.clone(), &namespace);
 
     retry(10, Duration::from_secs(1), || {
-        let _ = runtime.block_on(deployments.get("agent-control"))?;
+        // We set "nameOverride" in the secret values to force the deployment name
+        // to be equal to the release name. This avoids breaking the test if the
+        // default value changes in the chart.
+        let _ = runtime.block_on(deployments.get(RELEASE_NAME))?;
         Ok(())
     });
     retry(10, Duration::from_secs(1), || {
