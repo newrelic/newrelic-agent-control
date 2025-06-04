@@ -559,19 +559,14 @@ agents: {}
     #[test]
     fn test_sub_agent_removal_diff_with_removal() {
         let old_sub_agents = helper_get_agent_list();
-
-        let new_sub_agents = HashMap::from([(
-            AgentID::new("infra-agent").unwrap(),
-            SubAgentConfig {
-                agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                    .unwrap(),
-            },
-        )]);
+        let agent_id_to_remove = AgentID::new("infra-agent").unwrap();
+        let mut new_sub_agents = old_sub_agents.clone();
+        new_sub_agents.remove(&agent_id_to_remove);
 
         let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
 
         assert_eq!(diff.len(), 1);
-        assert_eq!(diff[0].0, &AgentID::new("nrdot").unwrap());
+        assert_eq!(diff.first().unwrap().0, &agent_id_to_remove);
     }
 
     #[test]
@@ -583,14 +578,20 @@ agents: {}
         let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
 
         assert_eq!(diff.len(), 2);
-        assert!(
-            diff.iter()
-                .any(|(id, _)| id == &&AgentID::new("infra-agent").unwrap())
-        );
-        assert!(
-            diff.iter()
-                .any(|(id, _)| id == &&AgentID::new("nrdot").unwrap())
-        );
+        assert!(diff.contains(&(
+            &AgentID::new("infra-agent").unwrap(),
+            &SubAgentConfig {
+                agent_type:
+                    AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
+            },
+        )));
+        assert!(diff.contains(&(
+            &AgentID::new("nrdot").unwrap(),
+            &SubAgentConfig {
+                agent_type:
+                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap(),
+            },
+        )));
     }
 
     #[test]
