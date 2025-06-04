@@ -8,8 +8,8 @@ use crate::event::SubAgentEvent::SubAgentStarted;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::event::{OpAMPEvent, SubAgentEvent, SubAgentInternalEvent};
+use crate::health::events::HealthEventPublisher;
 use crate::health::health_checker::Health;
-use crate::health::health_checker::log_and_report_unhealthy;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::ConfigState;
@@ -560,12 +560,12 @@ where
         not_started_supervisor
             .start(self.sub_agent_internal_publisher.clone())
             .inspect_err(|err| {
-                log_and_report_unhealthy(
-                    &self.sub_agent_internal_publisher,
-                    err,
-                    "starting the resources supervisor failed",
-                    SystemTime::now(),
-                )
+                self.sub_agent_internal_publisher
+                    .log_error_and_publish_unhealthy(
+                        err,
+                        "Failure starting the resources supervisor",
+                        SystemTime::now(),
+                    );
             })
     }
 

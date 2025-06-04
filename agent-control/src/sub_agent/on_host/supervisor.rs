@@ -4,9 +4,8 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::health::health_checker::{
-    HealthCheckerError, publish_health_event, spawn_health_checker,
-};
+use crate::health::events::HealthEventPublisher;
+use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthChecker;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -212,10 +211,10 @@ impl NotStartedSupervisorOnHost {
 
             let init_health = Healthy::new(String::default());
 
-            publish_health_event(
-                &internal_event_publisher,
-                HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
-            );
+            internal_event_publisher.publish_health_event(HealthWithStartTime::new(
+                init_health.into(),
+                supervisor_start_time,
+            ));
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
@@ -271,10 +270,10 @@ impl NotStartedSupervisorOnHost {
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
-                    publish_health_event(
-                        &internal_event_publisher,
-                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time).into(),
-                    );
+                    internal_event_publisher.publish_health_event(HealthWithStartTime::new(
+                        unhealthy.into(),
+                        supervisor_start_time,
+                    ));
                 }
                 break;
             }
@@ -321,10 +320,8 @@ fn handle_termination(
             ),
             exit_status.to_string(),
         );
-        publish_health_event(
-            internal_event_publisher,
-            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
-        );
+        internal_event_publisher
+            .publish_health_event(HealthWithStartTime::new(unhealthy.into(), start_time));
         error!(
             %agent_id,
             supervisor = bin,

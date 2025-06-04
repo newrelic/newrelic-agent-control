@@ -1,6 +1,7 @@
 pub mod collection;
 pub mod effective_agents_assembler;
 pub mod error;
+pub mod health_checker;
 pub mod remote_config_parser;
 
 pub mod k8s;
