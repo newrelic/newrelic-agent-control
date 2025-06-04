@@ -261,9 +261,10 @@ where
         }
     }
 
-    // Agent Control on remote config
-    // Configuration will be reported as applying to OpAMP
-    // Valid configuration will be applied and reported as applied to OpAMP
+    /// Agent Control on remote config
+    /// Configuration will be reported as applying to OpAMP
+    /// Valid configuration will be applied and reported as applied to OpAMP
+    /// If the configuration is invalid, it will be reported as error to OpAMP
     pub(crate) fn remote_config(
         &self,
         opamp_remote_config: OpampRemoteConfig,
