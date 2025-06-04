@@ -1,5 +1,6 @@
-use super::agent_id::AgentID;
-use super::config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig, SubAgentsMap};
+use super::config::{
+    AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference,
+};
 use super::config_storer::loader_storer::{
     AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
     AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
@@ -434,16 +435,6 @@ where
     }
 }
 
-/// Return elements of the first map not existing in the second map.
-fn sub_agents_difference<'a>(
-    old_sub_agents: &'a SubAgentsMap,
-    new_sub_agents: &'a SubAgentsMap,
-) -> impl Iterator<Item = (&'a AgentID, &'a SubAgentConfig)> {
-    old_sub_agents
-        .iter()
-        .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
-}
-
 ////////////////////////////////////////////////////////////////////////////////////
 // Tests
 ////////////////////////////////////////////////////////////////////////////////////
@@ -451,8 +442,8 @@ fn sub_agents_difference<'a>(
 #[cfg(test)]
 mod tests {
     use crate::agent_control::AgentControl;
-    use crate::agent_control::agent_control::sub_agents_difference;
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::tests::sub_agents_default_config;
     use crate::agent_control::config::{
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
@@ -510,7 +501,7 @@ mod tests {
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
         // no agents in the supervisor group
-        let agent = AgentControl::new(
+        let agent_control = AgentControl::new(
             Some(started_client),
             MockSubAgentBuilder::new(),
             Arc::new(sa_dynamic_config_store),
@@ -528,7 +519,7 @@ mod tests {
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run().is_ok())
+        assert!(agent_control.run().is_ok())
     }
 
     #[test]
@@ -564,7 +555,7 @@ mod tests {
         let (application_event_publisher, application_event_consumer) = pub_sub();
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
-        let agent = AgentControl::new(
+        let agent_control = AgentControl::new(
             Some(started_client),
             sub_agent_builder,
             Arc::new(sa_dynamic_config_store),
@@ -582,8 +573,135 @@ mod tests {
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(agent.run().is_ok())
+        assert!(agent_control.run().is_ok())
     }
+
+    #[test]
+    // This tests makes sure that after receiving an "OpAMPEvent::ConnectFailed"
+    // the AC reports that it is connected to OpAMP and it is healthy
+    fn receive_opamp_connected() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        started_client.should_set_health(1);
+
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let event_processor = spawn({
+            move || {
+                // two agents in the supervisor group
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents)
+            }
+        });
+
+        opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::OpAMPConnected;
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+    }
+
+    #[test]
+    // This tests makes sure that after receiving an "OpAMPEvent::Connected"
+    // the AC reports that it is NOT connected to OpAMP
+    fn receive_opamp_connect_failed() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        started_client.should_set_health(1);
+
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents)
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::ConnectFailed(
+                Some(500),
+                "Internal error".to_string(),
+            ))
+            .unwrap();
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected =
+            AgentControlEvent::OpAMPConnectFailed(Some(500), "Internal error".to_string());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok())
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Agent Control Remote Config Tests
+    ////////////////////////////////////////////////////////////////////////////////////
 
     #[test]
     fn receive_opamp_remote_config() {
@@ -642,10 +760,10 @@ mod tests {
         let (opamp_publisher, opamp_consumer) = pub_sub();
         let (application_event_publisher, application_event_consumer) = pub_sub();
 
-        let running_agent = spawn({
+        let running_agent_control = spawn({
             move || {
                 // two agents in the supervisor group
-                let agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
@@ -657,8 +775,8 @@ mod tests {
                     NoOpResourceCleaner,
                     NoOpUpdater,
                     ac_config,
-                );
-                agent.run()
+                )
+                .run()
             }
         });
 
@@ -684,127 +802,7 @@ agents:
             .publish(ApplicationEvent::StopRequested)
             .unwrap();
 
-        assert!(running_agent.join().is_ok())
-    }
-
-    #[test]
-    fn receive_opamp_connected() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        started_client.should_set_health(1);
-
-        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let dynamic_config_validator = MockDynamicConfigValidator::new();
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-
-        let running_agent = spawn({
-            move || {
-                // two agents in the supervisor group
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-                agent.process_events(sub_agents)
-            }
-        });
-
-        opamp_publisher.publish(OpAMPEvent::Connected).unwrap();
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::OpAMPConnected;
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(running_agent.join().is_ok());
-    }
-
-    #[test]
-    fn receive_opamp_connect_failed() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        started_client.should_set_health(1);
-
-        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let dynamic_config_validator = MockDynamicConfigValidator::new();
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-
-        let running_agent = spawn({
-            move || {
-                // two agents in the supervisor group
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-                agent.process_events(sub_agents)
-            }
-        });
-
-        opamp_publisher
-            .publish(OpAMPEvent::ConnectFailed(
-                Some(500),
-                "Internal error".to_string(),
-            ))
-            .unwrap();
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected =
-            AgentControlEvent::OpAMPConnectFailed(Some(500), "Internal error".to_string());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(running_agent.join().is_ok())
+        assert!(running_agent_control.join().is_ok())
     }
 
     #[test]
@@ -891,7 +889,7 @@ agents:
             )
             .returning(|_, _| Ok(()));
 
-        // Create the Agent Control and rub Sub Agents
+        // Create the Agent Control and run Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
@@ -1040,7 +1038,7 @@ agents:
                 ))
             });
 
-        // Create the Agent Control and rub Sub Agents
+        // Create the Agent Control and run Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
@@ -1135,7 +1133,7 @@ agents:
 
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
-        // Create the Agent Control and rub Sub Agents
+        // Create the Agent Control and run Sub Agents
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
@@ -1178,494 +1176,6 @@ agents:
         assert!(apply_remote.is_err());
 
         running_sub_agents.stop();
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////
-    // Agent Control Events tests
-    ////////////////////////////////////////////////////////////////////////////////////
-
-    // Having one running sub agent, receive a valid config with no agents
-    // and we assert on Agent Control Healthy event
-    #[test]
-    fn test_config_updated_should_publish_agent_control_healthy() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        started_client.should_set_health(2);
-        started_client.should_update_effective_config(1);
-        // applying and applied
-        started_client
-            .expect_set_remote_config_status()
-            .times(2)
-            .returning(|_| Ok(()));
-
-        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
-        dynamic_config_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Ok(()));
-
-        // load local config
-        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
-        sa_dynamic_config_store.should_load(&sub_agents_config);
-
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
-        let opamp_remote_config = OpampRemoteConfig::new(
-            AgentID::new_agent_control_id(),
-            remote_config_hash.clone(),
-            Some(ConfigurationMap::new(HashMap::from([(
-                String::default(),
-                String::from("agents: {}"),
-            )]))),
-        );
-
-        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
-        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
-        // store remote config
-        sa_dynamic_config_store.should_store(remote_config_values);
-
-        // store agent control remote config hash
-        remote_config_hash.update_state(&ConfigState::Applied);
-        sa_dynamic_config_store
-            .expect_update_hash_state()
-            .with(predicate::eq(remote_config_hash.state()))
-            .times(1)
-            .returning(|_| Ok(()));
-
-        // the running sub agent that will be stopped
-        let mut sub_agent = MockStartedSubAgent::new();
-        sub_agent.should_stop();
-
-        // the running sub agents
-        let sub_agents = StartedSubAgents::from(HashMap::from([(
-            AgentID::new("infra-agent").unwrap(),
-            sub_agent,
-        )]));
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-
-        let event_processor = spawn({
-            move || {
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-
-                agent.process_events(sub_agents);
-            }
-        });
-
-        opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
-            .unwrap();
-        sleep(Duration::from_millis(10));
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-    }
-
-    // Receive an OpAMP Invalid Config should publish Unhealthy Event
-    #[test]
-    fn test_invalid_config_should_publish_agent_control_unhealthy() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        // set healthy on start processing events
-        started_client.should_set_healthy();
-        // set unhealthy on invalid config
-        started_client.should_set_unhealthy();
-        // applying and failed
-        started_client
-            .expect_set_remote_config_status()
-            .times(2)
-            .returning(|_| Ok(()));
-
-        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let dynamic_config_validator = MockDynamicConfigValidator::new();
-
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
-        remote_config_hash.update_state(&ConfigState::Failed {
-            error_message: String::from("some error message"),
-        });
-
-        let opamp_remote_config =
-            OpampRemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
-
-        // the running sub agents
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-
-        let event_processor = spawn({
-            move || {
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-
-                agent.process_events(sub_agents);
-            }
-        });
-
-        opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
-            .unwrap();
-
-        sleep(Duration::from_millis(10));
-
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::AgentControlBecameUnhealthy(Unhealthy::new(
-            String::default(),
-            String::from(
-                "Error applying Agent Control remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
-            ),
-        ));
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-    }
-
-    // Receive an StopRequest event should publish AgentControlStopped
-    #[test]
-    fn test_stop_request_should_publish_agent_control_stopped() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        // set healthy on start processing events
-        started_client.should_set_healthy();
-
-        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let dynamic_config_validator = MockDynamicConfigValidator::new();
-
-        // the running sub agents
-        let sub_agents = StartedSubAgents::from(HashMap::default());
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-        let (_opamp_publisher, opamp_consumer) = pub_sub();
-
-        let event_processor = spawn({
-            move || {
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-
-                agent.process_events(sub_agents);
-            }
-        });
-
-        sleep(Duration::from_millis(10));
-
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::AgentControlStopped;
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-    }
-
-    // Having one running sub agent, receive a valid config with no agents
-    // and we assert on Agent Control Healthy event
-    // And it should publish SubAgentRemoved
-    #[test]
-    fn test_removing_a_sub_agent_should_publish_sub_agent_removed() {
-        let sub_agent_builder = MockSubAgentBuilder::new();
-
-        // Agent Control OpAMP
-        let mut started_client = MockStartedOpAMPClient::new();
-        started_client.should_set_health(2);
-        started_client.should_update_effective_config(1);
-        // applying and applied
-        started_client
-            .expect_set_remote_config_status()
-            .times(2)
-            .returning(|_| Ok(()));
-
-        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-
-        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
-        dynamic_config_validator
-            .expect_validate()
-            .times(1)
-            .returning(|_| Ok(()));
-
-        let agent_id = AgentID::new("infra-agent").unwrap();
-
-        // load local config
-        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::from([(
-            agent_id.clone(),
-            SubAgentConfig {
-                agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-            },
-        )]));
-        sa_dynamic_config_store.should_load(&sub_agents_config);
-
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
-        let opamp_remote_config = OpampRemoteConfig::new(
-            AgentID::new_agent_control_id(),
-            remote_config_hash.clone(),
-            Some(ConfigurationMap::new(HashMap::from([(
-                String::default(),
-                String::from("agents: {}"),
-            )]))),
-        );
-
-        // store remote config
-        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
-        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
-        sa_dynamic_config_store.should_store(remote_config_values);
-
-        // store agent control remote config hash
-        remote_config_hash.update_state(&ConfigState::Applied);
-        sa_dynamic_config_store
-            .expect_update_hash_state()
-            .with(predicate::eq(remote_config_hash.state()))
-            .times(1)
-            .returning(|_| Ok(()));
-
-        // the running sub agent that will be stopped
-        let mut sub_agent = MockStartedSubAgent::new();
-        sub_agent.should_stop();
-
-        // the running sub agents
-        let sub_agents = StartedSubAgents::from(HashMap::from([(agent_id.clone(), sub_agent)]));
-
-        let (application_event_publisher, application_event_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
-        let mut agent_control_publisher = UnboundedBroadcast::default();
-        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
-
-        let event_processor = spawn({
-            move || {
-                let agent = AgentControl::new(
-                    Some(started_client),
-                    sub_agent_builder,
-                    Arc::new(sa_dynamic_config_store),
-                    agent_control_publisher,
-                    UnboundedBroadcast::default(),
-                    application_event_consumer,
-                    Some(opamp_consumer),
-                    dynamic_config_validator,
-                    NoOpResourceCleaner,
-                    NoOpUpdater,
-                    AgentControlConfig::default(),
-                );
-
-                agent.process_events(sub_agents);
-            }
-        });
-
-        opamp_publisher
-            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
-            .unwrap();
-        sleep(Duration::from_millis(10));
-        application_event_publisher
-            .publish(ApplicationEvent::StopRequested)
-            .unwrap();
-
-        assert!(event_processor.join().is_ok());
-
-        // process_events always starts with AgentControlHealthy
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::SubAgentRemoved(agent_id);
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-
-        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
-        let ev = agent_control_consumer.as_ref().recv().unwrap();
-        assert_eq!(expected, ev);
-    }
-
-    #[test]
-    fn test_sub_agent_removal_diff_no_removal() {
-        let old_sub_agents = HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ]);
-
-        let new_sub_agents = old_sub_agents.clone();
-
-        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
-
-        assert!(diff.is_empty());
-    }
-
-    #[test]
-    fn test_sub_agent_removal_diff_with_removal() {
-        let old_sub_agents = HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ]);
-
-        let new_sub_agents = HashMap::from([(
-            AgentID::new("infra-agent").unwrap(),
-            SubAgentConfig {
-                agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                    .unwrap(),
-            },
-        )]);
-
-        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
-
-        assert_eq!(diff.len(), 1);
-        assert_eq!(diff[0].0, &AgentID::new("nrdot").unwrap());
-    }
-
-    #[test]
-    fn test_sub_agent_removal_diff_empty_new_agents() {
-        let old_sub_agents = HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ]);
-
-        let new_sub_agents = HashMap::new();
-
-        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
-
-        assert_eq!(diff.len(), 2);
-        assert!(
-            diff.iter()
-                .any(|(id, _)| id == &&AgentID::new("infra-agent").unwrap())
-        );
-        assert!(
-            diff.iter()
-                .any(|(id, _)| id == &&AgentID::new("nrdot").unwrap())
-        );
-    }
-
-    #[test]
-    fn test_sub_agent_removal_diff_empty_old_agents() {
-        let old_sub_agents = HashMap::new();
-
-        let new_sub_agents = HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ]);
-
-        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
-
-        assert!(diff.is_empty());
     }
 
     // Invalid configuration should be reported to OpAMP as Failed and the Agent Control should
@@ -1812,7 +1322,7 @@ agents:
             .times(1)
             .returning(|_| Ok(()));
 
-        // Create the Agent Control and rub Sub Agents
+        // Create the Agent Control and run Sub Agents
         let agent_control = AgentControl::new(
             Some(started_client),
             sub_agent_builder,
@@ -1833,26 +1343,367 @@ agents:
     }
 
     ////////////////////////////////////////////////////////////////////////////////////
-    // Test helpers
+    // Agent Control Events tests
     ////////////////////////////////////////////////////////////////////////////////////
 
-    fn sub_agents_default_config() -> AgentControlDynamicConfig {
-        HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
+    // Having one running sub agent, receive a valid config with no agents
+    // and we assert on Agent Control Healthy event
+    #[test]
+    fn test_config_updated_should_publish_agent_control_healthy() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        started_client.should_set_health(2);
+        started_client.should_update_effective_config(1);
+        // applying and applied
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        // load local config
+        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
+        sa_dynamic_config_store.should_load(&sub_agents_config);
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let opamp_remote_config = OpampRemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            remote_config_hash.clone(),
+            Some(ConfigurationMap::new(HashMap::from([(
+                String::default(),
+                String::from("agents: {}"),
+            )]))),
+        );
+
+        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
+        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        // store remote config
+        sa_dynamic_config_store.should_store(remote_config_values);
+
+        // store agent control remote config hash
+        remote_config_hash.update_state(&ConfigState::Applied);
+        sa_dynamic_config_store
+            .expect_update_hash_state()
+            .with(predicate::eq(remote_config_hash.state()))
+            .times(1)
+            .returning(|_| Ok(()));
+
+        // the running sub agent that will be stopped
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(
+            AgentID::new("infra-agent").unwrap(),
+            sub_agent,
+        )]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents)
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
+            .unwrap();
+        sleep(Duration::from_millis(10));
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Receive an OpAMP Invalid Config should publish Unhealthy Event
+    #[test]
+    fn test_invalid_config_should_publish_agent_control_unhealthy() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+        // set unhealthy on invalid config
+        started_client.should_set_unhealthy();
+        // applying and failed
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        remote_config_hash.update_state(&ConfigState::Failed {
+            error_message: String::from("some error message"),
+        });
+
+        let opamp_remote_config =
+            OpampRemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents);
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
+            .unwrap();
+
+        sleep(Duration::from_millis(10));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::AgentControlBecameUnhealthy(Unhealthy::new(
+            String::default(),
+            String::from(
+                "Error applying Agent Control remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
             ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ])
-        .into()
+        ));
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Receive an StopRequest event should publish AgentControlStopped
+    #[test]
+    fn test_stop_request_should_publish_agent_control_stopped() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::default());
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+        let (_opamp_publisher, opamp_consumer) = pub_sub();
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents);
+            }
+        });
+
+        sleep(Duration::from_millis(10));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::AgentControlStopped;
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+    }
+
+    // Having one running sub agent, receive a valid config with no agents
+    // and we assert on Agent Control Healthy event
+    // And it should publish SubAgentRemoved
+    #[test]
+    fn test_removing_a_sub_agent_should_publish_sub_agent_removed() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        started_client.should_set_health(2);
+        started_client.should_update_effective_config(1);
+        // applying and applied
+        started_client
+            .expect_set_remote_config_status()
+            .times(2)
+            .returning(|_| Ok(()));
+
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+
+        let mut dynamic_config_validator = MockDynamicConfigValidator::new();
+        dynamic_config_validator
+            .expect_validate()
+            .times(1)
+            .returning(|_| Ok(()));
+
+        let agent_id = AgentID::new("infra-agent").unwrap();
+
+        // load local config
+        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::from([(
+            agent_id.clone(),
+            SubAgentConfig {
+                agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+            },
+        )]));
+        sa_dynamic_config_store.should_load(&sub_agents_config);
+
+        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let opamp_remote_config = OpampRemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            remote_config_hash.clone(),
+            Some(ConfigurationMap::new(HashMap::from([(
+                String::default(),
+                String::from("agents: {}"),
+            )]))),
+        );
+
+        // store remote config
+        let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
+        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        sa_dynamic_config_store.should_store(remote_config_values);
+
+        // store agent control remote config hash
+        remote_config_hash.update_state(&ConfigState::Applied);
+        sa_dynamic_config_store
+            .expect_update_hash_state()
+            .with(predicate::eq(remote_config_hash.state()))
+            .times(1)
+            .returning(|_| Ok(()));
+
+        // the running sub agent that will be stopped
+        let mut sub_agent = MockStartedSubAgent::new();
+        sub_agent.should_stop();
+
+        // the running sub agents
+        let sub_agents = StartedSubAgents::from(HashMap::from([(agent_id.clone(), sub_agent)]));
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    UnboundedBroadcast::default(),
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    AgentControlConfig::default(),
+                )
+                .process_events(sub_agents)
+            }
+        });
+
+        opamp_publisher
+            .publish(OpAMPEvent::RemoteConfigReceived(opamp_remote_config))
+            .unwrap();
+        sleep(Duration::from_millis(10));
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::SubAgentRemoved(agent_id);
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        let expected = AgentControlEvent::AgentControlBecameHealthy(Healthy::default());
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
     }
 }
