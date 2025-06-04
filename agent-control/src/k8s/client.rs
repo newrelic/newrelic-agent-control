@@ -227,10 +227,6 @@ impl AsyncK8sClient {
         })
     }
 
-    pub fn dynamic_object_managers(&self) -> &DynamicObjectManagers {
-        &self.dynamic_object_managers
-    }
-
     // Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
     pub async fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
         let mut list = vec![];
