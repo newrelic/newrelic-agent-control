@@ -11,7 +11,7 @@ use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
-use newrelic_agent_control::values::file::YAMLConfigRepositoryFile;
+use newrelic_agent_control::values::file::ConfigRepositoryFile;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let cli = Cli::init_config_migrate_cli();
     let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
-    let vr = YAMLConfigRepositoryFile::new(cli.local_data_dir(), remote_dir);
+    let vr = ConfigRepositoryFile::new(cli.local_data_dir(), remote_dir);
     let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),

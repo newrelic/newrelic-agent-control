@@ -59,7 +59,11 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     );
 
     // And the custom-agent has also remote config values
-    let remote_values_config = "fake_variable: from remote\n";
+    let remote_values_config_body = "fake_variable: from remote\n";
+    let remote_values_config = format!(
+        "config:\n  {}hash: hash-test\nstate: applying\n",
+        remote_values_config_body
+    );
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
@@ -81,7 +85,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         check_latest_effective_config_is_expected(
             &opamp_server,
             &sub_agent_instance_id.clone(),
-            remote_values_config.to_string(),
+            remote_values_config_body.to_string(),
         )
     });
 

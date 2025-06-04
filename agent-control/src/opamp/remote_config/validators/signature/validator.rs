@@ -2,7 +2,7 @@ use crate::agent_control::defaults::get_custom_capabilities;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
 use crate::http::config::ProxyConfig;
-use crate::opamp::remote_config::RemoteConfig;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::identity::AgentIdentity;
@@ -143,10 +143,10 @@ impl RemoteConfigValidator for SignatureValidator {
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
-        remote_config: &RemoteConfig,
+        opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
-            SignatureValidator::Validator(v) => v.validate(agent_identity, remote_config),
+            SignatureValidator::Validator(v) => v.validate(agent_identity, opamp_remote_config),
             SignatureValidator::Noop => Ok(()),
         }
     }
@@ -169,7 +169,7 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
-        remote_config: &RemoteConfig,
+        opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), SignatureValidatorError> {
         // custom capabilities are got from the agent-type (currently hard-coded)
         // If the capability is not set, no validation is performed
@@ -180,14 +180,14 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
             return Ok(());
         }
 
-        let signature = remote_config
+        let signature = opamp_remote_config
             .get_unique_signature()
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .ok_or(SignatureValidatorError::VerifySignature(
                 "Signature is missing".to_string(),
             ))?;
 
-        let config_content = remote_config
+        let config_content = opamp_remote_config
             .get_unique()
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .as_bytes();
@@ -325,7 +325,7 @@ certificate_pem_file_path: /path/to/file
 
     #[test]
     fn test_noop_signature_validator() {
-        let rc = RemoteConfig::new(
+        let rc = OpampRemoteConfig::new(
             AgentID::new("test").unwrap(),
             Hash::new("test_payload".to_string()),
             None,
@@ -345,7 +345,7 @@ certificate_pem_file_path: /path/to/file
     pub fn test_certificate_signature_validator_err() {
         struct TestCase {
             name: &'static str,
-            remote_config: RemoteConfig,
+            remote_config: OpampRemoteConfig,
         }
 
         impl TestCase {
@@ -373,7 +373,7 @@ certificate_pem_file_path: /path/to/file
         let test_cases = [
             TestCase {
                 name: "Signature is missing",
-                remote_config: RemoteConfig::new(
+                remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
                     None,
@@ -381,7 +381,7 @@ certificate_pem_file_path: /path/to/file
             },
             TestCase {
                 name: "Signature cannot be retrieved because multiple signatures are defined",
-                remote_config: RemoteConfig::new(
+                remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
                     None,
@@ -393,7 +393,7 @@ certificate_pem_file_path: /path/to/file
             },
             TestCase {
                 name: "Config is empty",
-                remote_config: RemoteConfig::new(
+                remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
                     None,
@@ -402,7 +402,7 @@ certificate_pem_file_path: /path/to/file
             },
             TestCase {
                 name: "Invalid signature",
-                remote_config: RemoteConfig::new(
+                remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
                     Hash::new("test_payload".to_string()),
                     Some(ConfigurationMap::new(HashMap::from([(
@@ -428,7 +428,7 @@ certificate_pem_file_path: /path/to/file
             CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
         );
-        let rc = RemoteConfig::new(
+        let rc = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("test".to_string()),
             None,
@@ -453,7 +453,7 @@ certificate_pem_file_path: /path/to/file
         let config = "value";
 
         let encoded_signature = test_signer.encoded_signature(config);
-        let remote_config = RemoteConfig::new(
+        let remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             Hash::new("test".to_string()),
             Some(ConfigurationMap::new(HashMap::from([(

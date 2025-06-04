@@ -5,7 +5,7 @@ use super::report::OpampRemoteConfigStatus;
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
-enum ConfigState {
+pub enum ConfigState {
     Applying,
     Applied,
     Failed { error_message: String },
@@ -26,17 +26,16 @@ impl Hash {
         }
     }
 
-    pub fn apply(&mut self) {
-        self.state = ConfigState::Applied;
-    }
-
-    // It is mandatory for a failed hash to have the error
-    pub fn fail(&mut self, error_message: String) {
-        self.state = ConfigState::Failed { error_message };
-    }
-
     pub fn get(&self) -> String {
         self.hash.clone()
+    }
+
+    pub fn state(&self) -> ConfigState {
+        self.state.clone()
+    }
+
+    pub fn update_state(&mut self, config_state: &ConfigState) {
+        self.state = config_state.clone()
     }
 
     pub fn is_applied(&self) -> bool {
@@ -60,9 +59,9 @@ impl Hash {
     }
 }
 
-impl From<&Hash> for OpampRemoteConfigStatus {
-    fn from(hash: &Hash) -> Self {
-        match &hash.state {
+impl From<ConfigState> for OpampRemoteConfigStatus {
+    fn from(config_state: ConfigState) -> Self {
+        match &config_state {
             ConfigState::Applying => Self::Applying,
             ConfigState::Applied => Self::Applied,
             ConfigState::Failed { error_message } => Self::Error(error_message.to_owned()),
@@ -105,9 +104,11 @@ pub mod tests {
         // hash can change state. This is not ideal, as an applied hash should not go to failed
         let mut hash = Hash::new("some-hash".into());
         assert!(hash.is_applying());
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         assert!(hash.is_applied());
-        hash.fail("this is an error message".to_string());
+        hash.update_state(&ConfigState::Failed {
+            error_message: "this is an error message".to_string(),
+        });
         assert!(hash.is_failed());
     }
 
@@ -117,11 +118,13 @@ pub mod tests {
         let expected = "hash: '123456789'\nstate: applying\n";
         assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
 
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         let expected = "hash: '123456789'\nstate: applied\n";
         assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
 
-        hash.fail("this is an error message".to_string());
+        hash.update_state(&ConfigState::Failed {
+            error_message: "this is an error message".to_string(),
+        });
         let expected =
             "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
         assert_eq!(expected, serde_yaml::to_string(&hash).unwrap());
@@ -133,11 +136,13 @@ pub mod tests {
         let content = "hash: '123456789'\nstate: applying\n";
         assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
 
-        hash.apply();
+        hash.update_state(&ConfigState::Applied);
         let content = "hash: '123456789'\nstate: applied\n";
         assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
 
-        hash.fail("this is an error message".to_string());
+        hash.update_state(&ConfigState::Failed {
+            error_message: "this is an error message".to_string(),
+        });
         let content = "hash: '123456789'\nstate: failed\nerror_message: this is an error message\n";
         assert_eq!(hash, serde_yaml::from_str::<Hash>(content).unwrap());
     }

@@ -6,15 +6,14 @@ use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister::PersistError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
-use crate::opamp::hash_repository::repository::HashRepositoryError;
 use crate::opamp::instance_id;
 
 use crate::opamp::instance_id::on_host::getter::IdentifiersProviderError;
-use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::sub_agent::effective_agents_assembler::EffectiveAgentsAssemblerError;
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentCollectionError, SubAgentError};
+use crate::values::config_repository::ConfigRepositoryError;
 use crate::values::yaml_config::YAMLConfigError;
-use crate::values::yaml_config_repository::YAMLConfigRepositoryError;
 use fs::file_reader::FileReaderError;
 use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
 use std::fmt::Debug;
@@ -71,17 +70,14 @@ pub enum AgentError {
     #[error("system time error: `{0}`")]
     SystemTime(#[from] SystemTimeError),
 
-    #[error("remote config hash error: `{0}`")]
-    RemoteConfigHash(#[from] HashRepositoryError),
-
     #[error("effective agents assembler error: `{0}`")]
     EffectiveAgentsAssembler(#[from] EffectiveAgentsAssemblerError),
 
     #[error("remote config error: `{0}`")]
-    RemoteConfig(#[from] RemoteConfigError),
+    RemoteConfig(#[from] OpampRemoteConfigError),
 
     #[error("sub agent remote config error: `{0}`")]
-    SubAgentRemoteConfig(#[from] YAMLConfigRepositoryError),
+    SubAgentRemoteConfig(#[from] ConfigRepositoryError),
 
     #[error("External module error: `{0}`")]
     ExternalError(String),

@@ -6,7 +6,6 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::hash_repository::HashRepository;
 use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
@@ -14,7 +13,7 @@ use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgen
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::values::config_repository::ConfigRepository;
 use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::k8s::supervisor::NotStartedSupervisorK8s,
@@ -25,14 +24,13 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct K8sSubAgentBuilder<'a, O, I, B, R, H, Y, A>
+pub struct K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
@@ -40,19 +38,17 @@ where
     k8s_config: K8sConfig,
     supervisor_builder: Arc<B>,
     remote_config_parser: Arc<R>,
-    hash_repository: Arc<H>,
-    yaml_config_repository: Arc<Y>,
+    config_repository: Arc<Y>,
     effective_agents_assembler: Arc<A>,
 }
 
-impl<'a, O, I, B, R, H, Y, A> K8sSubAgentBuilder<'a, O, I, B, R, H, Y, A>
+impl<'a, O, I, B, R, Y, A> K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     // TODO refactor this new function
@@ -63,8 +59,7 @@ where
         k8s_config: K8sConfig,
         supervisor_builder: Arc<B>,
         remote_config_parser: Arc<R>,
-        hash_repository: Arc<H>,
-        yaml_config_repository: Arc<Y>,
+        config_repository: Arc<Y>,
         effective_agents_assembler: Arc<A>,
     ) -> Self {
         Self {
@@ -73,24 +68,22 @@ where
             k8s_config,
             supervisor_builder,
             remote_config_parser,
-            hash_repository,
-            yaml_config_repository,
+            config_repository,
             effective_agents_assembler,
         }
     }
 }
 
-impl<O, I, B, R, H, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, H, Y, A>
+impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
     I: InstanceIDGetter,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
-    H: HashRepository + Send + Sync + 'static,
-    Y: YAMLConfigRepository + Send + Sync + 'static,
+    Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    type NotStartedSubAgent = SubAgent<O::Client, B, R, H, Y, A>;
+    type NotStartedSubAgent = SubAgent<O::Client, B, R, Y, A>;
 
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
@@ -130,8 +123,7 @@ where
             sub_agent_opamp_consumer,
             pub_sub(),
             self.remote_config_parser.clone(),
-            self.hash_repository.clone(),
-            self.yaml_config_repository.clone(),
+            self.config_repository.clone(),
             self.effective_agents_assembler.clone(),
             Environment::K8s,
         ))
@@ -202,7 +194,6 @@ pub mod tests {
     use crate::agent_type::runtime_config::{Deployment, Runtime};
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
-    use crate::opamp::hash_repository::repository::tests::MockHashRepository;
     use crate::opamp::http::builder::HttpClientBuilderError;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
@@ -211,7 +202,7 @@ pub mod tests {
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
     use crate::sub_agent::supervisor::builder::tests::MockSupervisorBuilder;
     use crate::sub_agent::supervisor::starter::tests::MockSupervisorStarter;
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
+    use crate::values::config_repository::tests::MockConfigRepository;
     use crate::{
         k8s::client::MockSyncK8sClient, opamp::client_builder::tests::MockOpAMPClientBuilder,
     };
@@ -252,8 +243,7 @@ pub mod tests {
             k8s_config,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_parser),
-            Arc::new(MockHashRepository::new()),
-            Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(MockConfigRepository::new()),
             Arc::new(effective_agents_assembler),
         );
 
@@ -290,8 +280,7 @@ pub mod tests {
             k8s_config,
             Arc::new(supervisor_assembler),
             Arc::new(remote_config_parser),
-            Arc::new(MockHashRepository::new()),
-            Arc::new(MockYAMLConfigRepository::new()),
+            Arc::new(MockConfigRepository::new()),
             Arc::new(effective_agents_assembler),
         );
 

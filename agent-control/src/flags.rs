@@ -11,7 +11,7 @@ use crate::instrumentation::tracing::{
     TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
 use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
-use crate::values::file::YAMLConfigRepositoryFile;
+use crate::values::file::ConfigRepositoryFile;
 use crate::{
     agent_control::{
         config_storer::{loader_storer::AgentControlConfigLoader, store::AgentControlConfigStore},
@@ -96,10 +96,8 @@ impl Flags {
             return Ok(Command::OneShot(OneShotCommand::PrintDebugInfo(flags)));
         }
 
-        let agent_control_repository = YAMLConfigRepositoryFile::new(
-            base_paths.local_dir.clone(),
-            base_paths.remote_dir.clone(),
-        );
+        let agent_control_repository =
+            ConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone());
 
         // In both K8s and onHost we read here the agent-control config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps

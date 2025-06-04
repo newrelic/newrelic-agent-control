@@ -4,7 +4,7 @@ use super::uptime_report::UptimeReportConfig;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::opamp::auth::config::AuthConfig;
-use crate::opamp::remote_config::RemoteConfigError;
+use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
@@ -61,6 +61,8 @@ pub enum AgentControlConfigError {
     Load(String),
     #[error("storing agent control config: `{0}`")]
     Store(String),
+    #[error("updating agent control config: `{0}`")]
+    Update(String),
     #[error("building source to parse environment variables: `{0}`")]
     ConfigError(#[from] config::ConfigError),
     #[error("sub agent configuration `{0}` not found")]
@@ -68,7 +70,7 @@ pub enum AgentControlConfigError {
     #[error("configuration is not valid YAML: `{0}`")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
     #[error("remote config error: `{0}`")]
-    RemoteConfigError(#[from] RemoteConfigError),
+    RemoteConfigError(#[from] OpampRemoteConfigError),
     #[error("remote config error: `{0}`")]
     IOError(#[from] std::io::Error),
 }

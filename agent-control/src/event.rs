@@ -7,12 +7,12 @@ use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::version::version_checker::AgentVersion;
-use crate::{agent_control::agent_id::AgentID, opamp::remote_config::RemoteConfig};
+use crate::{agent_control::agent_id::AgentID, opamp::remote_config::OpampRemoteConfig};
 use std::time::SystemTime;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum OpAMPEvent {
-    RemoteConfigReceived(RemoteConfig),
+    RemoteConfigReceived(OpampRemoteConfig),
     Connected,
     ConnectFailed(Option<LastErrorCode>, LastErrorMessage),
 }

@@ -1,7 +1,7 @@
 pub mod regexes;
 pub mod signature;
 
-use super::RemoteConfig;
+use super::OpampRemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
 use regexes::RegexValidator;
 use signature::validator::SignatureValidator;
@@ -15,7 +15,7 @@ pub trait RemoteConfigValidator {
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
-        remote_config: &RemoteConfig,
+        remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err>;
 }
 
@@ -34,14 +34,14 @@ impl RemoteConfigValidator for SupportedRemoteConfigValidator {
     fn validate(
         &self,
         agent_identity: &AgentIdentity,
-        remote_config: &RemoteConfig,
+        opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), SupportedRemoteConfigValidatorError> {
         match self {
             Self::Signature(s) => s
-                .validate(agent_identity, remote_config)
+                .validate(agent_identity, opamp_remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
             Self::Regex(r) => r
-                .validate(agent_identity, remote_config)
+                .validate(agent_identity, opamp_remote_config)
                 .map_err(|e| SupportedRemoteConfigValidatorError(e.to_string())),
         }
     }
@@ -61,7 +61,7 @@ pub mod tests {
             fn validate(
                 &self,
                 agent_identity: &AgentIdentity,
-                remote_config: &RemoteConfig,
+                remote_config: &OpampRemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
         }
     }
@@ -70,14 +70,14 @@ pub mod tests {
         pub fn should_validate(
             &mut self,
             agent_identity: &AgentIdentity,
-            remote_config: &RemoteConfig,
+            opamp_remote_config: &OpampRemoteConfig,
             result: Result<(), <Self as RemoteConfigValidator>::Err>,
         ) {
             self.expect_validate()
                 .once()
                 .with(
                     predicate::eq(agent_identity.clone()),
-                    predicate::eq(remote_config.clone()),
+                    predicate::eq(opamp_remote_config.clone()),
                 )
                 .return_once(move |_, _| result);
         }

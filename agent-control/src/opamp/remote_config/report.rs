@@ -1,4 +1,3 @@
-use super::hash::Hash;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{ClientError, StartedClient};
@@ -26,12 +25,12 @@ impl OpampRemoteConfigStatus {
         }
     }
 
-    pub fn report<C>(self, opamp_client: &C, hash: &Hash) -> Result<(), ClientError>
+    pub fn report<C>(self, opamp_client: &C, hash: String) -> Result<(), ClientError>
     where
         C: StartedClient,
     {
         opamp_client.set_remote_config_status(RemoteConfigStatus {
-            last_remote_config_hash: hash.get().into_bytes(),
+            last_remote_config_hash: hash.into_bytes(),
             status: self.as_remote_config_status_i32(),
             error_message: self.err_message().unwrap_or_default(),
         })

@@ -3,7 +3,7 @@ use super::error::LoaderError;
 use super::sub_agent::SubAgentEffectiveConfigLoader;
 use crate::agent_control::agent_id::AgentID;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::values::yaml_config_repository::YAMLConfigRepository;
+use crate::values::config_repository::ConfigRepository;
 use std::sync::Arc;
 
 /// Trait for effective configuration loaders.
@@ -28,14 +28,14 @@ pub trait EffectiveConfigLoaderBuilder {
 /// Builder for effective configuration loaders.
 pub struct DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     yaml_config_repository: Arc<Y>,
 }
 
 impl<Y> DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
@@ -46,7 +46,7 @@ where
 
 impl<Y> EffectiveConfigLoaderBuilder for DefaultEffectiveConfigLoaderBuilder<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     type Loader = EffectiveConfigLoaderImpl<Y>;
 
@@ -66,7 +66,7 @@ where
 /// Enumerates all implementations for `EffectiveConfigLoader` for static dispatching reasons.
 pub enum EffectiveConfigLoaderImpl<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     AgentControl(AgentControlEffectiveConfigLoader<Y>),
     SubAgent(SubAgentEffectiveConfigLoader<Y>),
@@ -74,7 +74,7 @@ where
 
 impl<Y> EffectiveConfigLoader for EffectiveConfigLoaderImpl<Y>
 where
-    Y: YAMLConfigRepository,
+    Y: ConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
         match self {
@@ -88,7 +88,7 @@ where
 pub mod tests {
     use mockall::mock;
 
-    use crate::values::yaml_config_repository::tests::MockYAMLConfigRepository;
+    use crate::values::config_repository::tests::MockConfigRepository;
 
     use super::*;
 
@@ -112,7 +112,7 @@ pub mod tests {
     #[test]
     fn builder() {
         let builder =
-            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockYAMLConfigRepository::default()));
+            DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockConfigRepository::default()));
 
         match builder.build(AgentID::new_agent_control_id()) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}

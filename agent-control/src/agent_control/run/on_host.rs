@@ -28,8 +28,7 @@ use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
-    opamp::hash_repository::on_host::HashRepositoryFile,
-    sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::YAMLConfigRepositoryFile,
+    sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::ConfigRepositoryFile,
 };
 use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
@@ -44,14 +43,14 @@ impl AgentControlRunner {
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
             Arc::new(
-                YAMLConfigRepositoryFile::new(
+                ConfigRepositoryFile::new(
                     self.base_paths.local_dir.clone(),
                     self.base_paths.remote_dir.clone(),
                 )
                 .with_remote(),
             )
         } else {
-            Arc::new(YAMLConfigRepositoryFile::new(
+            Arc::new(ConfigRepositoryFile::new(
                 self.base_paths.local_dir.clone(),
                 self.base_paths.remote_dir.clone(),
             ))
@@ -98,12 +97,6 @@ impl AgentControlRunner {
         );
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
-
-        let agent_control_hash_repository =
-            Arc::new(HashRepositoryFile::new(self.base_paths.remote_dir.clone()));
-        let sub_agent_hash_repository = Arc::new(HashRepositoryFile::new(
-            self.base_paths.remote_dir.join(SUB_AGENT_DIR),
-        ));
 
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(
@@ -161,7 +154,6 @@ impl AgentControlRunner {
             &instance_id_getter,
             Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
-            sub_agent_hash_repository,
             yaml_config_repository,
             agents_assembler,
         );
@@ -174,7 +166,6 @@ impl AgentControlRunner {
 
         AgentControl::new(
             maybe_client,
-            agent_control_hash_repository,
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,
