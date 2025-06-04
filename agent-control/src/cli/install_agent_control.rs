@@ -1,4 +1,5 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta};
+use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::cli::errors::CliError;
 use crate::cli::utils::*;
 use crate::health::health_checker::HealthChecker;
@@ -20,7 +21,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::{debug, info};
 
-pub const REPOSITORY_NAME: &str = "newrelic";
+pub const RELEASE_NAME: &str = AC_DEPLOYMENT_CHART_NAME;
+pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
@@ -30,10 +32,6 @@ const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(
 
 #[derive(Debug, Clone, Parser)]
 pub struct AgentControlInstallData {
-    /// Release name
-    #[arg(long)]
-    pub release_name: String,
-
     /// Version of the agent control deployment chart
     #[arg(long)]
     pub chart_version: String,
@@ -212,7 +210,7 @@ fn helm_release(
     DynamicObject {
         types: Some(helmrelease_v2_type_meta()),
         metadata: ObjectMeta {
-            name: Some(value.release_name.clone()),
+            name: Some(RELEASE_NAME.to_string()),
             labels: Some(labels),
             annotations: Some(annotations),
             ..Default::default()
@@ -293,12 +291,10 @@ fn check_installation(
 mod tests {
     use super::*;
 
-    const RELEASE_NAME: &str = "agent-control-deployment-release";
     const VERSION: &str = "1.0.0";
 
     fn agent_control_data() -> AgentControlInstallData {
         AgentControlInstallData {
-            release_name: RELEASE_NAME.to_string(),
             chart_version: VERSION.to_string(),
             secrets: None,
             extra_labels: None,

@@ -2,36 +2,24 @@ use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use crate::cli::errors::CliError;
-use crate::cli::install_agent_control::REPOSITORY_NAME;
+use crate::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
 use crate::cli::utils::{retry, try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
-use clap::Parser;
 use either::Either;
 use kube::api::{DynamicObject, ObjectList, TypeMeta};
 use kube::client::Status;
 use std::collections::HashSet;
-use std::fmt::Debug;
 use std::time::Duration;
 use tracing::info;
 
-#[derive(Debug, Parser)]
-pub struct AgentControlUninstallData {
-    /// Release name
-    #[arg(long)]
-    pub release_name: String,
-}
-
-pub fn uninstall_agent_control(
-    data: AgentControlUninstallData,
-    namespace: String,
-) -> Result<(), CliError> {
+pub fn uninstall_agent_control(namespace: String) -> Result<(), CliError> {
     let k8s_client = try_new_k8s_client(namespace.clone())?;
     let kinds_available = retrieve_api_resources(&k8s_client)?;
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
-    delete_agent_control_crs(&k8s_client, &kinds_available, data)?;
+    delete_agent_control_crs(&k8s_client, &kinds_available)?;
     // Deleting remaining objects owned by AC
     delete_owned_objects(&k8s_client, &kinds_available)?;
 
@@ -99,10 +87,9 @@ fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
 fn delete_agent_control_crs(
     k8s_client: &SyncK8sClient,
     kinds_available: &HashSet<TypeMeta>,
-    data: AgentControlUninstallData,
 ) -> Result<(), CliError> {
     let mut crs_to_delete: Vec<(TypeMeta, &str)> = vec![
-        (helmrelease_v2_type_meta(), data.release_name.as_str()),
+        (helmrelease_v2_type_meta(), RELEASE_NAME),
         (helmrepository_type_meta(), REPOSITORY_NAME),
     ];
 

@@ -89,7 +89,6 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
 pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
-    cmd.arg("--release-name").arg("test-release");
     cmd.arg("--chart-version").arg(chart_version);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets").arg(secrets);
@@ -108,6 +107,7 @@ pub(crate) fn create_simple_values_secret(
     // We set cleanupManagedResources: false to avoid race conditions between the old way to uninstall and the new one
     // TODO remove it once it is not needed anymore.
     let values = serde_json::json!({
+        "nameOverride": "",
         "cleanupManagedResources": false,
         "config": {
             "fleet_control": {

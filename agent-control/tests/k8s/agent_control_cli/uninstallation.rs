@@ -5,6 +5,7 @@ use assert_cmd::Command;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
+use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
 use predicates::prelude::predicate;
 use std::time::Duration;
 
@@ -12,7 +13,6 @@ use std::time::Duration;
 fn cli_uninstall_agent_control_fails_when_no_kubernetes() {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
-    cmd.arg("--release-name").arg("agent-control-release");
 
     cmd.assert().failure();
     cmd.assert().code(predicate::eq(69));
@@ -45,7 +45,10 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     let secrets: Api<Secret> = Api::namespaced(k8s_env.client.clone(), &namespace);
 
     retry(10, Duration::from_secs(1), || {
-        let _ = runtime.block_on(deployments.get("test-release-agent-control"))?;
+        // We set "nameOverride" in the secret values to force the deployment name
+        // to be equal to the release name. This avoids breaking the test if the
+        // default value changes in the chart.
+        let _ = runtime.block_on(deployments.get(RELEASE_NAME))?;
         Ok(())
     });
     retry(10, Duration::from_secs(1), || {
@@ -61,7 +64,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     cmd.assert().success();
 
     let _ = runtime
-        .block_on(deployments.get("test-release-agent-control"))
+        .block_on(deployments.get("agent-control"))
         .expect_err("AC deployment should be deleted");
     let _ = runtime
         .block_on(config_maps.get("local-data-nr-infra"))
@@ -76,7 +79,6 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
 fn cli_uninstall_agent_control_fails_when_no_kubernetes_namespace() {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
-    cmd.arg("--release-name").arg("agent-control-release");
     cmd.arg("--namespace").arg("not-existing-namespace");
 
     cmd.assert().failure();
@@ -102,7 +104,6 @@ fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
 fn ac_uninstall_cmd(namespace: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
-    cmd.arg("--release-name").arg("test-release");
     cmd.arg("--namespace").arg(namespace);
     cmd
 }

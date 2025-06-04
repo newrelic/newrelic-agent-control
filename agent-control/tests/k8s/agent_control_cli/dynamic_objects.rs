@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use newrelic_agent_control::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
@@ -6,9 +7,6 @@ use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use newrelic_agent_control::k8s::client::SyncK8sClient;
-
-const REPOSITORY_NAME: &str = "newrelic";
-const RELEASE_NAME: &str = "agent-control-deployment";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -20,7 +18,6 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
-    cmd.arg("--release-name").arg(RELEASE_NAME);
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--extra-labels")
@@ -122,7 +119,6 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     let repository_url = "https://cli-charts.newrelic.com";
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
-    cmd.arg("--release-name").arg(RELEASE_NAME);
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
