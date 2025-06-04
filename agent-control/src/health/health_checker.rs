@@ -1,22 +1,28 @@
-use super::with_start_time::StartTime;
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::HealthCheckInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
-
-use crate::health::with_start_time::HealthWithStartTime;
+use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::k8s;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use duration_str::deserialize_duration;
+use serde::Deserialize;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, error, info_span};
+use wrapper_with_default::WrapperWithDefault;
 
 const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
 
+const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+
 pub type StatusTime = SystemTime;
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
+pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Health {
@@ -278,7 +284,6 @@ where
             break;
         }
     };
-
     NotStartedThreadContext::new(HEALTH_CHECKER_THREAD_NAME, callback).start()
 }
 

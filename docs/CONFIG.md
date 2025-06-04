@@ -92,6 +92,15 @@ server:
   enabled: true # The status server is enabled by default
 ```
 
+### health_check
+
+Configuration fields to set-up Agent Control health-check
+
+```yaml
+health_check:
+  interval: 120s # Defaults to 60s
+```
+
 ### self_instrumentation
 
 Agent Control can be configured to instrument itself and report traces, logs and metrics through OpenTelemetry. If proxy is configured globally it will also apply to self-instrumentation.
