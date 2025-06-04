@@ -69,7 +69,6 @@ impl RemoteConfig {
     }
 
     pub fn update_state(&mut self, config_state: &ConfigState) {
-        //make private
         self.config_hash.update_state(config_state)
     }
 }

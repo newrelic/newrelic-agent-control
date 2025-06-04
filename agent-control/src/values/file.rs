@@ -210,14 +210,17 @@ where
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
+        // If there is a remote we try to deserialize it with serde_yaml into a RemoteConfig struct
         let maybe_remote = self
             .load_file_if_present(remote_values_path)
+            // maps an error during the file loading into the right error
             .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
             .and_then(|maybe_values| {
                 maybe_values.map_or(Ok(None), |values| {
                     serde_yaml::from_str(&values)
                         .map(Config::RemoteConfig)
                         .map(Some)
+                        // maps an error during the serde_yaml deserializing into the right error
                         .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
                 })
             })?;
