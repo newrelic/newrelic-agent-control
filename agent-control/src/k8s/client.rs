@@ -354,7 +354,7 @@ impl AsyncK8sClient {
         let type_meta = get_type_meta(obj)?;
 
         self.dynamic_object_managers
-            .get_or_create_manager(&type_meta)
+            .get_or_create(&type_meta)
             .await?
             .apply(obj)
             .await
@@ -367,7 +367,7 @@ impl AsyncK8sClient {
         let type_meta = get_type_meta(obj)?;
 
         self.dynamic_object_managers
-            .get_or_create_manager(&type_meta)
+            .get_or_create(&type_meta)
             .await?
             .apply_if_changed(obj)
             .await
@@ -380,7 +380,7 @@ impl AsyncK8sClient {
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
         self.dynamic_object_managers
-            .get_or_create_manager(type_meta)
+            .get_or_create(type_meta)
             .await?
             .patch(name, patch)
             .await
@@ -393,7 +393,7 @@ impl AsyncK8sClient {
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         Ok(self
             .dynamic_object_managers
-            .get_or_create_manager(tm)
+            .get_or_create(tm)
             .await?
             .get(name))
     }
@@ -404,7 +404,7 @@ impl AsyncK8sClient {
         name: &str,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.dynamic_object_managers
-            .get_or_create_manager(tm)
+            .get_or_create(tm)
             .await?
             .delete(name)
             .await
@@ -416,7 +416,7 @@ impl AsyncK8sClient {
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
         self.dynamic_object_managers
-            .get_or_create_manager(tm)
+            .get_or_create(tm)
             .await?
             .delete_collection(label_selector)
             .await
@@ -426,18 +426,14 @@ impl AsyncK8sClient {
         &self,
         tm: &TypeMeta,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
-        Ok(self
-            .dynamic_object_managers
-            .get_or_create_manager(tm)
-            .await?
-            .list())
+        Ok(self.dynamic_object_managers.get_or_create(tm).await?.list())
     }
 
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let tm = get_type_meta(obj)?;
 
         self.dynamic_object_managers
-            .get_or_create_manager(&tm)
+            .get_or_create(&tm)
             .await?
             .has_changed(obj)
     }

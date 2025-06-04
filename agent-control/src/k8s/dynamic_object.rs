@@ -181,8 +181,10 @@ impl DynamicObjectManagers {
         }
     }
 
-    /// Obtains the manager for the provided [TypeMeta]. If it does not exist it creates it and stores it.
-    pub async fn get_or_create_manager(
+    /// Returns the manager for the provided [TypeMeta].
+    ///
+    /// If it does not exist it creates it and stores it.
+    pub(super) async fn get_or_create(
         &self,
         type_meta: &TypeMeta,
     ) -> Result<Arc<DynamicObjectManager>, K8sError> {
