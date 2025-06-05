@@ -145,6 +145,7 @@ mod tests {
             .returning(move |_, _| {
                 Ok(AgentControlDynamicConfig {
                     agents: agents.clone(),
+                    chart_version: None,
                 })
             });
 

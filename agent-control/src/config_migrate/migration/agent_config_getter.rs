@@ -153,6 +153,7 @@ agents:
                             },
                         ),
                     ]),
+                    chart_version: None,
                 },
             },
             TestCase {
@@ -201,6 +202,7 @@ agents:
                             },
                         ),
                     ]),
+                    chart_version: None,
                 },
             },
         ];

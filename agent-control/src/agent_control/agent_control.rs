@@ -475,7 +475,7 @@ mod tests {
 
         sa_dynamic_config_store
             .expect_load()
-            .returning(|| Ok(HashMap::new().into()));
+            .returning(|| Ok(AgentControlDynamicConfig::default()));
 
         sa_dynamic_config_store
             .expect_get_hash()
@@ -820,16 +820,18 @@ agents:
             .expect_load()
             .once()
             .return_once(|| {
-                Ok(HashMap::from([(
-                    AgentID::new("nrdot").unwrap(),
-                    SubAgentConfig {
-                        agent_type: AgentTypeID::try_from(
-                            "newrelic/io.opentelemetry.collector:0.0.1",
-                        )
-                        .unwrap(),
-                    },
-                )])
-                .into())
+                Ok(AgentControlDynamicConfig {
+                    agents: HashMap::from([(
+                        AgentID::new("nrdot").unwrap(),
+                        SubAgentConfig {
+                            agent_type: AgentTypeID::try_from(
+                                "newrelic/io.opentelemetry.collector:0.0.1",
+                            )
+                            .unwrap(),
+                        },
+                    )]),
+                    chart_version: None,
+                })
             });
 
         sa_dynamic_config_store
@@ -970,16 +972,18 @@ agents:
             .expect_load()
             .once()
             .return_once(|| {
-                Ok(HashMap::from([(
-                    AgentID::new("nrdot").unwrap(),
-                    SubAgentConfig {
-                        agent_type: AgentTypeID::try_from(
-                            "newrelic/io.opentelemetry.collector:0.0.1",
-                        )
-                        .unwrap(),
-                    },
-                )])
-                .into())
+                Ok(AgentControlDynamicConfig {
+                    agents: HashMap::from([(
+                        AgentID::new("nrdot").unwrap(),
+                        SubAgentConfig {
+                            agent_type: AgentTypeID::try_from(
+                                "newrelic/io.opentelemetry.collector:0.0.1",
+                            )
+                            .unwrap(),
+                        },
+                    )]),
+                    chart_version: None,
+                })
             });
 
         sa_dynamic_config_store
@@ -1248,12 +1252,15 @@ agents:
         let mut running_sub_agents =
             StartedSubAgents::from(HashMap::from([(sub_agent_id.clone(), started_sub_agent)]));
 
-        let old_sub_agents_config = AgentControlDynamicConfig::from(HashMap::from([(
-            sub_agent_id.clone(),
-            SubAgentConfig {
-                agent_type: "namespace/some_agent_type:0.0.1".try_into().unwrap(),
-            },
-        )]));
+        let old_sub_agents_config = AgentControlDynamicConfig {
+            agents: HashMap::from([(
+                sub_agent_id.clone(),
+                SubAgentConfig {
+                    agent_type: "namespace/some_agent_type:0.0.1".try_into().unwrap(),
+                },
+            )]),
+            chart_version: None,
+        };
 
         let agent_id = AgentID::new_agent_control_id();
         let opamp_remote_config = OpampRemoteConfig::new(
@@ -1360,7 +1367,7 @@ agents:
             .returning(|_| Ok(()));
 
         // load local config
-        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::default());
+        let sub_agents_config = AgentControlDynamicConfig::default();
         sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
@@ -1610,12 +1617,16 @@ agents:
         let agent_id = AgentID::new("infra-agent").unwrap();
 
         // load local config
-        let sub_agents_config = AgentControlDynamicConfig::from(HashMap::from([(
-            agent_id.clone(),
-            SubAgentConfig {
-                agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-            },
-        )]));
+        let sub_agents_config = AgentControlDynamicConfig {
+            agents: HashMap::from([(
+                agent_id.clone(),
+                SubAgentConfig {
+                    agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
+                },
+            )]),
+            chart_version: None,
+        };
+
         sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let mut remote_config_hash = Hash::new("a-hash".to_string());
