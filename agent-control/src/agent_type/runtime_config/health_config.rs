@@ -5,8 +5,8 @@ use wrapper_with_default::WrapperWithDefault;
 
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::runtime_config::HealthCheckInterval;
 use crate::agent_type::templates::Templateable;
+use crate::health::health_checker::HealthCheckInterval;
 
 use super::templateable_value::TemplateableValue;
 

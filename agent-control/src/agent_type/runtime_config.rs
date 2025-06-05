@@ -13,14 +13,9 @@ pub mod templateable_value;
 use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates::Templateable;
-use duration_str::deserialize_duration;
 use k8s::K8s;
 use onhost::OnHost;
 use serde::Deserialize;
-use std::time::Duration;
-use wrapper_with_default::WrapperWithDefault;
-
-const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -106,10 +101,6 @@ impl Templateable for Runtime {
         })
     }
 }
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
-#[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
-pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 #[cfg(test)]
 mod tests {
