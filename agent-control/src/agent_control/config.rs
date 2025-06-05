@@ -88,6 +88,16 @@ pub struct AgentControlDynamicConfig {
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
 
+/// Return elements of the first map not existing in the second map.
+pub fn sub_agents_difference<'a>(
+    old_sub_agents: &'a SubAgentsMap,
+    new_sub_agents: &'a SubAgentsMap,
+) -> impl Iterator<Item = (&'a AgentID, &'a SubAgentConfig)> {
+    old_sub_agents
+        .iter()
+        .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
+}
+
 impl TryFrom<&str> for AgentControlDynamicConfig {
     type Error = AgentControlConfigError;
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -248,15 +258,12 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
 
 #[cfg(test)]
 pub(crate) mod tests {
-
-    use std::path::PathBuf;
-
+    use super::*;
     use crate::instrumentation::config::logs::{
         file_logging::{FileLoggingConfig, LogFilePath},
         format::{LoggingFormat, TimestampFormat},
     };
-
-    use super::*;
+    use std::path::PathBuf;
 
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
@@ -532,5 +539,95 @@ agents: {}
             config.proxy.url_as_string(),
             "http://localhost:8080/".to_string()
         )
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Tests for sub_agents_difference function
+    ////////////////////////////////////////////////////////////////////////////////////
+
+    #[test]
+    fn test_sub_agent_removal_diff_no_removal() {
+        let old_sub_agents = helper_get_agent_list();
+
+        let new_sub_agents = old_sub_agents.clone();
+
+        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
+
+        assert!(diff.is_empty());
+    }
+
+    #[test]
+    fn test_sub_agent_removal_diff_with_removal() {
+        let old_sub_agents = helper_get_agent_list();
+        let agent_id_to_remove = AgentID::new("infra-agent").unwrap();
+        let mut new_sub_agents = old_sub_agents.clone();
+        new_sub_agents.remove(&agent_id_to_remove);
+
+        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
+
+        assert_eq!(diff.len(), 1);
+        assert_eq!(diff.first().unwrap().0, &agent_id_to_remove);
+    }
+
+    #[test]
+    fn test_sub_agent_removal_diff_empty_new_agents() {
+        let old_sub_agents = helper_get_agent_list();
+
+        let new_sub_agents = HashMap::new();
+
+        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
+
+        assert_eq!(diff.len(), 2);
+        assert!(diff.contains(&(
+            &AgentID::new("infra-agent").unwrap(),
+            &SubAgentConfig {
+                agent_type:
+                    AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
+            },
+        )));
+        assert!(diff.contains(&(
+            &AgentID::new("nrdot").unwrap(),
+            &SubAgentConfig {
+                agent_type:
+                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap(),
+            },
+        )));
+    }
+
+    #[test]
+    fn test_sub_agent_removal_diff_empty_old_agents() {
+        let old_sub_agents = HashMap::new();
+
+        let new_sub_agents = helper_get_agent_list();
+
+        let diff: Vec<_> = sub_agents_difference(&old_sub_agents, &new_sub_agents).collect();
+
+        assert!(diff.is_empty());
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Test helpers
+    ////////////////////////////////////////////////////////////////////////////////////
+
+    pub fn sub_agents_default_config() -> AgentControlDynamicConfig {
+        helper_get_agent_list().into()
+    }
+    fn helper_get_agent_list() -> HashMap<AgentID, SubAgentConfig> {
+        HashMap::from([
+            (
+                AgentID::new("infra-agent").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                        .unwrap(),
+                },
+            ),
+            (
+                AgentID::new("nrdot").unwrap(),
+                SubAgentConfig {
+                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
+                        .unwrap(),
+                },
+            ),
+        ])
     }
 }
