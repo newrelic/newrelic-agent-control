@@ -242,7 +242,7 @@ where
                                     debug!("Received remote config.");
                                     remote_config_count += 1;
                                     trace!(monotonic_counter.remote_configs_received = remote_config_count);
-                                    let _ = self.remote_config(remote_config, &mut sub_agents)
+                                    let _ = self.handle_remote_config(remote_config, &mut sub_agents)
                                         .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
                                 }
                                 OpAMPEvent::Connected => self.agent_control_publisher.broadcast(AgentControlEvent::OpAMPConnected),
@@ -265,7 +265,7 @@ where
     /// Configuration will be reported as applying to OpAMP
     /// Valid configuration will be applied and reported as applied to OpAMP
     /// If the configuration is invalid, it will be reported as error to OpAMP
-    pub(crate) fn remote_config(
+    pub(crate) fn handle_remote_config(
         &self,
         opamp_remote_config: OpampRemoteConfig,
         sub_agents: &mut StartedSubAgents<
@@ -1241,7 +1241,7 @@ agents:
         );
 
         agent_control
-            .remote_config(opamp_remote_config, &mut running_sub_agents)
+            .handle_remote_config(opamp_remote_config, &mut running_sub_agents)
             .unwrap();
     }
 
@@ -1339,7 +1339,7 @@ agents:
         );
 
         agent_control
-            .remote_config(opamp_remote_config, &mut running_sub_agents)
+            .handle_remote_config(opamp_remote_config, &mut running_sub_agents)
             .unwrap();
     }
 
