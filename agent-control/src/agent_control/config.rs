@@ -86,8 +86,6 @@ pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// chart_version represent the AC version that needs to be executed.
     pub chart_version: Option<String>,
-    // pub flux_version: Option<String>,
-    // pub binary_version: Option<String>,
 }
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;

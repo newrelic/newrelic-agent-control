@@ -171,6 +171,7 @@ fleet_control:
             agents:
               rolldice:
                 agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
+            chart_version: "1.0.0"
         hash: a-hash
         state: applying
         "#;
@@ -191,7 +192,7 @@ fleet_control:
                         .unwrap(),
                     },
                 )]),
-                chart_version: None,
+                chart_version: Some("1.0.0".to_string()),
             },
             fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
