@@ -1,7 +1,7 @@
 use crate::common::global_logger::init_logger;
 use newrelic_agent_control::agent_control::config::K8sConfig;
-use newrelic_agent_control::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
-use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
+use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
+use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, BasePaths, Environment,
 };

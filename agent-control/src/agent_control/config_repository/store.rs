@@ -2,10 +2,8 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
-use crate::agent_control::config_storer::loader_storer::{
-    AgentControlConfigLoader, AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
-    AgentControlRemoteConfigStorer,
+use crate::agent_control::config_repository::repository::{
+    AgentControlConfigLoader, AgentControlDynamicConfigRepository,
 };
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
 use crate::opamp::remote_config::hash::{ConfigState, Hash};
@@ -36,54 +34,34 @@ where
     }
 }
 
-impl<Y> AgentControlDynamicConfigLoader for AgentControlConfigStore<Y>
+impl<Y> AgentControlDynamicConfigRepository for AgentControlConfigStore<Y>
 where
     Y: ConfigRepository,
 {
     fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError> {
         Ok(self._load_config()?.dynamic)
     }
-}
 
-impl<Y> AgentControlRemoteConfigDeleter for AgentControlConfigStore<Y>
-where
-    Y: ConfigRepository,
-{
-    fn delete(&self) -> Result<(), AgentControlConfigError> {
-        self.values_repository
-            .delete_remote(&self.agent_control_id)?;
-        Ok(())
-    }
-}
-
-impl<Y> AgentControlRemoteConfigStorer for AgentControlConfigStore<Y>
-where
-    Y: ConfigRepository,
-{
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
         self.values_repository
             .store_remote(&self.agent_control_id, config)?;
         Ok(())
     }
-}
 
-impl<Y> AgentControlRemoteConfigHashStateUpdater for AgentControlConfigStore<Y>
-where
-    Y: ConfigRepository,
-{
     fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
             .update_hash_state(&self.agent_control_id, state)?;
         Ok(())
     }
-}
 
-impl<Y> AgentControlRemoteConfigHashGetter for AgentControlConfigStore<Y>
-where
-    Y: ConfigRepository,
-{
     fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError> {
         Ok(self.values_repository.get_hash(&self.agent_control_id)?)
+    }
+
+    fn delete(&self) -> Result<(), AgentControlConfigError> {
+        self.values_repository
+            .delete_remote(&self.agent_control_id)?;
+        Ok(())
     }
 }
 

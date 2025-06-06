@@ -10,41 +10,28 @@ pub trait AgentControlConfigLoader {
     fn load(&self) -> Result<AgentControlConfig, AgentControlConfigError>;
 }
 
-/// AgentControlRemoteConfigStorer stores a remote_config containing
-/// the dynamic part of the AgentControlConfig and the remote config hash and status
-pub trait AgentControlRemoteConfigStorer {
-    fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
-}
-
-/// AgentControlRemoteConfigHashUpdater stores the hash and status for a remote_config
-pub trait AgentControlRemoteConfigHashStateUpdater {
-    fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
-}
-
-/// AgentControlRemoteConfigHashGetter retrieves the hash and status
-/// from the stored remote_config if exists
-pub trait AgentControlRemoteConfigHashGetter {
-    fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
-}
-
-/// AgentControlRemoteConfigDeleter deletes the dynamic part of the AgentControlConfig
-pub trait AgentControlRemoteConfigDeleter {
-    fn delete(&self) -> Result<(), AgentControlConfigError>;
-}
-
-/// AgentControlDynamicConfigLoader loads the dynamic part of the AgentControlConfig
+/// AgentControlDynamicConfigRepository loads, stores, deletes or updates agent_control's remote_configs
 #[cfg_attr(test, mockall::automock)]
-pub trait AgentControlDynamicConfigLoader {
+pub trait AgentControlDynamicConfigRepository {
+    /// load the dynamic part of the AgentControlConfig
     fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
+    /// store a remote_config containing
+    /// the dynamic part of the AgentControlConfig and the remote config hash and status
+    fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
+
+    /// update the state of a remote_config
+    fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+
+    /// retrieves the hash and status from the stored remote_config if exists
+    fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+
+    /// delete the dynamic part of the AgentControlConfig
+    fn delete(&self) -> Result<(), AgentControlConfigError>;
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::{
-        AgentControlConfigError, AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-        AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
-        AgentControlRemoteConfigStorer,
-    };
+    use super::{AgentControlConfigError, AgentControlDynamicConfigRepository};
     use crate::agent_control::config::AgentControlDynamicConfig;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values::config::RemoteConfig;
@@ -53,20 +40,16 @@ pub(crate) mod tests {
     mock! {
         pub AgentControlDynamicConfigStore {}
 
-        impl AgentControlRemoteConfigStorer for AgentControlDynamicConfigStore {
-            fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
-        }
-        impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigStore {
+        impl AgentControlDynamicConfigRepository for AgentControlDynamicConfigStore {
             fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
-        }
-        impl AgentControlRemoteConfigDeleter for AgentControlDynamicConfigStore {
-            fn delete(&self) -> Result<(), AgentControlConfigError>;
-        }
-        impl AgentControlRemoteConfigHashStateUpdater for AgentControlDynamicConfigStore {
+
+            fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
+
             fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
-        }
-        impl AgentControlRemoteConfigHashGetter for AgentControlDynamicConfigStore {
+
             fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+
+            fn delete(&self) -> Result<(), AgentControlConfigError>;
         }
     }
 

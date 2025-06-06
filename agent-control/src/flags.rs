@@ -14,7 +14,7 @@ use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::ConfigRepositoryFile;
 use crate::{
     agent_control::{
-        config_storer::{loader_storer::AgentControlConfigLoader, store::AgentControlConfigStore},
+        config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
         run::{AgentControlRunConfig, BasePaths},
     },
     utils::binary_metadata::binary_metadata,

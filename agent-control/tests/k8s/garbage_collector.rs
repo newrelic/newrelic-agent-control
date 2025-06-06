@@ -10,7 +10,10 @@ use super::tools::{
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::mock;
+use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
+use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
+use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::{
     agent_control::config::default_group_version_kinds, agent_type::agent_type_id::AgentTypeID,
 };
@@ -26,7 +29,7 @@ use newrelic_agent_control::{
 use newrelic_agent_control::{
     agent_control::{
         config::{AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig},
-        config_storer::loader_storer::{AgentControlConfigLoader, AgentControlDynamicConfigLoader},
+        config_repository::repository::AgentControlConfigLoader,
     },
     k8s::labels::Labels,
 };
@@ -49,10 +52,18 @@ mock! {
 
 // Setup AgentControlDynamicConfigLoader mock
 mock! {
-    pub AgentControlDynamicConfigLoader{}
+    pub AgentControlDynamicConfigRepository{}
 
-    impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoader {
+    impl AgentControlDynamicConfigRepository for AgentControlDynamicConfigRepository {
         fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
+
+        fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
+
+        fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+
+        fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+
+        fn delete(&self) -> Result<(), AgentControlConfigError>;
     }
 }
 

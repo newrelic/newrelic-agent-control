@@ -1,11 +1,7 @@
 use super::config::{
     AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference,
 };
-use super::config_storer::loader_storer::{
-    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigHashGetter, AgentControlRemoteConfigHashStateUpdater,
-    AgentControlRemoteConfigStorer,
-};
+use super::config_repository::repository::AgentControlDynamicConfigRepository;
 use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::VersionUpdater;
 use crate::agent_control::config_validator::DynamicConfigValidator;
@@ -35,11 +31,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 pub struct AgentControl<S, O, SL, DV, RC, VU>
 where
     O: StartedClient,
-    SL: AgentControlRemoteConfigStorer
-        + AgentControlDynamicConfigLoader
-        + AgentControlRemoteConfigDeleter
-        + AgentControlRemoteConfigHashStateUpdater
-        + AgentControlRemoteConfigHashGetter,
+    SL: AgentControlDynamicConfigRepository,
     S: SubAgentBuilder,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
@@ -63,11 +55,7 @@ impl<S, O, SL, DV, RC, VU> AgentControl<S, O, SL, DV, RC, VU>
 where
     O: StartedClient,
     S: SubAgentBuilder,
-    SL: AgentControlRemoteConfigStorer
-        + AgentControlDynamicConfigLoader
-        + AgentControlRemoteConfigDeleter
-        + AgentControlRemoteConfigHashStateUpdater
-        + AgentControlRemoteConfigHashGetter,
+    SL: AgentControlDynamicConfigRepository,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
@@ -448,7 +436,7 @@ mod tests {
     use crate::agent_control::config::{
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
-    use crate::agent_control::config_storer::loader_storer::tests::MockAgentControlDynamicConfigStore;
+    use crate::agent_control::config_repository::repository::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
     use crate::agent_control::resource_cleaner::ResourceCleanerError;

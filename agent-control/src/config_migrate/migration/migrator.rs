@@ -1,6 +1,6 @@
 use crate::agent_control::config::AgentControlConfigError;
-use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
-use crate::agent_control::config_storer::store::AgentControlConfigStore;
+use crate::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
+use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_type::agent_type_registry::AgentRegistry;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 #[cfg_attr(test, mockall_double::double)]
@@ -39,7 +39,7 @@ pub enum MigratorError {
 
 pub struct ConfigMigrator<
     R: AgentRegistry,
-    SL: AgentControlDynamicConfigLoader + 'static,
+    SL: AgentControlDynamicConfigRepository + 'static,
     C: DirectoryManager,
     F: FileReader,
 > {

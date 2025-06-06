@@ -1,6 +1,6 @@
 pub mod agent_id;
 pub mod config;
-pub mod config_storer;
+pub mod config_repository;
 pub mod config_validator;
 pub mod defaults;
 pub mod error;
