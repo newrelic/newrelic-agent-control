@@ -4,11 +4,8 @@ use crate::k8s::tools::k8s_env::K8sEnv;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::config_storer::loader_storer::{
-    AgentControlDynamicConfigLoader, AgentControlRemoteConfigDeleter,
-    AgentControlRemoteConfigStorer,
-};
-use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
+use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
+use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::default_capabilities;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::Labels;

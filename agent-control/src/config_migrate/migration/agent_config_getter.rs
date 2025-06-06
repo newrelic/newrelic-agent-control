@@ -1,5 +1,5 @@
 use crate::agent_control::config::{AgentControlConfigError, AgentControlDynamicConfig};
-use crate::agent_control::config_storer::loader_storer::AgentControlDynamicConfigLoader;
+use crate::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use crate::agent_type::agent_type_id::AgentTypeID;
 use semver::VersionReq;
 use thiserror::Error;
@@ -16,7 +16,7 @@ pub enum ConversionError {
 
 pub struct AgentConfigGetter<SL>
 where
-    SL: AgentControlDynamicConfigLoader,
+    SL: AgentControlDynamicConfigRepository,
 {
     pub(super) sub_agents_config_loader: SL,
 }
@@ -24,7 +24,7 @@ where
 #[cfg_attr(test, mockall::automock)]
 impl<SL> AgentConfigGetter<SL>
 where
-    SL: AgentControlDynamicConfigLoader + 'static,
+    SL: AgentControlDynamicConfigRepository + 'static,
 {
     pub fn new(sub_agents_config_loader: SL) -> Self {
         Self {
@@ -69,13 +69,23 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::values::config::RemoteConfig;
     use mockall::mock;
     use std::collections::HashMap;
 
     mock! {
         pub AgentControlDynamicConfigLoader {}
-        impl AgentControlDynamicConfigLoader for AgentControlDynamicConfigLoader {
+        impl AgentControlDynamicConfigRepository for AgentControlDynamicConfigLoader {
             fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError>;
+
+            fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
+
+            fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+
+            fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+
+            fn delete(&self) -> Result<(), AgentControlConfigError>;
         }
     }
 

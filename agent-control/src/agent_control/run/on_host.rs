@@ -1,6 +1,6 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config_storer::loader_storer::AgentControlConfigLoader;
-use crate::agent_control::config_storer::store::AgentControlConfigStore;
+use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
+use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,

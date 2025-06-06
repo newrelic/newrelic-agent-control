@@ -1,4 +1,4 @@
-use newrelic_agent_control::agent_control::config_storer::store::AgentControlConfigStore;
+use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR, SUB_AGENT_DIR,
 };
