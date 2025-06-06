@@ -1,10 +1,8 @@
 # Agent Control Configuration
 
-Agent control will load the configuration from the file `config.yaml` in the corresponding directory (
-`/etc/newrelic-agent-control` or `/opt/homebrew/var/lib/newrelic-agent-control`).
+Agent control will load the configuration from the file `config.yaml` in the corresponding directory (`/etc/newrelic-agent-control` or `/opt/homebrew/var/lib/newrelic-agent-control`).
 
-Additionally, any configuration field can be set as an environment variable with the `NR_AC` prefix, using `__` to
-separate keys. Examples:
+Additionally, any configuration field can be set as an environment variable with the `NR_AC` prefix, using `__` to separate keys. Examples:
 
 ```bash
 # Set log level to debug
@@ -15,24 +13,9 @@ NR_AC_FLEET_CONTROL__AUTH_CONFIG__CLIENT_ID="some-client-id"
 
 ## Configuration fields
 
-### chart_version
-
-The `chart_version` field is used to report the version of the helm chart used to upgrade Agent Control.
-This is currently not set by fleet control, but it can be used already to perform tests.
-This config is valid for K8s only, for on_host environments it will be ignored.
-
-Example:
-
-```yaml
-chart_version: "0.99.0" 
-```
-
-The behaviour if set locally is not defined yet.
-
 ### agents
 
-List of agents configured locally. Check of [DEVELOPMENT](./DEVELOPMENT.md) for more information regarding agents and
-their corresponding local configuration.
+List of agents configured locally. Check of [DEVELOPMENT](./DEVELOPMENT.md) for more information regarding agents and their corresponding local configuration.
 
 Example:
 
@@ -81,19 +64,14 @@ fleet_control:
 
 ### proxy
 
-Agent Control will use the system proxy (configured through the standard `HTTP_PROXY` / `HTTPS_PROXY` environment
-variables) but
-proxy options can also be configured using the proxy configuration field. If both are set, the precedence works as
-follows:
+Agent Control will use the system proxy (configured through the standard `HTTP_PROXY` / `HTTPS_PROXY` environment variables) but
+proxy options can also be configured using the proxy configuration field. If both are set, the precedence works as follows:
 
 1. `proxy` configuration field
 2. `HTTP_PROXY` environment variable
 3. `HTTPS_PROXY` environment variable
 
-⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need
-to setup a proxy you will need to either use a local certificate through
-`fleet_control.signature_validation.certificate_pem_file_path` (recommended) or disable signature validation (highly
-discouraged).
+⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (recommended) or disable signature validation (highly discouraged).
 
 ```yaml
 proxy:
@@ -105,8 +83,7 @@ proxy:
 
 ### server
 
-Agent Control status server allows consulting the status of Agent Control and any controlled agent. It can be configured
-as follows:
+Agent Control status server allows consulting the status of Agent Control and any controlled agent. It can be configured as follows:
 
 ```yaml
 server:
@@ -126,17 +103,16 @@ health_check:
 
 ### self_instrumentation
 
-Agent Control can be configured to instrument itself and report traces, logs and metrics through OpenTelemetry. If proxy
-is configured globally it will also apply to self-instrumentation.
+Agent Control can be configured to instrument itself and report traces, logs and metrics through OpenTelemetry. If proxy is configured globally it will also apply to self-instrumentation.
 
 ```yaml
 self_instrumentation:
   opentelemetry:
     insecure_level: "newrelic_agent_control=info,off" # It is considered insecure because setting it up for external dependencies could potentially leak secrets. The default `newrelic_agent_control=debug,opamp_client=debug,off` disables external dependencies and can be considered secure.
     endpoint: https://otlp.nr-data.net:4318 # HTTPS endpoint to report instrumentation to.
-    headers: { } # Headers that will be included in any request to the endpoint
+    headers: {} # Headers that will be included in any request to the endpoint
     client_timeout: 10s # Timeout for performing requests, defaults to 30s.
-    custom_attributes: { } # Attributes to be decorated in all metrics, traces and logs
+    custom_attributes: {} # Attributes to be decorated in all metrics, traces and logs
     metrics:
       enabled: true # Defaults to false.
       interval: 120s # Interval to report metrics, it defaults to 60s.
@@ -154,8 +130,7 @@ self_instrumentation:
 
 ### host_id
 
-If the `host_id` is set it will be used to identify the host in Fleet Control instead of trying to fetch the identifier
-from the
+If the `host_id` is set it will be used to identify the host in Fleet Control instead of trying to fetch the identifier from the
 host where Agent Control is running. Order of precedence:
 
 1. Configured `host_id`.
@@ -170,8 +145,7 @@ host_id: "some-host-id" # Defaults to "" (no host set).
 
 ### k8s
 
-The `k8s` configuration field applies for k8s environments only and are automatically set up through the corresponding
-helm chart:
+The `k8s` configuration field applies for k8s environments only and are automatically set up through the corresponding helm chart:
 
 ```yaml
 k8s:
