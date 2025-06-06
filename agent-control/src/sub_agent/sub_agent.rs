@@ -24,7 +24,7 @@ use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarter
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
-use crate::values::config_repository::{ConfigRepository, load_remote_fallback_local};
+use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 use crossbeam::channel::never;
 use crossbeam::select;
@@ -154,16 +154,15 @@ where
         // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
         // If there's no config at all, we cannot assemble a supervisor, so we just return immediately.
-        let Some(config) = load_remote_fallback_local(
-            self.config_repository.as_ref(),
-            &self.identity.id,
-            &default_capabilities(),
-        )
-        .inspect_err(|e| {
-            warn!(error = %e, "Failed to load remote or local configuration");
-        })
-        .ok()
-        .flatten() else {
+        let Some(config) = self
+            .config_repository
+            .load_remote_fallback_local(&self.identity.id, &default_capabilities())
+            .inspect_err(|e| {
+                warn!(error = %e, "Failed to load remote or local configuration");
+            })
+            .ok()
+            .flatten()
+        else {
             debug!("No configuration found for sub-agent");
             // The effective config needs to be reported with the local config that failed
             // to start the supervisor (not ideal but better than leaving the deleted remote),

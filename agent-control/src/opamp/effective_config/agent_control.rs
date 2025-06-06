@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::values::config_repository::{ConfigRepository, load_remote_fallback_local};
+use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
 
 use super::error::LoaderError;
@@ -88,17 +88,15 @@ where
 
         // For the effective config load, we can follow the load remote or fallback to local, since only the dynamic part is needed.
 
-        let maybe_config = load_remote_fallback_local(
-            self.yaml_config_repository.as_ref(),
-            &self.agent_id,
-            &self.agent_control_capabilities,
-        )
-        .map_err(|err| {
-            LoaderError::from(format!(
-                "could not load {} config values: {}",
-                &self.agent_id, err
-            ))
-        })?;
+        let maybe_config = self
+            .yaml_config_repository
+            .load_remote_fallback_local(&self.agent_id, &self.agent_control_capabilities)
+            .map_err(|err| {
+                LoaderError::from(format!(
+                    "could not load {} config values: {}",
+                    &self.agent_id, err
+                ))
+            })?;
         // No configuration is considered as empty remote configuration
         let config = maybe_config.unwrap_or_default();
 

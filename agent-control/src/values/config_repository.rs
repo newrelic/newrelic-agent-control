@@ -27,6 +27,23 @@ pub trait ConfigRepository: Send + Sync + 'static {
         capabilities: &Capabilities,
     ) -> Result<Option<Config>, ConfigRepositoryError>;
 
+    /// Looks for remote configs first, if unavailable checks the local ones.
+    /// It returns none if no configuration is found.
+    fn load_remote_fallback_local(
+        &self,
+        agent_id: &AgentID,
+        capabilities: &Capabilities,
+    ) -> Result<Option<Config>, ConfigRepositoryError> {
+        debug!("loading config");
+
+        if let remote @ Some(_) = self.load_remote(agent_id, capabilities)? {
+            return Ok(remote);
+        }
+        debug!("remote config not found, loading local");
+
+        self.load_local(agent_id)
+    }
+
     fn store_remote(
         &self,
         agent_id: &AgentID,
@@ -44,28 +61,11 @@ pub trait ConfigRepository: Send + Sync + 'static {
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
 }
 
-/// Looks for remote configs first, if unavailable checks the local ones.
-/// It returns none if no configuration is found.
-pub fn load_remote_fallback_local<R: ConfigRepository>(
-    config_repository: &R,
-    agent_id: &AgentID,
-    capabilities: &Capabilities,
-) -> Result<Option<Config>, ConfigRepositoryError> {
-    debug!("loading config");
-
-    if let remote @ Some(_) = config_repository.load_remote(agent_id, capabilities)? {
-        return Ok(remote);
-    }
-    debug!("remote config not found, loading local");
-
-    config_repository.load_local(agent_id)
-}
 #[cfg(test)]
 pub mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    use super::load_remote_fallback_local;
     use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values::config::{Config, RemoteConfig};
@@ -93,7 +93,7 @@ pub mod tests {
         }
         pub fn assert_no_config_for_agent(&self, agent_id: &AgentID) {
             assert!(
-                load_remote_fallback_local(self, agent_id, &Capabilities::default())
+                self.load_remote_fallback_local(agent_id, &Capabilities::default())
                     .unwrap()
                     .is_none()
             );

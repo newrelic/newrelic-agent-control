@@ -19,9 +19,7 @@ use newrelic_agent_control::opamp::instance_id::getter::{
 use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
 use newrelic_agent_control::opamp::remote_config::hash::Hash;
 use newrelic_agent_control::values::config::RemoteConfig;
-use newrelic_agent_control::values::config_repository::{
-    ConfigRepository, load_remote_fallback_local,
-};
+use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::{
     values::k8s::ConfigRepositoryConfigMap, values::yaml_config::YAMLConfig,
 };
@@ -126,7 +124,7 @@ fn k8s_value_repository_config_map() {
     let mut value_repository = ConfigRepositoryConfigMap::new(k8s_store.clone());
     let capabilities = default_capabilities();
     // without values the none is expected
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
+    let res = value_repository.load_remote_fallback_local(&agent_id_1, &capabilities);
     assert!(res.unwrap().is_none());
 
     // with local values we expect some data
@@ -137,7 +135,8 @@ fn k8s_value_repository_config_map() {
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+    let res = value_repository
+        .load_remote_fallback_local(&agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
 
@@ -151,7 +150,7 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities);
+    let res = value_repository.load_remote_fallback_local(&agent_id_1, &capabilities);
     assert_eq!(
         res.unwrap().unwrap().get_yaml_config().clone(),
         local_values
@@ -159,7 +158,8 @@ fn k8s_value_repository_config_map() {
 
     // Once we have remote enabled we get remote data
     value_repository = value_repository.with_remote();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+    let res = value_repository
+        .load_remote_fallback_local(&agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config().clone(), remote_values.config);
@@ -167,7 +167,8 @@ fn k8s_value_repository_config_map() {
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+    let res = value_repository
+        .load_remote_fallback_local(&agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config().clone(), local_values);
@@ -182,10 +183,12 @@ fn k8s_value_repository_config_map() {
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
         .unwrap();
-    let res = load_remote_fallback_local(&value_repository, &agent_id_1, &capabilities)
+    let res = value_repository
+        .load_remote_fallback_local(&agent_id_1, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
-    let res_agent_2 = load_remote_fallback_local(&value_repository, &agent_id_2, &capabilities)
+    let res_agent_2 = value_repository
+        .load_remote_fallback_local(&agent_id_2, &capabilities)
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config().clone(), local_values);
