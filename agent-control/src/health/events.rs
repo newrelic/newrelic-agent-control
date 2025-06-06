@@ -1,7 +1,7 @@
 use super::with_start_time::HealthWithStartTime;
 
 /// This trait represents any event publisher that can publish health information.
-pub trait HealthEventPublisher {
+pub trait HealthEventPublisher: Send + 'static {
     fn publish_health_event(&self, health: HealthWithStartTime);
 }
 

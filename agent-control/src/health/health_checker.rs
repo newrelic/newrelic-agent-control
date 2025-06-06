@@ -269,7 +269,7 @@ pub(crate) fn spawn_health_checker<H, E>(
 ) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
-    E: HealthEventPublisher + Send + 'static,
+    E: HealthEventPublisher,
 {
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         let span = info_span!(
