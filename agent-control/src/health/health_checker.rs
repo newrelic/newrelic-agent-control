@@ -265,7 +265,7 @@ pub(crate) fn spawn_health_checker<H, E>(
     health_checker: H,
     event_publisher: E,
     interval: HealthCheckInterval,
-    sub_agent_start_time: StartTime,
+    start_time: StartTime,
 ) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
@@ -282,7 +282,7 @@ where
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
             debug!(last_error = %err, "The configured health check failed");
-            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
+            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), start_time)
         });
 
         event_publisher.publish_health_event(health);
