@@ -1,11 +1,10 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
-use crate::event::channel::{EventConsumer, EventPublisher};
+use crate::event::channel::EventConsumer;
+use crate::health::events::HealthEventPublisher;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::k8s;
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
-use crate::sub_agent::supervisor::starter::SupervisorStarterError;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
@@ -250,15 +249,27 @@ pub trait HealthChecker {
     }
 }
 
-pub(crate) fn spawn_health_checker<H>(
+/// Spawns a thread that periodically checks health of an agent and publishes the results.
+///
+/// The thread runs health checks at the specified interval using the provided `health_checker`.
+/// Results are published through the given `event_publisher`.
+///
+/// # Arguments
+/// * `agent_id` - The ID of the agent whose health is checked
+/// * `health_checker` - The health checker implementation
+/// * `event_publisher` - Publisher for health events
+/// * `interval` - Duration between health checks
+/// * `sub_agent_start_time` - The start time of the sub-agent
+pub(crate) fn spawn_health_checker<H, E>(
     agent_id: AgentID,
     health_checker: H,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    event_publisher: E,
     interval: HealthCheckInterval,
-    sub_agent_start_time: StartTime,
+    start_time: StartTime,
 ) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
+    E: HealthEventPublisher,
 {
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         let span = info_span!(
@@ -267,17 +278,14 @@ where
         );
         let _guard = span.enter();
 
-        debug!("starting to check health with the configured checker");
+        debug!("Starting to check health with the configured checker");
 
         let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!( last_error = %err, "the configured health check failed");
-            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), sub_agent_start_time)
+            debug!(last_error = %err, "The configured health check failed");
+            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), start_time)
         });
 
-        publish_health_event(
-            &sub_agent_internal_publisher,
-            SubAgentInternalEvent::AgentHealthInfo(health),
-        );
+        event_publisher.publish_health_event(health);
 
         // Check the cancellation signal
         if stop_consumer.is_cancelled(interval.into()) {
@@ -285,40 +293,6 @@ where
         }
     };
     NotStartedThreadContext::new(HEALTH_CHECKER_THREAD_NAME, callback).start()
-}
-
-pub(crate) fn publish_health_event(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    event: SubAgentInternalEvent,
-) {
-    let event_type_str = format!("{:?}", event);
-    _ = sub_agent_internal_publisher
-        .publish(event)
-        .inspect_err(|e| {
-            error!(
-                err = e.to_string(),
-                event_type = event_type_str,
-                "could not publish sub agent event"
-            )
-        });
-}
-
-/// Logs the provided error and publishes the corresponding unhealthy event.
-pub fn log_and_report_unhealthy(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    err: &SupervisorStarterError,
-    msg: &str,
-    start_time: SystemTime,
-) {
-    let last_error = format!("{msg}: {err}");
-
-    let event = SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
-        Unhealthy::new(String::default(), last_error).into(),
-        start_time,
-    ));
-
-    error!(%err, msg);
-    publish_health_event(sub_agent_internal_publisher, event);
 }
 
 #[cfg(test)]
@@ -522,21 +496,18 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 0".to_string()).into(),
-                start_time
-            )),
+            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
+            HealthWithStartTime::new(
                 Unhealthy::new(
                     "Health check error".to_string(),
                     "mocked health check error!".to_string(),
                 )
                 .into(),
                 start_time,
-            )),
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
 
@@ -586,17 +557,11 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 0".to_string()).into(),
-                start_time
-            )),
+            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
-            SubAgentInternalEvent::from(HealthWithStartTime::new(
-                Healthy::new("status: 1".to_string()).into(),
-                start_time
-            )),
+            HealthWithStartTime::new(Healthy::new("status: 1".to_string()).into(), start_time),
             health_consumer.as_ref().recv().unwrap()
         );
 
@@ -644,14 +609,14 @@ pub mod tests {
         );
 
         // Check that we received the two expected health events
-        let expected_health_event = SubAgentInternalEvent::from(HealthWithStartTime::new(
+        let expected_health_event = HealthWithStartTime::new(
             Unhealthy::new(
                 "Health check error".to_string(),
                 "mocked health check error!".to_string(),
             )
             .into(),
             start_time,
-        ));
+        );
         assert_eq!(
             expected_health_event.clone(),
             health_consumer.as_ref().recv().unwrap()

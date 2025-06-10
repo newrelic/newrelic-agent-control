@@ -4,9 +4,8 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::health::health_checker::{
-    HealthCheckerError, publish_health_event, spawn_health_checker,
-};
+use crate::health::events::HealthEventPublisher;
+use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthChecker;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -212,10 +211,10 @@ impl NotStartedSupervisorOnHost {
 
             let init_health = Healthy::new(String::default());
 
-            publish_health_event(
-                &internal_event_publisher,
-                HealthWithStartTime::new(init_health.into(), supervisor_start_time).into(),
-            );
+            internal_event_publisher.publish_health_event(HealthWithStartTime::new(
+                init_health.into(),
+                supervisor_start_time,
+            ));
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
@@ -271,10 +270,10 @@ impl NotStartedSupervisorOnHost {
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
-                    publish_health_event(
-                        &internal_event_publisher,
-                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time).into(),
-                    );
+                    internal_event_publisher.publish_health_event(HealthWithStartTime::new(
+                        unhealthy.into(),
+                        supervisor_start_time,
+                    ));
                 }
                 break;
             }
@@ -321,10 +320,8 @@ fn handle_termination(
             ),
             exit_status.to_string(),
         );
-        publish_health_event(
-            internal_event_publisher,
-            HealthWithStartTime::new(unhealthy.into(), start_time).into(),
-        );
+        internal_event_publisher
+            .publish_health_event(HealthWithStartTime::new(unhealthy.into(), start_time));
         error!(
             %agent_id,
             supervisor = bin,
@@ -401,7 +398,6 @@ pub mod tests {
     use crate::health::health_checker::Healthy;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
-    use crate::sub_agent::version::version_checker::AgentVersion;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::traced_test;
@@ -629,37 +625,36 @@ pub mod tests {
         let start_time = SystemTime::now();
 
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
-        let expected_ordered_events: Vec<SubAgentInternalEvent> = {
-            vec![
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(Healthy::default().into(), start_time).into(),
-                HealthWithStartTime::new(
-                    Unhealthy::new(
-                        String::default(),
-                        "supervisor exceeded its defined restart policy".to_string(),
-                    )
-                    .into(),
-                    start_time,
+        let expected_ordered_events: Vec<SubAgentInternalEvent> = [
+            HealthWithStartTime::new(Healthy::default().into(), start_time),
+            HealthWithStartTime::new(Healthy::default().into(), start_time),
+            HealthWithStartTime::new(Healthy::default().into(), start_time),
+            HealthWithStartTime::new(Healthy::default().into(), start_time),
+            HealthWithStartTime::new(
+                Unhealthy::new(
+                    String::default(),
+                    "supervisor exceeded its defined restart policy".to_string(),
                 )
                 .into(),
-            ]
-        };
+                start_time,
+            ),
+        ]
+        .into_iter()
+        .map(SubAgentInternalEvent::AgentHealthInfo)
+        .collect();
 
         let actual_ordered_events = sub_agent_internal_consumer
             .as_ref()
             .iter()
-            .map(|event| match event {
-                SubAgentInternalEvent::AgentHealthInfo(health) => {
-                    HealthWithStartTime::new(health.into(), start_time).into()
-                }
-                SubAgentInternalEvent::StopRequested => SubAgentInternalEvent::StopRequested,
-                SubAgentInternalEvent::AgentVersionInfo(agent_id) => {
-                    SubAgentInternalEvent::AgentVersionInfo(AgentVersion::new(
-                        agent_id.version().to_string(),
-                        agent_id.opamp_field().to_string(),
+            .map(|event| {
+                // Patch start_time for health events to allow comparison
+                if let SubAgentInternalEvent::AgentHealthInfo(health) = event {
+                    SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
+                        health.into(),
+                        start_time,
                     ))
+                } else {
+                    event
                 }
             })
             .collect::<Vec<_>>();
