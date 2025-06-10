@@ -143,13 +143,15 @@ where
         let local_values_path = self.get_values_file_path(agent_id);
 
         self.load_file_if_present(local_values_path)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| ConfigRepositoryError::LoadError(format!("loading local config: {err}")))
             .and_then(|maybe_values| {
                 maybe_values.map_or(Ok(None), |values| {
                     serde_yaml::from_str(&values)
                         .map(Config::LocalConfig)
                         .map(Some)
-                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                        .map_err(|err| {
+                            ConfigRepositoryError::LoadError(format!("loading local config: {err}"))
+                        })
                 })
             })
     }
@@ -167,13 +169,19 @@ where
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
         self.load_file_if_present(remote_values_path)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("loading remote config: {err}"))
+            })
             .and_then(|maybe_values| {
                 maybe_values.map_or(Ok(None), |values| {
                     serde_yaml::from_str(&values)
                         .map(Config::RemoteConfig)
                         .map(Some)
-                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                        .map_err(|err| {
+                            ConfigRepositoryError::LoadError(format!(
+                                "loading remote config: {err}"
+                            ))
+                        })
                 })
             })
     }
@@ -190,10 +198,13 @@ where
         let values_file_path = self.get_remote_values_file_path(agent_id);
 
         self.ensure_directory_existence(&values_file_path)
-            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
+            })?;
 
-        let content = serde_yaml::to_string(remote_config)
-            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+        let content = serde_yaml::to_string(remote_config).map_err(|err| {
+            ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
+        })?;
 
         self.file_rw
             .write(
@@ -201,7 +212,9 @@ where
                 content,
                 Permissions::from_mode(FILE_PERMISSIONS),
             )
-            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
+            })?;
 
         Ok(())
     }
@@ -214,14 +227,20 @@ where
         let maybe_remote = self
             .load_file_if_present(remote_values_path)
             // maps an error during the file loading into the right error
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("getting remote config hash: {err}"))
+            })
             .and_then(|maybe_values| {
                 maybe_values.map_or(Ok(None), |values| {
                     serde_yaml::from_str(&values)
                         .map(Config::RemoteConfig)
                         .map(Some)
                         // maps an error during the serde_yaml deserializing into the right error
-                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                        .map_err(|err| {
+                            ConfigRepositoryError::LoadError(format!(
+                                "getting remote config hash: {err}"
+                            ))
+                        })
                 })
             })?;
 
@@ -247,21 +266,28 @@ where
 
         let maybe_remote = self
             .load_file_if_present(remote_values_path.clone())
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("updating remote config state: {err}"))
+            })
             .and_then(|maybe_values| {
                 maybe_values.map_or(Ok(None), |values| {
                     serde_yaml::from_str(&values)
                         .map(Config::RemoteConfig)
                         .map(Some)
-                        .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))
+                        .map_err(|err| {
+                            ConfigRepositoryError::LoadError(format!(
+                                "updating remote config state: {err}"
+                            ))
+                        })
                 })
             })?;
 
         if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
             remote_config.update_state(state);
 
-            let content = serde_yaml::to_string(&remote_config)
-                .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+            let content = serde_yaml::to_string(&remote_config).map_err(|err| {
+                ConfigRepositoryError::StoreError(format!("updating remote config state: {err}"))
+            })?;
 
             self.file_rw
                 .write(
@@ -269,7 +295,11 @@ where
                     content,
                     Permissions::from_mode(FILE_PERMISSIONS),
                 )
-                .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+                .map_err(|err| {
+                    ConfigRepositoryError::StoreError(format!(
+                        "updating remote config state: {err}"
+                    ))
+                })?;
 
             Ok(())
         } else {
@@ -290,8 +320,9 @@ where
         let remote_path_file = self.get_remote_values_file_path(agent_id);
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
-            std::fs::remove_file(remote_path_file)
-                .map_err(|e| ConfigRepositoryError::DeleteError(e.to_string()))?;
+            std::fs::remove_file(remote_path_file).map_err(|e| {
+                ConfigRepositoryError::DeleteError(format!("deleting remote config: {e}"))
+            })?;
         }
 
         Ok(())
