@@ -315,9 +315,7 @@ pub mod tests {
     use crate::opamp::remote_config::hash::Hash;
     use crate::values;
     use crate::values::config::RemoteConfig;
-    use crate::values::config_repository::{
-        ConfigRepository, ConfigRepositoryError, load_remote_fallback_local,
-    };
+    use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError::ErrorCreatingDirectory;
     use fs::directory_manager::DirectoryManager;
@@ -410,7 +408,8 @@ state: applied
             yaml_config_content.to_string(),
         );
 
-        let config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+        let config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
             .expect("unexpected error loading config")
             .expect("expected some configuration, got None");
 
@@ -439,7 +438,8 @@ state: applied
             yaml_config_content.to_string(),
         );
 
-        let config = load_remote_fallback_local(&repo, &agent_id, &default_capabilities())
+        let config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
             .expect("unexpected error loading config")
             .expect("expected some configuration, got None");
 
@@ -461,8 +461,9 @@ state: applied
             "some message".to_string(),
         );
 
-        let yaml_config =
-            load_remote_fallback_local(&repo, &agent_id, &default_capabilities()).unwrap();
+        let yaml_config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
+            .unwrap();
 
         assert!(yaml_config.is_none());
     }
@@ -476,7 +477,7 @@ state: applied
             concatenate_sub_agent_dir_path(get_conf_path(&repo), &agent_id).as_path(),
         );
 
-        let result = load_remote_fallback_local(&repo, &agent_id, &default_capabilities());
+        let result = repo.load_remote_fallback_local(&agent_id, &default_capabilities());
         let err = result.unwrap_err();
         assert_matches!(err, ConfigRepositoryError::LoadError(s) => {
             assert!(s.contains("file read error"));

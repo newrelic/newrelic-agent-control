@@ -3,7 +3,7 @@ use super::loader::EffectiveConfigLoader;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::default_capabilities;
 use crate::opamp::remote_config::ConfigurationMap;
-use crate::values::config_repository::{ConfigRepository, load_remote_fallback_local};
+use crate::values::config_repository::ConfigRepository;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -34,17 +34,15 @@ where
     Y: ConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
-        let maybe_values = load_remote_fallback_local(
-            self.yaml_config_repository.as_ref(),
-            &self.agent_id,
-            &default_capabilities(),
-        )
-        .map_err(|err| {
-            LoaderError::from(format!(
-                "could not load {} config values: {}",
-                &self.agent_id, err
-            ))
-        })?;
+        let maybe_values = self
+            .yaml_config_repository
+            .load_remote_fallback_local(&self.agent_id, &default_capabilities())
+            .map_err(|err| {
+                LoaderError::from(format!(
+                    "could not load {} config values: {}",
+                    &self.agent_id, err
+                ))
+            })?;
         // No configuration is considered as empty effective-configuration
         let values = maybe_values.unwrap_or_default();
 
