@@ -160,7 +160,7 @@ mod tests {
                     update_sub_agent_status(sub_agent_event, self.current_status.clone()).await;
                 }
                 let st = self.current_status.read().await;
-                assert_eq!(self.expected_status, *st);
+                assert_eq!(self.expected_status, *st, "{}", self._name);
             }
         }
 
@@ -175,7 +175,7 @@ mod tests {
                 _name: "Unhealthy Agent Control becomes healthy",
                 agent_control_event: Some(AgentControlEvent::HealthUpdated(
                     HealthWithStartTime::new(
-                        Healthy::new("some status".to_string()).into(),
+                        Healthy::new().with_status("some status".to_string()).into(),
                         SystemTime::UNIX_EPOCH,
                     ),
                 )),
@@ -199,9 +199,9 @@ mod tests {
                 agent_control_event: Some(AgentControlEvent::HealthUpdated(
                     HealthWithStartTime::new(
                         Unhealthy::new(
-                            "some status".to_string(),
                             "some error message for agent control unhealthy".to_string(),
                         )
+                        .with_status("some status".to_string())
                         .into(),
                         SystemTime::UNIX_EPOCH,
                     ),

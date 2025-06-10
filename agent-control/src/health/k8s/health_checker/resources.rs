@@ -34,7 +34,7 @@ where
             return Ok(obj_health);
         }
     }
-    Ok(Healthy::new(String::default()).into())
+    Ok(Healthy::new().into())
 }
 
 /// Returns a closure which can be used as filter predicate. It will filter objects labeled with the key
@@ -78,11 +78,11 @@ mod tests {
     #[test]
     fn test_items_health_check_healthy() {
         let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
-        let result = check_health_for_items(items.into_iter(), |_| Ok(Healthy::default().into()))
+        let result = check_health_for_items(items.into_iter(), |_| Ok(Healthy::new().into()))
             .unwrap_or_else(|err| panic!("unexpected error {err} when all items are healthy"));
         assert_eq!(
             result,
-            Health::Healthy(Healthy::default()),
+            Health::Healthy(Healthy::new()),
             "Expected healthy when all items are healthy"
         );
 
@@ -92,7 +92,7 @@ mod tests {
         .unwrap_or_else(|err| panic!("unexpected error {err} when there are no items"));
         assert_eq!(
             result,
-            Health::Healthy(Healthy::default()),
+            Health::Healthy(Healthy::new()),
             "expected healthy when there are no items"
         );
     }
@@ -101,8 +101,8 @@ mod tests {
     fn test_items_health_check_unhealthy() {
         let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |s| match s {
-            &"a" | &"b" => Ok(Healthy::default().into()),
-            _ => Ok(Unhealthy::new(String::default(), s.to_string()).into()),
+            &"a" | &"b" => Ok(Healthy::new().into()),
+            _ => Ok(Unhealthy::new(s.to_string()).into()),
         })
         .unwrap_or_else(|err| panic!("unexpected error {err} when unhealthy is expected"));
         assert_eq!(
@@ -119,7 +119,7 @@ mod tests {
     fn test_items_health_check_err() {
         let items = vec!["a", "b", "c", "d"].into_iter().map(Arc::new);
         let result = check_health_for_items(items.into_iter(), |s| match s {
-            &"a" | &"b" => Ok(Healthy::default().into()),
+            &"a" | &"b" => Ok(Healthy::new().into()),
             _ => Err(HealthCheckerError::Generic(s.to_string())),
         })
         .unwrap_err();

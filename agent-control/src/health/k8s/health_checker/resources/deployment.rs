@@ -55,10 +55,9 @@ impl K8sHealthDeployment {
         // The deployment is unhealthy if any of the pods are unavailable, i.e. not running or not ready.
         if let Some(unavailable_replicas) = status.unavailable_replicas {
             if unavailable_replicas > 0 {
-                return Ok(Unhealthy::new(
-                    String::default(),
-                    format!("Deployment `{name}`: has {unavailable_replicas} unavailable replicas"),
-                )
+                return Ok(Unhealthy::new(format!(
+                    "Deployment `{name}`: has {unavailable_replicas} unavailable replicas"
+                ))
                 .into());
             }
         };
@@ -75,13 +74,12 @@ impl K8sHealthDeployment {
         let available_replicas = status.available_replicas.unwrap_or_default();
         if available_replicas < desired_replicas {
             return Ok(Unhealthy::new(
-                    String::default(),
                     format!("Deployment `{name}`: available replicas `{available_replicas}` is less than desired `{desired_replicas}`"),
                 )
                 .into());
         }
 
-        Ok(Healthy::new(String::default()).into())
+        Ok(Healthy::new().into())
     }
 }
 
@@ -130,7 +128,7 @@ mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
             TestCase {
                 name: "Deployment with zero replicas, zero values",
@@ -146,7 +144,7 @@ mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
             TestCase {
                 name: "Deployment with replicas",
@@ -161,7 +159,7 @@ mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
             // Unhealthy cases
             TestCase {
@@ -179,7 +177,6 @@ mod tests {
                     }),
                 },
                 expected: Unhealthy::new(
-                    String::default(),
                     "Deployment `test-deployment`: has 1 unavailable replicas".into(),
                 )
                 .into(),
@@ -199,7 +196,6 @@ mod tests {
                     }),
                 },
                 expected: Unhealthy::new(
-                    String::default(),
                     "Deployment `test-deployment`: available replicas `9` is less than desired `10`"
                         .into(),
                 )
@@ -220,7 +216,6 @@ mod tests {
                     }),
                 },
                 expected: Unhealthy::new(
-                    String::default(),
                     "Deployment `test-deployment`: available replicas `0` is less than desired `10`"
                         .into(),
                 )
@@ -401,7 +396,7 @@ mod tests {
                     Arc::new(healthy_deployment.clone()),
                     Arc::new(healthy_deployment.clone()),
                 ],
-                expected_health: Healthy::default().into(),
+                expected_health: Healthy::new().into(),
             },
             TestCase {
                 name: "One unhealthy deployment",

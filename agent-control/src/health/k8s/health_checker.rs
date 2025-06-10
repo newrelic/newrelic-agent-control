@@ -148,7 +148,7 @@ where
             }
         }
         Ok(HealthWithStartTime::from_healthy(
-            Healthy::new(String::default()),
+            Healthy::new(),
             self.start_time,
         ))
     }
