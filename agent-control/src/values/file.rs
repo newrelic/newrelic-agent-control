@@ -199,7 +199,9 @@ where
 
         self.ensure_directory_existence(&values_file_path)
             .map_err(|err| {
-                ConfigRepositoryError::StoreError(format!("ensuring the directory for storing remote config exists: {err}"))
+                ConfigRepositoryError::StoreError(format!(
+                    "ensuring the directory for storing remote config exists: {err}"
+                ))
             })?;
 
         let content = serde_yaml::to_string(remote_config).map_err(|err| {
