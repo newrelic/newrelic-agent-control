@@ -44,7 +44,9 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         let maybe_yaml_config = self
             .k8s_store
             .get_local_data::<YAMLConfig>(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("loading local config: {err}"))
+            })?;
 
         match maybe_yaml_config {
             Some(yaml_config) => Ok(Some(Config::LocalConfig(yaml_config.into()))),
@@ -65,7 +67,9 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         let maybe_remote_config = self
             .k8s_store
             .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("loading remote config: {err}"))
+            })?;
 
         match maybe_remote_config {
             Some(remote_config) => Ok(Some(Config::RemoteConfig(remote_config))),
@@ -83,7 +87,9 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
 
         self.k8s_store
             .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, remote_config)
-            .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
+            })?;
         Ok(())
     }
 
@@ -91,7 +97,9 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         let remote_config = self
             .k8s_store
             .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("getting remote config hash: {err}"))
+            })?;
 
         if let Some(rc) = remote_config {
             return Ok(Some(rc.hash()));
@@ -113,14 +121,20 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         let maybe_config = self
             .k8s_store
             .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
-            .map_err(|err| ConfigRepositoryError::LoadError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::LoadError(format!("updating remote config state: {err}"))
+            })?;
 
         match maybe_config {
             Some(mut remote_config) => {
                 remote_config.update_state(state);
                 self.k8s_store
                     .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, &remote_config)
-                    .map_err(|err| ConfigRepositoryError::StoreError(err.to_string()))?;
+                    .map_err(|err| {
+                        ConfigRepositoryError::StoreError(format!(
+                            "updating remote config state: {err}"
+                        ))
+                    })?;
                 Ok(())
             }
             None => Err(ConfigRepositoryError::UpdateHashStateError(
@@ -135,7 +149,9 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
 
         self.k8s_store
             .delete_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
-            .map_err(|err| ConfigRepositoryError::DeleteError(err.to_string()))?;
+            .map_err(|err| {
+                ConfigRepositoryError::DeleteError(format!("deleting remote config: {err}"))
+            })?;
         Ok(())
     }
 }
