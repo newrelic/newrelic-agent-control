@@ -84,6 +84,8 @@ pub enum AgentControlConfigError {
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq, Clone)]
 pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
+    /// chart_version represent the AC version that needs to be executed.
+    pub chart_version: Option<String>,
 }
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
@@ -394,12 +396,6 @@ proxy:
 agents: {}
 "#;
 
-    impl From<HashMap<AgentID, SubAgentConfig>> for AgentControlDynamicConfig {
-        fn from(value: HashMap<AgentID, SubAgentConfig>) -> Self {
-            Self { agents: value }
-        }
-    }
-
     #[test]
     fn basic_parse() {
         assert!(serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_AGENTCONTROL_CONFIG).is_ok());
@@ -610,7 +606,10 @@ agents: {}
     ////////////////////////////////////////////////////////////////////////////////////
 
     pub fn sub_agents_default_config() -> AgentControlDynamicConfig {
-        helper_get_agent_list().into()
+        AgentControlDynamicConfig {
+            agents: helper_get_agent_list(),
+            chart_version: None,
+        }
     }
     fn helper_get_agent_list() -> HashMap<AgentID, SubAgentConfig> {
         HashMap::from([

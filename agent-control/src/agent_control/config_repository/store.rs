@@ -171,6 +171,7 @@ fleet_control:
             agents:
               rolldice:
                 agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
+            chart_version: "1.0.0"
         hash: a-hash
         state: applying
         "#;
@@ -181,16 +182,18 @@ fleet_control:
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
-            dynamic: HashMap::from([(
-                AgentID::new("rolldice").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from(
-                        "namespace/com.newrelic.infrastructure:0.0.2",
-                    )
-                    .unwrap(),
-                },
-            )])
-            .into(),
+            dynamic: AgentControlDynamicConfig {
+                agents: HashMap::from([(
+                    AgentID::new("rolldice").unwrap(),
+                    SubAgentConfig {
+                        agent_type: AgentTypeID::try_from(
+                            "namespace/com.newrelic.infrastructure:0.0.2",
+                        )
+                        .unwrap(),
+                    },
+                )]),
+                chart_version: Some("1.0.0".to_string()),
+            },
             fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
@@ -228,16 +231,18 @@ fleet_control:
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
-            dynamic: HashMap::from([(
-                AgentID::new("rolldice1").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from(
-                        "namespace/com.newrelic.infrastructure:0.0.2",
-                    )
-                    .unwrap(),
-                },
-            )])
-            .into(),
+            dynamic: AgentControlDynamicConfig {
+                agents: HashMap::from([(
+                    AgentID::new("rolldice1").unwrap(),
+                    SubAgentConfig {
+                        agent_type: AgentTypeID::try_from(
+                            "namespace/com.newrelic.infrastructure:0.0.2",
+                        )
+                        .unwrap(),
+                    },
+                )]),
+                chart_version: None,
+            },
             fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
@@ -277,16 +282,19 @@ agents:
         let actual: AgentControlConfig = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
-            dynamic: HashMap::from([(
-                AgentID::new("rolldice2").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from(
-                        "namespace/com.newrelic.infrastructure:0.0.2",
-                    )
-                    .unwrap(),
-                },
-            )])
-            .into(),
+            dynamic: AgentControlDynamicConfig {
+                agents: HashMap::from([(
+                    AgentID::new("rolldice2").unwrap(),
+                    SubAgentConfig {
+                        agent_type: AgentTypeID::try_from(
+                            "namespace/com.newrelic.infrastructure:0.0.2",
+                        )
+                        .unwrap(),
+                    },
+                )]),
+                chart_version: None,
+            },
+
             fleet_control: Some(OpAMPClientConfig {
                 endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
