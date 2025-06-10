@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::health::health_checker::{Healthy, Unhealthy};
+use crate::health::health_checker::Health;
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
@@ -34,16 +34,19 @@ pub struct AgentControlStatus {
 }
 
 impl AgentControlStatus {
-    pub fn healthy(&mut self, healthy: Healthy) {
-        self.healthy = true;
-        self.last_error = None;
-        self.status = healthy.status().to_string();
-    }
-
-    pub fn unhealthy(&mut self, unhealthy: Unhealthy) {
-        self.healthy = false;
-        self.last_error = unhealthy.last_error().to_string().into();
-        self.status = unhealthy.status().to_string();
+    pub fn set_health(&mut self, health: HealthWithStartTime) {
+        match Health::from(health) {
+            Health::Healthy(healthy) => {
+                self.healthy = true;
+                self.last_error = None;
+                self.status = healthy.status().to_string();
+            }
+            Health::Unhealthy(unhealthy) => {
+                self.healthy = false;
+                self.last_error = unhealthy.last_error().to_string().into();
+                self.status = unhealthy.status().to_string();
+            }
+        }
     }
 }
 
