@@ -6,4 +6,3 @@ mod fail_remote_config;
 mod garbage_collector;
 mod no_opamp;
 mod opamp;
-mod updater;

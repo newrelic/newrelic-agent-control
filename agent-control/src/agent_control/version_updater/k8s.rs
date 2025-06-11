@@ -4,6 +4,7 @@ use crate::cli::install_agent_control::RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use std::sync::Arc;
+use tracing::{debug, info};
 
 pub struct K8sACUpdater {
     k8s_client: Arc<SyncK8sClient>,
@@ -22,6 +23,10 @@ impl VersionUpdater for K8sACUpdater {
 
         let patch_to_apply = self.create_helm_release_patch(version);
 
+        info!(
+            "Updating Agent Control to version: {} -> {}",
+            self.current_chart_version, version
+        );
         self.k8s_client
             .patch_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, patch_to_apply)
             .map_err(|err| {
@@ -35,8 +40,16 @@ impl VersionUpdater for K8sACUpdater {
 
     fn should_update(&self, config: &AgentControlDynamicConfig) -> bool {
         let Some(version) = &config.chart_version else {
+            debug!(
+                "AgentControl will not be updated since chart version is not specified in the config"
+            );
             return false;
         };
+
+        debug!(
+            "Checking if update is needed: current version {}, target version {}",
+            self.current_chart_version, version
+        );
         &self.current_chart_version != version
     }
 }
