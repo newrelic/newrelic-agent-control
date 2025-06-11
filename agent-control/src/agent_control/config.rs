@@ -202,7 +202,6 @@ pub struct K8sConfig {
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
-
     /// CRDs is a list of crds that AC should watch and be able to create/delete.
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
