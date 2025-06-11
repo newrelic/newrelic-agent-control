@@ -56,7 +56,10 @@ mod tests {
             .with_sub_agents(sub_agents.into())
             .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
-        st.agent_control.healthy(Healthy::default());
+        st.agent_control.set_health(HealthWithStartTime::new(
+            Healthy::default().into(),
+            SystemTime::now(),
+        ));
         st.fleet.reachable();
 
         let status = Arc::new(RwLock::new(st));
@@ -100,8 +103,12 @@ mod tests {
             .with_sub_agents(sub_agents.into())
             .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
-        st.agent_control
-            .unhealthy(Unhealthy::default().with_last_error("agent control error".to_string()));
+        st.agent_control.set_health(HealthWithStartTime::new(
+            Unhealthy::default()
+                .with_last_error("agent control error".to_string())
+                .into(),
+            SystemTime::now(),
+        ));
         st.fleet.reachable();
 
         let status = Arc::new(RwLock::new(st));

@@ -53,16 +53,9 @@ async fn update_agent_control_status(
 ) {
     let mut status = status.write().await;
     match agent_control_event {
-        AgentControlEvent::AgentControlBecameHealthy(healthy) => {
-            debug!("status_http_server event_processor agent_control_became_healthy");
-            status.agent_control.healthy(healthy);
-        }
-        AgentControlEvent::AgentControlBecameUnhealthy(unhealthy) => {
-            debug!(
-                last_error = unhealthy.last_error(),
-                "status_http_server event_processor agent_control_became_unhealthy"
-            );
-            status.agent_control.unhealthy(unhealthy);
+        AgentControlEvent::HealthUpdated(health) => {
+            debug!("status_http_server event_processor agent_control_health_updated");
+            status.agent_control.set_health(health);
         }
         AgentControlEvent::SubAgentRemoved(agent_id) => {
             status.sub_agents.remove(&agent_id);
@@ -87,7 +80,7 @@ async fn update_agent_control_status(
 async fn update_sub_agent_status(sub_agent_event: SubAgentEvent, status: Arc<RwLock<Status>>) {
     let mut status = status.write().await;
     match sub_agent_event {
-        SubAgentEvent::SubAgentHealthInfo(agent_identity, health) => {
+        SubAgentEvent::HealthUpdated(agent_identity, health) => {
             if health.is_healthy() {
                 debug!(agent_id = %agent_identity.id, agent_type = %agent_identity.agent_type_id, "status_http_server event_processor sub_agent_became_healthy");
             } else {
@@ -140,11 +133,10 @@ mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::AgentControlEvent;
     use crate::event::AgentControlEvent::{
-        AgentControlBecameHealthy, AgentControlBecameUnhealthy, AgentControlStopped,
-        OpAMPConnectFailed, SubAgentRemoved,
+        AgentControlStopped, OpAMPConnectFailed, SubAgentRemoved,
     };
     use crate::event::SubAgentEvent;
-    use crate::event::SubAgentEvent::SubAgentHealthInfo;
+    use crate::event::SubAgentEvent::HealthUpdated;
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::health::with_start_time::HealthWithStartTime;
     use crate::sub_agent::identity::AgentIdentity;
@@ -168,7 +160,7 @@ mod tests {
                     update_sub_agent_status(sub_agent_event, self.current_status.clone()).await;
                 }
                 let st = self.current_status.read().await;
-                assert_eq!(self.expected_status, *st);
+                assert_eq!(self.expected_status, *st, "{}", self._name);
             }
         }
 
@@ -181,9 +173,12 @@ mod tests {
         let tests = vec![
             Test {
                 _name: "Unhealthy Agent Control becomes healthy",
-                agent_control_event: Some(AgentControlBecameHealthy(Healthy::new(
-                    "some status".to_string(),
-                ))),
+                agent_control_event: Some(AgentControlEvent::HealthUpdated(
+                    HealthWithStartTime::new(
+                        Healthy::new().with_status("some status".to_string()).into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
+                )),
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: AgentControlStatus::new_unhealthy(
@@ -201,10 +196,16 @@ mod tests {
             },
             Test {
                 _name: "Healthy Agent Control becomes unhealthy",
-                agent_control_event: Some(AgentControlBecameUnhealthy(Unhealthy::new(
-                    "some status".to_string(),
-                    "some error message for agent control unhealthy".to_string(),
-                ))),
+                agent_control_event: Some(AgentControlEvent::HealthUpdated(
+                    HealthWithStartTime::new(
+                        Unhealthy::new(
+                            "some error message for agent control unhealthy".to_string(),
+                        )
+                        .with_status("some status".to_string())
+                        .into(),
+                        SystemTime::UNIX_EPOCH,
+                    ),
+                )),
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: AgentControlStatus::new_healthy(String::from("some status")),
@@ -223,7 +224,7 @@ mod tests {
             Test {
                 _name: "Sub Agent first healthy event should add it to the list",
                 agent_control_event: None,
-                sub_agent_event: Some(SubAgentHealthInfo(
+                sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -252,7 +253,7 @@ mod tests {
             Test {
                 _name: "Sub Agent first unhealthy event should add it to the list",
                 agent_control_event: None,
-                sub_agent_event: Some(SubAgentHealthInfo(
+                sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
@@ -292,7 +293,7 @@ mod tests {
             Test {
                 _name: "Sub Agent second unhealthy event should change existing one",
                 agent_control_event: None,
-                sub_agent_event: Some(SubAgentHealthInfo(
+                sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
                         AgentID::new("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),

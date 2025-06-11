@@ -95,9 +95,9 @@ impl InstrumentationStatus {
     /// any case not being one of the previous cases.
     pub(crate) fn get_health(&self) -> Health {
         if self.is_healthy() {
-            Health::Healthy(Healthy::new(self.to_string()))
+            Health::Healthy(Healthy::new().with_status(self.to_string()))
         } else {
-            Health::Unhealthy(Unhealthy::new(self.to_string(), self.last_error()))
+            Health::Unhealthy(Unhealthy::new(self.last_error()).with_status(self.to_string()))
         }
     }
 
@@ -371,10 +371,10 @@ mod tests {
             TestData {
                 case: "default case",
                 status: InstrumentationStatus::default(),
-                expected: Health::Unhealthy(Unhealthy::new(
+                expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                     "podsMatching:0, podsHealthy:0, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
-                        .to_string(), String::default()
-                )),
+                        .to_string()),
+                ),
             },
             TestData {
                 case: "healthy case",
@@ -384,7 +384,7 @@ mod tests {
                     pods_injected: 1,
                     ..Default::default()
                 },
-                expected: Health::Healthy(Healthy::new(
+                expected: Health::Healthy(Healthy::new().with_status(
                     "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
                         .to_string()
                 )),
@@ -396,11 +396,10 @@ mod tests {
                     pods_healthy: 1,
                     ..Default::default()
                 },
-                expected: Health::Unhealthy(Unhealthy::new(
+                expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                     "podsMatching:1, podsHealthy:1, podsInjected:0, podsNotReady:0, podsOutdated:0, podsUnhealthy:0"
-                        .to_string(),
-                    "".to_string(),
-                )),
+                        .to_string()),
+                ),
             },
             TestData {
                 case: "unhealthy case with errors",
@@ -415,11 +414,11 @@ mod tests {
                     }],
                     ..Default::default()
                 },
-                expected: Health::Unhealthy(Unhealthy::new(
+                expected: Health::Unhealthy(Unhealthy::new("pod pod1:error1".to_string()).with_status(
                     "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:1"
                         .to_string(),
-                    "pod pod1:error1".to_string(),
-                )),},
+                )),
+                },
                 TestData {
                     case: "unhealthy case with multiple errors",
                     status: InstrumentationStatus {
@@ -439,10 +438,9 @@ mod tests {
                         ],
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new("pod pod1:error1, pod pod2:error2".to_string()).with_status(
                         "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:0, podsUnhealthy:2"
                             .to_string(),
-                        "pod pod1:error1, pod pod2:error2".to_string(),
                     )),
                 },
                 TestData {
@@ -456,12 +454,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:0, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
-
+                            .to_string()),
+                    ),
                 },
                 TestData {
                     case: "0 healthy pods",
@@ -474,11 +470,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:1, podsHealthy:0, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
+                            .to_string()),
+                    ),
                 },
 
                 TestData {
@@ -492,11 +487,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:1, podsHealthy:1, podsInjected:0, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
+                            .to_string()),
+                    ),
                 },
 
                 TestData {
@@ -510,11 +504,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:0, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
+                            .to_string()),
+                    ),
                 },
 
                 TestData {
@@ -528,11 +521,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:1, podsHealthy:1, podsInjected:2, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
+                            .to_string()),
+                    ),
                 },
                 TestData {
                     case: "not ready pods",
@@ -545,11 +537,10 @@ mod tests {
                         pods_unhealthy: 1,
                         ..Default::default()
                     },
-                    expected: Health::Unhealthy(Unhealthy::new(
+                    expected: Health::Unhealthy(Unhealthy::new(String::default()).with_status(
                         "podsMatching:1, podsHealthy:1, podsInjected:1, podsNotReady:1, podsOutdated:1, podsUnhealthy:1"
-                            .to_string(),
-                        "".to_string(),
-                    )),
+                            .to_string()),
+                    ),
                 },
 
 

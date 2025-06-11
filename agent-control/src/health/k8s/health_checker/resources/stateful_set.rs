@@ -64,17 +64,14 @@ impl K8sHealthStatefulSet {
             .ok_or_else(|| missing_field_error(sts, &name, ".status.readyReplicas"))?;
 
         if replicas != ready_replicas {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "StatefulSet `{}` not ready: replicas `{}` different from ready_replicas `{}`",
-                    name, replicas, ready_replicas,
-                ),
-            )
+            return Ok(Unhealthy::new(format!(
+                "StatefulSet `{}` not ready: replicas `{}` different from ready_replicas `{}`",
+                name, replicas, ready_replicas,
+            ))
             .into());
         }
 
-        Ok(Healthy::new(String::default()).into())
+        Ok(Healthy::new().into())
     }
 }
 
@@ -145,7 +142,7 @@ mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
             TestCase {
                 name: "Ready replicas is lower than expected replicas",
@@ -158,7 +155,6 @@ mod tests {
                     }),
                 },
                 expected: Unhealthy::new(
-                    String::default(),
                     "StatefulSet `name` not ready: replicas `5` different from ready_replicas `4`"
                         .into(),
                 )
@@ -293,7 +289,7 @@ mod tests {
         let result = health_checker.check_health().unwrap();
         assert_eq!(
             result,
-            HealthWithStartTime::from_healthy(Healthy::default(), start_time)
+            HealthWithStartTime::from_healthy(Healthy::new(), start_time)
         );
     }
 }

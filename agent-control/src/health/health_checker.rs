@@ -103,7 +103,7 @@ impl From<HealthCheckerError> for Health {
 
 impl From<HealthCheckerError> for Unhealthy {
     fn from(err: HealthCheckerError) -> Self {
-        Unhealthy::new("Health check error".to_string(), err.to_string())
+        Unhealthy::new(err.to_string()).with_status("Health check error".to_string())
     }
 }
 
@@ -133,18 +133,26 @@ impl PartialEq for Healthy {
 }
 
 impl Healthy {
-    pub fn new(status: String) -> Self {
+    /// Returns a new instance with the current status_time
+    #[allow(clippy::new_without_default)] // The corresponding default implementation would have `now` as value of `status_time`
+    pub fn new() -> Self {
         Self {
-            status,
+            status: Default::default(),
             status_time: StatusTime::now(),
         }
     }
+
+    pub fn with_status(self, status: String) -> Self {
+        Self { status, ..self }
+    }
+
     pub fn with_status_time(self, status_time: StatusTime) -> Self {
         Self {
             status_time,
             ..self
         }
     }
+
     pub fn status(&self) -> &str {
         &self.status
     }
@@ -183,9 +191,10 @@ impl PartialEq for Unhealthy {
 }
 
 impl Unhealthy {
-    pub fn new(status: String, last_error: String) -> Self {
+    /// Returns a new instance with the current status_time and the provided `last_error`
+    pub fn new(last_error: String) -> Self {
         Self {
-            status,
+            status: Default::default(),
             last_error,
             status_time: StatusTime::now(),
         }
@@ -196,6 +205,10 @@ impl Unhealthy {
             status_time,
             ..self
         }
+    }
+
+    pub fn with_status(self, status: String) -> Self {
+        Self { status, ..self }
     }
 
     pub fn status(&self) -> &str {
@@ -342,7 +355,7 @@ pub mod tests {
             let mut healthy = MockHealthCheck::new();
             healthy.expect_check_health().returning(|| {
                 Ok(HealthWithStartTime::from_healthy(
-                    Healthy::default(),
+                    Healthy::new(),
                     UNIX_EPOCH,
                 ))
             });
@@ -353,7 +366,7 @@ pub mod tests {
             let mut unhealthy = MockHealthCheck::new();
             unhealthy.expect_check_health().returning(|| {
                 Ok(HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new(String::default(), String::default()),
+                    Unhealthy::new(String::default()),
                     UNIX_EPOCH,
                 ))
             });
@@ -400,10 +413,8 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(|| {
                 Ok(HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new(
-                        "Unhealthy".to_string(),
-                        "Unhealthy on second attempt".to_string(),
-                    ),
+                    Unhealthy::new("Unhealthy on second attempt".to_string())
+                        .with_status("Unhealthy".to_string()),
                     UNIX_EPOCH,
                 ))
             });
@@ -413,7 +424,7 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(|| {
                 Ok(HealthWithStartTime::from_healthy(
-                    Healthy::default(),
+                    Healthy::new(),
                     UNIX_EPOCH,
                 ))
             });
@@ -445,7 +456,8 @@ pub mod tests {
         let mut health_checker = MockHealthCheck::new();
         health_checker.expect_check_health().times(3).returning(|| {
             Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new("Unhealthy".to_string(), "persistent unhealthy".to_string()),
+                Unhealthy::new("persistent unhealthy".to_string())
+                    .with_status("Unhealthy".to_string()),
                 UNIX_EPOCH,
             ))
         });
@@ -472,7 +484,7 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(move || {
                 Ok(HealthWithStartTime::from_healthy(
-                    Healthy::new("status: 0".to_string()),
+                    Healthy::new().with_status("status: 0".to_string()),
                     start_time,
                 ))
             });
@@ -496,16 +508,17 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time),
+            HealthWithStartTime::new(
+                Healthy::new().with_status("status: 0".to_string()).into(),
+                start_time
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
             HealthWithStartTime::new(
-                Unhealthy::new(
-                    "Health check error".to_string(),
-                    "mocked health check error!".to_string(),
-                )
-                .into(),
+                Unhealthy::new("mocked health check error!".to_string(),)
+                    .with_status("Health check error".to_string())
+                    .into(),
                 start_time,
             ),
             health_consumer.as_ref().recv().unwrap()
@@ -532,7 +545,7 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(move || {
                 Ok(HealthWithStartTime::from_healthy(
-                    Healthy::new("status: 0".to_string()),
+                    Healthy::new().with_status("status: 0".to_string()),
                     start_time,
                 ))
             });
@@ -542,7 +555,7 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(move || {
                 Ok(HealthWithStartTime::from_healthy(
-                    Healthy::new("status: 1".to_string()),
+                    Healthy::new().with_status("status: 1".to_string()),
                     start_time,
                 ))
             });
@@ -557,11 +570,17 @@ pub mod tests {
 
         // Check that we received the two expected health events
         assert_eq!(
-            HealthWithStartTime::new(Healthy::new("status: 0".to_string()).into(), start_time),
+            HealthWithStartTime::new(
+                Healthy::new().with_status("status: 0".to_string()).into(),
+                start_time
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
         assert_eq!(
-            HealthWithStartTime::new(Healthy::new("status: 1".to_string()).into(), start_time),
+            HealthWithStartTime::new(
+                Healthy::new().with_status("status: 1".to_string()).into(),
+                start_time
+            ),
             health_consumer.as_ref().recv().unwrap()
         );
 
@@ -610,11 +629,9 @@ pub mod tests {
 
         // Check that we received the two expected health events
         let expected_health_event = HealthWithStartTime::new(
-            Unhealthy::new(
-                "Health check error".to_string(),
-                "mocked health check error!".to_string(),
-            )
-            .into(),
+            Unhealthy::new("mocked health check error!".to_string())
+                .with_status("Health check error".to_string())
+                .into(),
             start_time,
         );
         assert_eq!(

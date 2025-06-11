@@ -56,13 +56,10 @@ impl K8sHealthDaemonSet {
         let name = n.as_str();
         let status = Self::get_daemon_set_status(name, ds)?;
         if status.number_ready < status.desired_number_scheduled {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "DaemonSet `{}`: the number of pods ready `{}` is less that the desired `{}`",
-                    name, status.number_ready, status.desired_number_scheduled
-                ),
-            )
+            return Ok(Unhealthy::new(format!(
+                "DaemonSet `{}`: the number of pods ready `{}` is less that the desired `{}`",
+                name, status.number_ready, status.desired_number_scheduled
+            ))
             .into());
         }
 
@@ -70,14 +67,11 @@ impl K8sHealthDaemonSet {
             .number_unavailable
             .is_some_and(|number_unavailable| number_unavailable > 0)
         {
-            return Ok(Unhealthy::new(
-                String::default(),
-                format!(
-                    "DaemonSet `{}`: the are {} unavailable pods",
-                    name,
-                    status.number_unavailable.unwrap_or_default()
-                ),
-            )
+            return Ok(Unhealthy::new(format!(
+                "DaemonSet `{}`: the are {} unavailable pods",
+                name,
+                status.number_unavailable.unwrap_or_default()
+            ))
             .into());
         }
 
@@ -88,7 +82,6 @@ impl K8sHealthDaemonSet {
 
             if updated_number_scheduled < status.desired_number_scheduled {
                 return Ok(Unhealthy::new(
-                    String::default(),
                     format!(
                         "DaemonSet `{}`: the number of nodes having an updated and ready replica `{}` is less that the desired `{}`",
                         name,
@@ -100,7 +93,7 @@ impl K8sHealthDaemonSet {
             }
         }
 
-        Ok(Healthy::new(String::default()).into())
+        Ok(Healthy::new().into())
     }
 
     fn get_daemon_set_status(
@@ -348,7 +341,7 @@ pub mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
             TestCase {
                 name: "everything is good",
@@ -369,7 +362,7 @@ pub mod tests {
                         ..Default::default()
                     }),
                 },
-                expected: Healthy::default().into(),
+                expected: Healthy::new().into(),
             },
         ];
 
@@ -438,7 +431,7 @@ pub mod tests {
         assert_eq!(
             health,
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(String::default(), "DaemonSet `unhealthy-daemon-set`: the number of pods ready `2` is less that the desired `5`".into()),
+                Unhealthy::new("DaemonSet `unhealthy-daemon-set`: the number of pods ready `2` is less that the desired `5`".into()),
                 start_time
             )
         );

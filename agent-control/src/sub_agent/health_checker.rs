@@ -33,7 +33,7 @@ pub mod tests {
     #[test]
     fn test_publish_health_event() {
         let (publisher, consumer) = pub_sub::<SubAgentInternalEvent>();
-        let health = HealthWithStartTime::new(Healthy::default().into(), SystemTime::now());
+        let health = HealthWithStartTime::new(Healthy::new().into(), SystemTime::now());
         publisher.publish_health_event(health.clone());
         let event = consumer.as_ref().recv().unwrap();
         assert_matches!(event, SubAgentInternalEvent::AgentHealthInfo(h) => {
@@ -48,7 +48,7 @@ pub mod tests {
         // Drop the consumer to close the channel
         drop(consumer);
 
-        let health = HealthWithStartTime::new(Healthy::default().into(), SystemTime::now());
+        let health = HealthWithStartTime::new(Healthy::new().into(), SystemTime::now());
         publisher.publish_health_event(health.clone());
 
         logs_contain("Error publishing sub agent event:");

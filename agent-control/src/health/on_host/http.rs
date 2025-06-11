@@ -117,7 +117,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
             || self.healthy_status_codes.contains(&status_code.as_u16())
         {
             return Ok(HealthWithStartTime::from_healthy(
-                Healthy::new(status),
+                Healthy::new().with_status(status),
                 self.start_time,
             ));
         }
@@ -128,7 +128,7 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
         );
 
         Ok(HealthWithStartTime::from_unhealthy(
-            Unhealthy::new(status, last_error),
+            Unhealthy::new(last_error).with_status(status),
             self.start_time,
         ))
     }

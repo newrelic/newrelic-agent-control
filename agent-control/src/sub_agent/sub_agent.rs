@@ -561,7 +561,7 @@ where
             .start(self.sub_agent_internal_publisher.clone())
             .inspect_err(|err| {
                 let unhealthy = HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new(String::default(), err.to_string()),
+                    Unhealthy::new(err.to_string()),
                     SystemTime::now(),
                 );
                 error!("Failure starting supervisor: {err}");
@@ -825,11 +825,11 @@ pub mod tests {
     }
 
     fn healthy(status: &str) -> Health {
-        Health::Healthy(Healthy::new(status.to_string()))
+        Health::Healthy(Healthy::new().with_status(status.to_string()))
     }
 
     fn unhealthy(status: &str, error: &str) -> Health {
-        Health::Unhealthy(Unhealthy::new(status.to_string(), error.to_string()))
+        Health::Unhealthy(Unhealthy::new(error.to_string()).with_status(status.to_string()))
     }
 
     /// Helpers for testing the config scenarios which some of the data their produce are related to each other.

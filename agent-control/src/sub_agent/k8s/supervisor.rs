@@ -594,7 +594,7 @@ pub mod tests {
 
         // sub agent will publish first SubAgentStarted event
         match sub_agent_consumer.recv_timeout(timeout).unwrap() {
-            SubAgentEvent::SubAgentHealthInfo(_, _) => {
+            SubAgentEvent::HealthUpdated(_, _) => {
                 panic!("SubAgentStarted event expected")
             }
             SubAgentEvent::SubAgentStarted(identity, _) => {
@@ -603,7 +603,7 @@ pub mod tests {
         }
 
         match sub_agent_consumer.recv_timeout(timeout).unwrap() {
-            SubAgentEvent::SubAgentHealthInfo(_, h) => {
+            SubAgentEvent::HealthUpdated(_, h) => {
                 if h.is_healthy() {
                     panic!("unhealthy event expected")
                 }
