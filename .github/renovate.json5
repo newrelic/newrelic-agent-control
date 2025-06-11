@@ -13,16 +13,6 @@
   ],
   "regexManagers": [
     {
-      // Parse bundle image version from `base_image` ARG in Dockerfile.
-      "fileMatch": [
-        "Dockerfiles/Dockerfile_system_identity_registration$"
-      ],
-      "datasourceTemplate": "docker",
-      "matchStrings": [
-        "base_image=(?<depName>.+):(?<currentValue>.+)"
-      ]
-    },
-    {
       // Extract version for embedded binary for infrastructure-agent.
       "fileMatch": [
         "^.goreleaser.yml$"
