@@ -34,10 +34,10 @@ impl VersionUpdater for K8sACUpdater {
     }
 
     fn should_update(&self, config: &AgentControlDynamicConfig) -> bool {
-        let Some(version) = config.chart_version.clone() else {
+        let Some(version) = &config.chart_version else {
             return false;
         };
-        self.current_chart_version != version
+        &self.current_chart_version != version
     }
 }
 
