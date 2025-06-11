@@ -523,8 +523,11 @@ pub mod tests {
 
         let mut config_repository = MockConfigRepository::new();
         let yaml_config = YAMLConfig::default();
-        let mut hash = Hash::new("a-hash".to_string());
-        let remote_config = RemoteConfig::new(yaml_config.clone(), hash.clone());
+        let remote_config = RemoteConfig {
+            config: yaml_config.clone(),
+            hash: Hash::new("a-hash"),
+            state: ConfigState::Applying,
+        };
         config_repository
             .expect_load_remote()
             .with(
@@ -533,14 +536,13 @@ pub mod tests {
             )
             .return_once(|_, _| Ok(Some(Config::RemoteConfig(remote_config))));
 
-        hash.update_state(&ConfigState::Applied);
         config_repository
-            .expect_update_hash_state()
+            .expect_update_state()
+            .once()
             .with(
                 predicate::eq(agent_identity.id.clone()),
-                predicate::eq(hash.state().clone()),
+                predicate::eq(ConfigState::Applied),
             )
-            .times(1)
             .returning(|_, _| Ok(()));
 
         let remote_config_parser = MockRemoteConfigParser::new();

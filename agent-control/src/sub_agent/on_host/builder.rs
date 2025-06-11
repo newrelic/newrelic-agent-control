@@ -224,8 +224,11 @@ mod tests {
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
-        let remote_config_values =
-            RemoteConfig::new(YAMLConfig::default(), Hash::new("a-hash".to_string()));
+        let remote_config_values = RemoteConfig {
+            config: YAMLConfig::default(),
+            hash: Hash::new("a-hash"),
+            state: ConfigState::Applying,
+        };
 
         let sub_agent_instance_id = InstanceID::create();
         let agent_control_instance_id = InstanceID::create();
@@ -243,7 +246,7 @@ mod tests {
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: Hash::new("a-hash".to_string()).get().into_bytes(),
+            last_remote_config_hash: Hash::new("a-hash").get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -270,15 +273,13 @@ mod tests {
             .once()
             .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values))));
 
-        let mut hash = Hash::new("a-hash".to_string());
-        hash.update_state(&ConfigState::Applied);
         config_repository
-            .expect_update_hash_state()
+            .expect_update_state()
+            .once()
             .with(
                 predicate::eq(agent_identity.id.clone()),
-                predicate::eq(hash.state()),
+                predicate::eq(ConfigState::Applied),
             )
-            .times(1)
             .returning(|_, _| Ok(()));
 
         let mut instance_id_getter = MockInstanceIDGetter::new();
@@ -356,8 +357,11 @@ mod tests {
             &agent_identity.agent_type_id,
         );
 
-        let remote_config_values =
-            RemoteConfig::new(YAMLConfig::default(), Hash::new("a-hash".to_string()));
+        let remote_config_values = RemoteConfig {
+            config: YAMLConfig::default(),
+            hash: Hash::new("a-hash"),
+            state: ConfigState::Applying,
+        };
 
         let agent_control_id = AgentID::new_agent_control_id();
         // Expectations
@@ -371,7 +375,7 @@ mod tests {
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: remote_config_values.hash().get().into_bytes(),
+            last_remote_config_hash: remote_config_values.hash.get().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -396,13 +400,11 @@ mod tests {
             .once()
             .return_once(move |_, _| Ok(Some(Config::RemoteConfig(remote_config_values.clone()))));
 
-        let mut hash = Hash::new("a-hash".to_string());
-        hash.update_state(&ConfigState::Applied);
         config_repository
-            .expect_update_hash_state()
+            .expect_update_state()
             .with(
                 predicate::eq(agent_identity.id.clone()),
-                predicate::eq(hash.state()),
+                predicate::eq(ConfigState::Applied),
             )
             .times(1)
             .returning(|_, _| Ok(()));

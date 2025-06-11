@@ -17,7 +17,7 @@ use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
 use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
-use newrelic_agent_control::opamp::remote_config::hash::Hash;
+use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::{
@@ -85,22 +85,43 @@ fn k8s_hash_in_config_map() {
 
     let config_repository = ConfigRepositoryConfigMap::new(k8s_store);
 
-    assert_eq!(None, config_repository.get_hash(&agent_id_1).unwrap());
+    assert!(
+        config_repository
+            .get_remote_config(&agent_id_1)
+            .unwrap()
+            .is_none()
+    );
 
-    let hash_1 = Hash::new("hash-test".to_string());
-    let remote_config_1 = RemoteConfig::new(YAMLConfig::default(), hash_1.clone());
+    let hash_1 = Hash::new("hash-test");
+    let remote_config_1 = RemoteConfig {
+        config: YAMLConfig::default(),
+        hash: hash_1.clone(),
+        state: ConfigState::Applying,
+    };
     config_repository
         .store_remote(&agent_id_1, &remote_config_1)
         .unwrap();
-    let loaded_hash_1 = config_repository.get_hash(&agent_id_1).unwrap().unwrap();
+    let loaded_hash_1 = config_repository
+        .get_remote_config(&agent_id_1)
+        .unwrap()
+        .unwrap()
+        .hash;
     assert_eq!(hash_1, loaded_hash_1);
 
-    let hash2 = Hash::new("hash-test2".to_string());
-    let remote_config_2 = RemoteConfig::new(YAMLConfig::default(), hash2.clone());
+    let hash2 = Hash::new("hash-test2");
+    let remote_config_2 = RemoteConfig {
+        config: YAMLConfig::default(),
+        hash: hash2.clone(),
+        state: ConfigState::Applying,
+    };
     config_repository
         .store_remote(&agent_id_2, &remote_config_2)
         .unwrap();
-    let loaded_hash_2 = config_repository.get_hash(&agent_id_2).unwrap().unwrap();
+    let loaded_hash_2 = config_repository
+        .get_remote_config(&agent_id_2)
+        .unwrap()
+        .unwrap()
+        .hash;
     assert_eq!(hash2, loaded_hash_2);
 
     let cm_client: Api<ConfigMap> =
@@ -143,10 +164,11 @@ fn k8s_value_repository_config_map() {
     assert_eq!(res.get_yaml_config().clone(), local_values);
 
     // with remote data we expect we get local without remote
-    let remote_values = RemoteConfig::new(
-        YAMLConfig::try_from("test: 3".to_string()).unwrap(),
-        Hash::new("hash-test1".to_string()),
-    );
+    let remote_values = RemoteConfig {
+        config: YAMLConfig::try_from("test: 3".to_string()).unwrap(),
+        hash: Hash::new("hash-test1"),
+        state: ConfigState::Applied,
+    };
     value_repository
         .store_remote(&agent_id_1, &remote_values)
         .unwrap();
@@ -163,7 +185,7 @@ fn k8s_value_repository_config_map() {
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config().clone(), remote_values.config);
-    assert_eq!(res.get_hash(), Some(remote_values.hash()));
+    assert_eq!(res.get_hash(), Some(remote_values.hash));
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
@@ -175,10 +197,11 @@ fn k8s_value_repository_config_map() {
 
     // After saving data for a second agent should not affect the previous one
     // with remote data we expect to ignore local one
-    let remote_values_agent_2 = RemoteConfig::new(
-        YAMLConfig::try_from("test: 100".to_string()).unwrap(),
-        Hash::new("hash-test2".to_string()),
-    );
+    let remote_values_agent_2 = RemoteConfig {
+        config: YAMLConfig::try_from("test: 100".to_string()).unwrap(),
+        hash: Hash::new("hash-test2"),
+        state: ConfigState::Applied,
+    };
 
     value_repository
         .store_remote(&agent_id_2, &remote_values_agent_2)
@@ -196,7 +219,7 @@ fn k8s_value_repository_config_map() {
         res_agent_2.get_yaml_config().clone(),
         remote_values_agent_2.config
     );
-    assert_eq!(res_agent_2.get_hash(), Some(remote_values_agent_2.hash()));
+    assert_eq!(res_agent_2.get_hash(), Some(remote_values_agent_2.hash));
 }
 
 #[test]
@@ -245,10 +268,11 @@ agents:
   not-infra-agent:
     agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
 "#;
-    let remote_values_agent = RemoteConfig::new(
-        from_str::<YAMLConfig>(agents_cfg).unwrap(),
-        Hash::new("hash-test3".to_string()),
-    );
+    let remote_values_agent = RemoteConfig {
+        config: from_str::<YAMLConfig>(agents_cfg).unwrap(),
+        hash: Hash::new("hash-test3"),
+        state: ConfigState::Applied,
+    };
     assert!(store_sa.store(&remote_values_agent).is_ok());
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
@@ -282,15 +306,26 @@ fn k8s_multiple_store_entries() {
         Identifiers::default(),
     );
 
-    let hash = Hash::new("hash-test".to_string());
-    let remote_config = RemoteConfig::new(YAMLConfig::default(), hash.clone());
+    let hash = Hash::new("hash-test");
+    let remote_config = RemoteConfig {
+        config: YAMLConfig::default(),
+        hash: hash.clone(),
+        state: ConfigState::Applying,
+    };
     config_repository
         .store_remote(&agent_id, &remote_config)
         .unwrap();
     let instance_id_created = instance_id_getter.get(&agent_id).unwrap();
 
     // Assert from loaded entries
-    assert_eq!(Some(hash), config_repository.get_hash(&agent_id).unwrap());
+    assert_eq!(
+        hash,
+        config_repository
+            .get_remote_config(&agent_id)
+            .unwrap()
+            .unwrap()
+            .hash
+    );
     assert_eq!(
         instance_id_created,
         instance_id_getter.get(&agent_id).unwrap()

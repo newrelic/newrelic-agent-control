@@ -6,7 +6,7 @@ use crate::agent_control::config_repository::repository::{
     AgentControlConfigLoader, AgentControlDynamicConfigRepository,
 };
 use crate::agent_control::defaults::{AGENT_CONTROL_CONFIG_ENV_VAR_PREFIX, default_capabilities};
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::RemoteConfig;
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::YAMLConfigError;
@@ -48,20 +48,22 @@ where
         Ok(())
     }
 
-    fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError> {
+    fn update_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
-            .update_hash_state(&self.agent_control_id, state)?;
+            .update_state(&self.agent_control_id, state)?;
         Ok(())
-    }
-
-    fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError> {
-        Ok(self.values_repository.get_hash(&self.agent_control_id)?)
     }
 
     fn delete(&self) -> Result<(), AgentControlConfigError> {
         self.values_repository
             .delete_remote(&self.agent_control_id)?;
         Ok(())
+    }
+
+    fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError> {
+        Ok(self
+            .values_repository
+            .get_remote_config(&self.agent_control_id)?)
     }
 }
 

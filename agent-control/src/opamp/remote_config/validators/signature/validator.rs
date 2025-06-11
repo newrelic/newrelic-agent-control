@@ -211,7 +211,7 @@ mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::ConfigurationMap;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::signature::{
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
     };
@@ -327,7 +327,8 @@ certificate_pem_file_path: /path/to/file
     fn test_noop_signature_validator() {
         let rc = OpampRemoteConfig::new(
             AgentID::new("test").unwrap(),
-            Hash::new("test_payload".to_string()),
+            Hash::new("test_payload"),
+            ConfigState::Applying,
             None,
         );
 
@@ -375,7 +376,8 @@ certificate_pem_file_path: /path/to/file
                 name: "Signature is missing",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
+                    Hash::new("test_payload"),
+                    ConfigState::Applying,
                     None,
                 ),
             },
@@ -383,7 +385,8 @@ certificate_pem_file_path: /path/to/file
                 name: "Signature cannot be retrieved because multiple signatures are defined",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
+                    Hash::new("test_payload"),
+                    ConfigState::Applying,
                     None,
                 )
                 .with_signature(Signatures::new_multiple([
@@ -395,7 +398,8 @@ certificate_pem_file_path: /path/to/file
                 name: "Config is empty",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
+                    Hash::new("test_payload"),
+                    ConfigState::Applying,
                     None,
                 )
                 .with_signature(Signatures::new_unique("", ED25519, "fake_key_id")),
@@ -404,7 +408,8 @@ certificate_pem_file_path: /path/to/file
                 name: "Invalid signature",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload".to_string()),
+                    Hash::new("test_payload"),
+                    ConfigState::Applying,
                     Some(ConfigurationMap::new(HashMap::from([(
                         "key".to_string(),
                         "value".to_string(),
@@ -430,7 +435,8 @@ certificate_pem_file_path: /path/to/file
         );
         let rc = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("test".to_string()),
+            Hash::new("test"),
+            ConfigState::Applying,
             None,
         );
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
@@ -455,7 +461,8 @@ certificate_pem_file_path: /path/to/file
         let encoded_signature = test_signer.encoded_signature(config);
         let remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("test".to_string()),
+            Hash::new("test"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "key".into(),
                 config.to_string(),
