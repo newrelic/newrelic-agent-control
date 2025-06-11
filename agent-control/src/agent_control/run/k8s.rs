@@ -11,7 +11,7 @@ use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::AgentControlRunner;
-use crate::agent_control::version_updater::NoOpUpdater;
+use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -136,7 +136,7 @@ impl AgentControlRunner {
         );
 
         let garbage_collector = K8sGarbageCollector {
-            k8s_client,
+            k8s_client: k8s_client.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
         };
         // Cleanup of the existing resources managed by Agent Control but not existing in the
@@ -153,6 +153,8 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
+        let k8s_ac_updater = K8sACUpdater::new(k8s_client, self.k8s_config.chart_version.clone());
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -163,7 +165,7 @@ impl AgentControlRunner {
             maybe_opamp_consumer,
             dynamic_config_validator,
             garbage_collector,
-            NoOpUpdater,
+            k8s_ac_updater,
             agent_control_config,
         )
         .run()

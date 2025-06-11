@@ -3,7 +3,7 @@ use super::config::{
 };
 use super::config_repository::repository::AgentControlDynamicConfigRepository;
 use super::resource_cleaner::ResourceCleaner;
-use super::version_updater::VersionUpdater;
+use super::version_updater::updater::VersionUpdater;
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::agent_control::uptime_report::UptimeReporter;
@@ -442,7 +442,7 @@ mod tests {
     use crate::agent_control::resource_cleaner::ResourceCleanerError;
     use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
     use crate::agent_control::resource_cleaner::tests::MockResourceCleaner;
-    use crate::agent_control::version_updater::NoOpUpdater;
+    use crate::agent_control::version_updater::updater::NoOpUpdater;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::AgentRepositoryError;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
