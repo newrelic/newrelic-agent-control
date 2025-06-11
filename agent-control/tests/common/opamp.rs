@@ -11,6 +11,7 @@ use opamp_client::opamp;
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
 use rcgen::{CertificateParams, KeyPair, PKCS_ED25519};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -81,8 +82,12 @@ impl ConfigResponse {
         let mut custom_message = None;
 
         if let Some(config) = self.raw_body.clone() {
+            // Calculate the hash based on the config body
+            let mut h = DefaultHasher::new();
+            config.hash(&mut h);
+            let hash = h.finish();
             remote_config = Some(opamp::proto::AgentRemoteConfig {
-                config_hash: "hash".into(), // fake has for the shake of simplicity
+                config_hash: hash.to_string().into(),
                 config: Some(opamp::proto::AgentConfigMap {
                     config_map: HashMap::from([(
                         "".to_string(),

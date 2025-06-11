@@ -369,8 +369,21 @@ where
         >,
     ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
     {
-        // We return early if the hash comes failed. This might happen if the pre-processing steps
-        // of the incoming remote config (performed in the OpAMP client callbacks, see
+        // We return early if hash is same as the stored and is not on status applying (processing
+        // was incomplete), it won't restart the supervisor but the status will be reported again.
+        if let Ok(Some(current_hash)) = self.config_repository.get_hash(&self.identity.id) {
+            if config.hash.get() == current_hash.get() && !current_hash.is_applying() {
+                self.report_config_status(
+                    config.hash.get(),
+                    opamp_client,
+                    current_hash.state().into(),
+                );
+                return old_supervisor;
+            }
+        }
+
+        // We return also early if the hash comes failed. This might happen if the pre-processing
+        // steps of the incoming remote config (performed in the OpAMP client callbacks, see
         // `process_remote_config` in `opamp::callbacks`) fails for any reason.
         if let Some(err) = config.hash.error_message() {
             warn!(
@@ -390,9 +403,6 @@ where
             // keeping the old supervisor running
             return old_supervisor;
         }
-
-        //TODO: Handle a remote config coming with the same hash as the stored, it shouldn't
-        // restart the supervisor but the status applied of failed should be reported again.
 
         info!(hash = config.hash.get(), "Applying remote config");
         self.report_config_status(
@@ -1290,6 +1300,93 @@ deployment:
         );
 
         assert!(new_supervisor.is_none());
+    }
+
+    #[test]
+    fn test_remote_config_hash_already_stored_applying_to_applied() {
+        // Given a remote_config with the same hash as the stored one that is applying, it should
+        // do all normal steps.
+        let (config_repository, mut opamp_client) = test_mocks();
+        opamp_client.should_update_effective_config(1);
+
+        let old_remote_config = RemoteConfig::new(
+            "var: some old remote".try_into().unwrap(),
+            TestAgent::hash(),
+        );
+        config_repository
+            .store_remote(&TestAgent::id(), &old_remote_config)
+            .unwrap();
+
+        let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
+        opamp_client.should_set_remote_config_status_seq(vec![
+            TestAgent::status_applying(),
+            TestAgent::status_applied(),
+        ]);
+
+        let sub_agent = sub_agent(
+            Some(opamp_client),
+            supervisor_builder,
+            config_repository.clone(),
+        );
+
+        let old_supervisor = Some(expect_supervisor_shut_down());
+
+        let new_supervisor = sub_agent.handle_remote_config(
+            sub_agent.maybe_opamp_client.as_ref().unwrap(),
+            TestAgent::valid_remote_config(),
+            old_supervisor,
+        );
+
+        let current_hash = config_repository
+            .get_hash(&TestAgent::id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(current_hash.get(), TestAgent::hash().get());
+        assert!(current_hash.is_applied());
+
+        assert!(new_supervisor.is_some());
+    }
+
+    #[test]
+    fn test_remote_config_hash_already_stored_only_report_applied() {
+        // Given a remote_config with the same hash as the stored one that is applied, it should
+        // keep old_supervisor and repply it again as applied.
+        let (config_repository, mut opamp_client) = test_mocks();
+
+        let mut old_remote_config = RemoteConfig::new(
+            "var: some old remote".try_into().unwrap(),
+            TestAgent::hash(),
+        );
+        old_remote_config.update_state(&ConfigState::Applied);
+        config_repository
+            .store_remote(&TestAgent::id(), &old_remote_config)
+            .unwrap();
+
+        let supervisor_builder = expect_supervisor_do_not_build();
+        opamp_client.should_set_remote_config_status_seq(vec![TestAgent::status_applied()]);
+
+        let sub_agent = sub_agent(
+            Some(opamp_client),
+            supervisor_builder,
+            config_repository.clone(),
+        );
+
+        let old_supervisor = Some(expect_supervisor_does_not_stop());
+
+        let new_supervisor = sub_agent.handle_remote_config(
+            sub_agent.maybe_opamp_client.as_ref().unwrap(),
+            TestAgent::valid_remote_config(),
+            old_supervisor,
+        );
+
+        let current_hash = config_repository
+            .get_hash(&TestAgent::id())
+            .unwrap()
+            .unwrap();
+        assert_eq!(current_hash.get(), TestAgent::hash().get());
+        assert!(current_hash.is_applied());
+
+        assert!(new_supervisor.is_some());
     }
 
     #[test]
