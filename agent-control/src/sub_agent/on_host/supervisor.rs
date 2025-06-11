@@ -209,7 +209,7 @@ impl NotStartedSupervisorOnHost {
 
             let supervisor_start_time = SystemTime::now();
 
-            let init_health = Healthy::new(String::default());
+            let init_health = Healthy::new();
 
             internal_event_publisher.publish_health_event(HealthWithStartTime::new(
                 init_health.into(),
@@ -266,7 +266,6 @@ impl NotStartedSupervisorOnHost {
                     );
 
                     let unhealthy = Unhealthy::new(
-                        String::default(),
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
@@ -313,13 +312,10 @@ fn handle_termination(
     start_time: SystemTime,
 ) -> i32 {
     if !exit_status.success() {
-        let unhealthy: Unhealthy = Unhealthy::new(
-            format!(
-                "process exited with code: {:?}",
-                exit_status.code().unwrap_or_default()
-            ),
-            exit_status.to_string(),
-        );
+        let unhealthy: Unhealthy = Unhealthy::new(exit_status.to_string()).with_status(format!(
+            "process exited with code: {:?}",
+            exit_status.code().unwrap_or_default()
+        ));
         internal_event_publisher
             .publish_health_event(HealthWithStartTime::new(unhealthy.into(), start_time));
         error!(
@@ -626,16 +622,12 @@ pub mod tests {
 
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<SubAgentInternalEvent> = [
-            HealthWithStartTime::new(Healthy::default().into(), start_time),
-            HealthWithStartTime::new(Healthy::default().into(), start_time),
-            HealthWithStartTime::new(Healthy::default().into(), start_time),
-            HealthWithStartTime::new(Healthy::default().into(), start_time),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
             HealthWithStartTime::new(
-                Unhealthy::new(
-                    String::default(),
-                    "supervisor exceeded its defined restart policy".to_string(),
-                )
-                .into(),
+                Unhealthy::new("supervisor exceeded its defined restart policy".to_string()).into(),
                 start_time,
             ),
         ]

@@ -193,11 +193,9 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) {
-        let _ = self
-            .report_health(Healthy::new(String::default()).into())
-            .inspect_err(
-                |err| error!(error_msg = %err,"Error reporting health on Agent Control start"),
-            );
+        let _ = self.report_health(Healthy::new().into()).inspect_err(
+            |err| error!(error_msg = %err,"Error reporting health on Agent Control start"),
+        );
 
         debug!("Listening for events from agents");
         let never_receive = EventConsumer::from(never());
@@ -273,7 +271,7 @@ where
                 error!(error_message);
                 OpampRemoteConfigStatus::Error(error_message.clone())
                     .report(opamp_client, opamp_remote_config.hash.get())?;
-                Ok(self.report_health(Unhealthy::new(String::default(), error_message).into())?)
+                Ok(self.report_health(Unhealthy::new(error_message).into())?)
             }
             Ok(()) => {
                 self.sa_dynamic_config_store
@@ -281,7 +279,7 @@ where
                 OpampRemoteConfigStatus::Applied
                     .report(opamp_client, opamp_remote_config.hash.get())?;
                 opamp_client.update_effective_config()?;
-                Ok(self.report_health(Healthy::new(String::default()).into())?)
+                Ok(self.report_health(Healthy::new().into())?)
             }
         }
     }
@@ -601,7 +599,7 @@ mod tests {
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
 
@@ -669,7 +667,7 @@ mod tests {
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
@@ -1440,14 +1438,14 @@ agents:
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
         assert_eq!(expected, ev);
 
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
@@ -1525,7 +1523,7 @@ agents:
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
@@ -1533,7 +1531,6 @@ agents:
 
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
             Unhealthy::new(
-            String::default(),
             String::from(
                 "Error applying Agent Control remote config: remote config error: `config hash: `a-hash` config error: `some error message``",
             ),
@@ -1596,7 +1593,7 @@ agents:
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
@@ -1714,7 +1711,7 @@ agents:
 
         // process_events always starts with AgentControlHealthy
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();
@@ -1725,7 +1722,7 @@ agents:
         assert_eq!(expected, ev);
 
         let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
-            Healthy::default().into(),
+            Healthy::new().into(),
             SystemTime::UNIX_EPOCH,
         ));
         let ev = agent_control_consumer.as_ref().recv().unwrap();

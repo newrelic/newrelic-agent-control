@@ -56,12 +56,16 @@ impl From<FileHealthContent> for HealthWithStartTime {
 
         if content.healthy {
             HealthWithStartTime::from_healthy(
-                Healthy::new(content.status).with_status_time(status_time),
+                Healthy::new()
+                    .with_status(content.status)
+                    .with_status_time(status_time),
                 start_time,
             )
         } else {
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(content.status, content.last_error).with_status_time(status_time),
+                Unhealthy::new(content.last_error)
+                    .with_status(content.status)
+                    .with_status_time(status_time),
                 start_time,
             )
         }
@@ -119,7 +123,8 @@ start_time_unix_nano: 1725444000
 status_time_unix_nano: 1725444001               
 "#,
                 expected_health: HealthWithStartTime::from_healthy(
-                    Healthy::new("some agent-specific message".into())
+                    Healthy::new()
+                        .with_status("some agent-specific message".into())
                         .with_status_time(UNIX_EPOCH + Duration::from_nanos(1725444001)),
                     UNIX_EPOCH + Duration::from_nanos(1725444000),
                 ),
@@ -134,7 +139,8 @@ start_time_unix_nano: 1725444000
 status_time_unix_nano: 1725444001               
 "#,
                 expected_health: HealthWithStartTime::from_healthy(
-                    Healthy::new("some agent-specific message".into())
+                    Healthy::new()
+                        .with_status("some agent-specific message".into())
                         .with_status_time(UNIX_EPOCH + Duration::from_nanos(1725444001)),
                     UNIX_EPOCH + Duration::from_nanos(1725444000),
                 ),
@@ -149,11 +155,9 @@ start_time_unix_nano: 1725444000
 status_time_unix_nano: 1725444001               
 "#,
                 expected_health: HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new(
-                        "some agent-specific message".into(),
-                        "some error message".into(),
-                    )
-                    .with_status_time(UNIX_EPOCH + Duration::from_nanos(1725444001)),
+                    Unhealthy::new("some error message".into())
+                        .with_status("some agent-specific message".into())
+                        .with_status_time(UNIX_EPOCH + Duration::from_nanos(1725444001)),
                     UNIX_EPOCH + Duration::from_nanos(1725444000),
                 ),
             },
@@ -167,7 +171,8 @@ start_time_unix_nano: 1725444000
 status_time_unix_nano: 1725444001               
 "#,
                 expected_health: HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new("some agent-specific message".into(), "".into())
+                    Unhealthy::new("".into())
+                        .with_status("some agent-specific message".into())
                         .with_status_time(UNIX_EPOCH + Duration::from_nanos(1725444001)),
                     UNIX_EPOCH + Duration::from_nanos(1725444000),
                 ),

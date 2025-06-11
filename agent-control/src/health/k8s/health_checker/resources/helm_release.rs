@@ -158,12 +158,12 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
         let (is_healthy, message) = self.is_healthy_and_message(&conditions);
         if is_healthy {
             Ok(HealthWithStartTime::from_healthy(
-                Healthy::new(String::default()),
+                Healthy::new(),
                 self.start_time,
             ))
         } else {
             Ok(HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(String::default(), message),
+                Unhealthy::new(message),
                 self.start_time,
             ))
         }
@@ -190,7 +190,7 @@ pub mod tests {
         let test_cases : Vec<TestCase> = vec![
             (
                 "Helm release healthy when ready and status true",
-                Ok(Healthy::default().into()),
+                Ok(Healthy::new().into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -202,7 +202,7 @@ pub mod tests {
             ),
             (
                 "Helm release unhealthy when ready and status false",
-                Ok(Unhealthy::new(String::default(),"HelmRelease not ready: test error".to_string()).into()),
+                Ok(Unhealthy::new("HelmRelease not ready: test error".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -214,7 +214,7 @@ pub mod tests {
             ),
             (
                 "Helm release unhealthy when not ready conditions",
-                Ok(Unhealthy::new(String::default(),"No 'Ready' condition was found".to_string()).into()),
+                Ok(Unhealthy::new("No 'Ready' condition was found".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -226,7 +226,7 @@ pub mod tests {
             ),
             (
                 "Helm release unhealthy when not ready and other true condition types",
-                Ok(Unhealthy::new(String::default(),"HelmRelease not ready: No specific message found".to_string()).into()),
+                Ok(Unhealthy::new("HelmRelease not ready: No specific message found".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({
                         "conditions": [
@@ -239,7 +239,7 @@ pub mod tests {
             ),
             (
                 "Helm release unhealthy when no conditions",
-                Ok(Unhealthy::new(String::default(),"No 'Ready' condition was found".to_string()).into()),
+                Ok(Unhealthy::new("No 'Ready' condition was found".to_string()).into()),
                 |mock: &mut MockSyncK8sClient| {
                     let status_conditions = json!({"conditions": []});
                     setup_mock_client_with_conditions(mock, status_conditions);

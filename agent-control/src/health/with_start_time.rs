@@ -30,12 +30,14 @@ impl From<opamp_client::opamp::proto::ComponentHealth> for HealthWithStartTime {
 
         if component_health.healthy {
             HealthWithStartTime::from_healthy(
-                Healthy::new(component_health.status).with_status_time(status_time),
+                Healthy::new()
+                    .with_status(component_health.status)
+                    .with_status_time(status_time),
                 start_time,
             )
         } else {
             HealthWithStartTime::from_unhealthy(
-                Unhealthy::new(component_health.status, component_health.last_error),
+                Unhealthy::new(component_health.last_error).with_status(component_health.status),
                 start_time,
             )
         }
