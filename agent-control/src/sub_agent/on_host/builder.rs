@@ -40,6 +40,7 @@ where
     remote_config_parser: Arc<R>,
     yaml_config_repository: Arc<Y>,
     effective_agents_assembler: Arc<A>,
+    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
 impl<'a, O, I, B, R, Y, A> OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
@@ -58,6 +59,7 @@ where
         remote_config_parser: Arc<R>,
         yaml_config_repository: Arc<Y>,
         effective_agents_assembler: Arc<A>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -66,6 +68,7 @@ where
             remote_config_parser,
             yaml_config_repository,
             effective_agents_assembler,
+            sub_agent_publisher,
         }
     }
 }
@@ -85,7 +88,6 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -112,7 +114,7 @@ where
             agent_identity.clone(),
             maybe_opamp_client,
             self.supervisor_builder.clone(),
-            sub_agent_publisher,
+            self.sub_agent_publisher.clone(),
             sub_agent_opamp_consumer,
             pub_sub(),
             self.remote_config_parser.clone(),
@@ -319,10 +321,11 @@ mod tests {
             Arc::new(remote_config_parser),
             Arc::new(config_repository),
             Arc::new(effective_agents_assembler),
+            UnboundedBroadcast::default(),
         );
 
         on_host_builder
-            .build(&agent_identity, UnboundedBroadcast::default())
+            .build(&agent_identity)
             .unwrap()
             .run()
             .stop()
@@ -441,10 +444,11 @@ mod tests {
             Arc::new(remote_config_parser),
             Arc::new(config_repository),
             Arc::new(effective_agents_assembler),
+            UnboundedBroadcast::default(),
         );
 
         let sub_agent = on_host_builder
-            .build(&agent_identity, UnboundedBroadcast::default())
+            .build(&agent_identity)
             .expect("Subagent build should be OK");
         let started_sub_agent = sub_agent.run(); // Running the sub-agent should report the failed configuration.
         started_sub_agent.stop().unwrap();

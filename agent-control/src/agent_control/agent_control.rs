@@ -8,8 +8,8 @@ use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::agent_control::uptime_report::UptimeReporter;
 use crate::event::{
-    AgentControlEvent, ApplicationEvent, OpAMPEvent, SubAgentEvent,
-    broadcaster::unbounded::UnboundedBroadcast, channel::EventConsumer,
+    AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
+    channel::EventConsumer,
 };
 use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
@@ -42,7 +42,6 @@ where
     start_time: SystemTime,
     pub(super) sa_dynamic_config_store: Arc<SL>,
     pub(super) agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
-    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     dynamic_config_validator: DV,
@@ -66,7 +65,6 @@ where
         sub_agent_builder: S,
         sa_dynamic_config_store: Arc<SL>,
         agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         dynamic_config_validator: DV,
@@ -81,7 +79,6 @@ where
             start_time: SystemTime::now(),
             sa_dynamic_config_store,
             agent_control_publisher,
-            sub_agent_publisher,
             application_event_consumer,
             agent_control_opamp_consumer,
             dynamic_config_validator,
@@ -177,9 +174,7 @@ where
     ) -> Result<(), AgentError> {
         running_sub_agents.insert(
             agent_identity.id.clone(),
-            self.sub_agent_builder
-                .build(agent_identity, self.sub_agent_publisher.clone())?
-                .run(),
+            self.sub_agent_builder.build(agent_identity)?.run(),
         );
 
         Ok(())
@@ -483,7 +478,6 @@ mod tests {
             MockSubAgentBuilder::new(),
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
-            UnboundedBroadcast::default(),
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -537,7 +531,6 @@ mod tests {
             sub_agent_builder,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
-            UnboundedBroadcast::default(),
             application_event_consumer,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -582,7 +575,6 @@ mod tests {
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -645,7 +637,6 @@ mod tests {
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -753,7 +744,6 @@ mod tests {
                     Some(started_client),
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
-                    UnboundedBroadcast::default(),
                     UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
@@ -883,7 +873,6 @@ agents:
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
             Arc::new(sa_dynamic_config_store),
-            UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
@@ -1035,7 +1024,6 @@ agents:
             sub_agent_builder,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
-            UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1130,7 +1118,6 @@ agents:
             sub_agent_builder,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
-            UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1220,7 +1207,6 @@ agents:
             Some(started_client),
             sub_agent_builder,
             Arc::new(dynamic_config_store),
-            UnboundedBroadcast::default(),
             UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
@@ -1322,7 +1308,6 @@ agents:
             sub_agent_builder,
             Arc::new(dynamic_config_store),
             UnboundedBroadcast::default(),
-            UnboundedBroadcast::default(),
             pub_sub().1,
             Some(opamp_consumer),
             dynamic_config_validator,
@@ -1413,7 +1398,6 @@ agents:
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1496,7 +1480,6 @@ agents:
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1570,7 +1553,6 @@ agents:
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
@@ -1686,7 +1668,6 @@ agents:
                     sub_agent_builder,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
-                    UnboundedBroadcast::default(),
                     application_event_consumer,
                     Some(opamp_consumer),
                     dynamic_config_validator,
