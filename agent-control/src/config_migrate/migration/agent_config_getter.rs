@@ -81,7 +81,7 @@ pub(crate) mod tests {
 
             fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
-            fn update_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+            fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
             fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
 

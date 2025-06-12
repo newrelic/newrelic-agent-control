@@ -252,7 +252,7 @@ where
     fn update_state(
         &self,
         agent_id: &AgentID,
-        state: &ConfigState,
+        state: ConfigState,
     ) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
@@ -280,12 +280,13 @@ where
                 })
             })?;
 
-        if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
-            remote_config.update_state(state);
-
-            let content = serde_yaml::to_string(&remote_config).map_err(|err| {
-                ConfigRepositoryError::StoreError(format!("updating remote config state: {err}"))
-            })?;
+        if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
+            let content =
+                serde_yaml::to_string(&remote_config.with_state(state)).map_err(|err| {
+                    ConfigRepositoryError::StoreError(format!(
+                        "updating remote config state: {err}"
+                    ))
+                })?;
 
             self.file_rw
                 .write(
@@ -531,7 +532,7 @@ state: applied
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
             config: yaml_config,
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
         repo.store_remote(&agent_id, &remote_config).unwrap();
@@ -550,7 +551,7 @@ state: applied
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
             config: yaml_config,
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
         let result = repo.store_remote(&agent_id, &remote_config);
@@ -578,7 +579,7 @@ state: applied
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
             config: yaml_config,
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
         let result = repo.store_remote(&agent_id, &remote_config);

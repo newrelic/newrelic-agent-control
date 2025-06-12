@@ -81,7 +81,7 @@ where
 
         let mut state = ConfigState::Applying;
         let hash = match String::from_utf8(msg_remote_config.config_hash) {
-            Ok(hash) => Hash::new(hash),
+            Ok(hash) => Hash::from(hash),
             Err(err) => {
                 // the hash must be created to keep track of the failing remote config.
                 state = ConfigState::Failed {
@@ -410,7 +410,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
             },
@@ -432,7 +432,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: None,
-                expected_remote_config_hash:  Hash::new(valid_hash),
+                expected_remote_config_hash:  Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
                 },
@@ -448,7 +448,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: None,
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Config missing".into(),
                 },
@@ -509,7 +509,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: Some(Signatures::new_unique(
                     "fake config",
@@ -540,7 +540,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
             },
@@ -567,7 +567,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
             },
@@ -586,7 +586,7 @@ pub(crate) mod tests {
                     ..Default::default()
                 }),
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
-                expected_remote_config_hash: Hash::new(valid_hash),
+                expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Invalid remote config signature format: expected value at line 1 column 1".into(),
                 },

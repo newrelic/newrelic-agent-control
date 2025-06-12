@@ -20,7 +20,7 @@ pub trait AgentControlDynamicConfigRepository {
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
     /// update the state of a remote_config
-    fn update_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+    fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
     /// retrieves the remote_config if exists
     fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
@@ -45,7 +45,7 @@ pub(crate) mod tests {
 
             fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
-            fn update_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+            fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
             fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
 

@@ -209,24 +209,25 @@ where
 
         // After all operations, set the hash to a final state
         // only if it was in the `applying` state.
-        if let Config::RemoteConfig(mut remote_config) = config {
+        if let Config::RemoteConfig(remote_config) = config {
             if remote_config.is_applying() {
-                match &started_supervisor {
-                    Ok(_) => remote_config.update_state(&ConfigState::Applied),
-                    Err(e) => remote_config.update_state(&ConfigState::Failed {
+                let state = match &started_supervisor {
+                    Ok(_) => ConfigState::Applied,
+                    Err(e) => ConfigState::Failed {
                         error_message: e.to_string(),
-                    }),
+                    },
                 };
+                let remote_config = remote_config.with_state(state);
 
                 self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
                     self.report_config_status(
-                        remote_config.hash.get(),
+                        remote_config.hash.to_string(),
                         opamp_client,
                         remote_config.state.clone().into(),
                     );
                 });
                 // As the hash might have changed state from the above operations, we store it
-                self.update_remote_config_state(&remote_config.state);
+                self.update_remote_config_state(remote_config.state);
             }
         }
 
@@ -372,7 +373,7 @@ where
         // was incomplete), it won't restart the supervisor but the status will be reported again.
         if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id) {
             if config.hash == rc.hash && !rc.state.is_applying() {
-                self.report_config_status(config.hash.get(), opamp_client, rc.state.into());
+                self.report_config_status(config.hash.to_string(), opamp_client, rc.state.into());
                 return old_supervisor;
             }
         }
@@ -382,13 +383,13 @@ where
         // `process_remote_config` in `opamp::callbacks`) fails for any reason.
         if let Some(err) = config.state.error_message() {
             warn!(
-                hash = config.hash.get(),
+                hash = config.hash.to_string(),
                 "Remote configuration cannot be applied: {err}"
             );
             // We report the status but we don't store the failed hash because
             // the persisted remote and hash are the previous working one.
             self.report_config_status(
-                config.hash.get(),
+                config.hash.to_string(),
                 opamp_client,
                 OpampRemoteConfigStatus::Error(err),
             );
@@ -399,9 +400,9 @@ where
             return old_supervisor;
         }
 
-        info!(hash = config.hash.get(), "Applying remote config");
+        info!(hash = config.hash.to_string(), "Applying remote config");
         self.report_config_status(
-            config.hash.get(),
+            config.hash.to_string(),
             opamp_client,
             OpampRemoteConfigStatus::Applying,
         );
@@ -449,13 +450,13 @@ where
                     // Alter the state depending on the outcome
                     .inspect(|_| {
                         state = ConfigState::Applied;
-                        self.update_remote_config_state(&state);
+                        self.update_remote_config_state(state.clone());
                     })
                     .inspect_err(|e| {
                         state = ConfigState::Failed {
                             error_message: e.to_string(),
                         };
-                        self.update_remote_config_state(&state);
+                        self.update_remote_config_state(state.clone());
                     })
                     // Return it
                     .ok()
@@ -501,7 +502,7 @@ where
         };
 
         // We report the config status
-        self.report_config_status(config.hash.get(), opamp_client, state.into());
+        self.report_config_status(config.hash.to_string(), opamp_client, state.into());
 
         // With everything already handled, return the supervisor if any
         refreshed_supervisor
@@ -587,7 +588,7 @@ where
         )
     }
 
-    fn update_remote_config_state(&self, config_state: &ConfigState) {
+    fn update_remote_config_state(&self, config_state: ConfigState) {
         let _ = self
             .config_repository
             .update_state(&self.identity.id, config_state)
@@ -870,13 +871,13 @@ deployment:
         }
 
         fn hash() -> Hash {
-            Hash::new("hash")
+            Hash::from("hash")
         }
 
         fn status_applied() -> RemoteConfigStatus {
             RemoteConfigStatus {
                 status: RemoteConfigStatuses::Applied as i32,
-                last_remote_config_hash: Self::hash().get().into_bytes(),
+                last_remote_config_hash: Self::hash().to_string().into_bytes(),
                 ..Default::default()
             }
         }
@@ -884,7 +885,7 @@ deployment:
         fn status_applying() -> RemoteConfigStatus {
             RemoteConfigStatus {
                 status: RemoteConfigStatuses::Applying as i32,
-                last_remote_config_hash: Self::hash().get().into_bytes(),
+                last_remote_config_hash: Self::hash().to_string().into_bytes(),
                 ..Default::default()
             }
         }
@@ -892,7 +893,7 @@ deployment:
         fn status_failed() -> RemoteConfigStatus {
             RemoteConfigStatus {
                 status: RemoteConfigStatuses::Failed as i32,
-                last_remote_config_hash: Self::hash().get().into_bytes(),
+                last_remote_config_hash: Self::hash().to_string().into_bytes(),
                 error_message: "could not build the supervisor from an effective agent: ``no configuration found``".into(),
             }
         }
@@ -931,10 +932,9 @@ deployment:
         }
 
         fn failed_remote_config() -> OpampRemoteConfig {
-            let failed_hash = Hash::new("failed hash");
             OpampRemoteConfig::new(
                 Self::id(),
-                failed_hash,
+                Hash::from("failed hash"),
                 ConfigState::Failed {
                     error_message: "error_message".to_string(),
                 },
@@ -1070,7 +1070,10 @@ deployment:
             .get_remote_config(&TestAgent::id())
             .unwrap()
             .unwrap();
-        assert_eq!(remote_config.hash.get(), TestAgent::hash().get());
+        assert_eq!(
+            remote_config.hash.to_string(),
+            TestAgent::hash().to_string()
+        );
         assert!(remote_config.state.is_applied());
 
         assert_eq!(
@@ -1128,7 +1131,10 @@ deployment:
         let supervisor_builder = expect_supervisor_do_not_build();
         opamp_client.should_set_remote_config_status(RemoteConfigStatus {
             status: RemoteConfigStatuses::Failed as i32,
-            last_remote_config_hash: TestAgent::failed_remote_config().hash.get().into_bytes(),
+            last_remote_config_hash: TestAgent::failed_remote_config()
+                .hash
+                .to_string()
+                .into_bytes(),
             error_message: TestAgent::failed_remote_config()
                 .state
                 .error_message()
@@ -1169,7 +1175,7 @@ deployment:
             .unwrap();
         let old_remote_config = RemoteConfig {
             config: "var: some old remote".try_into().unwrap(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applied,
         };
         config_repository
@@ -1218,7 +1224,7 @@ deployment:
 
         let remote_config = RemoteConfig {
             config: TestAgent::valid_config_yaml(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
         config_repository
@@ -1268,7 +1274,7 @@ deployment:
             .unwrap();
         let old_remote_config = RemoteConfig {
             config: "var: some old remote".try_into().unwrap(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applied,
         };
         config_repository
@@ -1352,7 +1358,10 @@ deployment:
             .get_remote_config(&TestAgent::id())
             .unwrap()
             .unwrap();
-        assert_eq!(current_remote_config.hash.get(), TestAgent::hash().get());
+        assert_eq!(
+            current_remote_config.hash.to_string(),
+            TestAgent::hash().to_string()
+        );
         assert!(current_remote_config.state.is_applied());
 
         assert!(new_supervisor.is_some());
@@ -1395,7 +1404,10 @@ deployment:
             .get_remote_config(&TestAgent::id())
             .unwrap()
             .unwrap();
-        assert_eq!(current_remote_config.hash.get(), TestAgent::hash().get());
+        assert_eq!(
+            current_remote_config.hash.to_string(),
+            TestAgent::hash().to_string()
+        );
         assert!(current_remote_config.state.is_applied());
 
         assert!(new_supervisor.is_some());

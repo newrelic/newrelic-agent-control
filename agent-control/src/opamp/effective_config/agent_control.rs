@@ -153,7 +153,7 @@ mod tests {
                 let yaml_config = YAMLConfig::try_from(String::from(self.yaml_config)).unwrap();
                 let remote_config_values = RemoteConfig {
                     config: yaml_config,
-                    hash: Hash::new("a-hash"),
+                    hash: Hash::from("a-hash"),
                     state: ConfigState::Applied,
                 };
 

@@ -63,13 +63,13 @@ impl OpampRemoteConfig {
             .config_map
             .as_ref()
             .ok_or(OpampRemoteConfigError::InvalidConfig(
-                self.hash.get(),
+                self.hash.to_string(),
                 "missing config".to_string(),
             ))?;
 
         match config_map.0.len() {
             0 => Err(OpampRemoteConfigError::InvalidConfig(
-                self.hash.get(),
+                self.hash.to_string(),
                 "empty config map".to_string(),
             )),
             1 => Ok(config_map
@@ -78,7 +78,7 @@ impl OpampRemoteConfig {
                 .next()
                 .expect("at least one config has been provided")),
             _ => Err(OpampRemoteConfigError::InvalidConfig(
-                self.hash.get(),
+                self.hash.to_string(),
                 "too many config items".to_string(),
             )),
         }
@@ -89,7 +89,7 @@ impl OpampRemoteConfig {
         if let Some(signatures) = &self.signatures {
             match signatures.len() {
                 0 => Err(OpampRemoteConfigError::InvalidConfig(
-                    self.hash.get(),
+                    self.hash.to_string(),
                     "empty signature".to_string(),
                 )),
                 1 => Ok(Some(
@@ -99,12 +99,12 @@ impl OpampRemoteConfig {
                         // assumes that the sigunature corresponds to the unique config item
                         .map(|(_, signature)| signature.clone())
                         .ok_or(OpampRemoteConfigError::InvalidConfig(
-                            self.hash.get(),
+                            self.hash.to_string(),
                             "getting unique signature".to_string(),
                         ))?,
                 )),
                 _ => Err(OpampRemoteConfigError::InvalidConfig(
-                    self.hash.get(),
+                    self.hash.to_string(),
                     "too many signature items".to_string(),
                 )),
             }

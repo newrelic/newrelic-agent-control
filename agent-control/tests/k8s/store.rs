@@ -92,7 +92,7 @@ fn k8s_hash_in_config_map() {
             .is_none()
     );
 
-    let hash_1 = Hash::new("hash-test");
+    let hash_1 = Hash::from("hash-test");
     let remote_config_1 = RemoteConfig {
         config: YAMLConfig::default(),
         hash: hash_1.clone(),
@@ -108,7 +108,7 @@ fn k8s_hash_in_config_map() {
         .hash;
     assert_eq!(hash_1, loaded_hash_1);
 
-    let hash2 = Hash::new("hash-test2");
+    let hash2 = Hash::from("hash-test2");
     let remote_config_2 = RemoteConfig {
         config: YAMLConfig::default(),
         hash: hash2.clone(),
@@ -166,7 +166,7 @@ fn k8s_value_repository_config_map() {
     // with remote data we expect we get local without remote
     let remote_values = RemoteConfig {
         config: YAMLConfig::try_from("test: 3".to_string()).unwrap(),
-        hash: Hash::new("hash-test1"),
+        hash: Hash::from("hash-test1"),
         state: ConfigState::Applied,
     };
     value_repository
@@ -185,7 +185,7 @@ fn k8s_value_repository_config_map() {
         .expect("unexpected error loading config")
         .expect("expected some configuration, got None");
     assert_eq!(res.get_yaml_config().clone(), remote_values.config);
-    assert_eq!(res.get_hash(), Some(remote_values.hash));
+    assert_eq!(res.get_hash(), Some(&remote_values.hash));
 
     // After deleting remote we expect to get still local data
     value_repository.delete_remote(&agent_id_1).unwrap();
@@ -199,7 +199,7 @@ fn k8s_value_repository_config_map() {
     // with remote data we expect to ignore local one
     let remote_values_agent_2 = RemoteConfig {
         config: YAMLConfig::try_from("test: 100".to_string()).unwrap(),
-        hash: Hash::new("hash-test2"),
+        hash: Hash::from("hash-test2"),
         state: ConfigState::Applied,
     };
 
@@ -219,7 +219,7 @@ fn k8s_value_repository_config_map() {
         res_agent_2.get_yaml_config().clone(),
         remote_values_agent_2.config
     );
-    assert_eq!(res_agent_2.get_hash(), Some(remote_values_agent_2.hash));
+    assert_eq!(res_agent_2.get_hash(), Some(&remote_values_agent_2.hash));
 }
 
 #[test]
@@ -270,7 +270,7 @@ agents:
 "#;
     let remote_values_agent = RemoteConfig {
         config: from_str::<YAMLConfig>(agents_cfg).unwrap(),
-        hash: Hash::new("hash-test3"),
+        hash: Hash::from("hash-test3"),
         state: ConfigState::Applied,
     };
     assert!(store_sa.store(&remote_values_agent).is_ok());
@@ -306,7 +306,7 @@ fn k8s_multiple_store_entries() {
         Identifiers::default(),
     );
 
-    let hash = Hash::new("hash-test");
+    let hash = Hash::from("hash-test");
     let remote_config = RemoteConfig {
         config: YAMLConfig::default(),
         hash: hash.clone(),

@@ -62,7 +62,7 @@ where
         for validator in &self.remote_config_validators {
             if let Err(error_msg) = validator.validate(&agent_identity, config) {
                 debug!(
-                    hash = &config.hash.get(),
+                    hash = &config.hash.to_string(),
                     "Invalid remote configuration: {error_msg}"
                 );
                 return Err(RemoteConfigParserError::Validation(error_msg.to_string()));
@@ -141,7 +141,7 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_with_previous_errors() {
         let agent_identity = AgentIdentity::default();
         // The hash had some previous errors
-        let hash = Hash::new("some-hash");
+        let hash = Hash::from("some-hash");
         let state = ConfigState::Failed {
             error_message: "some error".to_string(),
         };
@@ -163,7 +163,7 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_validation_error() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash");
+        let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
@@ -201,7 +201,7 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash");
+        let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let config_map =
             ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
@@ -218,7 +218,7 @@ pub mod tests {
     fn test_agent_remote_config_parser_some_config() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash");
+        let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
             serde_json::from_str::<HashMap<String, String>>(
@@ -254,7 +254,7 @@ pub mod tests {
     fn test_agent_remote_config_parser_empty_config() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash");
+        let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
             serde_json::from_str::<HashMap<String, String>>(r#"{"config": ""}"#).unwrap(),

@@ -24,31 +24,17 @@ impl Config {
         }
     }
 
-    pub fn get_hash(&self) -> Option<Hash> {
+    pub fn get_hash(&self) -> Option<&Hash> {
         match self {
             Config::LocalConfig(_) => None,
-            Config::RemoteConfig(remote_config) => Some(remote_config.hash.clone()),
+            Config::RemoteConfig(remote_config) => Some(&remote_config.hash),
         }
     }
 
-    pub fn get_state(&self) -> Option<ConfigState> {
+    pub fn get_state(&self) -> Option<&ConfigState> {
         match self {
             Config::LocalConfig(_) => None,
-            Config::RemoteConfig(remote_config) => Some(remote_config.state.clone()),
-        }
-    }
-
-    pub fn into_local_config(self) -> Option<LocalConfig> {
-        match self {
-            Config::LocalConfig(local_config) => Some(local_config),
-            Config::RemoteConfig(_) => None,
-        }
-    }
-
-    pub fn into_remote_config(self) -> Option<RemoteConfig> {
-        match self {
-            Config::LocalConfig(_) => None,
-            Config::RemoteConfig(remote_config) => Some(remote_config),
+            Config::RemoteConfig(remote_config) => Some(&remote_config.state),
         }
     }
 
@@ -61,6 +47,24 @@ impl Config {
 
     pub fn remote_config(&self) -> Option<&RemoteConfig> {
         match self {
+            Config::LocalConfig(_) => None,
+            Config::RemoteConfig(remote_config) => Some(remote_config),
+        }
+    }
+}
+
+impl From<Config> for Option<LocalConfig> {
+    fn from(value: Config) -> Self {
+        match value {
+            Config::LocalConfig(local_config) => Some(local_config),
+            Config::RemoteConfig(_) => None,
+        }
+    }
+}
+
+impl From<Config> for Option<RemoteConfig> {
+    fn from(value: Config) -> Self {
+        match value {
             Config::LocalConfig(_) => None,
             Config::RemoteConfig(remote_config) => Some(remote_config),
         }
@@ -97,8 +101,8 @@ impl RemoteConfig {
         self.state.is_failed()
     }
 
-    pub fn update_state(&mut self, config_state: &ConfigState) {
-        self.state.update_state(config_state)
+    pub fn with_state(self, state: ConfigState) -> Self {
+        Self { state, ..self }
     }
 }
 

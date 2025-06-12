@@ -226,7 +226,7 @@ mod tests {
 
         let remote_config_values = RemoteConfig {
             config: YAMLConfig::default(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
 
@@ -246,7 +246,7 @@ mod tests {
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: Hash::new("a-hash").get().into_bytes(),
+            last_remote_config_hash: "a-hash".to_string().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -359,7 +359,7 @@ mod tests {
 
         let remote_config_values = RemoteConfig {
             config: YAMLConfig::default(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
 
@@ -375,7 +375,7 @@ mod tests {
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: opamp_client::opamp::proto::RemoteConfigStatuses::Applied as i32,
-            last_remote_config_hash: remote_config_values.hash.get().into_bytes(),
+            last_remote_config_hash: remote_config_values.hash.to_string().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);

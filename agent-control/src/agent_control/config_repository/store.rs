@@ -48,7 +48,7 @@ where
         Ok(())
     }
 
-    fn update_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError> {
+    fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
         self.values_repository
             .update_state(&self.agent_control_id, state)?;
         Ok(())

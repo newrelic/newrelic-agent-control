@@ -525,7 +525,7 @@ pub mod tests {
         let yaml_config = YAMLConfig::default();
         let remote_config = RemoteConfig {
             config: yaml_config.clone(),
-            hash: Hash::new("a-hash"),
+            hash: Hash::from("a-hash"),
             state: ConfigState::Applying,
         };
         config_repository

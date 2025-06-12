@@ -227,7 +227,7 @@ pub(super) mod tests {
         "#;
         let remote_config = OpampRemoteConfig::new(
             test_id(),
-            Hash::new("this-is-a-hash"),
+            Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
@@ -261,7 +261,7 @@ pub(super) mod tests {
             fn run(self) {
                 let remote_config = OpampRemoteConfig::new(
                     test_id(),
-                    Hash::new("fake"),
+                    Hash::from("fake"),
                     ConfigState::Applying,
                     Some(ConfigurationMap::new(HashMap::from([(
                         "".to_string(),
@@ -671,7 +671,7 @@ config: |
     fn remote_config(config: &str) -> OpampRemoteConfig {
         OpampRemoteConfig::new(
             test_id(),
-            Hash::new("this-is-a-hash"),
+            Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),

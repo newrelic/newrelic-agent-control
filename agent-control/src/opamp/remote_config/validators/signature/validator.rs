@@ -327,7 +327,7 @@ certificate_pem_file_path: /path/to/file
     fn test_noop_signature_validator() {
         let rc = OpampRemoteConfig::new(
             AgentID::new("test").unwrap(),
-            Hash::new("test_payload"),
+            Hash::from("test_payload"),
             ConfigState::Applying,
             None,
         );
@@ -376,7 +376,7 @@ certificate_pem_file_path: /path/to/file
                 name: "Signature is missing",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload"),
+                    Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
                 ),
@@ -385,7 +385,7 @@ certificate_pem_file_path: /path/to/file
                 name: "Signature cannot be retrieved because multiple signatures are defined",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload"),
+                    Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
                 )
@@ -398,7 +398,7 @@ certificate_pem_file_path: /path/to/file
                 name: "Config is empty",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload"),
+                    Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
                 )
@@ -408,7 +408,7 @@ certificate_pem_file_path: /path/to/file
                 name: "Invalid signature",
                 remote_config: OpampRemoteConfig::new(
                     AgentID::new("test").unwrap(),
-                    Hash::new("test_payload"),
+                    Hash::from("test_payload"),
                     ConfigState::Applying,
                     Some(ConfigurationMap::new(HashMap::from([(
                         "key".to_string(),
@@ -435,7 +435,7 @@ certificate_pem_file_path: /path/to/file
         );
         let rc = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("test"),
+            Hash::from("test"),
             ConfigState::Applying,
             None,
         );
@@ -461,7 +461,7 @@ certificate_pem_file_path: /path/to/file
         let encoded_signature = test_signer.encoded_signature(config);
         let remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("test"),
+            Hash::from("test"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "key".into(),

@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use serde::{Deserialize, Serialize};
 
 use super::report::OpampRemoteConfigStatus;
@@ -14,25 +16,19 @@ pub enum ConfigState {
 #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 pub struct Hash(String);
 
-impl Hash {
-    pub fn new<S: AsRef<str>>(hash: S) -> Self {
+impl<S: AsRef<str>> From<S> for Hash {
+    fn from(hash: S) -> Self {
         Self(hash.as_ref().to_string())
     }
+}
 
-    pub fn get(&self) -> String {
-        self.0.clone()
+impl Display for Hash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
 impl ConfigState {
-    pub fn state(&self) -> ConfigState {
-        self.clone()
-    }
-
-    pub fn update_state(&mut self, config_state: &ConfigState) {
-        *self = config_state.clone()
-    }
-
     pub fn is_applied(&self) -> bool {
         self == &ConfigState::Applied
     }

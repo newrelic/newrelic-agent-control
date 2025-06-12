@@ -58,7 +58,7 @@ pub trait ConfigRepository: Send + Sync + 'static {
     fn update_state(
         &self,
         agent_id: &AgentID,
-        state: &ConfigState,
+        state: ConfigState,
     ) -> Result<(), ConfigRepositoryError>;
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
@@ -143,8 +143,8 @@ pub mod tests {
                 .map(|config| {
                     let remote_config = RemoteConfig {
                         config: config.get_yaml_config().clone(),
-                        hash: config.get_hash().unwrap(),
-                        state: config.get_state().unwrap(),
+                        hash: config.get_hash().cloned().unwrap(),
+                        state: config.get_state().cloned().unwrap(),
                     };
                     Config::RemoteConfig(remote_config)
                 }))
@@ -153,7 +153,7 @@ pub mod tests {
         fn update_state(
             &self,
             agent_id: &AgentID,
-            state: &ConfigState,
+            state: ConfigState,
         ) -> Result<(), ConfigRepositoryError> {
             let updated_remote_config =
                 self.remote_config
@@ -161,7 +161,7 @@ pub mod tests {
                     .unwrap()
                     .get(agent_id)
                     .and_then(|remote_config| {
-                        if let Some(hash) = remote_config.get_hash() {
+                        if let Some(hash) = remote_config.get_hash().cloned() {
                             let remote_config = RemoteConfig {
                                 config: remote_config.get_yaml_config().clone(),
                                 hash,
@@ -192,7 +192,7 @@ pub mod tests {
                 .unwrap()
                 .get(agent_id)
                 .cloned()
-                .and_then(Config::into_remote_config))
+                .and_then(Option::<RemoteConfig>::from))
         }
     }
 
@@ -214,7 +214,7 @@ pub mod tests {
             fn update_state(
                 &self,
                 agent_id: &AgentID,
-                state: &ConfigState,
+                state: ConfigState,
             ) -> Result<(), ConfigRepositoryError>;
 
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
