@@ -40,6 +40,7 @@ where
     remote_config_parser: Arc<R>,
     config_repository: Arc<Y>,
     effective_agents_assembler: Arc<A>,
+    sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
 impl<'a, O, I, B, R, Y, A> K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
@@ -61,6 +62,7 @@ where
         remote_config_parser: Arc<R>,
         config_repository: Arc<Y>,
         effective_agents_assembler: Arc<A>,
+        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Self {
         Self {
             opamp_builder,
@@ -70,6 +72,7 @@ where
             remote_config_parser,
             config_repository,
             effective_agents_assembler,
+            sub_agent_publisher,
         }
     }
 }
@@ -89,7 +92,6 @@ where
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -119,7 +121,7 @@ where
             agent_identity.clone(),
             maybe_opamp_client,
             self.supervisor_builder.clone(),
-            sub_agent_publisher,
+            self.sub_agent_publisher.clone(),
             sub_agent_opamp_consumer,
             pub_sub(),
             self.remote_config_parser.clone(),
@@ -245,11 +247,10 @@ pub mod tests {
             Arc::new(remote_config_parser),
             Arc::new(MockConfigRepository::new()),
             Arc::new(effective_agents_assembler),
+            UnboundedBroadcast::default(),
         );
 
-        builder
-            .build(&agent_identity, UnboundedBroadcast::default())
-            .unwrap();
+        builder.build(&agent_identity).unwrap();
     }
 
     #[test]
@@ -282,9 +283,10 @@ pub mod tests {
             Arc::new(remote_config_parser),
             Arc::new(MockConfigRepository::new()),
             Arc::new(effective_agents_assembler),
+            UnboundedBroadcast::default(),
         );
 
-        let result = builder.build(&agent_identity, UnboundedBroadcast::default());
+        let result = builder.build(&agent_identity);
         assert_matches!(
             result.err().expect("Expected error"),
             SubAgentBuilderError::OpampClientBuilderError(_)

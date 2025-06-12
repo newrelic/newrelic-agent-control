@@ -133,6 +133,7 @@ impl AgentControlRunner {
             Arc::new(remote_config_parser),
             yaml_config_repository.clone(),
             agents_assembler.clone(),
+            self.sub_agent_publisher,
         );
 
         let garbage_collector = K8sGarbageCollector {
@@ -160,7 +161,6 @@ impl AgentControlRunner {
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,
-            self.sub_agent_publisher,
             self.application_event_consumer,
             maybe_opamp_consumer,
             dynamic_config_validator,

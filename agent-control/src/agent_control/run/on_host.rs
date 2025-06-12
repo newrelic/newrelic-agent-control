@@ -156,6 +156,7 @@ impl AgentControlRunner {
             Arc::new(remote_config_parser),
             yaml_config_repository,
             agents_assembler,
+            self.sub_agent_publisher,
         );
 
         let dynamic_config_validator =
@@ -169,7 +170,6 @@ impl AgentControlRunner {
             sub_agent_builder,
             config_storer,
             self.agent_control_publisher,
-            self.sub_agent_publisher,
             self.application_event_consumer,
             maybe_sa_opamp_consumer,
             dynamic_config_validator,

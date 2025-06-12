@@ -57,7 +57,6 @@ pub trait SubAgentBuilder {
     fn build(
         &self,
         agent_identity: &AgentIdentity,
-        sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
@@ -773,7 +772,6 @@ pub mod tests {
             fn build(
                 &self,
                 agent_identity: &AgentIdentity,
-                sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
     }
@@ -782,7 +780,7 @@ pub mod tests {
         // should_build provides a helper method to create a subagent which runs and stops
         // successfully
         pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_, _| {
+            self.expect_build().times(times).returning(|_| {
                 let mut not_started_sub_agent = MockNotStartedSubAgent::new();
                 not_started_sub_agent.expect_run().times(1).returning(|| {
                     let mut started_agent = MockStartedSubAgent::new();
