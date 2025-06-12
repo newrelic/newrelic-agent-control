@@ -92,7 +92,7 @@ fn k8s_run_updater() {
             return Ok(());
         }
 
-        Err(UpdaterError::UpdateFailed(format!("HelmRelease version not updated: {obj:?}")).into())
+        Err(format!("HelmRelease version not updated: {obj:?}").into())
     })
 }
 
