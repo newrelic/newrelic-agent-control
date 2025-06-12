@@ -1,3 +1,4 @@
+use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -6,10 +7,13 @@ use newrelic_agent_control::agent_control::config::{
     AgentControlDynamicConfig, helmrelease_v2_type_meta,
 };
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
-use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
+use newrelic_agent_control::agent_control::version_updater::updater::{
+    UpdaterError, VersionUpdater,
+};
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use std::sync::Arc;
+use std::time::Duration;
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -64,26 +68,32 @@ fn k8s_run_updater() {
         .update(config_to_update)
         .expect("no error should occur during update");
 
-    let obj = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
-        .expect("no error is expected during fetching the helm release")
-        .unwrap();
+    retry(15, Duration::from_secs(5), || {
+        let obj = k8s_client
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+            .expect("no error is expected during fetching the helm release")
+            .unwrap();
 
-    assert_eq!(
-        obj.data
-            .get("spec")
-            .unwrap()
-            .clone()
-            .get("chart")
-            .unwrap()
-            .get("spec")
-            .unwrap()
-            .get("version")
-            .unwrap()
-            .as_str()
-            .unwrap(),
-        new_version.as_str()
-    )
+        if new_version.as_str()
+            == obj
+                .data
+                .get("spec")
+                .unwrap()
+                .clone()
+                .get("chart")
+                .unwrap()
+                .get("spec")
+                .unwrap()
+                .get("version")
+                .unwrap()
+                .as_str()
+                .unwrap()
+        {
+            return Ok(());
+        }
+
+        Err(format!("HelmRelease version not updated: {obj:?}").into())
+    })
 }
 
 #[test]
