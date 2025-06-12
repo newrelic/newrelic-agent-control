@@ -56,7 +56,7 @@ where
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
         // Errors here will cause the sub-agent to continue running with the previous configuration.
         // The supervisor won't be recreated.
-        if let Some(err_msg) = config.state.error_message() {
+        if let Some(err_msg) = config.state.error_message().cloned() {
             return Err(RemoteConfigParserError::RemoteConfigLoad(err_msg));
         }
         for validator in &self.remote_config_validators {

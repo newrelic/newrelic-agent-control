@@ -14,7 +14,7 @@ use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::hash::ConfigState;
-use crate::opamp::remote_config::report::OpampRemoteConfigStatus;
+use crate::opamp::remote_config::report::report_state;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use crate::sub_agent::event_handler::on_health::on_health;
@@ -219,13 +219,13 @@ where
                 };
                 let remote_config = remote_config.with_state(state);
 
-                self.maybe_opamp_client.as_ref().inspect(|opamp_client| {
-                    self.report_config_status(
-                        remote_config.hash.to_string(),
+                if let Some(opamp_client) = &self.maybe_opamp_client {
+                    let _ = report_state(
+                        remote_config.state.clone(),
+                        remote_config.hash,
                         opamp_client,
-                        remote_config.state.clone().into(),
                     );
-                });
+                }
                 // As the hash might have changed state from the above operations, we store it
                 self.update_remote_config_state(remote_config.state);
             }
@@ -373,7 +373,7 @@ where
         // was incomplete), it won't restart the supervisor but the status will be reported again.
         if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id) {
             if config.hash == rc.hash && !rc.state.is_applying() {
-                self.report_config_status(config.hash.to_string(), opamp_client, rc.state.into());
+                let _ = report_state(rc.state, rc.hash, opamp_client);
                 return old_supervisor;
             }
         }
@@ -381,17 +381,17 @@ where
         // We return also early if the hash comes failed. This might happen if the pre-processing
         // steps of the incoming remote config (performed in the OpAMP client callbacks, see
         // `process_remote_config` in `opamp::callbacks`) fails for any reason.
-        if let Some(err) = config.state.error_message() {
+        if let Some(error_message) = config.state.error_message().cloned() {
             warn!(
-                hash = config.hash.to_string(),
-                "Remote configuration cannot be applied: {err}"
+                hash = %config.hash,
+                "Remote configuration cannot be applied: {error_message}"
             );
             // We report the status but we don't store the failed hash because
             // the persisted remote and hash are the previous working one.
-            self.report_config_status(
-                config.hash.to_string(),
+            let _ = report_state(
+                ConfigState::Failed { error_message },
+                config.hash,
                 opamp_client,
-                OpampRemoteConfigStatus::Error(err),
             );
             // We don't store this failed hash because we know this remote_config is not correct,
             // and it has already been reported and cached by the OpAMP Client.
@@ -401,11 +401,7 @@ where
         }
 
         info!(hash = config.hash.to_string(), "Applying remote config");
-        self.report_config_status(
-            config.hash.to_string(),
-            opamp_client,
-            OpampRemoteConfigStatus::Applying,
-        );
+        let _ = report_state(ConfigState::Applying, config.hash.clone(), opamp_client);
 
         // Start transforming the remote config
         // Attempt to parse/validate the remote config
@@ -502,7 +498,7 @@ where
         };
 
         // We report the config status
-        self.report_config_status(config.hash.to_string(), opamp_client, state.into());
+        let _ = report_state(state, config.hash, opamp_client);
 
         // With everything already handled, return the supervisor if any
         refreshed_supervisor
@@ -594,19 +590,6 @@ where
             .update_state(&self.identity.id, config_state)
             .inspect_err(|err| {
                 warn!("Could not update the config state: {err}");
-            });
-    }
-
-    fn report_config_status(
-        &self,
-        config_hash: String,
-        opamp_client: &C,
-        remote_config_status: OpampRemoteConfigStatus,
-    ) {
-        let _ = remote_config_status
-            .report(opamp_client, config_hash)
-            .inspect_err(|e| {
-                warn!("Reporting OpAMP configuration status failed: {e}");
             });
     }
 }
@@ -1138,6 +1121,7 @@ deployment:
             error_message: TestAgent::failed_remote_config()
                 .state
                 .error_message()
+                .cloned()
                 .unwrap(),
         });
 

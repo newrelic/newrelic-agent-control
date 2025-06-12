@@ -13,9 +13,8 @@ use crate::event::{
 };
 use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
-use crate::opamp::remote_config::{
-    OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState, report::OpampRemoteConfigStatus,
-};
+use crate::opamp::remote_config::report::report_state;
+use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
 use crate::sub_agent::{
     NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::AgentIdentity,
 };
@@ -97,8 +96,7 @@ where
                 }
                 Ok(Some(rc)) => {
                     if !rc.is_applied() {
-                        OpampRemoteConfigStatus::Applied
-                            .report(opamp_client, rc.hash.to_string())?;
+                        report_state(ConfigState::Applied, rc.hash, opamp_client)?;
                         self.sa_dynamic_config_store
                             .update_state(ConfigState::Applied)?;
                     }
@@ -259,22 +257,30 @@ where
         };
 
         info!("Applying remote config");
-        OpampRemoteConfigStatus::Applying
-            .report(opamp_client, opamp_remote_config.hash.to_string())?;
+        report_state(
+            ConfigState::Applying,
+            opamp_remote_config.hash.clone(),
+            opamp_client,
+        )?;
 
         match self.apply_remote_agent_control_config(&opamp_remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
-                OpampRemoteConfigStatus::Error(error_message.clone())
-                    .report(opamp_client, opamp_remote_config.hash.to_string())?;
+                report_state(
+                    ConfigState::Failed {
+                        error_message: error_message.clone(),
+                    },
+                    opamp_remote_config.hash,
+                    opamp_client,
+                )?;
+
                 Ok(self.report_health(Unhealthy::new(error_message).into())?)
             }
             Ok(()) => {
                 self.sa_dynamic_config_store
                     .update_state(ConfigState::Applied)?;
-                OpampRemoteConfigStatus::Applied
-                    .report(opamp_client, opamp_remote_config.hash.to_string())?;
+                report_state(ConfigState::Applied, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_health(Healthy::new().into())?)
             }
@@ -291,7 +297,7 @@ where
         >,
     ) -> Result<(), AgentError> {
         // Fail if the remote config has already identified as failed.
-        if let Some(err) = opamp_remote_config.state.error_message() {
+        if let Some(err) = opamp_remote_config.state.error_message().cloned() {
             // TODO seems like this error should be sent by the remote config itself
             return Err(OpampRemoteConfigError::InvalidConfig(
                 opamp_remote_config.hash.to_string(),

@@ -1,38 +1,28 @@
+use crate::opamp::remote_config::Hash;
 use opamp_client::opamp::proto::RemoteConfigStatus;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use opamp_client::{ClientError, StartedClient};
 
-#[derive(Debug, Clone)]
-pub enum OpampRemoteConfigStatus {
-    Applying,
-    Error(String),
-    Applied,
+use crate::opamp::remote_config::hash::ConfigState;
+
+pub fn report_state<C: StartedClient>(
+    state: ConfigState,
+    hash: Hash,
+    opamp_client: &C,
+) -> Result<(), ClientError> {
+    opamp_client.set_remote_config_status(RemoteConfigStatus {
+        last_remote_config_hash: hash.to_string().into_bytes(),
+        status: RemoteConfigStatuses::from(state.clone()) as i32,
+        error_message: state.error_message().cloned().unwrap_or_default(),
+    })
 }
 
-impl OpampRemoteConfigStatus {
-    fn as_remote_config_status_i32(&self) -> i32 {
-        match self {
-            Self::Applying => RemoteConfigStatuses::Applying as i32,
-            Self::Error(_) => RemoteConfigStatuses::Failed as i32,
-            Self::Applied => RemoteConfigStatuses::Applied as i32,
+impl From<ConfigState> for RemoteConfigStatuses {
+    fn from(value: ConfigState) -> Self {
+        match value {
+            ConfigState::Applying => RemoteConfigStatuses::Applying,
+            ConfigState::Applied => RemoteConfigStatuses::Applied,
+            ConfigState::Failed { .. } => RemoteConfigStatuses::Failed,
         }
-    }
-
-    fn err_message(self) -> Option<String> {
-        match self {
-            Self::Error(msg) => Some(msg),
-            Self::Applying | Self::Applied => None,
-        }
-    }
-
-    pub fn report<C>(self, opamp_client: &C, hash: String) -> Result<(), ClientError>
-    where
-        C: StartedClient,
-    {
-        opamp_client.set_remote_config_status(RemoteConfigStatus {
-            last_remote_config_hash: hash.into_bytes(),
-            status: self.as_remote_config_status_i32(),
-            error_message: self.err_message().unwrap_or_default(),
-        })
     }
 }

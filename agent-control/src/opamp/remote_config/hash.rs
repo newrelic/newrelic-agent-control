@@ -2,8 +2,6 @@ use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 
-use super::report::OpampRemoteConfigStatus;
-
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone, Hash, Eq)]
 #[serde(rename_all = "snake_case")]
 #[serde(tag = "state")]
@@ -41,20 +39,10 @@ impl ConfigState {
         matches!(&self, ConfigState::Failed { .. })
     }
 
-    pub fn error_message(&self) -> Option<String> {
+    pub fn error_message(&self) -> Option<&String> {
         match &self {
-            ConfigState::Failed { error_message: msg } => Some(msg.clone()),
+            ConfigState::Failed { error_message: msg } => Some(msg),
             _ => None,
-        }
-    }
-}
-
-impl From<ConfigState> for OpampRemoteConfigStatus {
-    fn from(config_state: ConfigState) -> Self {
-        match &config_state {
-            ConfigState::Applying => Self::Applying,
-            ConfigState::Applied => Self::Applied,
-            ConfigState::Failed { error_message } => Self::Error(error_message.to_owned()),
         }
     }
 }
