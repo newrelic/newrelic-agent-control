@@ -76,7 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     name: Push container release tags
     env:
-      DOCKER_IMAGE_NAME: newrelic/newrelic-agent-control
+      DOCKER_IMAGE_NAME_AGENT_CONTROL: newrelic/newrelic-agent-control
+      DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI: newrelic/newrelic-agent-control-cli
     steps:
       - uses: docker/setup-qemu-action@v3
 
@@ -91,9 +92,14 @@ jobs:
       - name: Push release tags
         run: |
           docker buildx imagetools create \
-            -t $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }} \
-            -t $DOCKER_IMAGE_NAME:latest \
-            $DOCKER_IMAGE_NAME:${{ github.event.release.tag_name }}-rc
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL:latest \
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL:${{ github.event.release.tag_name }}-rc
+          
+          docker buildx imagetools create \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }} \
+            -t $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:latest \
+            $DOCKER_IMAGE_NAME_AGENT_CONTROL_CLI:${{ github.event.release.tag_name }}-rc
 
 
   molecule-packaging-tests:
