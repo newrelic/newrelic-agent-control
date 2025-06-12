@@ -13,6 +13,7 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
+use crate::health::noop::NONE_HEALTH_CHECKER_BUILDER;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -36,6 +37,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tracing::{debug, info};
 
 impl AgentControlRunner {
@@ -168,6 +170,7 @@ impl AgentControlRunner {
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
+            SystemTime::now(),
             config_storer,
             self.agent_control_publisher,
             self.application_event_consumer,
@@ -175,6 +178,7 @@ impl AgentControlRunner {
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER, // TODO: use actual health-checker builder and check current behavior in AC
             agent_control_config,
         )
         .run()

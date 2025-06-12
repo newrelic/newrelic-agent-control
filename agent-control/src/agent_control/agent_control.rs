@@ -4,14 +4,19 @@ use super::config::{
 use super::config_repository::repository::AgentControlDynamicConfigRepository;
 use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::updater::VersionUpdater;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config_validator::DynamicConfigValidator;
 use crate::agent_control::error::AgentError;
 use crate::agent_control::uptime_report::UptimeReporter;
+use crate::event::AgentControlInternalEvent;
+use crate::event::channel::{EventPublisher, pub_sub};
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
     channel::EventConsumer,
 };
-use crate::health::health_checker::{Health, Healthy, Unhealthy};
+use crate::health::health_checker::{
+    Health, HealthChecker, Healthy, Unhealthy, spawn_health_checker,
+};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::{
     OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState, report::OpampRemoteConfigStatus,
@@ -28,7 +33,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-pub struct AgentControl<S, O, SL, DV, RC, VU>
+pub struct AgentControl<S, O, SL, DV, RC, VU, HC>
 where
     O: StartedClient,
     SL: AgentControlDynamicConfigRepository,
@@ -36,6 +41,7 @@ where
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
+    HC: HealthChecker + Send + 'static,
 {
     pub(super) opamp_client: Option<O>,
     sub_agent_builder: S,
@@ -44,13 +50,16 @@ where
     pub(super) agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+    agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
+    agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
     dynamic_config_validator: DV,
     resource_cleaner: RC,
     _version_updater: VU,
     initial_config: AgentControlConfig,
+    health_checker_builder: fn(SystemTime) -> Option<HC>,
 }
 
-impl<S, O, SL, DV, RC, VU> AgentControl<S, O, SL, DV, RC, VU>
+impl<S, O, SL, DV, RC, VU, HC> AgentControl<S, O, SL, DV, RC, VU, HC>
 where
     O: StartedClient,
     S: SubAgentBuilder,
@@ -58,11 +67,13 @@ where
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
+    HC: HealthChecker + Send + 'static,
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_client: Option<O>,
         sub_agent_builder: S,
+        start_time: SystemTime,
         sa_dynamic_config_store: Arc<SL>,
         agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
@@ -70,20 +81,24 @@ where
         dynamic_config_validator: DV,
         resource_cleaner: RC,
         version_updater: VU,
+        health_checker_builder: fn(SystemTime) -> Option<HC>,
         initial_config: AgentControlConfig,
     ) -> Self {
+        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         Self {
             opamp_client,
             sub_agent_builder,
-            // unwrap as we control content of the AGENT_CONTROL_ID constant
-            start_time: SystemTime::now(),
+            start_time,
             sa_dynamic_config_store,
             agent_control_publisher,
             application_event_consumer,
             agent_control_opamp_consumer,
+            agent_control_internal_consumer,
+            agent_control_internal_publisher,
             dynamic_config_validator,
             resource_cleaner,
             _version_updater: version_updater,
+            health_checker_builder,
             initial_config,
         }
     }
@@ -108,6 +123,18 @@ where
             }
             opamp_client.update_effective_config()?
         }
+
+        let _health_checker_thread_context =
+            (self.health_checker_builder)(self.start_time).map(|health_checker| {
+                debug!("Starting Agent Control health-checker");
+                spawn_health_checker(
+                    AgentID::new_agent_control_id(),
+                    health_checker,
+                    self.agent_control_internal_publisher.clone(),
+                    self.initial_config.health_check.interval,
+                    self.start_time,
+                )
+            });
 
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
@@ -232,6 +259,22 @@ where
                         }
                     }
                 },
+                recv(&self.agent_control_internal_consumer.as_ref()) -> internal_event_res => {
+                    match internal_event_res {
+                        Err(err) => {
+                            debug!("Error receiving Agent Control internal event {err}");
+                        },
+                        Ok(internal_event) => {
+                            match internal_event {
+                                AgentControlInternalEvent::HealthUpdated(health) => {
+                                    let _ = self.report_health_with_start_time(health).map_err(|err| {
+                                        error!("Error reporting health for Agent Control: {err}");
+                                    });
+                                },
+                            }
+                        },
+                    }
+                }
                 recv(self.application_event_consumer.as_ref()) -> _agent_control_event => {
                     debug!("stopping Agent Control event processor");
                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
@@ -390,8 +433,13 @@ where
         Ok(())
     }
 
-    pub fn report_health(&self, health: Health) -> Result<(), AgentError> {
+    // TODO: unify the methods below when health is only reported by the health-checker
+    fn report_health(&self, health: Health) -> Result<(), AgentError> {
         let health = HealthWithStartTime::new(health, self.start_time);
+        self.report_health_with_start_time(health)
+    }
+
+    fn report_health_with_start_time(&self, health: HealthWithStartTime) -> Result<(), AgentError> {
         if let Some(handle) = &self.opamp_client {
             debug!(
                 is_healthy = health.is_healthy().to_string(),
@@ -430,7 +478,9 @@ mod tests {
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::{EventConsumer, pub_sub};
     use crate::event::{AgentControlEvent, ApplicationEvent, OpAMPEvent};
+    use crate::health::health_checker::tests::MockHealthCheck;
     use crate::health::health_checker::{Healthy, Unhealthy};
+    use crate::health::noop::NONE_HEALTH_CHECKER_BUILDER;
     use crate::health::with_start_time::HealthWithStartTime;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
@@ -476,6 +526,7 @@ mod tests {
         let agent_control = AgentControl::new(
             Some(started_client),
             MockSubAgentBuilder::new(),
+            SystemTime::UNIX_EPOCH,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             application_event_consumer,
@@ -483,6 +534,7 @@ mod tests {
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -529,6 +581,7 @@ mod tests {
         let agent_control = AgentControl::new(
             Some(started_client),
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             application_event_consumer,
@@ -536,6 +589,7 @@ mod tests {
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             ac_config,
         );
 
@@ -570,9 +624,10 @@ mod tests {
         let event_processor = spawn({
             move || {
                 // two agents in the supervisor group
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -580,10 +635,10 @@ mod tests {
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch start_time to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
@@ -632,9 +687,10 @@ mod tests {
 
         let event_processor = spawn({
             move || {
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -642,10 +698,10 @@ mod tests {
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch time to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
@@ -740,9 +796,10 @@ mod tests {
         let running_agent_control = spawn({
             move || {
                 // two agents in the supervisor group
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     UnboundedBroadcast::default(),
                     application_event_consumer,
@@ -750,10 +807,10 @@ mod tests {
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     ac_config,
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch time to allow comparison
-                agent.run()
+                )
+                .run()
             }
         });
 
@@ -872,6 +929,7 @@ agents:
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -879,6 +937,7 @@ agents:
             dynamic_config_validator,
             resource_cleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -1022,6 +1081,7 @@ agents:
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1029,6 +1089,7 @@ agents:
             dynamic_config_validator,
             resource_cleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -1116,6 +1177,7 @@ agents:
         let agent_control = AgentControl::new(
             None::<MockStartedOpAMPClient>,
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(sa_dynamic_config_store),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1123,6 +1185,7 @@ agents:
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -1206,6 +1269,7 @@ agents:
         let agent_control = AgentControl::new(
             Some(started_client),
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(dynamic_config_store),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1213,6 +1277,7 @@ agents:
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -1306,6 +1371,7 @@ agents:
         let agent_control = AgentControl::new(
             Some(started_client),
             sub_agent_builder,
+            SystemTime::UNIX_EPOCH,
             Arc::new(dynamic_config_store),
             UnboundedBroadcast::default(),
             pub_sub().1,
@@ -1313,6 +1379,7 @@ agents:
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
+            NONE_HEALTH_CHECKER_BUILDER,
             AgentControlConfig::default(),
         );
 
@@ -1393,9 +1460,10 @@ agents:
 
         let event_processor = spawn({
             move || {
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -1403,10 +1471,10 @@ agents:
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
@@ -1475,9 +1543,10 @@ agents:
 
         let event_processor = spawn({
             move || {
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -1485,10 +1554,10 @@ agents:
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
@@ -1524,6 +1593,91 @@ agents:
         assert_eq!(expected, ev);
     }
 
+    // Health Checker events are correctly published
+    #[test]
+    fn test_health_checker_events() {
+        let sub_agent_builder = MockSubAgentBuilder::new();
+
+        // Agent Control OpAMP
+        let mut started_client = MockStartedOpAMPClient::new();
+        // set healthy on start processing events
+        started_client.should_set_healthy();
+        // set unhealthy on health-check result
+        started_client.should_set_unhealthy();
+
+        // update the effective config when the Agent Control starts
+        started_client.should_update_effective_config(1);
+        started_client.should_stop(1);
+
+        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+        sa_dynamic_config_store
+            .expect_get_hash()
+            .returning(|| Ok(None));
+
+        let dynamic_config_validator = MockDynamicConfigValidator::new();
+
+        let (application_event_publisher, application_event_consumer) = pub_sub();
+        let (_, opamp_consumer) = pub_sub();
+        let mut agent_control_publisher = UnboundedBroadcast::default();
+        let agent_control_consumer = EventConsumer::from(agent_control_publisher.subscribe());
+
+        let mut initial_config = AgentControlConfig::default();
+        initial_config.health_check.interval = Duration::from_millis(20).into();
+
+        let event_processor = spawn({
+            move || {
+                AgentControl::new(
+                    Some(started_client),
+                    sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
+                    Arc::new(sa_dynamic_config_store),
+                    agent_control_publisher,
+                    application_event_consumer,
+                    Some(opamp_consumer),
+                    dynamic_config_validator,
+                    NoOpResourceCleaner,
+                    NoOpUpdater,
+                    |_| Some(MockHealthCheck::new_unhealthy()), // Always return unhealthy
+                    initial_config,
+                )
+                .run()
+            }
+        });
+
+        // Leave some time for the health-checker to execute (every 20ms)
+        sleep(Duration::from_millis(100));
+
+        application_event_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+
+        assert!(event_processor.join().is_ok());
+
+        // process_events always starts with AgentControlHealthy
+        let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
+            Healthy::new().into(),
+            SystemTime::UNIX_EPOCH,
+        ));
+        let ev = agent_control_consumer.as_ref().recv().unwrap();
+        assert_eq!(expected, ev);
+
+        // The health-checker should have run at least twice
+        let remaining_messages = agent_control_consumer.as_ref().len();
+        assert!(remaining_messages > 2);
+
+        // The health-checker should report Unhealthy
+        let expected = AgentControlEvent::HealthUpdated(HealthWithStartTime::new(
+            Unhealthy::new(String::default()).into(),
+            SystemTime::UNIX_EPOCH,
+        ));
+
+        // The latest message will be StopRequested
+        for _ in 0..(remaining_messages - 1) {
+            let ev = agent_control_consumer.as_ref().recv().unwrap();
+            assert_eq!(expected, ev);
+        }
+    }
+
     // Receive an StopRequest event should publish AgentControlStopped
     #[test]
     fn test_stop_request_should_publish_agent_control_stopped() {
@@ -1548,9 +1702,10 @@ agents:
 
         let event_processor = spawn({
             move || {
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -1558,10 +1713,10 @@ agents:
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
@@ -1663,9 +1818,10 @@ agents:
 
         let event_processor = spawn({
             move || {
-                let mut agent = AgentControl::new(
+                AgentControl::new(
                     Some(started_client),
                     sub_agent_builder,
+                    SystemTime::UNIX_EPOCH,
                     Arc::new(sa_dynamic_config_store),
                     agent_control_publisher,
                     application_event_consumer,
@@ -1673,10 +1829,10 @@ agents:
                     dynamic_config_validator,
                     NoOpResourceCleaner,
                     NoOpUpdater,
+                    NONE_HEALTH_CHECKER_BUILDER,
                     AgentControlConfig::default(),
-                );
-                agent.start_time = SystemTime::UNIX_EPOCH; // Patch to allow comparison
-                agent.process_events(sub_agents);
+                )
+                .process_events(sub_agents);
             }
         });
 
