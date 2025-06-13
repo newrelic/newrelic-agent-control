@@ -72,3 +72,34 @@ impl RemoteConfig {
         self.config_hash.update_state(config_state)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use serde_yaml::Value;
+
+    use super::*;
+
+    const EXAMPLE_REMOTE_CONFIG: &str = r#"
+    config:
+        key: value
+    hash: "examplehash"
+    state: applying
+    "#;
+
+    #[test]
+    fn basic_serde() {
+        let remote_config: RemoteConfig = serde_yaml::from_str(EXAMPLE_REMOTE_CONFIG).unwrap();
+        assert_eq!(remote_config.config.get("key").unwrap(), "value");
+        assert_eq!(remote_config.hash().get(), "examplehash");
+        assert!(remote_config.is_applying());
+
+        let serialized_yaml_value = serde_yaml::to_value(&remote_config).unwrap();
+        assert_eq!(serialized_yaml_value["config"]["key"], "value");
+        assert_eq!(serialized_yaml_value["hash"], "examplehash");
+        assert_eq!(serialized_yaml_value["state"], "applying");
+
+        let deserialized_yaml_value = serde_yaml::from_str::<Value>(EXAMPLE_REMOTE_CONFIG).unwrap();
+        assert_eq!(deserialized_yaml_value, serialized_yaml_value);
+    }
+}
