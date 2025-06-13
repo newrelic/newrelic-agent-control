@@ -976,6 +976,7 @@ deployment:
             Environment::OnHost,
         )
     }
+
     fn expect_supervisor_shut_down() -> MockSupervisorStopper {
         let mut supervisor = MockSupervisorStopper::new();
         supervisor.should_stop();
@@ -1038,10 +1039,35 @@ deployment:
         opamp_client.should_update_effective_config(1);
         opamp_client.should_stop(1);
 
-        sub_agent(Some(opamp_client), supervisor_builder, config_repository)
-            .run()
-            .stop()
-            .unwrap();
+        // We are not using the sub_agent helper because on that helper the opamp publisher gets dropped.
+        // causing a Flaky test when calling run().stop() because sometimes the opamp_consumer
+        // can consume all remaining events before the internal_consumer receives a stopRequested event,
+        // then the loop will error because the opamp channel will be closed.
+
+        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let (opamp_publisher, opamp_consumer) = pub_sub();
+
+        let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+            Arc::new(TestAgent::agent_type_definition().into()),
+            TemplateRenderer::default(),
+        ));
+
+        let sub_agent = SubAgent::new(
+            TestAgent::identity(),
+            Some(opamp_client),
+            Arc::new(supervisor_builder),
+            UnboundedBroadcast::default(),
+            Some(opamp_consumer),
+            (sub_agent_internal_publisher, sub_agent_internal_consumer),
+            Arc::new(AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(
+                vec![],
+            )),
+            config_repository,
+            effective_agents_assembler,
+            Environment::OnHost,
+        );
+
+        sub_agent.run().stop().unwrap();
     }
     #[test]
     fn test_remote_config_applying_to_applied() {
