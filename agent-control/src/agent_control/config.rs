@@ -232,6 +232,13 @@ pub fn instrumentation_v1beta1_type_meta() -> TypeMeta {
     }
 }
 
+pub fn git_v1_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        kind: "GitRepository".to_string(),
+    }
+}
+
 pub fn helmrepository_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "source.toolkit.fluxcd.io/v1".to_string(),
@@ -244,6 +251,7 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // Each time we support a new version we should decide if and how to support retrieving its health
     // A dynamic object reflector will be created for each of these types, since the GC lists them.
     vec![
+        git_v1_type_meta(),
         // Agent Operator CRD
         instrumentation_v1beta1_type_meta(),
         // This allows Secrets created as dynamic objects to be cleaned up by the GC
