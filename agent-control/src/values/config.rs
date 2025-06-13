@@ -64,11 +64,61 @@ impl RemoteConfig {
         self.config_hash.is_applying()
     }
 
+    pub fn is_failed(&self) -> bool {
+        self.config_hash.is_failed()
+    }
+
     pub fn hash(&self) -> Hash {
         self.config_hash.clone()
     }
 
     pub fn update_state(&mut self, config_state: &ConfigState) {
         self.config_hash.update_state(config_state)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use rstest::rstest;
+    use serde_yaml::Value;
+
+    use super::*;
+
+    const EXAMPLE_REMOTE_CONFIG: &str = r#"
+    config:
+        key: value
+    hash: "examplehash"
+    state: applying
+    "#;
+
+    const EXAMPLE_REMOTE_CONFIG_WITH_ERROR: &str = r#"
+    config:
+        key: value
+    hash: "examplehash"
+    state: failed
+    error_message: "An error occurred"
+    "#;
+
+    #[rstest]
+    #[case(EXAMPLE_REMOTE_CONFIG, RemoteConfig::is_applying, "applying")]
+    #[case(EXAMPLE_REMOTE_CONFIG_WITH_ERROR, RemoteConfig::is_failed, "failed")]
+    fn basic_serde(
+        #[case] example: &str,
+        #[case] check_state: impl Fn(&RemoteConfig) -> bool,
+        #[case] expected_state: &str,
+    ) {
+        let remote_config: RemoteConfig = serde_yaml::from_str(example).unwrap();
+        assert_eq!(remote_config.config.get("key").unwrap(), "value");
+        assert_eq!(remote_config.hash().get(), "examplehash");
+        assert!(check_state(&remote_config));
+
+        let serialized_yaml_value = serde_yaml::to_value(&remote_config).unwrap();
+        assert_eq!(serialized_yaml_value["config"]["key"], "value");
+        assert_eq!(serialized_yaml_value["hash"], "examplehash");
+        assert_eq!(serialized_yaml_value["state"], expected_state);
+
+        let deserialized_yaml_value = serde_yaml::from_str::<Value>(example).unwrap();
+        assert_eq!(deserialized_yaml_value, serialized_yaml_value);
     }
 }
