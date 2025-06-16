@@ -13,6 +13,7 @@ use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCol
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
+use crate::health::noop::NONE_HEALTH_CHECKER_BUILDER;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -34,6 +35,7 @@ use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::HostnameGetter;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
 impl AgentControlRunner {
@@ -159,6 +161,7 @@ impl AgentControlRunner {
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
+            SystemTime::now(),
             config_storer,
             self.agent_control_publisher,
             self.application_event_consumer,
@@ -166,6 +169,7 @@ impl AgentControlRunner {
             dynamic_config_validator,
             garbage_collector,
             k8s_ac_updater,
+            NONE_HEALTH_CHECKER_BUILDER, // TODO: use actual health-checker builder and check current behavior in AC
             agent_control_config,
         )
         .run()

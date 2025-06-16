@@ -1,5 +1,6 @@
 pub mod events;
 pub mod health_checker;
+pub mod noop;
 pub mod with_start_time;
 
 pub mod k8s;
