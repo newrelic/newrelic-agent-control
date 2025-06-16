@@ -54,13 +54,6 @@ pub(crate) mod tests {
     }
 
     impl MockAgentControlDynamicConfigStore {
-        pub fn should_load(&mut self, sub_agents_config: &AgentControlDynamicConfig) {
-            let sub_agents_config = sub_agents_config.clone();
-            self.expect_load()
-                .once()
-                .returning(move || Ok(sub_agents_config.clone()));
-        }
-
         pub fn should_store(&mut self, remote_config: RemoteConfig) {
             self.expect_store()
                 .once()

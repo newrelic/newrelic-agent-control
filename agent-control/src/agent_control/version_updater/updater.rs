@@ -35,7 +35,7 @@ impl VersionUpdater for NoOpUpdater {
     }
 
     fn should_update(&self, _config: &AgentControlDynamicConfig) -> bool {
-        true
+        false
     }
 }
 

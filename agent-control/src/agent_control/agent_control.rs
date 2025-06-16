@@ -53,7 +53,7 @@ where
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
     dynamic_config_validator: DV,
     resource_cleaner: RC,
-    _version_updater: VU,
+    version_updater: VU,
     initial_config: AgentControlConfig,
     health_checker_builder: fn(SystemTime) -> Option<HC>,
 }
@@ -96,8 +96,8 @@ where
             agent_control_internal_publisher,
             dynamic_config_validator,
             resource_cleaner,
-            _version_updater: version_updater,
             health_checker_builder,
+            version_updater,
             initial_config,
         }
     }
@@ -135,11 +135,21 @@ where
                 )
             });
 
+        if self
+            .version_updater
+            .should_update(&self.initial_config.dynamic)
+        {
+            let _ = self
+                .version_updater
+                .update(&self.initial_config.dynamic)
+                .inspect_err(|err| error!("Error updating Agent Control version: {err}"));
+        }
+
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
         // the result as read by the `AgentControlConfigLoader`.
         let sub_agents_config = &self.initial_config.dynamic.agents;
-
+        // TODO refactor this to prevent any error related to dynamic config crash AC
         let running_sub_agents = self.build_and_run_sub_agents(sub_agents_config)?;
 
         info!("Agents supervisor runtime successfully started");
@@ -181,7 +191,7 @@ where
         AgentError,
     > {
         let mut running_sub_agents = StartedSubAgents::default();
-
+        // TODO we discussed about also applying the version update here
         for (agent_id, agent_config) in sub_agents {
             let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
 
@@ -233,6 +243,8 @@ where
             let _ = uptime_reporter.report();
         }
 
+        let mut current_dynamic_config = self.initial_config.dynamic.clone();
+
         // Count the received remote configs during execution
         let mut remote_config_count = 0;
         loop {
@@ -249,8 +261,8 @@ where
                                     debug!("Received remote config.");
                                     remote_config_count += 1;
                                     trace!(monotonic_counter.remote_configs_received = remote_config_count);
-                                    let _ = self.handle_remote_config(remote_config, &mut sub_agents)
-                                        .inspect_err(|err| error!(error_msg = %err,"Error processing valid remote config"));
+                                    let _ = self.handle_remote_config(remote_config, &mut sub_agents,&mut current_dynamic_config)
+                                        .inspect_err(|err| error!(error_msg = %err,"Error processing remote config"));
                                 }
                                 OpAMPEvent::Connected => self.agent_control_publisher.broadcast(AgentControlEvent::OpAMPConnected),
                                 OpAMPEvent::ConnectFailed(error_code, error_message) => self.agent_control_publisher.broadcast(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
@@ -294,6 +306,7 @@ where
         sub_agents: &mut StartedSubAgents<
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
+        current_dynamic_config: &mut AgentControlDynamicConfig,
     ) -> Result<(), AgentError> {
         let Some(opamp_client) = &self.opamp_client else {
             unreachable!("got remote config without OpAMP being enabled");
@@ -306,7 +319,11 @@ where
             opamp_client,
         )?;
 
-        match self.apply_remote_agent_control_config(&opamp_remote_config, sub_agents) {
+        match self.apply_remote_agent_control_config(
+            &opamp_remote_config,
+            sub_agents,
+            current_dynamic_config,
+        ) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
@@ -338,6 +355,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
+        current_dynamic_config: &mut AgentControlDynamicConfig,
     ) -> Result<(), AgentError> {
         // Fail if the remote config has already identified as failed.
         if let Some(err) = opamp_remote_config.state.error_message().cloned() {
@@ -351,9 +369,7 @@ where
 
         let remote_config_value = opamp_remote_config.get_unique()?;
 
-        let old_agent_control_dynamic_config = self.sa_dynamic_config_store.load()?;
-
-        let agent_control_dynamic_config = if remote_config_value.is_empty() {
+        let new_dynamic_config = if remote_config_value.is_empty() {
             // Use the local configuration if the content of the remote config is empty.
             // Do not confuse with an empty list of 'agents', which is a valid remote configuration.
             self.sa_dynamic_config_store.delete()?;
@@ -367,11 +383,18 @@ where
             remote_config_value
         );
         self.dynamic_config_validator
-            .validate(&agent_control_dynamic_config)?;
+            .validate(&new_dynamic_config)?;
+
+        // The updater is responsible to understand the current version and decide whether or not to update.
+        if self.version_updater.should_update(&new_dynamic_config) {
+            info!("Updating Agent Control");
+            self.version_updater.update(&new_dynamic_config)?;
+            info!("Agent Control update triggered");
+        }
 
         self.apply_remote_agent_control_config_agents(
-            old_agent_control_dynamic_config,
-            agent_control_dynamic_config,
+            current_dynamic_config,
+            &new_dynamic_config,
             running_sub_agents,
         )?;
 
@@ -381,6 +404,7 @@ where
                 hash: opamp_remote_config.hash.clone(),
                 state: opamp_remote_config.state.clone(),
             };
+            *current_dynamic_config = new_dynamic_config;
             self.sa_dynamic_config_store.store(&config)?;
         }
 
@@ -390,8 +414,8 @@ where
     // apply a remote config to the running sub agents
     pub(super) fn apply_remote_agent_control_config_agents(
         &self,
-        old_agent_control_dynamic_config: AgentControlDynamicConfig,
-        agent_control_dynamic_config: AgentControlDynamicConfig,
+        current_dynamic_config: &AgentControlDynamicConfig,
+        new_dynamic_config: &AgentControlDynamicConfig,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -402,13 +426,13 @@ where
         // - storers isn't updated (event for an agent that has been applied and running )
 
         // apply new configuration
-        agent_control_dynamic_config
+        new_dynamic_config
             .agents
             .iter()
             .try_for_each(|(agent_id, agent_config)| {
                 let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
                 // recreates an existent sub agent if the configuration has changed
-                match old_agent_control_dynamic_config.agents.get(agent_id) {
+                match current_dynamic_config.agents.get(agent_id) {
                     Some(old_sub_agent_config) => {
                         if old_sub_agent_config == agent_config {
                             return Ok(());
@@ -425,10 +449,8 @@ where
             })?;
 
         // remove sub agents not used anymore
-        let mut sub_agents_to_remove = sub_agents_difference(
-            &old_agent_control_dynamic_config.agents,
-            &agent_control_dynamic_config.agents,
-        );
+        let mut sub_agents_to_remove =
+            sub_agents_difference(&current_dynamic_config.agents, &new_dynamic_config.agents);
         sub_agents_to_remove.try_for_each(
             |(agent_id, agent_config)| -> Result<(), AgentError> {
                 self.agent_control_publisher
@@ -473,14 +495,13 @@ where
 mod tests {
     use crate::agent_control::AgentControl;
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::tests::sub_agents_default_config;
+    use crate::agent_control::config::tests::{sub_agents_default_config, sub_agents_nrdot};
     use crate::agent_control::config::{
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
     use crate::agent_control::config_repository::repository::tests::MockAgentControlDynamicConfigStore;
     use crate::agent_control::config_validator::DynamicConfigValidatorError;
     use crate::agent_control::config_validator::tests::MockDynamicConfigValidator;
-    use crate::agent_control::resource_cleaner::ResourceCleanerError;
     use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
     use crate::agent_control::resource_cleaner::tests::MockResourceCleaner;
     use crate::agent_control::version_updater::updater::NoOpUpdater;
@@ -779,10 +800,6 @@ mod tests {
             .returning(|_| Ok(()));
 
         let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-        sa_dynamic_config_store
-            .expect_load()
-            .once()
-            .returning(|| Ok(sub_agents_default_config()));
         // updated agent
         sa_dynamic_config_store
             .expect_store()
@@ -874,29 +891,6 @@ agents:
             .returning(|_| Ok(()));
 
         let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-        // all agents on first load
-        sa_dynamic_config_store
-            .expect_load()
-            .times(1)
-            .returning(|| Ok(sub_agents_default_config()));
-
-        sa_dynamic_config_store
-            .expect_load()
-            .once()
-            .return_once(|| {
-                Ok(AgentControlDynamicConfig {
-                    agents: HashMap::from([(
-                        AgentID::new("nrdot").unwrap(),
-                        SubAgentConfig {
-                            agent_type: AgentTypeID::try_from(
-                                "newrelic/io.opentelemetry.collector:0.0.1",
-                            )
-                            .unwrap(),
-                        },
-                    )]),
-                    chart_version: None,
-                })
-            });
 
         sa_dynamic_config_store
             .expect_store()
@@ -983,7 +977,11 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(
+                &opamp_remote_config,
+                &mut running_sub_agents,
+                &mut sub_agents_default_config(),
+            )
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
@@ -1005,7 +1003,11 @@ agents:
         );
 
         agent_control
-            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(
+                &opamp_remote_config,
+                &mut running_sub_agents,
+                &mut sub_agents_nrdot(),
+            )
             .unwrap();
 
         assert_eq!(running_sub_agents.len(), 1);
@@ -1019,39 +1021,34 @@ agents:
         let sub_agents_config = sub_agents_default_config().agents;
 
         let mut sub_agent_builder = MockSubAgentBuilder::new();
-        // it should build three times (2 + 1 + 1)
-        sub_agent_builder.should_build(3);
+        // it should build three times (2 + 1)
+        sub_agent_builder.should_build(2);
 
         let mut dynamic_config_validator = MockDynamicConfigValidator::new();
         dynamic_config_validator
             .expect_validate()
-            .times(2)
+            .once()
             .returning(|_| Ok(()));
 
         let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         // all agents on first load
-        sa_dynamic_config_store
-            .expect_load()
-            .times(1)
-            .returning(|| Ok(sub_agents_default_config()));
-
-        sa_dynamic_config_store
-            .expect_load()
-            .once()
-            .return_once(|| {
-                Ok(AgentControlDynamicConfig {
-                    agents: HashMap::from([(
-                        AgentID::new("nrdot").unwrap(),
-                        SubAgentConfig {
-                            agent_type: AgentTypeID::try_from(
-                                "newrelic/io.opentelemetry.collector:0.0.1",
-                            )
-                            .unwrap(),
-                        },
-                    )]),
-                    chart_version: None,
-                })
-            });
+        // sa_dynamic_config_store
+        //     .expect_load()
+        //     .once()
+        //     .return_once(|| {
+        //         Ok(AgentControlDynamicConfig {
+        //             agents: HashMap::from([(
+        //                 AgentID::new("nrdot").unwrap(),
+        //                 SubAgentConfig {
+        //                     agent_type: AgentTypeID::try_from(
+        //                         "newrelic/io.opentelemetry.collector:0.0.1",
+        //                     )
+        //                     .unwrap(),
+        //                 },
+        //             )]),
+        //             chart_version: None,
+        //         })
+        //     });
 
         sa_dynamic_config_store
             .expect_store()
@@ -1068,11 +1065,6 @@ agents:
             .remove(&infra_agent_id)
             .unwrap()
             .agent_type;
-        let nrdot_agent_id = AgentID::new("nrdot").unwrap();
-        let nrdot_agent_type = sub_agents_to_clean
-            .remove(&nrdot_agent_id)
-            .unwrap()
-            .agent_type;
         // This test first cleans up the infra-agent agent
         resource_cleaner
             .expect_clean()
@@ -1083,20 +1075,6 @@ agents:
                 predicate::eq(infra_agent_type),
             )
             .returning(|_, _| Ok(()));
-        // Then cleans up the nrdot agent
-        resource_cleaner
-            .expect_clean()
-            .once()
-            .in_sequence(&mut resource_cleaning_seq)
-            .with(
-                predicate::eq(nrdot_agent_id),
-                predicate::eq(nrdot_agent_type),
-            )
-            .returning(|_, _| {
-                Err(ResourceCleanerError::new(
-                    "something failed when cleaning up resources!",
-                ))
-            });
 
         // Create the Agent Control and run Sub Agents
         let agent_control = AgentControl::new(
@@ -1137,32 +1115,12 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
+            .apply_remote_agent_control_config(
+                &opamp_remote_config,
+                &mut running_sub_agents,
+                &mut sub_agents_default_config(),
+            )
             .unwrap();
-
-        assert_eq!(running_sub_agents.len(), 1);
-
-        // remove nrdot and create new infra-agent sub_agent
-        let opamp_remote_config = OpampRemoteConfig::new(
-            AgentID::new_agent_control_id(),
-            Hash::from("b-hash"),
-            ConfigState::Applying,
-            Some(ConfigurationMap::new(HashMap::from([(
-                "".to_string(),
-                r#"
-agents:
-  infra-agent:
-    agent_type: newrelic/com.newrelic.infrastructure:0.0.1
-"#
-                .to_string(),
-            )]))),
-        );
-
-        assert!(
-            agent_control
-                .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents)
-                .is_err()
-        );
 
         assert_eq!(running_sub_agents.len(), 1);
 
@@ -1187,12 +1145,7 @@ agents:
                 ))
             });
 
-        let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-        // all agents on first load
-        sa_dynamic_config_store
-            .expect_load()
-            .times(1)
-            .returning(|| Ok(sub_agents_default_config()));
+        let sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
 
         let (_opamp_publisher, opamp_consumer) = pub_sub();
 
@@ -1235,8 +1188,11 @@ agents:
 
         assert_eq!(running_sub_agents.len(), 2);
 
-        let apply_remote = agent_control
-            .apply_remote_agent_control_config(&opamp_remote_config, &mut running_sub_agents);
+        let apply_remote = agent_control.apply_remote_agent_control_config(
+            &opamp_remote_config,
+            &mut running_sub_agents,
+            &mut AgentControlConfig::default().dynamic,
+        );
 
         assert!(apply_remote.is_err());
 
@@ -1249,11 +1205,11 @@ agents:
     fn agent_control_invalid_remote_config_should_be_reported_as_failed() {
         // Mocked services
         let sub_agent_builder = MockSubAgentBuilder::new();
-        let mut dynamic_config_store = MockAgentControlDynamicConfigStore::new();
+        let dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         let mut started_client = MockStartedOpAMPClient::new();
         // Structs
         let mut running_sub_agents = StartedSubAgents::default();
-        let old_sub_agents_config = AgentControlDynamicConfig::default();
+        let mut current_sub_agents_config = AgentControlDynamicConfig::default();
         let agent_id = AgentID::new_agent_control_id();
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_id,
@@ -1275,9 +1231,6 @@ agents:
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
-
-        // load current sub agents config
-        dynamic_config_store.should_load(&old_sub_agents_config);
 
         // report failed after trying to unserialize
         let status = RemoteConfigStatus {
@@ -1307,7 +1260,11 @@ agents:
         );
 
         agent_control
-            .handle_remote_config(opamp_remote_config, &mut running_sub_agents)
+            .handle_remote_config(
+                opamp_remote_config,
+                &mut running_sub_agents,
+                &mut current_sub_agents_config,
+            )
             .unwrap();
     }
 
@@ -1326,14 +1283,15 @@ agents:
         let mut running_sub_agents =
             StartedSubAgents::from(HashMap::from([(sub_agent_id.clone(), started_sub_agent)]));
 
-        let old_sub_agents_config = AgentControlDynamicConfig {
+        // local config
+        let mut current_sub_agents_config = AgentControlDynamicConfig {
             agents: HashMap::from([(
                 sub_agent_id.clone(),
                 SubAgentConfig {
-                    agent_type: "namespace/some_agent_type:0.0.1".try_into().unwrap(),
+                    agent_type: AgentTypeID::try_from("namespace/some_agent_type:0.0.1").unwrap(),
                 },
             )]),
-            chart_version: None,
+            ..Default::default()
         };
 
         let agent_id = AgentID::new_agent_control_id();
@@ -1358,9 +1316,6 @@ agents:
         };
         started_client.should_set_remote_config_status(status);
         started_client.should_update_effective_config(1);
-
-        // load current sub agents config
-        dynamic_config_store.should_load(&old_sub_agents_config);
 
         // store remote config with empty agents
         let remote_config_values = RemoteConfig {
@@ -1409,7 +1364,11 @@ agents:
         );
 
         agent_control
-            .handle_remote_config(opamp_remote_config, &mut running_sub_agents)
+            .handle_remote_config(
+                opamp_remote_config,
+                &mut running_sub_agents,
+                &mut current_sub_agents_config,
+            )
             .unwrap();
     }
 
@@ -1440,10 +1399,6 @@ agents:
             .expect_validate()
             .times(1)
             .returning(|_| Ok(()));
-
-        // load local config
-        let sub_agents_config = AgentControlDynamicConfig::default();
-        sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let remote_config_hash = Hash::from("a-hash");
         let opamp_remote_config = OpampRemoteConfig::new(
@@ -1799,18 +1754,20 @@ agents:
 
         let agent_id = AgentID::new("infra-agent").unwrap();
 
-        // load local config
-        let sub_agents_config = AgentControlDynamicConfig {
-            agents: HashMap::from([(
-                agent_id.clone(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
-                },
-            )]),
-            chart_version: None,
+        // local config
+        let agent_control_config = AgentControlConfig {
+            dynamic: AgentControlDynamicConfig {
+                agents: HashMap::from([(
+                    agent_id.clone(),
+                    SubAgentConfig {
+                        agent_type: AgentTypeID::try_from("namespace/some-agent-type:0.0.1")
+                            .unwrap(),
+                    },
+                )]),
+                ..Default::default()
+            },
+            ..Default::default()
         };
-
-        sa_dynamic_config_store.should_load(&sub_agents_config);
 
         let remote_config_hash = Hash::from("a-hash");
         let opamp_remote_config = OpampRemoteConfig::new(
@@ -1865,7 +1822,7 @@ agents:
                     NoOpResourceCleaner,
                     NoOpUpdater,
                     NONE_HEALTH_CHECKER_BUILDER,
-                    AgentControlConfig::default(),
+                    agent_control_config,
                 )
                 .process_events(sub_agents);
             }
