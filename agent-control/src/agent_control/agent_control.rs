@@ -1642,7 +1642,7 @@ agents:
 
         let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
         sa_dynamic_config_store
-            .expect_get_hash()
+            .expect_get_remote_config()
             .returning(|| Ok(None));
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();

@@ -1027,7 +1027,7 @@ deployment:
         // then the loop will error because the opamp channel will be closed.
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
-        let (opamp_publisher, opamp_consumer) = pub_sub();
+        let (_, opamp_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition().into()),
