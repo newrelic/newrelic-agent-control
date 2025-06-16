@@ -181,7 +181,7 @@ pub(super) mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
@@ -227,7 +227,8 @@ pub(super) mod tests {
         "#;
         let remote_config = OpampRemoteConfig::new(
             test_id(),
-            Hash::new("this-is-a-hash".to_string()),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 content.to_string(),
@@ -260,7 +261,8 @@ pub(super) mod tests {
             fn run(self) {
                 let remote_config = OpampRemoteConfig::new(
                     test_id(),
-                    Hash::new("fake".to_string()),
+                    Hash::from("fake"),
+                    ConfigState::Applying,
                     Some(ConfigurationMap::new(HashMap::from([(
                         "".to_string(),
                         self.config.to_string(),
@@ -669,7 +671,8 @@ config: |
     fn remote_config(config: &str) -> OpampRemoteConfig {
         OpampRemoteConfig::new(
             test_id(),
-            Hash::new("this-is-a-hash".to_string()),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 config.to_string(),

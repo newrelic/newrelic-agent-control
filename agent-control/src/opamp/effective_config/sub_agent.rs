@@ -68,7 +68,7 @@ mod tests {
     use crate::opamp::effective_config::loader::EffectiveConfigLoader;
     use crate::opamp::effective_config::sub_agent::SubAgentEffectiveConfigLoader;
     use crate::opamp::remote_config::ConfigurationMap;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
@@ -91,8 +91,11 @@ mod tests {
                 let capabilities = default_capabilities();
 
                 let yaml_config = YAMLConfig::try_from(String::from(self.yaml_config)).unwrap();
-                let remote_config_values =
-                    RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+                let remote_config_values = RemoteConfig {
+                    config: yaml_config,
+                    hash: Hash::from("a-hash"),
+                    state: ConfigState::Applied,
+                };
 
                 // Prepare the mock repository to load from remote
                 let mut config_repository = MockConfigRepository::default();

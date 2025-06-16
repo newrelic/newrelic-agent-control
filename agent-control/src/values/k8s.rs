@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::k8s;
 use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::{YAMLConfig, has_remote_management};
@@ -93,25 +93,21 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
         Ok(())
     }
 
-    fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError> {
-        let remote_config = self
-            .k8s_store
+    fn get_remote_config(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<RemoteConfig>, ConfigRepositoryError> {
+        self.k8s_store
             .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|err| {
                 ConfigRepositoryError::LoadError(format!("getting remote config hash: {err}"))
-            })?;
-
-        if let Some(rc) = remote_config {
-            return Ok(Some(rc.hash()));
-        }
-
-        Ok(None)
+            })
     }
 
-    fn update_hash_state(
+    fn update_state(
         &self,
         agent_id: &AgentID,
-        state: &ConfigState,
+        state: ConfigState,
     ) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
@@ -126,10 +122,13 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
             })?;
 
         match maybe_config {
-            Some(mut remote_config) => {
-                remote_config.update_state(state);
+            Some(remote_config) => {
                 self.k8s_store
-                    .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, &remote_config)
+                    .set_opamp_data(
+                        agent_id,
+                        STORE_KEY_OPAMP_DATA_CONFIG,
+                        &remote_config.with_state(state),
+                    )
                     .map_err(|err| {
                         ConfigRepositoryError::StoreError(format!(
                             "updating remote config state: {err}"

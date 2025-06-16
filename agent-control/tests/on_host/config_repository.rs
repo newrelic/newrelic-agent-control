@@ -1,6 +1,6 @@
 use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::opamp::remote_config::hash::Hash;
+use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::file::{ConfigRepositoryFile, concatenate_sub_agent_dir_path};
@@ -31,10 +31,11 @@ fn test_store_remote_no_mocks() {
 
     let agent_id = AgentID::new("some-agent-id").unwrap();
 
-    let agent_values = RemoteConfig::new(
-        serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap(),
-        Hash::new("hash-test".to_string()),
-    );
+    let agent_values = RemoteConfig {
+        config: serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap(),
+        hash: Hash::from("hash-test"),
+        state: ConfigState::Applying,
+    };
 
     values_repo
         .store_remote(&agent_id.clone(), &agent_values)

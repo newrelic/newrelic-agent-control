@@ -69,7 +69,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
-    use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::RemoteConfig;
     use mockall::mock;
     use std::collections::HashMap;
@@ -81,9 +81,9 @@ pub(crate) mod tests {
 
             fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
-            fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+            fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
-            fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+            fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
 
             fn delete(&self) -> Result<(), AgentControlConfigError>;
         }

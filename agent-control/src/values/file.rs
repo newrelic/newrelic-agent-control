@@ -2,7 +2,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
 };
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
 use crate::values::yaml_config::has_remote_management;
@@ -221,42 +221,38 @@ where
         Ok(())
     }
 
-    fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError> {
+    fn get_remote_config(
+        &self,
+        agent_id: &AgentID,
+    ) -> Result<Option<RemoteConfig>, ConfigRepositoryError> {
         let _read_guard = self.rw_lock.read().unwrap();
         let remote_values_path = self.get_remote_values_file_path(agent_id);
 
         // If there is a remote we try to deserialize it with serde_yaml into a RemoteConfig struct
-        let maybe_remote = self
-            .load_file_if_present(remote_values_path)
+        self.load_file_if_present(remote_values_path)
             // maps an error during the file loading into the right error
             .map_err(|err| {
                 ConfigRepositoryError::LoadError(format!("getting remote config hash: {err}"))
             })
             .and_then(|maybe_values| {
-                maybe_values.map_or(Ok(None), |values| {
-                    serde_yaml::from_str(&values)
-                        .map(Config::RemoteConfig)
-                        .map(Some)
-                        // maps an error during the serde_yaml deserializing into the right error
-                        .map_err(|err| {
-                            ConfigRepositoryError::LoadError(format!(
-                                "getting remote config hash: {err}"
-                            ))
-                        })
-                })
-            })?;
-
-        if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
-            return Ok(Some(remote_config.hash()));
-        }
-
-        Ok(None)
+                maybe_values
+                    .map(|values| {
+                        serde_yaml::from_str(&values)
+                            // maps an error during the serde_yaml deserializing into the right error
+                            .map_err(|err| {
+                                ConfigRepositoryError::LoadError(format!(
+                                    "getting remote config hash: {err}"
+                                ))
+                            })
+                    })
+                    .transpose()
+            })
     }
 
-    fn update_hash_state(
+    fn update_state(
         &self,
         agent_id: &AgentID,
-        state: &ConfigState,
+        state: ConfigState,
     ) -> Result<(), ConfigRepositoryError> {
         debug!(
             agent_id = agent_id.to_string(),
@@ -284,12 +280,13 @@ where
                 })
             })?;
 
-        if let Some(Config::RemoteConfig(mut remote_config)) = maybe_remote {
-            remote_config.update_state(state);
-
-            let content = serde_yaml::to_string(&remote_config).map_err(|err| {
-                ConfigRepositoryError::StoreError(format!("updating remote config state: {err}"))
-            })?;
+        if let Some(Config::RemoteConfig(remote_config)) = maybe_remote {
+            let content =
+                serde_yaml::to_string(&remote_config.with_state(state)).map_err(|err| {
+                    ConfigRepositoryError::StoreError(format!(
+                        "updating remote config state: {err}"
+                    ))
+                })?;
 
             self.file_rw
                 .write(
@@ -345,7 +342,7 @@ pub mod tests {
     use super::{ConfigRepositoryFile, concatenate_sub_agent_dir_path};
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
@@ -533,7 +530,11 @@ state: applied
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
         repo.store_remote(&agent_id, &remote_config).unwrap();
     }
 
@@ -548,7 +549,11 @@ state: applied
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
         let result = repo.store_remote(&agent_id, &remote_config);
         let err = result.unwrap_err();
         assert_matches!(err, ConfigRepositoryError::StoreError(s) => {
@@ -572,7 +577,11 @@ state: applied
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
-        let remote_config = RemoteConfig::new(yaml_config, Hash::new("a-hash".to_string()));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
         let result = repo.store_remote(&agent_id, &remote_config);
         let err = result.unwrap_err();
         assert_matches!(err, ConfigRepositoryError::StoreError(s) => {

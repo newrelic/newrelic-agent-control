@@ -13,9 +13,8 @@ use crate::event::{
 };
 use crate::health::health_checker::{Health, Healthy, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
-use crate::opamp::remote_config::{
-    OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState, report::OpampRemoteConfigStatus,
-};
+use crate::opamp::remote_config::report::report_state;
+use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
 use crate::sub_agent::{
     NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::AgentIdentity,
 };
@@ -91,15 +90,15 @@ where
     pub fn run(self) -> Result<(), AgentError> {
         debug!("Creating agent's communication channels");
         if let Some(opamp_client) = &self.opamp_client {
-            match self.sa_dynamic_config_store.get_hash() {
+            match self.sa_dynamic_config_store.get_remote_config() {
                 Err(e) => {
-                    warn!("Failed getting remote config hash from the store: {}", e);
+                    warn!("Failed getting remote config from the store: {}", e);
                 }
-                Ok(Some(hash)) => {
-                    if !hash.is_applied() {
-                        OpampRemoteConfigStatus::Applied.report(opamp_client, hash.get())?;
+                Ok(Some(rc)) => {
+                    if !rc.is_applied() {
+                        report_state(ConfigState::Applied, rc.hash, opamp_client)?;
                         self.sa_dynamic_config_store
-                            .update_hash_state(&ConfigState::Applied)?;
+                            .update_state(ConfigState::Applied)?;
                     }
                 }
                 Ok(None) => {
@@ -258,21 +257,30 @@ where
         };
 
         info!("Applying remote config");
-        OpampRemoteConfigStatus::Applying.report(opamp_client, opamp_remote_config.hash.get())?;
+        report_state(
+            ConfigState::Applying,
+            opamp_remote_config.hash.clone(),
+            opamp_client,
+        )?;
 
         match self.apply_remote_agent_control_config(&opamp_remote_config, sub_agents) {
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
                 error!(error_message);
-                OpampRemoteConfigStatus::Error(error_message.clone())
-                    .report(opamp_client, opamp_remote_config.hash.get())?;
+                report_state(
+                    ConfigState::Failed {
+                        error_message: error_message.clone(),
+                    },
+                    opamp_remote_config.hash,
+                    opamp_client,
+                )?;
+
                 Ok(self.report_health(Unhealthy::new(error_message).into())?)
             }
             Ok(()) => {
                 self.sa_dynamic_config_store
-                    .update_hash_state(&ConfigState::Applied)?;
-                OpampRemoteConfigStatus::Applied
-                    .report(opamp_client, opamp_remote_config.hash.get())?;
+                    .update_state(ConfigState::Applied)?;
+                report_state(ConfigState::Applied, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
                 Ok(self.report_health(Healthy::new().into())?)
             }
@@ -289,11 +297,13 @@ where
         >,
     ) -> Result<(), AgentError> {
         // Fail if the remote config has already identified as failed.
-        if let Some(err) = opamp_remote_config.hash.error_message() {
+        if let Some(err) = opamp_remote_config.state.error_message().cloned() {
             // TODO seems like this error should be sent by the remote config itself
-            return Err(
-                OpampRemoteConfigError::InvalidConfig(opamp_remote_config.hash.get(), err).into(),
-            );
+            return Err(OpampRemoteConfigError::InvalidConfig(
+                opamp_remote_config.hash.to_string(),
+                err,
+            )
+            .into());
         }
 
         let remote_config_value = opamp_remote_config.get_unique()?;
@@ -323,10 +333,11 @@ where
         )?;
 
         if !remote_config_value.is_empty() {
-            let config = RemoteConfigValues::new(
-                YAMLConfig::try_from(remote_config_value.to_string())?,
-                opamp_remote_config.hash.clone(),
-            );
+            let config = RemoteConfigValues {
+                config: YAMLConfig::try_from(remote_config_value.to_string())?,
+                hash: opamp_remote_config.hash.clone(),
+                state: opamp_remote_config.state.clone(),
+            };
             self.sa_dynamic_config_store.store(&config)?;
         }
 
@@ -439,6 +450,7 @@ mod tests {
     use crate::sub_agent::tests::MockStartedSubAgent;
     use crate::sub_agent::tests::MockSubAgentBuilder;
     use crate::values::config::RemoteConfig;
+    use crate::values::yaml_config::YAMLConfig;
     use mockall::{Sequence, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
@@ -461,12 +473,14 @@ mod tests {
             .returning(|| Ok(AgentControlDynamicConfig::default()));
 
         sa_dynamic_config_store
-            .expect_get_hash()
-            .times(1)
+            .expect_get_remote_config()
+            .once()
             .returning(|| {
-                let mut hash = Hash::new("a-hash".to_string());
-                hash.update_state(&ConfigState::Applied);
-                Ok(Some(hash))
+                Ok(Some(RemoteConfig {
+                    config: YAMLConfig::default(),
+                    hash: Hash::from("a-hash"),
+                    state: ConfigState::Applied,
+                }))
             });
 
         let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -512,12 +526,14 @@ mod tests {
         started_client.should_stop(1);
 
         sa_dynamic_config_store
-            .expect_get_hash()
-            .times(1)
+            .expect_get_remote_config()
+            .once()
             .returning(|| {
-                let mut hash = Hash::new("a-hash".to_string());
-                hash.update_state(&ConfigState::Applied);
-                Ok(Some(hash))
+                Ok(Some(RemoteConfig {
+                    config: YAMLConfig::default(),
+                    hash: Hash::from("a-hash"),
+                    state: ConfigState::Applied,
+                }))
             });
 
         // it should build two subagents: nrdot + infra-agent
@@ -718,18 +734,20 @@ mod tests {
             .returning(|_| Ok(()));
 
         sa_dynamic_config_store
-            .expect_get_hash()
-            .times(1)
+            .expect_get_remote_config()
+            .once()
             .returning(|| {
-                let mut hash = Hash::new("a-hash".to_string());
-                hash.update_state(&ConfigState::Applied);
-                Ok(Some(hash))
+                Ok(Some(RemoteConfig {
+                    config: YAMLConfig::default(),
+                    hash: Hash::from("a-hash"),
+                    state: ConfigState::Applied,
+                }))
             });
 
         sa_dynamic_config_store
-            .expect_update_hash_state()
+            .expect_update_state()
             .with(predicate::eq(ConfigState::Applied))
-            .times(1)
+            .once()
             .returning(|_| Ok(()));
 
         // it should build two subagents: nrdot + infra-agent
@@ -759,7 +777,8 @@ mod tests {
 
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::from("a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -889,7 +908,8 @@ agents:
         // just one agent, it should remove the infra-agent
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::from("a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -912,7 +932,8 @@ agents:
         // remove nrdot and create new infra-agent sub_agent
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("b-hash".to_string()),
+            Hash::from("b-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -1039,7 +1060,8 @@ agents:
         // just one agent, it should remove the infra-agent
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::from("a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -1062,7 +1084,8 @@ agents:
         // remove nrdot and create new infra-agent sub_agent
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("b-hash".to_string()),
+            Hash::from("b-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -1133,7 +1156,8 @@ agents:
         // just one agent, it should remove the infra-agent
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
-            Hash::new("a-hash".to_string()),
+            Hash::from("a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 r#"
@@ -1170,7 +1194,8 @@ agents:
         let agent_id = AgentID::new_agent_control_id();
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_id,
-            Hash::new("this-is-a-hash".to_string()),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 "invalid_yaml_content:{}".to_string(),
@@ -1183,7 +1208,7 @@ agents:
         // Report config status as applying
         let status = RemoteConfigStatus {
             status: Applying as i32,
-            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.to_string().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -1194,7 +1219,7 @@ agents:
         // report failed after trying to unserialize
         let status = RemoteConfigStatus {
             status: Failed as i32,
-            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.to_string().into_bytes(),
             error_message: "Error applying Agent Control remote config: could not resolve config: `configuration is not valid YAML: `invalid type: string \"invalid_yaml_content:{}\", expected struct AgentControlDynamicConfig``".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -1249,7 +1274,8 @@ agents:
         let agent_id = AgentID::new_agent_control_id();
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_id,
-            Hash::new("this-is-a-hash".to_string()),
+            Hash::from("this-is-a-hash"),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 "".to_string(),
                 "agents: {}".to_string(),
@@ -1262,7 +1288,7 @@ agents:
         // Report config status as applying
         let status = RemoteConfigStatus {
             status: Applying as i32,
-            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.to_string().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -1272,24 +1298,23 @@ agents:
         dynamic_config_store.should_load(&old_sub_agents_config);
 
         // store remote config with empty agents
-        let remote_config_values = RemoteConfig::new(
-            serde_yaml::from_str("agents: {}").unwrap(),
-            opamp_remote_config.hash.clone(),
-        );
+        let remote_config_values = RemoteConfig {
+            config: serde_yaml::from_str("agents: {}").unwrap(),
+            hash: opamp_remote_config.hash.clone(),
+            state: opamp_remote_config.state.clone(),
+        };
         dynamic_config_store.should_store(remote_config_values);
 
-        let mut applied_hash = opamp_remote_config.hash.clone();
-        applied_hash.update_state(&ConfigState::Applied);
         dynamic_config_store
-            .expect_update_hash_state()
-            .with(predicate::eq(applied_hash.state()))
+            .expect_update_state()
+            .with(predicate::eq(ConfigState::Applied))
             .times(1)
             .returning(|_| Ok(()));
 
         // Report config status as applied
         let status = RemoteConfigStatus {
             status: Applied as i32,
-            last_remote_config_hash: opamp_remote_config.hash.get().into_bytes(),
+            last_remote_config_hash: opamp_remote_config.hash.to_string().into_bytes(),
             error_message: "".to_string(),
         };
         started_client.should_set_remote_config_status(status);
@@ -1353,10 +1378,11 @@ agents:
         let sub_agents_config = AgentControlDynamicConfig::default();
         sa_dynamic_config_store.should_load(&sub_agents_config);
 
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let remote_config_hash = Hash::from("a-hash");
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             remote_config_hash.clone(),
+            ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
                 String::default(),
                 String::from("agents: {}"),
@@ -1364,15 +1390,18 @@ agents:
         );
 
         let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
-        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        let remote_config_values = RemoteConfig {
+            config: yaml_config,
+            hash: remote_config_hash.clone(),
+            state: opamp_remote_config.state.clone(),
+        };
         // store remote config
         sa_dynamic_config_store.should_store(remote_config_values);
 
-        // store agent control remote config hash
-        remote_config_hash.update_state(&ConfigState::Applied);
+        // store agent control remote config status
         sa_dynamic_config_store
-            .expect_update_hash_state()
-            .with(predicate::eq(remote_config_hash.state()))
+            .expect_update_state()
+            .with(predicate::eq(ConfigState::Applied))
             .times(1)
             .returning(|_| Ok(()));
 
@@ -1457,13 +1486,15 @@ agents:
 
         let dynamic_config_validator = MockDynamicConfigValidator::new();
 
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
-        remote_config_hash.update_state(&ConfigState::Failed {
-            error_message: String::from("some error message"),
-        });
-
-        let opamp_remote_config =
-            OpampRemoteConfig::new(AgentID::new_agent_control_id(), remote_config_hash, None);
+        let remote_config_hash = Hash::from("a-hash");
+        let opamp_remote_config = OpampRemoteConfig::new(
+            AgentID::new_agent_control_id(),
+            remote_config_hash,
+            ConfigState::Failed {
+                error_message: String::from("some error message"),
+            },
+            None,
+        );
 
         // the running sub agents
         let sub_agents = StartedSubAgents::from(HashMap::default());
@@ -1626,10 +1657,11 @@ agents:
 
         sa_dynamic_config_store.should_load(&sub_agents_config);
 
-        let mut remote_config_hash = Hash::new("a-hash".to_string());
+        let remote_config_hash = Hash::from("a-hash");
         let opamp_remote_config = OpampRemoteConfig::new(
             AgentID::new_agent_control_id(),
             remote_config_hash.clone(),
+            ConfigState::Applied,
             Some(ConfigurationMap::new(HashMap::from([(
                 String::default(),
                 String::from("agents: {}"),
@@ -1638,14 +1670,17 @@ agents:
 
         // store remote config
         let yaml_config = serde_yaml::from_str("agents: {}").unwrap();
-        let remote_config_values = RemoteConfig::new(yaml_config, remote_config_hash.clone());
+        let remote_config_values = RemoteConfig {
+            config: yaml_config,
+            hash: remote_config_hash.clone(),
+            state: opamp_remote_config.state.clone(),
+        };
         sa_dynamic_config_store.should_store(remote_config_values);
 
-        // store agent control remote config hash
-        remote_config_hash.update_state(&ConfigState::Applied);
+        // store agent control remote config status
         sa_dynamic_config_store
-            .expect_update_hash_state()
-            .with(predicate::eq(remote_config_hash.state()))
+            .expect_update_state()
+            .with(predicate::eq(ConfigState::Applied))
             .times(1)
             .returning(|_| Ok(()));
 

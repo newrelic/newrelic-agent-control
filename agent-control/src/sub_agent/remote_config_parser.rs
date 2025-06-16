@@ -56,13 +56,13 @@ where
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
         // Errors here will cause the sub-agent to continue running with the previous configuration.
         // The supervisor won't be recreated.
-        if let Some(err_msg) = config.hash.error_message() {
+        if let Some(err_msg) = config.state.error_message().cloned() {
             return Err(RemoteConfigParserError::RemoteConfigLoad(err_msg));
         }
         for validator in &self.remote_config_validators {
             if let Err(error_msg) = validator.validate(&agent_identity, config) {
                 debug!(
-                    hash = &config.hash.get(),
+                    hash = &config.hash.to_string(),
                     "Invalid remote configuration: {error_msg}"
                 );
                 return Err(RemoteConfigParserError::Validation(error_msg.to_string()));
@@ -86,13 +86,14 @@ fn extract_remote_config_values(
         return Ok(None);
     }
 
-    let yaml_config = YAMLConfig::try_from(remote_config_value.to_string())
+    let config = YAMLConfig::try_from(remote_config_value.to_string())
         .map_err(|err| RemoteConfigParserError::InvalidValues(err.to_string()))?;
 
-    Ok(Some(RemoteConfig::new(
-        yaml_config,
-        opamp_remote_config.hash.clone(),
-    )))
+    Ok(Some(RemoteConfig {
+        config,
+        hash: opamp_remote_config.hash.clone(),
+        state: opamp_remote_config.state.clone(),
+    }))
 }
 
 #[cfg(test)]
@@ -100,7 +101,7 @@ pub mod tests {
     use std::collections::HashMap;
 
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
-    use crate::opamp::remote_config::hash::Hash;
+    use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::identity::AgentIdentity;
@@ -140,10 +141,14 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_with_previous_errors() {
         let agent_identity = AgentIdentity::default();
         // The hash had some previous errors
-        let hash = Hash::failed("some-hash".into(), "some error".into());
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Failed {
+            error_message: "some error".to_string(),
+        };
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
             hash,
+            state,
             Some(ConfigurationMap::default()),
         );
 
@@ -158,10 +163,12 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_validation_error() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash".into());
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
             hash,
+            state,
             Some(ConfigurationMap::default()),
         );
 
@@ -194,11 +201,12 @@ pub mod tests {
     fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash".into());
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
         let config_map =
             ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
         let remote_config =
-            OpampRemoteConfig::new(agent_identity.id.clone(), hash, Some(config_map));
+            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, Some(config_map));
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
 
@@ -210,22 +218,31 @@ pub mod tests {
     fn test_agent_remote_config_parser_some_config() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash".into());
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
             serde_json::from_str::<HashMap<String, String>>(
                 r#"{"config": "{\"key\": \"value\"}"}"#,
             )
             .unwrap(),
         );
-        let opamp_remote_config =
-            OpampRemoteConfig::new(agent_identity.id.clone(), hash.clone(), Some(config_map));
+        let opamp_remote_config = OpampRemoteConfig::new(
+            agent_identity.id.clone(),
+            hash.clone(),
+            state.clone(),
+            Some(config_map),
+        );
 
         let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
 
         let handler = AgentRemoteConfigParser::new(vec![validator]);
 
-        let expected = RemoteConfig::new(serde_yaml::from_str("key: value").unwrap(), hash);
+        let expected = RemoteConfig {
+            config: serde_yaml::from_str("key: value").unwrap(),
+            hash,
+            state,
+        };
 
         let result = handler.parse(agent_identity.clone(), &opamp_remote_config);
         assert_matches!(result, Ok(Some(yaml_config)) => {
@@ -237,12 +254,13 @@ pub mod tests {
     fn test_agent_remote_config_parser_empty_config() {
         let agent_identity = AgentIdentity::default();
 
-        let hash = Hash::new("some-hash".into());
+        let hash = Hash::from("some-hash");
+        let state = ConfigState::Applying;
         let config_map = ConfigurationMap::new(
             serde_json::from_str::<HashMap<String, String>>(r#"{"config": ""}"#).unwrap(),
         );
         let opamp_remote_config =
-            OpampRemoteConfig::new(agent_identity.id.clone(), hash, Some(config_map));
+            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, Some(config_map));
 
         let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));

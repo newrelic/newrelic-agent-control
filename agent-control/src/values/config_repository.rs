@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::values::config::{Config, RemoteConfig};
 
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use opamp_client::operation::capabilities::Capabilities;
 use thiserror::Error;
 use tracing::debug;
@@ -50,12 +50,15 @@ pub trait ConfigRepository: Send + Sync + 'static {
         remote_config: &RemoteConfig,
     ) -> Result<(), ConfigRepositoryError>;
 
-    fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError>;
-
-    fn update_hash_state(
+    fn get_remote_config(
         &self,
         agent_id: &AgentID,
-        state: &ConfigState,
+    ) -> Result<Option<RemoteConfig>, ConfigRepositoryError>;
+
+    fn update_state(
+        &self,
+        agent_id: &AgentID,
+        state: ConfigState,
     ) -> Result<(), ConfigRepositoryError>;
 
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;
@@ -67,7 +70,7 @@ pub mod tests {
     use std::sync::Mutex;
 
     use crate::agent_control::agent_id::AgentID;
-    use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::{Config, RemoteConfig};
     use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
     use crate::values::yaml_config::YAMLConfig;
@@ -138,29 +141,19 @@ pub mod tests {
                 .unwrap()
                 .get(agent_id)
                 .map(|config| {
-                    let remote_config = RemoteConfig::new(
-                        config.get_yaml_config().clone(),
-                        config.get_hash().unwrap(),
-                    );
+                    let remote_config = RemoteConfig {
+                        config: config.get_yaml_config().clone(),
+                        hash: config.get_hash().cloned().unwrap(),
+                        state: config.get_state().cloned().unwrap(),
+                    };
                     Config::RemoteConfig(remote_config)
                 }))
         }
 
-        fn get_hash(&self, agent_id: &AgentID) -> Result<Option<Hash>, ConfigRepositoryError> {
-            let binding = self.remote_config.lock().unwrap();
-            let remote_config = binding.get(agent_id);
-
-            if let Some(rc) = remote_config {
-                return Ok(rc.get_hash());
-            }
-
-            Ok(None)
-        }
-
-        fn update_hash_state(
+        fn update_state(
             &self,
             agent_id: &AgentID,
-            state: &ConfigState,
+            state: ConfigState,
         ) -> Result<(), ConfigRepositoryError> {
             let updated_remote_config =
                 self.remote_config
@@ -168,10 +161,12 @@ pub mod tests {
                     .unwrap()
                     .get(agent_id)
                     .and_then(|remote_config| {
-                        if let Some(mut hash) = remote_config.get_hash() {
-                            hash.update_state(state);
-                            let remote_config =
-                                RemoteConfig::new(remote_config.get_yaml_config().clone(), hash);
+                        if let Some(hash) = remote_config.get_hash().cloned() {
+                            let remote_config = RemoteConfig {
+                                config: remote_config.get_yaml_config().clone(),
+                                hash,
+                                state: state.clone(),
+                            };
                             return Some(Config::RemoteConfig(remote_config));
                         }
                         None
@@ -186,6 +181,19 @@ pub mod tests {
 
             Ok(())
         }
+
+        fn get_remote_config(
+            &self,
+            agent_id: &AgentID,
+        ) -> Result<Option<RemoteConfig>, ConfigRepositoryError> {
+            Ok(self
+                .remote_config
+                .lock()
+                .unwrap()
+                .get(agent_id)
+                .cloned()
+                .and_then(Option::<RemoteConfig>::from))
+        }
     }
 
     mock! {
@@ -198,15 +206,15 @@ pub mod tests {
                 remote_config: &RemoteConfig,
             ) -> Result<(), ConfigRepositoryError>;
 
-            fn get_hash(
+            fn get_remote_config(
                 &self,
                 agent_id: &AgentID,
-            ) -> Result<Option<Hash>, ConfigRepositoryError>;
+            ) -> Result<Option<RemoteConfig>, ConfigRepositoryError>;
 
-            fn update_hash_state(
+            fn update_state(
                 &self,
                 agent_id: &AgentID,
-                state: &ConfigState,
+                state: ConfigState,
             ) -> Result<(), ConfigRepositoryError>;
 
             fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError>;

@@ -1,7 +1,7 @@
 use crate::agent_control::config::{
     AgentControlConfig, AgentControlConfigError, AgentControlDynamicConfig,
 };
-use crate::opamp::remote_config::hash::{ConfigState, Hash};
+use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::RemoteConfig;
 
 /// AgentControlConfigLoader loads a whole AgentControlConfig
@@ -20,10 +20,10 @@ pub trait AgentControlDynamicConfigRepository {
     fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
     /// update the state of a remote_config
-    fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+    fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
-    /// retrieves the hash and status from the stored remote_config if exists
-    fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+    /// retrieves the remote_config if exists
+    fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
 
     /// delete the dynamic part of the AgentControlConfig
     fn delete(&self) -> Result<(), AgentControlConfigError>;
@@ -33,7 +33,7 @@ pub trait AgentControlDynamicConfigRepository {
 pub(crate) mod tests {
     use super::{AgentControlConfigError, AgentControlDynamicConfigRepository};
     use crate::agent_control::config::AgentControlDynamicConfig;
-    use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::RemoteConfig;
     use mockall::{mock, predicate};
 
@@ -45,9 +45,9 @@ pub(crate) mod tests {
 
             fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError>;
 
-            fn update_hash_state(&self, state: &ConfigState) -> Result<(), AgentControlConfigError>;
+            fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError>;
 
-            fn get_hash(&self) -> Result<Option<Hash>, AgentControlConfigError>;
+            fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError>;
 
             fn delete(&self) -> Result<(), AgentControlConfigError>;
         }

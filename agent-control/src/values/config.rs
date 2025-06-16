@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// The Config represents either a Local or RemoteConfig, being the LocalConfig only a YAMLConfig
 /// and the Remote Config including also the hash and status.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Config {
     LocalConfig(LocalConfig),
     RemoteConfig(RemoteConfig),
@@ -24,10 +24,49 @@ impl Config {
         }
     }
 
-    pub fn get_hash(&self) -> Option<Hash> {
+    pub fn get_hash(&self) -> Option<&Hash> {
         match self {
             Config::LocalConfig(_) => None,
-            Config::RemoteConfig(remote_config) => Some(remote_config.hash()),
+            Config::RemoteConfig(remote_config) => Some(&remote_config.hash),
+        }
+    }
+
+    pub fn get_state(&self) -> Option<&ConfigState> {
+        match self {
+            Config::LocalConfig(_) => None,
+            Config::RemoteConfig(remote_config) => Some(&remote_config.state),
+        }
+    }
+
+    pub fn local_config(&self) -> Option<&LocalConfig> {
+        match self {
+            Config::LocalConfig(local_config) => Some(local_config),
+            Config::RemoteConfig(_) => None,
+        }
+    }
+
+    pub fn remote_config(&self) -> Option<&RemoteConfig> {
+        match self {
+            Config::LocalConfig(_) => None,
+            Config::RemoteConfig(remote_config) => Some(remote_config),
+        }
+    }
+}
+
+impl From<Config> for Option<LocalConfig> {
+    fn from(value: Config) -> Self {
+        match value {
+            Config::LocalConfig(local_config) => Some(local_config),
+            Config::RemoteConfig(_) => None,
+        }
+    }
+}
+
+impl From<Config> for Option<RemoteConfig> {
+    fn from(value: Config) -> Self {
+        match value {
+            Config::LocalConfig(_) => None,
+            Config::RemoteConfig(remote_config) => Some(remote_config),
         }
     }
 }
@@ -44,36 +83,26 @@ impl From<YAMLConfig> for LocalConfig {
 #[derive(Debug, PartialEq, Deserialize, Serialize, Clone)]
 pub struct RemoteConfig {
     pub config: YAMLConfig,
+    pub hash: Hash,
     #[serde(flatten)]
-    config_hash: Hash,
+    pub state: ConfigState,
 }
 
 impl RemoteConfig {
-    pub fn new(config: YAMLConfig, config_hash: Hash) -> Self {
-        Self {
-            config,
-            config_hash,
-        }
-    }
-
     pub fn is_applied(&self) -> bool {
-        self.config_hash.is_applied()
+        self.state.is_applied()
     }
 
     pub fn is_applying(&self) -> bool {
-        self.config_hash.is_applying()
+        self.state.is_applying()
     }
 
     pub fn is_failed(&self) -> bool {
-        self.config_hash.is_failed()
+        self.state.is_failed()
     }
 
-    pub fn hash(&self) -> Hash {
-        self.config_hash.clone()
-    }
-
-    pub fn update_state(&mut self, config_state: &ConfigState) {
-        self.config_hash.update_state(config_state)
+    pub fn with_state(self, state: ConfigState) -> Self {
+        Self { state, ..self }
     }
 }
 
@@ -110,7 +139,7 @@ mod tests {
     ) {
         let remote_config: RemoteConfig = serde_yaml::from_str(example).unwrap();
         assert_eq!(remote_config.config.get("key").unwrap(), "value");
-        assert_eq!(remote_config.hash().get(), "examplehash");
+        assert_eq!(remote_config.hash.to_string(), "examplehash");
         assert!(check_state(&remote_config));
 
         let serialized_yaml_value = serde_yaml::to_value(&remote_config).unwrap();
