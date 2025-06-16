@@ -18,6 +18,10 @@ variables:
       description: "newrelic-logging chart version"
       type: string
       required: true
+    chart_location:
+      description: "newrelic-prometheus chart location"
+      type: string
+      required: true
 deployment:
   k8s:
     health:
@@ -35,7 +39,7 @@ deployment:
           # delaying the application of important updates.
           interval: 30m
           provider: generic
-          url: https://helm-charts.newrelic.com
+          url: ${nr-var:chart_location}
       values:
         apiVersion: v1
         kind: Secret

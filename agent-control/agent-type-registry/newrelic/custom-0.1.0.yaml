@@ -1,7 +1,16 @@
 namespace: custom
 name: chart
 version: 0.1.0
-variables: { }
+variables:
+  k8s:
+    chart_location:
+      description: "newrelic-prometheus chart location"
+      type: string
+      required: true
+    chart_name:
+      description: "newrelic-prometheus chart name"
+      type: string
+      required: true
 deployment:
   k8s:
     health:
@@ -14,10 +23,9 @@ deployment:
           name: ${nr-sub:agent_id}
         spec:
           interval: 5m0s
-          url: https://github.com/newrelic/helm-charts
+          url: ${nr-var:chart_location}
           ref:
             branch: master
-
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -28,7 +36,7 @@ deployment:
           timeout: 5m
           chart:
             spec:
-              chart: ./charts/nri-kube-events
+              chart: ${nr-var:chart_name}
               version: '*'
               sourceRef:
                 kind: GitRepository
