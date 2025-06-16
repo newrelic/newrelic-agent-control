@@ -104,11 +104,8 @@ pub(crate) fn create_simple_values_secret(
     secret_name: &str,
     values_key: &str,
 ) {
-    // We set cleanupManagedResources: false to avoid race conditions between the old way to uninstall and the new one
-    // TODO remove it once it is not needed anymore.
     let values = serde_json::json!({
         "nameOverride": "",
-        "cleanupManagedResources": false,
         "config": {
             "fleet_control": {
                 "enabled": false,
