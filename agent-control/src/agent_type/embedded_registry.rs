@@ -116,7 +116,7 @@ pub mod tests {
         }
     }
 
-    const AGENT_TYPE_AMOUNT: usize = 11;
+    const AGENT_TYPE_AMOUNT: usize = 12;
 
     #[test]
     fn check_agent_type_amount_is_unchanged() {

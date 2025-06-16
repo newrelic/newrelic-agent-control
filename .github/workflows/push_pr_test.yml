@@ -200,8 +200,8 @@ jobs:
     # minikube action requires ubuntu-22.04 at the moment
     runs-on: ubuntu-22.04
     strategy:
-      matrix:
-        group: [ collector, apm, infra ]
+      matrix: 
+        group: [ collector, apm, infra, ebpf ]
     steps:
       - uses: actions/checkout@v4
         with:
