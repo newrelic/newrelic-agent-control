@@ -698,6 +698,7 @@ pub mod tests {
     use opamp_client::operation::capabilities::Capabilities;
     use rstest::*;
     use std::collections::HashMap;
+    use std::ops::Deref;
     use std::sync::Arc;
 
     type TestSubAgent = SubAgent<
@@ -1049,15 +1050,17 @@ deployment:
             old_supervisor,
         );
 
-        let remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            remote_config.hash.to_string(),
-            TestAgent::hash().to_string()
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| {
+                assert_eq!(
+                    remote_config.hash.to_string(),
+                    TestAgent::hash().to_string()
+                );
+                assert!(remote_config.state.is_applied());
+            },
         );
-        assert!(remote_config.state.is_applied());
 
         assert_eq!(
             config_repository
@@ -1338,15 +1341,17 @@ deployment:
             old_supervisor,
         );
 
-        let current_remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            current_remote_config.hash.to_string(),
-            TestAgent::hash().to_string()
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| {
+                assert_eq!(
+                    remote_config.hash.to_string(),
+                    TestAgent::hash().to_string()
+                );
+                assert!(remote_config.state.is_applied());
+            },
         );
-        assert!(current_remote_config.state.is_applied());
 
         assert!(new_supervisor.is_some());
     }
@@ -1384,15 +1389,17 @@ deployment:
             old_supervisor,
         );
 
-        let current_remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert_eq!(
-            current_remote_config.hash.to_string(),
-            TestAgent::hash().to_string()
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| {
+                assert_eq!(
+                    remote_config.hash.to_string(),
+                    TestAgent::hash().to_string()
+                );
+                assert!(remote_config.state.is_applied());
+            },
         );
-        assert!(current_remote_config.state.is_applied());
 
         assert!(new_supervisor.is_some());
     }
@@ -1452,11 +1459,11 @@ deployment:
 
         assert!(supervisor.is_some());
 
-        let remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert!(remote_config.state.is_applied())
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| assert!(remote_config.state.is_applied()),
+        );
     }
 
     #[test]
@@ -1486,11 +1493,11 @@ deployment:
 
         assert!(supervisor.is_some());
 
-        let remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert!(remote_config.state.is_applied())
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| assert!(remote_config.state.is_applied()),
+        );
     }
     #[test]
     fn test_bootstrap_remote_config_applying_to_failed() {
@@ -1518,11 +1525,11 @@ deployment:
 
         assert!(supervisor.is_none());
 
-        let remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert!(remote_config.state.is_failed())
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| assert!(remote_config.state.is_failed()),
+        );
     }
     #[test]
     fn test_bootstrap_stored_remote_config_failed_to_failed() {
@@ -1538,13 +1545,13 @@ deployment:
         let state = ConfigState::Failed {
             error_message: "some failure".to_string(),
         };
-        let remote_config = RemoteConfig {
+        let input_remote_config = RemoteConfig {
             config: "var: valid".try_into().unwrap(),
             hash,
             state,
         };
         config_repository
-            .store_remote(&TestAgent::id(), &remote_config)
+            .store_remote(&TestAgent::id(), &input_remote_config)
             .unwrap();
 
         let supervisor_builder = expect_build_supervisor_with(TestAgent::valid_config_value());
@@ -1560,10 +1567,25 @@ deployment:
 
         assert!(supervisor.is_some());
 
+        assert_remote_config(
+            config_repository.deref(),
+            &TestAgent::id(),
+            |remote_config| assert!(remote_config.state.is_failed()),
+        );
+    }
+
+    // Helpers
+
+    fn assert_remote_config(
+        config_repository: &impl ConfigRepository,
+        agent_id: &AgentID,
+        assertion: impl FnOnce(&RemoteConfig),
+    ) {
         let remote_config = config_repository
-            .get_remote_config(&TestAgent::id())
-            .unwrap()
-            .unwrap();
-        assert!(remote_config.state.is_failed())
+            .get_remote_config(agent_id)
+            .expect("assert_remote_config: error on `get_remote_config")
+            .expect("assert_remote_config: remote config not found");
+
+        assertion(&remote_config);
     }
 }
