@@ -1013,7 +1013,7 @@ agents:
         let sub_agents_config = sub_agents_default_config().agents;
 
         let mut sub_agent_builder = MockSubAgentBuilder::new();
-        // it should build three times (2 + 1)
+
         sub_agent_builder.should_build(2);
 
         let mut dynamic_config_validator = MockDynamicConfigValidator::new();
@@ -1023,24 +1023,6 @@ agents:
             .returning(|_| Ok(()));
 
         let mut sa_dynamic_config_store = MockAgentControlDynamicConfigStore::new();
-        // all agents on first load
-        // sa_dynamic_config_store
-        //     .expect_load()
-        //     .once()
-        //     .return_once(|| {
-        //         Ok(AgentControlDynamicConfig {
-        //             agents: HashMap::from([(
-        //                 AgentID::new("nrdot").unwrap(),
-        //                 SubAgentConfig {
-        //                     agent_type: AgentTypeID::try_from(
-        //                         "newrelic/io.opentelemetry.collector:0.0.1",
-        //                     )
-        //                     .unwrap(),
-        //                 },
-        //             )]),
-        //             chart_version: None,
-        //         })
-        //     });
 
         sa_dynamic_config_store
             .expect_store()
