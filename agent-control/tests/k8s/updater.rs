@@ -30,10 +30,6 @@ fn k8s_run_updater() {
         agents: Default::default(),
         chart_version: Some(new_version.clone()),
     };
-    assert!(
-        updater.should_update(config_to_update),
-        "Updater should indicate that an update is needed"
-    );
 
     k8s_client
         .apply_dynamic_object(&DynamicObject {
@@ -92,30 +88,4 @@ fn k8s_run_updater() {
 
         Err(format!("HelmRelease version not updated: {obj:?}").into())
     })
-}
-
-#[test]
-#[ignore = "needs k8s cluster"]
-fn k8s_run_updater_missing_config() {
-    // setup the k8s environment
-    let mut k8s = block_on(K8sEnv::new());
-    let test_ns = block_on(k8s.test_namespace());
-    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
-
-    let current_version = "1.2.3-beta".to_string();
-
-    let updater = K8sACUpdater::new(k8s_client.clone(), current_version.clone());
-
-    let config_to_udate = &AgentControlDynamicConfig {
-        agents: Default::default(),
-        chart_version: None,
-    };
-
-    assert!(
-        !updater.should_update(config_to_udate),
-        "Updater should indicate that an update is not needed since chart_version is not specified"
-    );
-    updater
-        .update(config_to_udate)
-        .expect_err("an error should occur during update when chart_version is not specified");
 }

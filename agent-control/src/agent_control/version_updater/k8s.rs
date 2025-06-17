@@ -16,10 +16,14 @@ pub struct K8sACUpdater {
 impl VersionUpdater for K8sACUpdater {
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         let Some(version) = config.chart_version.as_ref() else {
-            return Err(UpdaterError::UpdateFailed(
-                "chart version is not specified".to_string(),
-            ));
+            debug!("Chart version is not specified");
+            return Ok(());
         };
+
+        if version == &self.current_chart_version {
+            debug!("Current version is already up to date");
+            return Ok(());
+        }
 
         let patch_to_apply = self.create_helm_release_patch(version);
 
@@ -36,21 +40,6 @@ impl VersionUpdater for K8sACUpdater {
             })?;
 
         Ok(())
-    }
-
-    fn should_update(&self, config: &AgentControlDynamicConfig) -> bool {
-        let Some(version) = &config.chart_version else {
-            debug!(
-                "AgentControl will not be updated since chart version is not specified in the config"
-            );
-            return false;
-        };
-
-        debug!(
-            "Checking if update is needed: current version {}, target version {}",
-            self.current_chart_version, version
-        );
-        &self.current_chart_version != version
     }
 }
 
@@ -73,4 +62,42 @@ impl K8sACUpdater {
             }
         })
     }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    fn test_missing_chart_version_does_no_op() {
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client.expect_patch_dynamic_object().never();
+
+        let updater = K8sACUpdater::new(Arc::new(k8s_client), "1.0.0".to_string());
+
+        updater
+            .update(&AgentControlDynamicConfig {
+                chart_version: None,
+                ..Default::default()
+            })
+            .expect("updater should return Ok without making any calls to the k8s client");
+    }
+    #[test]
+    fn test_update_to_current_version_does_no_op() {
+        let mut k8s_client = SyncK8sClient::default();
+        k8s_client.expect_patch_dynamic_object().never();
+
+        let current_version = "1.0.0".to_string();
+
+        let updater = K8sACUpdater::new(Arc::new(k8s_client), current_version.clone());
+
+        updater
+            .update(&AgentControlDynamicConfig {
+                chart_version: Some(current_version),
+                ..Default::default()
+            })
+            .expect("updater should return Ok without making any calls to the k8s client");
+    }
+
+    // Update test case is covered with an integration test.
 }

@@ -135,15 +135,10 @@ where
                 )
             });
 
-        if self
-            .version_updater
-            .should_update(&self.initial_config.dynamic)
-        {
             let _ = self
                 .version_updater
                 .update(&self.initial_config.dynamic)
-                .inspect_err(|err| error!("Error updating Agent Control version: {err}"));
-        }
+            .inspect_err(|err| error!("Error executing Agent Control updater: {err}"));
 
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
@@ -385,12 +380,8 @@ where
         self.dynamic_config_validator
             .validate(&new_dynamic_config)?;
 
-        // The updater is responsible to understand the current version and decide whether or not to update.
-        if self.version_updater.should_update(&new_dynamic_config) {
-            info!("Updating Agent Control");
+        // The updater is responsible for determining the current version and deciding whether an update is necessary.
             self.version_updater.update(&new_dynamic_config)?;
-            info!("Agent Control update triggered");
-        }
 
         self.apply_remote_agent_control_config_agents(
             current_dynamic_config,
