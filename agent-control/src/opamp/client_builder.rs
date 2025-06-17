@@ -161,9 +161,6 @@ pub(crate) mod tests {
                 .times(times)
                 .returning(|| Ok(()));
         }
-        pub fn should_set_health(&mut self, times: usize) {
-            self.expect_set_health().times(times).returning(|_| Ok(()));
-        }
 
         pub fn should_set_healthy(&mut self) {
             self.expect_set_health()

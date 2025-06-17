@@ -7,13 +7,13 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
 };
+use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
-use crate::health::noop::NONE_HEALTH_CHECKER_BUILDER;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -156,7 +156,10 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
-        let k8s_ac_updater = K8sACUpdater::new(k8s_client, self.k8s_config.chart_version.clone());
+        let k8s_ac_updater =
+            K8sACUpdater::new(k8s_client.clone(), self.k8s_config.chart_version.clone());
+
+        let health_checker_builder = agent_control_health_checker_builder(k8s_client);
 
         AgentControl::new(
             maybe_client,
@@ -169,7 +172,7 @@ impl AgentControlRunner {
             dynamic_config_validator,
             garbage_collector,
             k8s_ac_updater,
-            NONE_HEALTH_CHECKER_BUILDER, // TODO: use actual health-checker builder and check current behavior in AC
+            health_checker_builder,
             agent_control_config,
         )
         .run()

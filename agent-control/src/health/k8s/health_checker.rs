@@ -12,7 +12,7 @@ use resources::{
 use std::sync::Arc;
 use tracing::trace;
 
-mod resources;
+pub mod resources;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090
@@ -133,6 +133,13 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
             health_checkers,
             start_time,
         }))
+    }
+
+    pub fn new(health_checkers: Vec<K8sResourceHealthChecker>, start_time: StartTime) -> Self {
+        Self {
+            health_checkers,
+            start_time,
+        }
     }
 }
 
