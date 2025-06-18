@@ -24,7 +24,7 @@ use tracing::debug;
 /// should invalidate the reflector cache. This ensures outdated data is not served, for example, in cases where a resource
 /// has been removed. The DynamicObjectManagers are responsible for handling the re-initialization of the reflector with
 /// accurate data whenever necessary.
-const DYN_WATCHER_STOP_POLICY: bool = false;
+const DYN_WATCHER_STOP_POLICY: bool = true;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].
