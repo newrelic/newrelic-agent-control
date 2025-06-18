@@ -42,7 +42,7 @@ impl K8sEnv {
     /// Creates and returns a namespace for testing purposes, it will be deleted when the [K8sEnv] object is dropped.
     pub async fn test_namespace(&mut self) -> String {
         let mut test_namespace = Namespace::default();
-        test_namespace.metadata.generate_name = Some("agent-control-test-".to_string());
+        test_namespace.metadata.generate_name = Some("ac-test-".to_string());
 
         let namespaces: Api<Namespace> = Api::all(self.client.clone());
 

@@ -1,9 +1,13 @@
 use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Secret};
+use kube::api::PostParams;
 use kube::{Api, Client, api::DynamicObject, core::GroupVersion};
+use std::collections::BTreeMap;
 use std::time::Duration;
 use std::{error::Error, str::FromStr};
 use tokio::time::sleep;
+
+use crate::common::runtime::block_on;
 
 /// Checks for the existence of specified deployments within a namespace.
 pub async fn check_deployments_exist(
@@ -82,4 +86,26 @@ async fn create_k8s_api(k8s_client: Client, namespace: &str) -> Api<DynamicObjec
         .unwrap();
 
     Api::namespaced_with(k8s_client.clone(), namespace, &api_resource)
+}
+
+/// This helper creates a values secret with the provided `secret_name`, `values_key` and `values`.
+pub fn create_values_secret(
+    k8s_client: Client,
+    namespace: &str,
+    secret_name: &str,
+    values_key: &str,
+    values: String,
+) {
+    let secret = Secret {
+        metadata: kube::core::ObjectMeta {
+            name: Some(secret_name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        string_data: Some(BTreeMap::from([(values_key.to_string(), values)])),
+        ..Default::default()
+    };
+
+    let secrets: Api<Secret> = Api::namespaced(k8s_client, namespace);
+    block_on(secrets.create(&PostParams::default(), &secret)).unwrap();
 }

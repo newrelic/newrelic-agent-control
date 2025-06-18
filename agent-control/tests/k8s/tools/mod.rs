@@ -7,5 +7,6 @@ pub mod instance_id;
 pub mod k8s_api;
 /// Provides a k8s testing environment.
 pub mod k8s_env;
+pub mod logs;
 /// Defines the Foo CRD to be created and used in testing k8s clusters.
 pub mod test_crd;

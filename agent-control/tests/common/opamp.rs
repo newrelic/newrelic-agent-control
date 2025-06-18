@@ -66,12 +66,16 @@ impl State {
 /// Configuration response to be returned by the server until the agent informs it is applied.
 pub struct ConfigResponse {
     raw_body: Option<String>,
+    hash: String,
 }
 
 impl From<&str> for ConfigResponse {
     fn from(value: &str) -> Self {
+        let mut hasher = DefaultHasher::new();
+        value.to_string().hash(&mut hasher);
         Self {
             raw_body: Some(value.to_string()),
+            hash: hasher.finish().to_string(),
         }
     }
 }
@@ -82,12 +86,8 @@ impl ConfigResponse {
         let mut custom_message = None;
 
         if let Some(config) = self.raw_body.clone() {
-            // Calculate the hash based on the config body
-            let mut h = DefaultHasher::new();
-            config.hash(&mut h);
-            let hash = h.finish();
             remote_config = Some(opamp::proto::AgentRemoteConfig {
-                config_hash: hash.to_string().into(),
+                config_hash: self.hash.encode_to_vec(),
                 config: Some(opamp::proto::AgentConfigMap {
                     config_map: HashMap::from([(
                         "".to_string(),
@@ -271,22 +271,27 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<State>>>, req: web::Bytes) -> 
     // Store the remote config status
     if let Some(cfg_status) = message.clone().remote_config_status {
         let mut state = state.lock().unwrap();
+
+        // Stop sending the RemoteConfig once we got a RemoteConfigStatus response associated with the hash.
+        // emulating what FC currently does.
+        if state
+            .config_responses
+            .get(&instance_id)
+            .is_some_and(|cr| cr.hash.encode_to_vec() == cfg_status.last_remote_config_hash)
+        {
+            state.config_responses.remove(&instance_id);
+        }
+
         state.config_status.insert(instance_id.clone(), cfg_status);
     }
 
-    let mut state = state.lock().unwrap();
+    let state = state.lock().unwrap();
 
     let config_response = state
         .config_responses
         .get(&instance_id)
         .map(|config_response| config_response.to_owned())
         .unwrap_or_default();
-
-    // Just return once each response
-    // If we needed to test "retries" (sending the same response more than once if we don't get the expected
-    // AgentToServer message. Ex: the RemoteConfigStatus(Applying) is not received) we would need to check the
-    // `message` content before removing the config response from the state.
-    state.config_responses.remove(&instance_id);
 
     HttpResponse::Ok().body(config_response.encode(&state.key_pair))
 }

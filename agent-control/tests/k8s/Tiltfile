@@ -2,52 +2,110 @@
 # This Tiltfile is used by the integration tests to setup the environment.
 
 update_settings ( k8s_upsert_timeout_secs = 150)
-
-######## Feature Branch Workaround ########
-# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = os.getenv('CHART_SOURCE', 'helm-repo') # local|branch|helm-repo
-feature_branch = ''
-
-local_chart_repo = ''
-
-#### Set-up charts
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
-update_dependencies = False
-deps=[]
-chart = ''
-extra_resource_deps=[]
+load('ext://deployment', 'job_create')
 
-if chart_source == 'local':
-  chart = local_chart_repo
-  update_dependencies = True
-  deps=[chart+'agent-control-deployment/templates']
-elif chart_source == 'branch':
-  git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=False)
-  chart = 'local/helm-charts/charts/'
-  update_dependencies = True
-  deps=[chart+'agent-control-deployment/templates']
-elif chart_source == 'helm-repo':
-  chart = 'newrelic/'
-  helm_repo(
-    'newrelic',
-    'https://helm-charts.newrelic.com',
-    resource_name='newrelic-helm-repo',
-    )
-  extra_resource_deps=['newrelic-helm-repo']
+#### Install Flux needed for some integration tests
+helm_repo(
+  'newrelic',
+  'https://helm-charts.newrelic.com',
+  resource_name='newrelic-helm-repo',
+  )
 
 helm_resource(
   'flux',
-  chart+'agent-control',
-  deps=deps, # re-deploy chart if modified locally
+  'newrelic/agent-control',
   namespace='default',
   release_name='flux',
-  update_dependencies=update_dependencies,
+  update_dependencies=False,
   flags=[
     '--create-namespace',
     '--version=>=0.0.0-beta',
+    # Each integration test runs on a different ephimeral namespace.
     '--set=flux2.watchAllNamespaces=true',
     '--set=agent-control-deployment.enabled=false',
     ],
-  resource_deps=extra_resource_deps
+  resource_deps=['newrelic-helm-repo']
+)
+
+# build_with options:
+# cargo: No crosscompilation, faster than cross
+# cross: Supports crosscompilaton
+build_with = os.getenv('BUILD_WITH','cross')
+arch = os.getenv('ARCH','arm64')
+
+#### Build SA binary
+
+if build_with == 'cargo':
+  local_resource(
+      'build-binary',
+      dir="../../../",
+      cmd="cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"+arch,
+      deps=["../../../agent-control/src"]
+  )
+elif build_with == 'cross': 
+  local_resource(
+      'build-binary',
+      dir="../../../",
+      cmd="make BUILD_MODE=debug BIN=newrelic-agent-control-k8s ARCH=%s build-agent-control" % arch,
+      deps=["../../../agent-control/src"]
+  )
+
+# Why not using docker_build: 
+# Custom build shows injected values (first lines of log) which makes easy to understand what Tilt is using under the hood 
+# as docker engine to compile or where is pushing the images depending on the registry auto-detection.
+# Pushing a image to minikube in a way that is supported in different environments (mac, linux, different runners, etc) is tricky.
+# If there is no exposed registry (no registry addon activated or ctptl registry) Tilt builds this image using eval method, and this
+# is what is expected here.
+custom_build(
+  'tilt.local/ac-dev',
+  # $EXPECTED_REF contains the defined name:tag 'tilt.local/ac-dev:dev'
+  command='docker build -f Dockerfiles/Dockerfile_agent_control -t $EXPECTED_REF .',
+  dir='../../../',
+  tag='dev',
+  deps=['build-binary']
+)
+# workaround to trigger the image build (Tilt expects at least one k8s resource using that image to trigger the build)
+job_create(
+  'build-image-trigger',
+  image='tilt.local/ac-dev',
+  command=['sh', '-c', 'exit'],
+  resource_deps=['build-binary'],
+)
+
+#### install chart museum
+helm_repo(
+  'chartmuseum',
+  'https://chartmuseum.github.io/charts',
+  resource_name='chartmuseum-repo',
+  )
+
+helm_resource(
+  'chartmuseum',
+  'chartmuseum/chartmuseum',
+  namespace='default',
+  release_name='chartmuseum',
+  resource_deps=['chartmuseum-repo'],
+  # activate API to upload charts
+  flags=['--set=env.open.DISABLE_API=false'],
+  port_forwards=['8080']
+)
+
+#### build data/charts and upload it to chart museum
+### Feature Branch Workaround ###
+# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
+feature_branch = "master"
+
+git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=True)
+local_resource(
+    'package-and-upload-charts',
+    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['chartmuseum'],
 )
