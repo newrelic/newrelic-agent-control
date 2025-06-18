@@ -135,6 +135,10 @@ where
                 )
             });
 
+        // This update handles scenarios where applying a remote configuration containing an updated Agent Control (AC)
+        // was initiated but did not complete successfully, leaving the remote configuration un-stored.
+        // In such cases, the AC with the new version starts, reads the previous remote configuration (which specifies the prior version),
+        // and rolls back to that version to ensure consistency.
         let _ = self
             .version_updater
             .update(&self.initial_config.dynamic)
@@ -255,8 +259,16 @@ where
                                     debug!("Received remote config.");
                                     remote_config_count += 1;
                                     trace!(monotonic_counter.remote_configs_received = remote_config_count);
-                                    current_dynamic_config = self.handle_remote_config(remote_config, &mut sub_agents,&current_dynamic_config)
-                                        .inspect_err(|err| error!(error_msg = %err,"Error processing remote config")).unwrap_or(current_dynamic_config);
+
+                                    match self.handle_remote_config(remote_config, &mut sub_agents,&current_dynamic_config){
+                                        Ok(new_dynamic_config)=>{
+                                            // A new config has been applied from remote, so we update the current to this.
+                                            current_dynamic_config=new_dynamic_config
+                                        }
+                                        Err(err)=> {
+                                            error!(error_msg = %err,"Error processing remote config")
+                                        }
+                                    };
                                 }
                                 OpAMPEvent::Connected => self.agent_control_publisher.broadcast(AgentControlEvent::OpAMPConnected),
                                 OpAMPEvent::ConnectFailed(error_code, error_message) => self.agent_control_publisher.broadcast(AgentControlEvent::OpAMPConnectFailed(error_code, error_message))
