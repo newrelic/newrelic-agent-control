@@ -1,4 +1,4 @@
-mod agent_control_cli;
+pub mod agent_control_cli;
 mod client;
 mod garbage_collector;
 mod scenarios;

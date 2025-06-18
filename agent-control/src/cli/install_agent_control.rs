@@ -8,9 +8,10 @@ use crate::health::with_start_time::StartTime;
 use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::labels::Labels;
+use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, Labels, REMOTE_VAL};
 use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
+use kube::api::TypeMeta;
 use kube::{
     Resource,
     api::{DynamicObject, ObjectMeta},
@@ -84,19 +85,21 @@ fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
     duration_str::parse(arg)
 }
 
-pub fn install_agent_control(
+pub fn install_or_upgrade_agent_control(
     data: AgentControlInstallData,
     namespace: String,
 ) -> Result<(), CliError> {
     info!("Installing agent control");
 
-    let dynamic_objects = Vec::<DynamicObject>::from(data.clone());
+    let dynamic_objects = build_dynamic_object_list(data.clone());
 
     let k8s_client = try_new_k8s_client(namespace.clone())?;
 
-    // TODO: Take care of upgrade.
-    // For example, what happens if the user applies a remote configuration with a lower version
-    // that includes a breaking change?
+    if is_installation_managed_remotely(&k8s_client, &dynamic_objects)? {
+        info!("Not installing or upgrading since the installation is managed remotely");
+        return Ok(());
+    }
+
     info!("Applying agent control resources");
     for object in dynamic_objects.iter() {
         apply_resource(&k8s_client, object)?;
@@ -119,43 +122,86 @@ pub fn install_agent_control(
 
 fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<(), CliError> {
     let name = object.meta().name.clone().expect("Name should be present");
-    let kind = object
-        .types
-        .clone()
-        .map(|t| t.kind)
-        .unwrap_or_else(|| "Unknown kind".to_string());
+    let tm = object.types.clone().expect("Type should be present");
 
-    info!("Applying {} with name \"{}\"", kind, name);
+    info!("Applying {} with name \"{}\"", tm.kind, name);
     k8s_client
         .apply_dynamic_object(object)
         .map_err(|err| CliError::ApplyResource(err.to_string()))?;
-    info!("{} with name {} applied successfully", kind, name);
+    info!("{} with name {} applied successfully", tm.kind, name);
 
     Ok(())
 }
 
-impl From<AgentControlInstallData> for Vec<DynamicObject> {
-    fn from(value: AgentControlInstallData) -> Vec<DynamicObject> {
-        let agent_identity = AgentIdentity::new_agent_control_identity();
+fn is_installation_managed_remotely(
+    k8s_client: &SyncK8sClient,
+    dynamic_objects: &[DynamicObject],
+) -> Result<bool, CliError> {
+    for object in dynamic_objects.iter() {
+        let name = object.meta().name.clone().expect("Name should be present");
+        let tm = object.types.clone().expect("Type should be present");
 
-        let mut labels = Labels::new(&agent_identity.id);
-        let extra_labels = parse_key_value_pairs(value.extra_labels.as_deref().unwrap_or_default());
-        labels.append_extra_labels(&extra_labels);
-        let labels = labels.get();
-        debug!("Parsed labels: {:?}", labels);
-
-        let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
-        let annotations = annotations.get();
-
-        vec![
-            helm_repository(
-                value.repository_url.clone(),
-                labels.clone(),
-                annotations.clone(),
-            ),
-            helm_release(&value, labels, annotations),
-        ]
+        if is_resource_managed_remotely(k8s_client, &tm, &name)? {
+            debug!(
+                "Resource {} with name {} is managed remotely",
+                tm.kind, name
+            );
+            return Ok(true);
+        }
     }
+    Ok(false)
+}
+
+fn is_resource_managed_remotely(
+    k8s_client: &SyncK8sClient,
+    tm: &TypeMeta,
+    name: &String,
+) -> Result<bool, CliError> {
+    let maybe_obj = k8s_client.get_dynamic_object(tm, name).map_err(|err| {
+        CliError::ApplyResource(format!(
+            "could not get resource {} with name {}: {}",
+            tm.kind, name, err
+        ))
+    })?;
+
+    if let Some(obj) = maybe_obj {
+        if let Some(labels) = obj.metadata.clone().labels {
+            return Ok(labels
+                .get_key_value(AGENT_CONTROL_VERSION_SET_FROM)
+                .is_some_and(|(_, v)| v == REMOTE_VAL));
+        }
+    }
+
+    Ok(false)
+}
+
+fn build_dynamic_object_list(value: AgentControlInstallData) -> Vec<DynamicObject> {
+    let agent_identity = AgentIdentity::new_agent_control_identity();
+
+    let mut labels = Labels::new(&agent_identity.id);
+    let extra_labels = parse_key_value_pairs(value.extra_labels.as_deref().unwrap_or_default());
+    labels.append_extra_labels(&extra_labels);
+    let labels = labels.get();
+    debug!("Parsed labels: {:?}", labels);
+
+    // This is not strictly necessary, but it helps to ensure that the labels are consistent
+    let mut helm_release_labels = labels.clone();
+    helm_release_labels.insert(
+        AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+        LOCAL_VAL.to_string(),
+    );
+
+    let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
+    let annotations = annotations.get();
+
+    vec![
+        helm_repository(
+            value.repository_url.clone(),
+            labels.clone(),
+            annotations.clone(),
+        ),
+        helm_release(&value, helm_release_labels, annotations),
+    ]
 }
 
 fn helm_repository(
@@ -353,6 +399,10 @@ mod tests {
                         "newrelic.io/agent-id".to_string(),
                         agent_identity.id.to_string(),
                     ),
+                    (
+                        AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+                        LOCAL_VAL.to_string(),
+                    ),
                 ])),
                 annotations: Some(BTreeMap::from_iter(vec![(
                     "newrelic.io/agent-type-id".to_string(),
@@ -382,7 +432,7 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data());
+        let dynamic_objects = build_dynamic_object_list(agent_control_data());
         assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
     }
 
@@ -391,7 +441,7 @@ mod tests {
         let mut agent_control_data = agent_control_data();
         agent_control_data.secrets =
             Some("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string());
-        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
+        let dynamic_objects = build_dynamic_object_list(agent_control_data);
 
         let mut expected_release_object = release_object();
         expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([
@@ -420,25 +470,24 @@ mod tests {
     fn test_to_dynamic_objects_with_labels_and_annotations() {
         let mut agent_control_data = agent_control_data();
         agent_control_data.extra_labels = Some("label1=value1,label2=value2".to_string());
-        let dynamic_objects = Vec::<DynamicObject>::from(agent_control_data);
+        let dynamic_objects = build_dynamic_object_list(agent_control_data);
 
         let agent_identity = AgentIdentity::new_agent_control_identity();
-        let labels = Some(
-            vec![
-                (
-                    "app.kubernetes.io/managed-by".to_string(),
-                    "newrelic-agent-control".to_string(),
-                ),
-                (
-                    "newrelic.io/agent-id".to_string(),
-                    agent_identity.id.to_string(),
-                ),
-                ("label1".to_string(), "value1".to_string()),
-                ("label2".to_string(), "value2".to_string()),
-            ]
-            .into_iter()
-            .collect(),
-        );
+        let mut labels: BTreeMap<String, String> = vec![
+            (
+                "app.kubernetes.io/managed-by".to_string(),
+                "newrelic-agent-control".to_string(),
+            ),
+            (
+                "newrelic.io/agent-id".to_string(),
+                agent_identity.id.to_string(),
+            ),
+            ("label1".to_string(), "value1".to_string()),
+            ("label2".to_string(), "value2".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
         let annotations = Some(
             vec![(
                 "newrelic.io/agent-type-id".to_string(),
@@ -449,11 +498,15 @@ mod tests {
         );
 
         let mut expected_repository_object = repository_object();
-        expected_repository_object.metadata.labels = labels.clone();
+        expected_repository_object.metadata.labels = Some(labels.clone());
         expected_repository_object.metadata.annotations = annotations.clone();
 
+        labels.insert(
+            AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+            LOCAL_VAL.to_string(),
+        );
         let mut expected_release_object = release_object();
-        expected_release_object.metadata.labels = labels;
+        expected_release_object.metadata.labels = Some(labels);
         expected_release_object.metadata.annotations = annotations;
 
         assert_eq!(

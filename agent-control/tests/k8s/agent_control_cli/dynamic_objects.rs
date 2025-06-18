@@ -1,12 +1,14 @@
 use assert_cmd::Command;
 use newrelic_agent_control::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
+use std::collections::BTreeMap;
 
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -75,23 +77,25 @@ fn k8s_cli_install_agent_control_creates_resources() {
         }])
     );
 
+    let mut labels: BTreeMap<String, String> = [
+        ("app.kubernetes.io/managed-by", "newrelic-agent-control"),
+        ("newrelic.io/agent-id", &agent_identity.id),
+        ("chart", "podinfo"),
+        ("env", "testing"),
+        ("app", "ac"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect();
+
     // Assert labels and annotations
-    assert_eq!(repository.metadata.labels, release.metadata.labels);
-    assert_eq!(
-        release.metadata.labels,
-        Some(
-            [
-                ("app.kubernetes.io/managed-by", "newrelic-agent-control",),
-                ("newrelic.io/agent-id", &agent_identity.id,),
-                ("chart", "podinfo"),
-                ("env", "testing"),
-                ("app", "ac")
-            ]
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.to_string()))
-            .collect()
-        )
+    assert_eq!(repository.metadata.labels, Some(labels.clone()));
+    labels.insert(
+        AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+        LOCAL_VAL.to_string(),
     );
+    // Assert labels and annotations
+    assert_eq!(release.metadata.labels, Some(labels));
 
     assert_eq!(
         repository.metadata.annotations,

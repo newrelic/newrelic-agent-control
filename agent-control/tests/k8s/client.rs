@@ -2,7 +2,6 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{Foo, FooSpec, create_foo_cr, foo_type_meta, get_dynamic_api_foo},
 };
-
 use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
 use assert_matches::assert_matches;
 use kube::core::DynamicObject;
