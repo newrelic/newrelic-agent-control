@@ -604,28 +604,46 @@ agents: {}
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
 
+    fn infra() -> HashMap<AgentID, SubAgentConfig> {
+        HashMap::from([(
+            AgentID::new("infra-agent").unwrap(),
+            SubAgentConfig {
+                agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
+                    .unwrap(),
+            },
+        )])
+    }
+    fn nrdot() -> HashMap<AgentID, SubAgentConfig> {
+        HashMap::from([(
+            AgentID::new("nrdot").unwrap(),
+            SubAgentConfig {
+                agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
+                    .unwrap(),
+            },
+        )])
+    }
+
+    pub fn helper_get_agent_list() -> HashMap<AgentID, SubAgentConfig> {
+        let mut agents = HashMap::new();
+        agents.extend(infra());
+        agents.extend(nrdot());
+        agents
+    }
+
     pub fn sub_agents_default_config() -> AgentControlDynamicConfig {
         AgentControlDynamicConfig {
             agents: helper_get_agent_list(),
             chart_version: None,
         }
     }
-    fn helper_get_agent_list() -> HashMap<AgentID, SubAgentConfig> {
-        HashMap::from([
-            (
-                AgentID::new("infra-agent").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                        .unwrap(),
-                },
-            ),
-            (
-                AgentID::new("nrdot").unwrap(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                        .unwrap(),
-                },
-            ),
-        ])
+
+    pub fn sub_agents_nrdot() -> AgentControlDynamicConfig {
+        let mut agents = HashMap::new();
+        agents.extend(nrdot());
+
+        AgentControlDynamicConfig {
+            agents,
+            ..Default::default()
+        }
     }
 }

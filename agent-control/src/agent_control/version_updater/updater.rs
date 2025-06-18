@@ -14,17 +14,12 @@ pub enum UpdaterError {
 /// about the desired agent control version, as specified in the provided
 /// [`AgentControlDynamicConfig`].
 pub trait VersionUpdater {
-    /// Attempts to update the desired agent control version.
+    /// Verifies if the agent control version should be updated based on the provided configuration and
+    /// attempts to update the desired agent control version.
     ///
     /// Returns `Ok(())` if the desired version has been successfully communicated
     /// to the external controller, or an `UpdaterError` if the update fails.
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
-
-    /// Verifies if the agent control version should be updated based on the provided configuration.
-    /// This method can be used to check if version received from FC is different from the current version
-    ///
-    /// Returns `Ok(true)` if the version should be updated, `Ok(false)` if no update is needed.
-    fn should_update(&self, config: &AgentControlDynamicConfig) -> bool;
 }
 
 pub struct NoOpUpdater;
@@ -32,10 +27,6 @@ pub struct NoOpUpdater;
 impl VersionUpdater for NoOpUpdater {
     fn update(&self, _config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
         Ok(())
-    }
-
-    fn should_update(&self, _config: &AgentControlDynamicConfig) -> bool {
-        true
     }
 }
 
@@ -48,7 +39,6 @@ pub mod tests {
         pub VersionUpdater {}
         impl VersionUpdater for VersionUpdater {
             fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
-            fn should_update(&self, config: &AgentControlDynamicConfig) -> bool;
         }
     }
 }
