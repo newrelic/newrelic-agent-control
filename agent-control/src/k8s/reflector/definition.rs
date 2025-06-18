@@ -211,15 +211,12 @@ where
                     // In those particular cases, we should stop the reflector, to avoid serving outdated stored data.
                     // As is not complealty defined which are exactly those cases, the approach taken is to stop the current
                     // reflector assuming that a new one will be created with correct data.
-                    Some(Err(watcher::Error::WatchFailed(err))) => {
-                        if stop_on_watcher_err {
-                            warn!(
-                                "Error updating internal cache for resource '{}'. The cache will attempt to auto-recover: {}",
-                                resource_url, err
-                            );
-                            break;
-                        }
-                        debug!("Watched failed on recoverable reflector: {}", err);
+                    Some(Err(watcher::Error::WatchFailed(err))) if stop_on_watcher_err => {
+                        warn!(
+                            "Error updating internal cache for resource '{}'. The cache will attempt to auto-recover: {}",
+                            resource_url, err
+                        );
+                        break;
                     }
                     Some(Err(e)) => {
                         debug!("Recoverable error watching k8s events: {}", e)
