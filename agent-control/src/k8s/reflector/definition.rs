@@ -44,12 +44,14 @@ impl ReflectorBuilder {
     ///
     /// # Arguments
     /// * `api_resource` - The [ApiResource] corresponding to the required [DynamicObject].
+    /// # `stop_on_watcher_err` - If true, the reflector will stop when the watcher fails.
     ///
     /// # Returns
     /// Returns the newly built reflector or an error.
     pub async fn try_build_with_api_resource(
         &self,
         api_resource: &ApiResource,
+        stop_on_watcher_err: bool,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
         trace!("Building k8s reflector for {:?}", api_resource);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
@@ -58,7 +60,7 @@ impl ReflectorBuilder {
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
-                false, // To stop the reflector when the watch fails. For example due to a removed resource.
+                stop_on_watcher_err,
             )
             .await
         })
@@ -70,10 +72,12 @@ impl ReflectorBuilder {
     ///
     /// # Type Parameters
     /// * `K` - Kubernetes resource type implementing the required trait.
+    /// # Arguments
+    /// * `stop_on_watcher_err` - If true, the reflector will stop when the watcher fails.
     ///
     /// # Returns
     /// Returns the newly built reflector or an error.
-    pub async fn try_build<K>(&self) -> Result<Reflector<K>, K8sError>
+    pub async fn try_build<K>(&self, stop_on_watcher_err: bool) -> Result<Reflector<K>, K8sError>
     where
         K: ResourceWithReflector,
     {
@@ -84,7 +88,7 @@ impl ReflectorBuilder {
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 reflector::store::Writer::default,
-                true,
+                stop_on_watcher_err,
             )
             .await
         })
@@ -130,13 +134,12 @@ where
         watcher_config: watcher::Config,
         start_timeout: Duration,
         writer_builder_fn: impl Fn() -> Writer<K>,
-        watchfailed_errors_recoverable: bool,
+        stop_on_watcher_err: bool,
     ) -> Result<Self, K8sError> {
         let writer = writer_builder_fn();
         let reader = writer.as_reader();
         let writer_close_handle =
-            Self::start_reflector(api, watcher_config, writer, watchfailed_errors_recoverable)
-                .abort_handle();
+            Self::start_reflector(api, watcher_config, writer, stop_on_watcher_err).abort_handle();
 
         Self::wait_until_reader_is_ready(&reader, start_timeout).await?;
         Ok(Reflector {
@@ -188,9 +191,11 @@ where
         api: Api<K>,
         wc: watcher::Config,
         writer: Writer<K>,
-        watchfailed_errors_recoverable: bool,
+        stop_on_watcher_err: bool,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
+            let resource_url = api.resource_url().to_string();
+
             let mut stream = watcher(api, wc)
                 // The watcher recovers automatically from api errors, the backoff could be customized.
                 .default_backoff()
@@ -204,15 +209,17 @@ where
                 match stream.next().await {
                     // On some cases like after removing the CRD watched by the reflector, the watcher will fail.
                     // In those particular cases, we should stop the reflector, to avoid serving outdated stored data.
-                    Some(Err(watcher::Error::WatchFailed(e))) => {
-                        if !watchfailed_errors_recoverable {
+                    // As is not complealty defined which are exactly those cases, the approach taken is to stop the current
+                    // reflector assuming that a new one will be created with correct data.
+                    Some(Err(watcher::Error::WatchFailed(err))) => {
+                        if stop_on_watcher_err {
                             warn!(
-                                "Watched failed on unrecoverable reflector, stopping reflector: {}",
-                                e
+                                "Error updating internal cache for resource '{}'. The cache will attempt to auto-recover: {}",
+                                resource_url, err
                             );
                             break;
                         }
-                        debug!("Watched failed on recoverable reflector: {}", e);
+                        debug!("Watched failed on recoverable reflector: {}", err);
                     }
                     Some(Err(e)) => {
                         debug!("Recoverable error watching k8s events: {}", e)
