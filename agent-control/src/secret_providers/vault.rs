@@ -88,6 +88,12 @@ impl VaultSource {
         let rt = Runtime::new().unwrap();
         rt.block_on(async {
             // Attempt to retrieve the secret using KV version 2 (for KV1 uses it's own type)
+            // TODO there can be a cache for mount/path secret we try to retrieve before doing this
+            //  read this is due to parsing, for example:
+            //  - ${nr-vault:sourceA:secret:my-secret:username}
+            //  - ${nr-vault:sourceA:secret:my-secret:password}
+            //  we don't want to call 2 times the api since the first one can already obtain and cache
+            //  the full secret with a TTL.
             match kv2::read::<SecretData>(&self.client, mount, path).await {
                 Ok(secret) => {
                     if let Some(data) = secret.data.get(name) {
