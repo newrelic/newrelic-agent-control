@@ -113,7 +113,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
-      - name: Run k8s e2e-test ${{ matrix.group }}
+      - name: Run k8s e2e-test
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
           # SI L2 for AC
