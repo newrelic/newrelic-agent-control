@@ -8,6 +8,11 @@ use k8s_openapi::{
 use serde::de::DeserializeOwned;
 use std::{fmt::Debug, sync::Arc};
 
+/// We assume that any error on the watcher for a standard k8s resource is recoverable, so the
+/// reflector should never be stopped for that reason. Also if we stopped there is no current
+/// mechanism to re-initialize it again.
+const STD_WATCHER_STOP_POLICY: bool = false;
+
 /// The `ResourceWithReflector` trait represents Kubernetes resources that have a namespace scope.
 /// It includes metadata and traits required for Kubernetes object reflection and caching.
 ///
@@ -47,9 +52,9 @@ pub struct Reflectors {
 impl Reflectors {
     pub async fn try_new(builder: &ReflectorBuilder) -> Result<Reflectors, K8sError> {
         Ok(Reflectors {
-            deployment: builder.try_build().await?,
-            daemon_set: builder.try_build().await?,
-            stateful_set: builder.try_build().await?,
+            deployment: builder.try_build(STD_WATCHER_STOP_POLICY).await?,
+            daemon_set: builder.try_build(STD_WATCHER_STOP_POLICY).await?,
+            stateful_set: builder.try_build(STD_WATCHER_STOP_POLICY).await?,
         })
     }
 }

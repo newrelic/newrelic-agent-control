@@ -20,6 +20,12 @@ use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use tracing::debug;
 
+/// When watching non-standard Kubernetes resources such as a CRD, certain watcher failures
+/// should invalidate the reflector cache. This ensures outdated data is not served, for example, in cases where a resource
+/// has been removed. The DynamicObjectManagers are responsible for handling the re-initialization of the reflector with
+/// accurate data whenever necessary.
+const DYN_WATCHER_STOP_POLICY: bool = true;
+
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].
 #[derive(Debug)]
@@ -42,7 +48,9 @@ impl DynamicObjectManager {
 
         Ok(Self {
             api: Api::default_namespaced_with(client, &api_resource),
-            reflector: builder.try_build_with_api_resource(&api_resource).await?,
+            reflector: builder
+                .try_build_with_api_resource(&api_resource, DYN_WATCHER_STOP_POLICY)
+                .await?,
         })
     }
 
@@ -194,7 +202,10 @@ impl DynamicObjectManagers {
             if manager.reflector.is_running() {
                 return Ok(manager.clone());
             }
-            // Remove the manager and reinitialized.
+            debug!(
+                "Removing and re-initializing dynamic object manager for type: {:?}",
+                type_meta
+            );
             managers_guard.remove(type_meta);
         }
         drop(managers_guard);
