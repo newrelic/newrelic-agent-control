@@ -18,6 +18,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use thiserror::Error;
 use url::Url;
+use crate::secret_providers::providers::SecretProvidorsConfig;
 
 /// AgentControlConfig represents the configuration for the agent control.
 #[derive(Debug, Deserialize, Default, PartialEq, Clone)]
@@ -55,6 +56,9 @@ pub struct AgentControlConfig {
 
     #[serde(default)]
     pub health_check: AgentControlHealthCheckerConfig,
+
+    #[serde(default)]
+    pub secret_providers: SecretProvidorsConfig,
 }
 
 #[derive(Error, Debug)]

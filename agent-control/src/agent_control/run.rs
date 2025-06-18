@@ -23,7 +23,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 use tracing::{debug, error};
-
+use crate::secret_providers::providers::SecretProviders;
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
 pub mod k8s;
@@ -93,12 +93,14 @@ pub struct AgentControlRunner {
     runtime: Arc<Runtime>,
 
     http_server_runner: Option<Runner>,
+    secret_providers: SecretProviders,
 }
 
 impl AgentControlRunner {
     pub fn new(
         config: AgentControlRunConfig,
         application_event_consumer: EventConsumer<ApplicationEvent>,
+        secret_providers: SecretProviders,
     ) -> Result<Self, Box<dyn Error>> {
         debug!("initializing and starting the agent control");
 
@@ -172,6 +174,7 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: config.base_paths,
             signature_validator,
+            secret_providers
         })
     }
 

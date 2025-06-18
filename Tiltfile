@@ -24,7 +24,7 @@ if build_with == 'cargo':
         './agent-control',
       ]
   )
-elif build_with == 'cross': 
+elif build_with == 'cross':
   local_resource(
       'build-binary',
       cmd="make BUILD_MODE=debug BIN=newrelic-agent-control-k8s ARCH=%s build-agent-control" % arch,
@@ -60,6 +60,7 @@ local_chart_repo = os.getenv('LOCAL_CHARTS_PATH','')
 #### Set-up charts
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
+load('ext://helm_remote', 'helm_remote')
 update_dependencies = False
 deps=[]
 chart = ''
@@ -87,7 +88,7 @@ flags_helm = ['--create-namespace','--version=>=0.0.0-beta','--set=agent-control
 
 if license_key != '':
   flags_helm.append('--set=global.licenseKey='+license_key)
-  
+
 if cluster != '':
   flags_helm.append('--set=global.cluster='+cluster)
 
@@ -104,6 +105,20 @@ helm_resource(
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag')],
   resource_deps=['build-binary']+extra_resource_deps
 )
+
+helm_remote(
+  'vault',
+  repo_name='hashicorp',
+  repo_url='https://helm.releases.hashicorp.com',
+  set=['server.dev.enabled=true','server.serviceAccount.create=true']
+)
+
+k8s_resource(
+  workload='vault',
+  port_forwards=8200
+)
+
+update_env={'VAULT_ADDR': 'http://localhost:8200', 'VAULT_TOKEN': 'root'}
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
 update_settings(k8s_upsert_timeout_secs=150)

@@ -539,7 +539,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
     }
 
     #[test]
-    fn test_render_with_env_variables() {
+    fn test_render_with_env_variables_from_all_sources() {
         let agent_id = AgentID::new("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
             K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
@@ -557,6 +557,14 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
                 Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE_2"),
                 VariableDefinition::new_final_string_variable("my-value-2".to_string()),
             ),
+            (
+                Namespace::Vault.namespaced_name("MY_VARIABLE_VAULT"),
+                VariableDefinition::new_final_string_variable("my-value-vault".to_string()),
+            ),
+            (
+                Namespace::KubeSecret.namespaced_name("MY_VARIABLE_KUBESECRET"),
+                VariableDefinition::new_final_string_variable("my-value-kubesecret".to_string()),
+            ),
         ]);
 
         let expected_spec_yaml = r#"
@@ -572,6 +580,8 @@ from_sub_agent: some-agent-id
 substituted: my-value
 collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 substituted_2: my-value-2
+substituted_vault: my-value-vault
+substituted_kubesecret: my-value-kubesecret
 "#;
 
         let expected_spec_value: serde_yaml::Value =
@@ -964,6 +974,8 @@ deployment:
           substituted: ${nr-env:MY_VARIABLE}
           collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
           substituted_2: ${nr-env:MY_VARIABLE_2}
+          substituted_kubesecret: ${nr-kubesecret:MY_VARIABLE_KUBESECRET}
+          substituted_vault: ${nr-vault:MY_VARIABLE_VAULT}
 "#;
 
     const K8S_CONFIG_YAML_VALUES: &str = r#"

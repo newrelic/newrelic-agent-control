@@ -18,3 +18,4 @@ pub mod opamp;
 pub mod sub_agent;
 pub mod utils;
 pub mod values;
+pub mod secret_providers;

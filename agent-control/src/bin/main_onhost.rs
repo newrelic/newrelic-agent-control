@@ -17,6 +17,7 @@ use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
 use std::process::ExitCode;
 use tracing::{error, info, trace};
+use newrelic_agent_control::secret_providers::providers::SecretProviders;
 
 const AGENT_CONTROL_MODE: Environment = Environment::OnHost;
 
@@ -27,10 +28,10 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
 
-    let (agent_control_config, tracer) = match command {
+    let (agent_control_config, tracer, secret_providers) = match command {
         // Agent Control command call instructs normal operation. Continue with required data.
-        Command::InitAgentControl(agent_control_init_config, tracer) => {
-            (agent_control_init_config, tracer)
+        Command::InitAgentControl(agent_control_init_config, tracer, secret_providers) => {
+            (agent_control_init_config, tracer, secret_providers)
         }
 
         // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
@@ -40,7 +41,7 @@ fn main() -> ExitCode {
         }
     };
 
-    match _main(agent_control_config, tracer) {
+    match _main(agent_control_config, tracer, secret_providers) {
         Err(e) => {
             error!("The agent control main process exited with an error: {e}");
             ExitCode::FAILURE
@@ -65,6 +66,7 @@ fn main() -> ExitCode {
 fn _main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
+    secret_providers: SecretProviders,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
     if !nix::unistd::Uid::effective().is_root() {
@@ -85,7 +87,7 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer)?
+    AgentControlRunner::new(agent_control_run_config, application_event_consumer, secret_providers)?
         .run(AGENT_CONTROL_MODE)?;
 
     info!("exiting gracefully");

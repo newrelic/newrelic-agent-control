@@ -22,7 +22,9 @@ use crate::{
 use clap::Parser;
 use std::sync::Arc;
 use thiserror::Error;
-use tracing::info;
+use tracing::field::debug;
+use tracing::{debug, info};
+use crate::secret_providers::providers::{try_init_providers, SecretProviders, SecretProvidersError};
 
 /// All possible errors that can happen while running the initialization.
 #[derive(Debug, Error)]
@@ -39,12 +41,14 @@ pub enum InitError {
     /// The configuration is invalid
     #[error("Invalid configuration: `{0}`")]
     InvalidConfig(String),
+    #[error("Could not initialize secret providers: `{0}`")]
+    SecretProvidersError(#[from] SecretProvidersError),
 }
 
 /// What action was requested from the initialization?
 pub enum Command {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlRunConfig, Vec<TracingGuardBox>),
+    InitAgentControl(AgentControlRunConfig, Vec<TracingGuardBox>, SecretProviders),
     /// Do an "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
@@ -125,6 +129,21 @@ impl Flags {
             );
         let tracer = try_init_tracing(tracing_config)?;
 
+        let secret_providers = try_init_providers(agent_control_config.secret_providers.clone())?;
+
+        //TODO: Will run if having a local configuration with the following:
+        //  secret_providers:
+        //    vault:
+        //      first:
+        //        url: http://vault.default.svc.cluster.local:8200
+        //        token: root
+        // and a secret created like the following:
+        //   vault kv put secret/my_secret username='my-username'
+        if let Some(ref vault) = secret_providers.vault {
+            let secret = vault.get_secret("first", "secret", "my_secret", "username");
+            debug!("{:?}", secret);
+        }
+
         info!("{}", binary_metadata(mode));
         info!(
             "Starting NewRelic Agent Control with config folder '{}'",
@@ -147,7 +166,7 @@ impl Flags {
             },
         };
 
-        Ok(Command::InitAgentControl(run_config, tracer))
+        Ok(Command::InitAgentControl(run_config, tracer, secret_providers))
     }
 
     fn print_version(&self) -> bool {

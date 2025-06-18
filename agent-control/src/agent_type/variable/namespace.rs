@@ -8,6 +8,8 @@ pub enum Namespace {
     SubAgent,
     EnvironmentVariable,
     AgentControl,
+    Vault,
+    KubeSecret,
 }
 
 impl Namespace {
@@ -20,6 +22,10 @@ impl Namespace {
     const SUB_AGENT: &'static str = "sub";
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
+    /// Encapsulates the vault variables that are available to the sub-agent
+    const VAULT: &'static str = "vault";
+    /// Encapsulates the k8s secrets that are available to the sub-agent
+    const KUBESECRET: &'static str = "kubesecret";
 
     pub fn namespaced_name(&self, name: &str) -> NamespacedVariableName {
         let ns = match self {
@@ -27,6 +33,8 @@ impl Namespace {
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
             Self::SubAgent => Self::SUB_AGENT,
             Self::AgentControl => Self::AC,
+            Self::Vault => Self::VAULT,
+            Self::KubeSecret => Self::KUBESECRET,
         };
         format!("{}{}:{}", Self::PREFIX, ns, name)
     }

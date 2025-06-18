@@ -11,6 +11,7 @@ use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::values::file::ConfigRepositoryFile;
 use std::sync::Arc;
 use std::time::Duration;
+use newrelic_agent_control::secret_providers::providers::SecretProviders;
 
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
 /// Take into account that some of the logic from main is not present here.
@@ -52,8 +53,10 @@ pub fn start_agent_control_with_custom_config(
             },
         };
 
+        let secret_providers = SecretProviders {vault: None};
+
         // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-        AgentControlRunner::new(run_config, application_event_consumer)
+        AgentControlRunner::new(run_config, application_event_consumer, secret_providers)
             .unwrap()
             .run(mode)
             .unwrap();
