@@ -17,10 +17,13 @@ use kube::{
     core::{DynamicObject, TypeMeta},
 };
 use serde::de::DeserializeOwned;
-use std::fmt::Debug;
 use std::{collections::BTreeMap, sync::Arc};
+use std::{fmt::Debug, time::Duration};
 use tokio::runtime::Runtime;
 use tracing::debug;
+
+// TODO make this configurable, use lower value for tests and higher for prod (295 is the current one)
+const K8S_CLIENT_DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
@@ -193,6 +196,8 @@ impl AsyncK8sClient {
     pub async fn try_new(namespace: String) -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
+        // split in two clients, one for the reflectors with higher timouts.
+        // expose all timeouts into config
         let mut config = match Config::incluster() {
             Ok(c) => c,
             Err(e) => {
@@ -206,6 +211,12 @@ impl AsyncK8sClient {
         };
 
         config.default_namespace = namespace;
+
+        // TODO add explanation why 2 clients
+        let reflector_client = Client::try_from(config.clone())?;
+
+        config.read_timeout = Some(K8S_CLIENT_DEFAULT_TIMEOUT);
+        config.write_timeout = Some(K8S_CLIENT_DEFAULT_TIMEOUT);
         let client = Client::try_from(config)?;
 
         debug!("verifying default k8s namespace existence");
@@ -216,7 +227,7 @@ impl AsyncK8sClient {
                 K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
             })?;
 
-        let reflector_builder = ReflectorBuilder::new(client.clone());
+        let reflector_builder = ReflectorBuilder::new(reflector_client);
         let reflectors = Reflectors::try_new(&reflector_builder).await?;
 
         debug!("k8s client initialization succeeded");
