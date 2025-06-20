@@ -4,7 +4,6 @@ use crate::cli::install_agent_control::RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
-use kube::api::DynamicObject;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::{debug, info};
@@ -30,7 +29,7 @@ impl VersionUpdater for K8sACUpdater {
 
         // To avoid overwriting existing labels we need to get the object and to add manually the label
         // since the strategic merge is not available for CRs
-        let labels = self.get_helmrelease_labels()?;
+        let labels = self.get_helm_release_labels()?;
 
         let patch_to_apply = self.create_helm_release_patch(version, labels);
 
@@ -60,7 +59,7 @@ impl K8sACUpdater {
 
     fn create_helm_release_patch(
         &self,
-        version: &String,
+        version: &str,
         mut labels: BTreeMap<String, String>,
     ) -> serde_json::Value {
         labels.insert(
@@ -81,7 +80,7 @@ impl K8sACUpdater {
         })
     }
 
-    fn get_helmrelease_labels(&self) -> Result<BTreeMap<String, String>, UpdaterError> {
+    fn get_helm_release_labels(&self) -> Result<BTreeMap<String, String>, UpdaterError> {
         Ok(self
             .k8s_client
             .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)

@@ -1,5 +1,5 @@
 use crate::common::retry::retry;
-use crate::common::runtime::tokio_runtime;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::{
@@ -21,14 +21,11 @@ use std::time::Duration;
 // a similar workaround than the one we use in the tiltfile.
 // The test is checking how local and remote upgrade are interacting
 fn k8s_cli_local_and_remote_updates() {
-    let runtime = tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
+    let mut k8s_env = block_on(K8sEnv::new());
+    let namespace = block_on(k8s_env.test_namespace());
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), namespace.clone()).unwrap());
 
     create_simple_values_secret(
-        runtime.clone(),
         k8s_env.client.clone(),
         &namespace,
         "test-secret",
