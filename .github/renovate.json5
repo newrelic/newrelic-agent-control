@@ -71,4 +71,15 @@
       groupName: 'go major updates',
     },
   ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^Cargo\\.toml$"],
+      "matchStrings": [
+        "tag\\s*=\\s*\"(?<currentValue>.*)\""
+      ],
+      "depNameTemplate": "{{repo}}",
+      "datasourceTemplate": "git-tags",
+      "lookupNameTemplate": "{{lookupName}}"
+    }
+  ]
 }
