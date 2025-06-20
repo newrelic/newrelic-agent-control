@@ -163,6 +163,7 @@ fn get_local_or_remote_version(
         .data
         .get("spec")
         .and_then(|spec| spec.get("chart"))
+        .and_then(|spec| spec.get("spec"))
         .and_then(|chart| {
             chart
                 .get("version")
@@ -451,7 +452,9 @@ mod tests {
                 data: serde_json::json!({
                     "spec": {
                         "chart": {
-                            "version": "1.2.3",
+                            "spec":{
+                                "version": "1.2.3",
+                            }
                         }
                     }
                 }),
@@ -484,7 +487,9 @@ mod tests {
                 data: serde_json::json!({
                     "spec": {
                         "chart": {
-                            "version": remote_version,
+                            "spec":{
+                                "version": remote_version,
+                            }
                         }
                     }
                 }),
@@ -515,7 +520,9 @@ mod tests {
                 data: serde_json::json!({
                     "spec": {
                         "chart": {
-                            "version": "1.2.3",
+                            "spec":{
+                                "version": "1.2.3",
+                            }
                         }
                     }
                 }),

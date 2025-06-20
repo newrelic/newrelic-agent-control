@@ -1,6 +1,7 @@
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
+use crate::k8s::self_update::{LOCAL_CHART_NEW_VERSION, LOCAL_CHART_PREVIOUS_VERSION};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::{
     AgentControlDynamicConfig, helmrelease_v2_type_meta,
@@ -33,25 +34,31 @@ fn k8s_cli_local_and_remote_updates() {
     );
 
     // running installer first time
-    let current_version = "0.0.1";
-    let mut cmd = ac_install_cmd(&namespace, current_version, "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &namespace,
+        LOCAL_CHART_PREVIOUS_VERSION,
+        "test-secret=values.yaml",
+    );
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, current_version, LOCAL_VAL)
+        check_version_and_source(&k8s_client, LOCAL_CHART_PREVIOUS_VERSION, LOCAL_VAL)
     });
 
     // running installer second time and doing an upgrade
-    let new_version = "0.0.2";
-    let mut cmd = ac_install_cmd(&namespace, new_version, "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &namespace,
+        LOCAL_CHART_NEW_VERSION,
+        "test-secret=values.yaml",
+    );
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, new_version, LOCAL_VAL)
+        check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL)
     });
 
-    // running updater doing an upgrade
-    let updater = K8sACUpdater::new(k8s_client.clone(), new_version.to_string());
+    // running updater doing an upgrade to "*"
+    let updater = K8sACUpdater::new(k8s_client.clone(), LOCAL_CHART_NEW_VERSION.to_string());
     let latest_version = "*";
     let config_to_update = &AgentControlDynamicConfig {
         agents: Default::default(),
@@ -66,7 +73,11 @@ fn k8s_cli_local_and_remote_updates() {
     });
 
     // running another local update does not change the version, but it updates anyway the helmRelease object
-    let mut cmd = ac_install_cmd(&namespace, new_version, "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &namespace,
+        LOCAL_CHART_PREVIOUS_VERSION,
+        "test-secret=values.yaml",
+    );
     cmd.arg("--extra-labels").arg("env=testing");
     cmd.assert().success();
 
@@ -119,7 +130,7 @@ pub fn check_version_and_source(
             .as_str()
             .unwrap()
     {
-        return Err(format!("HelmRelease version not updated: {obj:?}").into());
+        return Err(format!("HelmRelease version not correct: {version},  {obj:?}").into());
     }
 
     if source
@@ -131,7 +142,7 @@ pub fn check_version_and_source(
             .get(AGENT_CONTROL_VERSION_SET_FROM)
             .unwrap()
     {
-        return Err(format!("HelmRelease version not updated: {obj:?}").into());
+        return Err(format!("HelmRelease source not correct: {source}, {obj:?}").into());
     }
     Ok(())
 }
