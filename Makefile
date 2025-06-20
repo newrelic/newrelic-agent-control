@@ -7,16 +7,10 @@ FIND_PATH = . -mindepth 2 -not -path '*/\.*'
 SUBDIRS := $(patsubst ./%/Makefile,%,$(shell find $(FIND_PATH) -name Makefile))
 TARGETS := $(SUBDIRS)
 
-.PHONY: all $(TARGETS) clean $(addsuffix -clean,$(TARGETS)) help
+.PHONY: all $(TARGETS) help
 
 $(TARGETS):
 	$(MAKE) -C $@
-
-clean: $(addsuffix -clean,$(SUBDIRS))
-
-$(addsuffix -clean,$(TARGETS)):
-	$(MAKE) -C $(patsubst %-clean,%,$@) clean
-
 
 ##########################################
 # 		     Static targets 			 #
@@ -27,22 +21,13 @@ include test/onhost-canaries/Makefile
 help:
 	@echo "## Available targets:"
 	@echo $(TARGETS)
-	@echo "## Available clean targets:"
-	@echo $(addsuffix -clean,$(TARGETS))
-
 
 ARCH ?= arm64
 BUILD_MODE ?= release
 
-.PHONY: build-agent-control 
-build-agent-control:
-	@echo "Building with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="$(BIN)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
-
-# Cross-compilation only works from amd64 host.
-build-config-migrate:
-	@echo "Building with mode: $(BUILD_MODE) and arch: $(ARCH)"
-	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-config-migrate" PKG="newrelic_agent_control" BUILD_FEATURE=onhost ./build/scripts/build_binary.sh
+build-%:
+	@echo "Building $* with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
 .PHONY: tilt-up
 tilt-up:

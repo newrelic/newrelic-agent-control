@@ -48,7 +48,7 @@ elif build_with == 'cross':
   local_resource(
       'build-binary',
       dir="../../../",
-      cmd="make BUILD_MODE=debug BIN=newrelic-agent-control-k8s ARCH=%s build-agent-control" % arch,
+      cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch,
       deps=["../../../agent-control/src"]
   )
 

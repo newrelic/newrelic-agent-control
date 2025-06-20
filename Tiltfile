@@ -19,7 +19,8 @@ arch = os.getenv('ARCH','arm64')
 if build_with == 'cargo':
   local_resource(
       'build-binary',
-      cmd="cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"+arch,
+      cmd="cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"+arch +
+      " && cargo build --package newrelic_agent_control --bin newrelic-agent-control-cli && mkdir -p bin && rm -f bin/newrelic-agent-control-cli-"+arch+" && mv target/debug/newrelic-agent-control-cli bin/newrelic-agent-control-cli-"+arch,
       deps=[
         './agent-control',
       ]
@@ -27,7 +28,8 @@ if build_with == 'cargo':
 elif build_with == 'cross': 
   local_resource(
       'build-binary',
-      cmd="make BUILD_MODE=debug BIN=newrelic-agent-control-k8s ARCH=%s build-agent-control" % arch,
+      cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-cli" % arch +
+           "&& make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch ,
       deps=[
         './agent-control',
       ]
@@ -100,8 +102,9 @@ helm_resource(
   release_name='sa',
   update_dependencies=update_dependencies,
   flags=flags_helm,
-  image_deps=['tilt.local/agent-control-dev'],
-  image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag')],
+  image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
+  image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
+              ('agent-control-deployment.toolkitImage.registry', 'agent-control-deployment.toolkitImage.repository', 'agent-control-deployment.toolkitImage.tag')],
   resource_deps=['build-binary']+extra_resource_deps
 )
 
