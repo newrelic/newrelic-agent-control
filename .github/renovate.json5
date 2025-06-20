@@ -1,81 +1,74 @@
 {
-  "extends": [
-    "config:base",
+  extends: [
+    'config:recommended',
   ],
-  "labels": [
-    "dependencies"
+  labels: [
+    'dependencies',
   ],
-  "automerge": false,
-  "enabledManagers": [
-    "cargo",
-    "regex",
-    "gomod"
+  automerge: false,
+  enabledManagers: [
+    'cargo',
+    'custom.regex',
+    'gomod',
   ],
-  "regexManagers": [
+  customManagers: [
     {
-      // Extract version for embedded binary for infrastructure-agent.
-      "fileMatch": [
-        "^.goreleaser.yml$"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^.goreleaser.yml$/',
       ],
-      "depNameTemplate": "newrelic/infrastructure-agent",
-      "datasourceTemplate": "github-releases",
-      // Version info is fetched from GitHub.
-      "matchStrings": [
-        // Capture env var name and version from goreleaser.yml.
-        " *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)"
-      ]
+      depNameTemplate: 'newrelic/infrastructure-agent',
+      datasourceTemplate: 'github-releases',
+      matchStrings: [
+        ' *- NEWRELIC_INFRA_AGENT_VERSION=(?<currentValue>.+)',
+      ],
     },
     {
-      // Extract version for embedded binary for nrdot-collector-releases.
-      "fileMatch": [
-        "^.goreleaser.yml$"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^.goreleaser.yml$/',
       ],
-      "depNameTemplate": "newrelic/nrdot-collector-releases",
-      "datasourceTemplate": "github-releases",
-      // Version info is fetched from GitHub.
-      "matchStrings": [
-        // Capture env var name and version from goreleaser.yml.
-        " *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)"
-      ]
+      depNameTemplate: 'newrelic/nrdot-collector-releases',
+      datasourceTemplate: 'github-releases',
+      matchStrings: [
+        ' *- NR_OTEL_COLLECTOR_VERSION=(?<currentValue>.+)',
+      ],
     },
     {
-      // Extract version for embedded binary for nr-auth-cli-releases.
-      "fileMatch": [
-        "^.goreleaser.yml$"
+      customType: 'regex',
+      managerFilePatterns: [
+        '/^.goreleaser.yml$/',
       ],
-      "depNameTemplate": "newrelic/newrelic-auth-rs",
-      "datasourceTemplate": "github-releases",
-      // Version info is fetched from GitHub.
-      "matchStrings": [
-        // Capture env var name and version from goreleaser.yml.
-        " *- NR_AUTH_CLIENT_VERSION=(?<currentValue>.+)"
-      ]
-    }
+      depNameTemplate: 'newrelic/newrelic-auth-rs',
+      datasourceTemplate: 'github-releases',
+      matchStrings: [
+        ' *- NR_AUTH_CLIENT_VERSION=(?<currentValue>.+)',
+      ],
+    },
   ],
-  "rangeStrategy": "auto",
-  // See <https://docs.renovatebot.com/configuration-options/#rangestrategy>
-  "prConcurrentLimit": 0,
-  "printConfig": true,
-  "prHourlyLimit": 0,
-  "packageRules": [
+  rangeStrategy: 'auto',
+  prConcurrentLimit: 0,
+  printConfig: true,
+  prHourlyLimit: 0,
+  packageRules: [
     {
-      "managers": [
-        "gomod"
+      matchManagers: [
+        'gomod',
       ],
-      "updateTypes": [
-        "minor",
-        "patch"
+      matchUpdateTypes: [
+        'minor',
+        'patch',
       ],
-      "groupName": "go minor and patch updates"
+      groupName: 'go minor and patch updates',
     },
     {
-      "managers": [
-        "gomod"
+      matchManagers: [
+        'gomod',
       ],
-      "updateTypes": [
-        "major",
+      matchUpdateTypes: [
+        'major',
       ],
-      "groupName": "go major updates"
-    }
-  ]
+      groupName: 'go major updates',
+    },
+  ],
 }
