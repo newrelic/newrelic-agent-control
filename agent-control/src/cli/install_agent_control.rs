@@ -9,6 +9,7 @@ use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, Labels, REMOTE_VAL};
+use crate::opamp::auth::config::ProviderConfig::Local;
 use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
 use kube::api::TypeMeta;
@@ -90,15 +91,16 @@ pub fn install_or_upgrade_agent_control(
     namespace: String,
 ) -> Result<(), CliError> {
     info!("Installing agent control");
-
-    let dynamic_objects = build_dynamic_object_list(data.clone());
-
     let k8s_client = try_new_k8s_client(namespace.clone())?;
+    let maybe_helm_release = k8s_client
+        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+        .map_err(|err| {
+            CliError::ApplyResource(format!(
+                "could not get helmRelease with name {RELEASE_NAME}: {err}",
+            ))
+        })?;
 
-    if is_installation_managed_remotely(&k8s_client, &dynamic_objects)? {
-        info!("Not installing or upgrading since the installation is managed remotely");
-        return Ok(());
-    }
+    let dynamic_objects = build_dynamic_object_list(maybe_helm_release, data.clone());
 
     info!("Applying agent control resources");
     for object in dynamic_objects.iter() {
@@ -133,49 +135,58 @@ fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<
     Ok(())
 }
 
-fn is_installation_managed_remotely(
-    k8s_client: &SyncK8sClient,
-    dynamic_objects: &[DynamicObject],
-) -> Result<bool, CliError> {
-    for object in dynamic_objects.iter() {
-        let name = object.meta().name.clone().expect("Name should be present");
-        let tm = object.types.clone().expect("Type should be present");
-
-        if is_resource_managed_remotely(k8s_client, &tm, &name)? {
-            debug!(
-                "Resource {} with name {} is managed remotely",
-                tm.kind, name
-            );
-            return Ok(true);
-        }
-    }
-    Ok(false)
-}
-
-fn is_resource_managed_remotely(
-    k8s_client: &SyncK8sClient,
-    tm: &TypeMeta,
-    name: &String,
-) -> Result<bool, CliError> {
-    let maybe_obj = k8s_client.get_dynamic_object(tm, name).map_err(|err| {
-        CliError::ApplyResource(format!(
-            "could not get resource {} with name {}: {}",
-            tm.kind, name, err
-        ))
-    })?;
-
+fn is_version_managed_remotely(maybe_obj: Option<Arc<DynamicObject>>) -> bool {
     if let Some(obj) = maybe_obj {
         if let Some(labels) = obj.metadata.clone().labels {
-            return Ok(labels
+            if labels
                 .get_key_value(AGENT_CONTROL_VERSION_SET_FROM)
-                .is_some_and(|(_, v)| v == REMOTE_VAL));
+                .is_some_and(|(_, v)| v == REMOTE_VAL)
+            {
+                return true;
+            }
         }
     }
-
-    Ok(false)
+    false
 }
 
-fn build_dynamic_object_list(value: AgentControlInstallData) -> Vec<DynamicObject> {
+fn get_local_or_remote_version(
+    maybe_existing_helm_release: Option<Arc<DynamicObject>>,
+    local_version: String,
+) -> (String, String) {
+    if !is_version_managed_remotely(maybe_existing_helm_release.clone())
+        || maybe_existing_helm_release.is_none()
+    {
+        debug!("Using local version: {}", local_version);
+        return (local_version, LOCAL_VAL.to_string());
+    }
+
+    let existing_helm_release = maybe_existing_helm_release.unwrap();
+    let remote_version = existing_helm_release
+        .data
+        .get("spec")
+        .and_then(|spec| spec.get("chart"))
+        .and_then(|chart| chart.get("version").map(|v| v.to_string()));
+
+    match remote_version {
+        Some(version) => {
+            debug!("Using remote version: {version}",);
+            (version, REMOTE_VAL.to_string())
+        }
+        None => {
+            debug!("Remote version not found, using local: {local_version}");
+            (local_version, LOCAL_VAL.to_string())
+        }
+    }
+}
+
+fn build_dynamic_object_list(
+    maybe_existing_helm_release: Option<Arc<DynamicObject>>,
+    value: AgentControlInstallData,
+) -> Vec<DynamicObject> {
+    let managed_remotely = is_version_managed_remotely(maybe_existing_helm_release.clone());
+    let (version, source) =
+        get_local_or_remote_version(maybe_existing_helm_release, value.chart_version.clone());
+
     let agent_identity = AgentIdentity::new_agent_control_identity();
 
     let mut labels = Labels::new(&agent_identity.id);
@@ -186,10 +197,8 @@ fn build_dynamic_object_list(value: AgentControlInstallData) -> Vec<DynamicObjec
 
     // This is not strictly necessary, but it helps to ensure that the labels are consistent
     let mut helm_release_labels = labels.clone();
-    helm_release_labels.insert(
-        AGENT_CONTROL_VERSION_SET_FROM.to_string(),
-        LOCAL_VAL.to_string(),
-    );
+
+    helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
     let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
     let annotations = annotations.get();
@@ -200,7 +209,7 @@ fn build_dynamic_object_list(value: AgentControlInstallData) -> Vec<DynamicObjec
             labels.clone(),
             annotations.clone(),
         ),
-        helm_release(&value, helm_release_labels, annotations),
+        helm_release(&value, helm_release_labels, annotations, version),
     ]
 }
 
@@ -230,6 +239,7 @@ fn helm_release(
     value: &AgentControlInstallData,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
+    version: String,
 ) -> DynamicObject {
     let mut data = serde_json::json!({
         "spec": {
@@ -238,7 +248,7 @@ fn helm_release(
             "chart": {
                 "spec": {
                     "chart": AC_DEPLOYMENT_CHART_NAME,
-                    "version": value.chart_version,
+                    "version": version,
                     "sourceRef": {
                         "kind": "HelmRepository",
                         "name": REPOSITORY_NAME,
@@ -431,8 +441,52 @@ mod tests {
     }
 
     #[test]
+    fn test_existing_object_no_label() {
+        let dynamic_objects = build_dynamic_object_list(
+            Some(Arc::new(DynamicObject {
+                types: None,
+                metadata: Default::default(),
+                data: serde_json::json!({
+                    "spec": {
+                        "chart": {
+                            "version": "1.2.3",
+                        }
+                    }
+                }),
+            })),
+            agent_control_data(),
+        );
+        assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
+    }
+
+    #[test]
+    fn test_existing_object_with_remote_label() {
+        let dynamic_objects = build_dynamic_object_list(
+            Some(Arc::new(DynamicObject {
+                types: None,
+                metadata: ObjectMeta {
+                    labels: Some(BTreeMap::from_iter(vec![(
+                        AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+                        REMOTE_VAL.to_string(),
+                    )])),
+                    ..Default::default()
+                },
+                data: serde_json::json!({
+                    "spec": {
+                        "chart": {
+                            "version": VERSION,
+                        }
+                    }
+                }),
+            })),
+            agent_control_data(),
+        );
+        assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
+    }
+
+    #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects = build_dynamic_object_list(agent_control_data());
+        let dynamic_objects = build_dynamic_object_list(None, agent_control_data());
         assert_eq!(dynamic_objects, vec![repository_object(), release_object()]);
     }
 
@@ -441,7 +495,7 @@ mod tests {
         let mut agent_control_data = agent_control_data();
         agent_control_data.secrets =
             Some("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string());
-        let dynamic_objects = build_dynamic_object_list(agent_control_data);
+        let dynamic_objects = build_dynamic_object_list(None, agent_control_data);
 
         let mut expected_release_object = release_object();
         expected_release_object.data["spec"]["valuesFrom"] = serde_json::json!([
@@ -470,7 +524,7 @@ mod tests {
     fn test_to_dynamic_objects_with_labels_and_annotations() {
         let mut agent_control_data = agent_control_data();
         agent_control_data.extra_labels = Some("label1=value1,label2=value2".to_string());
-        let dynamic_objects = build_dynamic_object_list(agent_control_data);
+        let dynamic_objects = build_dynamic_object_list(None, agent_control_data);
 
         let agent_identity = AgentIdentity::new_agent_control_identity();
         let mut labels: BTreeMap<String, String> = vec![

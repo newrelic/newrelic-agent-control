@@ -20,7 +20,7 @@ use std::time::Duration;
 // If this situation occurs, we will need to disable the test or use
 // a similar workaround than the one we use in the tiltfile.
 // The test is checking how local and remote upgrade are interacting
-fn k8s_cli_install_agent_control_installation_and_uninstallation() {
+fn k8s_cli_local_and_remote_updates() {
     let runtime = tokio_runtime();
 
     let mut k8s_env = runtime.block_on(K8sEnv::new());
@@ -36,7 +36,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     );
 
     // running installer first time
-    let current_version = "0.0.50";
+    let current_version = "0.0.1";
     let mut cmd = ac_install_cmd(&namespace, current_version, "test-secret=values.yaml");
     cmd.assert().success();
 
@@ -45,7 +45,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     });
 
     // running installer second time and doing an upgrade
-    let new_version = "0.0.51";
+    let new_version = "0.0.2";
     let mut cmd = ac_install_cmd(&namespace, new_version, "test-secret=values.yaml");
     cmd.assert().success();
 
@@ -68,12 +68,32 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         check_version_and_source(&k8s_client, latest_version, REMOTE_VAL)
     });
 
-    // running another local update is uneffective
+    // running another local update does not change the version, but it updates anyway the helmRelease object
     let mut cmd = ac_install_cmd(&namespace, new_version, "test-secret=values.yaml");
+    cmd.arg("--extra-labels").arg("env=testing");
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL)
+        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL)?;
+
+        let obj = k8s_client
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+            .expect("no error is expected during fetching the helm release")
+            .unwrap();
+
+        // Notice that the extra label is set by the installer despite the fact that the version is not changed.
+        if "testing"
+            != obj
+                .metadata
+                .clone()
+                .labels
+                .unwrap_or_default()
+                .get("env")
+                .unwrap()
+        {
+            return Err(format!("label was not added: {obj:?}").into());
+        }
+        Ok(())
     });
 }
 
