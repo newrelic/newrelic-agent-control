@@ -1049,19 +1049,7 @@ Distributed under the following license(s):
 
 * Unicode-3.0
 
-## icu_locid <https://crates.io/crates/icu_locid>
-
-Distributed under the following license(s):
-
-* Unicode-3.0
-
-## icu_locid_transform <https://crates.io/crates/icu_locid_transform>
-
-Distributed under the following license(s):
-
-* Unicode-3.0
-
-## icu_locid_transform_data <https://crates.io/crates/icu_locid_transform_data>
+## icu_locale_core <https://crates.io/crates/icu_locale_core>
 
 Distributed under the following license(s):
 
@@ -1092,12 +1080,6 @@ Distributed under the following license(s):
 * Unicode-3.0
 
 ## icu_provider <https://crates.io/crates/icu_provider>
-
-Distributed under the following license(s):
-
-* Unicode-3.0
-
-## icu_provider_macros <https://crates.io/crates/icu_provider_macros>
 
 Distributed under the following license(s):
 
@@ -1139,6 +1121,13 @@ Distributed under the following license(s):
 * MIT
 
 ## ipnet <https://crates.io/crates/ipnet>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## iri-string <https://crates.io/crates/iri-string>
 
 Distributed under the following license(s):
 
@@ -1496,6 +1485,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## once_cell_polyfill <https://crates.io/crates/once_cell_polyfill>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## openssl-probe <https://crates.io/crates/openssl-probe>
 
 Distributed under the following license(s):
@@ -1667,6 +1663,12 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## potential_utf <https://crates.io/crates/potential_utf>
+
+Distributed under the following license(s):
+
+* Unicode-3.0
 
 ## powerfmt <https://crates.io/crates/powerfmt>
 
@@ -1883,14 +1885,6 @@ Distributed under the following license(s):
 * MIT
 
 ## rustls-native-certs <https://crates.io/crates/rustls-native-certs>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* ISC
-* MIT
-
-## rustls-pemfile <https://crates.io/crates/rustls-pemfile>
 
 Distributed under the following license(s):
 
@@ -2211,12 +2205,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## tokio-socks <https://crates.io/crates/tokio-socks>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## tokio-stream <https://crates.io/crates/tokio-stream>
 
 Distributed under the following license(s):
@@ -2395,13 +2383,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## utf16_iter <https://crates.io/crates/utf16_iter>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## utf8_iter <https://crates.io/crates/utf8_iter>
 
 Distributed under the following license(s):
@@ -2517,7 +2498,7 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* MPL-2.0
+* CDLA-Permissive-2.0
 
 ## which <https://crates.io/crates/which>
 
@@ -2568,13 +2549,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## windows-link <https://crates.io/crates/windows-link>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## windows-registry <https://crates.io/crates/windows-registry>
 
 Distributed under the following license(s):
 
@@ -2679,13 +2653,6 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
-## write16 <https://crates.io/crates/write16>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## writeable <https://crates.io/crates/writeable>
 
 Distributed under the following license(s):
@@ -2744,6 +2711,12 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * MIT
+
+## zerotrie <https://crates.io/crates/zerotrie>
+
+Distributed under the following license(s):
+
+* Unicode-3.0
 
 ## zerovec <https://crates.io/crates/zerovec>
 
