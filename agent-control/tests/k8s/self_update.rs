@@ -108,17 +108,16 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
     agent_type: newrelic/io.opentelemetry.collector:0.1.0
 "#;
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+    let ac_config = format!(
+        r#"
 {agents_config}
 chart_version: {LOCAL_CHART_NEW_VERSION}
 "#
-            )
-            .as_str(),
-        ),
+    );
+
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        ConfigResponse::from(ac_config.as_str()),
     );
 
     // Assert that opamp server receives Agent description with updated version.
@@ -147,7 +146,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
         check_latest_effective_config_is_expected(
             &opamp_server,
             &ac_instance_id,
-            agents_config.to_string(),
+            ac_config.clone(),
         )?;
         check_latest_remote_config_status_is_expected(
             &opamp_server,
