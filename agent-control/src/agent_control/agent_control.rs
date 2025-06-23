@@ -280,9 +280,7 @@ where
                         Ok(internal_event) => {
                             match internal_event {
                                 AgentControlInternalEvent::HealthUpdated(health) => {
-                                    let _ = self.report_health(health).map_err(|err| {
-                                        error!("Error reporting health for Agent Control: {err}");
-                                    });
+                                    self.report_health(health);
                                 },
                             }
                         },
@@ -461,18 +459,19 @@ where
         Ok(())
     }
 
-    fn report_health(&self, health: HealthWithStartTime) -> Result<(), AgentError> {
+    fn report_health(&self, health: HealthWithStartTime) {
         if let Some(handle) = &self.opamp_client {
             debug!(
                 is_healthy = health.is_healthy().to_string(),
                 "Sending agent-control health"
             );
 
-            handle.set_health(health.clone().into())?;
+            let _ = handle.set_health(health.clone().into()).inspect_err(|err| {
+                error!("Error reporting health for Agent Control: {err}");
+            });
         }
         self.agent_control_publisher
             .broadcast(AgentControlEvent::HealthUpdated(health));
-        Ok(())
     }
 }
 

@@ -12,7 +12,7 @@ use resources::{
 use std::sync::Arc;
 use tracing::trace;
 
-pub mod resources;
+mod resources;
 
 // This label selector is added in post-render and present no matter the chart we are installing
 // https://github.com/fluxcd/helm-controller/blob/main/CHANGELOG.md#090

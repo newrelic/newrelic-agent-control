@@ -261,8 +261,7 @@ chart_version: {MISSING_VERSION}
                 && (status
                     .last_error
                     .contains("latest generation of object has not been reconciled")) // Expected error when chart version doesn't exist
-        })?;
-        Ok(())
+        })
     });
 }
 
