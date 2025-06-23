@@ -46,6 +46,8 @@ struct AgentControlEffectiveConfig {
     // and this should not be a failure scenario.
     #[serde(skip_serializing_if = "Option::is_none")]
     agents: Option<serde_yaml::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chart_version: Option<String>,
 }
 
 #[derive(Debug, Error)]
@@ -58,6 +60,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
     type Error = AgentControlEffectiveConfigError;
 
     fn try_from(value: YAMLConfig) -> Result<Self, Self::Error> {
+        tracing::debug!("Get effective config: {value:?}");
         let config_string: String = value.try_into().map_err(|err| {
             AgentControlEffectiveConfigError::Conversion(format!(
                 "converting effective config from stored values: {}",
@@ -72,6 +75,7 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
             ))
         })?;
 
+        tracing::debug!("Got effective config: {effective_config:?}");
         Ok(effective_config)
     }
 }
@@ -81,7 +85,7 @@ where
     Y: ConfigRepository,
 {
     fn load(&self) -> Result<ConfigurationMap, LoaderError> {
-        // Given the effective config constraints mentionend in the `EffectiveConfigLoader` trait,
+        // Given the effective config constraints mentioned in the `EffectiveConfigLoader` trait,
         // the agent control effective config will be composed of:
         // - The dynamic part of the agent control config
         // - Config set from environment variables will not be included in the effective config
@@ -222,7 +226,7 @@ agents:
 "#,
             },
             TestCase {
-                name: "effective config uses raw serealization",
+                name: "effective config uses raw serialization",
                 yaml_config: "agents: any serde_yaml value could be here",
                 expected_config: "agents: any serde_yaml value could be here\n",
             },
@@ -240,6 +244,11 @@ agents:
                 name: "empty config",
                 yaml_config: "",
                 expected_config: "{}\n",
+            },
+            TestCase {
+                name: "include chart version",
+                yaml_config: "agents: {}\nchart_version: 0.0.1",
+                expected_config: "agents: {}\nchart_version: 0.0.1\n",
             },
         ];
 
