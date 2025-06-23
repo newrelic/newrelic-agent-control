@@ -305,9 +305,9 @@ fn check_installation(
             .map_err(|err| {
                 CliError::InstallationCheck(format!("could not build health-checker: {err}"))
             })?
-            .ok_or_else(|| {
-                CliError::InstallationCheck("no resources to check health were found".to_string())
-            })?;
+            .ok_or(CliError::InstallationCheck(
+                "no resources to check health were found".to_string(),
+            ))?;
 
     let max_retries = timeout.as_secs() / INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL.as_secs();
 
