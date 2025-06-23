@@ -4,6 +4,9 @@ use std::collections::BTreeMap;
 pub const MANAGED_BY_KEY: &str = "app.kubernetes.io/managed-by";
 pub const MANAGED_BY_VAL: &str = "newrelic-agent-control";
 pub const AGENT_ID_LABEL_KEY: &str = "newrelic.io/agent-id";
+pub const AGENT_CONTROL_VERSION_SET_FROM: &str = "newrelic.io/agent-control-version-set-from";
+pub const LOCAL_VAL: &str = "local";
+pub const REMOTE_VAL: &str = "remote";
 
 /// Collection of labels used to identify agent control resources.
 #[derive(PartialEq)]

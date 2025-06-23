@@ -3,6 +3,8 @@ use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdate
 use crate::cli::install_agent_control::RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 use tracing::{debug, info};
 
@@ -25,7 +27,11 @@ impl VersionUpdater for K8sACUpdater {
             return Ok(());
         }
 
-        let patch_to_apply = self.create_helm_release_patch(version);
+        // To avoid overwriting existing labels we need to get the object and to add manually the label
+        // since the strategic merge is not available for CRs
+        let labels = self.get_helm_release_labels()?;
+
+        let patch_to_apply = self.create_helm_release_patch(version, labels);
 
         info!(
             "Updating Agent Control to version: {} -> {}",
@@ -51,8 +57,19 @@ impl K8sACUpdater {
         }
     }
 
-    fn create_helm_release_patch(&self, version: &String) -> serde_json::Value {
+    fn create_helm_release_patch(
+        &self,
+        version: &str,
+        mut labels: BTreeMap<String, String>,
+    ) -> serde_json::Value {
+        labels.insert(
+            AGENT_CONTROL_VERSION_SET_FROM.to_string(),
+            REMOTE_VAL.to_string(),
+        );
         serde_json::json!({
+            "metadata":{
+                "labels": labels,
+            },
             "spec": {
                 "chart": {
                     "spec": {
@@ -61,6 +78,19 @@ impl K8sACUpdater {
                 },
             }
         })
+    }
+
+    fn get_helm_release_labels(&self) -> Result<BTreeMap<String, String>, UpdaterError> {
+        Ok(self
+            .k8s_client
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+            .map_err(|err| {
+                UpdaterError::UpdateFailed(format!(
+                    "error fetching {RELEASE_NAME} helmRelease: {err}",
+                ))
+            })?
+            .map(|obj| obj.metadata.clone().labels.unwrap_or_default())
+            .unwrap_or_default())
     }
 }
 

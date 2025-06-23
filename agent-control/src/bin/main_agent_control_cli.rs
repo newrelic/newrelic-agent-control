@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install_agent_control::{
-    AgentControlInstallData, install_agent_control,
+    AgentControlInstallData, install_or_upgrade_agent_control,
 };
 use newrelic_agent_control::cli::uninstall_agent_control::uninstall_agent_control;
 use newrelic_agent_control::{
@@ -58,7 +58,7 @@ fn main() -> ExitCode {
 
     let result = match cli.operation {
         Operations::InstallAgentControl(agent_control_data) => {
-            install_agent_control(agent_control_data, cli.namespace)
+            install_or_upgrade_agent_control(agent_control_data, cli.namespace)
         }
         Operations::UninstallAgentControl => uninstall_agent_control(cli.namespace),
     };

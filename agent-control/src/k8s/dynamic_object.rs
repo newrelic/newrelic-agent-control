@@ -97,7 +97,7 @@ impl DynamicObjectManager {
             .entry(name.as_str())
             .await
             .map_err(|e| {
-                K8sError::GetDynamic(format!("getting dynamic object with name {}: {}", name, e))
+                K8sError::GetDynamic(format!("getting dynamic object with name {name}: {e}"))
             })?
             .and_modify(|obj_old| {
                 obj_old.data.clone_from(&obj.data);

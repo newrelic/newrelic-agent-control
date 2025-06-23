@@ -1,4 +1,5 @@
 use crate::common::runtime::block_on;
+use crate::k8s::self_update::LOCAL_CHART_REPOSITORY;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
@@ -83,6 +84,7 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
     cmd.arg("--chart-version").arg(chart_version);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets").arg(secrets);
+    cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--installation-check-timeout").arg("1m"); // Smaller than default to speed up failure scenarios
     cmd
 }

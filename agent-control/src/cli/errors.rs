@@ -13,6 +13,9 @@ pub enum CliError {
     #[error("failed to apply resource: {0}")]
     ApplyResource(String),
 
+    #[error("failed to get resource: {0}")]
+    GetResource(String),
+
     #[error("installation check failure: {0}")]
     InstallationCheck(String),
 
@@ -34,6 +37,7 @@ impl CliError {
             CliError::Tracing(_) => ExitCode::from(70),
             CliError::DeleteResource(_)
             | CliError::ApplyResource(_)
+            | CliError::GetResource(_)
             | CliError::InstallationCheck(_) => ExitCode::from(1),
         }
     }

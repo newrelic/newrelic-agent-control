@@ -28,9 +28,9 @@ use url::Url;
 // Test environment reference values defined in Tiltfile.
 const AC_DEV_IMAGE_REPO: &str = "tilt.local/ac-dev";
 const AC_DEV_IMAGE_TAG: &str = "dev";
-const LOCAL_CHART_REPOSITORY: &str = "http://chartmuseum.default.svc.cluster.local:8080";
-const LOCAL_CHART_PREVIOUS_VERSION: &str = "0.0.1";
-const LOCAL_CHART_NEW_VERSION: &str = "0.0.2";
+pub const LOCAL_CHART_REPOSITORY: &str = "http://chartmuseum.default.svc.cluster.local:8080";
+pub const LOCAL_CHART_PREVIOUS_VERSION: &str = "0.0.1";
+pub const LOCAL_CHART_NEW_VERSION: &str = "0.0.2";
 const MISSING_VERSION: &str = "9.9.9";
 
 const SECRET_NAME: &str = "ac-values";
