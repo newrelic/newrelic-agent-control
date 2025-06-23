@@ -128,6 +128,7 @@ pub fn create_local_agent_control_config(
     let mut content = content
         .replace("<ns>", test_ns)
         .replace("<cluster-name>", TEST_CLUSTER_NAME);
+
     if let Some(endpoint) = opamp_endpoint {
         content = content.replace("<opamp-endpoint>", endpoint);
     }

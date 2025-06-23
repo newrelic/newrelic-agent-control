@@ -85,9 +85,7 @@ licenseKey: test
             &server,
             &instance_id,
             expected_config.to_string(),
-        )?;
-
-        check_latest_health_status_was_healthy(&server, &instance_id.clone())
+        )
     });
     // Delete the helm release to check if agent control recreate it correctly
     retry(30, Duration::from_secs(1), || {
@@ -281,9 +279,7 @@ agents:
             &server,
             &instance_id,
             expected_config.to_string(),
-        )?;
-
-        check_latest_health_status_was_healthy(&server, &instance_id.clone())
+        )
     });
 }
 

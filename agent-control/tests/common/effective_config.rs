@@ -14,16 +14,18 @@ pub fn check_latest_effective_config_is_expected(
         let cfg_body = effective_cfg.config_map.clone().unwrap().config_map[""]
             .body
             .to_vec();
-        if expected_config.as_bytes() != cfg_body {
+        let cfg_body_str = String::from_utf8(cfg_body).unwrap();
+        // Avoid ordering and whitespace issues when comparing
+        let cfg_yaml: serde_yaml::Value = serde_yaml::from_str(&cfg_body_str).unwrap();
+        let expected_yaml: serde_yaml::Value = serde_yaml::from_str(&expected_config).unwrap();
+        if cfg_yaml != expected_yaml {
             return Err(format!(
-                "Effective config not as expected, Expected: {:?}, Found: {:?}",
-                expected_config,
-                String::from_utf8(cfg_body).unwrap(),
+                "Effective config not as expected, Expected: {expected_config:?}, Found: {cfg_body_str:?}",
             )
             .into());
         }
     } else {
-        return Err("No effective config created".into());
+        return Err(format!("No effective config received for {instance_id}").into());
     }
 
     Ok(())

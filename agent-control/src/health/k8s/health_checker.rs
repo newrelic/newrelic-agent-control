@@ -134,6 +134,13 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
             start_time,
         }))
     }
+
+    pub fn new(health_checkers: Vec<K8sResourceHealthChecker>, start_time: StartTime) -> Self {
+        Self {
+            health_checkers,
+            start_time,
+        }
+    }
 }
 
 impl<HC> HealthChecker for K8sHealthChecker<HC>

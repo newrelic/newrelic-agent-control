@@ -1,7 +1,7 @@
 use super::tools::k8s_api::create_values_secret;
 use super::tools::k8s_env::K8sEnv;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
-use crate::common::health::check_latest_health_status_was_healthy;
+use crate::common::health::{check_latest_health_status, check_latest_health_status_was_healthy};
 use crate::common::opamp::{ConfigResponse, FakeServer};
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
@@ -108,17 +108,16 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
     agent_type: newrelic/io.opentelemetry.collector:0.1.0
 "#;
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+    let ac_config = format!(
+        r#"
 {agents_config}
 chart_version: {LOCAL_CHART_NEW_VERSION}
 "#
-            )
-            .as_str(),
-        ),
+    );
+
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        ConfigResponse::from(ac_config.as_str()),
     );
 
     // Assert that opamp server receives Agent description with updated version.
@@ -147,7 +146,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
         check_latest_effective_config_is_expected(
             &opamp_server,
             &ac_instance_id,
-            agents_config.to_string(),
+            ac_config.clone(),
         )?;
         check_latest_remote_config_status_is_expected(
             &opamp_server,
@@ -158,6 +157,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
         Ok(())
     });
 }
+
 #[test]
 #[ignore = "needs k8s cluster"]
 /// This test installs AC using the CLI, then sends a RemoteConfig with an AC chart version update
@@ -195,6 +195,8 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
             .ok_or_else(|| "Identifying attributes not found".to_string())?;
 
         // this assert might never detect a failure update if the old version reports the following conditions.
+        // TODO: since we could have false-positives, consider if this is properly covered by unit-tests and
+        // garbage-collect if possible.
         if !current_attributes
             .identifying_attributes
             .contains(&KeyValue {
@@ -213,7 +215,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
             RemoteConfigStatuses::Failed as i32,
         )?;
 
-        // TODO once health is refactored it should have healthy status because no update was triggered.
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
         Ok(())
     });
 }
@@ -230,6 +232,12 @@ fn k8s_self_update_new_version_fails_to_start() {
 
     let ac_instance_id = bootstrap_ac(k8s.client.clone(), &opamp_server, &namespace);
 
+    // AC should start correctly and finally report healthy
+    retry(60, Duration::from_secs(5), || {
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
+        Ok(())
+    });
+
     opamp_server.set_config_response(
         ac_instance_id.clone(),
         ConfigResponse::from(
@@ -242,11 +250,19 @@ chart_version: {MISSING_VERSION}
             .as_str(),
         ),
     );
-
-    // TODO there are currently no assertions here
-    // when the AC health checker is ready this should assert that
-    // unhealthy due to helm release not ready
-    // Remote config status is never replied ( we will need to discuss scenario this with FC )
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32, // The configuration was Applied even if it led to an unhealthy AC.
+        )?;
+        check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
+            (!status.healthy)
+                && (status
+                    .last_error
+                    .contains("latest generation of object has not been reconciled")) // Expected error when chart version doesn't exist
+        })
+    });
 }
 
 /// installs ac with cli using minimal values set, pointing it to fake opamp server and printing

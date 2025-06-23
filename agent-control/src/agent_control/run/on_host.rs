@@ -13,7 +13,7 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::definition::VariableDefinition;
-use crate::health::noop::NONE_HEALTH_CHECKER_BUILDER;
+use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -178,7 +178,7 @@ impl AgentControlRunner {
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
-            NONE_HEALTH_CHECKER_BUILDER, // TODO: use actual health-checker builder and check current behavior in AC
+            |t| Some(NoOpHealthChecker::new(t)),
             agent_control_config,
         )
         .run()
