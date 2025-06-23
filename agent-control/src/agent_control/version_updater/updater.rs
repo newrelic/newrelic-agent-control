@@ -41,4 +41,13 @@ pub mod tests {
             fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError>;
         }
     }
+
+    impl MockVersionUpdater {
+        /// Returns a mock that always returns `Ok()` regardless of the times it is called
+        pub fn new_no_op() -> Self {
+            let mut mock = Self::new();
+            mock.expect_update().returning(|_| Ok(()));
+            mock
+        }
+    }
 }

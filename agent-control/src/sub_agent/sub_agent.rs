@@ -757,21 +757,7 @@ pub mod tests {
         }
     }
 
-    impl MockSubAgentBuilder {
-        // should_build provides a helper method to create a subagent which runs and stops
-        // successfully
-        pub(crate) fn should_build(&mut self, times: usize) {
-            self.expect_build().times(times).returning(|_| {
-                let mut not_started_sub_agent = MockNotStartedSubAgent::new();
-                not_started_sub_agent.expect_run().times(1).returning(|| {
-                    let mut started_agent = MockStartedSubAgent::new();
-                    started_agent.expect_stop().times(1).returning(|| Ok(()));
-                    started_agent
-                });
-                Ok(not_started_sub_agent)
-            });
-        }
-    }
+    impl MockSubAgentBuilder {}
 
     #[rstest]
     #[case::healthy_states_same_status(Some(healthy("status")), healthy("status"))]

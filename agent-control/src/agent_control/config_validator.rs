@@ -64,6 +64,27 @@ pub mod tests {
         }
     }
 
+    /// A [DynamicConfigValidator] implementation for testing purposes. It always returns Ok when valid is true
+    /// and an Error when valid is false.
+    pub struct TestDynamicConfigValidator {
+        pub valid: bool,
+    }
+
+    impl DynamicConfigValidator for TestDynamicConfigValidator {
+        fn validate(
+            &self,
+            _dynamic_config: &AgentControlDynamicConfig,
+        ) -> Result<(), DynamicConfigValidatorError> {
+            if self.valid {
+                Ok(())
+            } else {
+                Err(DynamicConfigValidatorError::AgentRepositoryError(
+                    AgentRepositoryError::NotFound("not-found".to_string()),
+                ))
+            }
+        }
+    }
+
     #[test]
     fn test_existing_agent_type_validation() {
         let mut registry = MockAgentRegistry::new();

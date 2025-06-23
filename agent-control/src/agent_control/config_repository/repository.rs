@@ -32,10 +32,16 @@ pub trait AgentControlDynamicConfigRepository {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::{AgentControlConfigError, AgentControlDynamicConfigRepository};
-    use crate::agent_control::config::AgentControlDynamicConfig;
+    use crate::agent_control::agent_id::AgentID;
     use crate::opamp::remote_config::hash::ConfigState;
     use crate::values::config::RemoteConfig;
-    use mockall::{mock, predicate};
+    use crate::values::config_repository::ConfigRepository;
+    use crate::{
+        agent_control::config::AgentControlDynamicConfig,
+        values::config_repository::tests::InMemoryConfigRepository,
+    };
+    use mockall::mock;
+    use opamp_client::operation::capabilities::Capabilities;
 
     mock! {
         pub AgentControlDynamicConfigStore {}
@@ -53,12 +59,47 @@ pub(crate) mod tests {
         }
     }
 
-    impl MockAgentControlDynamicConfigStore {
-        pub fn should_store(&mut self, remote_config: RemoteConfig) {
-            self.expect_store()
-                .once()
-                .with(predicate::eq(remote_config))
-                .returning(move |_| Ok(()));
+    /// InMemory implementation of [AgentControlDynamicConfigRepository] to be used in unit-tests.
+    #[derive(Debug, Default)]
+    pub struct InMemoryAgentControlDynamicConfigRepository {
+        pub(crate) values_repository: InMemoryConfigRepository,
+    }
+
+    impl AgentControlDynamicConfigRepository for InMemoryAgentControlDynamicConfigRepository {
+        fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError> {
+            let config = self.values_repository.load_remote_fallback_local(
+                &AgentID::new_agent_control_id(),
+                &Capabilities::default(),
+            )?;
+            Ok(config
+                .unwrap_or_default()
+                .get_yaml_config()
+                .to_owned()
+                .try_into()?)
+        }
+
+        fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
+            Ok(self
+                .values_repository
+                .store_remote(&AgentID::new_agent_control_id(), config)?)
+        }
+
+        fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
+            Ok(self
+                .values_repository
+                .update_state(&AgentID::new_agent_control_id(), state)?)
+        }
+
+        fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError> {
+            Ok(self
+                .values_repository
+                .get_remote_config(&AgentID::new_agent_control_id())?)
+        }
+
+        fn delete(&self) -> Result<(), AgentControlConfigError> {
+            Ok(self
+                .values_repository
+                .delete_remote(&AgentID::new_agent_control_id())?)
         }
     }
 }
