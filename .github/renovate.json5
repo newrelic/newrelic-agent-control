@@ -52,8 +52,10 @@
   prHourlyLimit: 0,
   packageRules: [
     {
-      "packagePatterns": ["serde_yaml"],
-      "enabled": false
+      enabled: false,
+      matchPackageNames: [
+        '/serde_yaml/',
+      ],
     },
     {
       matchManagers: [
