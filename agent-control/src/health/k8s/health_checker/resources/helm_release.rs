@@ -63,12 +63,10 @@ impl K8sHealthFluxHelmRelease {
             .get("status")
             .and_then(|s| s.as_object())
             .cloned()
-            .ok_or_else(|| {
-                HealthCheckerError::Generic(format!(
-                    "Failed to parse status of HelmRelease '{}'",
-                    &self.name
-                ))
-            })
+            .ok_or(HealthCheckerError::Generic(format!(
+                "Failed to parse status of HelmRelease '{}'",
+                &self.name
+            )))
     }
 
     /// Extracts the conditions from the status of the HelmRelease.
@@ -80,12 +78,10 @@ impl K8sHealthFluxHelmRelease {
             .get("conditions")
             .and_then(|c| c.as_array())
             .cloned()
-            .ok_or_else(|| {
-                HealthCheckerError::Generic(format!(
-                    "No conditions found in status of HelmRelease '{}'",
-                    &self.name
-                ))
-            })?;
+            .ok_or(HealthCheckerError::Generic(format!(
+                "No conditions found in status of HelmRelease '{}'",
+                &self.name
+            )))?;
         Ok(conditions)
     }
 
@@ -144,13 +140,18 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
                     &self.name, e
                 ))
             })?
-            .ok_or_else(|| {
-                HealthCheckerError::Generic(format!("HelmRelease '{}' not found", &self.name))
-            })?;
+            .ok_or(HealthCheckerError::Generic(format!(
+                "HelmRelease '{}' not found",
+                &self.name
+            )))?;
 
-        let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
-            HealthCheckerError::Generic("HelmRelease data is not an object".to_string())
-        })?;
+        let helm_release_data =
+            helm_release
+                .data
+                .as_object()
+                .ok_or(HealthCheckerError::Generic(
+                    "HelmRelease data is not an object".to_string(),
+                ))?;
 
         let status = self.get_status(helm_release_data)?;
         let conditions = self.get_status_conditions(&status)?;

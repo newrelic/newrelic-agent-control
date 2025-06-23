@@ -47,10 +47,11 @@ impl K8sHealthDeployment {
     pub fn check_deployment_health(deployment: &Deployment) -> Result<Health, HealthCheckerError> {
         let name = client_utils::get_metadata_name(deployment)?;
 
-        let status = deployment
-            .status
-            .as_ref()
-            .ok_or_else(|| missing_field_error(deployment, name.as_str(), ".status"))?;
+        let status = deployment.status.as_ref().ok_or(missing_field_error(
+            deployment,
+            name.as_str(),
+            ".status",
+        ))?;
 
         // The deployment is unhealthy if any of the pods are unavailable, i.e. not running or not ready.
         if let Some(unavailable_replicas) = status.unavailable_replicas {
@@ -65,9 +66,9 @@ impl K8sHealthDeployment {
         let desired_replicas = deployment
             .spec
             .as_ref()
-            .ok_or_else(|| missing_field_error(deployment, name.as_str(), ".spec"))?
+            .ok_or(missing_field_error(deployment, name.as_str(), ".spec"))?
             .replicas
-            .ok_or_else(|| missing_field_error(deployment, &name, "spec.replicas"))?;
+            .ok_or(missing_field_error(deployment, &name, "spec.replicas"))?;
 
         // This condition is more of a safe net, as if there are no unavailable replicas, available replicas should match desired replicas.
         // available_replicas is present only if > 0

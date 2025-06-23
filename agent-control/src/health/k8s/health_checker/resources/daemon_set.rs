@@ -103,7 +103,7 @@ impl K8sHealthDaemonSet {
         daemon_set
             .status
             .clone()
-            .ok_or_else(|| missing_field_error(daemon_set, name, ".status"))
+            .ok_or(missing_field_error(daemon_set, name, ".status"))
     }
 }
 
@@ -114,11 +114,19 @@ fn is_daemon_set_update_strategy_rolling_update(
     let update_type = daemon_set
         .spec
         .clone()
-        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec"))?
+        .ok_or(missing_field_error(daemon_set, name, ".spec"))?
         .update_strategy
-        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec.updateStrategy"))?
+        .ok_or(missing_field_error(
+            daemon_set,
+            name,
+            ".spec.updateStrategy",
+        ))?
         .type_
-        .ok_or_else(|| missing_field_error(daemon_set, name, ".spec.updateStrategy.type_"))?;
+        .ok_or(missing_field_error(
+            daemon_set,
+            name,
+            ".spec.updateStrategy.type_",
+        ))?;
 
     Ok(update_type == ROLLING_UPDATE_UPDATE_STRATEGY)
 }

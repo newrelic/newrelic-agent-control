@@ -83,9 +83,9 @@ impl K8sGarbageCollector {
                         .into_iter()
                         .try_for_each(|d| -> Result<(), K8sGarbageCollectorError> {
                             if self.should_delete_dynamic_object(&d.metadata, &mode)? {
-                                let name = d.metadata.name.as_ref().ok_or_else(|| {
-                                    K8sError::MissingName(d.types.clone().unwrap_or_default().kind)
-                                })?;
+                                let name = d.metadata.name.as_ref().ok_or(
+                                    K8sError::MissingName(d.types.clone().unwrap_or_default().kind),
+                                )?;
                                 debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
                                 self.k8s_client.delete_dynamic_object(tm, name.as_str())?;
                             }

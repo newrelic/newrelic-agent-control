@@ -68,7 +68,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
     retry(60, Duration::from_secs(5), || {
         let current_attributes = opamp_server
             .get_attributes(&ac_instance_id)
-            .ok_or_else(|| "Identifying attributes not found".to_string())?;
+            .ok_or("Identifying attributes not found".to_string())?;
 
         if !current_attributes
             .identifying_attributes
@@ -126,7 +126,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
     retry(60, Duration::from_secs(5), || {
         let current_attributes = opamp_server
             .get_attributes(&ac_instance_id)
-            .ok_or_else(|| "Identifying attributes not found".to_string())?;
+            .ok_or("Identifying attributes not found".to_string())?;
 
         if !current_attributes
             .identifying_attributes
@@ -192,7 +192,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
     retry(60, Duration::from_secs(5), || {
         let current_attributes = opamp_server
             .get_attributes(&ac_instance_id)
-            .ok_or_else(|| "Identifying attributes not found".to_string())?;
+            .ok_or("Identifying attributes not found".to_string())?;
 
         // this assert might never detect a failure update if the old version reports the following conditions.
         if !current_attributes

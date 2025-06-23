@@ -127,7 +127,7 @@ where
     metadata
         .name
         .clone()
-        .ok_or_else(|| Error::MissingName(K::KIND.to_string()))
+        .ok_or(Error::MissingName(K::KIND.to_string()))
 }
 
 pub fn display_type(type_meta: &TypeMeta) -> String {

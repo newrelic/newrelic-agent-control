@@ -11,7 +11,7 @@ pub fn check_latest_identifying_attributes_match_expected(
 ) -> Result<(), String> {
     let current_attributes = opamp_server
         .get_attributes(instance_id)
-        .ok_or_else(|| "Identifying attributes not found".to_string())?;
+        .ok_or("Identifying attributes not found".to_string())?;
 
     check_opamp_attributes(
         expected_identifying_attributes.clone(),
@@ -27,7 +27,7 @@ pub fn check_latest_non_identifying_attributes_match_expected(
 ) -> Result<(), String> {
     let current_attributes = opamp_server
         .get_attributes(instance_id)
-        .ok_or_else(|| "Non identifying attributes not found".to_string())?;
+        .ok_or("Non identifying attributes not found".to_string())?;
 
     check_opamp_attributes(
         expected_non_identifying_attributes.clone(),

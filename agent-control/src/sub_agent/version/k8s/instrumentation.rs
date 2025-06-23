@@ -30,12 +30,10 @@ impl NewrelicInstrumentationVersionChecker {
                     &self.agent_id, err
                 ))
             })?
-            .ok_or_else(|| {
-                VersionCheckError::Generic(format!(
-                    "Instrumentation for agent_id '{}' not found",
-                    &self.agent_id
-                ))
-            })
+            .ok_or(VersionCheckError::Generic(format!(
+                "Instrumentation for agent_id '{}' not found",
+                &self.agent_id
+            )))
     }
 }
 
@@ -43,20 +41,22 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
         let instrumentation = self.get_instrumentation()?;
 
-        let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
-            VersionCheckError::Generic(format!(
-                "Invalid Instrumentation for agent_id '{}'",
-                &self.agent_id
-            ))
-        })?;
+        let instrumentation_data =
+            instrumentation
+                .data
+                .as_object()
+                .ok_or(VersionCheckError::Generic(format!(
+                    "Invalid Instrumentation for agent_id '{}'",
+                    &self.agent_id
+                )))?;
 
         let version = version_from_newrelic_instrumentation_image(instrumentation_data)
-            .ok_or_else(|| {
+            .ok_or(
                 VersionCheckError::Generic(format!(
                     "Could not extract version from 'spec.agent.image' in the Instrumentation object for '{}'",
                     &self.agent_id
                 ))
-            })?;
+            )?;
 
         let agent_version =
             AgentVersion::new(version, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string());

@@ -179,17 +179,26 @@ impl HealthChecker for K8sHealthNRInstrumentation {
                     &self.name, e
                 ))
             })?
-            .ok_or_else(|| {
-                HealthCheckerError::Generic(format!("Instrumentation '{}' not found", &self.name))
-            })?;
+            .ok_or(HealthCheckerError::Generic(format!(
+                "Instrumentation '{}' not found",
+                &self.name
+            )))?;
 
-        let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
-            HealthCheckerError::Generic("instrumentation CR data is not an object".to_string())
-        })?;
+        let instrumentation_data =
+            instrumentation
+                .data
+                .as_object()
+                .ok_or(HealthCheckerError::Generic(
+                    "instrumentation CR data is not an object".to_string(),
+                ))?;
 
-        let status = instrumentation_data.get("status").cloned().ok_or_else(|| {
-            HealthCheckerError::Generic("instrumentation status could not be retrieved".to_string())
-        })?;
+        let status =
+            instrumentation_data
+                .get("status")
+                .cloned()
+                .ok_or(HealthCheckerError::Generic(
+                    "instrumentation status could not be retrieved".to_string(),
+                ))?;
 
         let status: InstrumentationStatus = serde_json::from_value(status).map_err(|e| {
             HealthCheckerError::Generic(format!(

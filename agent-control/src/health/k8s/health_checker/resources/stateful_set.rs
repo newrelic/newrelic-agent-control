@@ -55,13 +55,15 @@ impl K8sHealthStatefulSet {
         let status = sts
             .status
             .as_ref()
-            .ok_or_else(|| missing_field_error(sts, &name, ".status"))?;
+            .ok_or(missing_field_error(sts, &name, ".status"))?;
 
         let replicas = spec.replicas.unwrap_or(1);
 
-        let ready_replicas = status
-            .ready_replicas
-            .ok_or_else(|| missing_field_error(sts, &name, ".status.readyReplicas"))?;
+        let ready_replicas = status.ready_replicas.ok_or(missing_field_error(
+            sts,
+            &name,
+            ".status.readyReplicas",
+        ))?;
 
         if replicas != ready_replicas {
             return Ok(Unhealthy::new(format!(

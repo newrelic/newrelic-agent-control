@@ -60,13 +60,17 @@ impl VersionChecker for HelmReleaseVersionChecker {
                     &self.agent_id, e
                 ))
             })?
-            .ok_or_else(|| {
-                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.agent_id))
-            })?;
+            .ok_or(VersionCheckError::Generic(format!(
+                "HelmRelease '{}' not found",
+                &self.agent_id
+            )))?;
 
-        let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
-            VersionCheckError::Generic("HelmRelease data is not an object".to_string())
-        })?;
+        let helm_release_data = helm_release
+            .data
+            .as_object()
+            .ok_or(VersionCheckError::Generic(
+                "HelmRelease data is not an object".to_string(),
+            ))?;
 
         self.extract_version(helm_release_data)
     }
