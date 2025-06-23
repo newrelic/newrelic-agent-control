@@ -79,7 +79,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     ));
 
     let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
+        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap());
 
     let resource_name = "test-different-from-agent-id";
     let secret_name = "test-secret-name";
@@ -234,7 +234,9 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     };
 
     let gc = K8sGarbageCollector {
-        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
+        k8s_client: Arc::new(
+            SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap(),
+        ),
         cr_type_meta: vec![missing_kind, foo_type_meta()],
     };
 
@@ -264,7 +266,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     ));
 
     let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap());
+        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
@@ -353,7 +355,9 @@ agents:
     );
 
     let gc = K8sGarbageCollector {
-        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.to_string()).unwrap()),
+        k8s_client: Arc::new(
+            SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap(),
+        ),
         cr_type_meta: vec![foo_type_meta()],
     };
 

@@ -26,7 +26,11 @@ const TEST_LABEL_VALUE: &str = "value";
 #[ignore = "needs k8s cluster"]
 async fn k8s_missing_namespace_creation_fail() {
     let test_ns = "test-not-existing-namespace";
-    assert!(AsyncK8sClient::try_new(test_ns.to_string()).await.is_err());
+    assert!(
+        AsyncK8sClient::try_from_namespace(test_ns.to_string())
+            .await
+            .is_err()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -45,7 +49,9 @@ async fn k8s_create_dynamic_resource() {
     .unwrap();
     let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
@@ -63,7 +69,9 @@ async fn k8s_get_dynamic_resource() {
 
     let cr_name = "get-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     assert!(
         k8s_client
@@ -117,7 +125,9 @@ async fn k8s_dynamic_resource_has_changed() {
 
     let cr_name = "has-changed-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     assert!(
         k8s_client
@@ -208,7 +218,9 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     let secret_name = "secret-name";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     let secret_type_meta = TypeMeta {
         api_version: "v1".into(),
@@ -279,7 +291,9 @@ async fn k8s_delete_dynamic_resource() {
     )
     .await;
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     k8s_client
         .delete_dynamic_object(&foo_type_meta(), cr_name)
@@ -310,7 +324,9 @@ async fn k8s_update_dynamic_resource() {
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
     k8s_client
         .apply_dynamic_object(&obj)
         .await
@@ -349,7 +365,9 @@ async fn k8s_update_dynamic_resource_metadata() {
 
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
     k8s_client
         .apply_dynamic_object(&obj)
         .await
@@ -378,7 +396,9 @@ async fn k8s_patch_dynamic_resource() {
     let test_ns = test.test_namespace().await;
     let cr_name = "patch-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
     assert!(
         k8s_client
             .patch_dynamic_object(
@@ -441,7 +461,9 @@ async fn k8s_dynamic_resource_missing_kind() {
         data: Default::default(),
     };
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     assert_matches!(
         k8s_client
@@ -512,7 +534,9 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
         .await
         .expect("Error creating the Bar CRD");
 
-    let k8s_client = AsyncK8sClient::try_new(test_ns.to_string()).await.unwrap();
+    let k8s_client = AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        .await
+        .unwrap();
 
     let cr = ClientTest::new(
         "test-cr",

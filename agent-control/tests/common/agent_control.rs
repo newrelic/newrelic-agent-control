@@ -45,10 +45,22 @@ pub fn start_agent_control_with_custom_config(
             proxy: agent_control_config.proxy,
 
             k8s_config: match mode {
-                Environment::OnHost => K8sConfig::default(),
-                Environment::K8s => agent_control_config
-                    .k8s
-                    .expect("K8s config must be present when running in K8s"),
+                // This config is not used on the OnHost environment, a blank config is used.
+                // K8sConfig has not default since cluster_name is a required.
+                Environment::OnHost => K8sConfig {
+                    cluster_name: Default::default(),
+                    client_config: Default::default(),
+                    chart_version: Default::default(),
+                    cr_type_meta: Default::default(),
+                },
+                Environment::K8s => {
+                    let mut cfg = agent_control_config
+                        .k8s
+                        .expect("K8s config must be present when running in K8s");
+
+                    cfg.client_config.client_timeout = Duration::from_secs(30).into();
+                    cfg
+                }
             },
         };
 

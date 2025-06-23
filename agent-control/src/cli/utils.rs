@@ -1,4 +1,5 @@
 use crate::cli::errors::CliError;
+use crate::k8s::client::ClientConfig;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use std::collections::BTreeMap;
@@ -46,7 +47,8 @@ pub fn try_new_k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> 
     );
 
     debug!("Starting the k8s client");
-    SyncK8sClient::try_new(runtime, namespace).map_err(|err| CliError::K8sClient(err.to_string()))
+    SyncK8sClient::try_new(runtime, &ClientConfig::new(namespace))
+        .map_err(|err| CliError::K8sClient(err.to_string()))
 }
 
 pub fn retry<F>(max_attempts: usize, interval: Duration, mut f: F) -> Result<(), CliError>

@@ -142,7 +142,14 @@ impl Flags {
             proxy,
 
             k8s_config: match mode {
-                Environment::OnHost => K8sConfig::default(),
+                // This config is not used on the OnHost environment, a blank config is used.
+                // K8sConfig has not default since cluster_name is a required.
+                Environment::OnHost => K8sConfig {
+                    cluster_name: Default::default(),
+                    client_config: Default::default(),
+                    chart_version: Default::default(),
+                    cr_type_meta: Default::default(),
+                },
                 Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
             },
         };
