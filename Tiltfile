@@ -104,7 +104,7 @@ helm_resource(
   flags=flags_helm,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
-              ('agent-control-deployment.toolkitImage.registry', 'agent-control-deployment.toolkitImage.repository', 'agent-control-deployment.toolkitImage.tag')],
+              ('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')],
   resource_deps=['build-binary']+extra_resource_deps
 )
 
