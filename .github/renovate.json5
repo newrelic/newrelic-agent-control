@@ -45,6 +45,26 @@
         ' *- NR_AUTH_CLIENT_VERSION=(?<currentValue>.+)',
       ],
     },
+    {
+      customType: 'regex',
+      "managerFilePatterns": ["^Cargo\\.toml$"],
+      "matchStrings": [
+        "nr-auth = { git = \"https://github\\.com/newrelic/newrelic-auth-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
+      ],
+      "depNameTemplate": "newrelic-auth-rs",
+      "datasourceTemplate": "github-tags",
+      "lookupNameTemplate": "newrelic/newrelic-auth-rs"
+    },
+    {
+      customType: 'regex',
+      "managerFilePatterns": ["^Cargo\\.toml$"],
+      "matchStrings": [
+        "opamp-client = { git = \"https://github\\.com/newrelic/newrelic-opamp-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
+      ],
+      "depNameTemplate": "newrelic-opamp-rs",
+      "datasourceTemplate": "github-tags",
+      "lookupNameTemplate": "newrelic/newrelic-opamp-rs"
+    }
   ],
   rangeStrategy: 'auto',
   prConcurrentLimit: 0,
