@@ -14,6 +14,7 @@ use crate::agent_type::{
 };
 use crate::values::yaml_config::YAMLConfig;
 use std::{collections::HashMap, path::PathBuf};
+use tracing::{debug, info};
 
 /// Defines how to render an AgentType and obtain the runtime configuration needed to execute a sub agent.
 pub trait Renderer {
@@ -74,9 +75,12 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
             persister.persist_agent_config(agent_id, &filled_variables)?;
         }
 
+        info!("*** RENDERING ***");
+        // TODO: ns_Variables should include also the secret providers variables.
         // Setup namespaced variables
         let ns_variables =
             self.build_namespaced_variables(filled_variables, environment_variables, &attributes);
+        info!("ns_variables: {:?}", ns_variables);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 

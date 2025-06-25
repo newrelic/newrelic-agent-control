@@ -93,14 +93,14 @@ pub struct AgentControlRunner {
     runtime: Arc<Runtime>,
 
     http_server_runner: Option<Runner>,
-    secret_providers: SecretProviders,
+    secret_providers: Arc<SecretProviders>,
 }
 
 impl AgentControlRunner {
     pub fn new(
         config: AgentControlRunConfig,
         application_event_consumer: EventConsumer<ApplicationEvent>,
-        secret_providers: SecretProviders,
+        secret_providers: Arc<SecretProviders>,
     ) -> Result<Self, Box<dyn Error>> {
         debug!("initializing and starting the agent control");
 

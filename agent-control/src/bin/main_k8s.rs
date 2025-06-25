@@ -14,6 +14,7 @@ use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
 use std::process::ExitCode;
+use std::sync::Arc;
 use tracing::{error, info, trace};
 use newrelic_agent_control::secret_providers::providers::SecretProviders;
 
@@ -75,7 +76,7 @@ fn _main(
     create_shutdown_signal_handler(application_event_publisher)?;
 
     // Create the actual agent control runner with the rest of required configs and the application_event_consumer
-    AgentControlRunner::new(agent_control_run_config, application_event_consumer, secret_providers)?
+    AgentControlRunner::new(agent_control_run_config, application_event_consumer, Arc::new(secret_providers))?
         .run(AGENT_CONTROL_MODE)?;
 
     info!("exiting gracefully");

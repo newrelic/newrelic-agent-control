@@ -17,6 +17,7 @@ use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
+use crate::secret_providers::providers::SecretProviders;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
@@ -104,14 +105,16 @@ where
 {
     registry: Arc<R>,
     renderer: Y,
+    secret_providers: Arc<SecretProviders>,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
     pub fn new(
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
+        secret_providers: Arc<SecretProviders>,
     ) -> Self {
-        LocalEffectiveAgentsAssembler { registry, renderer }
+        LocalEffectiveAgentsAssembler { registry, renderer, secret_providers }
     }
 }
 
@@ -141,6 +144,12 @@ where
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
+
+
+        // TODO: We need here a call to a service injecting the vault-secrets provider
+        //  receiving the values YAMLConfig, extracting all variables from its kind and
+        //  calling the vault client (or using cache) to populate it, this vault secrets will
+        //  be passed to the renderer like it's done for environment_variables.
 
         let runtime_config = self.renderer.render(
             &agent_identity.id,
@@ -254,6 +263,7 @@ pub(crate) mod tests {
             Self {
                 registry: Arc::new(registry),
                 renderer,
+                secret_providers: Arc::new(SecretProviders{vault: None}),
             }
         }
     }

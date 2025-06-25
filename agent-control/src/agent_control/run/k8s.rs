@@ -112,6 +112,7 @@ impl AgentControlRunner {
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
+            self.secret_providers
         ));
 
         let supervisor_builder =
