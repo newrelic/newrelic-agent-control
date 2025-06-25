@@ -38,6 +38,7 @@ agent-control/tests/k8s/.kubeconfig-dev
 
 # local directory for testing purposes
 local/
+agent-control/tests/k8s/local/
 /config.yaml
 
 # targets created for goreleaser

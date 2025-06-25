@@ -79,11 +79,9 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
                 }),
             })
         {
-            return Err(format!(
-                "new version has not been reported: {:?}",
-                current_attributes
-            )
-            .into());
+            return Err(
+                format!("new version has not been reported: {current_attributes:?}").into(),
+            );
         }
 
         check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;

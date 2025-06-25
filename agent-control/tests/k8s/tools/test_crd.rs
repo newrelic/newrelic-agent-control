@@ -95,12 +95,14 @@ pub async fn create_foo_cr(
 pub fn build_dynamic_object(
     type_meta: TypeMeta,
     name: String,
+    namespace: String,
     content: serde_json::Value,
 ) -> DynamicObject {
     DynamicObject {
         types: Some(type_meta),
         metadata: ObjectMeta {
             name: Some(name),
+            namespace: Some(namespace),
             ..Default::default()
         },
         data: content,

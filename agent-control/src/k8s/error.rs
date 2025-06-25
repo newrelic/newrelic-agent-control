@@ -6,9 +6,6 @@ use kube::{api, config::KubeconfigError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {
-    #[error("it is not possible to create a k8s client: {0}")]
-    UnableToSetupClient(String),
-
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] kube::Error),
 
@@ -30,6 +27,9 @@ pub enum K8sError {
 
     #[error("the name of the cr is missing")]
     MissingCRName,
+
+    #[error("the MissingCRNamespace of the cr is missing")]
+    MissingCRNamespace,
 
     #[error("{0} does not have .metadata.name")]
     MissingName(String),

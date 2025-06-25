@@ -36,6 +36,7 @@ pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     name: String,
+    namespace: String,
     start_time: StartTime,
 }
 
@@ -44,12 +45,14 @@ impl K8sHealthFluxHelmRelease {
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         name: String,
+        namespace: String,
         start_time: StartTime,
     ) -> Self {
         Self {
             k8s_client,
             type_meta,
             name,
+            namespace,
             start_time,
         }
     }
@@ -137,7 +140,7 @@ impl HealthChecker for K8sHealthFluxHelmRelease {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.name)
+            .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -179,6 +182,8 @@ pub mod tests {
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::core::DynamicObject;
     use serde_json::json;
+
+    const TEST_NAMESPACE: &str = "test-namespace";
 
     #[test]
     fn test_helm_release() {
@@ -252,7 +257,7 @@ pub mod tests {
                 )),
                 |mock: &mut MockSyncK8sClient| {
                     mock.expect_get_dynamic_object()
-                        .returning(|_,_| Err(Error::GetDynamic("Error".to_string())));
+                        .returning(|_, _,_| Err(Error::GetDynamic("Error".to_string())));
                 },
             ),
         ];
@@ -265,6 +270,7 @@ pub mod tests {
                 Arc::new(mock_client),
                 helmrelease_v2_type_meta(),
                 "example-release".to_string(),
+                TEST_NAMESPACE.to_string(),
                 start_time,
             );
             let result = checker.check_health();
@@ -290,9 +296,9 @@ pub mod tests {
         status_conditions: serde_json::Value,
     ) {
         mock.expect_get_dynamic_object()
-            .withf(|_, name| name == "example-release")
+            .withf(|_, name, namespace| name == "example-release" && namespace == TEST_NAMESPACE)
             .times(1)
-            .returning(move |_, _| {
+            .returning(move |_, _, _| {
                 Ok(Some(Arc::new(DynamicObject {
                     types: Some(helmrelease_v2_type_meta()),
                     metadata: ObjectMeta::default(),

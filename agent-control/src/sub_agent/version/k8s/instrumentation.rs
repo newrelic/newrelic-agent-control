@@ -9,21 +9,28 @@ use std::sync::Arc;
 pub struct NewrelicInstrumentationVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
+    namespace: String,
     agent_id: AgentID,
 }
 
 impl NewrelicInstrumentationVersionChecker {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: &AgentID) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        type_meta: TypeMeta,
+        namespace: String,
+        agent_id: &AgentID,
+    ) -> Self {
         Self {
             k8s_client,
             type_meta,
+            namespace,
             agent_id: agent_id.clone(),
         }
     }
 
     fn get_instrumentation(&self) -> Result<Arc<DynamicObject>, VersionCheckError> {
         self.k8s_client
-            .get_dynamic_object(&self.type_meta, &self.agent_id)
+            .get_dynamic_object(&self.type_meta, self.namespace.as_str(), &self.agent_id)
             .map_err(|err| {
                 VersionCheckError::Generic(format!(
                     "Error fetching Instrumentation for agent_id '{}': {}",

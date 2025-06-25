@@ -43,6 +43,7 @@ deployment:
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
           agent:
             language: python

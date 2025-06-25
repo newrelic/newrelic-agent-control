@@ -103,7 +103,7 @@ impl NotStartedSupervisorK8s {
 
         let metadata = ObjectMeta {
             name: Some(k8s_obj.metadata.name.clone()),
-            namespace: Some(self.k8s_client.default_namespace().to_string()),
+            namespace: Some(k8s_obj.metadata.namespace.clone()),
             labels: Some(labels.get()),
             annotations: Some(annotations.get()),
             ..Default::default()
@@ -293,10 +293,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let mut mock_k8s_client = MockSyncK8sClient::default();
-        mock_k8s_client
-            .expect_default_namespace()
-            .return_const(TEST_NAMESPACE.to_string());
+        let mock_k8s_client = MockSyncK8sClient::default();
 
         let mut labels = Labels::new(&agent_identity.id);
         labels.append_extra_labels(&k8s_object().metadata.labels);
@@ -444,6 +441,7 @@ pub mod tests {
                     ),
                 ]),
                 name: TEST_NAME.to_string(),
+                namespace: TEST_NAMESPACE.to_string(),
             },
             ..Default::default()
         }
@@ -474,9 +472,6 @@ pub mod tests {
         ));
 
         let mut mock_client = MockSyncK8sClient::default();
-        mock_client
-            .expect_default_namespace()
-            .return_const(TEST_NAMESPACE.to_string());
         mock_client
             .expect_apply_dynamic_object_if_changed()
             .returning(|_| Ok(()));
@@ -510,15 +505,14 @@ pub mod tests {
             .expect_apply_dynamic_object_if_changed()
             .returning(|_| Ok(()));
         mock_client
-            .expect_default_namespace()
-            .return_const("default".to_string());
-        mock_client.expect_get_dynamic_object().returning(|_, _| {
-            Ok(Some(Arc::new(DynamicObject {
-                types: Some(helmrelease_v2_type_meta()),
-                metadata: Default::default(),
-                data: Default::default(),
-            })))
-        });
+            .expect_get_dynamic_object()
+            .returning(|_, _, _| {
+                Ok(Some(Arc::new(DynamicObject {
+                    types: Some(helmrelease_v2_type_meta()),
+                    metadata: Default::default(),
+                    data: Default::default(),
+                })))
+            });
         let mocked_client = Arc::new(mock_client);
 
         let mut config_repository = MockConfigRepository::new();

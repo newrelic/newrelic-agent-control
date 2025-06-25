@@ -201,6 +201,11 @@ pub struct K8sConfig {
     /// client configuration
     #[serde(flatten)]
     pub client_config: ClientConfig,
+    /// namespace where all resources directly managed by the agent control will be created.
+    pub namespace: String,
+    /// namespace where all resources managed by flux will be created.
+    #[serde(default)]
+    pub namespace_agents: String,
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
@@ -277,6 +282,8 @@ pub(crate) mod tests {
             Self {
                 cluster_name: Default::default(),
                 client_config: Default::default(),
+                namespace: Default::default(),
+                namespace_agents: Default::default(),
                 chart_version: Default::default(),
                 cr_type_meta: default_group_version_kinds(),
             }
@@ -495,7 +502,7 @@ k8s:
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.cluster_name, "some-cluster");
-        assert_eq!(k8s.client_config.namespace, "some-namespace");
+        assert_eq!(k8s.namespace, "some-namespace");
     }
 
     #[test]
@@ -550,7 +557,7 @@ k8s:
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.cr_type_meta, vec![custom_type_meta]);
-        assert_eq!(k8s.client_config.namespace, "some-namespace");
+        assert_eq!(k8s.namespace, "some-namespace");
         assert_eq!(k8s.cluster_name, "some-cluster");
         assert_eq!(
             k8s.client_config.client_timeout,

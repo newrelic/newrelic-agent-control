@@ -134,24 +134,33 @@ impl Flags {
         let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
 
+        let mut k8s_config = match mode {
+            // This config is not used on the OnHost environment, a blank config is used.
+            // K8sConfig has not default since cluster_name is a required.
+            Environment::OnHost => K8sConfig {
+                cluster_name: Default::default(),
+                client_config: Default::default(),
+                namespace: Default::default(),
+                namespace_agents: Default::default(),
+                chart_version: Default::default(),
+                cr_type_meta: Default::default(),
+            },
+            Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
+        };
+
+        // TODO this is a temporary workaround to set the namespace_agents while the chart is not updated
+        if k8s_config.namespace_agents.is_empty() {
+            // If the namespace_agents is not set, we use the namespace from the k8s config
+            k8s_config.namespace_agents = k8s_config.namespace.clone();
+        }
+
         let run_config = AgentControlRunConfig {
             opamp,
             opamp_poll_interval: DEFAULT_POLL_INTERVAL,
             http_server,
             base_paths,
             proxy,
-
-            k8s_config: match mode {
-                // This config is not used on the OnHost environment, a blank config is used.
-                // K8sConfig has not default since cluster_name is a required.
-                Environment::OnHost => K8sConfig {
-                    cluster_name: Default::default(),
-                    client_config: Default::default(),
-                    chart_version: Default::default(),
-                    cr_type_meta: Default::default(),
-                },
-                Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
-            },
+            k8s_config,
         };
 
         Ok(Command::InitAgentControl(run_config, tracer))

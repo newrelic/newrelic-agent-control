@@ -424,6 +424,7 @@ deployment:
           kind: SomeKind
           metadata:
             name: ${nr-sub:agent_id}
+            namespace: test-namespace
           spec:
             some_key: ${nr-var:config.really_common}
             other: ${nr-avar:config.var}

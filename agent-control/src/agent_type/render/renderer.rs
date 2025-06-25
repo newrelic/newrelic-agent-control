@@ -686,6 +686,7 @@ deployment:
         kind: ObjectKind
         metadata:
           name: test
+          namespace: test-namespace
         substituted: ${nr-env:MY_VARIABLE}
 "#,
             &Environment::K8s,
@@ -927,6 +928,7 @@ deployment:
         kind: ObjectKind
         metadata:
           name: test
+          namespace: test-namespace
         spec:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}
@@ -958,6 +960,7 @@ deployment:
         kind: ObjectKind
         metadata:
           name: test
+          namespace: test-namespace
         spec:
           values: ${nr-var:config.values}
           from_sub_agent: ${nr-sub:agent_id}

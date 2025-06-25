@@ -37,7 +37,7 @@ pub fn parse_key_value_pairs(data: &str) -> BTreeMap<String, String> {
     parsed_key_values
 }
 
-pub fn try_new_k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> {
+pub fn try_new_k8s_client() -> Result<SyncK8sClient, CliError> {
     debug!("Starting the runtime");
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
@@ -47,7 +47,7 @@ pub fn try_new_k8s_client(namespace: String) -> Result<SyncK8sClient, CliError> 
     );
 
     debug!("Starting the k8s client");
-    SyncK8sClient::try_new(runtime, &ClientConfig::new(namespace))
+    SyncK8sClient::try_new(runtime, &ClientConfig::new())
         .map_err(|err| CliError::K8sClient(err.to_string()))
 }
 

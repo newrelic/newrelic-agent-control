@@ -1,9 +1,9 @@
+use super::Error;
+use crate::k8s::error::K8sError;
 use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::util::intstr::IntOrString,
 };
-use kube::api::{ObjectMeta, TypeMeta};
-
-use super::Error;
+use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
 
 /// This is a helper to have the number of pods or percentages for update strategies.
 ///
@@ -135,6 +135,21 @@ pub fn display_type(type_meta: &TypeMeta) -> String {
         "apiVersion: {} kind: {}",
         type_meta.api_version, type_meta.kind
     )
+}
+
+pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
+    obj.metadata.clone().name.ok_or(K8sError::MissingCRName)
+}
+
+pub fn get_namespace(obj: &DynamicObject) -> Result<String, K8sError> {
+    obj.metadata
+        .clone()
+        .namespace
+        .ok_or(K8sError::MissingCRNamespace)
+}
+
+pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
+    obj.types.clone().ok_or(K8sError::MissingCRKind)
 }
 
 #[cfg(test)]

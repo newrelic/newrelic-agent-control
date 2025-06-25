@@ -50,6 +50,8 @@ pub fn start_agent_control_with_custom_config(
                 Environment::OnHost => K8sConfig {
                     cluster_name: Default::default(),
                     client_config: Default::default(),
+                    namespace: Default::default(),
+                    namespace_agents: Default::default(),
                     chart_version: Default::default(),
                     cr_type_meta: Default::default(),
                 },

@@ -578,7 +578,12 @@ fn iterate_test_cases(environment: &Environment) {
 
         // Create the renderer with specifics for the environment
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
-            Environment::K8s => TemplateRenderer::default(),
+            Environment::K8s => {
+                TemplateRenderer::default().with_agent_control_variables(iter::once((
+                    "namespace".to_string(),
+                    VariableDefinition::new_final_string_variable("host-id".to_string()),
+                )))
+            }
             Environment::OnHost => {
                 TemplateRenderer::default().with_agent_control_variables(iter::once((
                     "host_id".to_string(),

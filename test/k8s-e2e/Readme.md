@@ -32,5 +32,5 @@ make test/k8s-e2e
 
 A change on the SA could be not compatible with the latest released chart, so there is a workaround to execute the tests
 installing the charts from a feature branch in `https://github.com/newrelic/helm-charts`.
-In order to use the branch for the tests modify, use `chart_source = 'branch'` and `feature_branch = '<feature-branch>'`
+In order to use the branch for the tests modify `feature_branch = '<feature-branch>'`
 configurations in the Tiltfile.

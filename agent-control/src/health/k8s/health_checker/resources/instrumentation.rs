@@ -148,6 +148,7 @@ pub struct K8sHealthNRInstrumentation {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     name: String,
+    namespace: String,
     start_time: StartTime,
 }
 
@@ -156,12 +157,14 @@ impl K8sHealthNRInstrumentation {
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         name: String,
+        namespace: String,
         start_time: StartTime,
     ) -> Self {
         Self {
             k8s_client,
             type_meta,
             name,
+            namespace,
             start_time,
         }
     }
@@ -172,7 +175,7 @@ impl HealthChecker for K8sHealthNRInstrumentation {
         // Attempt to get the Instrumentation from Kubernetes
         let instrumentation = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.name)
+            .get_dynamic_object(&self.type_meta, &self.name, &self.namespace)
             .map_err(|e| {
                 HealthCheckerError::Generic(format!(
                     "instrumentation CR could not be fetched'{}': {}",

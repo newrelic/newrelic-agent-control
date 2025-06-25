@@ -11,7 +11,7 @@ variables:
       description: "non_required_var"
       type: yaml
       required: false
-      default: {}
+      default: { }
 deployment:
   k8s:
     objects:
@@ -20,6 +20,7 @@ deployment:
         kind: Secret
         metadata:
           name: some-resource
+          namespace: ${nr-ac:namespace}
         StringData:
           non_required_var: ${nr-var:non_required_var}
           required_var: ${nr-var:required_var}

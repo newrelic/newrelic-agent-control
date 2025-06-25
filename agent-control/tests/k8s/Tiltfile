@@ -95,13 +95,13 @@ helm_resource(
 #### build data/charts and upload it to chart museum
 ### Feature Branch Workaround ###
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-feature_branch = "master"
+feature_branch = "feat/splitNamespace"
 
-git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=True)
+git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 local_resource(
     'package-and-upload-charts',
-    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts/charts/agent-control-deployment &&
+    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
      curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&

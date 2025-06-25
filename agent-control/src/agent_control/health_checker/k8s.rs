@@ -11,6 +11,7 @@ use crate::{
 /// Returns the builder function for the health-checker of Agent Control in Kubernetes.
 pub fn agent_control_health_checker_builder(
     k8s_client: Arc<SyncK8sClient>,
+    namespace: &str,
 ) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
     move |start_time: SystemTime| {
         Some(K8sHealthChecker::new(
@@ -18,6 +19,7 @@ pub fn agent_control_health_checker_builder(
                 helmrelease_v2_type_meta(),
                 k8s_client.clone(),
                 RELEASE_NAME.to_string(),
+                namespace.to_string(),
                 start_time,
             ),
             start_time,

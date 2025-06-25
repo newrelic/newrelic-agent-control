@@ -422,10 +422,7 @@ pub mod tests {
     }
 
     fn testing_supervisor_builder() -> SupervisorBuilderK8s {
-        let mut mock_client = MockSyncK8sClient::default();
-        mock_client
-            .expect_default_namespace()
-            .return_const("default".to_string());
+        let mock_client = MockSyncK8sClient::default();
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),

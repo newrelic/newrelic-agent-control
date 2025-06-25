@@ -9,7 +9,7 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
-use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use newrelic_agent_control::sub_agent::version::version_checker::VersionCheckError;
 use std::error::Error;
@@ -26,7 +26,7 @@ fn k8s_cli_local_and_remote_updates() {
     let mut k8s_env = block_on(K8sEnv::new());
     let namespace = block_on(k8s_env.test_namespace());
     let k8s_client =
-        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), namespace.clone()).unwrap());
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
@@ -44,7 +44,12 @@ fn k8s_cli_local_and_remote_updates() {
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, LOCAL_CHART_PREVIOUS_VERSION, LOCAL_VAL)
+        check_version_and_source(
+            &k8s_client,
+            LOCAL_CHART_PREVIOUS_VERSION,
+            LOCAL_VAL,
+            &namespace,
+        )
     });
 
     // running installer second time and doing an upgrade
@@ -56,11 +61,15 @@ fn k8s_cli_local_and_remote_updates() {
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL)
+        check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL, &namespace)
     });
 
     // running updater doing an upgrade to "*"
-    let updater = K8sACUpdater::new(k8s_client.clone(), LOCAL_CHART_NEW_VERSION.to_string());
+    let updater = K8sACUpdater::new(
+        k8s_client.clone(),
+        namespace.clone(),
+        LOCAL_CHART_NEW_VERSION.to_string(),
+    );
     let latest_version = "*";
     let config_to_update = &AgentControlDynamicConfig {
         agents: Default::default(),
@@ -71,7 +80,7 @@ fn k8s_cli_local_and_remote_updates() {
         .expect("updater should not fail");
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL)
+        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &namespace)
     });
 
     // running another local update does not change the version, but it updates anyway the helmRelease object
@@ -84,10 +93,10 @@ fn k8s_cli_local_and_remote_updates() {
     cmd.assert().success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL)?;
+        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &namespace)?;
 
         let obj = k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)?
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &namespace)?
             .ok_or(VersionCheckError::Generic(format!(
                 "helmRelease object not found: {RELEASE_NAME}",
             )))?;
@@ -112,9 +121,10 @@ pub fn check_version_and_source(
     k8s_client: &SyncK8sClient,
     version: &str,
     source: &str,
+    namespace: &str,
 ) -> Result<(), Box<dyn Error>> {
     let obj = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)?
+        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, namespace)?
         .ok_or(VersionCheckError::Generic(format!(
             "helmRelease object not found: {RELEASE_NAME}",
         )))?;
