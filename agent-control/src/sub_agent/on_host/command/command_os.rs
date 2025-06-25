@@ -7,7 +7,7 @@ use std::{
 };
 
 use super::{
-    command::CommandError,
+    error::CommandError,
     logging::{
         self,
         file_logger::{FileAppender, FileLogger, FileSystemLoggers},

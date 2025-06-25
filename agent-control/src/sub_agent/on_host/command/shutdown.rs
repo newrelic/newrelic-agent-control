@@ -1,4 +1,4 @@
-use super::command::CommandError;
+use super::error::CommandError;
 use crate::context::Context;
 #[cfg(target_family = "unix")]
 use nix::{sys::signal, unistd::Pid};

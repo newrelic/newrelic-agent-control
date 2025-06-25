@@ -12,8 +12,8 @@ use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
-use crate::sub_agent::on_host::command::command::CommandError;
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
+use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
