@@ -1779,6 +1779,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## rcgen <https://crates.io/crates/rcgen>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## redox_syscall <https://crates.io/crates/redox_syscall>
 
 Distributed under the following license(s):
@@ -2667,6 +2674,13 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## yaml-rust2 <https://crates.io/crates/yaml-rust2>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## yasna <https://crates.io/crates/yasna>
 
 Distributed under the following license(s):
 
