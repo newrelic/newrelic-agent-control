@@ -18,12 +18,6 @@ For limited preview, the Agent Control will be shipped with the necessary depend
 make build/embedded
 ```
 
-## Clean
-
-```
-make build/embedded-clean
-```
-
 ### Locally
 
 ## Build
