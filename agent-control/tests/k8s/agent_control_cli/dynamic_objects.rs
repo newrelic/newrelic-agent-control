@@ -29,7 +29,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
     cmd.assert().success();
 
-    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+    let k8s_client = SyncK8sClient::try_from_namespace(runtime.clone(), namespace.clone()).unwrap();
     let agent_identity = AgentIdentity::new_agent_control_identity();
 
     // Assert repository data
@@ -129,7 +129,7 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     cmd.arg("--repository-url").arg(repository_url);
     cmd.assert().success();
 
-    let k8s_client = SyncK8sClient::try_new(runtime.clone(), namespace.clone()).unwrap();
+    let k8s_client = SyncK8sClient::try_from_namespace(runtime.clone(), namespace.clone()).unwrap();
     let repository = k8s_client
         .get_dynamic_object(&helmrepository_type_meta(), REPOSITORY_NAME)
         .unwrap()

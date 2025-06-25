@@ -42,7 +42,7 @@ impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
-            SyncK8sClient::try_new(self.runtime, self.k8s_config.namespace.clone())
+            SyncK8sClient::try_new(self.runtime, &self.k8s_config.client_config)
                 .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
         let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
@@ -56,6 +56,7 @@ impl AgentControlRunner {
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
 
+        info!("Loading Agent Control configuration");
         let agent_control_config = config_storer.load()?;
 
         let fleet_id = agent_control_config
@@ -93,6 +94,7 @@ impl AgentControlRunner {
         let (maybe_client, maybe_opamp_consumer) = opamp_client_builder
             .as_ref()
             .map(|builder| {
+                info!("Starting Agent Control OpAMP client");
                 build_opamp_with_channel(
                     builder,
                     &instance_id_getter,
@@ -126,7 +128,6 @@ impl AgentControlRunner {
 
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
 
-        info!("Creating the k8s sub_agent builder");
         let sub_agent_builder = K8sSubAgentBuilder::new(
             opamp_client_builder.as_ref(),
             &instance_id_getter,
@@ -142,6 +143,8 @@ impl AgentControlRunner {
             k8s_client: k8s_client.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
         };
+
+        info!("Initiating cleanup of outdated resources from previous Agent Control executions");
         // Cleanup of the existing resources managed by Agent Control but not existing in the
         // config loaded from the first time, for example from previous executions.
         garbage_collector

@@ -214,7 +214,6 @@ pub mod tests {
     use std::collections::HashMap;
 
     const TEST_CLUSTER_NAME: &str = "cluster_name";
-    const TEST_NAMESPACE: &str = "test-namespace";
     const TEST_AGENT_ID: &str = "k8s-test";
 
     #[test]
@@ -229,7 +228,6 @@ pub mod tests {
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
-            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
             ..Default::default()
         };
@@ -265,7 +263,6 @@ pub mod tests {
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
-            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
             ..Default::default()
         };
@@ -432,7 +429,6 @@ pub mod tests {
 
         let k8s_config = K8sConfig {
             cluster_name: TEST_CLUSTER_NAME.to_string(),
-            namespace: TEST_NAMESPACE.to_string(),
             cr_type_meta: K8sConfig::default().cr_type_meta,
             ..Default::default()
         };

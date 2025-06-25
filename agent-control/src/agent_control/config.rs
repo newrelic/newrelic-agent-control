@@ -4,6 +4,7 @@ use super::uptime_report::UptimeReportConfig;
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
+use crate::k8s::client::ClientConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
@@ -193,29 +194,19 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
 }
 
 /// K8sConfig represents the AgentControl configuration for K8s environments
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct K8sConfig {
-    /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster.
+    /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster. Required
     pub cluster_name: String,
-    /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created.
-    pub namespace: String,
+    /// client configuration
+    #[serde(flatten)]
+    pub client_config: ClientConfig,
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
     /// CRDs is a list of crds that AC should watch and be able to create/delete.
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
-}
-
-impl Default for K8sConfig {
-    fn default() -> Self {
-        Self {
-            cluster_name: Default::default(),
-            namespace: Default::default(),
-            chart_version: Default::default(),
-            cr_type_meta: default_group_version_kinds(),
-        }
-    }
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -264,7 +255,7 @@ pub(crate) mod tests {
         file_logging::{FileLoggingConfig, LogFilePath},
         format::{LoggingFormat, TimestampFormat},
     };
-    use std::path::PathBuf;
+    use std::{path::PathBuf, time::Duration};
 
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
@@ -274,6 +265,17 @@ pub(crate) mod tests {
                 headers: HeaderMap::default(),
                 auth_config: None,
                 signature_validation: Default::default(),
+            }
+        }
+    }
+
+    impl Default for K8sConfig {
+        fn default() -> Self {
+            Self {
+                cluster_name: Default::default(),
+                client_config: Default::default(),
+                chart_version: Default::default(),
+                cr_type_meta: default_group_version_kinds(),
             }
         }
     }
@@ -341,15 +343,6 @@ agents:
     agent_type: namespace/agent_type:0.0.1
 "#;
 
-    const AGENTCONTROL_CONFIG_MISSING_K8S_FIELDS: &str = r#"
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-k8s:
-  cluster_name: some-cluster
-  # the namespace is missing :(
-"#;
-
     const AGENTCONTROL_BAD_FILE_LOGGING_CONFIG: &str = r#"
 log:
   file:
@@ -375,18 +368,6 @@ fleet_control:
   endpoint: http://localhost:8080/some/path
   fleet_id: 123
 agents: {}
-"#;
-
-    const EXAMPLE_K8S_EXTRA_CR_CONFIG: &str = r#"
-agents:
-  agent-1:
-    agent_type: namespace/agent_type:0.0.1
-k8s:
-  namespace: default
-  cluster_name: some-cluster
-  cr_type_meta:
-    - apiVersion: "custom.io/v1"
-      kind: "CustomKind"
 "#;
 
     const AGENTCONTROL_PROXY: &str = r#"
@@ -438,19 +419,6 @@ agents: {}
                 .to_string()
                 .contains("AgentID 'agent-control' is reserved at line")
         )
-    }
-
-    #[test]
-    fn parse_with_missing_k8s_fields() {
-        let actual =
-            serde_yaml::from_str::<AgentControlConfig>(AGENTCONTROL_CONFIG_MISSING_K8S_FIELDS);
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("k8s: missing field")
-        );
     }
 
     #[test]
@@ -511,19 +479,79 @@ agents: {}
     }
 
     #[test]
-    fn k8s_cr_config() {
-        let config =
-            serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_K8S_EXTRA_CR_CONFIG).unwrap();
+    fn test_ac_k8s_required_config_only() {
+        let config_input = r#"
+agents: {}
+k8s:
+  namespace: some-namespace
+  cluster_name: some-cluster
+"#;
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+
+        let k8s = config.k8s.unwrap();
+
+        assert_eq!(k8s.cluster_name, "some-cluster");
+        assert_eq!(k8s.client_config.namespace, "some-namespace");
+    }
+
+    #[test]
+    fn test_ac_k8s_fail_when_missing_required_field() {
+        let missing_namespace = r#"
+agents: {}
+k8s:
+  # missing namespace
+  cluster_name: some-cluster
+"#;
+        assert!(
+            serde_yaml::from_str::<AgentControlConfig>(missing_namespace)
+                .unwrap_err()
+                .to_string()
+                .contains("k8s: missing field `namespace`")
+        );
+
+        let missing_cluster_name = r#"
+agents: {}
+k8s:
+  namespace: some
+  # missing cluster_name
+"#;
+        assert!(
+            serde_yaml::from_str::<AgentControlConfig>(missing_cluster_name)
+                .unwrap_err()
+                .to_string()
+                .contains("k8s: missing field `cluster_name`")
+        );
+    }
+
+    #[test]
+    fn k8s_all_config() {
+        let config_input = r#"
+agents: {}
+k8s:
+  namespace: some-namespace
+  cluster_name: some-cluster
+  client_timeout: 3s
+  cr_type_meta:
+    - apiVersion: "custom.io/v1"
+      kind: "CustomKind"
+"#;
+
+        let config = serde_yaml::from_str::<AgentControlConfig>(config_input).unwrap();
+
         let custom_type_meta = TypeMeta {
             api_version: "custom.io/v1".to_string(),
             kind: "CustomKind".to_string(),
         };
-        assert_eq!(config.k8s.unwrap().cr_type_meta, vec![custom_type_meta]);
 
-        let config = serde_yaml::from_str::<AgentControlConfig>(EXAMPLE_K8S_CONFIG).unwrap();
+        let k8s = config.k8s.unwrap();
+
+        assert_eq!(k8s.cr_type_meta, vec![custom_type_meta]);
+        assert_eq!(k8s.client_config.namespace, "some-namespace");
+        assert_eq!(k8s.cluster_name, "some-cluster");
         assert_eq!(
-            config.k8s.unwrap().cr_type_meta,
-            default_group_version_kinds()
+            k8s.client_config.client_timeout,
+            Duration::from_secs(3).into()
         );
     }
 

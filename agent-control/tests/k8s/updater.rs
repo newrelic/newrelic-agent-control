@@ -22,7 +22,8 @@ fn k8s_run_updater() {
     // set up the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let test_ns = block_on(k8s.test_namespace());
-    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), test_ns.clone()).unwrap());
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.clone()).unwrap());
 
     let current_version = "1.2.3-beta".to_string();
     let new_version = "1.2.3".to_string();
@@ -73,10 +74,10 @@ fn k8s_run_updater() {
         .expect("no error should occur during update");
 
     retry(15, Duration::from_secs(5), || {
-        let obj = k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
-            .expect("no error is expected during fetching the helm release")
-            .unwrap();
+        let Some(obj) = k8s_client.get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)?
+        else {
+            return Err("Helm Release not found".into());
+        };
 
         if 2 != obj.metadata.clone().labels.unwrap_or_default().len() {
             return Err(format!("labels were overwritten: {obj:?}").into());
