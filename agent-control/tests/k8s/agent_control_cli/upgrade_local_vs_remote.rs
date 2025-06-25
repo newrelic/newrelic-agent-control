@@ -25,7 +25,8 @@ use std::time::Duration;
 fn k8s_cli_local_and_remote_updates() {
     let mut k8s_env = block_on(K8sEnv::new());
     let namespace = block_on(k8s_env.test_namespace());
-    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime(), namespace.clone()).unwrap());
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), namespace.clone()).unwrap());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
