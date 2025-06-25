@@ -226,7 +226,7 @@ fn is_authorized(when: When) -> When {
             client_assertion, ..
         } = &request.credential
         else {
-            return false; // TODO panic instead?
+            return false;
         };
 
         // Decode the signed token
