@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
+use http::Uri;
 use nr_auth::ClientID;
 use serde::Deserialize;
-use url::Url;
 
 use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 
@@ -10,7 +10,8 @@ use crate::agent_control::defaults::AUTH_PRIVATE_KEY_FILE_NAME;
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct AuthConfig {
     /// Endpoint to obtain the access token presenting the client id and secret.
-    pub token_url: Url,
+    #[serde(with = "http_serde::uri")]
+    pub token_url: Uri,
     /// Auth client id associated with the provided key.
     pub client_id: ClientID,
     /// Method to sign the client secret used to retrieve the access token.
@@ -51,7 +52,7 @@ impl LocalConfig {
 mod tests {
     use std::{path::PathBuf, str::FromStr};
 
-    use url::Url;
+    use http::Uri;
 
     use crate::opamp::auth::config::{AuthConfig, LocalConfig, ProviderConfig};
 
@@ -80,7 +81,7 @@ private_key_path: "path/to/key"
                 ),
                 expected: AuthConfig {
                     client_id: "fake".into(),
-                    token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: Some(ProviderConfig::Local(LocalConfig {
                         private_key_path: PathBuf::from("path/to/key"),
                     })),
@@ -96,7 +97,7 @@ client_id: "fake"
                 ),
                 expected: AuthConfig {
                     client_id: "fake".into(),
-                    token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: None,
                     retries: 0u8,
                 },
@@ -111,7 +112,7 @@ retries: 3
                 ),
                 expected: AuthConfig {
                     client_id: "fake".into(),
-                    token_url: Url::from_str("http://fake.com/oauth2/v1/token").unwrap(),
+                    token_url: Uri::from_str("http://fake.com/oauth2/v1/token").unwrap(),
                     provider: None,
                     retries: 3u8,
                 },

@@ -2804,7 +2804,7 @@ dependencies = [
  "opentelemetry-semantic-conventions",
  "opentelemetry_sdk",
  "predicates",
- "prost 0.13.5",
+ "prost 0.14.1",
  "rcgen",
  "regex",
  "reqwest",

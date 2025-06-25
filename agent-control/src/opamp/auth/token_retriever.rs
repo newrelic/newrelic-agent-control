@@ -27,7 +27,7 @@ pub enum TokenRetrieverImplError {
 }
 
 // Just an alias to make the code more readable
-type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<HttpClient>>;
+type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<HttpClient>, JwtSignerImpl>;
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
@@ -75,7 +75,7 @@ impl TokenRetrieverImpl {
         let authenticator = HttpAuthenticator::new(client, ac.token_url.clone());
 
         Ok(Self::HttpTR(
-            TokenRetrieverHttp::new(ac.client_id, jwt_signer, authenticator)
+            TokenRetrieverHttp::new_with_jwt_signer(ac.client_id, authenticator, jwt_signer)
                 .with_retries(ac.retries),
         ))
     }

@@ -91,7 +91,7 @@ jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.0.0", features = ["derive", "http"] }
-prost = "0.13.5"
+prost = "0.14"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
 httpmock = { version = "0.8.0-alpha.1", features = ["proxy"] }
 serial_test = "3.2.0"

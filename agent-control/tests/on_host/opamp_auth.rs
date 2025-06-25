@@ -5,13 +5,14 @@ use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
-use nr_auth::authenticator::{Request, Response};
+use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
-use nr_auth::token_retriever::DEFAULT_AUDIENCE;
 use predicates::prelude::predicate;
 use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::TempDir;
+
+const DEFAULT_AUDIENCE: &str = "https://www.newrelic.com/";
 
 #[test]
 #[ignore = "requires root"]
@@ -199,7 +200,7 @@ fn auth_server(token: String) -> MockServer {
             .header(CONTENT_TYPE.as_str(), "application/json")
             .and(is_authorized);
         then.json_body(
-            serde_json::to_value(Response {
+            serde_json::to_value(TokenRetrievalResponse {
                 access_token: token,
                 token_type: "bearer".to_string(),
                 expires_in: 10,
@@ -213,7 +214,7 @@ fn auth_server(token: String) -> MockServer {
 
 fn is_authorized(when: When) -> When {
     when.is_true(|req| {
-        let request: Request = serde_json::from_slice(req.body_ref()).unwrap();
+        let request: TokenRetrievalRequest = serde_json::from_slice(req.body_ref()).unwrap();
 
         // Validation
         let mut validation = Validation::new(Algorithm::RS256);
@@ -221,9 +222,16 @@ fn is_authorized(when: When) -> When {
         validation.set_audience(&[DEFAULT_AUDIENCE]);
         validation.set_required_spec_claims(&["exp", "sub", "aud"]);
 
+        let AuthCredential::ClientAssertion {
+            client_assertion, ..
+        } = &request.credential
+        else {
+            return false; // TODO panic instead?
+        };
+
         // Decode the signed token
         jsonwebtoken::decode::<Claims>(
-            &request.client_assertion,
+            client_assertion,
             &DecodingKey::from_rsa_pem(RS256_PUBLIC_KEY.as_bytes()).unwrap(),
             &validation,
         )
