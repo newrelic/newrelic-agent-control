@@ -1,7 +1,7 @@
 [package]
 name = "newrelic_agent_control"
 description = "New Relic Agent Control Limited Preview"
-version = "0.39.0"
+version = "0.40.0"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -36,8 +36,8 @@ chrono = { workspace = true }
 base64 = { version = "0.22.1" }
 # New Relic dependencies (private external repos)
 # IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
-nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.0.4" }
-opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.33" }
+nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.0.8" }
+opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.34" }
 # local dependencies
 fs = { path = "../fs" }
 wrapper_with_default = { path = "../wrapper_with_default" }
@@ -91,7 +91,7 @@ jsonwebtoken = { workspace = true }
 fs = { path = "../fs", features = ["mocks"] }
 tokio = { version = "1.44.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.0.0", features = ["derive", "http"] }
-prost = "0.13.5"
+prost = "0.14"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
 httpmock = { version = "0.8.0-alpha.1", features = ["proxy"] }
 serial_test = "3.2.0"
