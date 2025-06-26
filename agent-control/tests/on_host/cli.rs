@@ -168,6 +168,8 @@ server:
 #[test]
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    use assert_cmd::assert::OutputAssertExt;
+    use assert_cmd::cargo::cargo_bin;
     use httpmock::Method::POST;
     use httpmock::MockServer;
 
@@ -203,27 +205,21 @@ server:
     let tmpdir_path = dir.path();
     let tmpdir_remote = TempDir::new()?.path().join("test");
     let tmpdir_logs = TempDir::new()?.path().join("logs");
-    let mut command = std::process::Command::new("cargo");
+
+    let mut command = Command::cargo_bin("newrelic-agent-control-onhost")?;
     command
-        .args([
-            "run",
-            "--bin",
-            "newrelic-agent-control-onhost",
-            "--features",
-            "multiple-instances",
-            "--",
-        ])
         .arg("--local-dir")
         .arg(tmpdir_path)
         .arg("--logs-dir")
         .arg(&tmpdir_logs)
         .arg("--remote-dir")
         .arg(&tmpdir_remote)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .timeout(Duration::from_secs(5));
 
-    let handle = command.spawn().expect("Failed to start agent control");
-    let _auto_drop_child = AutoDropChild(handle);
+    // Ensure AC reaches a certain point in execution by checking the logs
+    let _output = command.output()?.assert().stdout(predicates::str::contains(
+        "Agents supervisor runtime successfully started",
+    ));
 
     retry(
         90,
