@@ -19,8 +19,9 @@ pub fn create_temp_file(
     file_name: &str,
     data: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let file_path = dir.path().join(file_name);
-    std::fs::create_dir_all(file_path.parent().unwrap())?;
+    let file_path = dir.path();
+    std::fs::create_dir_all(file_path)?;
+    let file_path = file_path.join(file_name);
     let mut file = File::create(&file_path)?;
     writeln!(file, "{data}")?;
     Ok(file_path)
@@ -224,14 +225,17 @@ server:
     let handle = command.spawn().expect("Failed to start agent control");
     let _auto_drop_child = AutoDropChild(handle);
 
-    retry(90, Duration::from_secs(1), || {
+    retry(
+        90,
+        Duration::from_secs(1),
         || -> Result<(), Box<dyn Error>> {
             if tmpdir_remote.exists() && tmpdir_logs.exists() {
-                return Ok(());
+                Ok(())
+            } else {
+                Err("Directories not created yet".into())
             }
-            Err("Directories not created yet".into())
-        }()
-    });
+        },
+    );
 
     Ok(())
 }
