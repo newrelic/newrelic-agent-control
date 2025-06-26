@@ -36,6 +36,24 @@ test/onhost/root/integration:
 .PHONY: test/k8s
 test/k8s:
 	cargo $(CARGO_CMD) $(PACKAGE_SA) --all-targets -- --skip on_host
+
 .PHONY: test/k8s/integration
-test/k8s/integration:
-	$(MAKE) -C tests/k8s
+test/k8s/integration: test/k8s/integration-part1 test/k8s/integration-part2
+
+
+
+.PHONY: test/k8s/integration-part1
+test/k8s/integration-part1:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	tilt ci --file ./tests/k8s/Tiltfile
+	# reducing the number of threads to 1 forces the tests to run sequentially
+	cargo test k8s::scenarios -- --nocapture --ignored  --test-threads=1
+	cargo test k8s::agent_control_cli -- --nocapture --ignored  --test-threads=1
+
+.PHONY: test/k8s/integration-part2
+test/k8s/integration-part2:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	tilt ci --file ./tests/k8s/Tiltfile
+	# reducing the number of threads to 1 forces the tests to run sequentially
+	# We use this approach to split the k8s tests into two parts. We need to update it if this takes too long to run.
+	cargo test k8s_ --  --skip k8s::scenarios --skip k8s::agent_control_cli --nocapture --ignored  --test-threads=1

@@ -22,7 +22,7 @@ jobs:
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461
   fmt:
     runs-on: ubuntu-latest
-    name: stable / fmt
+    name: cargo fmt
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,15 +38,6 @@ jobs:
         with:
           components: rustfmt
           toolchain: ${{ env.RUST_VERSION }}
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
       - name: Check code formatting
         run: cargo fmt --check
 
@@ -74,7 +65,7 @@ jobs:
           toolchain: ${{ env.RUST_VERSION }}
           components: clippy
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -82,19 +73,19 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
-          
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+
+
       - name: cargo clippy
         run: cargo clippy --workspace --tests -- -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
-    name: stable / doc
+    name: cargo doc
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
-  
       - name: Obtain Rust version from project
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
@@ -105,7 +96,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
         with:
           path: |
             ~/.cargo/bin/
@@ -114,7 +105,7 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
-          
+
       - name: Create documentation
         run: cargo doc --no-deps --package newrelic_agent_control
         env:
@@ -138,16 +129,6 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
-
       - name: Fetch dependencies
         run: cargo fetch
 
@@ -156,7 +137,7 @@ jobs:
           template-file: THIRD_PARTY_NOTICES.md.tmpl
 
   unused-dependencies-check:
-    name: Check unused dependencies
+    name: cargo shear (unused dependencies)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
