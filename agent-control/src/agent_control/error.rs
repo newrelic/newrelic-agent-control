@@ -1,5 +1,6 @@
 use super::config::AgentControlConfigError;
 use super::resource_cleaner::ResourceCleanerError;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_control::version_updater::updater::UpdaterError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
@@ -106,4 +107,7 @@ pub enum AgentError {
 
     #[error("updater error: `{0}`")]
     Updater(#[from] UpdaterError),
+
+    #[error("remote config error: `{0:?}`")]
+    ApplyingRemoteConfig(Vec<(AgentID, AgentError)>),
 }
