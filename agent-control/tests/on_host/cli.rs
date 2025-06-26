@@ -3,7 +3,6 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use predicates::prelude::predicate;
 use std::error::Error;
-use std::process::Stdio;
 use std::time::Duration;
 use std::{
     fs::File,
@@ -33,14 +32,6 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
     cmd.timeout(Duration::from_secs(5));
     cmd
-}
-
-struct AutoDropChild(std::process::Child);
-
-impl Drop for AutoDropChild {
-    fn drop(&mut self) {
-        self.0.kill().unwrap();
-    }
 }
 
 #[test]
@@ -169,7 +160,6 @@ server:
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
     use assert_cmd::assert::OutputAssertExt;
-    use assert_cmd::cargo::cargo_bin;
     use httpmock::Method::POST;
     use httpmock::MockServer;
 
