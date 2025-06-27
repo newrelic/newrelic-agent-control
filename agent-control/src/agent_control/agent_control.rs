@@ -795,6 +795,44 @@ mod tests {
 
         assert!(agent_control.run().is_ok())
     }
+    #[test]
+    fn bootstrap_agents_from_remote_config_applied() {
+        // TODO
+    }
+    #[test]
+    fn bootstrap_agents_from_remote_config_failed() {
+        // TODO
+    }
+
+    #[test]
+    fn bootstrap_with_failing_agents() {
+        let (t, mut agent_control) = TestAgentControl::setup();
+        agent_control.set_noop_resource_cleaner();
+        agent_control.set_noop_updater();
+
+        agent_control.initial_config = AgentControlConfig {
+            dynamic: sub_agents_infra_and_nrdot(),
+            ..Default::default()
+        };
+        agent_control.set_sub_agent_build_success(vec![nrdot_identity()]);
+        agent_control.set_sub_agent_build_fail(vec![infra_identity()]);
+
+        agent_control.set_opamp_expectations(|client| {
+            client.should_update_effective_config(1);
+            client.should_stop(1);
+        });
+
+        t.channels
+            .app_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+        // AC will start and run but only with one agent
+        assert!(agent_control.run().is_ok())
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Agent Control Events
+    ////////////////////////////////////////////////////////////////////////////////////
 
     #[test]
     fn bootstrap_agents_from_remote_config_applied() {
