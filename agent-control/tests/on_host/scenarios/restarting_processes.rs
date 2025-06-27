@@ -102,8 +102,6 @@ agents:
 
     let yes_pid = String::from_utf8(yes_pid).unwrap();
 
-    println!("PID {}", yes_pid);
-
     // Send a SIGKILL to the yes command
     signal::kill(
         Pid::from_raw(yes_pid.trim().parse::<i32>().unwrap()),
@@ -127,7 +125,7 @@ agents:
     agent_control_join.join().unwrap();
 
     // Assert the PID is different
-    assert_ne!(yes_pid, new_yes_pid);
+    assert_ne!(yes_pid.trim(), new_yes_pid.trim());
 
     Ok(())
 }

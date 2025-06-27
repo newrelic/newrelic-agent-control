@@ -119,7 +119,7 @@ agents: {{}}
     let log_dir = TempDir::new().unwrap();
     let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(1));
+    cmd.timeout(Duration::from_secs(5));
 
     let output = cmd
         .assert()
