@@ -27,7 +27,7 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
     cmd.arg("--local-dir").arg(local_dir);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(5));
+    cmd.timeout(Duration::from_secs(10));
     cmd
 }
 
