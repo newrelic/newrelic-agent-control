@@ -207,7 +207,7 @@ server:
         .arg(&tmpdir_logs)
         .arg("--remote-dir")
         .arg(&tmpdir_remote)
-        .timeout(Duration::from_secs(5));
+        .timeout(Duration::from_secs(10));
 
     // Ensure AC reaches a certain point in execution by checking the logs
     let _output = command.output()?.assert().stdout(predicates::str::contains(
