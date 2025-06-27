@@ -251,9 +251,12 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::instrumentation::config::logs::{
-        file_logging::{FileLoggingConfig, LogFilePath},
-        format::{LoggingFormat, TimestampFormat},
+    use crate::{
+        instrumentation::config::logs::{
+            file_logging::{FileLoggingConfig, LogFilePath},
+            format::{LoggingFormat, TimestampFormat},
+        },
+        sub_agent::identity::AgentIdentity,
     };
     use std::{path::PathBuf, time::Duration};
 
@@ -632,21 +635,36 @@ k8s:
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
 
+    pub fn infra_identity() -> AgentIdentity {
+        let id = AgentID::new("infra-agent").unwrap();
+        let agent_type_id =
+            AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap();
+        AgentIdentity { id, agent_type_id }
+    }
+
     fn infra() -> HashMap<AgentID, SubAgentConfig> {
+        let identity = infra_identity();
         HashMap::from([(
-            AgentID::new("infra-agent").unwrap(),
+            identity.id,
             SubAgentConfig {
-                agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
-                    .unwrap(),
+                agent_type: identity.agent_type_id,
             },
         )])
     }
+
+    pub fn nrdot_identity() -> AgentIdentity {
+        let id = AgentID::new("nrdot").unwrap();
+        let agent_type_id =
+            AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap();
+        AgentIdentity { id, agent_type_id }
+    }
+
     fn nrdot() -> HashMap<AgentID, SubAgentConfig> {
+        let identity = nrdot_identity();
         HashMap::from([(
-            AgentID::new("nrdot").unwrap(),
+            identity.id,
             SubAgentConfig {
-                agent_type: AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1")
-                    .unwrap(),
+                agent_type: identity.agent_type_id,
             },
         )])
     }
@@ -658,7 +676,7 @@ k8s:
         agents
     }
 
-    pub fn sub_agents_default_config() -> AgentControlDynamicConfig {
+    pub fn sub_agents_infra_and_nrdot() -> AgentControlDynamicConfig {
         AgentControlDynamicConfig {
             agents: helper_get_agent_list(),
             chart_version: None,
