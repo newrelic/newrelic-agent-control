@@ -22,7 +22,7 @@ fn test_auth_local_provider_as_root() {
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(&dir, "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = auth_server(token.to_string());
 
@@ -36,7 +36,7 @@ fn test_auth_local_provider_as_root() {
     });
 
     let _config_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -97,7 +97,7 @@ fn test_empty_auth_config_as_root() {
     });
 
     let _config_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -139,7 +139,7 @@ fn test_unauthorized_token_retrieve_as_root() {
     use super::cli::create_temp_file;
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(&dir, "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = MockServer::start();
 
@@ -149,7 +149,7 @@ fn test_unauthorized_token_retrieve_as_root() {
     });
 
     let _config_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"

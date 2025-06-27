@@ -21,7 +21,7 @@ fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::
     let dir = TempDir::new()?;
 
     let _agent_type_def = create_temp_file(
-        &dir,
+        dir.path(),
         DYNAMIC_AGENT_TYPE_FILENAME,
         r#"
 namespace: newrelic
@@ -49,15 +49,20 @@ deployment:
     );
 
     let _values_file = create_temp_file(
-        &dir,
-        "fleet/agents.d/test-agent/values/values.yaml",
+        dir.path()
+            .join("fleet")
+            .join("agents.d")
+            .join("test-agent")
+            .join("values")
+            .as_path(),
+        "values.yaml",
         r#"
 duration: "1000000"
 "#,
     );
 
     let _config_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 log:
