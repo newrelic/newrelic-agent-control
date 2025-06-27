@@ -195,6 +195,24 @@ pub(crate) mod tests {
                     .returning(|_| Ok(()));
             }
         }
+
+        /// Same as [Self::should_set_remote_config_status_seq] but it ignores the `last_error` field
+        pub fn should_set_remote_config_status_matching_seq(
+            &mut self,
+            status_seq: Vec<RemoteConfigStatus>,
+        ) {
+            let mut sequence = Sequence::new();
+            for status in status_seq {
+                self.expect_set_remote_config_status()
+                    .once()
+                    .in_sequence(&mut sequence)
+                    .with(predicate::function(move |arg: &RemoteConfigStatus| {
+                        status.status == arg.status
+                            && status.last_remote_config_hash == arg.last_remote_config_hash
+                    }))
+                    .returning(|_| Ok(()));
+            }
+        }
     }
 
     mock! {

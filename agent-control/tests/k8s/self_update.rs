@@ -159,68 +159,6 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
 #[test]
 #[ignore = "needs k8s cluster"]
 /// This test installs AC using the CLI, then sends a RemoteConfig with an AC chart version update
-/// also comes with a fail config that should prevent the update to take place.
-fn k8s_self_update_bump_chart_version_with_broken_config() {
-    let mut opamp_server = FakeServer::start_new();
-    let mut k8s = block_on(K8sEnv::new());
-    let namespace = block_on(k8s.test_namespace());
-
-    let ac_instance_id = bootstrap_ac(k8s.client.clone(), &opamp_server, &namespace);
-
-    let agents_config = r#"agents:
-  fail-agent:
-    agent_type: newrelic/non.existent.type:0.1.0
-"#;
-
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
-{agents_config}
-chart_version: {LOCAL_CHART_NEW_VERSION}
-"#
-            )
-            .as_str(),
-        ),
-    );
-
-    // Assert that opamp server receives Agent description with current version, that contains
-    // the failing remote config status.
-    retry(60, Duration::from_secs(5), || {
-        let current_attributes = opamp_server
-            .get_attributes(&ac_instance_id)
-            .ok_or_else(|| "Identifying attributes not found".to_string())?;
-
-        // this assert might never detect a failure update if the old version reports the following conditions.
-        // TODO: since we could have false-positives, consider if this is properly covered by unit-tests and
-        // garbage-collect if possible.
-        if !current_attributes
-            .identifying_attributes
-            .contains(&KeyValue {
-                key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                value: Some(AnyValue {
-                    value: Some(Value::StringValue(LOCAL_CHART_PREVIOUS_VERSION.to_string())),
-                }),
-            })
-        {
-            return Err(format!("new version has been reported: {:?}", current_attributes).into());
-        }
-
-        check_latest_remote_config_status_is_expected(
-            &opamp_server,
-            &ac_instance_id,
-            RemoteConfigStatuses::Failed as i32,
-        )?;
-
-        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
-        Ok(())
-    });
-}
-
-#[test]
-#[ignore = "needs k8s cluster"]
-/// This test installs AC using the CLI, then sends a RemoteConfig with an AC chart version update
 /// pointing to a version that doesn't exists. It expects that current AC keeps working and reports
 /// unhealthy status.
 fn k8s_self_update_new_version_fails_to_start() {

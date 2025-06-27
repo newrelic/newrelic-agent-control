@@ -682,21 +682,4 @@ k8s:
         agents.extend(nrdot());
         agents
     }
-
-    pub fn sub_agents_infra_and_nrdot() -> AgentControlDynamicConfig {
-        AgentControlDynamicConfig {
-            agents: helper_get_agent_list(),
-            chart_version: None,
-        }
-    }
-
-    pub fn sub_agents_nrdot() -> AgentControlDynamicConfig {
-        let mut agents = HashMap::new();
-        agents.extend(nrdot());
-
-        AgentControlDynamicConfig {
-            agents,
-            ..Default::default()
-        }
-    }
 }

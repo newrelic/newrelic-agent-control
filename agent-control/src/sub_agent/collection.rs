@@ -72,6 +72,10 @@ pub mod tests {
         pub(crate) fn len(&self) -> usize {
             self.0.len()
         }
+
+        pub(crate) fn agents(&mut self) -> &mut HashMap<AgentID, S> {
+            &mut self.0
+        }
     }
 
     impl<S> From<HashMap<AgentID, S>> for StartedSubAgents<S>
@@ -80,6 +84,15 @@ pub mod tests {
     {
         fn from(value: HashMap<AgentID, S>) -> Self {
             StartedSubAgents(value)
+        }
+    }
+
+    impl<S> From<StartedSubAgents<S>> for HashMap<AgentID, S>
+    where
+        S: StartedSubAgent,
+    {
+        fn from(value: StartedSubAgents<S>) -> Self {
+            value.0
         }
     }
 }
