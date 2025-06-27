@@ -179,6 +179,9 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
             r#"
 fleet_control:
   endpoint: "{}"
+  signature_validation:
+    enabled: false
+host_id: "test-host-id"
 log:
   level: info
   file:
