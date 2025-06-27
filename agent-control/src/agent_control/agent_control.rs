@@ -737,11 +737,17 @@ mod tests {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Bootstrap Agents Tests
+    ////////////////////////////////////////////////////////////////////////////////////
+
     #[test]
-    fn run_and_stop_supervisors_no_agents() {
+    fn bootstrap_empty_agents() {
         let (t, mut agent_control) = TestAgentControl::setup();
         agent_control.set_noop_resource_cleaner();
         agent_control.set_noop_updater();
+
+        agent_control.set_initial_config("agents: {}\n".to_string());
 
         agent_control.set_opamp_expectations(|client| {
             client.should_update_effective_config(1);
@@ -757,21 +763,21 @@ mod tests {
     }
 
     #[test]
-    fn run_and_stop_supervisors() {
+    fn bootstrap_multiple_agents_local() {
         let (t, mut agent_control) = TestAgentControl::setup();
         agent_control.set_noop_resource_cleaner();
         agent_control.set_noop_updater();
-        // Set initial config with nr-dot + infra
+
         agent_control.initial_config = AgentControlConfig {
             dynamic: sub_agents_infra_and_nrdot(),
             ..Default::default()
         };
-        // Opamp mock
+        agent_control.set_sub_agent_build_success(vec![nrdot_identity(), infra_identity()]);
+
         agent_control.set_opamp_expectations(|client| {
             client.should_update_effective_config(1);
             client.should_stop(1);
         });
-        agent_control.set_sub_agent_build_success(vec![infra_identity(), nrdot_identity()]);
 
         t.channels
             .app_publisher
@@ -780,6 +786,44 @@ mod tests {
 
         assert!(agent_control.run().is_ok())
     }
+    #[test]
+    fn bootstrap_agents_from_remote_config_applied() {
+        // TODO
+    }
+    #[test]
+    fn bootstrap_agents_from_remote_config_failed() {
+        // TODO
+    }
+
+    #[test]
+    fn bootstrap_with_failing_agents() {
+        let (t, mut agent_control) = TestAgentControl::setup();
+        agent_control.set_noop_resource_cleaner();
+        agent_control.set_noop_updater();
+
+        agent_control.initial_config = AgentControlConfig {
+            dynamic: sub_agents_infra_and_nrdot(),
+            ..Default::default()
+        };
+        agent_control.set_sub_agent_build_success(vec![nrdot_identity()]);
+        agent_control.set_sub_agent_build_fail(vec![infra_identity()]);
+
+        agent_control.set_opamp_expectations(|client| {
+            client.should_update_effective_config(1);
+            client.should_stop(1);
+        });
+
+        t.channels
+            .app_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+        // AC will start and run but only with one agent
+        assert!(agent_control.run().is_ok())
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Agent Control Events
+    ////////////////////////////////////////////////////////////////////////////////////
 
     #[test]
     // This test makes sure that after receiving an "OpAMPEvent::Connected" the AC reports the corresponding
