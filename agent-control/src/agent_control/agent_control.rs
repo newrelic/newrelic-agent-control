@@ -328,15 +328,24 @@ where
             sub_agents,
             current_dynamic_config,
         ) {
+            // Remote config partially applied, the config was stored so it needs to be updated to fail state.
+            Err(AgentError::ApplyingRemoteConfigAgents(err)) => {
+                let error_message = format!(
+                    "Error applying Agent Control remote config for some agents: {}",
+                    err
+                );
+                let config_state = ConfigState::Failed { error_message };
+                self.sa_dynamic_config_store
+                    .update_state(config_state.clone())?;
+                report_state(config_state, opamp_remote_config.hash, opamp_client)?;
+                opamp_client.update_effective_config()?;
+                Err(AgentError::ApplyingRemoteConfigAgents(err))
+            }
+            // Remote config failed to apply, the config was not stored.
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
-                report_state(
-                    ConfigState::Failed {
-                        error_message: error_message.clone(),
-                    },
-                    opamp_remote_config.hash,
-                    opamp_client,
-                )?;
+                let config_state = ConfigState::Failed { error_message };
+                report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 Err(err)
             }
             Ok(new_dynamic_config) => {
@@ -350,7 +359,6 @@ where
     }
 
     #[instrument(skip_all)]
-    // apply an agent control remote config
     pub(super) fn validate_apply_store_remote_config(
         &self,
         opamp_remote_config: &OpampRemoteConfig,
@@ -407,7 +415,7 @@ where
         }
         // Even if the config was stored and some agents could have been applied, it returns the error so the config is reported
         // as failed, to signal FC that something has gone wrong.
-        self.apply_remote_config(
+        self.apply_remote_config_agents(
             current_dynamic_config,
             &new_dynamic_config,
             running_sub_agents,
@@ -421,7 +429,7 @@ where
     /// that are no longer present in the new configuration.
     /// Attempts to apply as much of the configuration as possible. If an agent fails to be recreated, updated, or removed,
     /// that specific agent will be skipped, but the rest of the configuration changes will still be applied.
-    pub(super) fn apply_remote_config(
+    pub(super) fn apply_remote_config_agents(
         &self,
         current_dynamic_config: &AgentControlDynamicConfig,
         new_dynamic_config: &AgentControlDynamicConfig,
@@ -474,7 +482,7 @@ where
         }
 
         if !errors.is_empty() {
-            Err(AgentError::ApplyingRemoteConfig(errors))
+            Err(AgentError::ApplyingRemoteConfigAgents(errors))
         } else {
             Ok(())
         }

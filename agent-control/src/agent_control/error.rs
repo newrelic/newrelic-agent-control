@@ -109,7 +109,7 @@ pub enum AgentError {
     Updater(#[from] UpdaterError),
 
     #[error("remote config error: `{0}`")]
-    ApplyingRemoteConfig(RemoteConfigErrors),
+    ApplyingRemoteConfigAgents(RemoteConfigErrors),
 }
 
 #[derive(Debug, Default)]
