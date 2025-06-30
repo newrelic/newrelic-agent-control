@@ -19,7 +19,7 @@ test/onhost:
 .PHONY: test/onhost/integration
 test/onhost/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
-	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests
+	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests -- --test-threads=1 # single-threaded for log readability
 
 .PHONY: test/onhost/root/integration
 test/onhost/root/integration:
