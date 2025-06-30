@@ -18,7 +18,7 @@ use crate::values::config_repository::ConfigRepositoryError;
 use crate::values::yaml_config::YAMLConfigError;
 use fs::file_reader::FileReaderError;
 use opamp_client::{ClientError, NotStartedClientError, StartedClientError};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::time::SystemTimeError;
 use thiserror::Error;
 
@@ -108,6 +108,28 @@ pub enum AgentError {
     #[error("updater error: `{0}`")]
     Updater(#[from] UpdaterError),
 
-    #[error("remote config error: `{0:?}`")]
-    ApplyingRemoteConfig(Vec<(AgentID, AgentError)>),
+    #[error("remote config error: `{0}`")]
+    ApplyingRemoteConfig(RemoteConfigErrors),
+}
+
+#[derive(Debug, Default)]
+pub struct RemoteConfigErrors(Vec<(AgentID, AgentError)>);
+impl RemoteConfigErrors {
+    pub fn push(&mut self, agent_id: AgentID, error: AgentError) {
+        self.0.push((agent_id, error));
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Display for RemoteConfigErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        for (agent_id, error) in &self.0 {
+            write!(f, "(agent_id: {}, error: {}),", agent_id, error)?;
+        }
+        write!(f, "]")?;
+        Ok(())
+    }
 }

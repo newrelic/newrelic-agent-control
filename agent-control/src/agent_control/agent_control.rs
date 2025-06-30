@@ -6,7 +6,7 @@ use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::updater::VersionUpdater;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config_validator::DynamicConfigValidator;
-use crate::agent_control::error::AgentError;
+use crate::agent_control::error::{AgentError, RemoteConfigErrors};
 use crate::agent_control::uptime_report::UptimeReporter;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
@@ -192,8 +192,7 @@ where
             match self.sub_agent_builder.build(&agent_identity) {
                 Ok(not_started_sub_agent) => {
                     debug!(%agent_id, "Sub agent built");
-                    running_sub_agents
-                        .insert(agent_identity.id.clone(), not_started_sub_agent.run());
+                    running_sub_agents.insert(agent_identity.id, not_started_sub_agent.run());
                 }
                 Err(err) => {
                     error!(%agent_id, "Error building agent: {err}");
@@ -430,15 +429,15 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        let mut errors = vec![];
+        let mut errors = RemoteConfigErrors::default();
 
         for (agent_id, agent_config) in &new_dynamic_config.agents {
             let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
 
-            if let Err(err) = match current_dynamic_config.agents.get(agent_id) {
+            let apply_result = match current_dynamic_config.agents.get(agent_id) {
                 Some(old_sub_agent_config) if old_sub_agent_config == agent_config => {
                     debug!(%agent_id, "Retaining the existing running SubAgent as its configuration remains unchanged");
-                    continue;
+                    Ok(())
                 }
                 Some(_) => {
                     info!(%agent_id, "Recreating SubAgent");
@@ -448,8 +447,10 @@ where
                     info!(%agent_id, "Creating SubAgent");
                     self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
                 }
-            } {
-                errors.push((agent_id.clone(), err));
+            };
+
+            if let Err(err) = apply_result {
+                errors.push(agent_id.clone(), err);
             };
         }
 
@@ -458,14 +459,14 @@ where
 
         for (agent_id, agent_config) in sub_agents_to_remove {
             if let Err(err) = running_sub_agents.stop_and_remove(agent_id) {
-                errors.push((agent_id.clone(), err.into()));
+                errors.push(agent_id.clone(), err.into());
             };
 
             if let Err(err) = self
                 .resource_cleaner
                 .clean(agent_id, &agent_config.agent_type)
             {
-                errors.push((agent_id.clone(), err.into()));
+                errors.push(agent_id.clone(), err.into());
             };
 
             self.agent_control_publisher
@@ -473,10 +474,10 @@ where
         }
 
         if !errors.is_empty() {
-            return Err(AgentError::ApplyingRemoteConfig(errors));
+            Err(AgentError::ApplyingRemoteConfig(errors))
+        } else {
+            Ok(())
         }
-
-        Ok(())
     }
 
     fn report_health(&self, health: HealthWithStartTime) {
@@ -786,10 +787,12 @@ mod tests {
 
         assert!(agent_control.run().is_ok())
     }
+
     #[test]
     fn bootstrap_agents_from_remote_config_applied() {
         // TODO
     }
+
     #[test]
     fn bootstrap_agents_from_remote_config_failed() {
         // TODO
