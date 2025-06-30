@@ -162,9 +162,9 @@ pub mod tests {
     use crate::agent_control::config::{
         helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta,
     };
+    use crate::health::health_checker::HealthChecker;
     use crate::health::health_checker::HealthCheckerError::K8sError;
     use crate::health::health_checker::tests::MockHealthCheck;
-    use crate::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::health::k8s::health_checker::{K8sHealthChecker, K8sResourceHealthChecker};
     use crate::health::with_start_time::StartTime;
     use crate::k8s::client::MockSyncK8sClient;
@@ -198,7 +198,10 @@ pub mod tests {
             )
             .err()
             .unwrap(),
-            K8sError(_)
+            K8sError(err) => assert_eq!(
+                err.to_string(),
+                "the kind of the resource is missing"
+            )
         );
     }
 
@@ -219,7 +222,10 @@ pub mod tests {
             )
             .err()
             .unwrap(),
-            K8sError(_)
+            K8sError(err) => assert_eq!(
+                err.to_string(),
+                "the name of the resource is missing"
+            )
         );
     }
 

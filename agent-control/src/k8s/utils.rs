@@ -138,18 +138,21 @@ pub fn display_type(type_meta: &TypeMeta) -> String {
 }
 
 pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
-    obj.metadata.clone().name.ok_or(K8sError::MissingCRName)
+    obj.metadata
+        .clone()
+        .name
+        .ok_or(K8sError::MissingResourceName)
 }
 
 pub fn get_namespace(obj: &DynamicObject) -> Result<String, K8sError> {
     obj.metadata
         .clone()
         .namespace
-        .ok_or(K8sError::MissingCRNamespace)
+        .ok_or(K8sError::MissingResourceNamespace)
 }
 
 pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
-    obj.types.clone().ok_or(K8sError::MissingCRKind)
+    obj.types.clone().ok_or(K8sError::MissingResourceKind)
 }
 
 #[cfg(test)]

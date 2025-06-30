@@ -27,6 +27,7 @@ use tracing::{debug, instrument};
 /// [`retain`](K8sGarbageCollector::retain) and [`collect`](K8sGarbageCollector::collect).
 pub struct K8sGarbageCollector {
     pub k8s_client: Arc<SyncK8sClient>,
+    /// The namespace where the Agent Control stores data via configMaps.
     pub namespace: String,
     pub cr_type_meta: Vec<TypeMeta>,
 }

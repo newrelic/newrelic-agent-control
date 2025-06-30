@@ -195,7 +195,10 @@ mod tests {
                 );
             }
             fn assert_missing_metadata_name(err: HealthCheckerError, name: &str) {
-                assert_matches!(err, HealthCheckerError::K8sError(_), "{}", name);
+                assert_matches!(err, HealthCheckerError::K8sError(err) => assert_eq!(
+                err.to_string(),
+                "StatefulSet does not have .metadata.name"
+            ), "{}", name);
             }
         }
 

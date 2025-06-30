@@ -12,10 +12,7 @@ use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, Labels, REMO
 use crate::k8s::utils::{get_name, get_type_meta};
 use crate::sub_agent::identity::AgentIdentity;
 use clap::Parser;
-use kube::{
-    Resource,
-    api::{DynamicObject, ObjectMeta},
-};
+use kube::api::{DynamicObject, ObjectMeta};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 use std::thread::sleep;
