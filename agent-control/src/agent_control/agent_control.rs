@@ -795,10 +795,12 @@ mod tests {
 
         assert!(agent_control.run().is_ok())
     }
+
     #[test]
     fn bootstrap_agents_from_remote_config_applied() {
         // TODO
     }
+
     #[test]
     fn bootstrap_agents_from_remote_config_failed() {
         // TODO
