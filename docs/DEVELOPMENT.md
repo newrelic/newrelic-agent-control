@@ -231,7 +231,7 @@ make -C agent-control test/onhost/integration
 Running tests that require root user can be not straight-forward, as the Rust toolchain installers like `rustup` tend to not install them globally on a system, so doing `sudo cargo` won't work. An easy way to run the root-required tests is spinning up a container where the user is root and running them there with:
 
 ```sh
-make -C agent-control test/onhost/root
+make -C agent-control test/onhost/root/integration
 ```
 
 ### Feature `k8s`
