@@ -164,7 +164,7 @@ nfpms:
       # NR Otel Collector - Important to note the binary name is nrdot-collector-host matching nrdot binary
       - src: build/embedded/artifacts/{{- .Arch }}/nr-otel-collector/nrdot-collector-host
         dst: /usr/bin/nrdot-collector-host
-      - src: build/embedded/artifacts/{{- .Arch }}/newrelic-auth-cli
+      - src: build/embedded/artifacts/{{- .Arch }}/newrelic-auth-cli/newrelic-auth-cli
         dst: /usr/bin/newrelic-auth-cli
       - src: build/examples/
         dst: /etc/newrelic-agent-control/examples

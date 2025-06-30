@@ -66,8 +66,8 @@ artifacts:
 
   - name: newrelic-auth-cli
     # Version now should be added in goreleaser.yaml global envs
-    url: https://github.com/newrelic/newrelic-auth-rs/releases/download/{{.Version | trimv}}/newrelic-auth-cli-{{.Arch}}
+    url: https://github.com/newrelic/newrelic-auth-rs/releases/download/{{.Version | trimv}}/newrelic-auth-cli_{{.Arch}}.tar.gz
     files:
       - name: newrelic-auth-cli binary
-        src: newrelic-auth-cli-{{.Arch}}
+        src: newrelic-auth-cli
         dest: artifacts/{{.Arch}}/newrelic-auth-cli
