@@ -234,9 +234,6 @@ pub struct AsyncK8sClient {
     dynamic_object_managers: DynamicObjectManagers,
 }
 
-// We do not want to leverage default namespace from the kube-rs client, since we want to be explicit in every call.
-const DEFAULT_NOT_EXISTING_NAMESPACE: &str = "default-non-existing-namespace";
-
 impl AsyncK8sClient {
     /// Constructs a new Kubernetes client.
     ///
@@ -256,7 +253,6 @@ impl AsyncK8sClient {
         };
         config.read_timeout = Some(client_config.client_timeout.into());
         config.write_timeout = Some(client_config.client_timeout.into());
-        config.default_namespace = DEFAULT_NOT_EXISTING_NAMESPACE.to_string();
 
         let client = Client::try_from(config)?;
 

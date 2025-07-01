@@ -24,7 +24,7 @@ struct Cli {
     #[command(subcommand)]
     operation: Operations,
 
-    /// Namespace where resources of
+    /// Namespace where resources of agent control are created
     #[arg(short, long, global = true, default_value = "default")]
     namespace: String,
 

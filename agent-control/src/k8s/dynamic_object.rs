@@ -28,7 +28,9 @@ use tracing::debug;
 const DYN_WATCHER_STOP_POLICY: bool = true;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
-/// using the k8s API or a [Reflector]. The API calls are namespaced.
+/// using the k8s API or a [Reflector].
+/// The API calls (apply, delete, patch, ...) are namespaced while "list" that uses directly the [Reflectors] watches all namespaces.
+/// Get leverages the reflector to find the object by name and namespace.
 pub struct DynamicObjectManager {
     client: kube::Client,
     api_resource: ApiResource,
@@ -95,7 +97,6 @@ impl DynamicObjectManager {
     }
 
     /// Creates the provided object in the cluster, if an object with the same name exists, it is updated.
-    /// apply is namespaced since the API object is namespaced.
     pub async fn apply(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let name = get_name(obj)?;
         let namespace = get_namespace(obj)?;
@@ -134,7 +135,6 @@ impl DynamicObjectManager {
         self.apply(obj).await
     }
 
-    // Patch is namespaced since the API object is namespaced.
     pub async fn patch(
         &self,
         name: &str,
@@ -148,7 +148,7 @@ impl DynamicObjectManager {
             .map_err(|error| K8sError::PatchError(name.to_string(), error.to_string()))
     }
 
-    /// Deletes the [DynamicObject], returns an ok if it does not exist. Delete is namespaced since the API object is namespaced.
+    /// Deletes the [DynamicObject], returns an ok if it does not exist.
     pub async fn delete(
         &self,
         name: &str,
@@ -180,7 +180,6 @@ impl DynamicObjectManager {
         Ok(either)
     }
 
-    /// delete_collection is namespaced since the API object is namespaced.
     pub async fn delete_collection(
         &self,
         namespace: &str,
@@ -197,7 +196,7 @@ impl DynamicObjectManager {
 /// [K8sError::MissingAPIResource] is returned if the manager init failure reason is that there is no such API Resource in the cluster.
 pub struct DynamicObjectManagers {
     client: kube::Client,
-    manager_by_type_and_namespace: Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
+    manager_by_type: Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
     reflector_builder: ReflectorBuilder,
 }
 
@@ -205,7 +204,7 @@ impl DynamicObjectManagers {
     pub fn new(client: kube::Client, reflector_builder: ReflectorBuilder) -> Self {
         Self {
             client,
-            manager_by_type_and_namespace: Mutex::new(HashMap::default()),
+            manager_by_type: Mutex::new(HashMap::default()),
             reflector_builder,
         }
     }
@@ -218,7 +217,7 @@ impl DynamicObjectManagers {
         type_meta: &TypeMeta,
     ) -> Result<Arc<DynamicObjectManager>, K8sError> {
         // Return the manager if it is already initialized
-        let mut managers_guard = self.manager_by_type_and_namespace.lock().await;
+        let mut managers_guard = self.manager_by_type.lock().await;
         if let Some(manager) = managers_guard.get(type_meta) {
             if manager.reflector.is_running() {
                 return Ok(manager.clone());
@@ -241,7 +240,7 @@ impl DynamicObjectManagers {
             DynamicObjectManager::try_new(type_meta, self.client.clone(), &self.reflector_builder)
                 .await?;
 
-        let mut managers_guard = self.manager_by_type_and_namespace.lock().await;
+        let mut managers_guard = self.manager_by_type.lock().await;
         let manager = Arc::new(dynamic_object_manager);
         managers_guard.insert(type_meta.clone(), manager.clone());
 

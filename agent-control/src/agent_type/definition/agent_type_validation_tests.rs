@@ -589,7 +589,7 @@ fn iterate_test_cases(environment: &Environment) {
             Environment::OnHost => {
                 TemplateRenderer::default().with_agent_control_variables(iter::once((
                     HOST_ID_VARIABLE_NAME.to_string(),
-                    VariableDefinition::new_final_string_variable("host-id".to_string()),
+                    VariableDefinition::new_final_string_variable("my-namespace".to_string()),
                 )))
             }
         };
