@@ -309,11 +309,9 @@ pub mod tests {
 
         let supervisor_builder = testing_supervisor_builder();
 
-        let result = supervisor_builder.build_supervisor(effective_agent);
-        assert!(
-            result.is_ok(),
-            "It should not error and it should return a supervisor"
-        );
+        supervisor_builder
+            .build_supervisor(effective_agent)
+            .unwrap();
     }
 
     #[test]

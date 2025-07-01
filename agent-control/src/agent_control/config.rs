@@ -251,6 +251,19 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     ]
 }
 
+impl Default for K8sConfig {
+    fn default() -> Self {
+        Self {
+            cluster_name: Default::default(),
+            client_config: Default::default(),
+            namespace: Default::default(),
+            namespace_agents: Default::default(),
+            chart_version: Default::default(),
+            cr_type_meta: default_group_version_kinds(),
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -271,19 +284,6 @@ pub(crate) mod tests {
                 headers: HeaderMap::default(),
                 auth_config: None,
                 signature_validation: Default::default(),
-            }
-        }
-    }
-
-    impl Default for K8sConfig {
-        fn default() -> Self {
-            Self {
-                cluster_name: Default::default(),
-                client_config: Default::default(),
-                namespace: Default::default(),
-                namespace_agents: Default::default(),
-                chart_version: Default::default(),
-                cr_type_meta: default_group_version_kinds(),
             }
         }
     }

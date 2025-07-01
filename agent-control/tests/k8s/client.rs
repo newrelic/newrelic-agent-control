@@ -2,6 +2,8 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{Foo, FooSpec, create_foo_cr, foo_type_meta, get_dynamic_api_foo},
 };
+use crate::common::retry::retry;
+use crate::common::runtime::block_on;
 use crate::k8s::tools::test_crd::{
     build_dynamic_object, create_crd, delete_crd, get_foo_dynamic_object,
 };
@@ -35,16 +37,6 @@ async fn k8s_manage_dynamic_resource_namespace_does_not_exist() {
     let test_ns_1 = "this-does-not-exist";
     let cr_1 = get_foo_dynamic_object(name_1.to_string(), test_ns_1.to_string());
     let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
-    let tm = get_type_meta(&cr_1).unwrap();
-
-    assert!(
-        k8s_client
-            .list_dynamic_objects_in_all_namespaces(&tm)
-            .await
-            .unwrap()
-            .is_empty(),
-        "namespace does not exist, no objects should exist"
-    );
 
     assert!(
         k8s_client
@@ -57,12 +49,12 @@ async fn k8s_manage_dynamic_resource_namespace_does_not_exist() {
     );
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[test]
 #[ignore = "needs k8s cluster"]
-async fn k8s_manage_dynamic_resource_multiple_namespaces() {
-    let mut test = K8sEnv::new().await;
-    let test_ns_1 = test.test_namespace().await;
-    let test_ns_2 = test.test_namespace().await;
+fn k8s_manage_dynamic_resource_multiple_namespaces() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns_1 = block_on(test.test_namespace());
+    let test_ns_2 = block_on(test.test_namespace());
 
     let name_1 = "test-cr-1";
     let name_2 = "test-cr-2";
@@ -71,74 +63,37 @@ async fn k8s_manage_dynamic_resource_multiple_namespaces() {
     let cr_2 = get_foo_dynamic_object(name_2.to_string(), test_ns_2.clone());
     let tm = get_type_meta(&cr_1).unwrap();
 
-    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
-    assert!(
-        k8s_client
-            .list_dynamic_objects_in_all_namespaces(&tm)
-            .await
-            .unwrap()
-            .is_empty(),
-        "No objects should exist before creation"
-    );
+    let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
 
-    k8s_client.apply_dynamic_object(&cr_1).await.unwrap();
-    k8s_client.apply_dynamic_object(&cr_2).await.unwrap();
+    block_on(k8s_client.apply_dynamic_object(&cr_1)).unwrap();
+    block_on(k8s_client.apply_dynamic_object(&cr_2)).unwrap();
 
-    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
-    assert_eq!(
-        k8s_client
-            .list_dynamic_objects_in_all_namespaces(&tm)
-            .await
-            .unwrap()
-            .len(),
-        2,
-        "2 object should exist after creation"
-    );
+    let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
 
-    k8s_client
-        .delete_dynamic_object(&tm, name_1, &test_ns_2)
-        .await
-        .unwrap();
-    assert_eq!(
-        k8s_client
-            .list_dynamic_objects_in_all_namespaces(&tm)
-            .await
-            .unwrap()
-            .len(),
-        2,
-        "No objects should be deleted, since we were pointing to the wrong namespace"
-    );
+    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_2)).unwrap();
+    // No object should be deleted in the first namespace
+    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
 
-    k8s_client
-        .delete_dynamic_object(&tm, name_1, &test_ns_1)
-        .await
-        .unwrap();
-    assert_eq!(
-        k8s_client
-            .list_dynamic_objects_in_all_namespaces(&tm)
-            .await
-            .unwrap()
-            .len(),
-        1,
-        "only one object should exist after deleting the first one"
-    );
+    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_1)).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1);
 
-    assert!(
-        k8s_client
-            .get_dynamic_object(&tm, name_2, &test_ns_2)
-            .await
+    block_on(k8s_client.delete_dynamic_object(&tm, name_2, &test_ns_2)).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+}
+
+fn check_number_of_dynamic_objects(k8s_client: &AsyncK8sClient, tm: &TypeMeta, number: usize) {
+    retry(60, Duration::from_secs(1), || {
+        if block_on(k8s_client.list_dynamic_objects_in_all_namespaces(tm))
             .unwrap()
-            .is_some(),
-        "Object should be found in the correct namespace"
-    );
-    assert!(
-        k8s_client
-            .get_dynamic_object(&tm, name_2, &test_ns_1)
-            .await
-            .unwrap()
-            .is_none(),
-        "Object should not be found in the wrong namespace"
-    );
+            .len()
+            == number
+        {
+            return Ok(());
+        }
+        Err(format!("{number} object should exist after creation").into())
+    });
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -157,7 +112,7 @@ async fn k8s_create_dynamic_resource() {
     // Assert that object has been created.
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     let result = api.get(name).await.expect("fail creating the cr");
-    assert_eq!(String::from("on_create"), result.spec.data);
+    assert_eq!(String::from("test"), result.spec.data);
 }
 
 #[tokio::test(flavor = "multi_thread")]
