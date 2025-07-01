@@ -91,6 +91,22 @@ pub async fn create_foo_cr(
     foo_cr
 }
 
+pub fn get_foo_dynamic_object(name: String, namespace: String) -> DynamicObject {
+    let cr = serde_yaml::to_string(&Foo {
+        metadata: ObjectMeta {
+            name: Some(name.to_string()),
+            namespace: Some(namespace.to_string()),
+            ..Default::default()
+        },
+        spec: FooSpec {
+            data: String::from("test"),
+        },
+    })
+    .unwrap();
+    let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
+    obj
+}
+
 /// Build a dynamic_object object from the provided values
 pub fn build_dynamic_object(
     type_meta: TypeMeta,

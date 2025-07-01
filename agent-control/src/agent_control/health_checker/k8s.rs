@@ -19,7 +19,7 @@ pub fn agent_control_health_checker_builder(
                 helmrelease_v2_type_meta(),
                 k8s_client.clone(),
                 RELEASE_NAME.to_string(),
-                namespace,
+                namespace.clone(),
                 start_time,
             ),
             start_time,
