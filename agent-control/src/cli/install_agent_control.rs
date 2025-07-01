@@ -134,17 +134,15 @@ fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<
 }
 
 fn is_version_managed_remotely(maybe_obj: Option<Arc<DynamicObject>>) -> bool {
-    if let Some(obj) = maybe_obj {
-        if let Some(labels) = obj.metadata.clone().labels {
-            if labels
-                .get_key_value(AGENT_CONTROL_VERSION_SET_FROM)
-                .is_some_and(|(_, v)| v == REMOTE_VAL)
-            {
-                return true;
-            }
-        }
+    if let Some(obj) = maybe_obj
+        && let Some(labels) = obj.metadata.clone().labels
+        && let Some((_, v)) = labels.get_key_value(AGENT_CONTROL_VERSION_SET_FROM)
+        && v == REMOTE_VAL
+    {
+        true
+    } else {
+        false
     }
-    false
 }
 
 fn get_local_or_remote_version(
