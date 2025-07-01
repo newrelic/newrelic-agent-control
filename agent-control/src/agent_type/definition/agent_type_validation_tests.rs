@@ -452,6 +452,46 @@ static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
         ..Default::default()
     });
 
+static AGENT_TYPE_EBPF: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/com.newrelic.ebpf:0.1.0",
+        values_k8s: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
+                (
+                    "check all value types are correct",
+                    r#"
+                chart_version: "some-version"
+                chart_values.nr-ebpf-agent:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
+                ),
+            ]),
+            additional_env: HashMap::from([
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    VariableDefinition::new_final_string_variable("abcd1234".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    VariableDefinition::new_final_string_variable("my-test-cluster".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    VariableDefinition::new_final_string_variable("true".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    VariableDefinition::new_final_string_variable("true".to_string()),
+                ),
+            ]),
+        }
+        .into(),
+        ..Default::default()
+    });
+
 fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesTestCase> {
     [
         &AGENT_TYPE_APM_DOTNET,
@@ -465,6 +505,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_FLUENTBIT,
         &AGENT_TYPE_OTEL_COLLECTOR,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY,
+        &AGENT_TYPE_EBPF,
     ]
     .into_iter()
     .map(Deref::deref)
