@@ -62,7 +62,7 @@ agents: {}
 
 pub fn create_file(content: String, path: PathBuf) {
     let mut local_file = File::create(path).expect("failed to create local config file");
-    write!(local_file, "{}", content).unwrap();
+    write!(local_file, "{content}").unwrap();
 }
 
 /// Creates a sub-agent values config for the agent_id provided on the base_dir

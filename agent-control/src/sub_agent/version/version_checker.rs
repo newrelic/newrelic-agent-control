@@ -94,7 +94,7 @@ pub(crate) fn publish_version_event(
     sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
     event: SubAgentInternalEvent,
 ) {
-    let event_type_str = format!("{:?}", event);
+    let event_type_str = format!("{event:?}");
     _ = sub_agent_internal_publisher
         .publish(event)
         .inspect_err(|e| {

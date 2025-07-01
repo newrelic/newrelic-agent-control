@@ -118,7 +118,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
             // replace the file separator to not be treated as a leaf
             let escaped_filename = filename.replace(FILE_SEPARATOR, FILE_SEPARATOR_REPLACE);
             let full_agent_type_field_fqn: AgentTypeFieldFQN =
-                format!("{}.{}", agent_type_field_fqn, escaped_filename).into();
+                format!("{agent_type_field_fqn}.{escaped_filename}").into();
             res.push(self.file_to_agent_value_spec(full_agent_type_field_fqn, path)?);
         }
         Ok(merge_agent_values(res)?)

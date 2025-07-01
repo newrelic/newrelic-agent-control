@@ -22,7 +22,7 @@ const AGENT_CONTROL_MODE: Environment = Environment::OnHost;
 
 fn main() -> ExitCode {
     let Ok(command) = Flags::init(AGENT_CONTROL_MODE)
-        .inspect_err(|init_err| println!("Error parsing Flags: {}", init_err))
+        .inspect_err(|init_err| println!("Error parsing Flags: {init_err}"))
     else {
         return ExitCode::FAILURE;
     };
@@ -73,7 +73,7 @@ fn _main(
 
     #[cfg(all(unix, not(feature = "multiple-instances")))]
     if let Err(err) = PIDCache::default().store(std::process::id()) {
-        return Err(format!("Error saving main process id: {}", err).into());
+        return Err(format!("Error saving main process id: {err}").into());
     }
 
     install_rustls_default_crypto_provider();

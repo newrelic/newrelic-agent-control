@@ -110,7 +110,7 @@ impl NotStartedSupervisorK8s {
         };
 
         let data = serde_json::to_value(&k8s_obj.fields).map_err(|e| {
-            SupervisorStarterError::ConfigError(format!("Error serializing fields: {}", e))
+            SupervisorStarterError::ConfigError(format!("Error serializing fields: {e}"))
         })?;
 
         Ok(DynamicObject {

@@ -105,7 +105,7 @@ impl K8sStore {
     }
 
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{}{}", prefix, agent_id)
+        format!("{prefix}{agent_id}")
     }
 }
 

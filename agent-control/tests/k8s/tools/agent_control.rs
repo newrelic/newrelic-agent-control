@@ -79,7 +79,7 @@ pub fn start_agent_control_with_testdata_config(
 /// If the file contains `<ns>`, the configuration is templated with the provided `ns` value.
 pub async fn create_local_config_map(client: Client, ns: &str, folder_name: &str, name: &str) {
     let mut content = String::new();
-    File::open(format!("tests/k8s/data/{}/{}.yaml", folder_name, name))
+    File::open(format!("tests/k8s/data/{folder_name}/{name}.yaml"))
         .unwrap()
         .read_to_string(&mut content)
         .unwrap();
@@ -118,8 +118,7 @@ pub fn create_local_agent_control_config(
 ) {
     let mut content = String::new();
     File::open(format!(
-        "tests/k8s/data/{}/local-data-agent-control.template",
-        folder_name
+        "tests/k8s/data/{folder_name}/local-data-agent-control.template"
     ))
     .unwrap()
     .read_to_string(&mut content)

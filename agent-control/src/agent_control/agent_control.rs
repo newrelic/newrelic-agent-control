@@ -325,7 +325,7 @@ where
             current_dynamic_config,
         ) {
             Err(err) => {
-                let error_message = format!("Error applying Agent Control remote config: {}", err);
+                let error_message = format!("Error applying Agent Control remote config: {err}");
                 report_state(
                     ConfigState::Failed {
                         error_message: error_message.clone(),

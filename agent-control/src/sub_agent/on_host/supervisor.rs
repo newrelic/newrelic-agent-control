@@ -462,8 +462,7 @@ pub mod tests {
         let max_duration = Duration::from_millis(100);
         assert!(
             duration < max_duration,
-            "stopping the supervisor took to much time: {:?}",
-            duration
+            "stopping the supervisor took to much time: {duration:?}"
         );
 
         for log in contain_logs {
@@ -472,8 +471,7 @@ pub mod tests {
                     "newrelic_agent_control::sub_agent::on_host::supervisor",
                     log,
                 ),
-                "log: {}",
-                log
+                "log: {log}"
             );
         }
     }
@@ -578,8 +576,7 @@ pub mod tests {
             |lines| match lines.iter().filter(|line| line.contains("hello!")).count() {
                 4 => Ok(()),
                 n => Err(format!(
-                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {}",
-                    n
+                    "Expected 4 lines with 'hello!' corresponding to 1 run + 3 retries, got {n}"
                 )),
             },
         )

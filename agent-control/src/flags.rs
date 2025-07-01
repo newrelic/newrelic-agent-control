@@ -184,7 +184,7 @@ impl OneShotCommand {
             OneShotCommand::PrintDebugInfo(flags) => {
                 println!("Printing debug info");
                 println!("Agent Control Mode: {env:?}");
-                println!("FLAGS: {:#?}", flags);
+                println!("FLAGS: {flags:#?}");
             }
         }
     }

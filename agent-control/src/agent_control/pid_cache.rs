@@ -104,7 +104,7 @@ where
             }
         }
 
-        let pid_string = format!("{}", pid);
+        let pid_string = format!("{pid}");
         Ok(self.file_rw.write(
             self.file_path.as_path(),
             pid_string,

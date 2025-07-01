@@ -256,7 +256,7 @@ impl AsyncK8sClient {
             .get(client.default_namespace())
             .await
             .map_err(|e| {
-                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
+                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {e}"))
             })?;
 
         let reflector_builder = ReflectorBuilder::new(client.clone());
@@ -546,13 +546,8 @@ pub(crate) mod tests {
         let config = Config::new(Uri::try_from("https://localhost.com").unwrap());
         let msg =
             "looks like kube-rs has revisit the timeout, see [DEFAULT_CLIENT_TIMEOUT] for details.";
-        assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{}", msg);
-        assert_eq!(
-            config.write_timeout,
-            Some(DEFAULT_CLIENT_TIMEOUT),
-            "{}",
-            msg
-        );
+        assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
+        assert_eq!(config.write_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
     }
 
     #[tokio::test]

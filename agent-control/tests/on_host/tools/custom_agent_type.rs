@@ -23,12 +23,11 @@ variables:
 deployment:
   on_host:
     executable:
-      path: {}
-      args: {}
-"#,
-        path, args
+      path: {path}
+      args: {args}
+"#
     );
-    write!(local_file, "{}", custom_agent_type).unwrap();
+    write!(local_file, "{custom_agent_type}").unwrap();
 
     "newrelic/com.newrelic.custom_agent:0.1.0".to_string()
 }
@@ -61,7 +60,7 @@ deployment:
 "#,
         health_file_path.to_str().unwrap()
     );
-    write!(local_file, "{}", custom_agent_type).unwrap();
+    write!(local_file, "{custom_agent_type}").unwrap();
 
     "newrelic/com.newrelic.custom_agent:0.1.0".to_string()
 }

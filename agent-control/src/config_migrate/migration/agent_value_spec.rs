@@ -134,7 +134,7 @@ mod tests {
 
         merge_agent_values_recursive(from, &mut to);
 
-        println!("{:?}", to);
+        println!("{to:?}");
     }
 
     #[test]
@@ -170,7 +170,7 @@ mod tests {
 
         merge_agent_values_recursive(from, &mut to);
 
-        println!("{:?}", to);
+        println!("{to:?}");
     }
 
     #[test]
@@ -193,6 +193,6 @@ mod tests {
 
         merge_agent_values_recursive(from, &mut to);
 
-        println!("{:?}", to);
+        println!("{to:?}");
     }
 }

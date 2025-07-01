@@ -229,12 +229,12 @@ pub mod tests {
             "chart": {{
                 "spec": {{
                     "chart": "default-test",
-                    "version": "{}"
+                    "version": "{chart_version}"
                 }}
             }}
         }},
         "status": {{
-            "lastAttemptedRevision": "{}",
+            "lastAttemptedRevision": "{last_attempted_version}",
             "history": [
                 {{
                     "chartName": "default-test",
@@ -256,8 +256,7 @@ pub mod tests {
                 }}
             ]
         }}    
-    }}"#,
-            chart_version, last_attempted_version
+    }}"#
         )
     }
     fn get_dynamic_object(json_data: String) -> DynamicObject {

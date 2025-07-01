@@ -122,10 +122,8 @@ impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
             ));
         }
 
-        let last_error = format!(
-            "Health check failed with HTTP response status code {}",
-            status_code
-        );
+        let last_error =
+            format!("Health check failed with HTTP response status code {status_code}");
 
         Ok(HealthWithStartTime::from_unhealthy(
             Unhealthy::new(last_error).with_status(status),

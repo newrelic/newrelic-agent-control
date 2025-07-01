@@ -547,8 +547,7 @@ fn all_agent_types_covered_by_tests() {
     agent_type_names_from_registry.for_each(|name| {
         assert!(
             agent_type_names_from_test_cases.contains(&name),
-            "Agent type {} not covered by test cases",
-            name
+            "Agent type {name} not covered by test cases"
         )
     })
 }

@@ -333,7 +333,7 @@ deployment:
             serde_yaml::from_str(AGENT_GIVEN_BAD_YAML);
 
         assert!(raw_agent_err.is_err());
-        println!("{:?}", raw_agent_err);
+        println!("{raw_agent_err:?}");
         assert_eq!(
             raw_agent_err.unwrap_err().to_string(),
             "missing field `variables` at line 2 column 1"
