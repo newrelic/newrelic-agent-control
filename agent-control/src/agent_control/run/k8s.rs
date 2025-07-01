@@ -39,6 +39,9 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
+pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
+const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
+
 impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
@@ -117,11 +120,11 @@ impl AgentControlRunner {
 
         let agent_control_variables = HashMap::from([
             (
-                "namespace".to_string(),
+                NAMESPACE_VARIABLE_NAME.to_string(),
                 VariableDefinition::new_final_string_variable(self.k8s_config.namespace.clone()),
             ),
             (
-                "namespace_agents".to_string(),
+                NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
                 VariableDefinition::new_final_string_variable(
                     self.k8s_config.namespace_agents.clone(),
                 ),

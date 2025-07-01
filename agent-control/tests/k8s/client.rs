@@ -482,7 +482,7 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .list_dynamic_objects(&type_meta)
+            .list_dynamic_objects_in_all_namespaces(&type_meta)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)

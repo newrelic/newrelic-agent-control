@@ -13,7 +13,6 @@ use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
 };
 use http::HeaderMap;
-
 use kube::api::TypeMeta;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
@@ -204,7 +203,6 @@ pub struct K8sConfig {
     /// namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
     /// namespace where all resources managed by flux will be created.
-    #[serde(default)]
     pub namespace_agents: String,
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
@@ -494,6 +492,7 @@ agents: {}
 agents: {}
 k8s:
   namespace: some-namespace
+  namespace_agents: some-namespace-agents
   cluster_name: some-cluster
 "#;
 
@@ -540,6 +539,7 @@ k8s:
 agents: {}
 k8s:
   namespace: some-namespace
+  namespace_agents: some-namespace-agents
   cluster_name: some-cluster
   client_timeout: 3s
   cr_type_meta:

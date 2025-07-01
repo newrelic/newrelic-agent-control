@@ -65,7 +65,7 @@ impl DynamicObjectManager {
     }
 
     /// Returns the list of [DynamicObject].
-    pub fn list(&self) -> Vec<Arc<DynamicObject>> {
+    pub fn list_in_all_namespaces(&self) -> Vec<Arc<DynamicObject>> {
         self.reflector.reader().state()
     }
 
@@ -134,7 +134,7 @@ impl DynamicObjectManager {
         self.apply(obj).await
     }
 
-    // Path is namespaced since the API object is namespaced.
+    // Patch is namespaced since the API object is namespaced.
     pub async fn patch(
         &self,
         name: &str,

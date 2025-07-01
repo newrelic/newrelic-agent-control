@@ -8,6 +8,8 @@
 
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
+use crate::agent_control::run::k8s::NAMESPACE_VARIABLE_NAME;
+use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
     agent_type::{
@@ -580,13 +582,13 @@ fn iterate_test_cases(environment: &Environment) {
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
             Environment::K8s => {
                 TemplateRenderer::default().with_agent_control_variables(iter::once((
-                    "namespace".to_string(),
+                    NAMESPACE_VARIABLE_NAME.to_string(),
                     VariableDefinition::new_final_string_variable("host-id".to_string()),
                 )))
             }
             Environment::OnHost => {
                 TemplateRenderer::default().with_agent_control_variables(iter::once((
-                    "host_id".to_string(),
+                    HOST_ID_VARIABLE_NAME.to_string(),
                     VariableDefinition::new_final_string_variable("host-id".to_string()),
                 )))
             }

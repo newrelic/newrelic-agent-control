@@ -124,9 +124,12 @@ impl SyncK8sClient {
             ))
     }
 
-    pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+    pub fn list_dynamic_objects_in_all_namespaces(
+        &self,
+        tm: &TypeMeta,
+    ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.list_dynamic_objects(tm))
+            .block_on(self.async_client.list_dynamic_objects_in_all_namespaces(tm))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
@@ -461,11 +464,15 @@ impl AsyncK8sClient {
             .await
     }
 
-    pub async fn list_dynamic_objects(
+    pub async fn list_dynamic_objects_in_all_namespaces(
         &self,
         tm: &TypeMeta,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
-        Ok(self.dynamic_object_managers.get_or_create(tm).await?.list())
+        Ok(self
+            .dynamic_object_managers
+            .get_or_create(tm)
+            .await?
+            .list_in_all_namespaces())
     }
 
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
