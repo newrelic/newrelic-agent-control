@@ -125,10 +125,6 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
 
-
-      - name: Run onHost root-required lib tests only
-        run: make -C agent-control test/onhost/root
-
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
 

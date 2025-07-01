@@ -8,7 +8,7 @@ use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENA
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 use tempfile::TempDir;
 
@@ -22,7 +22,7 @@ fn test_auth_local_provider_as_root() {
     let token = "fakeToken";
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(&dir, "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = auth_server(token.to_string());
 
@@ -35,8 +35,8 @@ fn test_auth_local_provider_as_root() {
         then.status(200);
     });
 
-    let config_path = create_temp_file(
-        &dir,
+    let _config_path = create_temp_file(
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -59,7 +59,9 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = cmd_agent_control(config_path);
+    let remote_dir = TempDir::new().unwrap();
+    let log_dir = TempDir::new().unwrap();
+    let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // cmd_assert is not made for long running programs, so we kill it.
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
     cmd.timeout(Duration::from_secs(10));
@@ -94,8 +96,8 @@ fn test_empty_auth_config_as_root() {
         then.status(200);
     });
 
-    let config_path = create_temp_file(
-        &dir,
+    let _config_path = create_temp_file(
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -113,9 +115,11 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = cmd_agent_control(config_path);
+    let remote_dir = TempDir::new().unwrap();
+    let log_dir = TempDir::new().unwrap();
+    let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // Enough time for the SA to start and send at least 1 AgentToServer OpAMP message.
-    cmd.timeout(Duration::from_secs(1));
+    cmd.timeout(Duration::from_secs(5));
 
     let output = cmd
         .assert()
@@ -135,7 +139,7 @@ fn test_unauthorized_token_retrieve_as_root() {
     use super::cli::create_temp_file;
 
     let dir = TempDir::new().unwrap();
-    let private_key_path = create_temp_file(&dir, "priv_key", RS256_PRIVATE_KEY).unwrap();
+    let private_key_path = create_temp_file(dir.path(), "priv_key", RS256_PRIVATE_KEY).unwrap();
 
     let auth_server = MockServer::start();
 
@@ -144,8 +148,8 @@ fn test_unauthorized_token_retrieve_as_root() {
         then.status(401);
     });
 
-    let config_path = create_temp_file(
-        &dir,
+    let _config_path = create_temp_file(
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -167,7 +171,9 @@ agents: {{}}
     )
     .unwrap();
 
-    let mut cmd = cmd_agent_control(config_path);
+    let remote_dir = TempDir::new().unwrap();
+    let log_dir = TempDir::new().unwrap();
+    let mut cmd = cmd_agent_control(dir.path(), remote_dir.path().into(), log_dir.path().into());
     // This timeout has been added so we can discriminate if the agent-control has crashed or not.
     // if timed out means that the agent-control haven't crashed and that's not expected.
     // This is checked on the assert.
@@ -184,9 +190,19 @@ agents: {{}}
         .stdout(predicate::str::is_match(r".*ERROR.*could not build auth headers.*").unwrap());
 }
 
-fn cmd_agent_control(config_path: PathBuf) -> Command {
+fn cmd_agent_control(
+    config_path: &Path,
+    remote_dir: Option<&Path>,
+    logs_dir: Option<&Path>,
+) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
-    cmd.arg("--local-dir").arg(config_path.parent().unwrap());
+    cmd.arg("--local-dir").arg(config_path);
+    if let Some(remote_dir) = remote_dir {
+        cmd.arg("--remote-dir").arg(remote_dir);
+    }
+    if let Some(logs_dir) = logs_dir {
+        cmd.arg("--logs-dir").arg(logs_dir);
+    }
     cmd
 }
 

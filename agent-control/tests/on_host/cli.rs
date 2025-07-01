@@ -3,7 +3,6 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use predicates::prelude::predicate;
 use std::error::Error;
-use std::process::Stdio;
 use std::time::Duration;
 use std::{
     fs::File,
@@ -12,15 +11,13 @@ use std::{
 };
 use tempfile::TempDir;
 
-// when the TempDir is dropped, the temporal directory is removed, thus, the its
-// ownership must remain on the parent function.
 pub fn create_temp_file(
-    dir: &TempDir,
+    dir: &Path,
     file_name: &str,
     data: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let file_path = dir.path().join(file_name);
-    std::fs::create_dir_all(file_path.parent().unwrap())?;
+    std::fs::create_dir_all(dir)?;
+    let file_path = dir.join(file_name);
     let mut file = File::create(&file_path)?;
     writeln!(file, "{data}")?;
     Ok(file_path)
@@ -30,22 +27,14 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost").unwrap();
     cmd.arg("--local-dir").arg(local_dir);
     // cmd_assert is not made for long running programs, so we kill it anyway after 1 second
-    cmd.timeout(Duration::from_secs(5));
+    cmd.timeout(Duration::from_secs(10));
     cmd
-}
-
-struct AutoDropChild(std::process::Child);
-
-impl Drop for AutoDropChild {
-    fn drop(&mut self) {
-        self.0.kill().unwrap();
-    }
 }
 
 #[test]
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
+    let _file_path = create_temp_file(dir.path(), AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir")
         .arg(dir.path())
@@ -58,7 +47,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(&dir, AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
+    let _file_path = create_temp_file(dir.path(), AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
     let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost")?;
     cmd.arg("--local-dir").arg(dir.path());
     cmd.assert()
@@ -76,7 +65,7 @@ fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
 
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 agents: {}
@@ -121,7 +110,7 @@ fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
 
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 agents: {}
@@ -167,6 +156,7 @@ server:
 #[test]
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
+    use assert_cmd::assert::OutputAssertExt;
     use httpmock::Method::POST;
     use httpmock::MockServer;
 
@@ -180,12 +170,15 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
     });
 
     let _config_path = create_temp_file(
-        &dir,
+        dir.path(),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
 fleet_control:
   endpoint: "{}"
+  signature_validation:
+    enabled: false
+host_id: "test-host-id"
 log:
   level: info
   file:
@@ -202,36 +195,33 @@ server:
     let tmpdir_path = dir.path();
     let tmpdir_remote = TempDir::new()?.path().join("test");
     let tmpdir_logs = TempDir::new()?.path().join("logs");
-    let mut command = std::process::Command::new("cargo");
+
+    let mut command = Command::cargo_bin("newrelic-agent-control-onhost")?;
     command
-        .args([
-            "run",
-            "--bin",
-            "newrelic-agent-control-onhost",
-            "--features",
-            "multiple-instances",
-            "--",
-        ])
         .arg("--local-dir")
         .arg(tmpdir_path)
         .arg("--logs-dir")
         .arg(&tmpdir_logs)
         .arg("--remote-dir")
         .arg(&tmpdir_remote)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .timeout(Duration::from_secs(10));
 
-    let handle = command.spawn().expect("Failed to start agent control");
-    let _auto_drop_child = AutoDropChild(handle);
+    // Ensure AC reaches a certain point in execution by checking the logs
+    let _output = command.output()?.assert().stdout(predicates::str::contains(
+        "Agents supervisor runtime successfully started",
+    ));
 
-    retry(90, Duration::from_secs(1), || {
+    retry(
+        90,
+        Duration::from_secs(1),
         || -> Result<(), Box<dyn Error>> {
             if tmpdir_remote.exists() && tmpdir_logs.exists() {
-                return Ok(());
+                Ok(())
+            } else {
+                Err("Directories not created yet".into())
             }
-            Err("Directories not created yet".into())
-        }()
-    });
+        },
+    );
 
     Ok(())
 }

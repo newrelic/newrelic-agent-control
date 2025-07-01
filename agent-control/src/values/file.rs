@@ -65,9 +65,11 @@ impl ConfigRepositoryFile<LocalFile, DirectoryManagerFs> {
         }
     }
 
-    pub fn with_remote(mut self) -> Self {
-        self.remote_enabled = true;
-        self
+    pub fn with_remote(self) -> Self {
+        Self {
+            remote_enabled: true,
+            ..self
+        }
     }
 }
 
