@@ -6,7 +6,7 @@ use super::resource_cleaner::ResourceCleaner;
 use super::version_updater::updater::VersionUpdater;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config_validator::DynamicConfigValidator;
-use crate::agent_control::error::AgentError;
+use crate::agent_control::error::{AgentError, RemoteConfigErrors};
 use crate::agent_control::uptime_report::UptimeReporter;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
@@ -103,7 +103,6 @@ where
     }
 
     pub fn run(self) -> Result<(), AgentError> {
-        debug!("Creating agent's communication channels");
         if let Some(opamp_client) = &self.opamp_client {
             match self.sa_dynamic_config_store.get_remote_config() {
                 Err(e) => {
@@ -117,7 +116,7 @@ where
                     }
                 }
                 Ok(None) => {
-                    warn!("OpAMP enabled but no previous remote configuration found");
+                    info!("OpAMP enabled but no previous remote configuration found");
                 }
             }
             opamp_client.update_effective_config()?
@@ -147,9 +146,7 @@ where
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
         // the result as read by the `AgentControlConfigLoader`.
-        let sub_agents_config = &self.initial_config.dynamic.agents;
-        // TODO refactor this to prevent any error related to dynamic config crash AC
-        let running_sub_agents = self.build_and_run_sub_agents(sub_agents_config)?;
+        let running_sub_agents = self.build_and_run_sub_agents(&self.initial_config.dynamic.agents);
 
         info!("Agents supervisor runtime successfully started");
 
@@ -181,21 +178,28 @@ where
         self.build_and_run_sub_agent(agent_identity, running_sub_agents)
     }
 
-    // build_sub_agents returns a collection of started sub agents
+    /// Returns a collection of started sub agents. In case an agent fails to build an error
+    /// is logged and that agent skipped from the list.
     fn build_and_run_sub_agents(
         &self,
         sub_agents: &SubAgentsMap,
-    ) -> Result<
-        StartedSubAgents<<S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent>,
-        AgentError,
-    > {
+    ) -> StartedSubAgents<<S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent> {
         let mut running_sub_agents = StartedSubAgents::default();
+
         for (agent_id, agent_config) in sub_agents {
             let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
 
-            self.build_and_run_sub_agent(&agent_identity, &mut running_sub_agents)?;
+            match self.sub_agent_builder.build(&agent_identity) {
+                Ok(not_started_sub_agent) => {
+                    debug!(%agent_id, "Sub agent built");
+                    running_sub_agents.insert(agent_identity.id, not_started_sub_agent.run());
+                }
+                Err(err) => {
+                    error!(%agent_id, "Error building agent: {err}");
+                }
+            }
         }
-        Ok(running_sub_agents)
+        running_sub_agents
     }
 
     // runs and adds into the sub_agents collection the given agent
@@ -319,20 +323,29 @@ where
             opamp_client,
         )?;
 
-        match self.apply_remote_agent_control_config(
+        match self.validate_apply_store_remote_config(
             &opamp_remote_config,
             sub_agents,
             current_dynamic_config,
         ) {
+            // Remote config partially applied, the config was stored so it needs to be updated to fail state.
+            Err(AgentError::ApplyingRemoteConfigAgents(err)) => {
+                let error_message = format!(
+                    "Error applying Agent Control remote config for some agents: {}",
+                    err
+                );
+                let config_state = ConfigState::Failed { error_message };
+                self.sa_dynamic_config_store
+                    .update_state(config_state.clone())?;
+                report_state(config_state, opamp_remote_config.hash, opamp_client)?;
+                opamp_client.update_effective_config()?;
+                Err(AgentError::ApplyingRemoteConfigAgents(err))
+            }
+            // Remote config failed to apply, the config was not stored.
             Err(err) => {
                 let error_message = format!("Error applying Agent Control remote config: {}", err);
-                report_state(
-                    ConfigState::Failed {
-                        error_message: error_message.clone(),
-                    },
-                    opamp_remote_config.hash,
-                    opamp_client,
-                )?;
+                let config_state = ConfigState::Failed { error_message };
+                report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 Err(err)
             }
             Ok(new_dynamic_config) => {
@@ -346,8 +359,7 @@ where
     }
 
     #[instrument(skip_all)]
-    // apply an agent control remote config
-    pub(super) fn apply_remote_agent_control_config(
+    pub(super) fn validate_apply_store_remote_config(
         &self,
         opamp_remote_config: &OpampRemoteConfig,
         running_sub_agents: &mut StartedSubAgents<
@@ -386,12 +398,13 @@ where
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
         self.version_updater.update(&new_dynamic_config)?;
 
-        self.apply_remote_agent_control_config_agents(
-            current_dynamic_config,
-            &new_dynamic_config,
-            running_sub_agents,
-        )?;
-
+        // It stores the remote config and then apply it for these reasons:
+        // - The apply mechanism does not handle any rollback in case any failure but instead attempts to apply as much as
+        //   possible, and in case of failure a partial config keeps running.
+        // - It has already been validated so we assume that the possible fails that could happen when applying are recoverable,
+        //   and probably happened due to sub-agent OpAMP build errors.
+        // - In case of a AC reset , the state will be the same as the current or even better with the config correctly applied.
+        // - The effective config will be more similar to the current in execution.
         if !remote_config_value.is_empty() {
             let config = RemoteConfigValues {
                 config: YAMLConfig::try_from(remote_config_value.to_string())?,
@@ -400,12 +413,23 @@ where
             };
             self.sa_dynamic_config_store.store(&config)?;
         }
+        // Even if the config was stored and some agents could have been applied, it returns the error so the config is reported
+        // as failed, to signal FC that something has gone wrong.
+        self.apply_remote_config_agents(
+            current_dynamic_config,
+            &new_dynamic_config,
+            running_sub_agents,
+        )?;
 
         Ok(new_dynamic_config)
     }
 
-    // apply a remote config to the running sub agents
-    pub(super) fn apply_remote_agent_control_config_agents(
+    /// Applies the remote configuration for agents.
+    /// It will create new agents, recreate existing ones with changed configuration, and remove those
+    /// that are no longer present in the new configuration.
+    /// Attempts to apply as much of the configuration as possible. If an agent fails to be recreated, updated, or removed,
+    /// that specific agent will be skipped, but the rest of the configuration changes will still be applied.
+    pub(super) fn apply_remote_config_agents(
         &self,
         current_dynamic_config: &AgentControlDynamicConfig,
         new_dynamic_config: &AgentControlDynamicConfig,
@@ -413,50 +437,55 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
     ) -> Result<(), AgentError> {
-        // TODO the case when multiple agents are updated but one fails has multiple issues:
-        // - old agents keeps running
-        // - some agents could be created and some not independently if they have correct configs since fails on first error
-        // - storers isn't updated (event for an agent that has been applied and running )
+        let mut errors = RemoteConfigErrors::default();
 
-        // apply new configuration
-        new_dynamic_config
-            .agents
-            .iter()
-            .try_for_each(|(agent_id, agent_config)| {
-                let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
-                // recreates an existent sub agent if the configuration has changed
-                match current_dynamic_config.agents.get(agent_id) {
-                    Some(old_sub_agent_config) => {
-                        if old_sub_agent_config == agent_config {
-                            return Ok(());
-                        }
+        for (agent_id, agent_config) in &new_dynamic_config.agents {
+            let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
 
-                        info!("Recreating SubAgent {}", agent_id);
-                        self.recreate_sub_agent(&agent_identity, running_sub_agents)
-                    }
-                    None => {
-                        info!("Creating SubAgent {}", agent_id);
-                        self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
-                    }
+            let apply_result = match current_dynamic_config.agents.get(agent_id) {
+                Some(old_sub_agent_config) if old_sub_agent_config == agent_config => {
+                    debug!(%agent_id, "Retaining the existing running SubAgent as its configuration remains unchanged");
+                    Ok(())
                 }
-            })?;
+                Some(_) => {
+                    info!(%agent_id, "Recreating SubAgent");
+                    self.recreate_sub_agent(&agent_identity, running_sub_agents)
+                }
+                None => {
+                    info!(%agent_id, "Creating SubAgent");
+                    self.build_and_run_sub_agent(&agent_identity, running_sub_agents)
+                }
+            };
 
-        // remove sub agents not used anymore
-        let mut sub_agents_to_remove =
+            if let Err(err) = apply_result {
+                errors.push(agent_id.clone(), err);
+            };
+        }
+
+        let sub_agents_to_remove =
             sub_agents_difference(&current_dynamic_config.agents, &new_dynamic_config.agents);
-        sub_agents_to_remove.try_for_each(
-            |(agent_id, agent_config)| -> Result<(), AgentError> {
-                self.agent_control_publisher
-                    .broadcast(AgentControlEvent::SubAgentRemoved(agent_id.clone()));
 
-                running_sub_agents.stop_and_remove(agent_id)?;
-                self.resource_cleaner
-                    .clean(agent_id, &agent_config.agent_type)?;
-                Ok(())
-            },
-        )?;
+        for (agent_id, agent_config) in sub_agents_to_remove {
+            if let Err(err) = running_sub_agents.stop_and_remove(agent_id) {
+                errors.push(agent_id.clone(), err.into());
+            };
 
-        Ok(())
+            if let Err(err) = self
+                .resource_cleaner
+                .clean(agent_id, &agent_config.agent_type)
+            {
+                errors.push(agent_id.clone(), err.into());
+            };
+
+            self.agent_control_publisher
+                .broadcast(AgentControlEvent::SubAgentRemoved(agent_id.clone()));
+        }
+
+        if !errors.is_empty() {
+            Err(AgentError::ApplyingRemoteConfigAgents(errors))
+        } else {
+            Ok(())
+        }
     }
 
     fn report_health(&self, health: HealthWithStartTime) {
@@ -717,11 +746,17 @@ mod tests {
         }
     }
 
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Bootstrap Agents Tests
+    ////////////////////////////////////////////////////////////////////////////////////
+
     #[test]
-    fn run_and_stop_supervisors_no_agents() {
+    fn bootstrap_empty_agents() {
         let (t, mut agent_control) = TestAgentControl::setup();
         agent_control.set_noop_resource_cleaner();
         agent_control.set_noop_updater();
+
+        agent_control.set_initial_config("agents: {}\n".to_string());
 
         agent_control.set_opamp_expectations(|client| {
             client.should_update_effective_config(1);
@@ -737,21 +772,21 @@ mod tests {
     }
 
     #[test]
-    fn run_and_stop_supervisors() {
+    fn bootstrap_multiple_agents_local() {
         let (t, mut agent_control) = TestAgentControl::setup();
         agent_control.set_noop_resource_cleaner();
         agent_control.set_noop_updater();
-        // Set initial config with nr-dot + infra
+
         agent_control.initial_config = AgentControlConfig {
             dynamic: sub_agents_infra_and_nrdot(),
             ..Default::default()
         };
-        // Opamp mock
+        agent_control.set_sub_agent_build_success(vec![nrdot_identity(), infra_identity()]);
+
         agent_control.set_opamp_expectations(|client| {
             client.should_update_effective_config(1);
             client.should_stop(1);
         });
-        agent_control.set_sub_agent_build_success(vec![infra_identity(), nrdot_identity()]);
 
         t.channels
             .app_publisher
@@ -760,6 +795,46 @@ mod tests {
 
         assert!(agent_control.run().is_ok())
     }
+
+    #[test]
+    fn bootstrap_agents_from_remote_config_applied() {
+        // TODO
+    }
+
+    #[test]
+    fn bootstrap_agents_from_remote_config_failed() {
+        // TODO
+    }
+
+    #[test]
+    fn bootstrap_with_failing_agents() {
+        let (t, mut agent_control) = TestAgentControl::setup();
+        agent_control.set_noop_resource_cleaner();
+        agent_control.set_noop_updater();
+
+        agent_control.initial_config = AgentControlConfig {
+            dynamic: sub_agents_infra_and_nrdot(),
+            ..Default::default()
+        };
+        agent_control.set_sub_agent_build_success(vec![nrdot_identity()]);
+        agent_control.set_sub_agent_build_fail(vec![infra_identity()]);
+
+        agent_control.set_opamp_expectations(|client| {
+            client.should_update_effective_config(1);
+            client.should_stop(1);
+        });
+
+        t.channels
+            .app_publisher
+            .publish(ApplicationEvent::StopRequested)
+            .unwrap();
+        // AC will start and run but only with one agent
+        assert!(agent_control.run().is_ok())
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////
+    // Agent Control Events
+    ////////////////////////////////////////////////////////////////////////////////////
 
     #[test]
     // This test makes sure that after receiving an "OpAMPEvent::Connected" the AC reports the corresponding
@@ -916,9 +991,7 @@ agents:
         // First cleans-up the infra-agent then, cleans up nrdot
         agent_control.expect_resource_clean_in_sequence(vec![infra_identity(), nrdot_identity()]);
 
-        let mut running_sub_agents = agent_control
-            .build_and_run_sub_agents(&sub_agents_config)
-            .unwrap();
+        let mut running_sub_agents = agent_control.build_and_run_sub_agents(&sub_agents_config);
 
         // just one agent, it should remove the infra-agent
         let opamp_remote_config_nrdot = t.build_ac_remote_config(
@@ -931,7 +1004,7 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(
+            .validate_apply_store_remote_config(
                 &opamp_remote_config_nrdot,
                 &mut running_sub_agents,
                 &sub_agents_infra_and_nrdot(),
@@ -950,7 +1023,7 @@ agents:
         );
 
         agent_control
-            .apply_remote_agent_control_config(
+            .validate_apply_store_remote_config(
                 &opamp_remote_config_infra,
                 &mut running_sub_agents,
                 &sub_agents_nrdot(),
@@ -975,9 +1048,7 @@ agents:
 
         agent_control.expect_resource_clean_in_sequence(vec![infra_identity()]);
 
-        let mut running_sub_agents = agent_control
-            .build_and_run_sub_agents(&sub_agents_config)
-            .unwrap();
+        let mut running_sub_agents = agent_control.build_and_run_sub_agents(&sub_agents_config);
 
         // just one agent, it should remove the infra-agent
         let opamp_remote_config_nrdot = t.build_ac_remote_config(
@@ -991,7 +1062,7 @@ agents:
         assert_eq!(running_sub_agents.len(), 2);
 
         agent_control
-            .apply_remote_agent_control_config(
+            .validate_apply_store_remote_config(
                 &opamp_remote_config_nrdot,
                 &mut running_sub_agents,
                 &sub_agents_infra_and_nrdot(),
@@ -1016,9 +1087,7 @@ agents:
 
         agent_control.set_dynamic_config_valid(false); // Expect invalid configuration
 
-        let mut running_sub_agents = agent_control
-            .build_and_run_sub_agents(&sub_agents_config)
-            .unwrap();
+        let mut running_sub_agents = agent_control.build_and_run_sub_agents(&sub_agents_config);
 
         // just one agent, it should remove the infra-agent
         let opamp_remote_config_invalid_type = t.build_ac_remote_config(
@@ -1032,7 +1101,7 @@ agents:
 
         assert_eq!(running_sub_agents.len(), 2);
 
-        let apply_remote = agent_control.apply_remote_agent_control_config(
+        let apply_remote = agent_control.validate_apply_store_remote_config(
             &opamp_remote_config_invalid_type,
             &mut running_sub_agents,
             &AgentControlConfig::default().dynamic,

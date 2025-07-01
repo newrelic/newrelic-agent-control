@@ -145,6 +145,7 @@ jobs:
     # minikube action requires ubuntu-22.04 at the moment
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         group: [ part1, part2 ]
     steps:
