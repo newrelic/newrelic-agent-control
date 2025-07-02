@@ -69,10 +69,6 @@ pub mod tests {
     where
         S: StartedSubAgent,
     {
-        pub(crate) fn len(&self) -> usize {
-            self.0.len()
-        }
-
         pub(crate) fn agents(&mut self) -> &mut HashMap<AgentID, S> {
             &mut self.0
         }

@@ -471,9 +471,12 @@ where
                     debug!(%agent_id, "Retaining the existing running SubAgent as its configuration remains unchanged");
                     Ok(())
                 }
-                Some(_) => {
+                Some(old_sub_agent_config) => {
                     info!(%agent_id, "Recreating SubAgent");
-                    self.recreate_sub_agent(&agent_identity, running_sub_agents)
+                    self.recreate_sub_agent(&agent_identity, running_sub_agents)?;
+                    self.resource_cleaner
+                        .clean(agent_id, &old_sub_agent_config.agent_type)?;
+                    Ok(())
                 }
                 None => {
                     info!(%agent_id, "Creating SubAgent");
@@ -1200,7 +1203,6 @@ chart_version: 0.0.1 # Set for consistency but it is actually unused since we us
     /// Checks that the sub-agents are stopped, deleted and added as expected when multiple agents change.
     fn test_handle_remote_config_multiple_agents_change() {
         let (t, mut agent_control) = TestAgentControl::setup();
-        agent_control.set_noop_resource_cleaner();
         agent_control.set_noop_updater();
 
         let current_config: &str = r#"
@@ -1254,6 +1256,15 @@ agents:
             ]);
             client.should_update_effective_config(1);
         });
+
+        // Different sequences because the order is not important as all of them are cleaned as part of the same
+        // remote config.
+        agent_control.expect_resource_clean_in_sequence(
+            t.identities(vec![("id2", "newrelic/remote.example.b:0.0.2")]), // type changed
+        );
+        agent_control.expect_resource_clean_in_sequence(
+            t.identities(vec![("id3", "newrelic/remote.example.c:0.0.3")]), // removed
+        );
 
         let result = agent_control.handle_remote_config(
             opamp_remote_config.clone(),
@@ -1640,72 +1651,5 @@ agents:
             assert_eq!(config.hash, opamp_remote_config.hash);
             assert!(config.state.is_applied());
         });
-    }
-
-    #[test]
-    /// Checks that the resource cleaner is called as expected when the list of agents change due to remote config
-    /// updates.
-    fn test_resource_cleaner_removing_agents() {
-        let (t, mut agent_control) = TestAgentControl::setup();
-        agent_control.set_noop_updater();
-        let current_config: &str = r#"
-agents:
-  id1:
-    agent_type: "newrelic/remote.example.a:0.0.1"
-  id2:
-    agent_type: "newrelic/remote.example.b:0.0.2"
-        "#;
-
-        let (current_dynamic_config, mut running_sub_agents) =
-            t.build_current_config_and_sub_agents(current_config);
-        assert_eq!(running_sub_agents.len(), 2);
-
-        // The agents will also be stopped
-        running_sub_agents.agents().values_mut().for_each(|agent| {
-            agent.should_stop();
-        });
-        // Expect the resource cleaner to first remobe "id2" and then remote "id1"
-        agent_control.expect_resource_clean_in_sequence(t.identities(vec![
-            ("id2", "newrelic/remote.example.b:0.0.2"),
-            ("id1", "newrelic/remote.example.a:0.0.1"),
-        ]));
-
-        // This should remove id2
-        let opamp_remote_config = t.build_ac_remote_config(
-            r#"
-agents:
-  id1:
-    agent_type: "newrelic/remote.example.a:0.0.1"
-"#,
-        );
-        let current_dynamic_config = agent_control
-            .validate_apply_store_remote_config(
-                &opamp_remote_config,
-                &mut running_sub_agents,
-                &current_dynamic_config,
-            )
-            .unwrap();
-        assert_eq!(running_sub_agents.len(), 1);
-
-        // This should remote id1 (And add id2 back)
-        let opamp_remote_config2 = t.build_ac_remote_config(
-            r#"
-agents:
-  id2:
-    agent_type: "newrelic/remote.example.b:0.0.2"
-"#,
-        );
-        agent_control.set_sub_agent_build_success_no_stop(
-            t.identities(vec![("id2", "newrelic/remote.example.b:0.0.2")]),
-        );
-        agent_control
-            .validate_apply_store_remote_config(
-                &opamp_remote_config2,
-                &mut running_sub_agents,
-                &current_dynamic_config,
-            )
-            .unwrap();
-
-        assert_eq!(running_sub_agents.len(), 1);
     }
 }
