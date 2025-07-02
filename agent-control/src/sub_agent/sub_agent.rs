@@ -13,14 +13,14 @@ use crate::health::health_checker::{Health, Unhealthy};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::operations::stop_opamp_client;
 use crate::opamp::remote_config::OpampRemoteConfig;
-use crate::opamp::remote_config::hash::ConfigState;
+use crate::opamp::remote_config::hash::{ConfigState, Hash};
 use crate::opamp::remote_config::report::report_state;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use crate::sub_agent::event_handler::on_health::on_health;
 use crate::sub_agent::event_handler::on_version::on_version;
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::remote_config_parser::RemoteConfigParser;
+use crate::sub_agent::remote_config_parser::{RemoteConfigParser, RemoteConfigParserError};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::threads::spawn_named_thread;
@@ -59,6 +59,9 @@ pub trait SubAgentBuilder {
         agent_identity: &AgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
+
+type BuilderSupervisorStopper<B> =
+    <<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper;
 
 /// SubAgentStopper is implementing the StartedSubAgent trait.
 ///
@@ -146,10 +149,7 @@ where
     /// Any failure to assemble the effective agent or the supervisor, or failure to start the
     /// supervisor will be mark the existing hash as failed and report the error if there's an
     /// OpAMP client present in the sub-agent.
-    fn init_supervisor(
-        &self,
-    ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
-    {
+    fn init_supervisor(&self) -> Option<BuilderSupervisorStopper<B>> {
         // An earlier run of Agent Control might have data for this agent identity, so we
         // attempt to retrieve an existing remote config,
         // falling back to a local config if there's no remote config.
@@ -364,13 +364,10 @@ where
         &self,
         opamp_client: &C,
         config: OpampRemoteConfig,
-        old_supervisor: Option<
-            <<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-        >,
-    ) -> Option<<<B as SupervisorBuilder>::SupervisorStarter as SupervisorStarter>::SupervisorStopper>
-    {
-        // We return early if hash is same as the stored and is not on status applying (processing
-        // was incomplete), it won't restart the supervisor but the status will be reported again.
+        old_supervisor: Option<BuilderSupervisorStopper<B>>,
+    ) -> Option<BuilderSupervisorStopper<B>> {
+        // If hash is same as the stored and is not on status applying (processing was incomplete),
+        // the previous working supervisor will keep running but the status will be reported again.
         if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id) {
             if config.hash == rc.hash && !rc.state.is_applying() {
                 let _ = report_state(rc.state, rc.hash, opamp_client);
@@ -378,25 +375,10 @@ where
             }
         }
 
-        // We return also early if the hash comes failed. This might happen if the pre-processing
-        // steps of the incoming remote config (performed in the OpAMP client callbacks, see
-        // `process_remote_config` in `opamp::callbacks`) fails for any reason.
-        if let Some(error_message) = config.state.error_message().cloned() {
-            warn!(
-                hash = %config.hash,
-                "Remote configuration cannot be applied: {error_message}"
-            );
-            // We report the status but we don't store the failed hash because
-            // the persisted remote and hash are the previous working one.
-            let _ = report_state(
-                ConfigState::Failed { error_message },
-                config.hash,
-                opamp_client,
-            );
-            // We don't store this failed hash because we know this remote_config is not correct,
-            // and it has already been reported and cached by the OpAMP Client.
-            // The local or a previous remote (stored with its hash) configs will be used,
-            // keeping the old supervisor running
+        // If the remote hash comes failed from the pre-processing steps (performed in the OpAMP
+        // client callbacks, see `process_remote_config` in `opamp::callbacks`),
+        // the previous working supervisor will keep running and the hash won't be updated.
+        if Self::check_and_report_config_failed(opamp_client, &config) {
             return old_supervisor;
         }
 
@@ -421,87 +403,131 @@ where
             }
         };
 
-        if not_started_supervisor.is_ok() {
-            let _ = opamp_client
-                .update_effective_config()
-                .inspect_err(|e| error!("Effective config update failed: {e}"));
-        }
-
         // Now, we should have either a Supervisor or an error to handle later,
         // which can come from either:
         //   - a parse failure
         //   - having empty values
         //   - the EffectiveAgent assembly attempt
         //   - the Supervisor assembly attempt
-        // Let's continue.
-        // Prepare remote config state to register outcome
-        let mut state = config.state;
-        let refreshed_supervisor = match not_started_supervisor {
-            Ok(new_supervisor) => {
-                // Stop old supervisor if any. This needs to happen before starting the new one
-                stop_supervisor(old_supervisor);
-
-                // Start the new supervisor
-                self.start_supervisor(new_supervisor)
-                    // Alter the state depending on the outcome
-                    .inspect(|_| {
-                        state = ConfigState::Applied;
-                        self.update_remote_config_state(state.clone());
-                    })
-                    .inspect_err(|e| {
-                        state = ConfigState::Failed {
-                            error_message: e.to_string(),
-                        };
-                        self.update_remote_config_state(state.clone());
-                    })
-                    // Return it
-                    .ok()
-            }
-            // If we have no configuration, stop the old supervisor if any. Expected outcome.
+        // We report the state and effective config and return a supervisor if it can be started or reused
+        match not_started_supervisor {
+            // If all correct, return new supervisor
+            Ok(new_supervisor) => self.start_new_supervisor_reporting_config_and_state(
+                opamp_client,
+                &config.hash,
+                old_supervisor,
+                new_supervisor,
+            ),
+            // If we have no configuration, stop the old supervisor and return None.
             Err(SupervisorCreationError::NoConfiguration) => {
                 // Stop old supervisor if any
                 stop_supervisor(old_supervisor);
-                // Mark hash as applied
-                state = ConfigState::Applied;
-                // Remove supervisor
+
+                // Report the config as applied
+                let _ = report_state(ConfigState::Applied, config.hash, opamp_client);
+
+                // The effective config needs to be reported with the empty config.
+                let _ = opamp_client
+                    .update_effective_config()
+                    .inspect_err(|e| error!("Effective config update failed: {e}"));
                 None
             }
             Err(e) => {
-                // If we fail to build the supervisor, we don't stop the old one and return it back
                 warn!("Failed to build supervisor: {e}");
 
                 // If the remote config was deleted but creating the supervisor from local failed
-                // the hash should be marked as applied,
-                if let Ok(None) = parsed_remote {
-                    // Stop old supervisor if any. This needs to happen before starting the new one
+                // stop the old supervisor and return None.
+                if Self::check_and_report_local_failed(opamp_client, &config.hash, parsed_remote) {
                     stop_supervisor(old_supervisor);
-
-                    // Report the empty remote config as applied
-                    state = ConfigState::Applied;
-                    // The effective config needs to be reported with the local config that failed
-                    // to start the supervisor (not ideal but better than leaving the deleted remote),
-                    // if not FC could still consider the previous remote that has just been deleted.
-                    let _ = opamp_client
-                        .update_effective_config()
-                        .inspect_err(|e| error!("Effective config update failed: {e}"));
-
-                    None
-                } else {
-                    // Mark hash as failed
-                    state = ConfigState::Failed {
-                        error_message: e.to_string(),
-                    };
-                    // Use existing supervisor
-                    old_supervisor
+                    return None;
                 }
+
+                let _ = report_state(
+                    ConfigState::Failed {
+                        error_message: e.to_string(),
+                    },
+                    config.hash,
+                    opamp_client,
+                );
+
+                // If we fail to build the supervisor, we don't stop the old one and return it back
+                old_supervisor
             }
-        };
+        }
+    }
 
-        // We report the config status
-        let _ = report_state(state, config.hash, opamp_client);
+    fn check_and_report_local_failed(
+        opamp_client: &C,
+        hash: &Hash,
+        parsed_remote: Result<Option<RemoteConfig>, RemoteConfigParserError>,
+    ) -> bool {
+        if let Ok(None) = parsed_remote {
+            // Report the empty remote config as applied
+            let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
 
-        // With everything already handled, return the supervisor if any
-        refreshed_supervisor
+            // The effective config needs to be reported with the local config that failed
+            // to start the supervisor (not ideal but better than leaving the deleted remote),
+            // if not FC could still consider the previous remote that has just been deleted.
+            let _ = opamp_client
+                .update_effective_config()
+                .inspect_err(|e| error!("Effective config update failed: {e}"));
+
+            return true;
+        }
+        false
+    }
+
+    fn start_new_supervisor_reporting_config_and_state(
+        &self,
+        opamp_client: &C,
+        hash: &Hash,
+        old_supervisor: Option<BuilderSupervisorStopper<B>>,
+        new_supervisor: <B as SupervisorBuilder>::SupervisorStarter,
+    ) -> Option<BuilderSupervisorStopper<B>> {
+        let _ = opamp_client
+            .update_effective_config()
+            .inspect_err(|e| error!("Effective config update failed: {e}"));
+
+        // Stop old supervisor if any. This needs to happen before starting the new one
+        stop_supervisor(old_supervisor);
+
+        // Start the new supervisor
+        self.start_supervisor(new_supervisor)
+            // Alter the state depending on the outcome
+            .inspect(|_| {
+                self.update_remote_config_state(ConfigState::Applied);
+                // Report the empty remote config as applied
+                let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+            })
+            .inspect_err(|e| {
+                let state = ConfigState::Failed {
+                    error_message: e.to_string(),
+                };
+                self.update_remote_config_state(state.clone());
+                // Report the empty remote config as applied
+                let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
+            })
+            // Return it
+            .ok()
+    }
+
+    // check_and_report_config_failed returns true if the config is failed and reports that state
+    fn check_and_report_config_failed(opamp_client: &C, config: &OpampRemoteConfig) -> bool {
+        if let Some(error_message) = config.state.error_message().cloned() {
+            warn!(
+                hash = %config.hash,
+                "Remote configuration cannot be applied: {error_message}"
+            );
+            // Failed configurations are reported but not persisted.
+            let _ = report_state(
+                ConfigState::Failed { error_message },
+                config.hash.clone(),
+                opamp_client,
+            );
+
+            return true;
+        }
+        false
     }
 
     /// Parses incoming remote config, assembles and builds the supervisor.
@@ -1231,6 +1257,7 @@ deployment:
             .unwrap();
 
         let supervisor_builder = expect_supervisor_do_not_build();
+        opamp_client.should_update_effective_config(1);
         opamp_client.should_set_remote_config_status_seq(vec![
             TestAgent::status_applying(),
             TestAgent::status_applied(),
