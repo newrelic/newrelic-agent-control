@@ -26,7 +26,7 @@ use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
-pub const CUSTOM_AGENT_TYPE_SECRET_PATH: &str = "tests/k8s/data/custom_agent_type_secret.yml";
+pub const CUSTOM_AGENT_TYPE_SPLIT_NS_PATH: &str = "tests/k8s/data/custom_agent_type_split_ns.yml";
 pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
 pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
 
@@ -37,7 +37,8 @@ pub fn start_agent_control_with_testdata_config(
     folder_name: &str,
     dynamic_agent_type_path: &str,
     client: Client,
-    ns: &str,
+    ac_ns: &str,
+    agents_ns: &str,
     remote_config_sign_cert: Option<PathBuf>,
     opamp_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
@@ -51,7 +52,8 @@ pub fn start_agent_control_with_testdata_config(
 
     create_local_agent_control_config(
         client.clone(),
-        ns,
+        ac_ns,
+        agents_ns,
         opamp_endpoint,
         remote_config_sign_cert,
         folder_name,
@@ -60,7 +62,8 @@ pub fn start_agent_control_with_testdata_config(
     for file_name in subagent_file_names {
         block_on(create_local_config_map(
             client.clone(),
-            ns,
+            ac_ns,
+            agents_ns,
             folder_name,
             file_name,
         ))
@@ -77,14 +80,28 @@ pub fn start_agent_control_with_testdata_config(
 
 /// Create a config map containing the configuration defined in the `{folder_name}/{name}` under the provided key.
 /// If the file contains `<ns>`, the configuration is templated with the provided `ns` value.
-pub async fn create_local_config_map(client: Client, ns: &str, folder_name: &str, name: &str) {
+pub async fn create_local_config_map(
+    client: Client,
+    ac_ns: &str,
+    agents_ns: &str,
+    folder_name: &str,
+    name: &str,
+) {
     let mut content = String::new();
     File::open(format!("tests/k8s/data/{}/{}.yaml", folder_name, name))
         .unwrap()
         .read_to_string(&mut content)
         .unwrap();
 
-    create_config_map(client, ns, name, content.replace("<ns>", ns)).await;
+    create_config_map(
+        client,
+        ac_ns,
+        name,
+        content
+            .replace("<ns>", ac_ns)
+            .replace("<agents-ns>", agents_ns),
+    )
+    .await;
 }
 
 pub async fn create_config_map(client: Client, ns: &str, name: &str, content: String) {
@@ -110,7 +127,8 @@ pub async fn create_config_map(client: Client, ns: &str, name: &str, content: St
 /// and returns the resulting file path.
 pub fn create_local_agent_control_config(
     client: Client,
-    test_ns: &str,
+    ac_ns: &str,
+    agents_ns: &str,
     opamp_endpoint: Option<&str>,
     remote_config_sign_cert: Option<PathBuf>,
     folder_name: &str,
@@ -126,7 +144,8 @@ pub fn create_local_agent_control_config(
     .unwrap();
 
     let mut content = content
-        .replace("<ns>", test_ns)
+        .replace("<ns>", ac_ns)
+        .replace("<agents-ns>", agents_ns)
         .replace("<cluster-name>", TEST_CLUSTER_NAME);
 
     if let Some(endpoint) = opamp_endpoint {
@@ -137,7 +156,7 @@ pub fn create_local_agent_control_config(
     }
     block_on(create_config_map(
         client,
-        test_ns,
+        ac_ns,
         K8sStore::build_cm_name(&AgentID::new_agent_control_id(), CM_NAME_LOCAL_DATA_PREFIX)
             .as_str(),
         content.clone(),

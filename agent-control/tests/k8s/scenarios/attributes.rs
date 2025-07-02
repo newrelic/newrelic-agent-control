@@ -5,9 +5,7 @@ use crate::common::attributes::{
 use crate::common::opamp::ConfigResponse;
 use crate::common::retry::retry;
 use crate::common::{opamp::FakeServer, runtime::block_on};
-use crate::k8s::tools::agent_control::{
-    CUSTOM_AGENT_TYPE_PATH, wait_until_agent_control_with_opamp_is_started,
-};
+use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
 };
@@ -43,12 +41,12 @@ fn k8s_test_attributes_from_existing_agent_type() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
-    wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let expected_chart_version = "1.2.3-beta".to_string(); // Set in <test_name>/local-data-agent-control.template
     let instance_id = instance_id::get_instance_id(

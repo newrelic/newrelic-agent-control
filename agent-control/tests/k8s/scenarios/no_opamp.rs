@@ -1,5 +1,5 @@
 use crate::common::{retry::retry, runtime::block_on};
-use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SECRET_PATH;
+use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH;
 use crate::k8s::tools::{
     agent_control::start_agent_control_with_testdata_config, k8s_api::check_deployments_exist,
     k8s_env::K8sEnv,
@@ -20,8 +20,9 @@ fn k8s_sub_agent_started_with_no_opamp() {
 
     let _child = start_agent_control_with_testdata_config(
         test_name,
-        CUSTOM_AGENT_TYPE_SECRET_PATH,
+        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
         k8s.client.clone(),
+        &namespace,
         &namespace,
         None,
         None,
@@ -30,13 +31,13 @@ fn k8s_sub_agent_started_with_no_opamp() {
     );
 
     // Check deployment for first Agent is created with retry, the name has the key
-    // 'override-by-secret' concatenated to the name because the secret created adds that
+    // 'from-local' concatenated to the name because the secret created adds that
     // NameOverride to the values.
     retry(30, Duration::from_secs(1), || {
-        block_on(check_deployments_exist(
+        check_deployments_exist(
             k8s.client.clone(),
-            &["hello-world-override-by-secret"],
+            &["hello-world-from-local"],
             namespace.as_str(),
-        ))
+        )
     });
 }

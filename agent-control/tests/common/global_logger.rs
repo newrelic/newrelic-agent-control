@@ -15,7 +15,7 @@ pub fn init_logger() {
           target: true
           ansi_colors: true
         insecure_fine_grained_level: "newrelic_agent_control=trace,kube=debug,off"
-        show_spans: true
+        show_spans: false
                 "#,
         )
         .unwrap();

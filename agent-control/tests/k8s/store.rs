@@ -155,6 +155,7 @@ fn k8s_value_repository_config_map() {
     block_on(create_local_config_map(
         test.client.clone(),
         test_ns.as_str(),
+        test_ns.as_str(),
         "k8s_value_repository_config_map",
         format!("local-data-{}", AGENT_ID_1).as_str(),
     ));
