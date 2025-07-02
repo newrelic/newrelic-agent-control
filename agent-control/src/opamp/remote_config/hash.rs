@@ -46,3 +46,14 @@ impl ConfigState {
         }
     }
 }
+
+#[cfg(test)]
+impl Hash {
+    /// Returns the `hash` corresponding to the provided value
+    pub(crate) fn new(s: &str) -> Self {
+        use std::hash::{Hash as StdHash, Hasher};
+        let mut hasher = std::hash::DefaultHasher::new();
+        s.to_string().hash(&mut hasher);
+        Self::from(hasher.finish().to_string())
+    }
+}

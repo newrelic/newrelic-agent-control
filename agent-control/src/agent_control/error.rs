@@ -108,13 +108,13 @@ pub enum AgentError {
     #[error("updater error: `{0}`")]
     Updater(#[from] UpdaterError),
 
-    #[error("remote config error: `{0}`")]
-    ApplyingRemoteConfigAgents(RemoteConfigErrors),
+    #[error("failed to build agents: `{0}`")]
+    BuildingSubagents(BuildingSubagentErrors),
 }
 
 #[derive(Debug, Default)]
-pub struct RemoteConfigErrors(Vec<(AgentID, AgentError)>);
-impl RemoteConfigErrors {
+pub struct BuildingSubagentErrors(Vec<(AgentID, AgentError)>);
+impl BuildingSubagentErrors {
     pub fn push(&mut self, agent_id: AgentID, error: AgentError) {
         self.0.push((agent_id, error));
     }
@@ -123,13 +123,15 @@ impl RemoteConfigErrors {
     }
 }
 
-impl Display for RemoteConfigErrors {
+impl Display for BuildingSubagentErrors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[")?;
-        for (agent_id, error) in &self.0 {
-            write!(f, "(agent_id: {}, error: {}),", agent_id, error)?;
-        }
-        write!(f, "]")?;
+        let errors = self
+            .0
+            .iter()
+            .map(|(agent_id, error)| format!("agent_id: {agent_id}, error: {error}"))
+            .reduce(|acc, s| format!("{acc}, {s}"))
+            .unwrap_or_default();
+        write!(f, "[{errors}]")?;
         Ok(())
     }
 }
