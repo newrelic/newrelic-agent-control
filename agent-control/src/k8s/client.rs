@@ -1,9 +1,11 @@
 use super::{
-    dynamic_object::DynamicObjectManagers,
-    error::K8sError,
-    reflector::{definition::ReflectorBuilder, resources::Reflectors},
+    dynamic_object::DynamicObjectManagers, error::K8sError, reflector::definition::ReflectorBuilder,
 };
-use crate::k8s::utils::get_type_meta;
+use crate::agent_control::config::{
+    daemonset_type_meta, deployment_type_meta, statefulset_type_meta,
+};
+use crate::k8s::dynamic_object::TypeMetaNamespaced;
+use crate::k8s::utils::{get_namespace, get_type_meta};
 use duration_str::deserialize_duration;
 use either::Either;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
@@ -124,12 +126,13 @@ impl SyncK8sClient {
             ))
     }
 
-    pub fn list_dynamic_objects_in_all_namespaces(
+    pub fn list_dynamic_objects(
         &self,
         tm: &TypeMeta,
+        ns: &str,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.list_dynamic_objects_in_all_namespaces(tm))
+            .block_on(self.async_client.list_dynamic_objects(tm, ns))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
@@ -183,18 +186,23 @@ impl SyncK8sClient {
     }
 
     /// Returns the stateful_set list using the corresponding reflector.
-    pub fn list_stateful_set(&self) -> Vec<Arc<StatefulSet>> {
-        self.async_client.reflectors.stateful_set.list()
+    pub fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
+        self.runtime.block_on(
+            self.async_client
+                .list_resource(&statefulset_type_meta(), ns),
+        )
     }
 
     /// Returns the daemon_set list using the corresponding reflector.
-    pub fn list_daemon_set(&self) -> Vec<Arc<DaemonSet>> {
-        self.async_client.reflectors.daemon_set.list()
+    pub fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_resource(&daemonset_type_meta(), ns))
     }
 
     /// Returns the deployment list using the corresponding reflector.
-    pub fn list_deployment(&self) -> Vec<Arc<Deployment>> {
-        self.async_client.reflectors.deployment.list()
+    pub fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.list_resource(&deployment_type_meta(), ns))
     }
 }
 
@@ -230,7 +238,6 @@ pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Dur
 
 pub struct AsyncK8sClient {
     client: Client,
-    reflectors: Reflectors,
     dynamic_object_managers: DynamicObjectManagers,
 }
 
@@ -257,12 +264,10 @@ impl AsyncK8sClient {
         let client = Client::try_from(config)?;
 
         let reflector_builder = ReflectorBuilder::new(client.clone());
-        let reflectors = Reflectors::try_new(&reflector_builder).await?;
 
         debug!("k8s client initialization succeeded");
         Ok(Self {
             client: client.clone(),
-            reflectors,
             dynamic_object_managers: DynamicObjectManagers::new(client.clone(), reflector_builder),
         })
     }
@@ -385,23 +390,43 @@ impl AsyncK8sClient {
     }
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
-        let type_meta = get_type_meta(obj)?;
+        let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 
         self.dynamic_object_managers
-            .get_or_create(&type_meta)
+            .get_or_create(tmn)
             .await?
             .apply(obj)
             .await
+    }
+
+    /// Returns the daemon_set list using the corresponding reflector.
+    pub async fn list_resource<K: Resource + for<'a> serde::Deserialize<'a>>(
+        &self,
+        tm: &TypeMeta,
+        ns: &str,
+    ) -> Result<Vec<Arc<K>>, K8sError> {
+        self.dynamic_object_managers
+            .get_or_create(&TypeMetaNamespaced::new(tm, ns))
+            .await?
+            .list_in_all_namespaces()
+            .iter()
+            .map(|d| {
+                Arc::unwrap_or_clone(d.clone())
+                    .try_parse::<K>()
+                    .map_err(|err| K8sError::ParseDynamic(err.to_string()))
+                    .map(|obj| Arc::new(obj))
+            })
+            .collect()
     }
 
     pub async fn apply_dynamic_object_if_changed(
         &self,
         obj: &DynamicObject,
     ) -> Result<(), K8sError> {
-        let type_meta = get_type_meta(obj)?;
+        let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 
         self.dynamic_object_managers
-            .get_or_create(&type_meta)
+            .get_or_create(tmn)
             .await?
             .apply_if_changed(obj)
             .await
@@ -409,13 +434,15 @@ impl AsyncK8sClient {
 
     pub async fn patch_dynamic_object(
         &self,
-        type_meta: &TypeMeta,
+        tm: &TypeMeta,
         name: &str,
         namespace: &str,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
+        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+
         self.dynamic_object_managers
-            .get_or_create(type_meta)
+            .get_or_create(tmn)
             .await?
             .patch(name, namespace, patch)
             .await
@@ -427,11 +454,13 @@ impl AsyncK8sClient {
         name: &str,
         namespace: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
+        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+
         Ok(self
             .dynamic_object_managers
-            .get_or_create(tm)
+            .get_or_create(tmn)
             .await?
-            .get(name, namespace))
+            .get(name))
     }
 
     pub async fn delete_dynamic_object(
@@ -440,8 +469,10 @@ impl AsyncK8sClient {
         name: &str,
         namespace: &str,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
+        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+
         self.dynamic_object_managers
-            .get_or_create(tm)
+            .get_or_create(tmn)
             .await?
             .delete(name, namespace)
             .await
@@ -453,29 +484,34 @@ impl AsyncK8sClient {
         namespace: &str,
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
+        let tmn = &TypeMetaNamespaced::new(tm, namespace);
+
         self.dynamic_object_managers
-            .get_or_create(tm)
+            .get_or_create(tmn)
             .await?
             .delete_collection(namespace, label_selector)
             .await
     }
 
-    pub async fn list_dynamic_objects_in_all_namespaces(
+    pub async fn list_dynamic_objects(
         &self,
         tm: &TypeMeta,
+        ns: &str,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+        let tmn = &TypeMetaNamespaced::new(tm, ns);
+
         Ok(self
             .dynamic_object_managers
-            .get_or_create(tm)
+            .get_or_create(tmn)
             .await?
             .list_in_all_namespaces())
     }
 
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
-        let tm = get_type_meta(obj)?;
+        let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 
         self.dynamic_object_managers
-            .get_or_create(&tm)
+            .get_or_create(&tmn)
             .await?
             .has_changed(obj)
     }
@@ -524,12 +560,11 @@ where
 pub(crate) mod tests {
     use super::*;
 
-    use crate::k8s::reflector::resources::ResourceWithReflector;
+    use crate::k8s::reflector::definition::Reflector;
     use http::Uri;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
     use k8s_openapi::serde_json;
     use kube::Client;
-    use kube::runtime::reflector;
     use tower_test::mock;
 
     #[test]
@@ -539,45 +574,6 @@ pub(crate) mod tests {
             "looks like kube-rs has revisit the timeout, see [DEFAULT_CLIENT_TIMEOUT] for details.";
         assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
         assert_eq!(config.write_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
-    }
-
-    #[tokio::test]
-    async fn test_client_build_with_reflectors_and_get_resources() {
-        let async_client = get_mocked_client(Scenario::APIResource).await;
-
-        let deployment_reader = async_client.reflectors.deployment.reader();
-        let daemonset_reader = async_client.reflectors.daemon_set.reader();
-
-        fn find_resource_by_name<K>(reader: &reflector::Store<K>, name: &str) -> Option<Arc<K>>
-        where
-            K: ResourceWithReflector,
-        {
-            reader.find(|resource| resource.metadata().name.as_deref() == Some(name))
-        }
-
-        // Check for an existing deployment
-        let existing_deployment =
-            find_resource_by_name::<Deployment>(&deployment_reader, "test-deployment");
-        assert!(
-            existing_deployment.is_some(),
-            "Expected deployment to be found"
-        );
-
-        // Check for an existing daemonset
-        let existing_daemonset =
-            find_resource_by_name::<DaemonSet>(&daemonset_reader, "test-daemonset");
-        assert!(
-            existing_daemonset.is_some(),
-            "Expected daemonset to be found"
-        );
-
-        // Check for a non-existent deployment
-        let non_existent_deployment =
-            find_resource_by_name::<Deployment>(&deployment_reader, "unexistent-deployment");
-        assert!(
-            non_existent_deployment.is_none(),
-            "Expected no deployment to be found"
-        );
     }
 
     // This test checks that an unexpected api-server error response when building reflectors doesn't
@@ -603,7 +599,6 @@ pub(crate) mod tests {
         let reflector_builder = ReflectorBuilder::new(client.clone());
         AsyncK8sClient {
             client: client.clone(),
-            reflectors: Reflectors::try_new(&reflector_builder).await.unwrap(),
             dynamic_object_managers: DynamicObjectManagers::new(client.clone(), reflector_builder),
         }
     }

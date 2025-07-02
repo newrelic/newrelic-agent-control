@@ -233,6 +233,27 @@ pub fn helmrepository_type_meta() -> TypeMeta {
     }
 }
 
+pub fn statefulset_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "apps/v1".to_string(),
+        kind: "StatefulSet".to_string(),
+    }
+}
+
+pub fn daemonset_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "apps/v1".to_string(),
+        kind: "DaemonSets".to_string(),
+    }
+}
+
+pub fn deployment_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "apps/v1".to_string(),
+        kind: "Deployments".to_string(),
+    }
+}
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health

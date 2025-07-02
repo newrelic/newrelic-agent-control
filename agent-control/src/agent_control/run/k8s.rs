@@ -163,6 +163,7 @@ impl AgentControlRunner {
         let garbage_collector = K8sGarbageCollector {
             k8s_client: k8s_client.clone(),
             namespace: self.k8s_config.namespace.clone(),
+            namespace_agents: self.k8s_config.namespace_agents.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
         };
 

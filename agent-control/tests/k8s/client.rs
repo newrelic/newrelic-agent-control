@@ -64,28 +64,31 @@ fn k8s_manage_dynamic_resource_multiple_namespaces() {
     let tm = get_type_meta(&cr_1).unwrap();
 
     let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0, &test_ns_1);
 
     block_on(k8s_client.apply_dynamic_object(&cr_1)).unwrap();
     block_on(k8s_client.apply_dynamic_object(&cr_2)).unwrap();
 
     let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_2);
 
     block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_2)).unwrap();
     // No object should be deleted in the first namespace
-    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
 
     block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_1)).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 1);
-
-    block_on(k8s_client.delete_dynamic_object(&tm, name_2, &test_ns_2)).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0, &test_ns_1);
 }
 
-fn check_number_of_dynamic_objects(k8s_client: &AsyncK8sClient, tm: &TypeMeta, number: usize) {
+fn check_number_of_dynamic_objects(
+    k8s_client: &AsyncK8sClient,
+    tm: &TypeMeta,
+    number: usize,
+    ns: &str,
+) {
     retry(60, Duration::from_secs(1), || {
-        if block_on(k8s_client.list_dynamic_objects_in_all_namespaces(tm))
+        if block_on(k8s_client.list_dynamic_objects(tm, ns))
             .unwrap()
             .len()
             == number
@@ -545,7 +548,7 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .list_dynamic_objects_in_all_namespaces(&type_meta)
+            .list_dynamic_objects(&type_meta, &test_ns)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)

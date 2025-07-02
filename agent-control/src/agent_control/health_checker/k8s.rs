@@ -20,6 +20,7 @@ pub fn agent_control_health_checker_builder(
                 k8s_client.clone(),
                 RELEASE_NAME.to_string(),
                 namespace.clone(),
+                Some(namespace.clone()),
                 start_time,
             ),
             start_time,
