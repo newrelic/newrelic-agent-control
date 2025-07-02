@@ -157,6 +157,7 @@ objects:
     fn test_template_k8s() {
         let untouched_val = "${nr-var:any} no templated";
         let test_agent_id = "id";
+        let test_namespace = "test-namespace";
         let k8s_template: K8s = serde_yaml::from_str(
             format!(
                 r#"
@@ -166,7 +167,7 @@ objects:
     kind: {untouched_val}
     metadata:
       name: ${{nr-sub:agent_id}}
-      namespace: test-namespace
+      namespace: ${{nr-ac:namespace}}
       labels:
         foo: ${{nr-var:any}}
         ${{nr-var:any}}: bar
@@ -187,6 +188,10 @@ objects:
                 "nr-sub:agent_id".to_string(),
                 VariableDefinition::new_final_string_variable(test_agent_id.to_string()),
             ),
+            (
+                "nr-ac:namespace".to_string(),
+                VariableDefinition::new_final_string_variable(test_namespace.to_string()),
+            ),
         ]);
 
         let k8s = k8s_template.template_with(&variables).unwrap();
@@ -202,6 +207,9 @@ objects:
 
         // Expect template works on name.
         assert_eq!(cr1.metadata.name, test_agent_id);
+
+        // Expect template works on namespace.
+        assert_eq!(cr1.metadata.namespace, test_namespace);
 
         // Expect template works on labels.
         let labels = cr1.metadata.labels;

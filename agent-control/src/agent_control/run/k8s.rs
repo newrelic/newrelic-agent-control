@@ -40,7 +40,7 @@ use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
 pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
-const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
+pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
 impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {

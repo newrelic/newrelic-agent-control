@@ -8,7 +8,7 @@
 
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
-use crate::agent_control::run::k8s::NAMESPACE_VARIABLE_NAME;
+use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
@@ -580,12 +580,21 @@ fn iterate_test_cases(environment: &Environment) {
 
         // Create the renderer with specifics for the environment
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
-            Environment::K8s => {
-                TemplateRenderer::default().with_agent_control_variables(iter::once((
-                    NAMESPACE_VARIABLE_NAME.to_string(),
-                    VariableDefinition::new_final_string_variable("host-id".to_string()),
-                )))
-            }
+            Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
+                HashMap::from([
+                    (
+                        NAMESPACE_VARIABLE_NAME.to_string(),
+                        VariableDefinition::new_final_string_variable("test-namespace".to_string()),
+                    ),
+                    (
+                        NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
+                        VariableDefinition::new_final_string_variable(
+                            "test-namespace-agents".to_string(),
+                        ),
+                    ),
+                ])
+                .into_iter(),
+            ),
             Environment::OnHost => {
                 TemplateRenderer::default().with_agent_control_variables(iter::once((
                     HOST_ID_VARIABLE_NAME.to_string(),

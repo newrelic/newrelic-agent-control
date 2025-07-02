@@ -64,6 +64,8 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
+          targetNamespace: ${nr-ac:namespace_agents}
+          releaseName: ${nr-sub:agent_id}
           interval: 3m
           chart:
             spec:
@@ -73,6 +75,7 @@ deployment:
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
+                namespace: ${nr-ac:namespace}
               interval: 3m
           install:
             # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
@@ -82,6 +85,7 @@ deployment:
             remediation:
               retries: 3
             replace: true
+            createNamespace: true
           upgrade:
             disableWait: true
             disableWaitForJobs: true
