@@ -28,7 +28,7 @@ pub enum K8sError {
     #[error("the name of the resource is missing")]
     MissingResourceName,
 
-    #[error("the Namespace of the resource is missing")]
+    #[error("the namespace of the resource is missing")]
     MissingResourceNamespace,
 
     #[error("{0} does not have .metadata.name")]

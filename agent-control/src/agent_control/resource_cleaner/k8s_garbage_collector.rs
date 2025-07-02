@@ -127,7 +127,7 @@ impl K8sGarbageCollector {
         let labels = obj_meta.labels.as_ref().unwrap_or(&empty_map);
 
         // We delete resources only if they are managed by Agent Control
-        if !labels::is_managed_by_agentcontrol(labels) {
+        if !labels::is_managed_by_agent_control(labels) {
             return Ok(false);
         }
 
@@ -146,11 +146,7 @@ impl K8sGarbageCollector {
 }
 
 impl ResourceCleaner for K8sGarbageCollector {
-    fn clean(
-        &self,
-        id: &AgentID,
-        agent_type_id: &AgentTypeID,
-    ) -> Result<(), super::ResourceCleanerError> {
+    fn clean(&self, id: &AgentID, agent_type_id: &AgentTypeID) -> Result<(), ResourceCleanerError> {
         // Call the collect method to perform garbage collection.
         self.collect(id, agent_type_id)?;
         Ok(())
@@ -195,7 +191,7 @@ impl K8sGarbageCollectorMode<'_> {
                 if let Some(agent_type_id) = agent_identities.get(agent_id) {
                     let annotated_agent_type_id = Self::retrieve_annotated_agent_type_id(obj_meta)?;
                     // Check if the agent type is different from the one in the config.
-                    // This is to support the case where the agent id exists in the config
+                    // This is to support the case where the agent id exists in the config,
                     // but it's a different agent type. See PR#655 for some details.
                     Ok(&annotated_agent_type_id != agent_type_id)
                 } else {

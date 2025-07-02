@@ -240,7 +240,7 @@ pub mod tests {
         impl TestCase {
             fn run(self) {
                 // As we cannot control foreign errors (these errors come from the standard library) we simply test
-                // that it fails but we do not need to know which error.
+                // that it fails, but we do not need to know which error.
                 let _ = IntOrPercentage::try_from(self.int_or_string).inspect(|ok| {
                     panic!(
                         "Test case '{}' should error and did not. Value returned: {}",
