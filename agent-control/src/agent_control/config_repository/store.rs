@@ -14,6 +14,7 @@ use config::builder::DefaultState;
 use config::{Config, ConfigBuilder, Environment, File, FileFormat};
 use opamp_client::operation::capabilities::Capabilities;
 use std::sync::Arc;
+use tracing::warn;
 
 pub struct AgentControlConfigStore<Y>
 where
@@ -115,6 +116,8 @@ where
             .build()?
             .try_deserialize::<AgentControlConfig>()?;
 
+        config.dynamic = sanitize_local_dynamic_config(config.dynamic);
+
         if let Some(remote_config) = self
             .values_repository
             .load_remote(&self.agent_control_id, &self.agent_control_capabilities)?
@@ -125,6 +128,24 @@ where
         }
 
         Ok(config)
+    }
+}
+
+/// Removes an configuration from local values that is only supported on remote configs.
+fn sanitize_local_dynamic_config(
+    dynamic_config: AgentControlDynamicConfig,
+) -> AgentControlDynamicConfig {
+    // Remove any AC update config. This prevents to downgrade the AC in case of a remote config reset.
+    // It also prevents that any local miss-configuration change the local version deployed.
+    if let Some(chart_version) = dynamic_config.chart_version {
+        warn!(
+            "The 'chart_version' value: `{}` was found in the local configuration but is not supported and will be ignored",
+            chart_version
+        );
+    }
+    AgentControlDynamicConfig {
+        chart_version: None,
+        ..dynamic_config
     }
 }
 
@@ -142,45 +163,70 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::agent_control::config::{AgentControlConfig, OpAMPClientConfig, SubAgentConfig};
-    use crate::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+    use crate::agent_control::config::SubAgentConfig;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::values::file::ConfigRepositoryFile;
+    use crate::values::config_repository::tests::InMemoryConfigRepository;
+    use crate::values::yaml_config::YAMLConfig;
     use serial_test::serial;
-    use std::path::PathBuf;
-    use std::{collections::HashMap, env};
-    use url::Url;
+    use std::collections::HashMap;
+    use std::env;
 
     #[test]
-    #[serial]
-    fn load_agents_local_remote() {
-        let local_temp_dir = tempfile::tempdir().unwrap();
-        let local_dir = local_temp_dir.path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
+    fn load_local_config_with_empty_remote() {
+        let config_repository = InMemoryConfigRepository::default();
+
         let local_config = r#"
-agents: {}
-fleet_control:
-  endpoint: http://127.0.0.1/v1/opamp
-"#;
-        std::fs::write(local_file.as_path(), local_config).unwrap();
+        agents: {}
+        host_id: some
+        "#
+        .try_into()
+        .unwrap();
 
-        let remote_temp_dir = tempfile::tempdir().unwrap();
-        let remote_dir = remote_temp_dir.path().to_path_buf();
-        let remote_file = remote_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
+        config_repository
+            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .unwrap();
 
-        let remote_config = r#"
-        config:
-            agents:
-              rolldice:
-                agent_type: "namespace/com.newrelic.infrastructure:0.0.2"
-            chart_version: "1.0.0"
-        hash: a-hash
-        state: applying
-        "#;
-        std::fs::write(remote_file.as_path(), remote_config).unwrap();
+        let store = AgentControlConfigStore::new(Arc::new(config_repository));
+        let actual = AgentControlConfigLoader::load(&store).unwrap();
 
-        let vr = ConfigRepositoryFile::new(local_dir, remote_dir).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
+        let expected = AgentControlConfig {
+            host_id: "some".to_string(),
+            ..Default::default()
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn load_remote_overrides_dynamic_values_from_local() {
+        let config_repository = InMemoryConfigRepository::default();
+
+        let local_config = r#"
+        agents: {}
+        host_id: some
+        "#
+        .try_into()
+        .unwrap();
+
+        config_repository
+            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .unwrap();
+        let remote_config: YAMLConfig = r#"
+        agents:
+          rolldice:
+            agent_type: "namespace/name:0.0.2"
+        chart_version: "1.0.0"
+        "#
+        .try_into()
+        .unwrap();
+
+        config_repository
+            .store_remote(
+                &AgentID::new_agent_control_id(),
+                &remote_config.clone().into(),
+            )
+            .unwrap();
+
+        let store = AgentControlConfigStore::new(Arc::new(config_repository));
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
@@ -188,68 +234,52 @@ fleet_control:
                 agents: HashMap::from([(
                     AgentID::new("rolldice").unwrap(),
                     SubAgentConfig {
-                        agent_type: AgentTypeID::try_from(
-                            "namespace/com.newrelic.infrastructure:0.0.2",
-                        )
-                        .unwrap(),
+                        agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
                 )]),
                 chart_version: Some("1.0.0".to_string()),
             },
-            fleet_control: Some(OpAMPClientConfig {
-                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
-                ..Default::default()
-            }),
-            k8s: None,
+            host_id: "some".to_string(),
             ..Default::default()
         };
-
-        assert_eq!(actual, expected);
+        assert_eq!(actual, expected)
     }
 
     #[test]
     #[serial]
     fn load_config_env_vars() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let local_dir = temp_dir.path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
+        let config_repository = InMemoryConfigRepository::default();
 
-        // Note the file contains no `agents` key, which would fail if this config was the only
-        // source checked when loading the local config.
         let local_config = r#"
-agents: {}
-fleet_control:
-  endpoint: http://127.0.0.1/v1/opamp
-"#;
-        std::fs::write(local_file.as_path(), local_config).unwrap();
+        agents: {}
+        host_id: some
+        "#
+        .try_into()
+        .unwrap();
+
+        config_repository
+            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_AC_AGENTS__ROLLDICE1__AGENT_TYPE";
-        unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
+        let env_var_name = "NR_AC_AGENTS__ROLLDICE__AGENT_TYPE";
+        unsafe { env::set_var(env_var_name, "namespace/name:0.0.2") };
 
-        let vr = ConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
+        let store = AgentControlConfigStore::new(Arc::new(config_repository));
         let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::new("rolldice1").unwrap(),
+                    AgentID::new("rolldice").unwrap(),
                     SubAgentConfig {
-                        agent_type: AgentTypeID::try_from(
-                            "namespace/com.newrelic.infrastructure:0.0.2",
-                        )
-                        .unwrap(),
+                        agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
                 )]),
-                chart_version: None,
-            },
-            fleet_control: Some(OpAMPClientConfig {
-                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
-            }),
-            k8s: None,
+            },
+            host_id: "some".to_string(),
             ..Default::default()
         };
 
@@ -261,53 +291,72 @@ fleet_control:
 
     #[test]
     #[serial]
-    fn load_config_env_vars_override() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let local_dir = temp_dir.path().to_path_buf();
-        let local_file = local_dir.join(AGENT_CONTROL_CONFIG_FILENAME);
+    fn load_config_env_vars_have_precedence() {
+        let config_repository = InMemoryConfigRepository::default();
+
         let local_config = r#"
-fleet_control:
-  endpoint: http://127.0.0.1/v1/opamp
-agents:
-  rolldice2:
-    agent_type: "namespace/will.be.overridden:0.0.1"
-"#;
-        std::fs::write(local_file.as_path(), local_config).unwrap();
+        agents:
+          overrideme:
+            agent_type: "namespace/overrideme:0.0.1"
+        "#
+        .try_into()
+        .unwrap();
+
+        config_repository
+            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
         // configs appropriately.
-        let env_var_name = "NR_AC_AGENTS__ROLLDICE2__AGENT_TYPE";
-        unsafe { env::set_var(env_var_name, "namespace/com.newrelic.infrastructure:0.0.2") };
+        let env_var_name = "NR_AC_AGENTS__OVERRIDEME__AGENT_TYPE";
+        unsafe { env::set_var(env_var_name, "namespace/from.env:0.0.2") };
 
-        let vr = ConfigRepositoryFile::new(local_dir, PathBuf::new()).with_remote();
-        let store = AgentControlConfigStore::new(Arc::new(vr));
-        let actual: AgentControlConfig = AgentControlConfigLoader::load(&store).unwrap();
+        let store = AgentControlConfigStore::new(Arc::new(config_repository));
+        let actual = AgentControlConfigLoader::load(&store).unwrap();
 
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::new("rolldice2").unwrap(),
+                    AgentID::new("overrideme").unwrap(),
                     SubAgentConfig {
-                        agent_type: AgentTypeID::try_from(
-                            "namespace/com.newrelic.infrastructure:0.0.2",
-                        )
-                        .unwrap(),
+                        agent_type: AgentTypeID::try_from("namespace/from.env:0.0.2").unwrap(),
                     },
                 )]),
-                chart_version: None,
-            },
-
-            fleet_control: Some(OpAMPClientConfig {
-                endpoint: Url::try_from("http://127.0.0.1/v1/opamp").unwrap(),
                 ..Default::default()
-            }),
-            k8s: None,
+            },
             ..Default::default()
         };
 
         // Env cleanup
         unsafe { env::remove_var(env_var_name) };
 
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn load_local_sanitized_values() {
+        let config_repository = InMemoryConfigRepository::default();
+
+        let local_config = r#"
+        agents: {}
+        host_id: some
+        chart_values: "1.0.0"
+        "#
+        .try_into()
+        .unwrap();
+
+        config_repository
+            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .unwrap();
+
+        let store = AgentControlConfigStore::new(Arc::new(config_repository));
+        let actual = AgentControlConfigLoader::load(&store).unwrap();
+
+        let expected = AgentControlConfig {
+            host_id: "some".to_string(),
+            //chart_values gets removed
+            ..Default::default()
+        };
         assert_eq!(actual, expected);
     }
 }

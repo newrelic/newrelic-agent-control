@@ -107,7 +107,7 @@ impl RemoteConfig {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use rstest::rstest;
     use serde_yaml::Value;
@@ -128,6 +128,16 @@ mod tests {
     state: failed
     error_message: "An error occurred"
     "#;
+
+    impl From<YAMLConfig> for RemoteConfig {
+        fn from(yaml_config: YAMLConfig) -> Self {
+            RemoteConfig {
+                config: yaml_config,
+                hash: Hash::default(),
+                state: ConfigState::Applying,
+            }
+        }
+    }
 
     #[rstest]
     #[case(EXAMPLE_REMOTE_CONFIG, RemoteConfig::is_applying, "applying")]
