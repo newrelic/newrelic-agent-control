@@ -2,6 +2,7 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils::{get_namespace, get_type_meta};
 use crate::sub_agent::version::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::sub_agent::version::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
 use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
@@ -58,20 +59,27 @@ impl K8sAgentVersionChecker {
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
-            let Some(type_meta) = object.types.clone() else {
+            let Ok(namespace) = get_namespace(object) else {
+                warn!("Skipping k8s object with empty namespace {:?}", object);
+                continue;
+            };
+            let Ok(type_meta) = get_type_meta(object) else {
                 warn!("Skipping k8s object with unknown type {:?}", object);
                 continue;
             };
             let Ok(resource_type) = (&type_meta).try_into() else {
                 continue;
             };
+
             let health_checker = match resource_type {
                 SupportedResourceType::HelmRelease => Self::HelmRelease(
-                    HelmReleaseVersionChecker::new(k8s_client, type_meta, agent_id),
+                    HelmReleaseVersionChecker::new(k8s_client, type_meta, namespace, agent_id),
                 ),
-                SupportedResourceType::Instrumentation => Self::Instrumentation(
-                    NewrelicInstrumentationVersionChecker::new(k8s_client, type_meta, agent_id),
-                ),
+                SupportedResourceType::Instrumentation => {
+                    Self::Instrumentation(NewrelicInstrumentationVersionChecker::new(
+                        k8s_client, type_meta, namespace, agent_id,
+                    ))
+                }
             };
             return Some(health_checker);
         }
@@ -90,6 +98,7 @@ mod tests {
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::{DynamicObject, TypeMeta};
     use mockall::mock;
     use std::sync::Arc;
@@ -205,7 +214,11 @@ mod tests {
     fn empty_dynamic_object(type_meta: TypeMeta) -> DynamicObject {
         DynamicObject {
             types: Some(type_meta),
-            metadata: Default::default(),
+            metadata: ObjectMeta {
+                name: Some("some-name".to_string()),
+                namespace: Some("some-namespace".to_string()),
+                ..Default::default()
+            },
             data: Default::default(),
         }
     }

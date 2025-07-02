@@ -6,9 +6,6 @@ use kube::{api, config::KubeconfigError};
 
 #[derive(thiserror::Error, Debug)]
 pub enum K8sError {
-    #[error("it is not possible to create a k8s client: {0}")]
-    UnableToSetupClient(String),
-
     #[error("the kube client returned an error: `{0}`")]
     Generic(#[from] kube::Error),
 
@@ -25,11 +22,14 @@ pub enum K8sError {
     #[error("cannot patch object {0} with `{0}`")]
     PatchError(String, String),
 
-    #[error("the kind of the cr is missing")]
-    MissingCRKind,
+    #[error("the kind of the resource is missing")]
+    MissingResourceKind,
 
-    #[error("the name of the cr is missing")]
-    MissingCRName,
+    #[error("the name of the resource is missing")]
+    MissingResourceName,
+
+    #[error("the Namespace of the resource is missing")]
+    MissingResourceNamespace,
 
     #[error("{0} does not have .metadata.name")]
     MissingName(String),

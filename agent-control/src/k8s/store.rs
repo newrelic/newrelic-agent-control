@@ -24,14 +24,16 @@ pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 /// The store is implemented using one ConfigMap per Agent with all the data.
 pub struct K8sStore {
     k8s_client: Arc<SyncK8sClient>,
+    namespace: String,
     rw_lock: RwLock<()>,
 }
 
 impl K8sStore {
     /// Creates a new K8sStore.
-    pub fn new(k8s_client: Arc<SyncK8sClient>) -> Self {
+    pub fn new(k8s_client: Arc<SyncK8sClient>, namespace: String) -> Self {
         Self {
             k8s_client,
+            namespace,
             rw_lock: RwLock::new(()),
         }
     }
@@ -63,7 +65,10 @@ impl K8sStore {
         let _read_guard = self.rw_lock.read().unwrap();
 
         let configmap_name = K8sStore::build_cm_name(agent_id, prefix);
-        if let Some(data) = self.k8s_client.get_configmap_key(&configmap_name, key)? {
+        if let Some(data) =
+            self.k8s_client
+                .get_configmap_key(&configmap_name, self.namespace.as_str(), key)?
+        {
             let ds = serde_yaml::from_str::<T>(&data)?;
 
             return Ok(Some(ds));
@@ -89,6 +94,7 @@ impl K8sStore {
         let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
         self.k8s_client.set_configmap_key(
             &configmap_name,
+            self.namespace.as_str(),
             Labels::new(agent_id).get(),
             key,
             &data_as_string,
@@ -101,7 +107,8 @@ impl K8sStore {
         let _write_guard = self.rw_lock.write().unwrap();
 
         let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
-        self.k8s_client.delete_configmap_key(&configmap_name, key)
+        self.k8s_client
+            .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
     }
 
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
@@ -124,7 +131,7 @@ pub mod tests {
     const AGENT_NAME: &str = "agent1";
     const DATA_STORED: &str = "test: foo\n";
     pub const STORE_KEY_TEST: &StoreKey = "data_to_be_stored";
-
+    const TEST_NAMESPACE: &str = "test-namespace";
     pub const PREFIX_TEST: &StoreKey = "prefix-";
 
     #[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
@@ -147,11 +154,12 @@ pub mod tests {
                     &agent_id,
                     CM_NAME_OPAMP_DATA_PREFIX,
                 )),
+                predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
-            .returning(move |_, _, _, _| Ok(()));
+            .returning(move |_, _, _, _, _| Ok(()));
         k8s_client
             .expect_delete_configmap_key()
             .once()
@@ -160,11 +168,12 @@ pub mod tests {
                     &agent_id,
                     CM_NAME_OPAMP_DATA_PREFIX,
                 )),
+                predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
-            .returning(move |_, _| Ok(()));
+            .returning(move |_, _, _| Ok(()));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let _ = k8s_store.set_opamp_data(
             &agent_id,
@@ -187,11 +196,12 @@ pub mod tests {
             .expect_get_configmap_key()
             .with(
                 predicate::eq(K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX)),
+                predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
-            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
+            .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
-        _ = K8sStore::new(Arc::new(k8s_client))
+        _ = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
             .get_opamp_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
 
         // local
@@ -200,11 +210,12 @@ pub mod tests {
             .expect_get_configmap_key()
             .with(
                 predicate::eq(K8sStore::build_cm_name(agent_id, CM_NAME_LOCAL_DATA_PREFIX)),
+                predicate::eq(TEST_NAMESPACE),
                 predicate::always(),
             )
-            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
+            .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
-        _ = K8sStore::new(Arc::new(k8s_client))
+        _ = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
             .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
     }
 
@@ -214,9 +225,9 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .once()
-            .returning(move |_, _| Err(K8sError::Generic(kube::Error::TlsRequired)));
+            .returning(move |_, _, _| Err(K8sError::Generic(kube::Error::TlsRequired)));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         k8s_store
             .get::<DataToBeStored>(
@@ -233,9 +244,9 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .once()
-            .returning(move |_, _| Ok(None));
+            .returning(move |_, _, _| Ok(None));
 
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let data = k8s_store
             .get::<DataToBeStored>(
@@ -253,8 +264,8 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .once()
-            .returning(move |_, _| Ok(Some(DATA_STORED.to_string())));
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+            .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let data = k8s_store
             .get::<DataToBeStored>(
@@ -277,8 +288,8 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _| Err(K8sError::Generic(kube::Error::TlsRequired)));
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+            .returning(move |_, _, _, _, _| Err(K8sError::Generic(kube::Error::TlsRequired)));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let id = k8s_store.set_opamp_data(
             &AgentID::new(AGENT_NAME).unwrap(),
@@ -294,8 +305,8 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _| Ok(()));
-        let k8s_store = K8sStore::new(Arc::new(k8s_client));
+            .returning(move |_, _, _, _, _| Ok(()));
+        let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let id = k8s_store.set_opamp_data(
             &AgentID::new(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,

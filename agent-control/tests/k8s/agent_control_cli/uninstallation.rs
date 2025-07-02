@@ -16,6 +16,8 @@ use std::time::Duration;
 fn cli_uninstall_agent_control_fails_when_no_kubernetes() {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
+    cmd.arg("--namespace").arg("default");
+    cmd.arg("--namespace-agents").arg("default");
 
     cmd.assert().failure();
     cmd.assert().code(predicate::eq(69));
@@ -85,7 +87,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         Ok(())
     });
 
-    let mut cmd = ac_uninstall_cmd(&namespace);
+    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
     cmd.assert().success();
 
     let _ =
@@ -97,32 +99,22 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn cli_uninstall_agent_control_fails_when_no_kubernetes_namespace() {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("uninstall-agent-control");
-    cmd.arg("--namespace").arg("not-existing-namespace");
-
-    cmd.assert().failure();
-    cmd.assert().code(predicate::eq(69));
-}
-
-#[test]
-#[ignore = "needs k8s cluster"]
 fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
     let mut k8s_env = block_on(K8sEnv::new());
     let namespace = block_on(k8s_env.test_namespace());
 
-    let mut cmd = ac_uninstall_cmd(&namespace);
+    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
     cmd.assert().success();
 
-    let mut cmd = ac_uninstall_cmd(&namespace);
+    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
     cmd.assert().success();
 }
 
 /// Builds an uninstallation command for testing purposes with a curated set of defaults and the provided arguments.
-fn ac_uninstall_cmd(namespace: &str) -> Command {
+fn ac_uninstall_cmd(namespace: &str, namespace_agents: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
     cmd.arg("--namespace").arg(namespace);
+    cmd.arg("--namespace-agents").arg(namespace_agents);
     cmd
 }

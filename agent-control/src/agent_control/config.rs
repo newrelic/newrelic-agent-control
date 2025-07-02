@@ -13,7 +13,6 @@ use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
 };
 use http::HeaderMap;
-
 use kube::api::TypeMeta;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
@@ -201,6 +200,10 @@ pub struct K8sConfig {
     /// client configuration
     #[serde(flatten)]
     pub client_config: ClientConfig,
+    /// namespace where all resources directly managed by the agent control will be created.
+    pub namespace: String,
+    /// namespace where all resources managed by flux will be created.
+    pub namespace_agents: String,
     /// chart_version is the version of the chart used to deploy agent control
     #[serde(default)]
     pub chart_version: String,
@@ -248,6 +251,19 @@ pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     ]
 }
 
+impl Default for K8sConfig {
+    fn default() -> Self {
+        Self {
+            cluster_name: Default::default(),
+            client_config: Default::default(),
+            namespace: Default::default(),
+            namespace_agents: Default::default(),
+            chart_version: Default::default(),
+            cr_type_meta: default_group_version_kinds(),
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -268,17 +284,6 @@ pub(crate) mod tests {
                 headers: HeaderMap::default(),
                 auth_config: None,
                 signature_validation: Default::default(),
-            }
-        }
-    }
-
-    impl Default for K8sConfig {
-        fn default() -> Self {
-            Self {
-                cluster_name: Default::default(),
-                client_config: Default::default(),
-                chart_version: Default::default(),
-                cr_type_meta: default_group_version_kinds(),
             }
         }
     }
@@ -487,6 +492,7 @@ agents: {}
 agents: {}
 k8s:
   namespace: some-namespace
+  namespace_agents: some-namespace-agents
   cluster_name: some-cluster
 "#;
 
@@ -495,7 +501,7 @@ k8s:
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.cluster_name, "some-cluster");
-        assert_eq!(k8s.client_config.namespace, "some-namespace");
+        assert_eq!(k8s.namespace, "some-namespace");
     }
 
     #[test]
@@ -533,6 +539,7 @@ k8s:
 agents: {}
 k8s:
   namespace: some-namespace
+  namespace_agents: some-namespace-agents
   cluster_name: some-cluster
   client_timeout: 3s
   cr_type_meta:
@@ -550,7 +557,7 @@ k8s:
         let k8s = config.k8s.unwrap();
 
         assert_eq!(k8s.cr_type_meta, vec![custom_type_meta]);
-        assert_eq!(k8s.client_config.namespace, "some-namespace");
+        assert_eq!(k8s.namespace, "some-namespace");
         assert_eq!(k8s.cluster_name, "some-cluster");
         assert_eq!(
             k8s.client_config.client_timeout,

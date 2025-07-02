@@ -2,8 +2,13 @@ use super::tools::{
     k8s_env::K8sEnv,
     test_crd::{Foo, FooSpec, create_foo_cr, foo_type_meta, get_dynamic_api_foo},
 };
-use crate::k8s::tools::test_crd::{build_dynamic_object, create_crd, delete_crd};
+use crate::common::retry::retry;
+use crate::common::runtime::block_on;
+use crate::k8s::tools::test_crd::{
+    build_dynamic_object, create_crd, delete_crd, get_foo_dynamic_object,
+};
 use assert_matches::assert_matches;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use kube::core::DynamicObject;
 use kube::{
     CustomResource,
@@ -11,6 +16,8 @@ use kube::{
 };
 use kube::{CustomResourceExt, ResourceExt};
 use newrelic_agent_control::k8s::Error::MissingAPIResource;
+use newrelic_agent_control::k8s::client::ClientConfig;
+use newrelic_agent_control::k8s::utils::get_type_meta;
 use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,16 +27,73 @@ use std::time::Duration;
 const TEST_LABEL_KEY: &str = "key";
 const TEST_LABEL_VALUE: &str = "value";
 
-// tokio test runs with 1 thread by default causing deadlock when executing `block_on` code during test helper drop.
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
-async fn k8s_missing_namespace_creation_fail() {
-    let test_ns = "test-not-existing-namespace";
+async fn k8s_manage_dynamic_resource_namespace_does_not_exist() {
+    // forces the client to leverage the kubeconfig file
+    let _ = K8sEnv::new().await;
+
+    let name_1 = "test-cr-1";
+    let test_ns_1 = "this-does-not-exist";
+    let cr_1 = get_foo_dynamic_object(name_1.to_string(), test_ns_1.to_string());
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
+
     assert!(
-        AsyncK8sClient::try_from_namespace(test_ns.to_string())
+        k8s_client
+            .apply_dynamic_object(&cr_1)
             .await
-            .is_err()
+            .unwrap_err()
+            .to_string()
+            .contains("not found"),
+        "should not be able to create object in a non-existing namespace"
     );
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_manage_dynamic_resource_multiple_namespaces() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns_1 = block_on(test.test_namespace());
+    let test_ns_2 = block_on(test.test_namespace());
+
+    let name_1 = "test-cr-1";
+    let name_2 = "test-cr-2";
+
+    let cr_1 = get_foo_dynamic_object(name_1.to_string(), test_ns_1.clone());
+    let cr_2 = get_foo_dynamic_object(name_2.to_string(), test_ns_2.clone());
+    let tm = get_type_meta(&cr_1).unwrap();
+
+    let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+
+    block_on(k8s_client.apply_dynamic_object(&cr_1)).unwrap();
+    block_on(k8s_client.apply_dynamic_object(&cr_2)).unwrap();
+
+    let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+
+    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_2)).unwrap();
+    // No object should be deleted in the first namespace
+    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+
+    block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_1)).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1);
+
+    block_on(k8s_client.delete_dynamic_object(&tm, name_2, &test_ns_2)).unwrap();
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+}
+
+fn check_number_of_dynamic_objects(k8s_client: &AsyncK8sClient, tm: &TypeMeta, number: usize) {
+    retry(60, Duration::from_secs(1), || {
+        if block_on(k8s_client.list_dynamic_objects_in_all_namespaces(tm))
+            .unwrap()
+            .len()
+            == number
+        {
+            return Ok(());
+        }
+        Err(format!("{number} object should exist after creation").into())
+    });
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -39,25 +103,16 @@ async fn k8s_create_dynamic_resource() {
     let test_ns = test.test_namespace().await;
 
     let name = "test-cr";
-    let cr = serde_yaml::to_string(&Foo::new(
-        name,
-        FooSpec {
-            data: String::from("on_create"),
-        },
-    ))
-    .unwrap();
-    let obj: DynamicObject = serde_yaml::from_str(cr.as_str()).unwrap();
+    let obj = get_foo_dynamic_object(name.to_string(), test_ns.to_string());
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
 
     // Assert that object has been created.
     let api: Api<Foo> = Api::namespaced(test.client.clone(), &test_ns);
     let result = api.get(name).await.expect("fail creating the cr");
-    assert_eq!(String::from("on_create"), result.spec.data);
+    assert_eq!(String::from("test"), result.spec.data);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -68,30 +123,21 @@ async fn k8s_get_dynamic_resource() {
 
     let cr_name = "get-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
             .await
             .unwrap()
             .is_none(),
         "Get doesn't find any object before creation"
     );
 
-    create_foo_cr(
-        test.client.to_owned(),
-        test_ns.as_str(),
-        cr_name,
-        None,
-        None,
-    )
-    .await;
+    create_foo_cr(test.client.to_owned(), &test_ns, cr_name, None, None).await;
 
     let cr = k8s_client
-        .get_dynamic_object(&foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
         .await
         .unwrap()
         .expect("The object should be found after creation");
@@ -108,7 +154,7 @@ async fn k8s_get_dynamic_resource() {
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
             .await
             .unwrap()
             .is_none(),
@@ -124,13 +170,11 @@ async fn k8s_dynamic_resource_has_changed() {
 
     let cr_name = "has-changed-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     assert!(
         k8s_client
-            .get_dynamic_object(&foo_type_meta(), cr_name)
+            .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
             .await
             .unwrap()
             .is_none(),
@@ -147,7 +191,7 @@ async fn k8s_dynamic_resource_has_changed() {
     .await;
 
     let cr = k8s_client
-        .get_dynamic_object(&foo_type_meta(), cr_name)
+        .get_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
         .await
         .unwrap()
         .expect("The object should be found after creation");
@@ -217,9 +261,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     let secret_name = "secret-name";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     let secret_type_meta = TypeMeta {
         api_version: "v1".into(),
@@ -229,6 +271,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
     let secret = build_dynamic_object(
         secret_type_meta.clone(),
         secret_name.to_string(),
+        test_ns.to_string(),
         serde_json::json!({"stringData": {"some-key": "some value"}}),
     );
 
@@ -238,7 +281,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
 
     // Get the secret from the cluster (the content of `string_data` is encoded into `data`)
     let stored_secret = k8s_client
-        .get_dynamic_object(&secret_type_meta, secret_name)
+        .get_dynamic_object(&secret_type_meta, secret_name, &test_ns)
         .await
         .unwrap()
         .expect("The secret should exist");
@@ -262,6 +305,7 @@ async fn k8s_dynamic_resource_has_changed_secret() {
     let new_content_secret = build_dynamic_object(
         secret_type_meta.clone(),
         secret_name.to_string(),
+        test_ns.to_string(),
         serde_json::json!({"stringData": {"some-key": "a different value"}}),
     );
 
@@ -290,12 +334,10 @@ async fn k8s_delete_dynamic_resource() {
     )
     .await;
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     k8s_client
-        .delete_dynamic_object(&foo_type_meta(), cr_name)
+        .delete_dynamic_object(&foo_type_meta(), cr_name, &test_ns)
         .await
         .expect("Delete should not fail");
 
@@ -323,9 +365,7 @@ async fn k8s_update_dynamic_resource() {
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
     k8s_client
         .apply_dynamic_object(&obj)
         .await
@@ -364,9 +404,7 @@ async fn k8s_update_dynamic_resource_metadata() {
 
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
     k8s_client
         .apply_dynamic_object(&obj)
         .await
@@ -395,14 +433,13 @@ async fn k8s_patch_dynamic_resource() {
     let test_ns = test.test_namespace().await;
     let cr_name = "patch-test";
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
     assert!(
         k8s_client
             .patch_dynamic_object(
                 &foo_type_meta(),
                 cr_name,
+                &test_ns,
                 serde_json::json!({
                     "spec": {
                         "data": "patched"
@@ -413,12 +450,16 @@ async fn k8s_patch_dynamic_resource() {
             .is_err()
     );
 
-    let cr = Foo::new(
-        cr_name,
-        FooSpec {
+    let cr = Foo {
+        metadata: ObjectMeta {
+            name: Some(cr_name.to_string()),
+            namespace: Some(test_ns.to_string()),
+            ..Default::default()
+        },
+        spec: FooSpec {
             data: String::from("created"),
         },
-    );
+    };
     let obj: DynamicObject =
         serde_yaml::from_str(serde_yaml::to_string(&cr).unwrap().as_str()).unwrap();
     k8s_client.apply_dynamic_object(&obj).await.unwrap();
@@ -431,6 +472,7 @@ async fn k8s_patch_dynamic_resource() {
         .patch_dynamic_object(
             &foo_type_meta(),
             cr_name,
+            &test_ns,
             serde_json::json!({
                 "spec": {
                     "data": "patched"
@@ -456,17 +498,19 @@ async fn k8s_dynamic_resource_missing_kind() {
     let cr_name = "test";
     let dynamic_object = DynamicObject {
         types: Some(type_meta.clone()),
-        metadata: Default::default(),
+        metadata: ObjectMeta {
+            name: Some(cr_name.to_string()),
+            namespace: Some(test_ns.clone()),
+            ..Default::default()
+        },
         data: Default::default(),
     };
 
-    let k8s_client: AsyncK8sClient = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
     assert_matches!(
         k8s_client
-            .get_dynamic_object(&type_meta, cr_name)
+            .get_dynamic_object(&type_meta, cr_name, &test_ns)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
@@ -487,7 +531,7 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .delete_dynamic_object(&type_meta, cr_name)
+            .delete_dynamic_object(&type_meta, cr_name, &test_ns)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
@@ -501,7 +545,7 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .list_dynamic_objects(&type_meta)
+            .list_dynamic_objects_in_all_namespaces(&type_meta)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)
@@ -533,16 +577,18 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
         .await
         .expect("Error creating the Bar CRD");
 
-    let k8s_client = AsyncK8sClient::try_from_namespace(test_ns.to_string())
-        .await
-        .unwrap();
+    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
 
-    let cr = ClientTest::new(
-        "test-cr",
-        ClientTestSpec {
+    let cr = ClientTest {
+        metadata: ObjectMeta {
+            name: Some("test-cr".to_string()),
+            namespace: Some(test_ns.to_string()),
+            ..Default::default()
+        },
+        spec: ClientTestSpec {
             data: "on_create".to_string(),
         },
-    );
+    };
 
     let dynamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
 
@@ -563,6 +609,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
             .get_dynamic_object(
                 &dynamic_object.types.clone().unwrap(),
                 &dynamic_object.name_unchecked(),
+                &test_ns,
             )
             .await,
         Err(MissingAPIResource(_)),
@@ -583,12 +630,17 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     // wait for the CRD to be created
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let new_cr = ClientTest::new(
-        "other",
-        ClientTestSpec {
+    let new_cr = ClientTest {
+        metadata: ObjectMeta {
+            name: Some("other".to_string()),
+            namespace: Some(test_ns.to_string()),
+            ..Default::default()
+        },
+        spec: ClientTestSpec {
             data: "on_create".to_string(),
         },
-    );
+    };
+
     let new_dyn_object = serde_yaml::from_value(serde_yaml::to_value(new_cr).unwrap()).unwrap();
 
     k8s_client
@@ -605,6 +657,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
             .get_dynamic_object(
                 &dynamic_object.types.clone().unwrap(),
                 &dynamic_object.name_unchecked(),
+                &test_ns,
             )
             .await
             .unwrap()
@@ -616,6 +669,7 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
             .get_dynamic_object(
                 &new_dyn_object.types.clone().unwrap(),
                 &new_dyn_object.name_unchecked(),
+                &test_ns,
             )
             .await
             .unwrap()

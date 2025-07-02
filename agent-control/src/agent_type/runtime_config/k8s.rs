@@ -30,8 +30,9 @@ pub struct K8sObject {
 #[serde(deny_unknown_fields)]
 pub struct K8sObjectMeta {
     #[serde(default)]
-    pub labels: std::collections::BTreeMap<String, String>,
+    pub labels: BTreeMap<String, String>,
     pub name: String,
+    pub namespace: String,
 }
 
 impl Templateable for K8s {
@@ -67,6 +68,7 @@ impl Templateable for K8sObjectMeta {
                 .map(|(k, v)| Ok((k.template_with(variables)?, v.template_with(variables)?)))
                 .collect::<Result<BTreeMap<String, String>, AgentTypeError>>()?,
             name: self.name.template_with(variables)?,
+            namespace: self.namespace.template_with(variables)?,
         })
     }
 }
@@ -91,6 +93,7 @@ objects:
     kind: Foo
     metadata:
       name: test
+      namespace: test-namespace
     spec:
       anyKey: any-value
   cr2:
@@ -98,18 +101,21 @@ objects:
     kind: Foo2
     metadata:
       name: test
+      namespace: test-namespace
     # no additional fields
   cr3:
     apiVersion: agent_control.version/v0beta1
     kind: Foo
     metadata:
       name: test
+      namespace: test-namespace
     key: value # no spec field
   cr4:
     apiVersion: agent_control.version/v0beta1
     kind: Foo
     metadata:
       name: test
+      namespace: test-namespace
       labels:
         foo: bar
     key: value # no spec field
@@ -160,6 +166,7 @@ objects:
     kind: {untouched_val}
     metadata:
       name: ${{nr-sub:agent_id}}
+      namespace: test-namespace
       labels:
         foo: ${{nr-var:any}}
         ${{nr-var:any}}: bar

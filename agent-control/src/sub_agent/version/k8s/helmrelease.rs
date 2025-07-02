@@ -14,14 +14,21 @@ const LATEST_REVISION: &str = "*";
 pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
+    namespace: String,
     agent_id: AgentID,
 }
 
 impl HelmReleaseVersionChecker {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, type_meta: TypeMeta, agent_id: &AgentID) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        type_meta: TypeMeta,
+        namespace: String,
+        agent_id: &AgentID,
+    ) -> Self {
         Self {
             k8s_client,
             type_meta,
+            namespace,
             agent_id: agent_id.clone(),
         }
     }
@@ -53,7 +60,7 @@ impl VersionChecker for HelmReleaseVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.agent_id)
+            .get_dynamic_object(&self.type_meta, &self.agent_id, self.namespace.as_str())
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -163,6 +170,7 @@ pub mod tests {
                 let check = HelmReleaseVersionChecker::new(
                     Arc::new(k8s_client),
                     helmrelease_v2_type_meta(),
+                    "fake-namespace".to_string(),
                     &AgentID::new("default-test").unwrap(),
                 );
                 let result = check.check_agent_version();
@@ -271,10 +279,12 @@ pub mod tests {
 
     fn setup_default_mock(mock: &mut MockSyncK8sClient, json_data: String) {
         mock.expect_get_dynamic_object()
-            .withf(|type_meta, name| {
-                type_meta == &helmrelease_v2_type_meta() && name == "default-test"
+            .withf(|type_meta, name, namespace| {
+                type_meta == &helmrelease_v2_type_meta()
+                    && name == "default-test"
+                    && namespace == "fake-namespace"
             })
             .times(1)
-            .returning(move |_, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
+            .returning(move |_, _, _| Ok(Some(Arc::new(get_dynamic_object(json_data.clone())))));
     }
 }

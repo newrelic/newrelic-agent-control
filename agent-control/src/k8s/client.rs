@@ -3,10 +3,11 @@ use super::{
     error::K8sError,
     reflector::{definition::ReflectorBuilder, resources::Reflectors},
 };
+use crate::k8s::utils::get_type_meta;
 use duration_str::deserialize_duration;
 use either::Either;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
-use k8s_openapi::api::core::v1::{ConfigMap, Namespace};
+use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{APIResourceList, ObjectMeta};
 use kube::api::ObjectList;
 use kube::api::entry::Entry;
@@ -18,6 +19,7 @@ use kube::{
     core::{DynamicObject, TypeMeta},
 };
 use serde::{Deserialize, de::DeserializeOwned};
+use std::fmt::Formatter;
 use std::{collections::BTreeMap, sync::Arc};
 use std::{fmt::Debug, time::Duration};
 use tokio::runtime::Runtime;
@@ -42,8 +44,8 @@ pub struct SyncK8sClient {
     runtime: Arc<Runtime>,
 }
 
-impl std::fmt::Debug for SyncK8sClient {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Debug for SyncK8sClient {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SyncK8sClient")
             .field("async_client", &"AsyncK8sClient implementation")
             .field("runtime", &self.runtime)
@@ -56,12 +58,6 @@ impl SyncK8sClient {
     pub fn try_new(runtime: Arc<Runtime>, config: &ClientConfig) -> Result<Self, K8sError> {
         Ok(Self {
             async_client: runtime.block_on(AsyncK8sClient::try_new(config))?,
-            runtime,
-        })
-    }
-    pub fn try_from_namespace(runtime: Arc<Runtime>, namespace: String) -> Result<Self, K8sError> {
-        Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_from_namespace(namespace))?,
             runtime,
         })
     }
@@ -85,44 +81,55 @@ impl SyncK8sClient {
         &self,
         tm: &TypeMeta,
         name: &str,
+        namespace: &str,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        self.runtime
-            .block_on(self.async_client.patch_dynamic_object(tm, name, patch))
+        self.runtime.block_on(
+            self.async_client
+                .patch_dynamic_object(tm, name, namespace, patch),
+        )
     }
 
     pub fn get_dynamic_object(
         &self,
         tm: &TypeMeta,
         name: &str,
+        namespace: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.get_dynamic_object(tm, name))
+            .block_on(self.async_client.get_dynamic_object(tm, name, namespace))
     }
 
     pub fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
         name: &str,
+        namespace: &str,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.runtime
-            .block_on(self.async_client.delete_dynamic_object(tm, name))
+            .block_on(self.async_client.delete_dynamic_object(tm, name, namespace))
     }
 
     pub fn delete_dynamic_object_collection(
         &self,
         tm: &TypeMeta,
+        namespace: &str,
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .delete_dynamic_object_collection(tm, label_selector),
-        )
+        self.runtime
+            .block_on(self.async_client.delete_dynamic_object_collection(
+                tm,
+                namespace,
+                label_selector,
+            ))
     }
 
-    pub fn list_dynamic_objects(&self, tm: &TypeMeta) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
+    pub fn list_dynamic_objects_in_all_namespaces(
+        &self,
+        tm: &TypeMeta,
+    ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
         self.runtime
-            .block_on(self.async_client.list_dynamic_objects(tm))
+            .block_on(self.async_client.list_dynamic_objects_in_all_namespaces(tm))
     }
 
     pub fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
@@ -130,44 +137,49 @@ impl SyncK8sClient {
             .block_on(self.async_client.has_dynamic_object_changed(obj))
     }
 
-    pub fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
+    pub fn delete_configmap_collection(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
         self.runtime.block_on(
             self.async_client
-                .delete_configmap_collection(label_selector),
+                .delete_configmap_collection(namespace, label_selector),
         )
     }
 
     pub fn get_configmap_key(
         &self,
-        configmap_name: &str,
+        name: &str,
+        namespace: &str,
         key: &str,
     ) -> Result<Option<String>, K8sError> {
         self.runtime
-            .block_on(self.async_client.get_configmap_key(configmap_name, key))
+            .block_on(self.async_client.get_configmap_key(name, namespace, key))
     }
 
     pub fn set_configmap_key(
         &self,
-        configmap_name: &str,
+        name: &str,
+        namespace: &str,
         labels: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        self.runtime.block_on(self.async_client.set_configmap_key(
-            configmap_name,
-            labels,
-            key,
-            value,
-        ))
+        self.runtime.block_on(
+            self.async_client
+                .set_configmap_key(name, namespace, labels, key, value),
+        )
     }
 
-    pub fn delete_configmap_key(&self, configmap_name: &str, key: &str) -> Result<(), K8sError> {
+    pub fn delete_configmap_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<(), K8sError> {
         self.runtime
-            .block_on(self.async_client.delete_configmap_key(configmap_name, key))
-    }
-
-    pub fn default_namespace(&self) -> &str {
-        self.async_client.default_namespace()
+            .block_on(self.async_client.delete_configmap_key(name, namespace, key))
     }
 
     /// Returns the stateful_set list using the corresponding reflector.
@@ -195,23 +207,19 @@ impl SyncK8sClient {
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(295);
 #[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct ClientConfig {
-    /// namespace is the kubernetes namespace where all resources directly managed by the agent control will be created. Required
-    pub namespace: String,
     /// The maximum duration the client will wait for a response from an external API or complete internal processing before timing out.
     #[serde(default)]
     pub client_timeout: ClientTimeout,
 }
 impl ClientConfig {
-    pub fn new(namespace: String) -> Self {
+    pub fn new() -> Self {
         Self {
-            namespace,
             client_timeout: ClientTimeout::default(),
         }
     }
     pub fn with_client_timeout(self, timeout: Duration) -> Self {
         Self {
             client_timeout: timeout.into(),
-            ..self
         }
     }
 }
@@ -238,26 +246,15 @@ impl AsyncK8sClient {
         let mut config = match Config::incluster() {
             Ok(c) => c,
             Err(e) => {
-                debug!(
-                    "inClusterConfig failed {}, trying kubeconfig for k8s client",
-                    e
-                );
+                debug!("inClusterConfig {}, trying kubeconfig for k8s client", e);
                 let c = KubeConfigOptions::default();
                 Config::from_kubeconfig(&c).await?
             }
         };
         config.read_timeout = Some(client_config.client_timeout.into());
         config.write_timeout = Some(client_config.client_timeout.into());
-        config.default_namespace = client_config.namespace.clone();
-        let client = Client::try_from(config)?;
 
-        debug!("verifying default k8s namespace existence");
-        Api::<Namespace>::all(client.clone())
-            .get(client.default_namespace())
-            .await
-            .map_err(|e| {
-                K8sError::UnableToSetupClient(format!("failed to get the default namespace: {}", e))
-            })?;
+        let client = Client::try_from(config)?;
 
         let reflector_builder = ReflectorBuilder::new(client.clone());
         let reflectors = Reflectors::try_new(&reflector_builder).await?;
@@ -270,10 +267,6 @@ impl AsyncK8sClient {
         })
     }
 
-    pub async fn try_from_namespace(namespace: String) -> Result<Self, K8sError> {
-        let client_config = ClientConfig::new(namespace);
-        Self::try_new(&client_config).await
-    }
     // Due to the Kube-rs library we need to retrieve with two different calls the versions of each object and then fetch the available kinds
     pub async fn list_api_resources(&self) -> Result<Vec<APIResourceList>, K8sError> {
         let mut list = vec![];
@@ -299,8 +292,12 @@ impl AsyncK8sClient {
         Ok(list)
     }
 
-    pub async fn delete_configmap_collection(&self, label_selector: &str) -> Result<(), K8sError> {
-        let api: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+    pub async fn delete_configmap_collection(
+        &self,
+        namespace: &str,
+        label_selector: &str,
+    ) -> Result<(), K8sError> {
+        let api: Api<ConfigMap> = Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
 
         delete_collection(&api, label_selector).await?;
         Ok(())
@@ -308,22 +305,24 @@ impl AsyncK8sClient {
 
     pub async fn get_configmap_key(
         &self,
-        configmap_name: &str,
+        name: &str,
+        namespace: &str,
         key: &str,
     ) -> Result<Option<String>, K8sError> {
-        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let cm_client: Api<ConfigMap> =
+            Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
 
-        if let Some(cm) = cm_client.get_opt(configmap_name).await? {
+        if let Some(cm) = cm_client.get_opt(name).await? {
             if let Some(data) = cm.data {
                 if let Some(key) = data.get(key) {
                     return Ok(Some(key.clone()));
                 }
-                debug!("ConfigMap {} missing key {}", configmap_name, key)
+                debug!("ConfigMap {} missing key {}", name, key)
             } else {
-                debug!("ConfigMap {} missing data", configmap_name)
+                debug!("ConfigMap {} missing data", name)
             }
         } else {
-            debug!("ConfigMap {} not found", configmap_name)
+            debug!("ConfigMap {} not found", name)
         }
 
         Ok(None)
@@ -331,18 +330,20 @@ impl AsyncK8sClient {
 
     pub async fn set_configmap_key(
         &self,
-        configmap_name: &str,
+        name: &str,
+        namespace: &str,
         labels: BTreeMap<String, String>,
         key: &str,
         value: &str,
     ) -> Result<(), K8sError> {
-        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
+        let cm_client: Api<ConfigMap> =
+            Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
         cm_client
-            .entry(configmap_name)
+            .entry(name)
             .await?
             .or_insert(|| ConfigMap {
                 metadata: ObjectMeta {
-                    name: Some(configmap_name.to_string()),
+                    name: Some(name.to_string()),
                     labels: Some(labels.clone()),
                     ..ObjectMeta::default()
                 },
@@ -361,11 +362,13 @@ impl AsyncK8sClient {
 
     pub async fn delete_configmap_key(
         &self,
-        configmap_name: &str,
+        name: &str,
+        namespace: &str,
         key: &str,
     ) -> Result<(), K8sError> {
-        let cm_client: Api<ConfigMap> = Api::<ConfigMap>::default_namespaced(self.client.clone());
-        let entry = cm_client.entry(configmap_name).await?.and_modify(|cm| {
+        let cm_client: Api<ConfigMap> =
+            Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
+        let entry = cm_client.entry(name).await?.and_modify(|cm| {
             if let Some(mut data) = cm.data.clone() {
                 data.remove(key);
                 cm.data = Some(data)
@@ -379,18 +382,6 @@ impl AsyncK8sClient {
             Entry::Vacant(_) => {}
         }
         Ok(())
-    }
-
-    pub async fn list_stateful_set(&self) -> Result<ObjectList<StatefulSet>, K8sError> {
-        let ss_client: Api<StatefulSet> =
-            Api::<StatefulSet>::default_namespaced(self.client.clone());
-        let list_stateful_set = ss_client.list(&ListParams::default()).await?;
-
-        Ok(list_stateful_set)
-    }
-
-    pub fn default_namespace(&self) -> &str {
-        self.client.default_namespace()
     }
 
     pub async fn apply_dynamic_object(&self, obj: &DynamicObject) -> Result<(), K8sError> {
@@ -420,12 +411,13 @@ impl AsyncK8sClient {
         &self,
         type_meta: &TypeMeta,
         name: &str,
+        namespace: &str,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
         self.dynamic_object_managers
             .get_or_create(type_meta)
             .await?
-            .patch(name, patch)
+            .patch(name, namespace, patch)
             .await
     }
 
@@ -433,43 +425,50 @@ impl AsyncK8sClient {
         &self,
         tm: &TypeMeta,
         name: &str,
+        namespace: &str,
     ) -> Result<Option<Arc<DynamicObject>>, K8sError> {
         Ok(self
             .dynamic_object_managers
             .get_or_create(tm)
             .await?
-            .get(name))
+            .get(name, namespace))
     }
 
     pub async fn delete_dynamic_object(
         &self,
         tm: &TypeMeta,
         name: &str,
+        namespace: &str,
     ) -> Result<Either<DynamicObject, Status>, K8sError> {
         self.dynamic_object_managers
             .get_or_create(tm)
             .await?
-            .delete(name)
+            .delete(name, namespace)
             .await
     }
 
     pub async fn delete_dynamic_object_collection(
         &self,
         tm: &TypeMeta,
+        namespace: &str,
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
         self.dynamic_object_managers
             .get_or_create(tm)
             .await?
-            .delete_collection(label_selector)
+            .delete_collection(namespace, label_selector)
             .await
     }
 
-    pub async fn list_dynamic_objects(
+    pub async fn list_dynamic_objects_in_all_namespaces(
         &self,
         tm: &TypeMeta,
     ) -> Result<Vec<Arc<DynamicObject>>, K8sError> {
-        Ok(self.dynamic_object_managers.get_or_create(tm).await?.list())
+        Ok(self
+            .dynamic_object_managers
+            .get_or_create(tm)
+            .await?
+            .list_in_all_namespaces())
     }
 
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
@@ -519,14 +518,6 @@ where
     }
 
     Ok(result)
-}
-
-pub fn get_name(obj: &DynamicObject) -> Result<String, K8sError> {
-    obj.metadata.clone().name.ok_or(K8sError::MissingCRName)
-}
-
-pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
-    obj.types.clone().ok_or(K8sError::MissingCRKind)
 }
 
 #[cfg(test)]

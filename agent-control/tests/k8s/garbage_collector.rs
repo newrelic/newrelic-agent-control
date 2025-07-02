@@ -11,6 +11,7 @@ use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::mock;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
+use newrelic_agent_control::k8s::client::ClientConfig;
 use newrelic_agent_control::opamp::remote_config::hash::ConfigState;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -79,7 +80,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     ));
 
     let k8s_client =
-        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap());
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
 
     let resource_name = "test-different-from-agent-id";
     let secret_name = "test-secret-name";
@@ -99,10 +100,12 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     spec:
         data: test
     metadata:
+      namespace: {}
       name: {}
             "#,
                             foo_type_meta().api_version,
                             foo_type_meta().kind,
+                            test_ns,
                             resource_name,
                         )
                         .as_str(),
@@ -120,9 +123,10 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
       values.yaml: |
         nameOverride: "override-by-secret"
     metadata:
+      namespace: {}
       name: {}
             "#,
-                            "v1", "Secret", secret_name,
+                            "v1", "Secret", test_ns, secret_name,
                         )
                         .as_str(),
                     )
@@ -140,7 +144,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
         .try_for_each(|obj| k8s_client.apply_dynamic_object_if_changed(obj))
         .unwrap();
 
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
         k8s_store.clone(),
@@ -161,6 +165,7 @@ agents:
 
     let gc = K8sGarbageCollector {
         k8s_client,
+        namespace: test_ns.clone(),
         cr_type_meta: vec![
             foo_type_meta(),
             TypeMeta {
@@ -235,8 +240,9 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
 
     let gc = K8sGarbageCollector {
         k8s_client: Arc::new(
-            SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap(),
+            SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
         ),
+        namespace: test_ns.clone(),
         cr_type_meta: vec![missing_kind, foo_type_meta()],
     };
 
@@ -266,8 +272,8 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     ));
 
     let k8s_client =
-        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
         k8s_store.clone(),
@@ -278,6 +284,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
 
     let gc = K8sGarbageCollector {
         k8s_client,
+        namespace: test_ns.clone(),
         cr_type_meta: default_group_version_kinds(),
     };
 
@@ -356,8 +363,9 @@ agents:
 
     let gc = K8sGarbageCollector {
         k8s_client: Arc::new(
-            SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.to_string()).unwrap(),
+            SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
         ),
+        namespace: test_ns.clone(),
         cr_type_meta: vec![foo_type_meta()],
     };
 

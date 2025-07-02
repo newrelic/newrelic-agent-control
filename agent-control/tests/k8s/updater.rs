@@ -10,7 +10,7 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
-use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -23,12 +23,12 @@ fn k8s_run_updater() {
     let mut k8s = block_on(K8sEnv::new());
     let test_ns = block_on(k8s.test_namespace());
     let k8s_client =
-        Arc::new(SyncK8sClient::try_from_namespace(tokio_runtime(), test_ns.clone()).unwrap());
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
 
     let current_version = "1.2.3-beta".to_string();
     let new_version = "1.2.3".to_string();
 
-    let updater = K8sACUpdater::new(k8s_client.clone(), current_version.clone());
+    let updater = K8sACUpdater::new(k8s_client.clone(), test_ns.clone(), current_version.clone());
 
     let config_to_update = &AgentControlDynamicConfig {
         agents: Default::default(),
@@ -74,7 +74,8 @@ fn k8s_run_updater() {
         .expect("no error should occur during update");
 
     retry(15, Duration::from_secs(5), || {
-        let Some(obj) = k8s_client.get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)?
+        let Some(obj) =
+            k8s_client.get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &test_ns)?
         else {
             return Err("Helm Release not found".into());
         };
@@ -83,6 +84,6 @@ fn k8s_run_updater() {
             return Err(format!("labels were overwritten: {obj:?}").into());
         }
 
-        check_version_and_source(&k8s_client, new_version.as_str(), REMOTE_VAL)
+        check_version_and_source(&k8s_client, new_version.as_str(), REMOTE_VAL, &test_ns)
     })
 }

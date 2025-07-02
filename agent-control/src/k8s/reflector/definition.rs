@@ -56,7 +56,8 @@ impl ReflectorBuilder {
         trace!("Building k8s reflector for {:?}", api_resource);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
-                Api::default_namespaced_with(self.client.clone(), api_resource),
+                Api::all_with(self.client.clone(), api_resource),
+                // TODO we are currently watching all resource, we should point to only object owned by agent control
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
@@ -84,10 +85,11 @@ impl ReflectorBuilder {
         trace!("Building k8s reflector for kind {}", K::KIND);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
-                Api::default_namespaced(self.client.clone()),
+                Api::all(self.client.clone()),
+                // TODO we are currently watching all resource, we should point to only object owned by agent control
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
-                reflector::store::Writer::default,
+                Writer::default,
                 stop_on_watcher_err,
             )
             .await

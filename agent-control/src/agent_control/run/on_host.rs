@@ -40,6 +40,8 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, info};
 
+pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
+
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), AgentError> {
         debug!("Initialising yaml_config_repository");
@@ -87,7 +89,7 @@ impl AgentControlRunner {
         info!("Instance Identifiers: {:?}", identifiers);
 
         let agent_control_variables = HashMap::from([(
-            "host_id".to_string(),
+            HOST_ID_VARIABLE_NAME.to_string(),
             VariableDefinition::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 

@@ -14,6 +14,7 @@ use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCol
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
+use crate::agent_type::variable::definition::VariableDefinition;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -38,6 +39,9 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use tracing::{debug, error, info, warn};
 
+pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
+const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
+
 impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
@@ -45,7 +49,10 @@ impl AgentControlRunner {
             SyncK8sClient::try_new(self.runtime, &self.k8s_config.client_config)
                 .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
-        let k8s_store = Arc::new(K8sStore::new(k8s_client.clone()));
+        let k8s_store = Arc::new(K8sStore::new(
+            k8s_client.clone(),
+            self.k8s_config.namespace.clone(),
+        ));
 
         debug!("Initialising yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
@@ -111,7 +118,21 @@ impl AgentControlRunner {
         // Disable startup check for sub-agents OpAMP client builder
         let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
-        let template_renderer = TemplateRenderer::default();
+        let agent_control_variables = HashMap::from([
+            (
+                NAMESPACE_VARIABLE_NAME.to_string(),
+                VariableDefinition::new_final_string_variable(self.k8s_config.namespace.clone()),
+            ),
+            (
+                NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
+                VariableDefinition::new_final_string_variable(
+                    self.k8s_config.namespace_agents.clone(),
+                ),
+            ),
+        ]);
+
+        let template_renderer = TemplateRenderer::default()
+            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
@@ -141,6 +162,7 @@ impl AgentControlRunner {
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: k8s_client.clone(),
+            namespace: self.k8s_config.namespace.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
         };
 
@@ -159,10 +181,16 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
-        let k8s_ac_updater =
-            K8sACUpdater::new(k8s_client.clone(), self.k8s_config.chart_version.clone());
+        let health_checker_builder = agent_control_health_checker_builder(
+            k8s_client.clone(),
+            self.k8s_config.namespace.to_string(),
+        );
 
-        let health_checker_builder = agent_control_health_checker_builder(k8s_client);
+        let k8s_ac_updater = K8sACUpdater::new(
+            k8s_client,
+            self.k8s_config.namespace.clone(),
+            self.k8s_config.chart_version.clone(),
+        );
 
         AgentControl::new(
             maybe_client,

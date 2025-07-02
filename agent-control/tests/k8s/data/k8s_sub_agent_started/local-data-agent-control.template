@@ -1,5 +1,6 @@
 k8s:
   namespace: <ns>
+  namespace_agents: <ns>
   cluster_name: <cluster-name>
 agents:
   hello-world:

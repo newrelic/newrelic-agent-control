@@ -1,5 +1,7 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the e2e tests to setup the environment and for local development.
+load('ext://helm_resource', 'helm_repo','helm_resource')
+load('ext://git_resource', 'git_checkout')
 
 #### Config
 # This env var is automatically added by the e2e action.
@@ -51,41 +53,44 @@ docker_build(
     only = ['./bin','./Dockerfile', './Tiltfile']
 )
 
-######## Feature Branch Workaround ########
-# Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-chart_source = os.getenv('CHART_SOURCE', 'helm-repo') # local|branch|helm-repo
-feature_branch = ''
-
-# relative path to the NR Helm Charts repo on your local machine
-local_chart_repo = os.getenv('LOCAL_CHARTS_PATH','')
+######## Feature Branch ########
+# We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
+feature_branch = 'feat/splitNamespace'
+git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
 #### Set-up charts
-load('ext://helm_resource', 'helm_repo','helm_resource')
-load('ext://git_resource', 'git_checkout')
-update_dependencies = False
-deps=[]
-chart = ''
-extra_resource_deps=[]
 
-if chart_source == 'local':
-  chart = local_chart_repo
-  update_dependencies = True
-  deps=[chart+'agent-control/charts/agent-control-deployment/templates']
-elif chart_source == 'branch':
-  git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=False)
-  chart = 'local/helm-charts/charts/'
-  update_dependencies = True
-  deps=[chart+'agent-control-deployment/templates']
-elif chart_source == 'helm-repo':
-  chart = 'newrelic/'
-  helm_repo(
-    'newrelic',
-    'https://helm-charts.newrelic.com',
-    resource_name='newrelic-helm-repo',
-    )
-  extra_resource_deps=['newrelic-helm-repo']
+#### install chart museum
+helm_repo(
+  'chartmuseum',
+  'https://chartmuseum.github.io/charts',
+  resource_name='chartmuseum-repo',
+  )
 
-flags_helm = ['--create-namespace','--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
+helm_resource(
+  'chartmuseum',
+  'chartmuseum/chartmuseum',
+  namespace='default',
+  release_name='chartmuseum',
+  resource_deps=['chartmuseum-repo'],
+  # activate API to upload charts
+  flags=['--set=env.open.DISABLE_API=false'],
+  port_forwards=['8080']
+)
+
+## we are saving the chart version for agent-control-deployment that is expected by agent-control
+local_resource(
+    'local-child-chart-upload',
+    cmd="""
+     CHART_VERSION=`(grep appVersion local/helm-charts-tmp/charts/agent-control/Chart.yaml | awk '{print $2}')` &&
+     helm package --dependency-update --version ${CHART_VERSION} --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/${CHART_VERSION} &&
+     curl --data-binary "@local/agent-control-deployment-${CHART_VERSION}.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['chartmuseum'],
+)
+
+flags_helm = ['--create-namespace', '--set=agent-control-deployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
 
 if license_key != '':
   flags_helm.append('--set=global.licenseKey='+license_key)
@@ -96,17 +101,19 @@ if cluster != '':
 #### Installs charts
 helm_resource(
   'flux',
-  chart+'agent-control',
-  deps=deps, # re-deploy chart if modified locally
+  'local/helm-charts-tmp/charts/agent-control',
+  deps='local/helm-charts-tmp/charts', # re-deploy chart if modified locally
   namespace=namespace,
   release_name='sa',
-  update_dependencies=update_dependencies,
+  update_dependencies=True,
   flags=flags_helm,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
               ('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')],
-  resource_deps=['build-binary']+extra_resource_deps
+  resource_deps=['build-binary', 'local-child-chart-upload']
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
 update_settings(k8s_upsert_timeout_secs=150)
+
+

@@ -1,10 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
-
-use kube::api::{ObjectMeta, TypeMeta};
-use thiserror::Error;
-use tracing::{debug, instrument};
-
+use super::{ResourceCleaner, ResourceCleanerError};
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
@@ -14,12 +8,16 @@ use crate::k8s::annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::error::K8sError;
 use crate::k8s::labels::{self, AGENT_ID_LABEL_KEY, Labels};
+use crate::k8s::utils::{get_name, get_namespace};
 use crate::{
     agent_control::{agent_id::AgentIDError, config::AgentControlConfigError},
     agent_type::agent_type_id::AgentTypeIDError,
 };
-
-use super::{ResourceCleaner, ResourceCleanerError};
+use kube::api::{ObjectMeta, TypeMeta};
+use std::collections::{BTreeMap, HashMap};
+use std::sync::Arc;
+use thiserror::Error;
+use tracing::{debug, instrument};
 
 /// The K8sGarbageCollector is responsible for cleaning up resources in Kubernetes that are
 /// no longer needed. In practice, this actually performs the stop and deletion of a sub-agent
@@ -29,6 +27,8 @@ use super::{ResourceCleaner, ResourceCleanerError};
 /// [`retain`](K8sGarbageCollector::retain) and [`collect`](K8sGarbageCollector::collect).
 pub struct K8sGarbageCollector {
     pub k8s_client: Arc<SyncK8sClient>,
+    /// The namespace where the Agent Control stores data via configMaps.
+    pub namespace: String,
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
@@ -40,7 +40,9 @@ impl K8sGarbageCollector {
         &self,
         active_agents: HashMap<AgentID, AgentTypeID>,
     ) -> Result<(), K8sGarbageCollectorError> {
-        self.garbage_collection(K8sGarbageCollectorMode::RetainConfig(&active_agents))
+        let mode = K8sGarbageCollectorMode::RetainConfig(&active_agents);
+        self.garbage_collection_config_maps(&mode)?;
+        self.garbage_collection_dynamic_object(&mode)
     }
 
     /// Garbage collect resources managed by AC associated to a certain
@@ -55,7 +57,10 @@ impl K8sGarbageCollector {
         if id.is_agent_control_id() {
             return Err(K8sGarbageCollectorError::AgentControlId);
         }
-        self.garbage_collection(K8sGarbageCollectorMode::Collect(id, agent_type_id))
+
+        let mode = K8sGarbageCollectorMode::Collect(id, agent_type_id);
+        self.garbage_collection_config_maps(&mode)?;
+        self.garbage_collection_dynamic_object(&mode)
     }
 
     pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
@@ -65,29 +70,37 @@ impl K8sGarbageCollector {
             .collect()
     }
 
-    fn garbage_collection(
+    fn garbage_collection_config_maps(
         &self,
-        mode: K8sGarbageCollectorMode,
+        mode: &K8sGarbageCollectorMode,
     ) -> Result<(), K8sGarbageCollectorError> {
         // Delete configmaps depending on mode
         let label_selector_query = mode.label_selector_query();
         debug!("Deleting configmaps using label selector: `{label_selector_query}`",);
         self.k8s_client
-            .delete_configmap_collection(&label_selector_query)?;
+            .delete_configmap_collection(&self.namespace, &label_selector_query)?;
 
+        Ok(())
+    }
+
+    fn garbage_collection_dynamic_object(
+        &self,
+        mode: &K8sGarbageCollectorMode,
+    ) -> Result<(), K8sGarbageCollectorError> {
         // Delete dynamic resources depending on mode
         self.cr_type_meta.iter().try_for_each(|tm| {
-            match self.k8s_client.list_dynamic_objects(tm) {
+            match self.k8s_client.list_dynamic_objects_in_all_namespaces(tm) {
                 Ok(dyn_objs) => {
                     dyn_objs
                         .into_iter()
                         .try_for_each(|d| -> Result<(), K8sGarbageCollectorError> {
-                            if self.should_delete_dynamic_object(&d.metadata, &mode)? {
-                                let name = d.metadata.name.as_ref().ok_or_else(|| {
-                                    K8sError::MissingName(d.types.clone().unwrap_or_default().kind)
-                                })?;
+                            if self.should_delete_dynamic_object(&d.metadata, mode)? {
+                                let name = get_name(&d)?;
+                                let namespace = get_namespace(&d)?;
+
                                 debug!("deleting dynamic_resource: `{}/{}`", tm.kind, name);
-                                self.k8s_client.delete_dynamic_object(tm, name.as_str())?;
+                                self.k8s_client
+                                    .delete_dynamic_object(tm, &name, &namespace)?;
                             }
                             Ok(())
                         })
@@ -248,21 +261,25 @@ impl From<K8sGarbageCollectorError> for ResourceCleanerError {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use mockall::predicate;
 
-    use super::*;
+    const TEST_NAMESPACE: &str = "test-namespace";
 
     #[test]
     fn errors_if_ac_id() {
         let mut k8s_client = SyncK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
         k8s_client.expect_delete_configmap_collection().never();
-        k8s_client.expect_list_dynamic_objects().never();
+        k8s_client
+            .expect_list_dynamic_objects_in_all_namespaces()
+            .never();
         k8s_client.expect_delete_dynamic_object().never();
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: Arc::new(k8s_client),
             cr_type_meta: vec![],
+            namespace: TEST_NAMESPACE.to_string(),
         };
         let ac_id = &AgentID::new_agent_control_id();
         let ac_type_id =
@@ -282,10 +299,11 @@ mod tests {
         k8s_client
             .expect_delete_configmap_collection()
             .once()
-            .with(predicate::eq("app.kubernetes.io/managed-by==newrelic-agent-control, newrelic.io/agent-id in (foo-agent)"))
-            .returning(|_| Ok(()));
+            .with(predicate::eq(TEST_NAMESPACE), predicate::eq("app.kubernetes.io/managed-by==newrelic-agent-control, newrelic.io/agent-id in (foo-agent)"))
+            .returning(|_, _| Ok(()));
+
         k8s_client
-            .expect_list_dynamic_objects()
+            .expect_list_dynamic_objects_in_all_namespaces()
             .once()
             .with(predicate::eq(type_meta.clone()))
             .returning(|_| Ok(vec![]));
@@ -294,6 +312,7 @@ mod tests {
         let garbage_collector = K8sGarbageCollector {
             k8s_client: Arc::new(k8s_client),
             cr_type_meta: vec![type_meta],
+            namespace: TEST_NAMESPACE.to_string(),
         };
         let ac_id = &AgentID::new("foo-agent").unwrap();
         let agent_type_id = &AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();

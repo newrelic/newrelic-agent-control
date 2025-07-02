@@ -1,17 +1,18 @@
 //! This module holds helpers and to perform k8s operations with resources whose type is known at runtime
 //! (DynamicObjects).
 use super::{
-    client::{delete_collection, get_name},
+    client::delete_collection,
     error::K8sError,
     reflector::definition::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
+use crate::k8s::utils::{get_name, get_namespace};
 use base64::engine::general_purpose::STANDARD;
 use either::Either;
-use kube::api::{ObjectList, Patch, PatchParams};
+use kube::api::{ApiResource, ObjectList, Patch, PatchParams};
 use kube::client::Status;
 use kube::{
-    Api, Error, Resource,
+    Api, Error,
     api::{DeleteParams, DynamicObject, PostParams, TypeMeta},
     core::GroupVersion,
     discovery::pinned_kind,
@@ -28,9 +29,11 @@ const DYN_WATCHER_STOP_POLICY: bool = true;
 
 /// An abstraction of [DynamicObject] that allow performing operations concerning objects known at Runtime either
 /// using the k8s API or a [Reflector].
-#[derive(Debug)]
+/// The API calls (apply, delete, patch, ...) are namespaced while "list" that uses directly the [Reflectors] watches all namespaces.
+/// Get leverages the reflector to find the object by name and namespace.
 pub struct DynamicObjectManager {
-    api: Api<DynamicObject>,
+    client: kube::Client,
+    api_resource: ApiResource,
     reflector: Reflector<DynamicObject>,
 }
 
@@ -47,29 +50,32 @@ impl DynamicObjectManager {
             .map_err(|_| K8sError::MissingAPIResource(display_type(type_meta)))?;
 
         Ok(Self {
-            api: Api::default_namespaced_with(client, &api_resource),
+            client: client.clone(),
+            api_resource: api_resource.clone(),
             reflector: builder
                 .try_build_with_api_resource(&api_resource, DYN_WATCHER_STOP_POLICY)
                 .await?,
         })
     }
 
-    /// Looks for a [DynamicObject] by name, using the corresponding reflector.
-    pub fn get(&self, name: &str) -> Option<Arc<DynamicObject>> {
-        self.reflector
-            .reader()
-            .find(|obj| obj.metadata.name.as_deref() == Some(name))
+    /// Looks for a [DynamicObject] by name and namespace, using the corresponding reflector.
+    pub fn get(&self, name: &str, namespace: &str) -> Option<Arc<DynamicObject>> {
+        self.reflector.reader().find(|obj| {
+            obj.metadata.name.as_deref() == Some(name)
+                && obj.metadata.namespace.as_deref() == Some(namespace)
+        })
     }
 
     /// Returns the list of [DynamicObject].
-    pub fn list(&self) -> Vec<Arc<DynamicObject>> {
+    pub fn list_in_all_namespaces(&self) -> Vec<Arc<DynamicObject>> {
         self.reflector.reader().state()
     }
 
     /// Check if the provided object has changed according to the fields the agent-control sets up.
     pub fn has_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let name = get_name(obj)?;
-        let existing_obj = self.get(name.as_str());
+        let namespace = get_namespace(obj)?;
+        let existing_obj = self.get(&name, &namespace);
         match existing_obj {
             None => Ok(true), // It does not exist
             Some(obj_old) => {
@@ -93,13 +99,15 @@ impl DynamicObjectManager {
     /// Creates the provided object in the cluster, if an object with the same name exists, it is updated.
     pub async fn apply(&self, obj: &DynamicObject) -> Result<(), K8sError> {
         let name = get_name(obj)?;
-        self.api
-            .entry(name.as_str())
+        let namespace = get_namespace(obj)?;
+        let api = Api::namespaced_with(self.client.clone(), &namespace, &self.api_resource);
+
+        api.entry(name.as_str())
             .await
             .map_err(|e| {
                 K8sError::GetDynamic(format!("getting dynamic object with name {name}: {e}"))
             })?
-            .and_modify(|obj_old| {
+            .and_modify(|obj_old: &mut DynamicObject| {
                 obj_old.data.clone_from(&obj.data);
                 // We are updating just particular metadata fields, the ones that are supported currently by the config.
                 // Moreover, if you add a new one you need to consider them in the `has_changed` method.
@@ -130,17 +138,26 @@ impl DynamicObjectManager {
     pub async fn patch(
         &self,
         name: &str,
+        namespace: &str,
         patch: serde_json::Value,
     ) -> Result<DynamicObject, K8sError> {
-        self.api
-            .patch(name, &PatchParams::default(), &Patch::Merge(patch))
+        let api = Api::namespaced_with(self.client.clone(), namespace, &self.api_resource);
+
+        api.patch(name, &PatchParams::default(), &Patch::Merge(patch))
             .await
             .map_err(|error| K8sError::PatchError(name.to_string(), error.to_string()))
     }
 
     /// Deletes the [DynamicObject], returns an ok if it does not exist.
-    pub async fn delete(&self, name: &str) -> Result<Either<DynamicObject, Status>, K8sError> {
-        let result = self.api.delete(name, &DeleteParams::default()).await;
+    pub async fn delete(
+        &self,
+        name: &str,
+        namespace: &str,
+    ) -> Result<Either<DynamicObject, Status>, K8sError> {
+        let api: Api<DynamicObject> =
+            Api::namespaced_with(self.client.clone(), namespace, &self.api_resource);
+
+        let result = api.delete(name, &DeleteParams::default()).await;
 
         if let Err(Error::Api(api)) = result.as_ref() {
             if api.clone().code == 404 {
@@ -153,7 +170,7 @@ impl DynamicObjectManager {
         match either.clone() {
             // List of objects being deleted.
             either::Left(dynamic_object) => {
-                debug!("Deleting object: {:?}", dynamic_object.meta().name);
+                debug!("Deleting object: {:?}", dynamic_object.metadata.name);
             }
             // Status response of the deleted objects.
             either::Right(status) => {
@@ -165,9 +182,12 @@ impl DynamicObjectManager {
 
     pub async fn delete_collection(
         &self,
+        namespace: &str,
         label_selector: &str,
     ) -> Result<Either<ObjectList<DynamicObject>, Status>, K8sError> {
-        delete_collection(&self.api, label_selector).await
+        let api = Api::namespaced_with(self.client.clone(), namespace, &self.api_resource);
+
+        delete_collection(&api, label_selector).await
     }
 }
 

@@ -57,7 +57,7 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
 
 #[test]
 #[ignore = "needs k8s cluster"]
-fn k8s_cli_install_agent_control_installation_failed_upgrade() {
+fn podsk8s_cli_install_agent_control_installation_failed_upgrade() {
     let mut k8s_env = block_on(K8sEnv::new());
     let namespace = block_on(k8s_env.test_namespace());
 

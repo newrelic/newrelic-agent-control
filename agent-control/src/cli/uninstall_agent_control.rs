@@ -7,6 +7,7 @@ use crate::cli::utils::{retry, try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
+use clap::Parser;
 use either::Either;
 use kube::api::{DynamicObject, ObjectList, TypeMeta};
 use kube::client::Status;
@@ -14,14 +15,23 @@ use std::collections::HashSet;
 use std::time::Duration;
 use tracing::info;
 
-pub fn uninstall_agent_control(namespace: String) -> Result<(), CliError> {
-    let k8s_client = try_new_k8s_client(namespace.clone())?;
+#[derive(Debug, Clone, Parser)]
+pub struct AgentControlUninstallData {
+    /// namespace were the agent control agents were running
+    #[arg(long)]
+    pub namespace_agents: String,
+}
+
+pub fn uninstall_agent_control(namespace: &str, namespace_agents: &str) -> Result<(), CliError> {
+    let k8s_client = try_new_k8s_client()?;
     let kinds_available = retrieve_api_resources(&k8s_client)?;
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
-    delete_agent_control_crs(&k8s_client, &kinds_available)?;
+    delete_agent_control_crs(&k8s_client, &kinds_available, namespace)?;
     // Deleting remaining objects owned by AC
-    delete_owned_objects(&k8s_client, &kinds_available)?;
+    delete_owned_objects(&k8s_client, &kinds_available, namespace)?;
+    // Deleting remaining objects owned by AC in the namespace_agents. for example the instrumentation CR.
+    delete_owned_objects(&k8s_client, &kinds_available, namespace_agents)?;
 
     Ok(())
 }
@@ -48,18 +58,19 @@ fn retrieve_api_resources(k8s_client: &SyncK8sClient) -> Result<HashSet<TypeMeta
 fn delete_owned_objects(
     k8s_client: &SyncK8sClient,
     kinds_available: &HashSet<TypeMeta>,
+    namespace: &str,
 ) -> Result<(), CliError> {
     let ac_owned_label_selector = Labels::default().selector();
 
     for tm in objects_to_delete(kinds_available) {
         retry(30, Duration::from_secs(10), || {
             let res = k8s_client
-                .delete_dynamic_object_collection(&tm, ac_owned_label_selector.as_str())
+                .delete_dynamic_object_collection(&tm, namespace, ac_owned_label_selector.as_str())
                 .map_err(|err| {
                     CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
                 })?;
             if is_collection_deleted(res) {
-                info!("Resources of type {} deleted", tm.kind);
+                info!("Resources of type {} deleted in {}", tm.kind, namespace);
                 return Ok(());
             }
             Err(CliError::DeleteResource(format!("{tm:?}")))
@@ -87,6 +98,7 @@ fn objects_to_delete(kinds_available: &HashSet<TypeMeta>) -> Vec<TypeMeta> {
 fn delete_agent_control_crs(
     k8s_client: &SyncK8sClient,
     kinds_available: &HashSet<TypeMeta>,
+    namespace: &str,
 ) -> Result<(), CliError> {
     let mut crs_to_delete: Vec<(TypeMeta, &str)> = vec![
         (helmrelease_v2_type_meta(), RELEASE_NAME),
@@ -97,7 +109,7 @@ fn delete_agent_control_crs(
     for (tm, object_name) in crs_to_delete {
         retry(30, Duration::from_secs(10), || {
             let res = k8s_client
-                .delete_dynamic_object(&tm, object_name)
+                .delete_dynamic_object(&tm, object_name, namespace)
                 .map_err(|err| {
                     CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
                 })?;

@@ -3,6 +3,7 @@ use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::k8s::utils::{get_name, get_namespace, get_type_meta};
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
     daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
@@ -47,6 +48,7 @@ pub fn health_checkers_for_type_meta(
     type_meta: TypeMeta,
     k8s_client: Arc<SyncK8sClient>,
     name: String,
+    namespace: String,
     start_time: StartTime,
 ) -> Vec<K8sResourceHealthChecker> {
     // HelmRelease (Flux CR)
@@ -56,6 +58,7 @@ pub fn health_checkers_for_type_meta(
                 k8s_client.clone(),
                 type_meta,
                 name.clone(),
+                namespace,
                 start_time,
             )),
             K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
@@ -77,12 +80,7 @@ pub fn health_checkers_for_type_meta(
     // Instrumentation (Newrelic CR)
     } else if type_meta == instrumentation_v1beta1_type_meta() {
         vec![K8sResourceHealthChecker::NewRelic(
-            K8sHealthNRInstrumentation::new(
-                k8s_client.clone(),
-                type_meta,
-                name.clone(),
-                start_time,
-            ),
+            K8sHealthNRInstrumentation::new(k8s_client, type_meta, name, namespace, start_time),
         )]
     // No Health-checkers for any other type meta
     } else {
@@ -109,20 +107,18 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
     ) -> Result<Option<Self>, HealthCheckerError> {
         let mut health_checkers = vec![];
         for resource in resources.iter() {
-            let type_meta = resource.types.clone().ok_or(HealthCheckerError::Generic(
-                "not able to build flux health checker: type not found".to_string(),
-            ))?;
+            let type_meta = get_type_meta(resource)?;
 
-            let name = resource
-                .metadata
-                .clone()
-                .name
-                .ok_or(HealthCheckerError::Generic(
-                    "not able to build flux health checker: name not found".to_string(),
-                ))?;
+            let name = get_name(resource)?;
+            let namespace = get_namespace(resource)?;
 
-            let resource_health_checkers =
-                health_checkers_for_type_meta(type_meta, k8s_client.clone(), name, start_time);
+            let resource_health_checkers = health_checkers_for_type_meta(
+                type_meta,
+                k8s_client.clone(),
+                name,
+                namespace,
+                start_time,
+            );
 
             health_checkers.extend(resource_health_checkers);
         }
@@ -166,8 +162,9 @@ pub mod tests {
     use crate::agent_control::config::{
         helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta,
     };
+    use crate::health::health_checker::HealthChecker;
+    use crate::health::health_checker::HealthCheckerError::K8sError;
     use crate::health::health_checker::tests::MockHealthCheck;
-    use crate::health::health_checker::{HealthChecker, HealthCheckerError};
     use crate::health::k8s::health_checker::{K8sHealthChecker, K8sResourceHealthChecker};
     use crate::health::with_start_time::StartTime;
     use crate::k8s::client::MockSyncK8sClient;
@@ -201,9 +198,10 @@ pub mod tests {
             )
             .err()
             .unwrap(),
-            HealthCheckerError::Generic(s) => {
-                assert_eq!(s, "not able to build flux health checker: type not found".to_string())
-            }
+            K8sError(err) => assert_eq!(
+                err.to_string(),
+                "the kind of the resource is missing"
+            )
         );
     }
 
@@ -224,9 +222,10 @@ pub mod tests {
             )
             .err()
             .unwrap(),
-            HealthCheckerError::Generic(s) => {
-                assert_eq!(s, "not able to build flux health checker: name not found".to_string())
-            }
+            K8sError(err) => assert_eq!(
+                err.to_string(),
+                "the name of the resource is missing"
+            )
         );
     }
 
@@ -244,6 +243,7 @@ pub mod tests {
             types: Some(unsupported_type_meta),
             metadata: kube::core::ObjectMeta {
                 name: Some("test-resource".to_string()),
+                namespace: Some("test-namespace".to_string()),
                 ..Default::default()
             },
             data: Default::default(),
@@ -268,6 +268,7 @@ pub mod tests {
             types: Some(helmrelease_v2_type_meta()),
             metadata: kube::core::ObjectMeta {
                 name: Some("test-helmrelease".to_string()),
+                namespace: Some("test-namespace".to_string()),
                 ..Default::default()
             },
             data: Default::default(),
@@ -309,6 +310,7 @@ pub mod tests {
             types: Some(instrumentation_v1beta1_type_meta()),
             metadata: kube::core::ObjectMeta {
                 name: Some("test-instrumentation".to_string()),
+                namespace: Some("test-namespace".to_string()),
                 ..Default::default()
             },
             data: Default::default(),

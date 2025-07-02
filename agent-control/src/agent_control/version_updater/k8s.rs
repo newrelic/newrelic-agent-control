@@ -10,6 +10,7 @@ use tracing::{debug, info};
 
 pub struct K8sACUpdater {
     k8s_client: Arc<SyncK8sClient>,
+    namespace: String,
     // current_chart_version is the version of the agent control that is currently running.
     // It is loaded at startup, and it is populated by the HelmChart.
     current_chart_version: String,
@@ -38,7 +39,12 @@ impl VersionUpdater for K8sACUpdater {
             self.current_chart_version, version
         );
         self.k8s_client
-            .patch_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, patch_to_apply)
+            .patch_dynamic_object(
+                &helmrelease_v2_type_meta(),
+                RELEASE_NAME,
+                &self.namespace,
+                patch_to_apply,
+            )
             .map_err(|err| {
                 UpdaterError::UpdateFailed(format!(
                     "applying patch to {RELEASE_NAME} helmRelease: {err}",
@@ -50,9 +56,14 @@ impl VersionUpdater for K8sACUpdater {
 }
 
 impl K8sACUpdater {
-    pub fn new(k8s_client: Arc<SyncK8sClient>, current_chart_version: String) -> Self {
+    pub fn new(
+        k8s_client: Arc<SyncK8sClient>,
+        namespace: String,
+        current_chart_version: String,
+    ) -> Self {
         Self {
             k8s_client,
+            namespace,
             current_chart_version,
         }
     }
@@ -83,7 +94,7 @@ impl K8sACUpdater {
     fn get_helm_release_labels(&self) -> Result<BTreeMap<String, String>, UpdaterError> {
         Ok(self
             .k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME)
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &self.namespace)
             .map_err(|err| {
                 UpdaterError::UpdateFailed(format!(
                     "error fetching {RELEASE_NAME} helmRelease: {err}",
@@ -97,13 +108,17 @@ impl K8sACUpdater {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-
+    const TEST_NAMESPACE: &str = "test-namespace";
     #[test]
     fn test_missing_chart_version_does_no_op() {
         let mut k8s_client = SyncK8sClient::default();
         k8s_client.expect_patch_dynamic_object().never();
 
-        let updater = K8sACUpdater::new(Arc::new(k8s_client), "1.0.0".to_string());
+        let updater = K8sACUpdater::new(
+            Arc::new(k8s_client),
+            TEST_NAMESPACE.to_string(),
+            "1.0.0".to_string(),
+        );
 
         updater
             .update(&AgentControlDynamicConfig {
@@ -119,7 +134,11 @@ pub mod tests {
 
         let current_version = "1.0.0".to_string();
 
-        let updater = K8sACUpdater::new(Arc::new(k8s_client), current_version.clone());
+        let updater = K8sACUpdater::new(
+            Arc::new(k8s_client),
+            TEST_NAMESPACE.to_string(),
+            current_version.clone(),
+        );
 
         updater
             .update(&AgentControlDynamicConfig {
