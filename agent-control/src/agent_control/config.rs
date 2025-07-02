@@ -500,6 +500,7 @@ k8s:
 
         let k8s = config.k8s.unwrap();
 
+        assert_eq!(k8s.namespace_agents, "some-namespace-agents");
         assert_eq!(k8s.cluster_name, "some-cluster");
         assert_eq!(k8s.namespace, "some-namespace");
     }

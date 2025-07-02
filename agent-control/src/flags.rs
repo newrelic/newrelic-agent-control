@@ -45,7 +45,7 @@ pub enum InitError {
 pub enum Command {
     /// Normal operation requested. Get the required config and continue.
     InitAgentControl(AgentControlRunConfig, Vec<TracingGuardBox>),
-    /// Do an "one-shot" operation and exit successfully.
+    /// Do a "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
 }
@@ -143,7 +143,7 @@ impl Flags {
 
             k8s_config: match mode {
                 // This config is not used on the OnHost environment, a blank config is used.
-                // K8sConfig has not default since cluster_name is a required.
+                // K8sConfig has not "default" since cluster_name is a required.
                 Environment::OnHost => K8sConfig::default(),
                 Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
             },

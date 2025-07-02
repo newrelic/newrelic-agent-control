@@ -46,7 +46,6 @@ pub fn start_agent_control_with_custom_config(
 
             k8s_config: match mode {
                 // This config is not used on the OnHost environment, a blank config is used.
-                // K8sConfig has not default since cluster_name is a required.
                 Environment::OnHost => K8sConfig::default(),
                 Environment::K8s => {
                     let mut cfg = agent_control_config

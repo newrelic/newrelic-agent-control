@@ -537,13 +537,8 @@ pub(crate) mod tests {
         let config = Config::new(Uri::try_from("https://localhost.com").unwrap());
         let msg =
             "looks like kube-rs has revisit the timeout, see [DEFAULT_CLIENT_TIMEOUT] for details.";
-        assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{}", msg);
-        assert_eq!(
-            config.write_timeout,
-            Some(DEFAULT_CLIENT_TIMEOUT),
-            "{}",
-            msg
-        );
+        assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
+        assert_eq!(config.write_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
     }
 
     #[tokio::test]

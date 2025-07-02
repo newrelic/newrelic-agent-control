@@ -53,7 +53,7 @@ impl Labels {
 }
 
 /// returns true if labels indicates that is managed by the agentControl
-pub fn is_managed_by_agentcontrol(labels: &BTreeMap<String, String>) -> bool {
+pub fn is_managed_by_agent_control(labels: &BTreeMap<String, String>) -> bool {
     labels
         .get(MANAGED_BY_KEY)
         .is_some_and(|v| v == MANAGED_BY_VAL)
