@@ -243,14 +243,14 @@ pub fn statefulset_type_meta() -> TypeMeta {
 pub fn daemonset_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
-        kind: "DaemonSets".to_string(),
+        kind: "DaemonSet".to_string(),
     }
 }
 
 pub fn deployment_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
-        kind: "Deployments".to_string(),
+        kind: "Deployment".to_string(),
     }
 }
 
