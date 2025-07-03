@@ -1,4 +1,4 @@
-use super::super::error::K8sError;
+use super::error::K8sError;
 use futures::StreamExt;
 use kube::{
     Api, Client,

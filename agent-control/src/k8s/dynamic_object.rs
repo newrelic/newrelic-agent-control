@@ -3,7 +3,7 @@
 use super::{
     client::delete_collection,
     error::K8sError,
-    reflector::definition::{Reflector, ReflectorBuilder},
+    reflectors::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
 use crate::k8s::utils::{get_name, get_namespace};
@@ -63,7 +63,7 @@ impl DynamicObjectManager {
         self.reflector
             .list()
             .into_iter()
-            .find(|obj| obj.metadata.name.as_deref() == Some(name))
+            .find(|obj| obj.metadata.name == Some(name.to_string()))
     }
 
     /// Returns the list of [DynamicObject].

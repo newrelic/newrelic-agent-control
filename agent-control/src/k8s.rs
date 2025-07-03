@@ -4,6 +4,6 @@ pub mod client;
 mod dynamic_object;
 pub mod error;
 pub mod labels;
-pub mod reflector;
+pub mod reflectors;
 pub mod store;
 pub mod utils;

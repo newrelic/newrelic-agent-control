@@ -1,6 +1,4 @@
-use super::{
-    dynamic_object::DynamicObjectManagers, error::K8sError, reflector::definition::ReflectorBuilder,
-};
+use super::{dynamic_object::DynamicObjectManagers, error::K8sError, reflectors::ReflectorBuilder};
 use crate::agent_control::config::{
     daemonset_type_meta, deployment_type_meta, statefulset_type_meta,
 };
@@ -185,24 +183,17 @@ impl SyncK8sClient {
             .block_on(self.async_client.delete_configmap_key(name, namespace, key))
     }
 
-    /// Returns the stateful_set list using the corresponding reflector.
     pub fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
-        self.runtime.block_on(
-            self.async_client
-                .list_resource(&statefulset_type_meta(), ns),
-        )
+        self.runtime
+            .block_on(self.async_client.list_stateful_set(ns))
     }
 
-    /// Returns the daemon_set list using the corresponding reflector.
     pub fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
-        self.runtime
-            .block_on(self.async_client.list_resource(&daemonset_type_meta(), ns))
+        self.runtime.block_on(self.async_client.list_daemon_set(ns))
     }
 
-    /// Returns the deployment list using the corresponding reflector.
     pub fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
-        self.runtime
-            .block_on(self.async_client.list_resource(&deployment_type_meta(), ns))
+        self.runtime.block_on(self.async_client.list_deployment(ns))
     }
 }
 
@@ -399,8 +390,19 @@ impl AsyncK8sClient {
             .await
     }
 
-    /// Returns the daemon_set list using the corresponding reflector.
-    pub async fn list_resource<K: Resource + for<'a> serde::Deserialize<'a>>(
+    pub async fn list_stateful_set(&self, ns: &str) -> Result<Vec<Arc<StatefulSet>>, K8sError> {
+        self.list_resource(&statefulset_type_meta(), ns).await
+    }
+
+    pub async fn list_daemon_set(&self, ns: &str) -> Result<Vec<Arc<DaemonSet>>, K8sError> {
+        self.list_resource(&daemonset_type_meta(), ns).await
+    }
+
+    pub async fn list_deployment(&self, ns: &str) -> Result<Vec<Arc<Deployment>>, K8sError> {
+        self.list_resource(&deployment_type_meta(), ns).await
+    }
+
+    async fn list_resource<K: Resource + for<'a> serde::Deserialize<'a>>(
         &self,
         tm: &TypeMeta,
         ns: &str,
@@ -413,7 +415,7 @@ impl AsyncK8sClient {
             .map(|d| {
                 Arc::unwrap_or_clone(d.clone())
                     .try_parse::<K>()
-                    .map_err(|err| K8sError::ParseDynamic(err.to_string()))
+                    .map_err(|err| K8sError::ParseDynamic(err.to_string(), tm.kind.to_string()))
                     .map(|obj| Arc::new(obj))
             })
             .collect()
@@ -559,6 +561,8 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::agent_control::config::helmrelease_v2_type_meta;
+    use crate::k8s::utils::{get_name, get_target_namespace};
     use http::Uri;
     use k8s_openapi::serde_json;
     use kube::Client;
@@ -795,5 +799,27 @@ pub(crate) mod tests {
                 }
             )
         }
+    }
+
+    #[test]
+    fn test_helpers() {
+        let obj = &DynamicObject {
+            types: Some(helmrelease_v2_type_meta()),
+            metadata: ObjectMeta {
+                name: Some("test-name".to_string()),
+                namespace: Some("default".to_string()),
+                ..Default::default()
+            },
+            data: serde_json::json!({
+                "spec": {
+                    "targetNamespace": "test",
+                }
+            }),
+        };
+
+        assert_eq!(get_namespace(obj).unwrap(), "default");
+        assert_eq!(get_type_meta(obj).unwrap(), helmrelease_v2_type_meta());
+        assert_eq!(get_name(obj).unwrap(), "test-name");
+        assert_eq!(get_target_namespace(obj).unwrap(), "test");
     }
 }
