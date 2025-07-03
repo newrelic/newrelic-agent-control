@@ -16,11 +16,12 @@ pub struct K8sHealthStatefulSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
     start_time: StartTime,
+    namespace: String,
 }
 
 impl HealthChecker for K8sHealthStatefulSet {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
-        let stateful_sets = self.k8s_client.list_stateful_set();
+        let stateful_sets = self.k8s_client.list_stateful_set(&self.namespace)?;
 
         let target_stateful_sets = stateful_sets
             .into_iter()
@@ -37,11 +38,13 @@ impl K8sHealthStatefulSet {
         k8s_client: Arc<SyncK8sClient>,
         release_name: String,
         start_time: StartTime,
+        namespace: String,
     ) -> Self {
         Self {
             k8s_client,
             release_name,
             start_time,
+            namespace,
         }
     }
 
@@ -79,6 +82,7 @@ impl K8sHealthStatefulSet {
 mod tests {
     use super::*;
     use crate::health::health_checker::Healthy;
+    use crate::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
     use crate::{health::k8s::health_checker::LABEL_RELEASE_FLUX, k8s::client::MockSyncK8sClient};
     use assert_matches::assert_matches;
     use k8s_openapi::api::apps::v1::{StatefulSetSpec, StatefulSetStatus};
@@ -278,17 +282,21 @@ mod tests {
         k8s_client
             .expect_list_stateful_set()
             .times(1)
-            .returning(move || {
-                vec![
+            .returning(move |_| {
+                Ok(vec![
                     Arc::new(with_err_not_matching.clone()),
                     Arc::new(healthy_matching.clone()),
-                ]
+                ])
             });
 
         let start_time = StartTime::now();
 
-        let health_checker =
-            K8sHealthStatefulSet::new(Arc::new(k8s_client), release_name.to_string(), start_time);
+        let health_checker = K8sHealthStatefulSet::new(
+            Arc::new(k8s_client),
+            release_name.to_string(),
+            start_time,
+            TEST_NAMESPACE.to_string(),
+        );
         let result = health_checker.check_health().unwrap();
         assert_eq!(
             result,

@@ -3,7 +3,7 @@
 use super::{
     client::delete_collection,
     error::K8sError,
-    reflector::definition::{Reflector, ReflectorBuilder},
+    reflectors::{Reflector, ReflectorBuilder},
     utils::display_type,
 };
 use crate::k8s::utils::{get_name, get_namespace};
@@ -39,43 +39,42 @@ pub struct DynamicObjectManager {
 
 impl DynamicObjectManager {
     pub async fn try_new(
-        type_meta: &TypeMeta,
+        tmn: &TypeMetaNamespaced,
         client: kube::Client,
         builder: &ReflectorBuilder,
     ) -> Result<Self, K8sError> {
-        let gvk = &GroupVersion::from_str(type_meta.api_version.as_str())?
-            .with_kind(type_meta.kind.as_str());
+        let gvk = &GroupVersion::from_str(tmn.type_meta.api_version.as_str())?
+            .with_kind(tmn.type_meta.kind.as_str());
         let (api_resource, _) = pinned_kind(&client, gvk)
             .await
-            .map_err(|_| K8sError::MissingAPIResource(display_type(type_meta)))?;
+            .map_err(|_| K8sError::MissingAPIResource(display_type(&tmn.type_meta)))?;
 
         Ok(Self {
             client: client.clone(),
             api_resource: api_resource.clone(),
             reflector: builder
-                .try_build_with_api_resource(&api_resource, DYN_WATCHER_STOP_POLICY)
+                .try_build_with_api_resource(&tmn.namespace, &api_resource, DYN_WATCHER_STOP_POLICY)
                 .await?,
         })
     }
 
     /// Looks for a [DynamicObject] by name and namespace, using the corresponding reflector.
-    pub fn get(&self, name: &str, namespace: &str) -> Option<Arc<DynamicObject>> {
-        self.reflector.reader().find(|obj| {
-            obj.metadata.name.as_deref() == Some(name)
-                && obj.metadata.namespace.as_deref() == Some(namespace)
-        })
+    pub fn get(&self, name: &str) -> Option<Arc<DynamicObject>> {
+        self.reflector
+            .list()
+            .into_iter()
+            .find(|obj| obj.metadata.name == Some(name.to_string()))
     }
 
     /// Returns the list of [DynamicObject].
-    pub fn list_in_all_namespaces(&self) -> Vec<Arc<DynamicObject>> {
-        self.reflector.reader().state()
+    pub fn list(&self) -> Vec<Arc<DynamicObject>> {
+        self.reflector.list()
     }
 
     /// Check if the provided object has changed according to the fields the agent-control sets up.
     pub fn has_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let name = get_name(obj)?;
-        let namespace = get_namespace(obj)?;
-        let existing_obj = self.get(&name, &namespace);
+        let existing_obj = self.get(&name);
         match existing_obj {
             None => Ok(true), // It does not exist
             Some(obj_old) => {
@@ -191,12 +190,28 @@ impl DynamicObjectManager {
     }
 }
 
-/// Holds a collection of [DynamicObjectManager] by [TypeMeta] to perform operations with objects known at runtime.
+/// TypeMetaNamespaced is used as a key in the [DynamicObjectManagers] map to identify a TypeMeta in a particular namespace.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TypeMetaNamespaced {
+    type_meta: TypeMeta,
+    namespace: String,
+}
+
+impl TypeMetaNamespaced {
+    pub fn new(type_meta: &TypeMeta, namespace: &str) -> Self {
+        Self {
+            type_meta: type_meta.clone(),
+            namespace: namespace.to_string(),
+        }
+    }
+}
+
+/// Holds a collection of [DynamicObjectManager] by [TypeMetaNamespaced] to perform operations with objects known at runtime.
 /// [DynamicObjectManager] are initialized lazily when a method is called.
 /// [K8sError::MissingAPIResource] is returned if the manager init failure reason is that there is no such API Resource in the cluster.
 pub struct DynamicObjectManagers {
     client: kube::Client,
-    manager_by_type: Mutex<HashMap<TypeMeta, Arc<DynamicObjectManager>>>,
+    manager_by_type: Mutex<HashMap<TypeMetaNamespaced, Arc<DynamicObjectManager>>>,
     reflector_builder: ReflectorBuilder,
 }
 
@@ -209,40 +224,37 @@ impl DynamicObjectManagers {
         }
     }
 
-    /// Returns the manager for the provided [TypeMeta].
+    /// Returns the manager for the provided [TypeMetaNamespaced].
     ///
     /// If it does not exist it creates it and stores it.
     pub(super) async fn get_or_create(
         &self,
-        type_meta: &TypeMeta,
+        tmn: &TypeMetaNamespaced,
     ) -> Result<Arc<DynamicObjectManager>, K8sError> {
         // Return the manager if it is already initialized
         let mut managers_guard = self.manager_by_type.lock().await;
-        if let Some(manager) = managers_guard.get(type_meta) {
+        if let Some(manager) = managers_guard.get(tmn) {
             if manager.reflector.is_running() {
                 return Ok(manager.clone());
             }
             debug!(
                 "Removing and re-initializing dynamic object manager for type: {:?}",
-                type_meta
+                tmn
             );
-            managers_guard.remove(type_meta);
+            managers_guard.remove(tmn);
         }
         drop(managers_guard);
 
         // Create and store it otherwise
-        debug!(
-            "Initializing dynamic object manager for type: {:?}",
-            type_meta
-        );
+        debug!("Initializing dynamic object manager for type: {:?}", tmn);
 
         let dynamic_object_manager =
-            DynamicObjectManager::try_new(type_meta, self.client.clone(), &self.reflector_builder)
+            DynamicObjectManager::try_new(tmn, self.client.clone(), &self.reflector_builder)
                 .await?;
 
         let mut managers_guard = self.manager_by_type.lock().await;
         let manager = Arc::new(dynamic_object_manager);
-        managers_guard.insert(type_meta.clone(), manager.clone());
+        managers_guard.insert(tmn.clone(), manager.clone());
 
         Ok(manager)
     }

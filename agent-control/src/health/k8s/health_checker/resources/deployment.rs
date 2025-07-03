@@ -14,11 +14,12 @@ pub struct K8sHealthDeployment {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
     start_time: StartTime,
+    namespace: String,
 }
 
 impl HealthChecker for K8sHealthDeployment {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
-        let deployments = self.k8s_client.list_deployment();
+        let deployments = self.k8s_client.list_deployment(&self.namespace)?;
 
         let target_deployments = deployments
             .into_iter()
@@ -35,11 +36,13 @@ impl K8sHealthDeployment {
         k8s_client: Arc<SyncK8sClient>,
         release_name: String,
         start_time: StartTime,
+        namespace: String,
     ) -> Self {
         Self {
             k8s_client,
             release_name,
             start_time,
+            namespace,
         }
     }
 
@@ -87,6 +90,7 @@ impl K8sHealthDeployment {
 mod tests {
     use super::*;
     use crate::health::health_checker::Healthy;
+    use crate::health::k8s::health_checker::resources::daemon_set::tests::TEST_NAMESPACE;
     use crate::{health::k8s::health_checker::LABEL_RELEASE_FLUX, k8s::client::MockSyncK8sClient};
     use k8s_openapi::api::apps::v1::{
         Deployment, DeploymentSpec, DeploymentStatus, DeploymentStrategy, RollingUpdateDeployment,
@@ -369,13 +373,14 @@ mod tests {
                 k8s_client
                     .expect_list_deployment()
                     .times(1)
-                    .returning(move || self.deployments.clone());
+                    .returning(move |_| Ok(self.deployments.clone()));
 
                 let start_time = StartTime::now();
                 let health_checker = K8sHealthDeployment::new(
                     Arc::new(k8s_client),
                     "flux-release".to_string(),
                     start_time,
+                    TEST_NAMESPACE.to_string(),
                 );
                 let health = health_checker.check_health().unwrap_or_else(|_| {
                     panic!("Unexpected error getting health for test - {}", self.name)

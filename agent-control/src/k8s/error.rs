@@ -40,6 +40,9 @@ pub enum K8sError {
     #[error("while getting dynamic resource: {0}")]
     GetDynamic(String),
 
+    #[error("parsing dynamicObject into concrete Object: {0}, Kind: {1}")]
+    ParseDynamic(String, String),
+
     #[error("failed to parse yaml: {0}")]
     FailedToParseYaml(#[from] serde_yaml::Error),
 

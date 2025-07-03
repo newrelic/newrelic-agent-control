@@ -3,12 +3,15 @@ use super::tools::{
     test_crd::{Foo, FooSpec, create_foo_cr, foo_type_meta, get_dynamic_api_foo},
 };
 use crate::common::retry::retry;
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::test_crd::{
     build_dynamic_object, create_crd, delete_crd, get_foo_dynamic_object,
 };
 use assert_matches::assert_matches;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::api::apps::v1::{StatefulSet, StatefulSetSpec};
+use k8s_openapi::api::core::v1::PodTemplateSpec;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, ObjectMeta};
+use kube::api::PostParams;
 use kube::core::DynamicObject;
 use kube::{
     CustomResource,
@@ -16,16 +19,65 @@ use kube::{
 };
 use kube::{CustomResourceExt, ResourceExt};
 use newrelic_agent_control::k8s::Error::MissingAPIResource;
-use newrelic_agent_control::k8s::client::ClientConfig;
+use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
 use newrelic_agent_control::k8s::utils::get_type_meta;
 use newrelic_agent_control::k8s::{Error, client::AsyncK8sClient};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
 use std::time::Duration;
 
 const TEST_LABEL_KEY: &str = "key";
 const TEST_LABEL_VALUE: &str = "value";
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_create_statefulset_retrieve_dynamic_via_reflector_and_trasform_it_back() {
+    let mut test = block_on(K8sEnv::new());
+    let test_ns = block_on(test.test_namespace());
+
+    let api: Api<StatefulSet> = Api::<StatefulSet>::namespaced(test.client.clone(), &test_ns);
+
+    block_on(api.create(
+        &PostParams::default(),
+        &StatefulSet {
+            metadata: ObjectMeta {
+                name: Some("test-statefulset".to_string()),
+                namespace: Some(test_ns.clone()),
+                ..Default::default()
+            },
+            spec: Some(StatefulSetSpec {
+                service_name: Some("test-service".to_string()),
+                replicas: Some(1),
+                selector: LabelSelector {
+                    match_labels: Some([("app".to_string(), "test".to_string())].into()),
+                    ..Default::default()
+                },
+                template: PodTemplateSpec {
+                    metadata: Some(ObjectMeta {
+                        labels: Some([("app".to_string(), "test".to_string())].into()),
+                        ..Default::default()
+                    }),
+                    spec: None,
+                },
+                ..Default::default()
+            }),
+            status: None,
+        },
+    ))
+    .unwrap();
+
+    let k8s_client =
+        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+
+    retry(60, Duration::from_secs(1), || {
+        if k8s_client.list_stateful_set(&test_ns).unwrap().len() == 1 {
+            return Ok(());
+        }
+        Err("StatefulSet should exist after creation".into())
+    });
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs k8s cluster"]
@@ -64,28 +116,31 @@ fn k8s_manage_dynamic_resource_multiple_namespaces() {
     let tm = get_type_meta(&cr_1).unwrap();
 
     let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0, &test_ns_1);
 
     block_on(k8s_client.apply_dynamic_object(&cr_1)).unwrap();
     block_on(k8s_client.apply_dynamic_object(&cr_2)).unwrap();
 
     let k8s_client = block_on(AsyncK8sClient::try_new(&ClientConfig::new())).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_2);
 
     block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_2)).unwrap();
     // No object should be deleted in the first namespace
-    check_number_of_dynamic_objects(&k8s_client, &tm, 2);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 1, &test_ns_1);
 
     block_on(k8s_client.delete_dynamic_object(&tm, name_1, &test_ns_1)).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 1);
-
-    block_on(k8s_client.delete_dynamic_object(&tm, name_2, &test_ns_2)).unwrap();
-    check_number_of_dynamic_objects(&k8s_client, &tm, 0);
+    check_number_of_dynamic_objects(&k8s_client, &tm, 0, &test_ns_1);
 }
 
-fn check_number_of_dynamic_objects(k8s_client: &AsyncK8sClient, tm: &TypeMeta, number: usize) {
+fn check_number_of_dynamic_objects(
+    k8s_client: &AsyncK8sClient,
+    tm: &TypeMeta,
+    number: usize,
+    ns: &str,
+) {
     retry(60, Duration::from_secs(1), || {
-        if block_on(k8s_client.list_dynamic_objects_in_all_namespaces(tm))
+        if block_on(k8s_client.list_dynamic_objects(tm, ns))
             .unwrap()
             .len()
             == number
@@ -545,7 +600,7 @@ async fn k8s_dynamic_resource_missing_kind() {
     );
     assert_matches!(
         k8s_client
-            .list_dynamic_objects_in_all_namespaces(&type_meta)
+            .list_dynamic_objects(&type_meta, &test_ns)
             .await
             .unwrap_err(),
         Error::MissingAPIResource(_)

@@ -1,3 +1,4 @@
+use super::error::K8sError;
 use futures::StreamExt;
 use kube::{
     Api, Client,
@@ -9,13 +10,11 @@ use kube::{
         watcher,
     },
 };
-use std::{fmt::Debug, future::Future, time::Duration};
-
 use serde::de::DeserializeOwned;
+use std::sync::Arc;
+use std::{fmt::Debug, future::Future, time::Duration};
 use tokio::task::{AbortHandle, JoinHandle};
 use tracing::{debug, error, trace, warn};
-
-use super::{super::error::K8sError, resources::ResourceWithReflector};
 
 const REFLECTOR_START_TIMEOUT: Duration = Duration::from_secs(10);
 const REFLECTOR_START_MAX_ATTEMPTS: u32 = 3;
@@ -35,7 +34,7 @@ pub struct ReflectorBuilder {
 }
 
 impl ReflectorBuilder {
-    /// Returns a reflector builder, consuming both the provided client and the namespace.
+    /// Returns a reflector builder, consuming the provided client.
     pub fn new(client: Client) -> Self {
         ReflectorBuilder { client }
     }
@@ -50,14 +49,14 @@ impl ReflectorBuilder {
     /// Returns the newly built reflector or an error.
     pub async fn try_build_with_api_resource(
         &self,
+        ns: &str,
         api_resource: &ApiResource,
         stop_on_watcher_err: bool,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
         trace!("Building k8s reflector for {:?}", api_resource);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
-                Api::all_with(self.client.clone(), api_resource),
-                // TODO we are currently watching all resource, we should point to only object owned by agent control
+                Api::namespaced_with(self.client.clone(), ns, api_resource),
                 self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
                 || Writer::new(api_resource.clone()),
@@ -67,35 +66,6 @@ impl ReflectorBuilder {
         })
         .await
         .inspect_err(|err| error!(%err, "Failure building reflector for {:?}", api_resource))
-    }
-
-    /// Builds a reflector using the builder.
-    ///
-    /// # Type Parameters
-    /// * `K` - Kubernetes resource type implementing the required trait.
-    /// # Arguments
-    /// * `stop_on_watcher_err` - If true, the reflector will stop when the watcher fails.
-    ///
-    /// # Returns
-    /// Returns the newly built reflector or an error.
-    pub async fn try_build<K>(&self, stop_on_watcher_err: bool) -> Result<Reflector<K>, K8sError>
-    where
-        K: ResourceWithReflector,
-    {
-        trace!("Building k8s reflector for kind {}", K::KIND);
-        Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
-            Reflector::try_new(
-                Api::all(self.client.clone()),
-                // TODO we are currently watching all resource, we should point to only object owned by agent control
-                self.watcher_config(),
-                REFLECTOR_START_TIMEOUT,
-                Writer::default,
-                stop_on_watcher_err,
-            )
-            .await
-        })
-        .await
-        .inspect_err(|err| error!(%err, "Failure building reflector for kind {}", K::KIND))
     }
 
     /// Returns the watcher_config to use in reflectors
@@ -178,9 +148,8 @@ where
         )))
     }
 
-    /// Returns a clone of the internal store reader to access the cached Kubernetes objects.
-    pub fn reader(&self) -> reflector::Store<K> {
-        self.reader.clone()
+    pub fn list(&self) -> Vec<Arc<K>> {
+        self.reader.state()
     }
 
     pub fn is_running(&self) -> bool {

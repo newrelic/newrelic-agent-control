@@ -29,6 +29,8 @@ pub struct K8sGarbageCollector {
     pub k8s_client: Arc<SyncK8sClient>,
     /// The namespace where the Agent Control stores data via configMaps.
     pub namespace: String,
+    /// The namespace where agents are running. We are garbage collecting resources here only due to Instrumentation
+    pub namespace_agents: String,
     pub cr_type_meta: Vec<TypeMeta>,
 }
 
@@ -42,7 +44,8 @@ impl K8sGarbageCollector {
     ) -> Result<(), K8sGarbageCollectorError> {
         let mode = K8sGarbageCollectorMode::RetainConfig(&active_agents);
         self.garbage_collection_config_maps(&mode)?;
-        self.garbage_collection_dynamic_object(&mode)
+        self.garbage_collection_dynamic_object(&mode, &self.namespace_agents)?;
+        self.garbage_collection_dynamic_object(&mode, &self.namespace)
     }
 
     /// Garbage collect resources managed by AC associated to a certain
@@ -60,7 +63,8 @@ impl K8sGarbageCollector {
 
         let mode = K8sGarbageCollectorMode::Collect(id, agent_type_id);
         self.garbage_collection_config_maps(&mode)?;
-        self.garbage_collection_dynamic_object(&mode)
+        self.garbage_collection_dynamic_object(&mode, &self.namespace_agents)?;
+        self.garbage_collection_dynamic_object(&mode, &self.namespace)
     }
 
     pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
@@ -86,10 +90,11 @@ impl K8sGarbageCollector {
     fn garbage_collection_dynamic_object(
         &self,
         mode: &K8sGarbageCollectorMode,
+        namespace: &str,
     ) -> Result<(), K8sGarbageCollectorError> {
         // Delete dynamic resources depending on mode
         self.cr_type_meta.iter().try_for_each(|tm| {
-            match self.k8s_client.list_dynamic_objects_in_all_namespaces(tm) {
+            match self.k8s_client.list_dynamic_objects(tm, namespace) {
                 Ok(dyn_objs) => {
                     dyn_objs
                         .into_iter()
@@ -261,21 +266,21 @@ mod tests {
     use mockall::predicate;
 
     const TEST_NAMESPACE: &str = "test-namespace";
+    const TEST_NAMESPACE_AGENTS: &str = "test-namespace-agents";
 
     #[test]
     fn errors_if_ac_id() {
         let mut k8s_client = SyncK8sClient::default();
         // collect should return immediately on AC ID, and return with an error
         k8s_client.expect_delete_configmap_collection().never();
-        k8s_client
-            .expect_list_dynamic_objects_in_all_namespaces()
-            .never();
+        k8s_client.expect_list_dynamic_objects().never();
         k8s_client.expect_delete_dynamic_object().never();
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: Arc::new(k8s_client),
             cr_type_meta: vec![],
             namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
         let ac_id = &AgentID::new_agent_control_id();
         let ac_type_id =
@@ -297,18 +302,29 @@ mod tests {
             .once()
             .with(predicate::eq(TEST_NAMESPACE), predicate::eq("app.kubernetes.io/managed-by==newrelic-agent-control, newrelic.io/agent-id in (foo-agent)"))
             .returning(|_, _| Ok(()));
-
         k8s_client
-            .expect_list_dynamic_objects_in_all_namespaces()
+            .expect_list_dynamic_objects()
             .once()
-            .with(predicate::eq(type_meta.clone()))
-            .returning(|_| Ok(vec![]));
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE_AGENTS),
+            )
+            .returning(|_, _| Ok(vec![]));
+        k8s_client
+            .expect_list_dynamic_objects()
+            .once()
+            .with(
+                predicate::eq(type_meta.clone()),
+                predicate::eq(TEST_NAMESPACE),
+            )
+            .returning(|_, _| Ok(vec![]));
         k8s_client.expect_delete_dynamic_object().never();
 
         let garbage_collector = K8sGarbageCollector {
             k8s_client: Arc::new(k8s_client),
             cr_type_meta: vec![type_meta],
             namespace: TEST_NAMESPACE.to_string(),
+            namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
         let ac_id = &AgentID::new("foo-agent").unwrap();
         let agent_type_id = &AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();

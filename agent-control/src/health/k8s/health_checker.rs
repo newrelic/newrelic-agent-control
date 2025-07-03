@@ -3,7 +3,7 @@ use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::k8s::utils::{get_name, get_namespace, get_type_meta};
+use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_meta};
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
     daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
@@ -49,32 +49,38 @@ pub fn health_checkers_for_type_meta(
     k8s_client: Arc<SyncK8sClient>,
     name: String,
     namespace: String,
+    target_namespace: Option<String>,
     start_time: StartTime,
 ) -> Vec<K8sResourceHealthChecker> {
     // HelmRelease (Flux CR)
     if type_meta == helmrelease_v2_type_meta() {
+        let target_namespace = target_namespace.unwrap_or(namespace.clone());
+
         vec![
             K8sResourceHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                 k8s_client.clone(),
                 type_meta,
                 name.clone(),
-                namespace,
+                namespace.clone(),
                 start_time,
             )),
             K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
                 k8s_client.clone(),
                 name.clone(),
                 start_time,
+                target_namespace.clone(),
             )),
             K8sResourceHealthChecker::DaemonSet(K8sHealthDaemonSet::new(
                 k8s_client.clone(),
                 name.clone(),
                 start_time,
+                target_namespace.clone(),
             )),
             K8sResourceHealthChecker::Deployment(K8sHealthDeployment::new(
                 k8s_client.clone(),
                 name,
                 start_time,
+                target_namespace,
             )),
         ]
     // Instrumentation (Newrelic CR)
@@ -111,12 +117,14 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
 
             let name = get_name(resource)?;
             let namespace = get_namespace(resource)?;
+            let target_namespace = get_target_namespace(resource);
 
             let resource_health_checkers = health_checkers_for_type_meta(
                 type_meta,
                 k8s_client.clone(),
                 name,
                 namespace,
+                target_namespace,
                 start_time,
             );
 

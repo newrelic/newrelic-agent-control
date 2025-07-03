@@ -155,6 +155,14 @@ pub fn get_type_meta(obj: &DynamicObject) -> Result<TypeMeta, K8sError> {
     obj.types.clone().ok_or(K8sError::MissingResourceKind)
 }
 
+pub fn get_target_namespace(obj: &DynamicObject) -> Option<String> {
+    obj.data.get("spec").and_then(|spec| {
+        spec.get("targetNamespace")
+            // Passing through the str is needed to avoid quotes
+            .map(|v| v.as_str().unwrap_or_default().to_string())
+    })
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;

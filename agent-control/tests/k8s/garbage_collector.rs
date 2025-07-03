@@ -166,6 +166,7 @@ agents:
     let gc = K8sGarbageCollector {
         k8s_client,
         namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
         cr_type_meta: vec![
             foo_type_meta(),
             TypeMeta {
@@ -243,6 +244,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
             SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
         ),
         namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
         cr_type_meta: vec![missing_kind, foo_type_meta()],
     };
 
@@ -285,6 +287,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let gc = K8sGarbageCollector {
         k8s_client,
         namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
         cr_type_meta: default_group_version_kinds(),
     };
 
@@ -366,6 +369,7 @@ agents:
             SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
         ),
         namespace: test_ns.clone(),
+        namespace_agents: test_ns.clone(),
         cr_type_meta: vec![foo_type_meta()],
     };
 

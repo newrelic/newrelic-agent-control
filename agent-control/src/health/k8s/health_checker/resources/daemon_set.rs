@@ -17,11 +17,12 @@ pub struct K8sHealthDaemonSet {
     k8s_client: Arc<SyncK8sClient>,
     release_name: String,
     start_time: StartTime,
+    namespace: String,
 }
 
 impl HealthChecker for K8sHealthDaemonSet {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
-        let daemon_sets = self.k8s_client.list_daemon_set();
+        let daemon_sets = self.k8s_client.list_daemon_set(&self.namespace)?;
 
         let target_daemon_sets = daemon_sets
             .into_iter()
@@ -38,11 +39,13 @@ impl K8sHealthDaemonSet {
         k8s_client: Arc<SyncK8sClient>,
         release_name: String,
         start_time: StartTime,
+        namespace: String,
     ) -> Self {
         Self {
             k8s_client,
             release_name,
             start_time,
+            namespace,
         }
     }
 
@@ -139,6 +142,7 @@ pub mod tests {
         api::apps::v1::{DaemonSetSpec, DaemonSetStatus},
         apimachinery::pkg::apis::meta::v1::ObjectMeta,
     };
+    pub const TEST_NAMESPACE: &str = "test-namespace";
 
     const TEST_DAEMON_SET_NAME: &str = "test";
 
@@ -415,17 +419,21 @@ pub mod tests {
         k8s_client
             .expect_list_daemon_set()
             .times(1)
-            .returning(move || {
-                vec![
+            .returning(move |_| {
+                Ok(vec![
                     Arc::new(healthy_matching.clone()),
                     Arc::new(unhealthy_matching.clone()),
-                ]
+                ])
             });
 
         let start_time = StartTime::now();
 
-        let health_checker =
-            K8sHealthDaemonSet::new(Arc::new(k8s_client), release_name.to_string(), start_time);
+        let health_checker = K8sHealthDaemonSet::new(
+            Arc::new(k8s_client),
+            release_name.to_string(),
+            start_time,
+            TEST_NAMESPACE.to_string(),
+        );
         let health = health_checker.check_health().unwrap();
 
         assert_eq!(
