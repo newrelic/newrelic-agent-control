@@ -12,6 +12,8 @@ agent-control-deployment:
           name: "sys-identity"
     agentControl:
       content:
+        k8s:
+          namespace_agents: newrelic-agents
         log:
           level: debug
     subAgents:

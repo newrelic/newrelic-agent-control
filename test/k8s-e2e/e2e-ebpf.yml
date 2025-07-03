@@ -8,7 +8,7 @@ scenarios:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-ebpf.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
-      - kubectl logs -l app.kubernetes.io/instance=ebpf --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=ebpf --all-containers --prefix=true -n newrelic-agents
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
       - kubectl get helmrelease
