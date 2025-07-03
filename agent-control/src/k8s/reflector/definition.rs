@@ -34,7 +34,7 @@ pub struct ReflectorBuilder {
 }
 
 impl ReflectorBuilder {
-    /// Returns a reflector builder, consuming both the provided client and the namespace.
+    /// Returns a reflector builder, consuming the provided client.
     pub fn new(client: Client) -> Self {
         ReflectorBuilder { client }
     }

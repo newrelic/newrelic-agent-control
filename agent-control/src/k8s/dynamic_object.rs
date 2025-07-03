@@ -67,7 +67,7 @@ impl DynamicObjectManager {
     }
 
     /// Returns the list of [DynamicObject].
-    pub fn list_in_all_namespaces(&self) -> Vec<Arc<DynamicObject>> {
+    pub fn list(&self) -> Vec<Arc<DynamicObject>> {
         self.reflector.list()
     }
 
@@ -190,7 +190,7 @@ impl DynamicObjectManager {
     }
 }
 
-/// TypeMetaNamespaced is used as a key in the [DynamicObjectManagers] map to identify a TypeMeta in a particlar namespace.
+/// TypeMetaNamespaced is used as a key in the [DynamicObjectManagers] map to identify a TypeMeta in a particular namespace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TypeMetaNamespaced {
     type_meta: TypeMeta,

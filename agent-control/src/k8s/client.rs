@@ -408,7 +408,7 @@ impl AsyncK8sClient {
         self.dynamic_object_managers
             .get_or_create(&TypeMetaNamespaced::new(tm, ns))
             .await?
-            .list_in_all_namespaces()
+            .list()
             .iter()
             .map(|d| {
                 Arc::unwrap_or_clone(d.clone())
@@ -504,14 +504,14 @@ impl AsyncK8sClient {
             .dynamic_object_managers
             .get_or_create(tmn)
             .await?
-            .list_in_all_namespaces())
+            .list())
     }
 
     pub async fn has_dynamic_object_changed(&self, obj: &DynamicObject) -> Result<bool, K8sError> {
         let tmn = &TypeMetaNamespaced::new(&get_type_meta(obj)?, &get_namespace(obj)?);
 
         self.dynamic_object_managers
-            .get_or_create(&tmn)
+            .get_or_create(tmn)
             .await?
             .has_changed(obj)
     }
@@ -559,10 +559,7 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-
-    use crate::k8s::reflector::definition::Reflector;
     use http::Uri;
-    use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
     use k8s_openapi::serde_json;
     use kube::Client;
     use tower_test::mock;
@@ -609,7 +606,6 @@ pub(crate) mod tests {
     struct ApiServerVerifier(ApiServerHandle);
 
     pub(crate) enum Scenario {
-        APIResource,
         FirstDeploymentRequestError,
     }
 
@@ -617,10 +613,6 @@ pub(crate) mod tests {
         fn run(mut self, scenario: Scenario) -> tokio::task::JoinHandle<()> {
             tokio::spawn(async move {
                 match scenario {
-                    Scenario::APIResource => loop {
-                        let (read, send) = self.0.next_request().await.expect("service not called");
-                        Self::send_expected_response(read, send);
-                    },
                     Scenario::FirstDeploymentRequestError => {
                         let mut first_deployments_request = true;
                         loop {
