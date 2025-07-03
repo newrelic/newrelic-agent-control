@@ -151,5 +151,5 @@ The `k8s` configuration field applies for k8s environments only and are automati
 k8s:
   cluster_name: "some-cluster-name" # Required, used to identify the cluster in Fleet Control.
   namespace: "default" # Required, namespace where all resources managed by Agent Control will be created.
-  chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control.
+  current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control.
 ```

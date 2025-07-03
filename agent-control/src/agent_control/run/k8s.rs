@@ -189,7 +189,7 @@ impl AgentControlRunner {
         let k8s_ac_updater = K8sACUpdater::new(
             k8s_client,
             self.k8s_config.namespace.clone(),
-            self.k8s_config.chart_version.clone(),
+            self.k8s_config.current_chart_version.clone(),
         );
 
         AgentControl::new(
@@ -242,12 +242,12 @@ fn agent_control_additional_opamp_identifying_attributes(
         DescriptionValueType::String(AGENT_CONTROL_VERSION.to_string()),
     )]);
 
-    if k8s_config.chart_version.is_empty() {
+    if k8s_config.current_chart_version.is_empty() {
         warn!("Agent Control chart version was not set, it will not be reported");
         return attributes;
     }
 
-    let chart_version = k8s_config.chart_version.to_string();
+    let chart_version = k8s_config.current_chart_version.to_string();
 
     attributes.insert(
         OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
@@ -277,7 +277,7 @@ mod tests {
     #[test]
     fn test_agent_control_additional_opamp_identifying_attributes_chart_version_set() {
         let k8s_config = K8sConfig {
-            chart_version: "1.2.3".to_string(),
+            current_chart_version: "1.2.3".to_string(),
             ..Default::default()
         };
         let expected = HashMap::from([

@@ -8,5 +8,5 @@ k8s:
   namespace: <ns>
   namespace_agents: <ns>
   cluster_name: <cluster-name>
-  chart_version: 1.2.3-beta
+  current_chart_version: 1.2.3-beta
 agents: {}
