@@ -16,10 +16,8 @@ pub struct AgentIdentity {
 
 impl AgentIdentity {
     pub fn new_agent_control_identity() -> Self {
-        let ac_agent_type_id = format!(
-            "{}/{}:{}",
-            AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION
-        );
+        let ac_agent_type_id =
+            format!("{AGENT_CONTROL_NAMESPACE}/{AGENT_CONTROL_TYPE}:{AGENT_CONTROL_VERSION}");
         Self::from((
             AgentID::new_agent_control_id(),
             // This is a safe unwrap because we are creating the AgentTypeID from a string that we know is valid.

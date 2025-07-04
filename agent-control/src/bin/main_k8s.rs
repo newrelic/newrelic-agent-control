@@ -20,7 +20,7 @@ const AGENT_CONTROL_MODE: Environment = Environment::K8s;
 
 fn main() -> ExitCode {
     let Ok(command) = Flags::init(AGENT_CONTROL_MODE)
-        .inspect_err(|init_err| println!("Error parsing Flags: {}", init_err))
+        .inspect_err(|init_err| println!("Error parsing Flags: {init_err}"))
     else {
         return ExitCode::FAILURE;
     };

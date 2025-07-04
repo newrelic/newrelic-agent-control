@@ -34,16 +34,13 @@ pub fn spawn_pod_logger(client: Client, namespace: String, pod_name: String) {
             match block_on(pods.log_stream(&pod_name, &log_params)) {
                 Ok(stream) => break stream.lines(),
                 Err(err) => {
-                    println!(
-                        "Failed to get log stream for pod {}: {}. Retrying...",
-                        pod_name, err
-                    );
+                    println!("Failed to get log stream for pod {pod_name}: {err}. Retrying...");
                     std::thread::sleep(Duration::from_secs(1));
                 }
             }
         };
         while let Some(Ok(line)) = block_on(lines_stream.next()) {
-            println!("{} {}", pod_name, line);
+            println!("{pod_name} {line}");
         }
     });
 }

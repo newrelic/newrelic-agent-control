@@ -103,7 +103,7 @@ where
         let values_result = self.file_rw.read(path.as_path());
         match values_result {
             Err(FileReaderError::FileNotFound(e)) => {
-                trace!("file not found! {}", e);
+                trace!("file not found! {e}");
                 //actively fallback to load local file
                 Ok(None)
             }

@@ -125,7 +125,7 @@ impl K8sHealthFluxHelmRelease {
                             .get("message")
                             .and_then(Value::as_str)
                             .unwrap_or("No specific message found");
-                        (false, format!("HelmRelease not ready: {}", message))
+                        (false, format!("HelmRelease not ready: {message}"))
                     }
                     _ => (false, "HelmRelease status unknown or missing".to_string()),
                 }
@@ -285,7 +285,7 @@ pub mod tests {
                 }
                 Err(expected_err) => {
                     let result_err = result.unwrap_err();
-                    assert_eq!(result_err.to_string(), expected_err.to_string(), "{}", name);
+                    assert_eq!(result_err.to_string(), expected_err.to_string(), "{name}");
                 }
             }
         }

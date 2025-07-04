@@ -68,8 +68,7 @@ impl K8sHealthStatefulSet {
 
         if replicas != ready_replicas {
             return Ok(Unhealthy::new(format!(
-                "StatefulSet `{}` not ready: replicas `{}` different from ready_replicas `{}`",
-                name, replicas, ready_replicas,
+                "StatefulSet `{name}` not ready: replicas `{replicas}` different from ready_replicas `{ready_replicas}`",
             ))
             .into());
         }
@@ -128,10 +127,10 @@ mod tests {
                 let (name, sts, expected) = (self.name, self.sts, self.expected);
                 let result = K8sHealthStatefulSet::stateful_set_health(&sts)
                     .inspect_err(|err| {
-                        panic!("Unexpected error getting health: {} - {}", err, name);
+                        panic!("Unexpected error getting health: {err} - {name}");
                     })
                     .unwrap();
-                assert_eq!(expected, result, "{}", name);
+                assert_eq!(expected, result, "{name}");
             }
         }
 

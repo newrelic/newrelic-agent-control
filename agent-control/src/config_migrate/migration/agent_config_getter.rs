@@ -46,7 +46,7 @@ where
             .map(|at| format!(", <{}", at.version()))
             .unwrap_or_default();
         let version_req =
-            VersionReq::parse(format!("{}{}", version_req_min, version_req_max).as_str())?;
+            VersionReq::parse(format!("{version_req_min}{version_req_max}").as_str())?;
 
         for agent in agent_control_dynamic_config.agents.clone() {
             if agent.1.agent_type.namespace() != agent_type_namespace

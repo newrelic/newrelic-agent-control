@@ -157,7 +157,7 @@ fn k8s_value_repository_config_map() {
         test_ns.as_str(),
         test_ns.as_str(),
         "k8s_value_repository_config_map",
-        format!("local-data-{}", AGENT_ID_1).as_str(),
+        format!("local-data-{AGENT_ID_1}").as_str(),
     ));
     let local_values = YAMLConfig::try_from("test: 1".to_string()).unwrap();
     let res = value_repository
@@ -344,7 +344,7 @@ fn k8s_multiple_store_entries() {
 }
 
 fn assert_agent_cm(cm_client: &Api<ConfigMap>, agent_id: &AgentID, store_key: &StoreKey) {
-    let cm_name = format!("{}{}", CM_NAME_OPAMP_DATA_PREFIX, agent_id);
+    let cm_name = format!("{CM_NAME_OPAMP_DATA_PREFIX}{agent_id}");
     let cm = block_on(cm_client.get(&cm_name));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();

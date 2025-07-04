@@ -30,11 +30,10 @@ pub fn parse_key_value_pairs(data: &str) -> BTreeMap<String, String> {
     let pairs = data.split(',');
     let key_values = pairs.map(|pair| pair.split_once('='));
     let valid_key_values = key_values.flatten();
-    let parsed_key_values = valid_key_values
-        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
-        .collect();
 
-    parsed_key_values
+    valid_key_values
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect()
 }
 
 pub fn try_new_k8s_client() -> Result<SyncK8sClient, CliError> {

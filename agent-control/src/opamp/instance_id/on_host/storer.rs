@@ -281,7 +281,7 @@ mod tests {
                 p == instance_id_path.as_path()
             }))
             .once()
-            .return_once(|_| Err(io::Error::new(ErrorKind::Other, "some error message").into()));
+            .return_once(|_| Err(io::Error::other("some error message").into()));
 
         let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
         let expected = storer.get(&agent_id);
@@ -309,8 +309,7 @@ mod tests {
 
     fn expected_file(instance_id: InstanceID) -> String {
         format!(
-            "instance_id: {}\nidentifiers:\n  hostname: {}\n  machine_id: {}\n  cloud_instance_id: {}\n  host_id: {}\n  fleet_id: {}\n",
-            instance_id, HOSTNAME, MICHINE_ID, CLOUD_INSTANCE_ID, HOST_ID, FLEET_ID,
+            "instance_id: {instance_id}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MICHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n",
         )
     }
 

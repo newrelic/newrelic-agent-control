@@ -63,15 +63,13 @@ impl TryFrom<YAMLConfig> for AgentControlEffectiveConfig {
         tracing::debug!("Get effective config: {value:?}");
         let config_string: String = value.try_into().map_err(|err| {
             AgentControlEffectiveConfigError::Conversion(format!(
-                "converting effective config from stored values: {}",
-                err
+                "converting effective config from stored values: {err}"
             ))
         })?;
 
         let effective_config = serde_yaml::from_str(&config_string).map_err(|err| {
             AgentControlEffectiveConfigError::Conversion(format!(
-                "converting effective config: {}",
-                err
+                "converting effective config: {err}"
             ))
         })?;
 

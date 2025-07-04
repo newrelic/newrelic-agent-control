@@ -85,7 +85,7 @@ where
             Err(err) => {
                 // the hash must be created to keep track of the failing remote config.
                 state = ConfigState::Failed {
-                    error_message: format!("Invalid hash: {}", err),
+                    error_message: format!("Invalid hash: {err}"),
                 };
                 Hash::default()
             }
@@ -96,7 +96,7 @@ where
                 .try_into()
                 .inspect_err(|err: &OpampRemoteConfigError| {
                     state = ConfigState::Failed {
-                        error_message: format!("Invalid remote config format: {}", err),
+                        error_message: format!("Invalid remote config format: {err}"),
                     };
                 })
                 .ok(),
@@ -116,11 +116,11 @@ where
                     },
                     SignatureError::InvalidData(err) => {
                         error!(%self.agent_id, %err, "parsing config signature message: {:?}", custom_message);
-                        state = ConfigState::Failed { error_message: format!("Invalid remote config signature format: {}", err) };
+                        state = ConfigState::Failed { error_message: format!("Invalid remote config signature format: {err}") };
                     },
                     SignatureError::UnsupportedAlgorithm(err) => {
                         error!(%self.agent_id, %err, "unsupported signature algorithm: {:?}", custom_message);
-                        state = ConfigState::Failed { error_message: format!("Unsupported signature algorithm: {}", err) };
+                        state = ConfigState::Failed { error_message: format!("Unsupported signature algorithm: {err}") };
                     }
                 }).ok()
             );

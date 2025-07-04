@@ -134,11 +134,9 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
                 }),
             })
         {
-            return Err(format!(
-                "new version has not been reported: {:?}",
-                current_attributes
-            )
-            .into());
+            return Err(
+                format!("new version has not been reported: {current_attributes:?}").into(),
+            );
         }
 
         check_latest_effective_config_is_expected(

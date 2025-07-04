@@ -366,10 +366,8 @@ where
         ) {
             // Remote config partially applied, the config was stored so it needs to be updated to fail state.
             Err(AgentError::BuildingSubagents(err)) => {
-                let error_message = format!(
-                    "Error applying Agent Control remote config for some agents: {}",
-                    err
-                );
+                let error_message =
+                    format!("Error applying Agent Control remote config for some agents: {err}");
                 let config_state = ConfigState::Failed { error_message };
                 self.sa_dynamic_config_store
                     .update_state(config_state.clone())?;
@@ -379,7 +377,7 @@ where
             }
             // Remote config failed to apply, the config was not stored.
             Err(err) => {
-                let error_message = format!("Error applying Agent Control remote config: {}", err);
+                let error_message = format!("Error applying Agent Control remote config: {err}");
                 let config_state = ConfigState::Failed { error_message };
                 report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 Err(err)

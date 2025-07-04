@@ -43,8 +43,7 @@ fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, Version
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
         )),
         _ => Err(VersionCheckError::Generic(format!(
-            "no match found for agent type: {}",
-            agent_type_id
+            "no match found for agent type: {agent_type_id}"
         ))),
     }
 }

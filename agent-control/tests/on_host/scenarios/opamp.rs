@@ -115,9 +115,8 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         r#"
 agents:
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     // When a new config with an agent is received from OpAMP
@@ -130,9 +129,8 @@ agents:
     let expected_config = format!(
         r#"agents:
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
     let expected_config_parsed =
         serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
@@ -144,8 +142,7 @@ agents:
         let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
         if content_parsed.config != expected_config_parsed {
             return Err(format!(
-                "Agent Control config not as expected, Expected: {:?}, Found: {:?}",
-                expected_config, remote_config,
+                "Agent Control config not as expected, Expected: {expected_config:?}, Found: {remote_config:?}",
             )
             .into());
         }
@@ -223,8 +220,7 @@ non-existing: {}
                 std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
             if !remote_config.contains(expected_containing) {
                 return Err(format!(
-                    "Agent Control config not as expected, Expected containing: {:?}, Config Found: {:?}",
-                    expected_containing, remote_config,
+                    "Agent Control config not as expected, Expected containing: {expected_containing:?}, Config Found: {remote_config:?}",
                 )
                 .into());
             }
@@ -270,9 +266,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     let agents = format!(
         r#"
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     create_agent_control_config(
@@ -347,9 +342,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     let agents = format!(
         r#"
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     create_agent_control_config(
@@ -370,10 +364,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     // And the custom-agent has also remote config values
     let remote_values_config_body = "fake_variable: from remote\n";
-    let remote_values_config = format!(
-        "config:\n  {}hash: hash-test\nstate: applying\n",
-        remote_values_config_body
-    );
+    let remote_values_config =
+        format!("config:\n  {remote_values_config_body}hash: hash-test\nstate: applying\n");
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
@@ -423,9 +415,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     let agents = format!(
         r#"
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     create_agent_control_config(
@@ -496,9 +487,8 @@ fn onhost_executable_less_reports_local_effective_config() {
         r#"
 agents:
   no-executables:
-    agent_type: "{}"
-"#,
-        agent_type_wo_exec
+    agent_type: "{agent_type_wo_exec}"
+"#
     );
 
     create_agent_control_config(

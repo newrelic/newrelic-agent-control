@@ -206,7 +206,7 @@ where
         Ok(tokio::time::timeout(timeout, reader.wait_until_ready())
             .await
             .map_err(|_| {
-                K8sError::ReflectorTimeout(format!("reader not ready after {:?}", timeout))
+                K8sError::ReflectorTimeout(format!("reader not ready after {timeout:?}"))
             })??)
     }
 }
@@ -282,7 +282,7 @@ mod tests {
         let timeout = Duration::from_millis(50);
         let result = Reflector::wait_until_reader_is_ready(&reader, timeout).await;
         assert_matches!(result.unwrap_err(), K8sError::ReflectorTimeout(s) => {
-            s.contains(format!("{:?}", timeout).as_str());
+            s.contains(format!("{timeout:?}").as_str());
         });
     }
 
@@ -326,8 +326,7 @@ mod tests {
         assert_eq!(
             receiver.len(),
             max_attempts as usize,
-            "The builder is expected to be called {} times",
-            max_attempts
+            "The builder is expected to be called {max_attempts} times"
         )
     }
 
