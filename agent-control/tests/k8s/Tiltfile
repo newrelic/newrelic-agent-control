@@ -97,15 +97,37 @@ helm_resource(
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
 feature_branch = "feat/splitNamespace"
 
-git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
+git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts', unsafe_mode=True)
+
+# We create the version 0.0.1 with the remote image so we can test upgrading to the newest local one.
 local_resource(
-    'package-and-upload-charts',
-    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+    'package-and-upload-remote-chart',
+    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['chartmuseum'],
+)
+
+# We are doing 2 checkouts, the previous in local/helm-charts and this one in local/helm-charts-tmp because the modification
+# done bellow is computed by Tilt before pushing the local_resource so version 0.0.1 image would also be changed.
+git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
+
+# For the other 2 versions we are replacing the default image to tilt.local/ac-dev:dev to use the local code.
+# The reason to modify the defaults and not do this by the values is because we don't expose the values to be modified
+# by the remote_config but we neeed to test upgrading from remote image to local in some tests.
+
+local('yq eval ".image.repository = \\"tilt.local/ac-dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml')
+local('yq eval ".image.tag = \\"dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml')
+
+local_resource(
+    'package-and-upload-local-charts',
+    cmd="""helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.3" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
-     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.3 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/agent-control-deployment-0.0.3.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['chartmuseum'],
 )
