@@ -120,7 +120,7 @@ These instructions can be dynamically *rendered* using as inputs the **values** 
 - `nr-var`: a variable exposed as in the previous section. If you defined a variable called `configs.some_toggle` then you can reference it inside the `deployment` section as `${nr-var:configs.some_toggle}`.
 - `nr-env`: environment variables. So, if AC started running with an env var called `MY_ENV` defined, it can be used inside the `deployment` section with `${nr-env:MY_ENV}`.
 - `nr-sub`: metadata variables related to the current workload populated automatically by AC. As of now, only the variable `agent_id` is exposed, which is a unique, human-friendly identifier of the current workload.
-- `nr-ac`: global metadata used by AC. As of now, this is used only for on-host and contains the variable `host_id`, which will contain an identifier calculated from retrieved information about the host such as the hostname or cloud-related data (if available).
+- `nr-ac`: global metadata used by AC (see [Global metadata list](#global-metadata-list)).
 
 When talking about the variables that were defined in the `variables` field for an agent type definition, that can be used as local or received as remote configuration for an agent type instance, we will often use the term configuration values or just **values**.
 
@@ -191,7 +191,10 @@ deployment:
         kind: HelmRelease
         metadata:
           name: ${nr-sub:agent_id}
+          namespace: ${nr-ac:namespace}
         spec:
+          targetNamespace: ${nr-ac:namespace_agents}
+          releaseName: ${nr-sub:agent_id}
           interval: 3m
           # ... omitted for brevity
           values:
@@ -201,6 +204,21 @@ deployment:
             nri-kube-events: ${nr-var:chart_values.nri-kube-events}
             global: ${nr-var:chart_values.global}
 ```
+
+##### Global metadata list
+
+We have some global metadata available both for on-host and k8s. Be aware that the metadata are different.
+
+For **on-host**, we have:
+
+* `host_id`: contains an identifier calculated from the retrieved information about the host, such as the hostname or cloud-related data (when available).
+
+For **k8s**, we have:
+
+* `namespace`: the namespace where Agent Control and Flux will be installed.
+* `namespace_agents`: the namespace where sub-agents will be installed. Due to external limitations, Instrumentation CRs are installed in this namespace too.
+
+> **Note:** These two namespaces are intentionally separated. One contains Flux and Agent Control. The other contains sub-agents. The latter also contains Instrumentation CRs because of a current external limitation.
 
 #### On-host deployment definition
 
@@ -244,6 +262,15 @@ Enables periodically checking the health of the sub-agent. See [Health status](#
 
 If no health configuration is defined, AC will use the exceeding of the restart policy (if also defined) to determine if the sub-agent should be labelled as unhealthy.
 
+#### Kubernetes namespace usage
+
+Agent Control in Kubernetes uses two distinct namespaces for resource management:
+
+- **Agent Control namespace (`namespace`)**: This is where Agent Control, Flux, and their supporting resources are installed and managed.
+- **Agents namespace (`namespace_agents`)**: This is dedicated to sub-agents and their managed resources (such as Instrumentation CRs). Ideally, Instrumentation CRs should be on the Agent Control namespace, but due to a current external limitation, it must go in the agents namespace.
+
+This separation makes it more secure. That way, agents can't use Flux or Agent Control Service Accounts with cluster admin privileges. When defining agent types or configuring deployments, ensure that resources are created in the correct namespace. The variables `${nr-ac:namespace}` and `${nr-ac:namespace_agents}` are available for templating these values in your agent type definitions.
+
 #### Kubernetes deployment definition
 
 The following fields are used for configuring the Kubernetes deployment of a sub-agent.
@@ -262,14 +289,16 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
 - `kind`, a string.
 - `metadata`: Accepting the following:
   - `name`, a string.
+  - `namespace`, a string.
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
+  - `targetNamespace`, a string. Relevant for installing the sub-agent in the agents namespace.
 
 [Flux](https://fluxcd.io) is expected to be installed in the cluster to manage Flux resources.
 
 ## Applying configurations
 
-Either the first time it runs, using static configs or when already running and receiving remote configuration values from FC, AC will create an internal entity called a *supervisor* for each of the declared sub-agents. Each of these supervisors have the following responsibilities:
+The first time it runs, whether it's using static configs or when already running and receiving remote configuration values from FC, AC will create an internal entity called a *supervisor* for each of the declared sub-agents. Each of these supervisors have the following responsibilities:
 
 1. Retrieve the configuration available for it, either locally or by listening for remote if FC is enabled.
 2. Attempt to assemble the actual, effective config that the sub-agent will have.
@@ -454,14 +483,14 @@ The APM use case for Kubernetes is supported by using some additional components
 
 Normally, the Kubernetes operator will intercept API requests for deploying pods onto nodes and, depending on the configuration specified, adds the appropriate language agent to the application via an [init container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/). This is achieved by the operator creating the Instrumentation Custom Resource Definition (CRD), so it is later possible to [create Instrumentation resources](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/#configure-auto-instrumentation) configured to match application pods via pod label selectors. After these Instrumentation resources are created, the operator will inject the init container for the new pods matching these labels.
 
-When used alongside AC, the operator will also inject a sidecar container alongside each application pod. This sidecar has the role of retrieving the health status using a similar method to the file-based health check approach for on-host:
+When used with AC, the operator will also inject a sidecar container next to each application pod. This sidecar has the role of retrieving the health status using a similar method to the file-based health check approach for on-host:
 
 1. The language agents inside the application pods will write the health file (or files) into the file system.
 2. The sidecar will read these files and expose their contents as an HTTP endpoint. If it reads many files, it will coalesce their information into a single health output.
 3. The Kubernetes operator will fetch the health information from the sidecars and will update the Instrumentation CR's status with the value of this health.
 4. The health inside the Instrumentation CR is read periodically by AC, as exposed above when discussing health in Kubernetes on [Instrumentation CR](#instrumentation-cr), and then reported to FC.
 
-So, to support APM use cases with AC, we can define an agent type that specifies an Instrumentation CRs appropriate for the language. Ensuring that this agent type instance is deployed alongside a single instance for the Kubernetes operator (also an agent type deployable with AC), the auto-instrumentation of applications and the health reporting will work.
+So, to support APM use cases with AC, we can define an agent type that specifies an Instrumentation CR appropriate for the language. Ensuring that this agent type instance is deployed alongside a single instance for the Kubernetes operator (also an agent type deployable with AC), the auto-instrumentation of applications and the health reporting will work.
 
 As the Instrumentation CR also enables [configuring the APM agents](https://docs.newrelic.com/docs/kubernetes-pixie/kubernetes-integration/installation/k8s-agent-operator/#apm-config-parameters), pushing remote configurations from FC is also possible.
 
