@@ -1120,6 +1120,13 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
+## io-uring <https://crates.io/crates/io-uring>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## ipnet <https://crates.io/crates/ipnet>
 
 Distributed under the following license(s):
