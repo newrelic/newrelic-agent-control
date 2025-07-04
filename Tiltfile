@@ -55,7 +55,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'rename/config'
+feature_branch = 'feat/splitNamespace'
 git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
 #### Set-up charts

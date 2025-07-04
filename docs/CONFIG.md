@@ -153,3 +153,7 @@ k8s:
   namespace: "default" # Required, namespace where all resources managed by Agent Control will be created.
   current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control.
 ```
+
+Notice that current_chart_version is passed to the agent control via Environment Variable to avoid race conditions.
+If set via config, after a failed upgrade we could have the "old" pod loading the new config and reading the new chart version, while the image is still the old one.
+
