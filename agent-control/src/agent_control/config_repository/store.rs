@@ -162,16 +162,23 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
-    use crate::agent_control::config::SubAgentConfig;
+    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::config::{
+        AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
+    };
+    use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
+    use crate::agent_control::config_repository::store::AgentControlConfigStore;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::values::config_repository::ConfigRepository;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
-    use serial_test::serial;
+    use serial_test::{parallel, serial};
     use std::collections::HashMap;
     use std::env;
+    use std::sync::Arc;
 
     #[test]
+    #[parallel]
     fn load_local_config_with_empty_remote() {
         let config_repository = InMemoryConfigRepository::default();
 
@@ -197,6 +204,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[parallel]
     fn load_remote_overrides_dynamic_values_from_local() {
         let config_repository = InMemoryConfigRepository::default();
 
@@ -334,6 +342,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[parallel]
     fn load_local_sanitized_values() {
         let config_repository = InMemoryConfigRepository::default();
 
