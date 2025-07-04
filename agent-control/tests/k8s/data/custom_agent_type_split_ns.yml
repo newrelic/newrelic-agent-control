@@ -3,11 +3,11 @@ name: com.newrelic.custom_agent
 version: 0.0.1
 variables:
   k8s:
-    secret_name_override:
-      description: "secret_name_override"
-      type: string
+    chart_values:
+      description: "chart_values"
+      type: yaml
       required: false
-      default: ""
+      default: { }
 deployment:
   k8s:
     health:
@@ -20,7 +20,8 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
-          interval: 30m
+          # we don't want to trigger this in the test to avoid extra load in the cluster
+          interval: 99m
           provider: generic
           url: https://helm.github.io/examples
       default-values:
@@ -31,7 +32,7 @@ deployment:
           namespace: ${nr-ac:namespace}
         stringData:
           values.yaml: |
-            nameOverride: ${nr-var:secret_name_override}
+            ${nr-var:chart_values}
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -39,7 +40,10 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
-          interval: 3m
+          # until we address https://new-relic.atlassian.net/browse/NR-435351
+          interval: 10s
+          targetNamespace: ${nr-ac:namespace_agents}
+          releaseName: ${nr-sub:agent_id}
           chart:
             spec:
               chart: hello-world
@@ -48,18 +52,11 @@ deployment:
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
-              interval: 3m
           install:
             disableWait: true
-            disableWaitForJobs: true
-            remediation:
-              retries: 3
-            replace: true
+            createNamespace: true
           upgrade:
             disableWait: true
-            disableWaitForJobs: true
-            cleanupOnFail: true
-            force: true
           valuesFrom:
             - kind: Secret
               name: default-values-${nr-sub:agent_id}

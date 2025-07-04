@@ -6,7 +6,7 @@ fleet_control:
     certificate_pem_file_path: <cert-path>
 k8s:
   namespace: <ns>
-  namespace_agents: <ns>
+  namespace_agents: <agents-ns>
   cluster_name: <cluster-name>
 agents:
   hello-world:

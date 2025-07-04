@@ -20,7 +20,8 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
-          interval: 30m
+          # we don't want to trigger this in the test to avoid extra load in the cluster
+          interval: 99m
           provider: generic
           url: https://helm.github.io/examples
       release:
@@ -30,7 +31,8 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
-          interval: 3m
+          # we don't want to trigger this in the test to avoid extra load in the cluster
+          interval: 99m
           chart:
             spec:
               chart: hello-world
@@ -39,23 +41,10 @@ deployment:
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
-              interval: 3m
+                namespace: ${nr-ac:namespace}
           install:
             disableWait: true
-            disableWaitForJobs: true
-            remediation:
-              retries: 3
-            replace: true
           upgrade:
             disableWait: true
-            disableWaitForJobs: true
-            cleanupOnFail: true
-            force: true
-            remediation:
-              retries: 3
-              strategy: rollback
-          rollback:
-            disableWait: true
-            disableWaitForJobs: true
           values:
             ${nr-var:chart_values}

@@ -39,13 +39,13 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
-    wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
@@ -97,6 +97,7 @@ valid: true
         test_name,
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
+        &namespace,
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),

@@ -43,12 +43,12 @@ fn k8s_opamp_foo_cr_subagent() {
         FOO_CR_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
         Vec::new(),
         tmp_dir.path(),
     );
-    wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
@@ -130,6 +130,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         test_name,
         BAR_CR_AGENT_TYPE_PATH,
         k8s.client.clone(),
+        &namespace,
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),

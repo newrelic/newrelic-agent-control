@@ -6,11 +6,7 @@ use crate::common::{
     runtime::block_on,
 };
 use crate::k8s::tools::{
-    agent_control::{
-        start_agent_control_with_testdata_config, wait_until_agent_control_with_opamp_is_started,
-    },
-    instance_id,
-    k8s_env::K8sEnv,
+    agent_control::start_agent_control_with_testdata_config, instance_id, k8s_env::K8sEnv,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -35,13 +31,12 @@ fn k8s_fail_remote_config_missing_required_values() {
         format!("tests/k8s/data/{test_name}/custom_agent_type.yml").as_str(),
         k8s.client.clone(),
         &namespace,
+        &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
         vec!["local-data-fake-agent"],
         tmp_dir.path(),
     );
-
-    wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),

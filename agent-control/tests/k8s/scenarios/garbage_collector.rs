@@ -42,6 +42,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &test_ns,
+        &test_ns,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
         // This config is intended to be empty

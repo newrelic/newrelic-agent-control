@@ -6,12 +6,8 @@ use crate::common::{
 use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
 
 use crate::k8s::tools::{
-    agent_control::{
-        start_agent_control_with_testdata_config, wait_until_agent_control_with_opamp_is_started,
-    },
-    instance_id,
-    k8s_api::check_helmrelease_spec_values,
-    k8s_env::K8sEnv,
+    agent_control::start_agent_control_with_testdata_config, instance_id,
+    k8s_api::check_helmrelease_spec_values, k8s_env::K8sEnv,
 };
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use std::time::Duration;
@@ -39,13 +35,13 @@ fn k8s_signature_disabled() {
         CUSTOM_AGENT_TYPE_PATH,
         k8s.client.clone(),
         &namespace,
+        &namespace,
         None,
         Some(&server.endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
-    wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),

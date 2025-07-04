@@ -1,3 +1,4 @@
+use crate::common::runtime::block_on;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::api::PostParams;
@@ -7,10 +8,8 @@ use std::time::Duration;
 use std::{error::Error, str::FromStr};
 use tokio::time::sleep;
 
-use crate::common::runtime::block_on;
-
 /// Checks for the existence of specified deployments within a namespace.
-pub async fn check_deployments_exist(
+pub fn check_deployments_exist(
     k8s_client: Client,
     names: &[&str],
     namespace: &str,
@@ -18,10 +17,8 @@ pub async fn check_deployments_exist(
     let api: Api<Deployment> = Api::namespaced(k8s_client.clone(), namespace);
 
     for &name in names {
-        let _ = api
-            .get(name)
-            .await
-            .map_err(|err| format!("Deployment {name} not found: {err}"))?;
+        let _ =
+            block_on(api.get(name)).map_err(|err| format!("Deployment {name} not found: {err}"))?;
     }
     Ok(())
 }
@@ -59,6 +56,17 @@ pub async fn check_helmrelease_spec_values(
         )
         .into());
     }
+    Ok(())
+}
+
+/// Check if the `HelmRelease` exists.
+pub async fn check_helmrelease_exists(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api = create_k8s_api(k8s_client, namespace).await;
+    api.get(name).await?;
     Ok(())
 }
 
