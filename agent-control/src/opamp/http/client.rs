@@ -46,21 +46,21 @@ where
         let mut headers = self.headers.clone();
 
         // Get authorization token from the token retriever
-        let token = self.token_retriever.retrieve().map_err(|e| {
-            AuthorizationHeadersError(format!("cannot retrieve auth header: {}", e))
-        })?;
+        let token = self
+            .token_retriever
+            .retrieve()
+            .map_err(|e| AuthorizationHeadersError(format!("cannot retrieve auth header: {e}")))?;
 
         // Insert auth token header
         if !token.access_token().is_empty() {
             let access_token: String = token.access_token().parse().map_err(|e| {
-                AuthorizationHeadersError(format!("unable to parse the authorization token: {}", e))
+                AuthorizationHeadersError(format!("unable to parse the authorization token: {e}"))
             })?;
             let auth_header_string = format!("Bearer {access_token}");
             let mut auth_header_value = HeaderValue::from_str(auth_header_string.as_str())
                 .map_err(|e| {
                     AuthorizationHeadersError(format!(
-                        "error converting '{}' to a header string: {}",
-                        auth_header_string, e
+                        "error converting '{auth_header_string}' to a header string: {e}"
                     ))
                 })?;
             auth_header_value.set_sensitive(true);

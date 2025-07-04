@@ -30,7 +30,7 @@ fn test_auth_local_provider_as_root() {
     let opamp_server = MockServer::start();
     let opamp_server_mock = opamp_server.mock(|when, then| {
         when.method(POST)
-            .header(AUTHORIZATION.as_str(), format!("Bearer {}", token))
+            .header(AUTHORIZATION.as_str(), format!("Bearer {token}"))
             .path("/");
         then.status(200);
     });

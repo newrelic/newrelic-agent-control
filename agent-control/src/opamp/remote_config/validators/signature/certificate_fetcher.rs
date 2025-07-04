@@ -43,13 +43,10 @@ impl CertificateFetcher {
             .method("HEAD")
             .body(Vec::default())
             .map_err(|err| {
-                CertificateFetcherError::CertificateFetch(format!(
-                    "error building request: {}",
-                    err
-                ))
+                CertificateFetcherError::CertificateFetch(format!("error building request: {err}"))
             })?;
         let response = client.send(request).map_err(|e| {
-            CertificateFetcherError::CertificateFetch(format!("fetching certificate: {}", e))
+            CertificateFetcherError::CertificateFetch(format!("fetching certificate: {e}"))
         })?;
         let tls_info = response.extensions().get::<TlsInfo>().ok_or(
             CertificateFetcherError::CertificateFetch("missing tls information".to_string()),
@@ -67,10 +64,7 @@ impl CertificateFetcher {
 
     fn fetch_file(pem_file_path: &PathBuf) -> Result<DerCertificateBytes, CertificateFetcherError> {
         let cert = CertificateDer::from_pem_file(pem_file_path).map_err(|e| {
-            CertificateFetcherError::CertificateFetch(format!(
-                "reading certificate from file: {}",
-                e
-            ))
+            CertificateFetcherError::CertificateFetch(format!("reading certificate from file: {e}"))
         })?;
         Ok(cert.as_ref().to_vec())
     }

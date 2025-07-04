@@ -287,7 +287,7 @@ pub mod tests {
             .unwrap()
             .into();
         assert_eq!(id, id_from_bytes);
-        assert_eq!(uuid_as_str, format!("{}", id_from_bytes));
+        assert_eq!(uuid_as_str, format!("{id_from_bytes}"));
     }
 
     fn get_different_identifier() -> MockIdentifiers {

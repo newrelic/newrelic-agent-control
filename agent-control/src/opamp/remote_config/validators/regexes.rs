@@ -238,7 +238,7 @@ pub(super) mod tests {
         let agent_identity = AgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
-                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+                format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
             )
             .unwrap(),
         };
@@ -652,7 +652,7 @@ config: |
         AgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
-                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_INFRA_AGENT).as_str(),
+                format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
             )
             .unwrap(),
         }
@@ -662,7 +662,7 @@ config: |
         AgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
-                format!("newrelic/{}:0.0.1", AGENT_TYPE_NAME_NRDOT).as_str(),
+                format!("newrelic/{AGENT_TYPE_NAME_NRDOT}:0.0.1").as_str(),
             )
             .unwrap(),
         }

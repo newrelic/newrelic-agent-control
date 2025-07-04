@@ -37,9 +37,8 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     let agents = format!(
         r#"
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     create_agent_control_config(
@@ -60,10 +59,8 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     // And the custom-agent has also remote config values
     let remote_values_config_body = "fake_variable: from remote\n";
-    let remote_values_config = format!(
-        "config:\n  {}hash: hash-test\nstate: applying\n",
-        remote_values_config_body
-    );
+    let remote_values_config =
+        format!("config:\n  {remote_values_config_body}hash: hash-test\nstate: applying\n");
     create_sub_agent_values(
         agent_id.to_string(),
         remote_values_config.to_string(),
@@ -121,9 +118,8 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     let agents = format!(
         r#"
   nr-sleep-agent:
-    agent_type: "{}"
-"#,
-        sleep_agent_type
+    agent_type: "{sleep_agent_type}"
+"#
     );
 
     let agent_id = "nr-sleep-agent";

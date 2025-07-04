@@ -17,7 +17,7 @@ pub fn check_latest_identifying_attributes_match_expected(
         expected_identifying_attributes.clone(),
         current_attributes.identifying_attributes.clone(),
     )
-    .map_err(|e| format!("Identifying attributes don't match {}:", e))
+    .map_err(|e| format!("Identifying attributes don't match {e}:"))
 }
 
 pub fn check_latest_non_identifying_attributes_match_expected(
@@ -33,7 +33,7 @@ pub fn check_latest_non_identifying_attributes_match_expected(
         expected_non_identifying_attributes.clone(),
         current_attributes.non_identifying_attributes.clone(),
     )
-    .map_err(|e| format!("Non identifying attributes don't match: {}", e))
+    .map_err(|e| format!("Non identifying attributes don't match: {e}"))
 }
 
 fn check_opamp_attributes(
@@ -44,8 +44,7 @@ fn check_opamp_attributes(
     current_vec.sort_by(|a, b| a.key.cmp(&b.key));
     if expected_vec != current_vec {
         return Err(format!(
-            "Expected != Found\nExpected:\n{:?}\nFound:\n{:?}\n",
-            expected_vec, current_vec
+            "Expected != Found\nExpected:\n{expected_vec:?}\nFound:\n{current_vec:?}\n"
         ));
     }
     Ok(())

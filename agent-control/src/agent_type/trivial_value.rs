@@ -92,7 +92,7 @@ impl TrivialValue {
 impl Display for TrivialValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TrivialValue::String(s) => write!(f, "{}", s),
+            TrivialValue::String(s) => write!(f, "{s}"),
             TrivialValue::File(file) => write!(f, "{}", file.path.to_string_lossy()),
             TrivialValue::Yaml(yaml) => write!(
                 f,
@@ -100,8 +100,8 @@ impl Display for TrivialValue {
                 serde_yaml::to_string(yaml)
                     .expect("A value of type serde_yaml::Value should always be serializable")
             ),
-            TrivialValue::Bool(b) => write!(f, "{}", b),
-            TrivialValue::Number(n) => write!(f, "{}", n),
+            TrivialValue::Bool(b) => write!(f, "{b}"),
+            TrivialValue::Number(n) => write!(f, "{n}"),
             TrivialValue::MapStringString(n) => {
                 let flatten: Vec<String> = n
                     .iter()

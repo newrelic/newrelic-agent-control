@@ -204,8 +204,7 @@ fn parse_first_valid(
             Ok(valid_signature) => return Ok(valid_signature),
             Err(err) => {
                 errors_accumulator.push_str(&format!(
-                    "Cannot process the signature data in position {}: {}\n",
-                    i, err
+                    "Cannot process the signature data in position {i}: {err}\n"
                 ));
             }
         }
@@ -637,7 +636,7 @@ mod tests {
             fn run(self) {
                 let err = Signatures::try_from(&self.custom_message)
                     .expect_err(format!("case: {}", self.name).as_str());
-                assert!(format!("{:?}", err).contains("no valid signature data"));
+                assert!(format!("{err:?}").contains("no valid signature data"));
             }
         }
         let test_cases = vec![

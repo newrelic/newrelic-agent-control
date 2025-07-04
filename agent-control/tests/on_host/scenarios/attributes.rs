@@ -37,9 +37,8 @@ fn test_attributes_from_non_existing_agent_type() {
     let agents = format!(
         r#"
   test-agent:
-    agent_type: "{}/{}:{}"
-"#,
-        DEFAULT_NAMESPACE, DEFAULT_NAME, DEFAULT_VERSION
+    agent_type: "{DEFAULT_NAMESPACE}/{DEFAULT_NAME}:{DEFAULT_VERSION}"
+"#
     );
 
     create_agent_control_config(
@@ -116,9 +115,8 @@ fn test_attributes_from_an_existing_agent_type() {
     let agents = format!(
         r#"
   test-agent:
-    agent_type: "{}/{}:0.1.0"
-"#,
-        AGENT_CONTROL_NAMESPACE, AGENT_TYPE_NAME_INFRA_AGENT
+    agent_type: "{AGENT_CONTROL_NAMESPACE}/{AGENT_TYPE_NAME_INFRA_AGENT}:0.1.0"
+"#
     );
 
     create_agent_control_config(
