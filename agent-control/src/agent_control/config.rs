@@ -204,9 +204,12 @@ pub struct K8sConfig {
     pub namespace: String,
     /// namespace where all resources managed by flux will be created.
     pub namespace_agents: String,
-    /// chart_version is the version of the chart used to deploy agent control
+    /// current_chart_version is the version of the chart used to deploy agent control
+    /// This value is passed to the agent control via Environment Variable to avoid race conditions.
+    /// If set via config, after a failed upgrade we could have the "old" pod loading the new config
+    /// and reading the new chart version, while the image is still the old one.
     #[serde(default)]
-    pub chart_version: String,
+    pub current_chart_version: String,
     /// CRDs is a list of crds that AC should watch and be able to create/delete.
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
@@ -279,7 +282,7 @@ impl Default for K8sConfig {
             client_config: Default::default(),
             namespace: Default::default(),
             namespace_agents: Default::default(),
-            chart_version: Default::default(),
+            current_chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
         }
     }
