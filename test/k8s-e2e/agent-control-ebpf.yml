@@ -4,6 +4,8 @@ agent-control-deployment:
   config:
     agentControl:
       content:
+        k8s:
+          namespace_agents: newrelic-agents
         log:
           level: debug
     subAgents:

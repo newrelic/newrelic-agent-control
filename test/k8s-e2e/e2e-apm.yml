@@ -7,7 +7,7 @@ scenarios:
     before:
       - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       # we need wait and retry since the resource might me not created yet
-      - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator; do sleep 5; echo waiting on operator ; done"
+      - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents; do sleep 5; echo waiting on operator ; done"
       - sleep 60
       - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
@@ -29,7 +29,7 @@ scenarios:
 
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
-      - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true
+      - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true -n newrelic-agents
       - kubectl get all -o wide
       - cd ../../ && tilt down
     tests:

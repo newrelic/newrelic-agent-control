@@ -18,7 +18,8 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use std::time::Duration;
 use tempfile::tempdir;
 
-/// Given AC with a sub-agent installed from local, opamp enabled, and split ns.
+/// Given AC with a sub-agent installed from local, opamp enabled, and different namespaces
+/// for AC resources and agents. Check:
 /// - Local configuration is used
 /// - Effective configuration and Health is reported
 /// - Sub-Agent resources are re-created in case of manual delete
