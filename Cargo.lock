@@ -2775,7 +2775,7 @@ checksum = "1d87ecb2933e8aeadb3e3a02b828fed80a7528047e68b4f424523a0981a3a084"
 
 [[package]]
 name = "newrelic_agent_control"
-version = "0.40.0"
+version = "0.41.0"
 dependencies = [
  "actix-web",
  "assert_cmd",
