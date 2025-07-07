@@ -265,11 +265,11 @@ If no health configuration is defined, AC will use the exceeding of the restart 
 Agent Control in Kubernetes uses two distinct namespaces for resource management:
 
 - **Agent Control namespace (`namespace`)**: This is where Agent Control, Flux, and their supporting resources are installed and managed.
-- **Agents namespace (`namespace_agents`)**: This is dedicated to sub-agents and their managed resources (such as Instrumentation CRs). Ideally, Instrumentation CRs should be in the Agent Control namespace, but due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), they must be in the agents namespace.
+- **Agents namespace (`namespace_agents`)**: This is dedicated to sub-agents and their managed resources. Ideally, Instrumentation CRs should be in the Agent Control namespace, but due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), they must be in the same namespace as the operator.
 
 
 
-This separation makes it more secure. That way, agents can't use Flux or Agent Control Service Accounts with cluster admin privileges. When defining agent types or configuring deployments, ensure that resources are created in the correct namespace. The variables `${nr-ac:namespace}` and `${nr-ac:namespace_agents}` are available for templating these values in your agent type definitions.
+This separation makes it more secure. That way, agents can't use Flux or Agent Control Service Accounts with wide privileges. When defining agent types or configuring deployments, ensure that resources are created in the correct namespace. The variables `${nr-ac:namespace}` and `${nr-ac:namespace_agents}` are available for templating these values in your agent type definitions.
 
 #### Kubernetes deployment definition
 
