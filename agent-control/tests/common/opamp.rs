@@ -10,7 +10,7 @@ use newrelic_agent_control::opamp::remote_config::validators::signature::public_
 use opamp_client::opamp;
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
-use rcgen::{CertificateParams, KeyPair, PKCS_ED25519};
+use rcgen::{CertificateParams, KeyPair, PKCS_ED25519, PublicKeyData};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -108,7 +108,7 @@ impl ConfigResponse {
                 vec![SignatureFields {
                     signature: BASE64_STANDARD.encode(signature.as_ref()),
                     signing_algorithm: ED25519,
-                    key_id: public_key_fingerprint(&key_pair.public_key_der()),
+                    key_id: public_key_fingerprint(&key_pair.subject_public_key_info()),
                 }],
             )]);
 
