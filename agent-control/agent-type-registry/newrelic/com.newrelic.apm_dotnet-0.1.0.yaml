@@ -43,6 +43,10 @@ deployment:
         kind: Instrumentation
         metadata:
           name: ${nr-sub:agent_id}
+          # APM CRs should be installed in "nr-ac:namespace"
+          # Due to a limitation in the k8s-agents-operator, Instrumentation CRs must be installed in the same namespace as the operator.
+          # Hence, the namespace is set to "nr-ac:namespace_agents".
+          # Reference: https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72
           namespace: ${nr-ac:namespace_agents}
         spec:
           agent:
