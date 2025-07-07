@@ -33,7 +33,7 @@ impl VariableDefinition {
                 required: false,
                 default: None,
                 final_value: Some(final_value),
-                variants: vec![],
+                variants: Default::default(),
             }),
         }
     }

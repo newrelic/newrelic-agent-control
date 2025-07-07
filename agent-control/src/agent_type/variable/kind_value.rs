@@ -2,7 +2,7 @@ use std::{fmt::Debug, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::agent_type::error::AgentTypeError;
+use crate::agent_type::{error::AgentTypeError, variable::variants::Variants};
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct KindValue<T>
@@ -12,7 +12,7 @@ where
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) variants: Vec<T>,
+    pub(crate) variants: Variants<T>, // TODO: add support for vor VariantsDefinition
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
@@ -30,17 +30,14 @@ where
     T: PartialEq + Debug,
 {
     pub(crate) fn set_final_value(&mut self, value: T) -> Result<(), AgentTypeError> {
-        if !self.is_valid_variant(&value) {
+        if !self.variants.is_valid(&value) {
             return Err(AgentTypeError::InvalidVariant(
-                format!("{value:?}"),
-                self.variants.iter().map(|v| format!("{v:?}")).collect(),
+                format!("{value:?}"), // TODO: check if we may be exposing ${nr-env} values in this error
+                self.variants.0.iter().map(|v| format!("{v:?}")).collect(),
             ));
         }
         self.final_value = Some(value);
         Ok(())
-    }
-    pub(crate) fn is_valid_variant(&self, value: &T) -> bool {
-        self.variants.is_empty() || self.variants.iter().any(|v| v == value)
     }
 }
 
@@ -67,9 +64,9 @@ where
         use serde::de::Error;
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
-        struct IntermediateValueKind<T> {
+        struct IntermediateValueKind<T: PartialEq> {
             default: Option<T>,
-            variants: Option<Vec<T>>,
+            variants: Option<Variants<T>>,
             required: bool,
         }
 
@@ -82,7 +79,7 @@ where
             default: intermediate_spec.default,
             required: intermediate_spec.required,
             final_value: None,
-            variants: intermediate_spec.variants.unwrap_or(Vec::new()),
+            variants: intermediate_spec.variants.unwrap_or_default(),
         })
     }
 }
@@ -102,7 +99,7 @@ mod tests {
                 required,
                 default,
                 final_value,
-                variants: Vec::new(),
+                variants: Default::default(),
             }
         }
     }
@@ -122,7 +119,7 @@ mod tests {
                     required,
                     default,
                     final_value,
-                    variants: Vec::new(),
+                    variants: Default::default(),
                 },
                 file_path,
             }
@@ -135,7 +132,7 @@ mod tests {
             required: true,
             default: Some(1),
             final_value: None,
-            variants: vec![1, 2, 3],
+            variants: vec![1, 2, 3].into(),
         };
 
         assert!(kind_value.set_final_value(2).is_ok());
@@ -148,7 +145,7 @@ mod tests {
             required: true,
             default: Some(1),
             final_value: None,
-            variants: vec![1, 2, 3],
+            variants: vec![1, 2, 3].into(),
         };
 
         assert_eq!(
@@ -164,7 +161,7 @@ mod tests {
             required: true,
             default: Some(1),
             final_value: None,
-            variants: Vec::new(),
+            variants: Default::default(),
         };
 
         assert!(kind_value.set_final_value(2).is_ok());
