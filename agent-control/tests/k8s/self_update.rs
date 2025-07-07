@@ -9,12 +9,15 @@ use crate::common::runtime::block_on;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use assert_cmd::Command;
-use kube::Client;
+use k8s_openapi::api::core::v1::Pod;
+use kube::api::ListParams;
+use kube::{Api, Client, ResourceExt};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
+use std::io;
 use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
@@ -25,14 +28,15 @@ use url::Url;
 // test environment set-up.
 // TODO we might drastically reduce the execution time of these test if we hack a way to reduce the opamp poll interval
 
-// Test environment reference values defined in Tiltfile.
-const AC_DEV_IMAGE_REPO: &str = "tilt.local/ac-dev";
-const AC_DEV_IMAGE_TAG: &str = "dev";
 pub const LOCAL_CHART_REPOSITORY: &str = "http://chartmuseum.default.svc.cluster.local:8080";
 // This version contains the image from remote
 pub const LOCAL_CHART_REMOTE_VERSION: &str = "0.0.1";
+// This version contains the compiled dev image
 pub const LOCAL_CHART_PREVIOUS_VERSION: &str = "0.0.2";
+// This version contains the compiled dev image
 pub const LOCAL_CHART_NEW_VERSION: &str = "0.0.3";
+// This version contains an alpine image failing with exit 1
+pub const LOCAL_CHART_FAILING_VERSION: &str = "0.0.4";
 const MISSING_VERSION: &str = "9.9.9";
 
 const SECRET_NAME: &str = "ac-values";
@@ -236,7 +240,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
 #[test]
 #[ignore = "needs k8s cluster"]
 /// This test installs AC using the CLI, then sends a RemoteConfig with an AC chart version update
-/// pointing to a version that doesn't exists. It expects that current AC keeps working and reports
+/// pointing to a version that doesn't exist. It expects that current AC keeps working and reports
 /// unhealthy status then a new correct remote config arrives, it's applied and the new ac reports healthy.
 fn k8s_self_update_new_version_fails_to_start_next_receives_correct_version() {
     let mut opamp_server = FakeServer::start_new();
@@ -308,6 +312,81 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
         check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
 
         Ok(())
+    });
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+/// This test installs AC using the CLI, then sends a RemoteConfig with an AC chart version update
+/// pointing to a version that contains an image. It expects that current AC keeps working and reports
+/// unhealthy status.
+fn k8s_self_update_new_version_failing_image() {
+    let mut opamp_server = FakeServer::start_new();
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+
+    let ac_instance_id = bootstrap_ac(
+        k8s.client.clone(),
+        &opamp_server,
+        &namespace,
+        LOCAL_CHART_NEW_VERSION,
+    );
+
+    // AC should start correctly and finally report healthy
+    retry(60, Duration::from_secs(5), || {
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
+        Ok(())
+    });
+
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        ConfigResponse::from(
+            format!(
+                r#"
+agents: {{}}
+chart_version: {LOCAL_CHART_FAILING_VERSION}
+"#
+            )
+            .as_str(),
+        ),
+    );
+
+    retry(60, Duration::from_secs(5), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32, // The configuration was Applied even if it led to an unhealthy AC.
+        )?;
+
+        // Select a pod with the label set by tilt for the crashing pod
+        let pods: Api<Pod> = Api::namespaced(k8s.client.clone(), &namespace);
+        let lp = ListParams::default().labels("app=failing-pod");
+        let pod_list = block_on(pods.list(&lp))?;
+
+        // Iterate over the Pods matching the label to ensure are crashing.
+        let mut pod_crashing = false;
+        'pods_loop: for p in pod_list.iter() {
+            let pod_name = p.name_any();
+            if p.status
+                .as_ref()
+                .map(|status| &status.container_statuses)
+                .into_iter()
+                .flat_map(|statuses| statuses.iter().flat_map(|status_vec| status_vec.iter()))
+                .filter_map(|container_status| container_status.clone().state)
+                .filter_map(|state| state.waiting)
+                .any(|waiting| waiting.reason == Some("CrashLoopBackOff".to_string()))
+            {
+                pod_crashing = true;
+                break 'pods_loop;
+            }
+        }
+        if !pod_crashing {
+            return Err("No new Pod crashing found".into());
+        }
+
+        check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
+            !status.healthy && status.last_error.contains("HelmRelease status unknown:") // Expected error when chart version doesn't exist
+        })
     });
 }
 
