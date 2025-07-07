@@ -95,7 +95,7 @@ helm_resource(
 #### build data/charts and upload it to chart museum
 ### Feature Branch Workaround ###
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-feature_branch = "feat/splitNamespace"
+feature_branch = "feat/agent-control--split-namespace"
 
 git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 local_resource(
