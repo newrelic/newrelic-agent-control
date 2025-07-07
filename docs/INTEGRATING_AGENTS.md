@@ -215,8 +215,8 @@ For **on-host**, we have:
 
 For **k8s**, we have:
 
-* `namespace`: the namespace where Agent Control and Flux will be installed.
-* `namespace_agents`: the namespace where sub-agents will be installed. Due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), Instrumentation CRs are installed in this namespace too.
+* `namespace`: the namespace where Agent Control and Flux will be created.
+* `namespace_agents`: the namespace where sub-agents will be created. Due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), Instrumentation CRs are created in this namespace too.
 
 #### On-host deployment definition
 
@@ -264,7 +264,7 @@ If no health configuration is defined, AC will use the exceeding of the restart 
 
 Agent Control in Kubernetes uses two distinct namespaces for resource management:
 
-- **Agent Control namespace (`namespace`)**: This is where Agent Control, Flux, and their supporting resources are installed and managed.
+- **Agent Control namespace (`namespace`)**: This is where Agent Control, Flux, and their supporting resources are created and managed.
 - **Agents namespace (`namespace_agents`)**: This is dedicated to sub-agents and their managed resources. Ideally, Instrumentation CRs should be in the Agent Control namespace, but due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), they must be in the same namespace as the operator.
 
 
