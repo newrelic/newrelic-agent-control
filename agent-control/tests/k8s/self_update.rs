@@ -34,9 +34,9 @@ pub const LOCAL_CHART_REMOTE_VERSION: &str = "0.0.1";
 // This version contains the compiled dev image
 pub const LOCAL_CHART_PREVIOUS_VERSION: &str = "0.0.2";
 // This version contains the compiled dev image
-pub const LOCAL_CHART_NEW_VERSION: &str = "0.0.3";
-// This version contains an alpine image failing with exit 1
-pub const LOCAL_CHART_FAILING_VERSION: &str = "0.0.4";
+pub const LOCAL_CHART_NEW_VERSION: &str = "0.0.4";
+// This version contains image failing with exit 1
+pub const LOCAL_CHART_FAILING_VERSION: &str = "0.0.3";
 const MISSING_VERSION: &str = "9.9.9";
 
 const SECRET_NAME: &str = "ac-values";
@@ -48,9 +48,8 @@ const MINIKUBE_HOST_ACCESS: &str = "host.minikube.internal";
 
 #[test]
 #[ignore = "needs k8s cluster"]
-/// This test installs AC using the CLI from the last chart released to our public repository,
-/// then sends a RemoteConfig with an AC chart version update to the local chart
-/// also introducing several changes in the AC config which should be applied to the new AC version.
+/// This test installs AC using the image from our public repository,
+/// then sends a RemoteConfig with an AC chart version update to the local build image.
 fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
     let mut opamp_server = FakeServer::start_new();
     let mut k8s = block_on(K8sEnv::new());

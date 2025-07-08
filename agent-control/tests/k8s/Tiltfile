@@ -103,8 +103,8 @@ feature_branch = "feat/splitNamespace"
 
 # We are doing modifications to the checkout and pushing them after each modification to create the following versions:
 # - 0.0.1 uses remote image
-# - 0.0.2 and 0.0.3 the image tilt.local/ac-dev:dev
-# - 0.0.4 use an alpine image executing exit 1
+# - 0.0.2 and 0.0.4 the image tilt.local/ac-dev:dev
+# - 0.0.3 use an image executing exit 1
 
 git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
@@ -123,11 +123,11 @@ local_resource(
     cmd="""yq eval ".image.repository = \\"tilt.local/ac-dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.tag = \\"dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.3" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.4" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.3 &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.4 &&
      curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts &&
-     curl --data-binary "@local/agent-control-deployment-0.0.3.tgz" http://localhost:8080/api/charts
+     curl --data-binary "@local/agent-control-deployment-0.0.4.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-remote-image-chart'],
 )
@@ -140,9 +140,9 @@ local_resource(
      yq eval ".image.tag = \\"latest\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.command = [\\"sh\\", \\"-c\\", \\"exit 1\\"]" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".podLabels.app = \\"failing-pod\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
-     helm package --dependency-update --version "0.0.4" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.4 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.4.tgz" http://localhost:8080/api/charts
+     helm package --dependency-update --version "0.0.3" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.3 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.3.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-local-image-chart'],
 )
