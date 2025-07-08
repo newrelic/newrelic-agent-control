@@ -2,6 +2,7 @@ use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
+use crate::agent_type::variable_constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::k8s::client::ClientConfig;
@@ -55,6 +56,10 @@ pub struct AgentControlConfig {
 
     #[serde(default)]
     pub health_check: AgentControlHealthCheckerConfig,
+
+    /// A "key-value store" intended to modify agent type definitions, loaded at start time.
+    #[serde(default)]
+    pub agent_type_var_constraints: VariableConstraints,
 }
 
 #[derive(Error, Debug)]
