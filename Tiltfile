@@ -90,7 +90,7 @@ local_resource(
     resource_deps=['chartmuseum'],
 )
 
-flags_helm = ['--create-namespace', '--set=agent-control-deployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
+flags_helm = ['--create-namespace', '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
 
 if license_key != '':
   flags_helm.append('--set=global.licenseKey='+license_key)
