@@ -11,5 +11,4 @@ pub mod templates;
 pub mod templates_function;
 pub mod trivial_value;
 pub mod variable;
-pub mod variable_constraints;
 pub mod version_config;
