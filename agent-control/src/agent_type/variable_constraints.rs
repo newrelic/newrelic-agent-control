@@ -44,3 +44,62 @@ fn same_variant<'a>(mut values: impl Iterator<Item = &'a TrivialValue>) -> bool 
         .map(mem::discriminant)
         .is_none_or(|first| values.all(|v| mem::discriminant(v) == first))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_type::trivial_value::TrivialValue;
+    use rstest::rstest;
+    use serde_json::json;
+
+    fn trivial_int(i: i64) -> TrivialValue {
+        // TrivialValue does not have Integer, so use Number via serde_yaml::Number
+        TrivialValue::from(serde_yaml::Number::from(i))
+    }
+    fn trivial_str(s: &str) -> TrivialValue {
+        TrivialValue::from(s.to_string())
+    }
+
+    #[rstest]
+    #[case::all_nums(vec![trivial_int(1), trivial_int(2), trivial_int(3)], true)]
+    #[case::all_strs(vec![trivial_str("a"), trivial_str("b")], true)]
+    #[case::mixed(vec![trivial_int(1), trivial_str("b")], false)]
+    #[case::empty(vec![], true)]
+    fn test_variants(#[case] values: Vec<TrivialValue>, #[case] expected: bool) {
+        assert_eq!(expected, same_variant(values.iter()))
+    }
+
+    #[test]
+    fn test_variants_deserialize_all_same_type() {
+        let json = json!({
+            "foo": [1, 2, 3],
+            "bar": [4, 5]
+        });
+        let variants: Result<Variants, _> = serde_json::from_value(json);
+        assert!(variants.is_ok());
+    }
+
+    #[test]
+    fn test_variants_deserialize_mixed_types() {
+        let json = json!({
+            "foo": [1, "bar", 3]
+        });
+        let variants: Result<Variants, _> = serde_json::from_value(json);
+        assert!(variants.is_err());
+        let err = variants.unwrap_err().to_string();
+        assert!(
+            err.contains("All values in a `variants` key must be of the same type"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_variants_deserialize_empty_vec() {
+        let json = json!({
+            "foo": [],
+            "bar": []
+        });
+        let variants: Result<Variants, _> = serde_json::from_value(json);
+        assert!(variants.is_ok());
+    }
+}
