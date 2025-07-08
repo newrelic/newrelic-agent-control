@@ -92,6 +92,8 @@ jobs:
   k8s-e2e-tests:
     name: K8s e2e tests
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -102,6 +104,7 @@ jobs:
           minikube version: v1.32.0
           kubernetes version: "v1.30.9"
           driver: docker
+          github token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Tilt
         run: |
           curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
