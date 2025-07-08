@@ -164,7 +164,7 @@ mod tests {
     use fs::mock::MockLocalFile;
     use mockall::predicate;
     use std::fs::Permissions;
-    use std::io::{self, ErrorKind};
+    use std::io;
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
