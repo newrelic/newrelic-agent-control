@@ -10,7 +10,7 @@ use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
-use crate::secrets_provider::SecretsProviders;
+use crate::secrets_provider::SecretsProvidersRegistry;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -105,14 +105,14 @@ where
 {
     registry: Arc<R>,
     renderer: Y,
-    secrets_providers: SecretsProviders,
+    secrets_providers: SecretsProvidersRegistry,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
     pub fn new(
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
-        secrets_providers: SecretsProviders,
+        secrets_providers: SecretsProvidersRegistry,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
@@ -261,7 +261,7 @@ pub(crate) mod tests {
             Self {
                 registry: Arc::new(registry),
                 renderer,
-                secrets_providers: SecretsProviders::default(),
+                secrets_providers: SecretsProvidersRegistry::default(),
             }
         }
     }

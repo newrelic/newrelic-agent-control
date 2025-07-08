@@ -1,3 +1,14 @@
+//! Secrets provider module
+//!
+//! This module defines the configuration and traits for secrets providers used in the agent control system.
+//! It allows for flexible integration of various secrets providers, enabling retrieval of secrets from different sources.
+//!
+//! Adding support for a new secrets provider involves:
+//!
+//! * Adding a field to the [SecretsProvidersConfig] struct for the new provider's configuration.
+//! * Implementing the [SecretsProviderBuilder] trait for the new provider's configuration.
+//! * Updating the TryFrom implementation for [SecretsProvidersRegistry] to include the new provider.
+
 use std::collections::HashMap;
 
 use serde::Deserialize;
@@ -57,19 +68,19 @@ pub trait SecretsProvider {
 /// Supported secrets providers.
 ///
 /// Each variant must contain an implementation of the [SecretsProvider] trait.
-pub enum SecretsProviderType {}
+pub enum SecretsProviderKind {}
 
 /// Collection of [SecretsProviderType]s.
-pub type SecretsProviders = HashMap<String, SecretsProviderType>;
+pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderKind>;
 
 #[derive(Debug, thiserror::Error)]
-pub enum SecretsProvidersConfigError {
+pub enum SecretsProvidersError {
     #[error("Invalid configuration for secrets provider: {0}")]
     InvalidProvider(String),
 }
 
-impl TryFrom<SecretsProvidersConfig> for SecretsProviders {
-    type Error = SecretsProvidersConfigError;
+impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
+    type Error = SecretsProvidersError;
 
     /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProviders].
     ///
