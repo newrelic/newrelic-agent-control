@@ -1,11 +1,11 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-
+installationJob:
+  logLevel: debug
 agent-control-deployment:
+  subAgentsNamespace: "newrelic-agents"
   config:
     agentControl:
       content:
-        k8s:
-          namespace_agents: newrelic-agents
         log:
           level: debug
     subAgents:

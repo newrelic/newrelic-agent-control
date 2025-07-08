@@ -55,7 +55,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'feat/splitNamespace'
+feature_branch = ''
 git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
 #### Set-up charts
@@ -90,7 +90,7 @@ local_resource(
     resource_deps=['chartmuseum'],
 )
 
-flags_helm = ['--create-namespace', '--set=agent-control-deployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
+flags_helm = ['--create-namespace', '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
 
 if license_key != '':
   flags_helm.append('--set=global.licenseKey='+license_key)
