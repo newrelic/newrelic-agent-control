@@ -89,4 +89,3 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
         Ok(HashMap::new())
     }
 }
-
