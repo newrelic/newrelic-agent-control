@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
 
 /// Configuration for supported secrets providers.
@@ -8,10 +10,11 @@ use serde::Deserialize;
 /// Users can retrieve secrets from secret provider "A" and secret provider "B" at the same time.
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
-/// This is a decision the implementor of the provider must make. This entails creating a "config"
+/// This is a decision the implementer of the provider must make. This entails creating a "config"
 /// represented as a [HashMap]. Augmenting the structure is simple. Example:
 ///
 /// ```
+/// # use std::collections::HashMap;
 /// struct SecretsProvidersConfig {
 ///     new_provider: Option<NewProviderConfig>,
 /// }
@@ -21,7 +24,7 @@ use serde::Deserialize;
 /// }
 ///
 /// struct NewProviderSourceConfig {
-///    ... // fields specific to the source
+///    // fields specific to the source
 /// }
 /// ```
 ///
@@ -50,3 +53,29 @@ pub trait SecretsProviderBuilder {
 pub trait SecretsProvider {
     fn get_secret(&self, mount: &str, path: &str, key: &str) -> Result<String, String>;
 }
+
+/// Supported secrets providers.
+///
+/// Each variant must contain an implementation of the [SecretsProvider] trait.
+pub enum SecretsProviderType {}
+
+/// Collection of [SecretsProviderType]s.
+pub type SecretsProviders = HashMap<String, SecretsProviderType>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum SecretsProvidersConfigError {
+    #[error("Invalid configuration for secrets provider: {0}")]
+    InvalidProvider(String),
+}
+
+impl TryFrom<SecretsProvidersConfig> for SecretsProviders {
+    type Error = SecretsProvidersConfigError;
+
+    /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProviders].
+    ///
+    /// If any of the configurations is invalid, it returns an error.
+    fn try_from(config: SecretsProvidersConfig) -> Result<Self, Self::Error> {
+        Ok(HashMap::new())
+    }
+}
+
