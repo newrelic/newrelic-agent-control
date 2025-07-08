@@ -42,7 +42,7 @@ fn same_variant<'a>(mut values: impl Iterator<Item = &'a TrivialValue>) -> bool 
     values
         .next()
         .map(mem::discriminant)
-        .is_none_or(|first| values.all(|v| mem::discriminant(v) == first))
+        .is_none_or(|first| values.map(mem::discriminant).all(|v| v == first))
 }
 
 #[cfg(test)]
