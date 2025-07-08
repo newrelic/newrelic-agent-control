@@ -9,6 +9,7 @@ use crate::k8s::client::ClientConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
+use crate::secrets_provider::SecretsProvidersConfig;
 use crate::values::yaml_config::YAMLConfig;
 use crate::{
     agent_type::agent_type_id::AgentTypeID, instrumentation::config::InstrumentationConfig,
@@ -36,9 +37,7 @@ pub struct AgentControlConfig {
     /// fleet_control contains the OpAMP client configuration
     pub fleet_control: Option<OpAMPClientConfig>,
 
-    // We could make this field available only when #[cfg(feature = "k8s")] but it would over-complicate
-    // the struct definition and usage. Making it optional should work no matter what features are enabled.
-    /// k8s is a map containing the kubernetes-specific settings
+    /// kubernetes-specific settings
     #[serde(default)]
     pub k8s: Option<K8sConfig>,
 
@@ -60,6 +59,10 @@ pub struct AgentControlConfig {
     /// A "key-value store" intended to modify agent type definitions, loaded at start time.
     #[serde(default)]
     pub agent_type_var_constraints: VariableConstraints,
+
+    /// configuration for every secrets provider that the current AgentControl instance should be able to access
+    #[serde(default)]
+    pub secrets_providers: Option<SecretsProvidersConfig>,
 }
 
 #[derive(Error, Debug)]
