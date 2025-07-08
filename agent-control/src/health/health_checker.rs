@@ -16,12 +16,17 @@ use wrapper_with_default::WrapperWithDefault;
 const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
 
 const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
+const DEFAULT_INITIAL_DELAY: Duration = Duration::ZERO;
 
 pub type StatusTime = SystemTime;
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
 pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_INITIAL_DELAY)]
+pub struct InitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Health {
@@ -278,31 +283,36 @@ pub(crate) fn spawn_health_checker<H, E>(
     health_checker: H,
     event_publisher: E,
     interval: HealthCheckInterval,
+    initial_delay: InitialDelay,
     start_time: StartTime,
 ) -> StartedThreadContext
 where
     H: HealthChecker + Send + 'static,
     E: HealthEventPublisher,
 {
-    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
         let span = info_span!(
             "health_check",
             { ID_ATTRIBUTE_NAME } = %agent_id
         );
         let _guard = span.enter();
-
         debug!("Starting to check health with the configured checker");
 
-        let health = health_checker.check_health().unwrap_or_else(|err| {
-            debug!(last_error = %err, "The configured health check failed");
-            HealthWithStartTime::from_unhealthy(Unhealthy::from(err), start_time)
-        });
+        sleep(initial_delay.into());
 
-        event_publisher.publish_health_event(health);
+        loop {
+            debug!("Checking health");
+            let health = health_checker.check_health().unwrap_or_else(|err| {
+                debug!(last_error = %err, "The configured health check failed");
+                HealthWithStartTime::from_unhealthy(Unhealthy::from(err), start_time)
+            });
 
-        // Check the cancellation signal
-        if stop_consumer.is_cancelled(interval.into()) {
-            break;
+            event_publisher.publish_health_event(health);
+
+            // Check the cancellation signal
+            if stop_consumer.is_cancelled(interval.into()) {
+                break;
+            }
         }
     };
     NotStartedThreadContext::new(HEALTH_CHECKER_THREAD_NAME, callback).start()
@@ -503,6 +513,7 @@ pub mod tests {
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
+            InitialDelay::default(),
             start_time,
         );
 
@@ -522,6 +533,50 @@ pub mod tests {
                 start_time,
             ),
             health_consumer.as_ref().recv().unwrap()
+        );
+
+        // Check that the thread is finished
+        started_thread_context.stop_blocking().unwrap();
+
+        // Check there are no more events
+        assert!(health_consumer.as_ref().recv().is_err());
+    }
+    #[test]
+    fn test_spawn_health_checker_initial_delay() {
+        let (health_publisher, health_consumer) = pub_sub();
+
+        let start_time = SystemTime::now();
+
+        let mut health_checker = MockHealthCheck::new();
+        health_checker
+            .expect_check_health()
+            .once()
+            .returning(move || {
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::new().with_status("status: 0".to_string()),
+                    start_time,
+                ))
+            });
+
+        let initial_delay = Duration::from_millis(500);
+
+        let started_thread_context = spawn_health_checker(
+            AgentID::default(),
+            health_checker,
+            health_publisher,
+            Duration::MAX.into(), // retries are not tested here
+            initial_delay.into(),
+            start_time,
+        );
+
+        let health: HealthWithStartTime = health_consumer.as_ref().recv().unwrap();
+
+        // Check that initial delay has been honored
+        assert!(
+            SystemTime::now()
+                .duration_since(health.start_time())
+                .unwrap()
+                >= initial_delay
         );
 
         // Check that the thread is finished
@@ -565,6 +620,7 @@ pub mod tests {
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
+            InitialDelay::default(),
             start_time,
         );
 
@@ -624,6 +680,7 @@ pub mod tests {
             health_checker,
             health_publisher,
             Duration::from_millis(10).into(), // Give room to publish and consume the events
+            InitialDelay::default(),
             start_time,
         );
 

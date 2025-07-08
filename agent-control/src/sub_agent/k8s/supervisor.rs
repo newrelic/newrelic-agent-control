@@ -173,6 +173,7 @@ impl NotStartedSupervisorK8s {
             k8s_health_checker,
             sub_agent_internal_publisher,
             health_config.interval,
+            health_config.initial_delay,
             start_time,
         );
 
@@ -497,6 +498,7 @@ pub mod tests {
         let mut k8s_obj = k8s_sample_runtime_config(true);
         k8s_obj.health = Some(K8sHealthConfig {
             interval: Duration::from_millis(500).into(),
+            ..Default::default()
         });
 
         // instance K8s client mock

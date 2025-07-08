@@ -35,6 +35,7 @@ deployment:
   on_host:
     health:
       interval: 1s
+      initial_delay: 0s
       timeout: 1s
       file:
         path: {}
@@ -146,6 +147,7 @@ deployment:
   on_host:
     health:
       interval: 1s
+      initial_delay: 0s
       timeout: 1s
       http:
         path: /health

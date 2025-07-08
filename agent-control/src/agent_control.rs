@@ -161,6 +161,7 @@ where
                     health_checker,
                     self.agent_control_internal_publisher.clone(),
                     self.initial_config.health_check.interval,
+                    self.initial_config.health_check.initial_delay,
                     self.start_time,
                 )
             });
@@ -553,6 +554,7 @@ mod tests {
     use super::resource_cleaner::tests::MockResourceCleaner;
     use super::version_updater::updater::UpdaterError;
     use super::version_updater::updater::tests::MockVersionUpdater;
+    use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
@@ -776,6 +778,14 @@ agents:
             let resource_cleaner = MockResourceCleaner::new();
             let version_updater = MockVersionUpdater::new();
 
+            let ac_config = AgentControlConfig {
+                health_check: AgentControlHealthCheckerConfig {
+                    initial_delay: Duration::ZERO.into(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            };
+
             let agent_control = {
                 AgentControl::new(
                     Some(started_client),
@@ -789,7 +799,7 @@ agents:
                     resource_cleaner,
                     version_updater,
                     NONE_MOCK_HEALTH_CHECKER_BUILDER,
-                    AgentControlConfig::default(),
+                    ac_config,
                 )
             };
             let test_data = TestData {
