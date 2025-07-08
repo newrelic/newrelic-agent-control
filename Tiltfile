@@ -114,6 +114,6 @@ helm_resource(
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
-update_settings(k8s_upsert_timeout_secs=300)
+update_settings(k8s_upsert_timeout_secs=150)
 
 
