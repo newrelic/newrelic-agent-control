@@ -97,15 +97,52 @@ helm_resource(
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
 feature_branch = "feat/splitNamespace"
 
+# We're modifying the default image in the charts for different versions because we don't expose the values to be
+# modified by the remote_config but we do tests upgrading charts that require image modification
+# in order to ensure the correct behavior.
+
+# We are doing modifications to the checkout and pushing them after each modification to create the following versions:
+# - 0.0.1 uses remote image
+# - 0.0.2 and 0.0.4 the image tilt.local/ac-dev:dev
+# - 0.0.3 use an image executing exit 1
+
 git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
+
 local_resource(
-    'package-and-upload-charts',
+    'package-and-upload-remote-image-chart',
     cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
-     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts
+     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['chartmuseum'],
+)
+
+# We are modifying the default image to tilt.local/ac-dev:dev.
+local_resource(
+    'package-and-upload-local-image-chart',
+    cmd="""yq eval ".image.repository = \\"tilt.local/ac-dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     yq eval ".image.tag = \\"dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.4" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.4 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/agent-control-deployment-0.0.4.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['package-and-upload-remote-image-chart'],
+)
+
+# We are Modifying the default image to alpine:latest with custom command and decorating
+# the pod with the app label 'failing-pod' to be selected when doing the tests
+local_resource(
+    'package-and-upload-failing-image-chart',
+    cmd="""yq eval ".image.repository = \\"alpine\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     yq eval ".image.tag = \\"latest\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     yq eval ".image.command = [\\"sh\\", \\"-c\\", \\"exit 1\\"]" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     yq eval ".podLabels.app = \\"failing-pod\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
+     helm package --dependency-update --version "0.0.3" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.3 &&
+     curl --data-binary "@local/agent-control-deployment-0.0.3.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['package-and-upload-local-image-chart'],
 )

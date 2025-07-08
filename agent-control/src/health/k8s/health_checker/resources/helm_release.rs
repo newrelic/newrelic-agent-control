@@ -127,7 +127,15 @@ impl K8sHealthFluxHelmRelease {
                             .unwrap_or("No specific message found");
                         (false, format!("HelmRelease not ready: {message}"))
                     }
-                    _ => (false, "HelmRelease status unknown or missing".to_string()),
+                    Some(ConditionStatus::Unknown) => {
+                        // If 'Ready' condition is unknown, return error with message if available
+                        let message = condition
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .unwrap_or("No specific message found");
+                        (false, format!("HelmRelease status unknown: {}", message))
+                    }
+                    _ => (false, "HelmRelease status missing".to_string()),
                 }
             }
             None => (false, "No 'Ready' condition was found".to_string()),
@@ -237,6 +245,18 @@ pub mod tests {
                         "conditions": [
                             {"type": "Ready", "status": "False", "lastTransitionTime": "2021-01-01T12:00:00Z"},
                             {"type": "Reconciling", "status": "True", "lastTransitionTime": "2021-01-02T12:00:00Z"}
+                        ]
+                    });
+                    setup_mock_client_with_conditions(mock, status_conditions);
+                },
+            ),
+            (
+                "Helm release unhealthy when ready but status Unknown",
+                Ok(Unhealthy::new("HelmRelease status unknown: No specific message found".to_string()).into()),
+                |mock: &mut MockSyncK8sClient| {
+                    let status_conditions = json!({
+                        "conditions": [
+                            {"type": "Ready", "status": "Unknown", "lastTransitionTime": "2021-01-01T12:00:00Z"},
                         ]
                     });
                     setup_mock_client_with_conditions(mock, status_conditions);
