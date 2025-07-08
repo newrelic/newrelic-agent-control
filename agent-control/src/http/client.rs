@@ -295,8 +295,10 @@ pub(crate) mod tests {
 
     fn valid_testing_cert() -> String {
         let subject_alt_names = vec!["localhost".to_string()];
-        let rcgen::CertifiedKey { cert, key_pair: _ } =
-            rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
+        let rcgen::CertifiedKey {
+            cert,
+            signing_key: _,
+        } = rcgen::generate_simple_self_signed(subject_alt_names).unwrap();
         cert.pem()
     }
 
