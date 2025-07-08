@@ -12,7 +12,7 @@ where
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) variants: Variants<T>, // TODO: add support for vor VariantsDefinition
+    pub(crate) variants: Variants<T>, // TODO: add support for VariantsDefinition
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
