@@ -136,7 +136,7 @@ impl AgentControlRunner {
         let secrets_providers = agent_control_config
             .secrets_providers
             .clone()
-            .map(|config| SecretsProvidersRegistry::try_from(config))
+            .map(SecretsProvidersRegistry::try_from)
             .transpose()
             .map_err(|e| {
                 AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
