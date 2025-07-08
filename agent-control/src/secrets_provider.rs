@@ -1,14 +1,13 @@
 pub mod vault;
 
-use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError, VaultSecretPath};
+use crate::agent_type::variable::namespace::Namespace;
+use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::thread::sleep;
 use std::time::Duration;
 use tracing::debug;
-
-const NR_VAULT: &str = "nr-vault";
 
 /// Configuration for supported secrets providers.
 ///
@@ -42,12 +41,6 @@ pub enum SecretsProvidersError {
     VaultError(#[from] VaultError),
 }
 
-#[derive(Clone)]
-pub enum SecretPath {
-    Vault(VaultSecretPath),
-    None,
-}
-
 /// Trait for operating with secrets providers.
 ///
 /// Defines common operations among the different secrets providers.
@@ -56,18 +49,18 @@ pub trait SecretsProvider {
 
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
-    fn get_secret(&self, secret_path: SecretPath) -> Result<String, Self::Error>;
+    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error>;
 
     /// Gets a secret with a retry policy
     fn get_secret_with_retry(
         &self,
         limit: u64,
         retry_interval: Duration,
-        secret_path: SecretPath,
+        secret_path: &str,
     ) -> Result<String, Self::Error> {
         for attempt in 1..=limit {
             debug!("Checking for secret with retries {attempt}/{limit}");
-            match self.get_secret(secret_path.clone()) {
+            match self.get_secret(secret_path) {
                 Ok(secret) => {
                     return Ok(secret.clone());
                 }
@@ -95,7 +88,7 @@ pub enum SecretsProviderType {
 }
 
 /// Collection of [SecretsProviderType]s.
-pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderType>;
+pub type SecretsProvidersRegistry = HashMap<Namespace, SecretsProviderType>;
 
 impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
     type Error = SecretsProvidersError;
@@ -108,7 +101,7 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
 
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
-            registry.insert(NR_VAULT.to_string(), SecretsProviderType::Vault(vault));
+            registry.insert(Namespace::Vault, SecretsProviderType::Vault(vault));
         }
 
         Ok(registry)
@@ -136,12 +129,15 @@ pub mod tests {
         }
     }
 
+    #[derive(Clone)]
+    pub struct SecretPath {}
+
     mock! {
-        pub SecretProvider{}
-        impl SecretsProvider for SecretProvider{
+        pub SecretProvider {}
+        impl SecretsProvider for SecretProvider {
             type Error = SecretProviderError;
 
-            fn get_secret(&self, secret_path: SecretPath) -> Result<String, SecretProviderError>;
+            fn get_secret(&self, secret_path: &str) -> Result<String, SecretProviderError>;
         }
     }
 
@@ -159,8 +155,7 @@ pub mod tests {
     fn test_get_secret_with_retry_success_on_first_attempt() {
         let secret_provider = MockSecretProvider::new_secret();
 
-        let result =
-            secret_provider.get_secret_with_retry(3, Duration::from_millis(10), SecretPath::None);
+        let result = secret_provider.get_secret_with_retry(3, Duration::from_millis(10), "");
 
         assert_matches!(result, Ok(secret) => {
             assert_eq!("a-secret".to_string(), secret);
@@ -196,8 +191,7 @@ pub mod tests {
             .in_sequence(&mut seq)
             .returning(|_path| Ok("a-secret".to_string()));
 
-        let result =
-            secret_provider.get_secret_with_retry(3, Duration::from_millis(10), SecretPath::None);
+        let result = secret_provider.get_secret_with_retry(3, Duration::from_millis(10), "");
 
         assert_matches!(result, Ok(secret) => {
             assert_eq!("a-secret".to_string(), secret);
@@ -213,8 +207,7 @@ pub mod tests {
             .times(3)
             .returning(|_path| Err(SecretProviderError::GenericError("an error".to_string())));
 
-        let result =
-            secret_provider.get_secret_with_retry(3, Duration::from_millis(10), SecretPath::None);
+        let result = secret_provider.get_secret_with_retry(3, Duration::from_millis(10), "");
 
         assert_matches!(result, Err(SecretProviderError::GenericError(s)) => {
             assert_eq!(s, "Failed to retrieve secret after all retry attempts".to_string());

@@ -1,4 +1,4 @@
-use super::{SecretPath, SecretsProvider};
+use super::SecretsProvider;
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
@@ -60,7 +60,7 @@ impl From<String> for VaultError {
 }
 
 /// Represents a path to a secret in Vault, including source, mount, path, and name.
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VaultSecretPath {
     pub source: String,
     pub mount: String,
@@ -87,21 +87,17 @@ impl SecretEngine {
 
     fn parse_secret_response(
         &self,
-        vault_secret_path: VaultSecretPath,
+        name: &str,
         body: String,
     ) -> Result<Option<String>, VaultError> {
         Ok(match self {
             SecretEngine::Kv1 => {
                 let response: KV1SecretData = serde_json::from_str(&body)?;
-                response.data.get(vault_secret_path.name.as_str()).cloned()
+                response.data.get(name).cloned()
             }
             SecretEngine::Kv2 => {
                 let response: KV2SecretData = serde_json::from_str(&body)?;
-                response
-                    .data
-                    .data
-                    .get(vault_secret_path.name.as_str())
-                    .cloned()
+                response.data.data.get(name).cloned()
             }
         })
     }
@@ -207,20 +203,28 @@ impl Vault {
 impl SecretsProvider for Vault {
     type Error = VaultError;
 
-    fn get_secret(&self, secret_path: SecretPath) -> Result<String, Self::Error> {
-        let SecretPath::Vault(vault_secret_path) = secret_path else {
+    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+        let parts: Vec<&str> = secret_path.split(':').collect();
+        if parts.len() != 4 {
             return Err(VaultError::IncorrectSecretPath);
+        }
+
+        let secret_path = VaultSecretPath {
+            source: parts[0].to_string(),
+            mount: parts[1].to_string(),
+            path: parts[2].to_string(),
+            name: parts[3].to_string(),
         };
 
         let vault_source = self
             .sources
-            .get(&vault_secret_path.source)
+            .get(&secret_path.source)
             .ok_or(VaultError::SourceNotFound)?;
 
         let url = vault_source.engine.get_url(
             vault_source.url.clone(),
-            vault_secret_path.mount.as_str(),
-            vault_secret_path.path.as_str(),
+            secret_path.mount.as_str(),
+            secret_path.path.as_str(),
         )?;
 
         let mut request = Request::builder()
@@ -243,7 +247,7 @@ impl SecretsProvider for Vault {
 
         let maybe_secret = vault_source
             .engine
-            .parse_secret_response(vault_secret_path, body)?;
+            .parse_secret_response(&secret_path.name, body)?;
 
         maybe_secret.map_or_else(
             || Err(VaultError::NotFound),
@@ -253,11 +257,22 @@ impl SecretsProvider for Vault {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::secrets_provider::vault::VaultConfig;
     use httpmock::Method::GET;
     use httpmock::MockServer;
+    use mockall::mock;
+
+    mock! {
+        pub Vault {}
+
+        impl SecretsProvider for Vault {
+            type Error = VaultError;
+
+            fn get_secret(&self, secret_path: &str) -> Result<String, VaultError>;
+        }
+    }
 
     const KV1_PATH: &str = "/kv-v1/my-secret";
     const KV1_RESPONSE: &str = r#"{
@@ -325,7 +340,7 @@ client_timeout: 3s
 
         struct TestCase {
             _name: &'static str,
-            secret_path: SecretPath,
+            secret_path: &'static str,
             expected: Result<String, VaultError>,
         }
 
@@ -352,62 +367,32 @@ client_timeout: 3s
         let test_cases = vec![
             TestCase {
                 _name: "get foo1 kv1 secret",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceA".to_string(),
-                    mount: "kv-v1".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "foo1".to_string(),
-                }),
+                secret_path: "sourceA:kv-v1:my-secret:foo1",
                 expected: Ok("bar1".to_string()),
             },
             TestCase {
                 _name: "get zip1 kv1 secret",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceA".to_string(),
-                    mount: "kv-v1".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "zip1".to_string(),
-                }),
+                secret_path: "sourceA:kv-v1:my-secret:zip1",
                 expected: Ok("zap1".to_string()),
             },
             TestCase {
                 _name: "get foo2 kv2 secret",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceB".to_string(),
-                    mount: "secret".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "foo2".to_string(),
-                }),
+                secret_path: "sourceB:secret:my-secret:foo2",
                 expected: Ok("bar2".to_string()),
             },
             TestCase {
                 _name: "get zip2 kv2 secret",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceB".to_string(),
-                    mount: "secret".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "zip2".to_string(),
-                }),
+                secret_path: "sourceB:secret:my-secret:zip2",
                 expected: Ok("zap2".to_string()),
             },
             TestCase {
                 _name: "get secret from wrong existing source returns Not Found error",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceB".to_string(),
-                    mount: "secret".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "zip1".to_string(),
-                }),
+                secret_path: "sourceB:secret:my-secret:zip1",
                 expected: Err(VaultError::NotFound),
             },
             TestCase {
                 _name: "get secret from wrong existing source returns Source Not Found error",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceC".to_string(),
-                    mount: "secret".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "zip1".to_string(),
-                }),
+                secret_path: "sourceC:secret:my-secret:zip1",
                 expected: Err(VaultError::SourceNotFound),
             },
         ];

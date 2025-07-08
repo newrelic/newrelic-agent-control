@@ -9,6 +9,7 @@
 pub mod constraints;
 pub mod fields;
 pub mod namespace;
+pub mod secret_variables;
 pub mod tree;
 pub mod variable_type;
 pub mod variants;

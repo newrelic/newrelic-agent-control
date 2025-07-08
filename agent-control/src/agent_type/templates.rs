@@ -20,7 +20,7 @@ use std::sync::OnceLock;
 
 /// Regular expression patterns for parsing template variables and functions.
 /// example: ${nr-var:name|indent 2}
-const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/]+)((?:\s*\|\s*[a-zA-Z]+\s*\d*)*)\}";
+const TEMPLATE_RE: &str = r"\$\{(nr-[a-z]+:[a-zA-Z0-9\.\-_/:]+)((?:\s*\|\s*[a-zA-Z]+\s*\d*)*)\}";
 const TEMPLATE_BEGIN: &str = "${";
 const TEMPLATE_END: char = '}';
 pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
@@ -42,7 +42,7 @@ pub trait Templateable {
         Self: std::marker::Sized;
 }
 
-fn template_re() -> &'static Regex {
+pub fn template_re() -> &'static Regex {
     static RE_ONCE: OnceLock<Regex> = OnceLock::new();
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
 }
