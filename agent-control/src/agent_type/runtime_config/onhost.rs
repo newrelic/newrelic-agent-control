@@ -107,7 +107,7 @@ mod tests {
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
     };
     use crate::agent_type::trivial_value::FilePathWithContent;
-    use crate::agent_type::variable::definition::VariableDefinition;
+    use crate::agent_type::variable::Variable;
     use serde_yaml::Number;
     use std::collections::HashMap;
 
@@ -177,11 +177,11 @@ restart_policy:
         let normalized_values = HashMap::from([
             (
                 "nr-var:bin".to_string(),
-                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
+                Variable::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "nr-var:config".to_string(),
-                VariableDefinition::new_with_file_path(
+                Variable::new_with_file_path(
                     "config".to_string(),
                     true,
                     None,
@@ -194,7 +194,7 @@ restart_policy:
             ),
             (
                 "nr-var:integrations".to_string(),
-                VariableDefinition::new_with_file_path(
+                Variable::new_with_file_path(
                     "integrations".to_string(),
                     true,
                     None,
@@ -219,7 +219,7 @@ restart_policy:
             ),
             (
                 "nr-var:deployment.on_host.verbose".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "verbosity".to_string(),
                     true,
                     None,
@@ -228,7 +228,7 @@ restart_policy:
             ),
             (
                 "nr-var:deployment.on_host.log_level".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "log_level".to_string(),
                     true,
                     None,
@@ -237,7 +237,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_type".to_string(),
                     true,
                     None,
@@ -246,7 +246,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_delay".to_string(),
                     true,
                     None,
@@ -255,7 +255,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_retries".to_string(),
                     true,
                     None,
@@ -264,7 +264,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_interval".to_string(),
                     true,
                     None,
@@ -345,11 +345,11 @@ restart_policy:
         let normalized_values = HashMap::from([
             (
                 "nr-var:bin".to_string(),
-                VariableDefinition::new("binary".to_string(), true, None, Some("/etc".to_string())),
+                Variable::new("binary".to_string(), true, None, Some("/etc".to_string())),
             ),
             (
                 "nr-var:deployment.on_host.verbose".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "verbosity".to_string(),
                     true,
                     None,
@@ -358,7 +358,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_type".to_string(),
                     true,
                     None,
@@ -367,7 +367,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_delay".to_string(),
                     true,
                     None,
@@ -376,7 +376,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_retries".to_string(),
                     true,
                     None,
@@ -385,7 +385,7 @@ restart_policy:
             ),
             (
                 "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     "backoff_interval".to_string(),
                     true,
                     None,
@@ -431,7 +431,7 @@ restart_policy:
         let variables = Variables::from([
             (
                 "nr-var:path".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -440,7 +440,7 @@ restart_policy:
             ),
             (
                 "nr-var:args".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -449,27 +449,27 @@ restart_policy:
             ),
             (
                 "nr-var:env.MYAPP_PORT".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("8080".to_string())),
+                Variable::new(String::default(), true, None, Some("8080".to_string())),
             ),
             (
                 "nr-var:backoff.type".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("linear".to_string())),
+                Variable::new(String::default(), true, None, Some("linear".to_string())),
             ),
             (
                 "nr-var:backoff.delay".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("10s".to_string())),
+                Variable::new(String::default(), true, None, Some("10s".to_string())),
             ),
             (
                 "nr-var:backoff.retries".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
+                Variable::new(String::default(), true, None, Some(Number::from(30))),
             ),
             (
                 "nr-var:backoff.interval".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some("300s".to_string())),
+                Variable::new(String::default(), true, None, Some("300s".to_string())),
             ),
             (
                 "nr-var:config".to_string(),
-                VariableDefinition::new_with_file_path(
+                Variable::new_with_file_path(
                     "config".to_string(),
                     true,
                     None,
@@ -482,7 +482,7 @@ restart_policy:
             ),
             (
                 "nr-var:integrations".to_string(),
-                VariableDefinition::new_with_file_path(
+                Variable::new_with_file_path(
                     "integrations".to_string(),
                     true,
                     None,

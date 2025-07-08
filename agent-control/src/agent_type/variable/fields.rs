@@ -1,31 +1,85 @@
+//! This module defines the fields the Agent Type supports depending on the corresponding type.
 use std::{fmt::Debug, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
-use crate::agent_type::{error::AgentTypeError, variable::variants::Variants};
+use crate::agent_type::{
+    error::AgentTypeError,
+    variable::variants::{Variants, VariantsConfig},
+};
 
+/// Defines the fields supported by a Variable in an Agent Type
 #[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct KindValue<T>
+pub struct FieldsDefinition<T>
+where
+    T: PartialEq,
+{
+    pub(crate) required: bool,
+    pub(crate) default: Option<T>,
+    pub(crate) variants: VariantsConfig<T>,
+}
+
+/// Type to also support a `file_path` for particular variable types.
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct FieldsWithPathDefinition<T>
+where
+    T: PartialEq,
+{
+    #[serde(flatten)]
+    pub(crate) inner: FieldsDefinition<T>,
+    pub(crate) file_path: PathBuf,
+}
+
+impl<T: PartialEq> FieldsWithPathDefinition<T> {
+    pub fn with_config(self) -> FieldsWithPath<T> {
+        FieldsWithPath {
+            inner: self.inner.with_config(),
+            file_path: self.file_path,
+        }
+    }
+}
+
+/// A [FieldsDefinition] including information known at runtime.
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct Fields<T>
 where
     T: PartialEq,
 {
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) variants: Variants<T>, // TODO: add support for VariantsConfig
+    pub(crate) variants: Variants<T>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct KindValueWithPath<T>
+/// A [FieldsWithPathDefinition] including information known at runtime.
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct FieldsWithPath<T>
 where
     T: PartialEq,
 {
     #[serde(flatten)]
-    pub(crate) inner: KindValue<T>,
+    pub(crate) inner: Fields<T>,
     pub(crate) file_path: PathBuf,
 }
 
-impl<T> KindValue<T>
+impl<T> FieldsDefinition<T>
+where
+    T: PartialEq,
+{
+    /// Returns the corresponding [Fields] according to the provided configuration.
+    // TODO: actually receive configuration
+    pub fn with_config(self) -> Fields<T> {
+        let variants = self.variants.values; // TODO: variants.ac_config_field and get the right value
+        Fields {
+            required: self.required,
+            default: self.default,
+            final_value: None,
+            variants,
+        }
+    }
+}
+
+impl<T> Fields<T>
 where
     T: PartialEq + Debug,
 {
@@ -41,7 +95,7 @@ where
     }
 }
 
-impl<T> KindValueWithPath<T>
+impl<T> FieldsWithPath<T>
 where
     T: PartialEq,
 {
@@ -53,7 +107,7 @@ where
     }
 }
 
-impl<'de, T> Deserialize<'de> for KindValue<T>
+impl<'de, T> Deserialize<'de> for FieldsDefinition<T>
 where
     T: Deserialize<'de> + PartialEq,
 {
@@ -66,7 +120,7 @@ where
         #[derive(Debug, Deserialize)]
         struct IntermediateValueKind<T: PartialEq> {
             default: Option<T>,
-            variants: Option<Variants<T>>,
+            variants: Option<VariantsConfig<T>>,
             required: bool,
         }
 
@@ -75,11 +129,12 @@ where
             return Err(D::Error::custom(AgentTypeError::MissingDefault));
         }
 
-        Ok(KindValue {
+        Ok(FieldsDefinition {
             default: intermediate_spec.default,
             required: intermediate_spec.required,
-            final_value: None,
-            variants: intermediate_spec.variants.unwrap_or_default(),
+            variants: intermediate_spec
+                .variants
+                .unwrap_or(VariantsConfig::default()),
         })
     }
 }
@@ -88,9 +143,9 @@ where
 mod tests {
     use std::path::PathBuf;
 
-    use super::{KindValue, KindValueWithPath};
+    use super::{Fields, FieldsWithPath};
 
-    impl<T> KindValue<T>
+    impl<T> Fields<T>
     where
         T: PartialEq,
     {
@@ -104,7 +159,7 @@ mod tests {
         }
     }
 
-    impl<T> KindValueWithPath<T>
+    impl<T> FieldsWithPath<T>
     where
         T: PartialEq,
     {
@@ -115,7 +170,7 @@ mod tests {
             file_path: PathBuf,
         ) -> Self {
             Self {
-                inner: KindValue {
+                inner: Fields {
                     required,
                     default,
                     final_value,
@@ -128,20 +183,20 @@ mod tests {
 
     #[test]
     fn test_set_final_value_valid_variant() {
-        let mut kind_value: KindValue<i32> = KindValue {
+        let mut fields: Fields<i32> = Fields {
             required: true,
             default: Some(1),
             final_value: None,
             variants: vec![1, 2, 3].into(),
         };
 
-        assert!(kind_value.set_final_value(2).is_ok());
-        assert_eq!(kind_value.final_value, Some(2));
+        assert!(fields.set_final_value(2).is_ok());
+        assert_eq!(fields.final_value, Some(2));
     }
 
     #[test]
     fn test_set_final_value_invalid_variant() {
-        let mut kind_value: KindValue<i32> = KindValue {
+        let mut fields: Fields<i32> = Fields {
             required: true,
             default: Some(1),
             final_value: None,
@@ -149,22 +204,22 @@ mod tests {
         };
 
         assert_eq!(
-            kind_value.set_final_value(4).unwrap_err().to_string(),
+            fields.set_final_value(4).unwrap_err().to_string(),
             r#"Invalid variant provided as a value: `4`. Variants allowed: ["1", "2", "3"]"#
         );
-        assert_eq!(kind_value.final_value, None);
+        assert_eq!(fields.final_value, None);
     }
 
     #[test]
     fn test_set_final_value_no_variants() {
-        let mut kind_value: KindValue<i32> = KindValue {
+        let mut fields: Fields<i32> = Fields {
             required: true,
             default: Some(1),
             final_value: None,
             variants: Default::default(),
         };
 
-        assert!(kind_value.set_final_value(2).is_ok());
-        assert_eq!(kind_value.final_value, Some(2));
+        assert!(fields.set_final_value(2).is_ok());
+        assert_eq!(fields.final_value, Some(2));
     }
 }

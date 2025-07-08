@@ -1,7 +1,7 @@
 use crate::agent_control::run::Environment;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::variable::kind::Kind;
+use crate::agent_type::variable::variable_type::VariableType;
 use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::config_migrate::migration::agent_value_spec::{
     AgentValueError, AgentValueSpec, from_fqn_and_value, merge_agent_values,
@@ -61,7 +61,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
         for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();
             match spec.kind() {
-                Kind::File(_) => {
+                VariableType::File(_) => {
                     // look for file mapping, if not found and required throw an error
                     let file_map = migration_agent_config.get_file(agent_type_fqn.clone());
                     if spec.is_required() && file_map.is_none() {
@@ -70,7 +70,7 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
                     agent_values_specs
                         .push(self.file_to_agent_value_spec(agent_type_fqn, file_map.unwrap())?)
                 }
-                Kind::MapStringFile(_) => {
+                VariableType::MapStringFile(_) => {
                     // look for file mapping, if not found and required throw an error
                     let dir_info = migration_agent_config.get_dir(agent_type_fqn.clone());
                     if spec.is_required() && dir_info.is_none() {

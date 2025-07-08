@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use thiserror::Error;
 
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::variable::definition::VariableDefinition;
+use crate::agent_type::variable::Variable;
 use fs::directory_manager::DirectoryManagementError;
 use fs::writer_file::WriteError;
 
@@ -22,7 +22,7 @@ pub trait ConfigurationPersister {
     fn persist_agent_config(
         &self,
         agent_id: &AgentID,
-        variables: &HashMap<String, VariableDefinition>,
+        variables: &HashMap<String, Variable>,
     ) -> Result<(), PersistError>;
 
     fn delete_agent_config(&self, agent_id: &AgentID) -> Result<(), PersistError>;
@@ -35,7 +35,7 @@ pub trait ConfigurationPersister {
 #[cfg(test)]
 pub mod tests {
     use crate::agent_control::agent_id::AgentID;
-    use crate::agent_type::variable::definition::VariableDefinition;
+    use crate::agent_type::variable::Variable;
     use fs::directory_manager::DirectoryManagementError::{
         ErrorCreatingDirectory, ErrorDeletingDirectory, InvalidDirectory,
     };
@@ -103,7 +103,7 @@ pub mod tests {
         pub(crate) ConfigurationPersister {}
 
         impl ConfigurationPersister for ConfigurationPersister {
-             fn persist_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, VariableDefinition>) -> Result<(), PersistError>;
+             fn persist_agent_config(&self, agent_id: &AgentID, variables: &HashMap<String, Variable>) -> Result<(), PersistError>;
              fn delete_agent_config(&self, agent_id: &AgentID) -> Result<(), PersistError>;
         }
     }
@@ -112,7 +112,7 @@ pub mod tests {
         pub fn should_persist_agent_config(
             &mut self,
             agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
+            variables: &HashMap<String, Variable>,
         ) {
             self.expect_persist_agent_config()
                 .once()
@@ -126,7 +126,7 @@ pub mod tests {
         pub fn should_not_persist_agent_config(
             &mut self,
             agent_id: &AgentID,
-            variables: &HashMap<String, VariableDefinition>,
+            variables: &HashMap<String, Variable>,
             err: PersistError,
         ) {
             self.expect_persist_agent_config()

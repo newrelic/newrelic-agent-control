@@ -79,7 +79,7 @@ mod tests {
         agent_type::{
             definition::AgentType,
             trivial_value::FilePathWithContent,
-            variable::definition::{VariableDefinition, VariableDefinitionTree},
+            variable::{Variable, tree::Tree},
         },
     };
 
@@ -224,12 +224,12 @@ deployment:
         let expected = HashMap::from([
             (
                 "deployment".to_string(),
-                VariableDefinitionTree::Mapping(HashMap::from([(
+                Tree::Mapping(HashMap::from([(
                     "on_host".to_string(),
-                    VariableDefinitionTree::Mapping(HashMap::from([
+                    Tree::Mapping(HashMap::from([
                         (
                             "path".to_string(),
-                            VariableDefinitionTree::End(VariableDefinition::new(
+                            Tree::End(Variable::new(
                                 "Path to the agent".to_string(),
                                 true,
                                 None,
@@ -238,7 +238,7 @@ deployment:
                         ),
                         (
                             "args".to_string(),
-                            VariableDefinitionTree::End(VariableDefinition::new(
+                            Tree::End(Variable::new(
                                 "Args passed to the agent".to_string(),
                                 true,
                                 None,
@@ -250,7 +250,7 @@ deployment:
             ),
             (
                 "config".to_string(),
-                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
+                Tree::End(Variable::new_with_file_path(
                     "Path to the agent".to_string(),
                     true,
                     None,
@@ -263,7 +263,7 @@ deployment:
             ),
             (
                 "integrations".to_string(),
-                VariableDefinitionTree::End(VariableDefinition::new_with_file_path(
+                Tree::End(Variable::new_with_file_path(
                     "Newrelic integrations configuration yamls".to_string(),
                     true,
                     None,

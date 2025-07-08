@@ -14,7 +14,7 @@ use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCol
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
-use crate::agent_type::variable::definition::VariableDefinition;
+use crate::agent_type::variable::Variable;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -121,13 +121,11 @@ impl AgentControlRunner {
         let agent_control_variables = HashMap::from([
             (
                 NAMESPACE_VARIABLE_NAME.to_string(),
-                VariableDefinition::new_final_string_variable(self.k8s_config.namespace.clone()),
+                Variable::new_final_string_variable(self.k8s_config.namespace.clone()),
             ),
             (
                 NAMESPACE_AGENTS_VARIABLE_NAME.to_string(),
-                VariableDefinition::new_final_string_variable(
-                    self.k8s_config.namespace_agents.clone(),
-                ),
+                Variable::new_final_string_variable(self.k8s_config.namespace_agents.clone()),
             ),
         ]);
 

@@ -187,9 +187,12 @@ pub fn build_agent_type(
         .merge(specific_vars)
         .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
+    // TODO: check if this should fail and ingest the corresponding configuration
+    let agent_type_vars = merged_variables.with_config();
+
     Ok(AgentType::new(
         definition.agent_type_id,
-        merged_variables,
+        agent_type_vars,
         runtime_config,
     ))
 }

@@ -13,8 +13,8 @@
 use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates_function::{Function, SupportedFunction};
-use super::variable::definition::VariableDefinition;
-use super::variable::kind::Kind;
+use super::variable::Variable;
+use super::variable::variable_type::VariableType;
 use regex::Regex;
 use std::sync::OnceLock;
 
@@ -62,7 +62,7 @@ fn template_trim(s: &str) -> &str {
 fn normalized_var<'a>(
     name: &str,
     variables: &'a Variables,
-) -> Result<&'a VariableDefinition, AgentTypeError> {
+) -> Result<&'a Variable, AgentTypeError> {
     variables
         .get(name)
         .ok_or(AgentTypeError::MissingTemplateKey(name.to_string()))
@@ -171,13 +171,15 @@ fn template_yaml_value_string(
         .ok_or(AgentTypeError::MissingValue(var_name.to_string()))?;
 
     match var_spec.kind() {
-        Kind::Yaml(_) => var_value
-            .to_yaml_value()
-            .ok_or(AgentTypeError::UnexpectedValueForKey(
-                var_name.to_string(),
-                var_value.to_string(),
-            )),
-        Kind::Bool(_) | Kind::Number(_) => {
+        VariableType::Yaml(_) => {
+            var_value
+                .to_yaml_value()
+                .ok_or(AgentTypeError::UnexpectedValueForKey(
+                    var_name.to_string(),
+                    var_value.to_string(),
+                ))
+        }
+        VariableType::Bool(_) | VariableType::Number(_) => {
             serde_yaml::from_str(var_value.to_string().as_str()).map_err(AgentTypeError::SerdeYaml)
         }
         _ => Ok(serde_yaml::Value::String(var_value.to_string())),
@@ -187,7 +189,7 @@ fn template_yaml_value_string(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::variable::kind_value::KindValue;
+    use crate::agent_type::variable::fields::Fields;
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_yaml::Number;
@@ -202,7 +204,7 @@ mod tests {
     ) {
         let variables = Variables::from([(
             "nr-var:foo".to_string(),
-            VariableDefinition::new(String::default(), true, None, Some(var_content.to_string())),
+            Variable::new(String::default(), true, None, Some(var_content.to_string())),
         )]);
         let input = format!("${{nr-var:foo{var_functions}}}");
         let actual_output = template_string(input, &variables).unwrap();
@@ -226,7 +228,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:name".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -235,7 +237,7 @@ mod tests {
             ),
             (
                 "nr-var:age".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(30))),
+                Variable::new(String::default(), true, None, Some(Number::from(30))),
             ),
         ]);
 
@@ -252,7 +254,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -261,11 +263,11 @@ mod tests {
             ),
             (
                 "nr-var:change.me.bool".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(true)),
+                Variable::new(String::default(), true, None, Some(true)),
             ),
             (
                 "nr-var:change.me.number".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Mapping = serde_yaml::from_str(
@@ -302,7 +304,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -311,11 +313,11 @@ mod tests {
             ),
             (
                 "nr-var:change.me.bool".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(true)),
+                Variable::new(String::default(), true, None, Some(true)),
             ),
             (
                 "nr-var:change.me.number".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
         ]);
         let input: serde_yaml::Sequence = serde_yaml::from_str(
@@ -348,7 +350,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -357,15 +359,15 @@ mod tests {
             ),
             (
                 "nr-var:change.me.bool".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(true)),
+                Variable::new(String::default(), true, None, Some(true)),
             ),
             (
                 "nr-var:change.me.number".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
+                Variable::new(String::default(), true, None, Some(Number::from(42))),
             ),
             (
                 "nr-var:change.me.yaml".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -376,7 +378,7 @@ mod tests {
             ),
             (
                 "nr-var:change.me.yaml.map".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -391,7 +393,7 @@ mod tests {
             (
                 // Expansion inside variable's values is not supported.
                 "nr-var:yaml.with.var.placeholder".to_string(),
-                VariableDefinition::new(
+                Variable::new(
                     String::default(),
                     true,
                     None,
@@ -522,7 +524,7 @@ mod tests {
                 name: "missing required value key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    KindValue::<serde_yaml::Value>::new(true, None, None).into(),
+                    Fields::<serde_yaml::Value>::new(true, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -531,7 +533,7 @@ mod tests {
                 name: "missing non-required key",
                 variables: Variables::from([(
                     "nr-var:yaml".to_string(),
-                    KindValue::<serde_yaml::Value>::new(false, None, None).into(),
+                    Fields::<serde_yaml::Value>::new(false, None, None).into(),
                 )]),
                 input: "${nr-var:yaml}",
                 assert_fn: |err| assert_matches!(err, AgentTypeError::MissingValue(_)),
@@ -566,12 +568,7 @@ mod tests {
                 name: "simple string",
                 variables: Variables::from([(
                     "nr-var:simple.string.var".to_string(),
-                    VariableDefinition::new(
-                        String::default(),
-                        true,
-                        None,
-                        Some("Value".to_string()),
-                    ),
+                    Variable::new(String::default(), true, None, Some("Value".to_string())),
                 )]),
                 expectations: vec![
                     (
@@ -592,12 +589,7 @@ mod tests {
                 name: "string with yaml",
                 variables: Variables::from([(
                     "nr-var:string.with.yaml.var".to_string(),
-                    VariableDefinition::new(
-                        String::default(),
-                        true,
-                        None,
-                        Some("[Value]".to_string()),
-                    ),
+                    Variable::new(String::default(), true, None, Some("[Value]".to_string())),
                 )]),
                 expectations: vec![(
                     "${nr-var:string.with.yaml.var}",
@@ -608,7 +600,7 @@ mod tests {
                 name: "bool",
                 variables: Variables::from([(
                     "nr-var:bool.var".to_string(),
-                    VariableDefinition::new(String::default(), true, None, Some(true)),
+                    Variable::new(String::default(), true, None, Some(true)),
                 )]),
                 expectations: vec![
                     ("${nr-var:bool.var}", serde_yaml::Value::Bool(true)),
@@ -622,7 +614,7 @@ mod tests {
                 name: "number",
                 variables: Variables::from([(
                     "nr-var:number.var".to_string(),
-                    VariableDefinition::new(String::default(), true, None, Some(Number::from(42))),
+                    Variable::new(String::default(), true, None, Some(Number::from(42))),
                 )]),
                 expectations: vec![(
                     "${nr-var:number.var}",
@@ -634,25 +626,15 @@ mod tests {
                 variables: Variables::from([
                     (
                         "nr-var:number.var".to_string(),
-                        VariableDefinition::new(
-                            String::default(),
-                            true,
-                            None,
-                            Some(Number::from(42)),
-                        ),
+                        Variable::new(String::default(), true, None, Some(Number::from(42))),
                     ),
                     (
                         "nr-var:bool.var".to_string(),
-                        VariableDefinition::new(String::default(), true, None, Some(true)),
+                        Variable::new(String::default(), true, None, Some(true)),
                     ),
                     (
                         "nr-var:simple.string.var".to_string(),
-                        VariableDefinition::new(
-                            String::default(),
-                            true,
-                            None,
-                            Some("Value".to_string()),
-                        ),
+                        Variable::new(String::default(), true, None, Some("Value".to_string())),
                     ),
                 ]),
                 expectations: vec![
@@ -670,7 +652,7 @@ mod tests {
                 name: "yaml",
                 variables: Variables::from([(
                     "nr-var:yaml.var".to_string(),
-                    VariableDefinition::new(
+                    Variable::new(
                         String::default(),
                         true,
                         None,
@@ -697,7 +679,7 @@ mod tests {
                 name: "yaml from default value",
                 variables: Variables::from([(
                     "nr-var:yaml.var".to_string(),
-                    VariableDefinition::new(
+                    Variable::new(
                         String::default(),
                         false,
                         Some(serde_yaml::Value::Mapping(serde_yaml::Mapping::from_iter(
@@ -725,14 +707,14 @@ mod tests {
     fn test_normalized_var() {
         let variables = Variables::from([(
             "nr-var:var.name".to_string(),
-            VariableDefinition::new(String::default(), true, None, Some("Value".to_string())),
+            Variable::new(String::default(), true, None, Some("Value".to_string())),
         )]);
 
         assert_matches!(
             normalized_var("nr-var:var.name", &variables)
                 .unwrap()
                 .kind(),
-            Kind::String(_)
+            VariableType::String(_)
         );
         let key = assert_matches!(
             normalized_var("does.not.exists", &variables).unwrap_err(),
