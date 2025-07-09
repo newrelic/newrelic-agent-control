@@ -11,13 +11,12 @@ use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use assert_cmd::Command;
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
-use kube::{Api, Client, ResourceExt};
+use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
-use std::io;
 use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
@@ -90,11 +89,9 @@ chart_version: {LOCAL_CHART_PREVIOUS_VERSION}
                 }),
             })
         {
-            return Err(format!(
-                "new version has not been reported: {:?}",
-                current_attributes
-            )
-            .into());
+            return Err(
+                format!("new version has not been reported: {current_attributes:?}").into(),
+            );
         }
 
         check_latest_effective_config_is_expected(
@@ -365,7 +362,6 @@ chart_version: {LOCAL_CHART_FAILING_VERSION}
         // Iterate over the Pods matching the label to ensure are crashing.
         let mut pod_crashing = false;
         'pods_loop: for p in pod_list.iter() {
-            let pod_name = p.name_any();
             if p.status
                 .as_ref()
                 .map(|status| &status.container_statuses)
