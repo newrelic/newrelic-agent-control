@@ -230,6 +230,7 @@ Then, for a Kubernetes deployment, we use the following format:
 
 ```yaml
 deployment:
+  # See com.newrelic.infrastructure Agent type for description of fields.
   k8s:
     health:
       interval: 30s
@@ -254,29 +255,19 @@ deployment:
             spec:
               chart: nr-k8s-otel-collector
               version: ${nr-var:chart_version}
-              reconcileStrategy: ChartVersion
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
               interval: 3m
           install:
-            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
             disableWait: true
             disableWaitForJobs: true
-            remediation:
-              retries: 3
             replace: true
           upgrade:
             disableWait: true
             disableWaitForJobs: true
             cleanupOnFail: true
             force: true
-            remediation:
-              retries: 3
-              strategy: rollback
-          rollback:
-            disableWait: true
-            disableWaitForJobs: true
           values:
             ${nr-var:chart_values}
 ```

@@ -287,7 +287,7 @@ The health configuration for Kubernetes. See [Health status](#health-status) bel
 
 ##### `objects`
 
-Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/overview/working-with-objects/) to be created by this sub-agent on deployment. The key is the name of the object, while the value is the object itself which accepts the following values:
+Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/overview/working-with-objects/) to be created by this sub-agent on deployment. The key is an internal identifier of the object, while the value is the object itself which accepts the following values:
 
 - `apiVersion`, a string.
 - `kind`, a string.
@@ -296,9 +296,10 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `namespace`, a string.
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
-  - `targetNamespace`, a string. Relevant for installing the sub-agent in the agents namespace.
+  
+Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation. 
 
-[Flux](https://fluxcd.io) is expected to be installed in the cluster to manage Flux resources.
+A detailed example of a Kubernetes deployment AgentType is available [here](../agent-control/agent-type-registry/newrelic/com.newrelic.infrastructure-0.1.0.yaml). This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
 
 ## Applying configurations
 

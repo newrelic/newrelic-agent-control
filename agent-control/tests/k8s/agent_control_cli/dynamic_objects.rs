@@ -1,4 +1,5 @@
 use crate::common::runtime::tokio_runtime;
+use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::config::{
@@ -28,7 +29,9 @@ fn k8s_cli_install_agent_control_creates_resources() {
     cmd.arg("--secrets")
         .arg("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml");
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
@@ -40,11 +43,24 @@ fn k8s_cli_install_agent_control_creates_resources() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(
-        repository.data["spec"]["url"],
-        "https://helm-charts.newrelic.com"
-    );
-    assert_eq!(repository.data["spec"]["interval"], "300s");
+    let mut expected_repository = serde_json::json!({
+        "url": "https://helm-charts.newrelic.com",
+        "interval": "30m",
+        "provider": "generic",
+    });
+    expected_repository = {
+        expected_repository.sort_all_objects();
+        ().into()
+    };
+    // expected_repository = expected_repository.sort_all_objects().into();
+
+    let mut rep = repository.data["spec"].clone();
+    rep = {
+        rep.sort_all_objects();
+        ().into()
+    };
+
+    assert_eq!(rep, expected_repository);
 
     // Assert release data
     let release = k8s_client
@@ -52,19 +68,38 @@ fn k8s_cli_install_agent_control_creates_resources() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(release.data["spec"]["interval"], "300s");
-    assert_eq!(release.data["spec"]["timeout"], "300s");
-
-    let chart_data = release.data["spec"]["chart"]["spec"].clone();
-    assert_eq!(chart_data["chart"], "agent-control-deployment");
-    assert_eq!(chart_data["version"], "1.0.0");
-    assert_eq!(chart_data["sourceRef"]["kind"], "HelmRepository");
-    assert_eq!(chart_data["sourceRef"]["name"], REPOSITORY_NAME);
-    assert_eq!(chart_data["interval"], "300s");
-
-    assert_eq!(
-        release.data["spec"]["valuesFrom"],
-        serde_json::json!([{
+    let expected_release = serde_json::json!({
+        "interval": "30s",
+        "chart": {
+            "spec": {
+                "chart": "agent-control-deployment",
+                "version": "1.0.0",
+                "reconcileStrategy": "ChartVersion",
+                "sourceRef": {
+                    "kind": "HelmRepository",
+                    "name": REPOSITORY_NAME,
+                },
+                "interval": "3m",
+            },
+        },
+        "install": {
+            "disableWait": true,
+            "disableWaitForJobs": true,
+            "disableTakeOwnership": true,
+            "replace": true,
+        },
+        "upgrade": {
+            "disableWait": true,
+            "disableWaitForJobs": true,
+            "disableTakeOwnership": true,
+            "cleanupOnFail": true,
+            "force": true,
+        },
+        "rollback": {
+            "disableWait": true,
+            "disableWaitForJobs": true
+        },
+        "valuesFrom": [{
             "kind": "Secret",
             "name": "secret1",
             "valuesKey": "default.yaml",
@@ -76,8 +111,9 @@ fn k8s_cli_install_agent_control_creates_resources() {
             "kind": "Secret",
             "name": "secret3",
             "valuesKey": "fixed.yaml",
-        }])
-    );
+        }],
+    });
+    assert_eq!(release.data["spec"], expected_release);
 
     let mut labels: BTreeMap<String, String> = [
         ("app.kubernetes.io/managed-by", "newrelic-agent-control"),
@@ -129,7 +165,9 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
     cmd.arg("--repository-url").arg(repository_url);
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());

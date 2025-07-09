@@ -2,6 +2,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
 use crate::k8s::self_update::{LOCAL_CHART_NEW_VERSION, LOCAL_CHART_PREVIOUS_VERSION};
+use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::{
     AgentControlDynamicConfig, helmrelease_v2_type_meta,
@@ -41,7 +42,9 @@ fn k8s_cli_local_and_remote_updates() {
         LOCAL_CHART_PREVIOUS_VERSION,
         "test-secret=values.yaml",
     );
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
         check_version_and_source(
@@ -58,7 +61,9 @@ fn k8s_cli_local_and_remote_updates() {
         LOCAL_CHART_NEW_VERSION,
         "test-secret=values.yaml",
     );
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
         check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL, &namespace)
@@ -90,7 +95,9 @@ fn k8s_cli_local_and_remote_updates() {
         "test-secret=values.yaml",
     );
     cmd.arg("--extra-labels").arg("env=testing");
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
         check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &namespace)?;

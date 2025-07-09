@@ -19,6 +19,7 @@ variables:
       type: string
       required: true
 deployment:
+  # See com.newrelic.infrastructure Agent type for description of fields.
   k8s:
     health:
       interval: 30s
@@ -31,10 +32,6 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
-          # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
-          # as HelmRelease objects might be. Given repositories typically have fewer updates than the resources
-          # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
-          # delaying the application of important updates.
           interval: 30m
           provider: generic
           url: https://helm-charts.newrelic.com
@@ -45,7 +42,6 @@ deployment:
           name: values-${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         stringData:
-          # These env variables are attached to the AC pod on the Helm Chart.
           # ${nr-env:NR_VERBOSE_LOG} is not set, since it is not used in the chart.
           default.yaml: |
             global:
@@ -68,7 +64,7 @@ deployment:
         spec:
           targetNamespace: ${nr-ac:namespace_agents}
           releaseName: ${nr-sub:agent_id}
-          interval: 3m
+          interval: 30s
           chart:
             spec:
               chart: newrelic-logging
@@ -80,12 +76,9 @@ deployment:
                 namespace: ${nr-ac:namespace}
               interval: 3m
           install:
-            # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
-            remediation:
-              retries: 3
             replace: true
             createNamespace: true
           upgrade:
@@ -94,12 +87,6 @@ deployment:
             disableTakeOwnership: true
             cleanupOnFail: true
             force: true
-            remediation:
-              retries: 3
-              strategy: rollback
-          rollback:
-            disableWait: true
-            disableWaitForJobs: true
           valuesFrom:
             - kind: Secret
               name: values-${nr-sub:agent_id}

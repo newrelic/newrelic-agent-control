@@ -23,7 +23,6 @@ deployment:
         spec:
           # we don't want to trigger this in the test to avoid extra load in the cluster
           interval: 99m
-          provider: generic
           url: https://helm.github.io/examples
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
@@ -33,19 +32,29 @@ deployment:
           namespace: ${nr-ac:namespace}
         spec:
           # we don't want to trigger this in the test to avoid extra load in the cluster
-          interval: 99m
+          interval: 10s
+          releaseName: ${nr-sub:agent_id}
+          targetNamespace: ${nr-ac:namespace_agents}
           chart:
             spec:
               chart: hello-world
               version: 0.1.0
-              reconcileStrategy: ChartVersion
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
                 namespace: ${nr-ac:namespace}
           install:
             disableWait: true
+            disableWaitForJobs: true
+            disableTakeOwnership: true
+            replace: true
+            # namespaces lifecycle is handled by the test.
+            # createNamespace: true
           upgrade:
             disableWait: true
+            disableWaitForJobs: true
+            disableTakeOwnership: true 
+            cleanupOnFail: true
+            force: true
           values:
             ${nr-var:chart_values}

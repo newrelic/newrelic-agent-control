@@ -2,6 +2,8 @@
 /// and specific initial configuration. Any helper receiving a `folder_name` assumes that the folder exists
 /// in the path `tests/k8s/data/`.
 pub mod agent_control;
+/// Helpers for assert_cmd.
+pub mod cmd;
 pub mod instance_id;
 /// Provides tools to perform queries through the k8s API in order to perform assertions.
 pub mod k8s_api;
