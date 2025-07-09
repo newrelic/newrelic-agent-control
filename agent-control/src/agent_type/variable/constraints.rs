@@ -1,6 +1,7 @@
-use std::{collections::HashMap, mem};
+use std::collections::HashMap;
 
 use serde::Deserialize;
+use serde_yaml::Number;
 
 use crate::agent_type::trivial_value::TrivialValue;
 
@@ -15,62 +16,35 @@ pub struct VariableConstraints {
     pub variants: Variants,
 }
 
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct Variants(HashMap<String, Vec<TrivialValue>>);
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct Variants(HashMap<String, TypedCollection>);
 
-impl<'de> Deserialize<'de> for Variants {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        use serde::de::Error as DeError;
-        HashMap::<String, Vec<TrivialValue>>::deserialize(deserializer)
-            // Validate that all values in the map are of the same type.
-            .and_then(|m| {
-                m.values()
-                    .all(|v| same_variant(v.iter()))
-                    .then_some(m)
-                    .ok_or(DeError::custom(
-                        "All values in a `variants` key must be of the same type",
-                    ))
-            })
-            .map(Variants)
-    }
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+#[serde(expecting = "expected a collection of elements of the same type (number, string, bool)")]
+enum TypedCollection {
+    Numbers(Vec<Number>),
+    Strings(Vec<String>),
+    Bools(Vec<bool>),
 }
 
-fn same_variant<'a>(mut values: impl Iterator<Item = &'a TrivialValue>) -> bool {
-    values
-        .next()
-        .map(mem::discriminant)
-        .is_none_or(|first| values.map(mem::discriminant).all(|v| v == first))
+impl From<TypedCollection> for Vec<TrivialValue> {
+    fn from(value: TypedCollection) -> Self {
+        match value {
+            TypedCollection::Numbers(nums) => nums.into_iter().map(TrivialValue::from).collect(),
+            TypedCollection::Strings(strs) => strs.into_iter().map(TrivialValue::from).collect(),
+            TypedCollection::Bools(bools) => bools.into_iter().map(TrivialValue::from).collect(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::trivial_value::TrivialValue;
-    use rstest::rstest;
     use serde_json::json;
 
-    fn trivial_int(i: i64) -> TrivialValue {
-        // TrivialValue does not have Integer, so use Number via serde_yaml::Number
-        TrivialValue::from(serde_yaml::Number::from(i))
-    }
-    fn trivial_str(s: &str) -> TrivialValue {
-        TrivialValue::from(s.to_string())
-    }
-
-    #[rstest]
-    #[case::all_nums(vec![trivial_int(1), trivial_int(2), trivial_int(3)], true)]
-    #[case::all_strs(vec![trivial_str("a"), trivial_str("b")], true)]
-    #[case::mixed(vec![trivial_int(1), trivial_str("b")], false)]
-    #[case::empty(vec![], true)]
-    fn test_variants(#[case] values: Vec<TrivialValue>, #[case] expected: bool) {
-        assert_eq!(expected, same_variant(values.iter()))
-    }
-
     #[test]
-    fn test_variants_deserialize_all_same_type() {
+    fn deserialize_variants_same_type() {
         let json = json!({
             "foo": [1, 2, 3],
             "bar": [4, 5]
@@ -80,7 +54,7 @@ mod tests {
     }
 
     #[test]
-    fn test_variants_deserialize_mixed_types() {
+    fn deserialize_variants_mixed_types_should_fail() {
         let json = json!({
             "foo": [1, "bar", 3]
         });
@@ -88,18 +62,47 @@ mod tests {
         assert!(variants.is_err());
         let err = variants.unwrap_err().to_string();
         assert!(
-            err.contains("All values in a `variants` key must be of the same type"),
+            err.contains(
+                "expected a collection of elements of the same type (number, string, bool)"
+            ),
             "unexpected error: {err}"
         );
     }
 
     #[test]
-    fn test_variants_deserialize_empty_vec() {
+    fn deserialize_variants_empty() {
         let json = json!({
             "foo": [],
             "bar": []
         });
         let variants: Result<Variants, _> = serde_json::from_value(json);
         assert!(variants.is_ok());
+    }
+
+    #[test]
+    fn deserialize_variants_supported_types() {
+        let json = json!({
+            "foo": [1, 2, 3],
+            "bar": ["a", "b", "c"],
+            "baz": [true, false]
+        });
+        let variants: Result<Variants, _> = serde_json::from_value(json);
+        assert!(variants.is_ok());
+    }
+
+    #[test]
+    fn deserialize_variants_invalid_type() {
+        let json = json!({
+            "foo": [{ "key": "value" }] // a list of objects is not a valid type
+        });
+        let variants: Result<Variants, _> = serde_json::from_value(json);
+        assert!(variants.is_err());
+        let err = variants.unwrap_err().to_string();
+        assert!(
+            err.contains(
+                "expected a collection of elements of the same type (number, string, bool)"
+            ),
+            "unexpected error: {err}"
+        );
     }
 }
