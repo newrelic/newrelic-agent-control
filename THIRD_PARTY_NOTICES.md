@@ -2245,7 +2245,7 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## toml_edit <https://crates.io/crates/toml_edit>
+## toml_parser <https://crates.io/crates/toml_parser>
 
 Distributed under the following license(s):
 
