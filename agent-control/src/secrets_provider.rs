@@ -58,11 +58,25 @@ pub trait SecretsProviderBuilder {
     fn build_provider(&self) -> Result<Self::Provider, String>;
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum SecretsProvidersError {
+    #[error("Failed to retrieve secret from provider: {0}")]
+    GetSecret(String),
+
+    #[error("Invalid configuration for secrets provider: {0}")]
+    InvalidProvider(String),
+}
+
 /// Trait for operating with secrets providers.
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
-    fn get_secret(&self, mount: &str, path: &str, key: &str) -> Result<String, String>;
+    fn get_secret(
+        &self,
+        mount: &str,
+        path: &str,
+        key: &str,
+    ) -> Result<String, SecretsProvidersError>;
 }
 
 /// Supported secrets providers.
@@ -88,12 +102,6 @@ pub enum SecretsProviderKind {}
 
 /// Collection of [SecretsProviderKind]s.
 pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderKind>;
-
-#[derive(Debug, thiserror::Error)]
-pub enum SecretsProvidersError {
-    #[error("Invalid configuration for secrets provider: {0}")]
-    InvalidProvider(String),
-}
 
 impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
     type Error = SecretsProvidersError;
