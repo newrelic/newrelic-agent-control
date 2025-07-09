@@ -68,9 +68,24 @@ pub trait SecretsProvider {
 /// Supported secrets providers.
 ///
 /// Each variant must contain an implementation of the [SecretsProvider] trait.
+/// 
+/// The structure is flexible enough to support multiple sources from the same provider.
+/// This is a decision the implementer of the provider must make. This entails creating a variant
+/// represented as a [HashMap]. Augmenting the enum is simple. Example:
+/// 
+/// ```
+/// # use std::collections::HashMap;
+/// pub enum SecretsProviderKind {
+///    NewProvider(HashMap<String, NewProvider>),
+/// }
+/// ```
+/// 
+/// The idea is that the [SecretsProvidersRegistry] holds a collection where each key is the name of the provider.
+/// The value can either be an instance of the [SecretsProvider] trait or a collection. In the latter, the key is
+/// the name of the source, and the value is an instance of [SecretsProvider].
 pub enum SecretsProviderKind {}
 
-/// Collection of [SecretsProviderType]s.
+/// Collection of [SecretsProviderKind]s.
 pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderKind>;
 
 #[derive(Debug, thiserror::Error)]
@@ -82,7 +97,7 @@ pub enum SecretsProvidersError {
 impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
     type Error = SecretsProvidersError;
 
-    /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProviders].
+    /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProvidersRegistry].
     ///
     /// If any of the configurations is invalid, it returns an error.
     fn try_from(config: SecretsProvidersConfig) -> Result<Self, Self::Error> {
