@@ -133,7 +133,7 @@ impl K8sHealthFluxHelmRelease {
                             .get("message")
                             .and_then(Value::as_str)
                             .unwrap_or("No specific message found");
-                        (false, format!("HelmRelease status unknown: {}", message))
+                        (false, format!("HelmRelease status unknown: {message}"))
                     }
                     _ => (false, "HelmRelease status missing".to_string()),
                 }

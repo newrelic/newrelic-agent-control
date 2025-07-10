@@ -41,7 +41,7 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --check
 
-  clippy:
+  checks:
     runs-on: ubuntu-latest
     name: cargo clippy
     permissions:
@@ -73,9 +73,8 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
 
-
-      - name: cargo clippy
-        run: cargo clippy --workspace --tests -- -D clippy::all
+      - name: cargo clippy with compiler warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
 
   doc:
     runs-on: ubuntu-latest
