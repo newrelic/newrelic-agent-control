@@ -19,42 +19,10 @@ pub struct Variants(HashMap<String, TypedCollection>);
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(untagged)]
 #[serde(expecting = "expected a collection of elements of the same type (number, string, bool)")]
-enum TypedCollection {
+pub enum TypedCollection {
     Numbers(Vec<Number>),
     Strings(Vec<String>),
     Bools(Vec<bool>),
-}
-
-impl TypedCollection {
-    /// If the collection is numeric, return a reference to the numeric vector.
-    #[allow(dead_code)]
-    fn as_numbers(&self) -> Option<&Vec<Number>> {
-        if let TypedCollection::Numbers(numbers) = self {
-            Some(numbers)
-        } else {
-            None
-        }
-    }
-
-    /// If the collection is string, return a reference to the string vector.
-    #[allow(dead_code)]
-    fn as_strings(&self) -> Option<&Vec<String>> {
-        if let TypedCollection::Strings(strings) = self {
-            Some(strings)
-        } else {
-            None
-        }
-    }
-
-    /// If the collection is boolean, return a reference to the boolean vector.
-    #[allow(dead_code)]
-    fn as_bools(&self) -> Option<&Vec<bool>> {
-        if let TypedCollection::Bools(bools) = self {
-            Some(bools)
-        } else {
-            None
-        }
-    }
 }
 
 #[cfg(test)]
