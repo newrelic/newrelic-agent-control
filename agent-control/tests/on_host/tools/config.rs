@@ -61,6 +61,8 @@ agents: {}
 }
 
 pub fn create_file(content: String, path: PathBuf) {
+    create_dir_all(path.parent().unwrap()).unwrap();
+
     let mut local_file = File::create(path).expect("failed to create local config file");
     write!(local_file, "{content}").unwrap();
 }

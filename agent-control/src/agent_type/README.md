@@ -344,7 +344,7 @@ Users can currently only configure the interval of those periodic health check, 
 
 This guideline shows how to build a custom agent type and integrate it with the agent control on-host. The [telegraf agent](https://www.influxdata.com/time-series-platform/telegraf/) is used as a reference.
 
-1. Create a `dynamic-agent-type.yaml` file with the agent type definition
+1. Create a file with the agent type definition
 
 ```yaml
 # namespace: newrelic, external, other
@@ -388,7 +388,7 @@ deployment:
           backoff_delay: ${nr-var:backoff_delay}
 ```
 
-2. Copy the agent type definition to `/etc/newrelic-agent-control/dynamic-agent-type.yaml`
+2. Copy the agent type definition to the folder `/etc/newrelic-agent-control/dynamic-agent-types`
 
     ⚠︎ This is a temporal path, expect a configurable path to load custom agent types in the future.
 

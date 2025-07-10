@@ -1,12 +1,9 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use std::fs;
-use tracing::{debug, error, info};
-
 use super::{
     agent_type_registry::{AgentRegistry, AgentRepositoryError},
     definition::AgentTypeDefinition,
 };
+use std::{collections::HashMap, fs, path::PathBuf};
+use tracing::{debug, error};
 
 // Include generated code
 include!(concat!(
@@ -30,9 +27,20 @@ impl Default for EmbeddedRegistry {
 
 impl EmbeddedRegistry {
     pub fn new(dynamic_agent_type_path: PathBuf) -> Self {
-        let dynamic_agent_type = Self::dynamic_agent_type(dynamic_agent_type_path);
-        let definitions = Self::definitions().chain(dynamic_agent_type);
-        Self::try_new(definitions).expect("Conflicting agent type definitions")
+        // Loading the static agentTypes
+        let mut registry =
+            Self::try_new(Self::definitions()).expect("Conflicting agent type definitions");
+
+        // Loading, if any, the dynamic agent types from the directory.
+        // Since they are dynamic, they are taking the precedence over the static ones.
+        Self::dynamic_agent_type(dynamic_agent_type_path)
+            .iter()
+            .for_each(|agent_type| {
+                let metadata = agent_type.agent_type_id.to_string();
+                debug!("Storing dynamic agent type: {}", metadata);
+                registry.0.insert(metadata, agent_type.clone());
+            });
+        registry
     }
 }
 
@@ -74,23 +82,29 @@ impl EmbeddedRegistry {
         })
     }
 
-    /// Read and return the dynamic agent type, if there is an error reading or deserializing it, logs the error and
-    /// returns None.
-    fn dynamic_agent_type(path: PathBuf) -> Option<AgentTypeDefinition> {
-        let p = path.to_string_lossy().to_string();
-        fs::read(path)
-            .inspect_err(|e| {
-                debug!(error = %e, "Dynamic agent type: Failed reading file");
-            })
-            .ok()
-            .and_then(|content| {
-                info!("Loading agentType : {:?}", p);
-                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
-                    .inspect_err(|e| {
-                        error!(error = %e, "Dynamic agent type: Could not parse agent type");
-                    })
+    /// Read and return the dynamic agent types, if there is an error reading or deserializing it, logs the error.
+    fn dynamic_agent_type(path: PathBuf) -> Vec<AgentTypeDefinition> {
+        let Ok(entries) = fs::read_dir(path.clone()).inspect_err(
+            |err| debug!(error = %err, "Failed reading Dynamic agent types directory {path:?}"),
+        ) else {
+            return vec![];
+        };
+
+        entries
+            .flatten()
+            .flat_map(|entry| {
+                let file = entry.path();
+                fs::read(file.clone())
+                    .inspect_err(|e| debug!(error = %e, "Skipping file: {file:?}"))
                     .ok()
+                    .and_then(|content| {
+                        debug!("Loading Dynamic Agent Type: {file:?}");
+                        serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                            .inspect_err(|e| error!(error = %e, "Could not parse agent type"))
+                            .ok()
+                    })
             })
+            .collect()
     }
 }
 

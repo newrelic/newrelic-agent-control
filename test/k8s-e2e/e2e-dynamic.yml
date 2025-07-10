@@ -5,7 +5,8 @@ custom_test_key: cluster_name
 scenarios:
   - description: Deploy all infra agents
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ac-values-infra.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - kubectl create configmap dynamic-agent --from-file=infra=./dynamic-agent-type-infra.yml --from-file=logging=./dynamic-agent-type-logging.yml
+      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ac-values-dynamic.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=infra --all-containers --prefix=true -n newrelic-agents
@@ -14,16 +15,17 @@ scenarios:
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
       - kubectl get helmrelease
+      - kubectl get gitrepository
       - kubectl get helmchart
       - helm list -a -A
       - cd ../../ && tilt down
     tests:
       nrqls:
-        # Check that prometheus-agent is collecting metrics, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "FROM Metric SELECT * WHERE collector.name = 'prometheus-agent'"
         # Check Logs data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "From Log SELECT *"
         # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "FROM K8sClusterSample SELECT *"
-        # Check that gateway is up and running, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "FROM K8sDeploymentSample SELECT * where deploymentName = 'pipeline-control-gateway' AND namespace='newrelic-agents'"
+      scripts:
+        - |
+          kubectl get gitrepository infra
+          kubectl get gitrepository logs

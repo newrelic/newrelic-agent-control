@@ -1,7 +1,7 @@
 use super::config::{K8sConfig, OpAMPClientConfig};
 use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
-    DYNAMIC_AGENT_TYPE_FILENAME,
+    DYNAMIC_AGENT_TYPE_DIR,
 };
 use super::error::AgentError;
 use super::http_server::config::ServerConfig;
@@ -146,10 +146,7 @@ impl AgentControlRunner {
         });
 
         let agent_type_registry = Arc::new(EmbeddedRegistry::new(
-            config
-                .base_paths
-                .local_dir
-                .join(DYNAMIC_AGENT_TYPE_FILENAME),
+            config.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
         ));
 
         let signature_validator = config
