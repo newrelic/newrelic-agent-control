@@ -1,11 +1,12 @@
-use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 pub fn get_agent_type_custom(local_dir: PathBuf, path: &str, args: &str) -> String {
     let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
 
+    std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
     let mut local_file =
         File::create(agent_type_file_path.clone()).expect("failed to create local config file");
     let custom_agent_type = format!(

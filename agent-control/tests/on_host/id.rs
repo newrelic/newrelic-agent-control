@@ -2,12 +2,11 @@
 use super::tools::config::{create_file, create_sub_agent_values};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
+use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
-};
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};

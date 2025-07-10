@@ -1,8 +1,7 @@
 #![cfg(unix)]
+use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use assert_cmd::Command;
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
-};
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,

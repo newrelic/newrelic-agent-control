@@ -108,3 +108,4 @@ deployment:
             - kind: Secret
               name: values-${nr-sub:agent_id}
               valuesKey: global.yaml
+

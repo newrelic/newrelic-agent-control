@@ -10,9 +10,7 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
-};
+use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
 use newrelic_agent_control::{
     agent_control::run::BasePaths,
@@ -29,6 +27,8 @@ pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
 pub const CUSTOM_AGENT_TYPE_SPLIT_NS_PATH: &str = "tests/k8s/data/custom_agent_type_split_ns.yml";
 pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
 pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
+
+pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
 /// Starts the agent-control through [start_agent_control] after setting up the corresponding configuration file
 /// and config map according to the provided `folder_name` and the provided `file_names`.
