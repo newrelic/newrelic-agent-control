@@ -9,11 +9,10 @@ use serde_yaml::Number;
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
 pub struct VariableConstraints {
     /// Accepted variants for a variable.
-    /// These values of the `HashMap` are [`TrivialValue`]s, but all the elements of the `Vec` should
-    /// be of the same type. This is validated when the config is loaded during AC startup.
     pub variants: Variants,
 }
 
+/// Definition of variant lists by key. The values are collections of elements of the same type.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct Variants(HashMap<String, TypedCollection>);
 
