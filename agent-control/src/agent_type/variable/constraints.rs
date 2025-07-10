@@ -3,8 +3,6 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_yaml::Number;
 
-use crate::agent_type::trivial_value::TrivialValue;
-
 /// Constraints that are loaded at startup and can be applied to agent type definitions.
 /// The definition of a variable can be modified by these constraints if the agent type
 /// references these. Hence, the constraints take the form of a key-value store.
@@ -28,12 +26,34 @@ enum TypedCollection {
     Bools(Vec<bool>),
 }
 
-impl From<TypedCollection> for Vec<TrivialValue> {
-    fn from(value: TypedCollection) -> Self {
-        match value {
-            TypedCollection::Numbers(nums) => nums.into_iter().map(TrivialValue::from).collect(),
-            TypedCollection::Strings(strs) => strs.into_iter().map(TrivialValue::from).collect(),
-            TypedCollection::Bools(bools) => bools.into_iter().map(TrivialValue::from).collect(),
+impl TypedCollection {
+    /// If the collection is numeric, return a reference to the numeric vector.
+    #[allow(dead_code)]
+    fn as_numbers(&self) -> Option<&Vec<Number>> {
+        if let TypedCollection::Numbers(numbers) = self {
+            Some(numbers)
+        } else {
+            None
+        }
+    }
+
+    /// If the collection is string, return a reference to the string vector.
+    #[allow(dead_code)]
+    fn as_strings(&self) -> Option<&Vec<String>> {
+        if let TypedCollection::Strings(strings) = self {
+            Some(strings)
+        } else {
+            None
+        }
+    }
+
+    /// If the collection is boolean, return a reference to the boolean vector.
+    #[allow(dead_code)]
+    fn as_bools(&self) -> Option<&Vec<bool>> {
+        if let TypedCollection::Bools(bools) = self {
+            Some(bools)
+        } else {
+            None
         }
     }
 }
