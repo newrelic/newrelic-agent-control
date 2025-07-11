@@ -58,6 +58,12 @@ where
     }
 }
 
+impl std::fmt::Display for Variants<String> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}]", self.0.join(", "))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

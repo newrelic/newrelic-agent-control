@@ -2,10 +2,14 @@
 use std::{fmt::Debug, path::PathBuf};
 
 use serde::{Deserialize, Deserializer, Serialize};
+use tracing::debug;
 
 use crate::agent_type::{
     error::AgentTypeError,
-    variable::variants::{Variants, VariantsConfig},
+    variable::{
+        constraints::{VariableConstraints, VariantsConstraints},
+        variants::{Variants, VariantsConfig},
+    },
 };
 
 /// Defines the fields supported by a Variable in an Agent Type
@@ -73,8 +77,7 @@ where
     T: PartialEq,
 {
     /// Returns the corresponding [Fields] according to the provided configuration.
-    /// TODO: add config
-    pub fn with_config(self) -> Fields<T> {
+    pub fn with_config(self, _: &VariableConstraints) -> Fields<T> {
         Fields {
             required: self.required,
             default: self.default,
@@ -84,19 +87,36 @@ where
 }
 
 impl StringFieldsDefinition {
-    pub fn with_config(self) -> StringFields {
-        let variants = self.variants.values; // TODO
+    /// Returns the corresponding [StringFields] according to the provided configuration.
+    pub fn with_config(self, constraints: &VariableConstraints) -> StringFields {
+        let variants = self.build_variants(&constraints.variants);
         StringFields {
-            inner: self.inner.with_config(),
+            inner: self.inner.with_config(constraints),
             variants,
         }
+    }
+
+    /// Builds the set of valid variants as configured, considering the constraints configuration provided.
+    fn build_variants(&self, variants_constraints: &VariantsConstraints) -> Variants<String> {
+        let Some(ac_config_field) = self.variants.ac_config_field.as_ref() else {
+            return self.variants.values.clone();
+        };
+
+        let Some(supported_values) = variants_constraints.get(ac_config_field) else {
+            debug!(%ac_config_field,
+                "The variants pointed in Agent Type are not set in Agent Control configuration, using defaults"
+            );
+            return self.variants.values.clone();
+        };
+
+        supported_values.into()
     }
 }
 
 impl<T: PartialEq> FieldsWithPathDefinition<T> {
-    pub fn with_config(self) -> FieldsWithPath<T> {
+    pub fn with_config(self, constraints: &VariableConstraints) -> FieldsWithPath<T> {
         FieldsWithPath {
-            inner: self.inner.with_config(),
+            inner: self.inner.with_config(constraints),
             file_path: self.file_path,
         }
     }
@@ -115,10 +135,7 @@ where
 impl StringFields {
     pub(crate) fn set_final_value(&mut self, value: String) -> Result<(), AgentTypeError> {
         if !self.variants.is_valid(&value) {
-            return Err(AgentTypeError::InvalidVariant(
-                format!("{value:?}"), // TODO: check if we may be exposing ${nr-env} values in this error
-                self.variants.0.iter().map(|v| format!("{v:?}")).collect(),
-            ));
+            return Err(AgentTypeError::InvalidVariant(self.variants.to_string()));
         }
         self.inner.set_final_value(value)?;
         Ok(())
@@ -170,10 +187,15 @@ mod tests {
     use std::path::PathBuf;
 
     use assert_matches::assert_matches;
+    use rstest::rstest;
 
     use crate::agent_type::{
         error::AgentTypeError,
-        variable::{fields::StringFields, variants::Variants},
+        variable::{
+            constraints::VariableConstraints,
+            fields::{StringFields, StringFieldsDefinition},
+            variants::Variants,
+        },
     };
 
     use super::{Fields, FieldsWithPath};
@@ -252,7 +274,7 @@ mod tests {
             None,
         );
         let result = fields.set_final_value("d".into()).unwrap_err();
-        assert_matches!(result, AgentTypeError::InvalidVariant(_, _));
+        assert_matches!(result, AgentTypeError::InvalidVariant(_));
 
         assert_eq!(fields.inner.final_value, None);
     }
@@ -263,5 +285,44 @@ mod tests {
 
         assert!(fields.set_final_value("b".into()).is_ok());
         assert_eq!(fields.inner.final_value, Some("b".into()));
+    }
+
+    #[rstest]
+    #[case::no_variants_default(
+        r#"{"required": true}"#,
+        r#"{"variants": {}}"#,
+        StringFields::new(true, None, Default::default(), None)
+    )]
+    #[case::variants_with_no_match_with_no_values(
+        r#"{"required": true, "variants": {"ac_config_field": "some_key"}}"#,
+        r#"{"variants": {"other_key": ["a", "b"]}}"#,
+        StringFields::new(true, None, Default::default(), None)
+    )]
+    #[case::variants_with_no_match_with_values(
+        r#"{"required": true, "variants": {"ac_config_field": "some_key", "values": ["x"]}}"#,
+        r#"{"variants": {"other_key": ["a", "b"]}}"#,
+        StringFields::new(true, None, vec!["x".to_string()].into(), None)
+    )]
+    #[case::variants_with_match_with_no_values(
+        r#"{"required": true, "variants": {"ac_config_field": "some_key"}}"#,
+        r#"{"variants": {"some_key": ["a", "b"]}}"#,
+        StringFields::new(true, None, vec!["a".to_string(), "b".to_string()].into(), None)
+    )]
+    #[case::variants_with_match_with_values(
+        r#"{"required": true, "variants": {"ac_config_field": "some_key", "values": ["x"]}}"#,
+        r#"{"variants": {"some_key": ["a", "b"]}}"#,
+        StringFields::new(true, None, vec!["a".to_string(), "b".to_string()].into(), None)
+    )]
+
+    fn test_string_field_with_config(
+        #[case] def_str: &str,
+        #[case] constraints: &str,
+        #[case] expected: StringFields,
+    ) {
+        let fields_def: StringFieldsDefinition = serde_json::from_str(def_str).unwrap();
+        let constraints: VariableConstraints = serde_json::from_str(constraints).unwrap();
+
+        let fields = fields_def.with_config(&constraints);
+        assert_eq!(fields, expected);
     }
 }

@@ -43,6 +43,7 @@ pub fn start_agent_control_with_custom_config(
             http_server: agent_control_config.server,
             base_paths,
             proxy: agent_control_config.proxy,
+            agent_type_var_constraints: Default::default(),
 
             k8s_config: match mode {
                 // This config is not used on the OnHost environment, a blank config is used.

@@ -10,6 +10,7 @@ use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -104,14 +105,20 @@ where
 {
     registry: Arc<R>,
     renderer: Y,
+    variable_constraints: VariableConstraints,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
     pub fn new(
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
+        variable_constraints: VariableConstraints,
     ) -> Self {
-        LocalEffectiveAgentsAssembler { registry, renderer }
+        LocalEffectiveAgentsAssembler {
+            registry,
+            renderer,
+            variable_constraints,
+        }
     }
 }
 
@@ -131,7 +138,11 @@ where
             .registry
             .get(&agent_identity.agent_type_id.to_string())?;
         // Build the corresponding agent type
-        let agent_type = build_agent_type(agent_type_definition, environment)?;
+        let agent_type = build_agent_type(
+            agent_type_definition,
+            environment,
+            &self.variable_constraints,
+        )?;
 
         // Build the agent attributes
         let attributes = AgentAttributes {
@@ -158,6 +169,7 @@ where
 pub fn build_agent_type(
     definition: AgentTypeDefinition,
     environment: &Environment,
+    variable_constraints: &VariableConstraints,
 ) -> Result<AgentType, AgentTypeDefinitionError> {
     // Select vars and runtime config according to the environment
     let (specific_vars, runtime_config) = match environment {
@@ -187,8 +199,7 @@ pub fn build_agent_type(
         .merge(specific_vars)
         .map_err(|err| AgentTypeDefinitionError::EnvironmentError(err, *environment))?;
 
-    // TODO: check if this should fail and ingest the corresponding configuration
-    let agent_type_vars = merged_variables.with_config();
+    let agent_type_vars = merged_variables.with_config(variable_constraints);
 
     Ok(AgentType::new(
         definition.agent_type_id,
@@ -257,6 +268,7 @@ pub(crate) mod tests {
             Self {
                 registry: Arc::new(registry),
                 renderer,
+                variable_constraints: VariableConstraints::default(),
             }
         }
     }
@@ -297,7 +309,12 @@ pub(crate) mod tests {
         let environment = Environment::OnHost;
         let agent_type_definition =
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
-        let agent_type = build_agent_type(agent_type_definition.clone(), &environment).unwrap();
+        let agent_type = build_agent_type(
+            agent_type_definition.clone(),
+            &environment,
+            &VariableConstraints::default(),
+        )
+        .unwrap();
         let values = YAMLConfig::default();
 
         let attributes = testing_agent_attributes(&agent_identity.id);
@@ -355,7 +372,12 @@ pub(crate) mod tests {
         let definition =
             serde_yaml::from_str::<AgentTypeDefinition>(AGENT_TYPE_DEFINITION).unwrap();
 
-        let k8s_agent_type = build_agent_type(definition.clone(), &Environment::K8s).unwrap();
+        let k8s_agent_type = build_agent_type(
+            definition.clone(),
+            &Environment::K8s,
+            &VariableConstraints::default(),
+        )
+        .unwrap();
         let k8s_vars = k8s_agent_type.variables.flatten();
         assert!(k8s_vars.contains_key("config.really_common"));
         let var = k8s_vars.get("config.var").unwrap();
@@ -365,7 +387,12 @@ pub(crate) mod tests {
             "OnHost deployment for k8s should be none"
         );
 
-        let on_host_agent_type = build_agent_type(definition, &Environment::OnHost).unwrap();
+        let on_host_agent_type = build_agent_type(
+            definition,
+            &Environment::OnHost,
+            &VariableConstraints::default(),
+        )
+        .unwrap();
         let on_host_vars = on_host_agent_type.variables.flatten();
         assert!(on_host_vars.contains_key("config.really_common"));
         let var = on_host_vars.get("config.var").unwrap();
@@ -381,9 +408,13 @@ pub(crate) mod tests {
         let definition =
             serde_yaml::from_str::<AgentTypeDefinition>(CONFLICTING_AGENT_TYPE_DEFINITION).unwrap();
 
-        let expected_err = build_agent_type(definition, &Environment::K8s)
-            .err()
-            .unwrap();
+        let expected_err = build_agent_type(
+            definition,
+            &Environment::K8s,
+            &VariableConstraints::default(),
+        )
+        .err()
+        .unwrap();
         assert_matches!(expected_err, AgentTypeDefinitionError::EnvironmentError(err, env) => {
             assert_matches!(err, AgentTypeError::ConflictingVariableDefinition(key) => {
                 assert_eq!("config.var".to_string(), key);

@@ -20,8 +20,8 @@ pub enum AgentTypeError {
     ValueNotParseableFromString(String),
     #[error("Unknown backoff strategy type: `{0}`")]
     UnknownBackoffStrategyType(String),
-    #[error("Invalid variant provided as a value: `{0}`. Variants allowed: {1:?}")]
-    InvalidVariant(String, Vec<String>),
+    #[error("Invalid value provided. Variants allowed: {0}")]
+    InvalidVariant(String),
     #[error("Rendering template: {0}")]
     RenderingTemplate(String),
     #[error("error assembling agents: `{0}`")]

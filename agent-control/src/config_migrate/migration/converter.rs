@@ -1,6 +1,7 @@
 use crate::agent_control::run::Environment;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::variable_type::VariableType;
 use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
 use crate::config_migrate::migration::agent_value_spec::{
@@ -56,7 +57,11 @@ impl<R: AgentRegistry, F: FileReader> ConfigConverter<R, F> {
             .agent_registry
             .get(&migration_agent_config.get_agent_type_fqn().to_string())?;
 
-        let agent_type = build_agent_type(agent_type_definition, &Environment::OnHost)?;
+        let agent_type = build_agent_type(
+            agent_type_definition,
+            &Environment::OnHost,
+            &VariableConstraints::default(),
+        )?;
         let mut agent_values_specs: Vec<HashMap<String, AgentValueSpec>> = Vec::new();
         for (normalized_fqn, spec) in agent_type.variables.flatten().iter() {
             let agent_type_fqn: AgentTypeFieldFQN = normalized_fqn.into();

@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::agent_type::variable::variants::Variants;
+
 /// Constraints that are loaded at startup and can be applied to agent type definitions.
 /// The definition of a variable can be modified by these constraints if the agent type
 /// references these. Hence, the constraints take the form of a key-value store.
@@ -25,9 +27,9 @@ impl VariantsConstraints {
 /// Represents the collection of supported values for a particular variable
 pub struct SupportedValues(Vec<String>);
 
-impl From<SupportedValues> for Vec<String> {
-    fn from(value: SupportedValues) -> Self {
-        value.0
+impl From<&SupportedValues> for Variants<String> {
+    fn from(value: &SupportedValues) -> Self {
+        Variants::from(value.0.clone())
     }
 }
 

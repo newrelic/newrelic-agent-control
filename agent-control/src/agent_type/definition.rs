@@ -11,7 +11,10 @@ use super::{
     variable::{Variable, VariableDefinition, tree::Tree},
 };
 
-use crate::agent_control::defaults::default_capabilities;
+use crate::{
+    agent_control::defaults::default_capabilities,
+    agent_type::variable::constraints::VariableConstraints,
+};
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
 use opamp_client::operation::capabilities::Capabilities;
 use serde::Deserialize;
@@ -77,12 +80,11 @@ pub type VariableDefinitionTree = VarTree<VariableDefinition>;
 
 impl VariableDefinitionTree {
     /// Returns the corresponding [VariableTree] according to the provided configuration.
-    // TODO: actually receive configuration
-    pub fn with_config(self) -> VariableTree {
+    pub fn with_config(self, constraints: &VariableConstraints) -> VariableTree {
         let mapping = self
             .0
             .into_iter()
-            .map(|(k, v)| (k, v.with_config()))
+            .map(|(k, v)| (k, v.with_config(constraints)))
             .collect();
         VarTree(mapping)
     }
@@ -90,14 +92,13 @@ impl VariableDefinitionTree {
 
 impl Tree<VariableDefinition> {
     /// Returns the corresponding [Tree<Variable>] according to the provided configuration.
-    // TODO: actually receive configuration
-    fn with_config(self) -> Tree<Variable> {
+    fn with_config(self, constraints: &VariableConstraints) -> Tree<Variable> {
         match self {
-            Tree::End(v) => Tree::End(v.with_config()),
+            Tree::End(v) => Tree::End(v.with_config(constraints)),
             Tree::Mapping(mapping) => {
                 let x = mapping
                     .into_iter()
-                    .map(|(k, v)| (k, v.with_config()))
+                    .map(|(k, v)| (k, v.with_config(constraints)))
                     .collect();
                 Tree::Mapping(x)
             }
@@ -177,6 +178,7 @@ pub mod tests {
     use super::*;
     use crate::agent_control::run::Environment;
     use crate::agent_type::runtime_config::Deployment;
+    use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::{
         agent_type::trivial_value::{FilePathWithContent, TrivialValue},
         sub_agent::effective_agents_assembler::build_agent_type,
@@ -212,7 +214,7 @@ pub mod tests {
         /// The function will panic if the definition is not valid or not compatible with the environment.
         pub fn build_for_testing(yaml_definition: &str, environment: &Environment) -> Self {
             let definition = serde_yaml::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
-            build_agent_type(definition, environment).unwrap()
+            build_agent_type(definition, environment, &VariableConstraints::default()).unwrap()
         }
 
         pub fn set_capabilities(&mut self, capabilities: Capabilities) {
@@ -565,7 +567,7 @@ restart_policy:
         assert!(filled_variables_result.is_err());
         assert_eq!(
             filled_variables_result.unwrap_err().to_string(),
-            r#"Invalid variant provided as a value: `"random"`. Variants allowed: ["\"fixed\"", "\"linear\""]"#
+            r#"Invalid value provided. Variants allowed: [fixed, linear]"#
         );
 
         // Default invalid variant is allowed

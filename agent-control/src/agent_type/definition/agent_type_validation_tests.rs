@@ -10,6 +10,7 @@ use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
     agent_control::{agent_id::AgentID, run::Environment},
     agent_type::{
@@ -602,7 +603,8 @@ fn iterate_test_cases(environment: &Environment) {
 
         values.cases.iter().for_each(|(scenario, yaml)| {
             let definition = registry.get(case.agent_type).unwrap();
-            let agent_type = build_agent_type(definition, environment).unwrap();
+            let agent_type =
+                build_agent_type(definition, environment, &VariableConstraints::default()).unwrap();
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
             let result = renderer.render(

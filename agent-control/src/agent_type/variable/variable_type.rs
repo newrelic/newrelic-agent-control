@@ -7,7 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::agent_type::{
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, TrivialValue},
-    variable::fields::{StringFields, StringFieldsDefinition},
+    variable::{
+        constraints::VariableConstraints,
+        fields::{StringFields, StringFieldsDefinition},
+    },
 };
 
 use super::fields::{Fields, FieldsDefinition, FieldsWithPath, FieldsWithPathDefinition};
@@ -47,20 +50,19 @@ pub enum VariableType {
 
 impl VariableTypeDefinition {
     /// Returns the corresponding [VariableType] according to the provided configuration.
-    // TODO: actually receive configuration
-    pub fn with_config(self) -> VariableType {
+    pub fn with_config(self, constraints: &VariableConstraints) -> VariableType {
         match self {
-            VariableTypeDefinition::String(v) => VariableType::String(v.with_config()),
-            VariableTypeDefinition::Bool(v) => VariableType::Bool(v.with_config()),
-            VariableTypeDefinition::Number(v) => VariableType::Number(v.with_config()),
-            VariableTypeDefinition::File(v) => VariableType::File(v.with_config()),
+            VariableTypeDefinition::String(v) => VariableType::String(v.with_config(constraints)),
+            VariableTypeDefinition::Bool(v) => VariableType::Bool(v.with_config(constraints)),
+            VariableTypeDefinition::Number(v) => VariableType::Number(v.with_config(constraints)),
+            VariableTypeDefinition::File(v) => VariableType::File(v.with_config(constraints)),
             VariableTypeDefinition::MapStringString(v) => {
-                VariableType::MapStringString(v.with_config())
+                VariableType::MapStringString(v.with_config(constraints))
             }
             VariableTypeDefinition::MapStringFile(v) => {
-                VariableType::MapStringFile(v.with_config())
+                VariableType::MapStringFile(v.with_config(constraints))
             }
-            VariableTypeDefinition::Yaml(v) => VariableType::Yaml(v.with_config()),
+            VariableTypeDefinition::Yaml(v) => VariableType::Yaml(v.with_config(constraints)),
         }
     }
 }

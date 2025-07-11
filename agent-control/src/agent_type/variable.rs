@@ -20,7 +20,10 @@ use serde::{Deserialize, Serialize};
 use crate::agent_type::{
     error::AgentTypeError,
     trivial_value::TrivialValue,
-    variable::{fields::StringFields, variable_type::VariableTypeDefinition},
+    variable::{
+        constraints::VariableConstraints, fields::StringFields,
+        variable_type::VariableTypeDefinition,
+    },
 };
 
 use fields::Fields;
@@ -43,11 +46,10 @@ pub struct Variable {
 
 impl VariableDefinition {
     /// Returns the corresponding [Variable] according to the provided configuration.
-    // TODO: actually receive configuration
-    pub fn with_config(self) -> Variable {
+    pub fn with_config(self, constraints: &VariableConstraints) -> Variable {
         Variable {
             description: self.description,
-            variable_type: self.variable_type.with_config(),
+            variable_type: self.variable_type.with_config(constraints),
         }
     }
 }
