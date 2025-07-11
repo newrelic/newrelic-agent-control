@@ -9,13 +9,11 @@ use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
-use crate::agent_type::variable::extractor::extract_runtime_variables;
-use crate::agent_type::variable::loader::load_env_vars;
+use crate::agent_type::variable::runtime_variables::RuntimeVariables;
 use crate::secrets_provider::SecretsProvidersRegistry;
 use crate::sub_agent::identity::AgentIdentity;
-use crate::values::yaml_config::{YAMLConfig, YAMLConfigError};
+use crate::values::yaml_config::YAMLConfig;
 
-use std::convert::Infallible;
 use std::fmt::Display;
 use std::sync::Arc;
 use thiserror::Error;
@@ -155,9 +153,9 @@ where
                 agent_identity.id, err
             ))
         })?;
-        let runtime_variables = extract_runtime_variables(config.as_str());
+        let runtime_variables = RuntimeVariables::from_config(&config);
 
-        let Ok(environment_variables) = load_env_vars(&runtime_variables) else {
+        let Ok(environment_variables) = runtime_variables.load_env_vars() else {
             return Err(
                 EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
                     "Failed to load environment variables for agent: {}",

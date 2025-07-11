@@ -31,7 +31,7 @@ impl Namespace {
     pub const PREFIX_NS_SEPARATOR: &'static str = ":";
 
     pub fn namespaced_name(&self, name: &str) -> NamespacedVariableName {
-        format!("{}{}{}", self.to_string(), Self::PREFIX_NS_SEPARATOR, name)
+        format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name)
     }
 
     pub fn is_runtime_variable(s: &str) -> bool {
