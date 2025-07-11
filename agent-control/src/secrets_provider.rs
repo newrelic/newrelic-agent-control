@@ -9,6 +9,8 @@
 //! * Implementing the [SecretsProviderBuilder] trait for the new provider's configuration.
 //! * Updating the TryFrom implementation for [SecretsProvidersRegistry] to include the new provider.
 
+pub mod vault;
+
 use std::collections::HashMap;
 
 use serde::Deserialize;

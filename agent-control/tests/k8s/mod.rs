@@ -6,3 +6,4 @@ pub mod self_update;
 mod store;
 mod tools;
 mod updater;
+mod vault;
