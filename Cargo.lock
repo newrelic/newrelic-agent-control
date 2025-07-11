@@ -2816,7 +2816,7 @@ dependencies = [
  "opentelemetry_sdk",
  "predicates",
  "prost 0.14.1",
- "rcgen 0.14.2",
+ "rcgen",
  "regex",
  "reqwest",
  "resource-detection",
@@ -2875,15 +2875,15 @@ checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
 
 [[package]]
 name = "nr-auth"
-version = "0.0.8"
-source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.0.8#bde4d557bea8b2ce3abb3a18387231d24c907366"
+version = "0.0.9"
+source = "git+https://github.com/newrelic/newrelic-auth-rs.git?tag=0.0.9#c76e9298645670d8513ed4a5fac32574013eb8c8"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap",
  "http 1.3.1",
  "jsonwebtoken",
- "rcgen 0.13.2",
+ "rcgen",
  "reqwest",
  "serde",
  "serde_json",
@@ -3588,24 +3588,11 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.13.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75e669e5202259b5314d1ea5397316ad400819437857b90861765f24c4cf80a2"
-dependencies = [
- "aws-lc-rs",
- "pem",
- "ring",
- "rustls-pki-types",
- "time",
- "yasna",
-]
-
-[[package]]
-name = "rcgen"
 version = "0.14.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49bc8ffa8a832eb1d7c8000337f8b0d2f4f2f5ec3cf4ddc26f125e3ad2451824"
 dependencies = [
+ "aws-lc-rs",
  "pem",
  "ring",
  "rustls-pki-types",
