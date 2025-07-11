@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 /// Holds the variable name prefixed with the namespace.
 /// Example: "nr-env:MY_ENV_VAR" for the environment variable "MY_ENV_VAR".
 pub type NamespacedVariableName = String;
@@ -6,31 +8,51 @@ pub type NamespacedVariableName = String;
 pub enum Namespace {
     Variable,
     SubAgent,
-    EnvironmentVariable,
     AgentControl,
+
+    // Below variables are "runtime" variables.
+    // When we receive a config, the config could have new environment variables, for example.
+    // These kind of variables must be loaded every time the subagent is started.
+    EnvironmentVariable,
 }
 
 impl Namespace {
     const PREFIX: &'static str = "nr-";
     /// Encapsulates the variables defined in the agent-type
     const VARIABLE: &'static str = "var";
-    /// Encapsulates the environment variables that are available to the sub-agent
-    const ENVIRONMENT_VARIABLE: &'static str = "env";
     /// Encapsulates attributes related to the sub-agent
     const SUB_AGENT: &'static str = "sub";
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
 
+    /// Encapsulates the environment variables that are available to the sub-agent
+    const ENVIRONMENT_VARIABLE: &'static str = "env";
+
+    pub const PREFIX_NS_SEPARATOR: &'static str = ":";
+
     pub fn namespaced_name(&self, name: &str) -> NamespacedVariableName {
-        let ns = match self {
-            Self::Variable => Self::VARIABLE,
-            Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
-            Self::SubAgent => Self::SUB_AGENT,
-            Self::AgentControl => Self::AC,
-        };
-        format!("{}{}:{}", Self::PREFIX, ns, name)
+        format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name)
+    }
+
+    pub fn is_runtime_variable(s: &str) -> bool {
+        [Namespace::EnvironmentVariable]
+            .iter()
+            .any(|prefix| s.starts_with(&prefix.to_string()))
     }
 }
+
+impl Display for Namespace {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ns = match self {
+            Self::Variable => Self::VARIABLE,
+            Self::SubAgent => Self::SUB_AGENT,
+            Self::AgentControl => Self::AC,
+            Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
+        };
+        write!(f, "{}{ns}", Self::PREFIX)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

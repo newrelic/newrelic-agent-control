@@ -3,7 +3,6 @@ use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
@@ -11,6 +10,7 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::runtime_variables::RuntimeVariables;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -151,7 +151,22 @@ where
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
-        let environment_variables = retrieve_env_var_variables();
+        let config = String::try_from(values.clone()).map_err(|err| {
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
+                "Failed to convert YAMLConfig to String for agent: {}: {}",
+                agent_identity.id, err
+            ))
+        })?;
+        let runtime_variables = RuntimeVariables::from_config(&config);
+
+        let Ok(environment_variables) = runtime_variables.load_env_vars() else {
+            return Err(
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
+                    "Failed to load environment variables for agent: {}",
+                    agent_identity.id
+                )),
+            );
+        };
 
         let runtime_config = self.renderer.render(
             &agent_identity.id,

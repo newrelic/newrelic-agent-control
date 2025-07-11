@@ -42,7 +42,7 @@ pub trait Templateable {
         Self: std::marker::Sized;
 }
 
-fn template_re() -> &'static Regex {
+pub fn template_re() -> &'static Regex {
     static RE_ONCE: OnceLock<Regex> = OnceLock::new();
     RE_ONCE.get_or_init(|| Regex::new(TEMPLATE_RE).unwrap())
 }
