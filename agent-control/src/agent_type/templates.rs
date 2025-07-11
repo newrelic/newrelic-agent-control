@@ -204,7 +204,7 @@ mod tests {
     ) {
         let variables = Variables::from([(
             "nr-var:foo".to_string(),
-            Variable::new(String::default(), true, None, Some(var_content.to_string())),
+            Variable::new_string(String::default(), true, None, Some(var_content.to_string())),
         )]);
         let input = format!("${{nr-var:foo{var_functions}}}");
         let actual_output = template_string(input, &variables).unwrap();
@@ -228,7 +228,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:name".to_string(),
-                Variable::new(
+                Variable::new_string(
                     String::default(),
                     true,
                     None,
@@ -254,7 +254,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                Variable::new(
+                Variable::new_string(
                     String::default(),
                     true,
                     None,
@@ -304,7 +304,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                Variable::new(
+                Variable::new_string(
                     String::default(),
                     true,
                     None,
@@ -350,7 +350,7 @@ mod tests {
         let variables = Variables::from([
             (
                 "nr-var:change.me.string".to_string(),
-                Variable::new(
+                Variable::new_string(
                     String::default(),
                     true,
                     None,
@@ -568,7 +568,7 @@ mod tests {
                 name: "simple string",
                 variables: Variables::from([(
                     "nr-var:simple.string.var".to_string(),
-                    Variable::new(String::default(), true, None, Some("Value".to_string())),
+                    Variable::new_string(String::default(), true, None, Some("Value".to_string())),
                 )]),
                 expectations: vec![
                     (
@@ -589,7 +589,12 @@ mod tests {
                 name: "string with yaml",
                 variables: Variables::from([(
                     "nr-var:string.with.yaml.var".to_string(),
-                    Variable::new(String::default(), true, None, Some("[Value]".to_string())),
+                    Variable::new_string(
+                        String::default(),
+                        true,
+                        None,
+                        Some("[Value]".to_string()),
+                    ),
                 )]),
                 expectations: vec![(
                     "${nr-var:string.with.yaml.var}",
@@ -634,7 +639,12 @@ mod tests {
                     ),
                     (
                         "nr-var:simple.string.var".to_string(),
-                        Variable::new(String::default(), true, None, Some("Value".to_string())),
+                        Variable::new_string(
+                            String::default(),
+                            true,
+                            None,
+                            Some("Value".to_string()),
+                        ),
                     ),
                 ]),
                 expectations: vec![
@@ -707,7 +717,7 @@ mod tests {
     fn test_normalized_var() {
         let variables = Variables::from([(
             "nr-var:var.name".to_string(),
-            Variable::new(String::default(), true, None, Some("Value".to_string())),
+            Variable::new_string(String::default(), true, None, Some("Value".to_string())),
         )]);
 
         assert_matches!(

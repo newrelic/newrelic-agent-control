@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent_type::{
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, TrivialValue},
+    variable::fields::{StringFields, StringFieldsDefinition},
 };
 
 use super::fields::{Fields, FieldsDefinition, FieldsWithPath, FieldsWithPathDefinition};
@@ -17,7 +18,7 @@ use super::fields::{Fields, FieldsDefinition, FieldsWithPath, FieldsWithPathDefi
 #[serde(tag = "type")]
 pub enum VariableTypeDefinition {
     #[serde(rename = "string")]
-    String(FieldsDefinition<String>),
+    String(StringFieldsDefinition),
     #[serde(rename = "bool")]
     Bool(FieldsDefinition<bool>),
     #[serde(rename = "number")]
@@ -35,7 +36,7 @@ pub enum VariableTypeDefinition {
 /// [VariableTypeDefinition] including information known at runtime.
 #[derive(Debug, PartialEq, Clone)]
 pub enum VariableType {
-    String(Fields<String>),
+    String(StringFields),
     Bool(Fields<bool>),
     Number(Fields<serde_yaml::Number>),
     File(FieldsWithPath<FilePathWithContent>),
@@ -64,8 +65,8 @@ impl VariableTypeDefinition {
     }
 }
 
-impl From<Fields<String>> for VariableType {
-    fn from(fields: Fields<String>) -> Self {
+impl From<StringFields> for VariableType {
+    fn from(fields: StringFields) -> Self {
         VariableType::String(fields)
     }
 }
@@ -111,7 +112,7 @@ impl From<Fields<serde_yaml::Value>> for VariableType {
 impl VariableType {
     pub(crate) fn is_required(&self) -> bool {
         match self {
-            VariableType::String(f) => f.required,
+            VariableType::String(f) => f.inner.required,
             VariableType::Bool(f) => f.required,
             VariableType::Number(f) => f.required,
             VariableType::File(f) => f.inner.required,
@@ -151,9 +152,10 @@ impl VariableType {
     pub(crate) fn get_final_value(&self) -> Option<TrivialValue> {
         match self {
             VariableType::String(f) => f
+                .inner
                 .final_value
                 .as_ref()
-                .or(f.default.as_ref())
+                .or(f.inner.default.as_ref())
                 .cloned()
                 .map(TrivialValue::String),
             VariableType::Bool(f) => f.final_value.or(f.default).map(TrivialValue::Bool),

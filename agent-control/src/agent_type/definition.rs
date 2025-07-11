@@ -322,7 +322,7 @@ deployment:
 
         let expected_map: Map<String, Variable> = Map::from([(
             "description.name".to_string(),
-            Variable::new(
+            Variable::new_string(
                 "Name of the agent".to_string(),
                 false,
                 Some("nrdot".to_string()),
@@ -333,7 +333,7 @@ deployment:
         // expect output to be the map
         assert_eq!(expected_map, given_agent.variables.clone().flatten());
 
-        let expected_spec = Variable::new(
+        let expected_spec = Variable::new_string(
             "Name of the agent".to_string(),
             false,
             Some("nrdot".to_string()),

@@ -18,8 +18,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
-    error::AgentTypeError, trivial_value::TrivialValue,
-    variable::variable_type::VariableTypeDefinition,
+    error::AgentTypeError,
+    trivial_value::TrivialValue,
+    variable::{fields::StringFields, variable_type::VariableTypeDefinition},
 };
 
 use fields::Fields;
@@ -55,10 +56,12 @@ impl Variable {
     pub fn new_final_string_variable(final_value: String) -> Self {
         Self {
             description: String::new(),
-            variable_type: VariableType::String(Fields {
-                required: false,
-                default: None,
-                final_value: Some(final_value),
+            variable_type: VariableType::String(StringFields {
+                inner: Fields {
+                    required: false,
+                    default: None,
+                    final_value: Some(final_value),
+                },
                 variants: Default::default(),
             }),
         }
@@ -107,7 +110,7 @@ mod tests {
 
     use crate::agent_type::variable::{
         VariableDefinition,
-        fields::{Fields, FieldsDefinition, FieldsWithPath},
+        fields::{Fields, FieldsDefinition, FieldsWithPath, StringFields, StringFieldsDefinition},
         tree::Tree,
         variable_type::{VariableType, VariableTypeDefinition},
         variants::VariantsConfig,
@@ -138,6 +141,24 @@ mod tests {
             Self {
                 description,
                 variable_type: Fields::new(required, default, final_value).into(),
+            }
+        }
+
+        pub(crate) fn new_string(
+            description: String,
+            required: bool,
+            default: Option<String>,
+            final_value: Option<String>,
+        ) -> Self {
+            Self {
+                description,
+                variable_type: StringFields::new(
+                    required,
+                    default,
+                    Default::default(),
+                    final_value,
+                )
+                .into(),
             }
         }
 
@@ -183,13 +204,15 @@ foo:
                     "var_name".to_string(),
                     Tree::End(VariableDefinition {
                         description: "some description".to_string(),
-                        variable_type: VariableTypeDefinition::String(FieldsDefinition {
-                            required: false,
+                        variable_type: VariableTypeDefinition::String(StringFieldsDefinition {
+                            inner: FieldsDefinition {
+                                required: false,
+                                default: Some("a".to_string()),
+                            },
                             variants: VariantsConfig {
                                 ac_config_field: Some("foo.bar.var_name".to_string()),
                                 values: vec!["a".to_string(), "b".to_string()].into(),
                             },
-                            default: Some("a".to_string()),
                         }),
                     }),
                 )])),

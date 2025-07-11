@@ -182,7 +182,7 @@ objects:
         let variables = Variables::from([
             (
                 "nr-var:any".to_string(),
-                Variable::new(String::default(), true, None, Some(value.to_string())),
+                Variable::new_string(String::default(), true, None, Some(value.to_string())),
             ),
             (
                 "nr-sub:agent_id".to_string(),

@@ -229,7 +229,7 @@ deployment:
                     Tree::Mapping(HashMap::from([
                         (
                             "path".to_string(),
-                            Tree::End(Variable::new(
+                            Tree::End(Variable::new_string(
                                 "Path to the agent".to_string(),
                                 true,
                                 None,
@@ -238,7 +238,7 @@ deployment:
                         ),
                         (
                             "args".to_string(),
-                            Tree::End(Variable::new(
+                            Tree::End(Variable::new_string(
                                 "Args passed to the agent".to_string(),
                                 true,
                                 None,

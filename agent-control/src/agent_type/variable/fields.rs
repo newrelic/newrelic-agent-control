@@ -16,10 +16,18 @@ where
 {
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
-    pub(crate) variants: VariantsConfig<T>,
 }
 
-/// Type to also support a `file_path` for particular variable types.
+/// Type support additional fields for the string type
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub struct StringFieldsDefinition {
+    #[serde(flatten)]
+    pub(crate) inner: FieldsDefinition<String>,
+    #[serde(default = "Default::default")]
+    pub(crate) variants: VariantsConfig<String>,
+}
+
+/// Type support a `file_path` field for particular variable types.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct FieldsWithPathDefinition<T>
 where
@@ -28,15 +36,6 @@ where
     #[serde(flatten)]
     pub(crate) inner: FieldsDefinition<T>,
     pub(crate) file_path: PathBuf,
-}
-
-impl<T: PartialEq> FieldsWithPathDefinition<T> {
-    pub fn with_config(self) -> FieldsWithPath<T> {
-        FieldsWithPath {
-            inner: self.inner.with_config(),
-            file_path: self.file_path,
-        }
-    }
 }
 
 /// A [FieldsDefinition] including information known at runtime.
@@ -48,7 +47,14 @@ where
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
     pub(crate) final_value: Option<T>,
-    pub(crate) variants: Variants<T>,
+}
+
+/// A [StringFieldsDefinition] including information known at runtime.
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct StringFields {
+    #[serde(flatten)]
+    pub(crate) inner: Fields<String>,
+    pub(crate) variants: Variants<String>,
 }
 
 /// A [FieldsWithPathDefinition] including information known at runtime.
@@ -67,14 +73,31 @@ where
     T: PartialEq,
 {
     /// Returns the corresponding [Fields] according to the provided configuration.
-    // TODO: actually receive configuration
+    /// TODO: add config
     pub fn with_config(self) -> Fields<T> {
-        let variants = self.variants.values; // TODO: variants.ac_config_field and get the right value
         Fields {
             required: self.required,
             default: self.default,
             final_value: None,
+        }
+    }
+}
+
+impl StringFieldsDefinition {
+    pub fn with_config(self) -> StringFields {
+        let variants = self.variants.values; // TODO
+        StringFields {
+            inner: self.inner.with_config(),
             variants,
+        }
+    }
+}
+
+impl<T: PartialEq> FieldsWithPathDefinition<T> {
+    pub fn with_config(self) -> FieldsWithPath<T> {
+        FieldsWithPath {
+            inner: self.inner.with_config(),
+            file_path: self.file_path,
         }
     }
 }
@@ -84,13 +107,20 @@ where
     T: PartialEq + Debug,
 {
     pub(crate) fn set_final_value(&mut self, value: T) -> Result<(), AgentTypeError> {
+        self.final_value = Some(value);
+        Ok(())
+    }
+}
+
+impl StringFields {
+    pub(crate) fn set_final_value(&mut self, value: String) -> Result<(), AgentTypeError> {
         if !self.variants.is_valid(&value) {
             return Err(AgentTypeError::InvalidVariant(
                 format!("{value:?}"), // TODO: check if we may be exposing ${nr-env} values in this error
                 self.variants.0.iter().map(|v| format!("{v:?}")).collect(),
             ));
         }
-        self.final_value = Some(value);
+        self.inner.set_final_value(value)?;
         Ok(())
     }
 }
@@ -120,7 +150,6 @@ where
         #[derive(Debug, Deserialize)]
         struct IntermediateValueKind<T: PartialEq> {
             default: Option<T>,
-            variants: Option<VariantsConfig<T>>,
             required: bool,
         }
 
@@ -132,9 +161,6 @@ where
         Ok(FieldsDefinition {
             default: intermediate_spec.default,
             required: intermediate_spec.required,
-            variants: intermediate_spec
-                .variants
-                .unwrap_or(VariantsConfig::default()),
         })
     }
 }
@@ -142,6 +168,13 @@ where
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+
+    use assert_matches::assert_matches;
+
+    use crate::agent_type::{
+        error::AgentTypeError,
+        variable::{fields::StringFields, variants::Variants},
+    };
 
     use super::{Fields, FieldsWithPath};
 
@@ -154,7 +187,6 @@ mod tests {
                 required,
                 default,
                 final_value,
-                variants: Default::default(),
             }
         }
     }
@@ -174,52 +206,62 @@ mod tests {
                     required,
                     default,
                     final_value,
-                    variants: Default::default(),
                 },
                 file_path,
             }
         }
     }
 
+    impl StringFields {
+        pub(crate) fn new(
+            required: bool,
+            default: Option<String>,
+            variants: Variants<String>,
+            final_value: Option<String>,
+        ) -> Self {
+            Self {
+                inner: Fields::<String> {
+                    required,
+                    default,
+                    final_value,
+                },
+                variants,
+            }
+        }
+    }
+
     #[test]
     fn test_set_final_value_valid_variant() {
-        let mut fields: Fields<i32> = Fields {
-            required: true,
-            default: Some(1),
-            final_value: None,
-            variants: vec![1, 2, 3].into(),
-        };
+        let mut fields = StringFields::new(
+            true,
+            Some("a".into()),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()].into(),
+            None,
+        );
 
-        assert!(fields.set_final_value(2).is_ok());
-        assert_eq!(fields.final_value, Some(2));
+        assert!(fields.set_final_value("b".into()).is_ok());
+        assert_eq!(fields.inner.final_value, Some("b".into()));
     }
 
     #[test]
     fn test_set_final_value_invalid_variant() {
-        let mut fields: Fields<i32> = Fields {
-            required: true,
-            default: Some(1),
-            final_value: None,
-            variants: vec![1, 2, 3].into(),
-        };
-
-        assert_eq!(
-            fields.set_final_value(4).unwrap_err().to_string(),
-            r#"Invalid variant provided as a value: `4`. Variants allowed: ["1", "2", "3"]"#
+        let mut fields = StringFields::new(
+            true,
+            Some("a".into()),
+            vec!["a".to_string(), "b".to_string(), "c".to_string()].into(),
+            None,
         );
-        assert_eq!(fields.final_value, None);
+        let result = fields.set_final_value("d".into()).unwrap_err();
+        assert_matches!(result, AgentTypeError::InvalidVariant(_, _));
+
+        assert_eq!(fields.inner.final_value, None);
     }
 
     #[test]
     fn test_set_final_value_no_variants() {
-        let mut fields: Fields<i32> = Fields {
-            required: true,
-            default: Some(1),
-            final_value: None,
-            variants: Default::default(),
-        };
+        let mut fields = StringFields::new(true, Some("a".into()), Default::default(), None);
 
-        assert!(fields.set_final_value(2).is_ok());
-        assert_eq!(fields.final_value, Some(2));
+        assert!(fields.set_final_value("b".into()).is_ok());
+        assert_eq!(fields.inner.final_value, Some("b".into()));
     }
 }
