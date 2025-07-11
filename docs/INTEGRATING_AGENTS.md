@@ -105,7 +105,18 @@ If the type for the variable is `file` or `map[string]file`, this field defines 
 
 ##### `variants` (optional)
 
-A list of accepted values for this variable, of the same type as the one declared for it. If a configuration includes a value for this variable that is not among the specified variants, the configuration will not be considered valid.
+A list of accepted values for this variable, only available for string variables. If a configuration includes a value for this variable that is not among the specified variants, the configuration will not be considered valid. It is also possible to allow setting up variants in the Agent Control configuration, as explained in the example below:
+
+```yaml
+my_variable:
+  # ...
+  type: string
+  variants:
+    ac_config_field: "my_variable_variants" # If the field is set `agent_type_var_constraints.variants` it will be used.
+    values: ["value1", "value2"] # Otherwise the values defined here are used
+```
+
+By default, no variants are set resulting in no variants validation.
 
 ### Agent Type Deployment
 

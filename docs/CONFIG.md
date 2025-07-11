@@ -158,3 +158,14 @@ k8s:
 Notice that current_chart_version is passed to the agent control via Environment Variable to avoid race conditions.
 If set via config, after a failed upgrade we could have the "old" pod loading the new config and reading the new chart version, while the image is still the old one.
 
+### agent_type_var_constraints
+
+Allows setting up specific constraints in the agent types supporting it.
+
+- `variants`: if any agent-type defines a string variable with the `variants` fields and this configuration field defines the corresponding key. These variants will be used to validate values.
+
+```yaml
+agent_type_var_constraints:
+  variants: # map of variants
+    variable_variant_name: ["supported_value1", "supported_value2"] # The key should match what is defined in the Agent Type
+```

@@ -50,7 +50,7 @@ where
 {
     pub(crate) required: bool,
     pub(crate) default: Option<T>,
-    pub(crate) final_value: Option<T>,
+    pub(crate) final_value: Option<T>, // TODO: move this outside the struct and avoid mutating the variables
 }
 
 /// A [StringFieldsDefinition] including information known at runtime.
