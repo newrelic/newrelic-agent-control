@@ -182,22 +182,24 @@ where
             self.maybe_opamp_client.as_ref().inspect(|c| {
                 let _ = c
                     .update_effective_config()
-                    .inspect_err(|e| error!("Effective config update failed: {e}"));
+                    .inspect_err(|e| error!("Failed to update effective config: {e}"));
             });
             return None;
         };
 
         let effective_agent = self
             .effective_agent(config.get_yaml_config().clone())
-            .map_err(SupervisorCreationError::from);
+            .map_err(SupervisorCreationError::from)
+            .inspect_err(|e| error!("Failed to create effective agent: {e}"));
 
         let not_started_supervisor = effective_agent.and_then(|effective_agent| {
             self.supervisor_builder
                 .build_supervisor(effective_agent)
                 .map_err(SupervisorCreationError::from)
+                .inspect_err(|e| error!("Failed to create supervisor: {e}"))
         });
 
-        if not_started_supervisor.is_ok() {
+        let started_supervisor = not_started_supervisor.and_then(|stopped_supervisor| {
             // Communicate the config that we will be using
             // FIXME: only if we successfully build a supervisor?
             // What if we fail and we don't have a supervisor? Should we report?
@@ -210,13 +212,12 @@ where
             self.maybe_opamp_client.as_ref().inspect(|c| {
                 let _ = c
                     .update_effective_config()
-                    .inspect_err(|e| error!("Effective config update failed: {e}"));
+                    .inspect_err(|e| error!("Failed to update effective config: {e}"));
             });
-        }
 
-        let started_supervisor = not_started_supervisor.and_then(|stopped_supervisor| {
             self.start_supervisor(stopped_supervisor)
                 .map_err(SupervisorCreationError::from)
+                .inspect_err(|e| error!("Failed to start supervisor: {e}"))
         });
 
         // After all operations, set the hash to a final state
@@ -252,6 +253,12 @@ where
             let _span_guard = span.enter();
 
             let mut supervisor = self.init_supervisor();
+
+            if supervisor.is_none() {
+                debug!(
+                    "No supervisor found, but the runtime will continue to run waiting for remote configs"
+                );
+            }
 
             // Stores the current health state for logging purposes.
             let mut previous_health = None;
