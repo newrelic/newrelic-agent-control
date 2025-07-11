@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 /// Represents a collection of supported variants for a variable.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Variants<T: PartialEq>(pub(crate) Vec<T>); // TODO: we may not need it to be public
+pub struct Variants<T: PartialEq>(Vec<T>);
 
 /// Defines the configuration to be set when defining [Variants] from Agent Control configuration.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
