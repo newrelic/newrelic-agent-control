@@ -67,16 +67,15 @@ pub enum SecretsProvidersError {
     InvalidProvider(String),
 }
 
+enum SecretPath {}
+
 /// Trait for operating with secrets providers.
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
-    fn get_secret(
-        &self,
-        mount: &str,
-        path: &str,
-        key: &str,
-    ) -> Result<String, SecretsProvidersError>;
+    type Error;
+
+    fn get_secret(&self, secret_path: SecretPath) -> Result<String, Self::Error>;
 }
 
 /// Supported secrets providers.
