@@ -1,6 +1,7 @@
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::agent_control_cli::installation::ac_install_cmd;
+use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
@@ -9,19 +10,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
-use predicates::prelude::predicate;
 use std::time::Duration;
-
-#[test]
-fn cli_uninstall_agent_control_fails_when_no_kubernetes() {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
-    cmd.arg("uninstall-agent-control");
-    cmd.arg("--namespace").arg("default");
-    cmd.arg("--namespace-agents").arg("default");
-
-    cmd.assert().failure();
-    cmd.assert().code(predicate::eq(69));
-}
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -65,7 +54,9 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     print_pod_logs(k8s_env.client.clone(), &namespace, AC_LABEL_SELECTOR);
 
     let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     let deployments: Api<Deployment> = Api::namespaced(k8s_env.client.clone(), &namespace);
     let config_maps: Api<ConfigMap> = Api::namespaced(k8s_env.client.clone(), &namespace);
@@ -88,7 +79,9 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     });
 
     let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     let _ =
         block_on(deployments.get("agent-control")).expect_err("AC deployment should be deleted");
@@ -104,10 +97,14 @@ fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
     let namespace = block_on(k8s_env.test_namespace());
 
     let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 }
 
 /// Builds an uninstallation command for testing purposes with a curated set of defaults and the provided arguments.

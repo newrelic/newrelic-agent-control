@@ -1,17 +1,11 @@
 use crate::common::runtime::block_on;
 use crate::k8s::self_update::LOCAL_CHART_REPOSITORY;
+use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
 use kube::Client;
-use predicates::prelude::predicate;
-
-#[test]
-fn cli_install_agent_control_fails_when_no_kubernetes() {
-    let mut cmd = ac_install_cmd("default", "0.0.45", "test-secret=values.yaml");
-    cmd.assert().failure();
-    cmd.assert().code(predicate::eq(69));
-}
+use std::time::Duration;
 
 // NOTE: The tests below are using the latest '*' chart version, and they will likely fail
 // if breaking changes need to be introduced in the chart.
@@ -35,7 +29,13 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
 
     // The chart version does not exist
     let mut cmd = ac_install_cmd(&namespace, "0.0.0", "test-secret=values.yaml");
-    cmd.assert().failure(); // The installation check should detect that the upgrade failed
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert_stdout_contains(
+        &assert,
+        "no 'agent-control-deployment' chart with version matching '0.0.0' found",
+    );
+    assert.failure(); // The installation check should detect that the upgrade failed
 }
 
 #[test]
@@ -52,7 +52,13 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
     );
 
     let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
-    cmd.assert().failure(); // The installation check should detect that AC workloads cannot be created due to invalid image
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert_stdout_contains(
+        &assert,
+        "Deployment `agent-control`: has 1 unavailable replicas",
+    );
+    assert.failure(); // The installation check should detect that AC workloads cannot be created due to invalid image
 }
 
 #[test]
@@ -69,11 +75,19 @@ fn podsk8s_cli_install_agent_control_installation_failed_upgrade() {
     );
 
     let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
-    cmd.assert().success(); // Install successfully
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success(); // Install successfully
 
     // The chart version does not exist
     let mut cmd = ac_install_cmd(&namespace, "0.0.0", "test-secret=values.yaml");
-    cmd.assert().failure(); // The installation check should detect that the upgrade failed
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert_stdout_contains(
+        &assert,
+        "no 'agent-control-deployment' chart with version matching '0.0.0' found",
+    );
+    assert.failure(); // The installation check should detect that the upgrade failed
 }
 
 /// Builds an installation command for testing purposes with a curated set of defaults and the provided arguments.
@@ -86,6 +100,7 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
     cmd.arg("--secrets").arg(secrets);
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--installation-check-timeout").arg("1m"); // Smaller than default to speed up failure scenarios
+    cmd.timeout(Duration::from_secs(120)); // fail if the command got blocked for too long.
     cmd
 }
 

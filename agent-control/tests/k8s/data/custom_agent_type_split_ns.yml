@@ -23,7 +23,6 @@ deployment:
         spec:
           # we don't want to trigger this in the test to avoid extra load in the cluster
           interval: 99m
-          provider: generic
           url: https://helm.github.io/examples
       default-values:
         apiVersion: v1
@@ -49,15 +48,22 @@ deployment:
             spec:
               chart: hello-world
               version: 0.1.0
-              reconcileStrategy: ChartVersion
               sourceRef:
                 kind: HelmRepository
                 name: ${nr-sub:agent_id}
           install:
             disableWait: true
-            createNamespace: true
+            disableWaitForJobs: true
+            disableTakeOwnership: true
+            replace: true
+            # namespaces lifecycle is handled by the test.
+            # createNamespace: true
           upgrade:
             disableWait: true
+            disableWaitForJobs: true
+            disableTakeOwnership: true 
+            cleanupOnFail: true
+            force: true
           valuesFrom:
             - kind: Secret
               name: default-values-${nr-sub:agent_id}

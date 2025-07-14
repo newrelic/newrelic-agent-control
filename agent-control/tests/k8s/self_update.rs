@@ -270,9 +270,9 @@ chart_version: {MISSING_VERSION}
         )?;
         check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
             !status.healthy
-                && status
-                    .last_error
-                    .contains("latest generation of object has not been reconciled") // Expected error when chart version doesn't exist
+                && status.last_error.contains(
+                    &format!("no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"),
+                )
         })
     });
 
@@ -368,7 +368,7 @@ chart_version: {LOCAL_CHART_FAILING_VERSION}
         }
 
         check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
-            !status.healthy && status.last_error.contains("HelmRelease status unknown:")
+            !status.healthy && status.last_error.contains("has 1 unavailable replicas")
         })
     });
 }
