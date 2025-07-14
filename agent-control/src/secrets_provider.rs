@@ -13,6 +13,7 @@ pub mod vault;
 
 use std::collections::HashMap;
 
+use crate::secrets_provider::vault::VaultSecretPath;
 use serde::Deserialize;
 
 /// Configuration for supported secrets providers.
@@ -69,7 +70,9 @@ pub enum SecretsProvidersError {
     InvalidProvider(String),
 }
 
-enum SecretPath {}
+pub enum SecretPath {
+    Vault(VaultSecretPath),
+}
 
 /// Trait for operating with secrets providers.
 ///
