@@ -167,6 +167,7 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
       interval: 5s
+      initial_delay: 5s
       timeout: 5s
       http:
         path: "/v1/status/health"
@@ -185,6 +186,7 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
@@ -248,6 +250,7 @@ When set, this redirects the `stdout` and `stderr` of the created process to fil
 Enables periodically checking the health of the sub-agent. See [Health status](#health-status) below for more details. Accepts the following values:
 
 - `interval`: Periodicity of the check. A duration string.
+- `initial_delay`: Initial delay before the first health check is performed. A duration string.
 - `timeout`: Maximum duration a health check may run before considered failed.
 - `http` or `file`: The type of health check used.
   - `http` means that the supervisor for this sub-agent will attempt to query an HTTP endpoint and will decide on healthiness depending on the status code. Accepts the following fields:
@@ -279,7 +282,8 @@ The following fields are used for configuring the Kubernetes deployment of a sub
 
 The health configuration for Kubernetes. See [Health status](#health-status) below for more details. Accepts the following values:
 
-- `interval`: Periodicity pf the check. A duration string.
+- `interval`: Periodicity of the check. A duration string. Default to 60s
+- `initial_delay`: Initial delay before the first health check is performed. A duration string. Default to zero.
 
 ##### `objects`
 

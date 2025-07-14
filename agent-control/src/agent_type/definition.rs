@@ -280,6 +280,7 @@ deployment:
   on_host:
     health:
       interval: 3s
+      initial_delay: 3s
       timeout: 10s
       http:
         path: /healthz
@@ -413,6 +414,7 @@ deployment:
   on_host:
     health:
       interval: 3s
+      initial_delay: 3s
       timeout: 10s
       http:
         path: /v1/status

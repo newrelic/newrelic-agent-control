@@ -22,6 +22,7 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1

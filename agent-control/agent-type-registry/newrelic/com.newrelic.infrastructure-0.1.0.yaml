@@ -72,6 +72,7 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
       interval: 5s
+      initial_delay: 5s
       timeout: 5s
       http:
         path: "/v1/status/health"
@@ -93,6 +94,7 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1

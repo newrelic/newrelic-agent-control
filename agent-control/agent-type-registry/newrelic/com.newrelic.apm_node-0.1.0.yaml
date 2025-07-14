@@ -37,6 +37,7 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
       instrumentation:
         apiVersion: newrelic.com/v1beta1
