@@ -608,11 +608,11 @@ async fn k8s_dynamic_resource_missing_kind() {
 }
 
 // Test that the reflectors of dynamic objects are consistent when the CRD is removed.
-#[tokio::test(flavor = "multi_thread")]
+#[test]
 #[ignore = "needs k8s cluster"]
-async fn k8s_remove_crd_after_dynamic_resource_initialized() {
-    let mut k8s = K8sEnv::new().await;
-    let test_ns = k8s.test_namespace().await;
+fn k8s_remove_crd_after_dynamic_resource_initialized() {
+    let mut k8s = block_on(K8sEnv::new());
+    let test_ns = block_on(k8s.test_namespace());
     // custom CRD defined for this test only.
     #[derive(Default, CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
     #[kube(
@@ -624,15 +624,13 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
     pub struct ClientTestSpec {
         pub data: String,
     }
-    delete_crd(k8s.client.clone(), ClientTest::crd())
-        .await
+    block_on(delete_crd(k8s.client.clone(), ClientTest::crd()))
         .expect_err("CRD deleted, testing environment was not clean, re-run the test");
 
-    create_crd(k8s.client.clone(), ClientTest::crd())
-        .await
+    block_on(create_crd(k8s.client.clone(), ClientTest::crd()))
         .expect("Error creating the Bar CRD");
 
-    let k8s_client = AsyncK8sClient::try_new(&ClientConfig::new()).await.unwrap();
+    let k8s_client = SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap();
 
     let cr = ClientTest {
         metadata: ObjectMeta {
@@ -647,43 +645,40 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
 
     let dynamic_object = serde_yaml::from_value(serde_yaml::to_value(cr).unwrap()).unwrap();
 
-    k8s_client
-        .apply_dynamic_object(&dynamic_object)
-        .await
-        .unwrap();
+    // Applying the CRD object to the cluster could take some time, so we retry a few times.
+    retry(10, Duration::from_secs(1), || {
+        k8s_client
+            .apply_dynamic_object(&dynamic_object)
+            .map_err(|e| e.into())
+    });
 
-    delete_crd(k8s.client.clone(), ClientTest::crd())
-        .await
-        .unwrap();
+    block_on(delete_crd(k8s.client.clone(), ClientTest::crd())).unwrap();
 
     //wait for the reflector to be updated
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    std::thread::sleep(Duration::from_secs(5));
 
     assert_matches!(
-        k8s_client
-            .get_dynamic_object(
-                &dynamic_object.types.clone().unwrap(),
-                &dynamic_object.name_unchecked(),
-                &test_ns,
-            )
-            .await,
+        k8s_client.get_dynamic_object(
+            &dynamic_object.types.clone().unwrap(),
+            &dynamic_object.name_unchecked(),
+            &test_ns,
+        ),
         Err(MissingAPIResource(_)),
         "CR was removed client should not find it"
     );
 
     assert_matches!(
-        k8s_client.apply_dynamic_object(&dynamic_object).await,
+        k8s_client.apply_dynamic_object(&dynamic_object),
         Err(MissingAPIResource(_)),
         "CRD was removed, client should not be able to create a new object"
     );
 
     // re-create the CRD
-    create_crd(k8s.client.clone(), ClientTest::crd())
-        .await
+    block_on(create_crd(k8s.client.clone(), ClientTest::crd()))
         .expect("Error creating the Bar CRD");
 
     // wait for the CRD to be created
-    tokio::time::sleep(Duration::from_secs(1)).await;
+    std::thread::sleep(Duration::from_secs(1));
 
     let new_cr = ClientTest {
         metadata: ObjectMeta {
@@ -700,11 +695,10 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
 
     k8s_client
         .apply_dynamic_object(&new_dyn_object)
-        .await
         .expect("CRD was re-created, client should be able to create a new object");
 
     // wait for the reflector to be updated
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    std::thread::sleep(Duration::from_secs(5));
 
     // Old removed CR should not be found
     assert!(
@@ -714,7 +708,6 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
                 &dynamic_object.name_unchecked(),
                 &test_ns,
             )
-            .await
             .unwrap()
             .is_none()
     );
@@ -726,13 +719,10 @@ async fn k8s_remove_crd_after_dynamic_resource_initialized() {
                 &new_dyn_object.name_unchecked(),
                 &test_ns,
             )
-            .await
             .unwrap()
             .is_some()
     );
 
     // clean up
-    delete_crd(k8s.client.clone(), ClientTest::crd())
-        .await
-        .unwrap();
+    block_on(delete_crd(k8s.client.clone(), ClientTest::crd())).unwrap();
 }
