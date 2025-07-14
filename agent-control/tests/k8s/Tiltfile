@@ -96,7 +96,7 @@ helm_resource(
 #### build data/charts and upload it to chart museum
 ### Feature Branch Workaround ###
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-feature_branch = ""
+feature_branch = "master"
 
 # We're modifying the default image in the charts for different versions because we don't expose the values to be
 # modified by the remote_config but we do tests upgrading charts that require image modification
@@ -107,11 +107,11 @@ feature_branch = ""
 # - 0.0.2 and 0.0.4 the image tilt.local/ac-dev:dev
 # - 0.0.3 use an image executing exit 1
 
-git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
 local_resource(
     'package-and-upload-remote-image-chart',
-    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
+     helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
      curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts
     """,
