@@ -291,16 +291,17 @@ where
     E: HealthEventPublisher,
 {
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-        let span = info_span!(
-            "health_check",
-            { ID_ATTRIBUTE_NAME } = %agent_id
-        );
-        let _guard = span.enter();
         debug!("Starting to check health with the configured checker");
 
         sleep(initial_delay.into());
 
         loop {
+            let span = info_span!(
+                "health_check",
+                { ID_ATTRIBUTE_NAME } = %agent_id
+            );
+            let _guard = span.enter();
+
             debug!("Checking health");
             let health = health_checker.check_health().unwrap_or_else(|err| {
                 debug!(last_error = %err, "The configured health check failed");
