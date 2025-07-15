@@ -101,9 +101,6 @@ agents:
 
     let yes_pid = String::from_utf8(yes_pid).unwrap();
 
-    // Wait for the agent-control to start the process
-    thread::sleep(Duration::from_secs(1));
-
     // Send a SIGKILL to the yes command
     signal::kill(
         Pid::from_raw(yes_pid.trim().parse::<i32>().unwrap()),

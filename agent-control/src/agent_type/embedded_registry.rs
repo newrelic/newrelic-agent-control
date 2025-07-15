@@ -100,7 +100,7 @@ impl EmbeddedRegistry {
                     .and_then(|content| {
                         debug!("Loading Dynamic Agent Type: {file:?}");
                         serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
-                            .inspect_err(|e| error!(error = %e, "Could not parse agent type"))
+                            .inspect_err(|e| error!(error = %e, "Could not parse Dynamic Agent Type: {file:?}"))
                             .ok()
                     })
             })

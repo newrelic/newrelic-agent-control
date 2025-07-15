@@ -247,7 +247,7 @@ jobs:
         with:
           retry_attempts: 10
           agent_enabled: false
-          spec_path: test/k8s-e2e/e2e-${{ matrix.group }}.yml
+          spec_path: test/k8s-e2e/${{ matrix.group }}/e2e-${{ matrix.group }}.yml
           account_id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
           api_key: ${{ secrets.COREINT_E2E_API_KEY }}
           license_key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
