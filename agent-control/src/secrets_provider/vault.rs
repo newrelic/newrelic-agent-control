@@ -40,6 +40,9 @@ pub enum VaultError {
     #[error("unable to deserialize body: `{0}`")]
     DeserializeError(String),
 
+    #[error("secret path is not in vault format")]
+    IncorrectSecretPath,
+
     #[error("secret source not found")]
     SourceNotFound,
 
@@ -47,6 +50,7 @@ pub enum VaultError {
     NotFound,
 }
 
+#[derive(Clone)]
 pub struct VaultSecretPath {
     pub source: String,
     pub mount: String,
@@ -160,7 +164,9 @@ impl SecretsProvider for Vault {
     type Error = VaultError;
 
     fn get_secret(&self, secret_path: SecretPath) -> Result<String, Self::Error> {
-        let SecretPath::Vault(vault_secret_path) = secret_path;
+        let SecretPath::Vault(vault_secret_path) = secret_path else {
+            return Err(VaultError::IncorrectSecretPath);
+        };
 
         let vault_source = self
             .sources

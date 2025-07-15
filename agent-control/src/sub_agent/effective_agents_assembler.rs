@@ -107,7 +107,7 @@ where
     registry: Arc<R>,
     renderer: Y,
     variable_constraints: VariableConstraints,
-    secrets_providers: SecretsProvidersRegistry,
+    _secrets_providers: SecretsProvidersRegistry,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -115,13 +115,12 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
-        secrets_providers: SecretsProvidersRegistry,
+        _secrets_providers: SecretsProvidersRegistry,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
-            variable_constraints,
-            secrets_providers,
+            _secrets_providers,
         }
     }
 }
@@ -273,7 +272,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer,
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: SecretsProvidersRegistry::default(),
+                _secrets_providers: SecretsProvidersRegistry::default(),
             }
         }
     }
