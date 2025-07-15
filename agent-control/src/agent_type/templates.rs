@@ -187,10 +187,12 @@ fn template_yaml_value_string(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::variable::kind_value::KindValue;
+    use crate::agent_type::trivial_value::FilePathWithContent;
+    use crate::agent_type::variable::kind_value::{KindValue, KindValueWithPath};
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_yaml::Number;
+    use std::collections::HashMap;
 
     #[rstest]
     #[case::multiline_indent_line("\nline1\nline2\n", "|indent 1", "\n line1\n line2\n ")]
@@ -738,5 +740,47 @@ mod tests {
             normalized_var("does.not.exists", &variables).unwrap_err(),
             AgentTypeError::MissingTemplateKey(s) => s);
         assert_eq!("does.not.exists".to_string(), key);
+    }
+
+    impl From<KindValue<String>> for Kind {
+        fn from(kind_value: KindValue<String>) -> Self {
+            Kind::String(kind_value)
+        }
+    }
+
+    impl From<KindValue<bool>> for Kind {
+        fn from(kind_value: KindValue<bool>) -> Self {
+            Kind::Bool(kind_value)
+        }
+    }
+
+    impl From<KindValue<Number>> for Kind {
+        fn from(kind_value: KindValue<Number>) -> Self {
+            Kind::Number(kind_value)
+        }
+    }
+
+    impl From<KindValueWithPath<FilePathWithContent>> for Kind {
+        fn from(kind_value: KindValueWithPath<FilePathWithContent>) -> Self {
+            Kind::File(kind_value)
+        }
+    }
+
+    impl From<KindValue<HashMap<String, String>>> for Kind {
+        fn from(kind_value: KindValue<HashMap<String, String>>) -> Self {
+            Kind::MapStringString(kind_value)
+        }
+    }
+
+    impl From<KindValueWithPath<HashMap<String, FilePathWithContent>>> for Kind {
+        fn from(kind_value: KindValueWithPath<HashMap<String, FilePathWithContent>>) -> Self {
+            Kind::MapStringFile(kind_value)
+        }
+    }
+
+    impl From<KindValue<serde_yaml::Value>> for Kind {
+        fn from(kind_value: KindValue<serde_yaml::Value>) -> Self {
+            Kind::Yaml(kind_value)
+        }
     }
 }

@@ -12,9 +12,7 @@ use super::{
     variable::definition::{VariableDefinition, VariableDefinitionTree},
 };
 
-use crate::agent_control::defaults::default_capabilities;
 use crate::values::yaml_config::YAMLConfig;
-use opamp_client::operation::capabilities::Capabilities;
 use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::warn;
@@ -50,7 +48,6 @@ pub struct AgentType {
     pub agent_type_id: AgentTypeID,
     pub variables: VariableTree,
     pub runtime_config: Runtime,
-    capabilities: Capabilities,
 }
 
 impl AgentType {
@@ -59,16 +56,7 @@ impl AgentType {
             agent_type_id: metadata,
             variables,
             runtime_config,
-            capabilities: default_capabilities(), // TODO: can capabilities be set in AgentTypeDefinition?
         }
-    }
-
-    pub fn get_variables(&self) -> Variables {
-        self.variables.clone().flatten()
-    }
-
-    pub fn get_capabilities(&self) -> Capabilities {
-        self.capabilities
     }
 }
 
@@ -238,10 +226,6 @@ pub mod tests {
         pub fn build_for_testing(yaml_definition: &str, environment: &Environment) -> Self {
             let definition = serde_yaml::from_str::<AgentTypeDefinition>(yaml_definition).unwrap();
             build_agent_type(definition, environment).unwrap()
-        }
-
-        pub fn set_capabilities(&mut self, capabilities: Capabilities) {
-            self.capabilities = capabilities
         }
 
         /// Retrieve the `variables` field of the agent type at the specified key, if any.
@@ -449,25 +433,22 @@ status_server_port: 8004
             input_agent_type.fill_variables(GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML);
 
         // Then, we expect the corresponding final values.
-        let expected_config_3: TrivialValue = HashMap::from([
+        let expected_config_3 = TrivialValue::MapStringString(HashMap::from([
             ("log_level".to_string(), "trace".to_string()),
             ("forward".to_string(), "true".to_string()),
-        ])
-        .into();
+        ]));
         // File with default
-        let expected_config_2: TrivialValue = FilePathWithContent::new(
+        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
             "config2.yml".into(),
             "license_key: abc123\nstaging: true\n".to_string(),
-        )
-        .into();
+        ));
         // File with values
-        let expected_config: TrivialValue = FilePathWithContent::new(
+        let expected_config = TrivialValue::File(FilePathWithContent::new(
             "config.yml".into(),
             "license_key: abc124\nstaging: false\n".to_string(),
-        )
-        .into();
+        ));
         // MapStringFile
-        let expected_integrations: TrivialValue = HashMap::from([
+        let expected_integrations = TrivialValue::MapStringFile(HashMap::from([
             (
                 "kafka.conf".to_string(),
                 FilePathWithContent::new(
@@ -479,10 +460,9 @@ status_server_port: 8004
                 "redis.yml".to_string(),
                 FilePathWithContent::new("integrations.d".into(), "user: redis\n".to_string()),
             ),
-        ])
-        .into();
+        ]));
         // Number
-        let expected_status_server: TrivialValue = Number::from(8004).into();
+        let expected_status_server = TrivialValue::Number(Number::from(8004));
 
         assert_eq!(
             expected_config_3,
