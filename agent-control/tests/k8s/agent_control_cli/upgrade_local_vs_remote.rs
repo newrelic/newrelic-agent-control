@@ -68,7 +68,12 @@ fn k8s_cli_local_and_remote_updates() {
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL, &ac_namespace)
+        check_version_and_source(
+            &k8s_client,
+            LOCAL_CHART_NEW_VERSION,
+            LOCAL_VAL,
+            &ac_namespace,
+        )
     });
 
     // running updater doing an upgrade to "*"
