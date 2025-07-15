@@ -23,48 +23,6 @@ pub enum TrivialValue {
     MapStringFile(Map<String, FilePathWithContent>),
 }
 
-impl From<String> for TrivialValue {
-    fn from(s: String) -> Self {
-        TrivialValue::String(s)
-    }
-}
-
-impl From<FilePathWithContent> for TrivialValue {
-    fn from(file: FilePathWithContent) -> Self {
-        TrivialValue::File(file)
-    }
-}
-
-impl From<serde_yaml::Value> for TrivialValue {
-    fn from(yaml: serde_yaml::Value) -> Self {
-        TrivialValue::Yaml(yaml)
-    }
-}
-
-impl From<bool> for TrivialValue {
-    fn from(b: bool) -> Self {
-        TrivialValue::Bool(b)
-    }
-}
-
-impl From<serde_yaml::Number> for TrivialValue {
-    fn from(n: serde_yaml::Number) -> Self {
-        TrivialValue::Number(n)
-    }
-}
-
-impl From<Map<String, String>> for TrivialValue {
-    fn from(map: Map<String, String>) -> Self {
-        TrivialValue::MapStringString(map)
-    }
-}
-
-impl From<Map<String, FilePathWithContent>> for TrivialValue {
-    fn from(map: Map<String, FilePathWithContent>) -> Self {
-        TrivialValue::MapStringFile(map)
-    }
-}
-
 impl TrivialValue {
     /// If the trivial value is a yaml, it returns a copy the corresponding [serde_yaml::Value], returns None otherwise.
     pub fn to_yaml_value(&self) -> Option<serde_yaml::Value> {

@@ -50,10 +50,6 @@ impl SubAgentEvent {
     pub fn new_health(agent_identity: AgentIdentity, health: HealthWithStartTime) -> Self {
         Self::HealthUpdated(agent_identity, health)
     }
-
-    pub fn new_agent_started(agent_identity: AgentIdentity, started_time: SystemTime) -> Self {
-        Self::SubAgentStarted(agent_identity, started_time)
-    }
 }
 
 /// Defines internal events for the AgentControl component

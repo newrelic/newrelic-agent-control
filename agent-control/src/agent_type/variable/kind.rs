@@ -1,13 +1,10 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use serde::{Deserialize, Serialize};
-
+use super::kind_value::{KindValue, KindValueWithPath};
 use crate::agent_type::{
     error::AgentTypeError,
     trivial_value::{FilePathWithContent, TrivialValue},
 };
-
-use super::kind_value::{KindValue, KindValueWithPath};
+use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
@@ -26,49 +23,6 @@ pub enum Kind {
     MapStringFile(KindValueWithPath<HashMap<String, FilePathWithContent>>),
     #[serde(rename = "yaml")]
     Yaml(KindValue<serde_yaml::Value>),
-}
-
-/// Conversions from KindValue<T> to Kind
-impl From<KindValue<String>> for Kind {
-    fn from(kind_value: KindValue<String>) -> Self {
-        Kind::String(kind_value)
-    }
-}
-
-impl From<KindValue<bool>> for Kind {
-    fn from(kind_value: KindValue<bool>) -> Self {
-        Kind::Bool(kind_value)
-    }
-}
-
-impl From<KindValue<serde_yaml::Number>> for Kind {
-    fn from(kind_value: KindValue<serde_yaml::Number>) -> Self {
-        Kind::Number(kind_value)
-    }
-}
-
-impl From<KindValueWithPath<FilePathWithContent>> for Kind {
-    fn from(kind_value: KindValueWithPath<FilePathWithContent>) -> Self {
-        Kind::File(kind_value)
-    }
-}
-
-impl From<KindValue<HashMap<String, String>>> for Kind {
-    fn from(kind_value: KindValue<HashMap<String, String>>) -> Self {
-        Kind::MapStringString(kind_value)
-    }
-}
-
-impl From<KindValueWithPath<HashMap<String, FilePathWithContent>>> for Kind {
-    fn from(kind_value: KindValueWithPath<HashMap<String, FilePathWithContent>>) -> Self {
-        Kind::MapStringFile(kind_value)
-    }
-}
-
-impl From<KindValue<serde_yaml::Value>> for Kind {
-    fn from(kind_value: KindValue<serde_yaml::Value>) -> Self {
-        Kind::Yaml(kind_value)
-    }
 }
 
 /// The below methods are mostly concerned with delegating to the inner type on each `Kind` variant.
