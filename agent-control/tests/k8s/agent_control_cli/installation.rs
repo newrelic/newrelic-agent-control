@@ -18,17 +18,19 @@ use std::time::Duration;
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
-        &namespace,
+        &ac_namespace,
+        &subagents_namespace,
         "test-secret",
         "values.yaml",
     );
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&namespace, "0.0.0", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, "0.0.0", "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -42,16 +44,18 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
 
     create_values_secret_with_invalid_image_tag(
         k8s_env.client.clone(),
-        &namespace,
+        &ac_namespace,
+        &subagents_namespace,
         "test-secret",
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, "*", "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -65,22 +69,24 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
 #[ignore = "needs k8s cluster"]
 fn podsk8s_cli_install_agent_control_installation_failed_upgrade() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
-        &namespace,
+        &ac_namespace,
+        &subagents_namespace,
         "test-secret",
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, "*", "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success(); // Install successfully
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&namespace, "0.0.0", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, "0.0.0", "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -107,12 +113,14 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
 /// Create a simple `values.yaml` secret to install AC with a single agent
 pub(crate) fn create_simple_values_secret(
     client: Client,
-    ns: &str,
+    ac_ns: &str,
+    subagents_ns: &str,
     secret_name: &str,
     values_key: &str,
 ) {
     let values = serde_json::json!({
         "nameOverride": "",
+        "subAgentsNamespace": subagents_ns,
         "config": {
             "fleet_control": {
                 "enabled": false,
@@ -124,17 +132,19 @@ pub(crate) fn create_simple_values_secret(
         },
     })
     .to_string();
-    create_values_secret(client, ns, secret_name, values_key, values);
+    create_values_secret(client, ac_ns, secret_name, values_key, values);
 }
 
 /// Create `values.yaml` secret with invalid image tag
 fn create_values_secret_with_invalid_image_tag(
     client: Client,
-    ns: &str,
+    ac_ns: &str,
+    subagents_ns: &str,
     secret_name: &str,
     values_key: &str,
 ) {
     let values = serde_json::json!({
+        "subAgentsNamespace": subagents_ns,
         "config": {
             "fleet_control": {
                 "enabled": false,
@@ -147,5 +157,5 @@ fn create_values_secret_with_invalid_image_tag(
         "image": {"tag": "non-existent"}
     })
     .to_string();
-    create_values_secret(client, ns, secret_name, values_key, values);
+    create_values_secret(client, ac_ns, secret_name, values_key, values);
 }

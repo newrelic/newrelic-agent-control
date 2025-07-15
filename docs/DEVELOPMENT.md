@@ -109,8 +109,7 @@ Note: Adding the `'chart_repo'` setting, pointing to the [New Relic charts](http
 #### Steps
 
 ```sh
-ctlptl create registry ctlptl-registry --port=5005
-ctlptl create cluster minikube --registry=ctlptl-registry
+minikube start --driver='docker'
 make tilt-up
 ```
 

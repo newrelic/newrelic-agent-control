@@ -12,7 +12,7 @@ On the repo root directory Run:
 
 ```sh
 minikube start --driver='docker'
-make agent-control/tests/k8s
+make -C agent-control test/k8s
 ```
 
 Notes:

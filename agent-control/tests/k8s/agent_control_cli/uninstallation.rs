@@ -19,11 +19,13 @@ use std::time::Duration;
 // a similar workaround than the one we use in the tiltfile.
 fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
 
     let values = serde_json::json!({
         "nameOverride": "",
         "cleanupManagedResources": false,
+        "subAgentsNamespace": subagents_namespace,
         "config": {
             "fleet_control": {
                 "enabled": false,
@@ -45,22 +47,22 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     .to_string();
     create_values_secret(
         k8s_env.client.clone(),
-        &namespace,
+        &ac_namespace,
         "test-secret",
         "values.yaml",
         values,
     );
 
-    print_pod_logs(k8s_env.client.clone(), &namespace, AC_LABEL_SELECTOR);
+    print_pod_logs(k8s_env.client.clone(), &ac_namespace, AC_LABEL_SELECTOR);
 
-    let mut cmd = ac_install_cmd(&namespace, "*", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, "*", "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 
-    let deployments: Api<Deployment> = Api::namespaced(k8s_env.client.clone(), &namespace);
-    let config_maps: Api<ConfigMap> = Api::namespaced(k8s_env.client.clone(), &namespace);
-    let secrets: Api<Secret> = Api::namespaced(k8s_env.client.clone(), &namespace);
+    let deployments: Api<Deployment> = Api::namespaced(k8s_env.client.clone(), &ac_namespace);
+    let config_maps: Api<ConfigMap> = Api::namespaced(k8s_env.client.clone(), &ac_namespace);
+    let secrets: Api<Secret> = Api::namespaced(k8s_env.client.clone(), &ac_namespace);
 
     retry(10, Duration::from_secs(1), || {
         // We set "nameOverride" in the secret values to force the deployment name
@@ -78,7 +80,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         Ok(())
     });
 
-    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
@@ -94,14 +96,15 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
 
-    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 
-    let mut cmd = ac_uninstall_cmd(&namespace, &namespace);
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
