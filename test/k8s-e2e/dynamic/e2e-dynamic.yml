@@ -5,12 +5,10 @@ custom_test_key: cluster_name
 scenarios:
   - description: Deploy all infra agents
     before:
-      - kubectl create configmap dynamic-agent --from-file=infra=./dynamic-agent-type-infra.yml --from-file=logging=./dynamic-agent-type-logging.yml
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ac-values-dynamic.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - kubectl create configmap dynamic-agent --from-file=logging=./dynamic-agent-type-logging.yml
+      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/dynamic/ac-values-dynamic.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
-      - kubectl logs -l app.kubernetes.io/instance=infra --all-containers --prefix=true -n newrelic-agents
-      - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true -n newrelic-agents
       - kubectl logs -l app.kubernetes.io/name=newrelic-logging --all-containers --prefix=true -n newrelic-agents
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
@@ -18,14 +16,11 @@ scenarios:
       - kubectl get gitrepository
       - kubectl get helmchart
       - helm list -a -A
-      - cd ../../ && tilt down
+      - cd ../../../ && tilt down
     tests:
       nrqls:
         # Check Logs data is reported, an extra where testKey=$SCENARIO_TAG is always added.
         - query: "From Log SELECT *"
-        # Check that newrelic-infrastructure data is reported, an extra where testKey=$SCENARIO_TAG is always added.
-        - query: "FROM K8sClusterSample SELECT *"
       scripts:
         - |
-          kubectl get gitrepository infra
           kubectl get gitrepository logs

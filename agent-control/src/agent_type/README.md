@@ -390,8 +390,6 @@ deployment:
 
 2. Copy the agent type definition to the folder `/etc/newrelic-agent-control/dynamic-agent-types`
 
-    ⚠︎ This is a temporal path, expect a configurable path to load custom agent types in the future.
-
 3. Use the new type in the `agents` config for the agent control:
 ```yaml
 # fleet_control:

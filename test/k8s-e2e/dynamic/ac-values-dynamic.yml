@@ -24,14 +24,6 @@ agent-control-deployment:
         log:
           level: debug
     subAgents:
-      infra:
-        type: newrelic/com.newrelic.infrastructure:0.1.0 # these agent-types are overwritten yb the e2e test
-        content:
-          chart_version: "*" # Use latest
-          chart_values:
-            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
-              customAttributes:
-                cluster_name: ${nr-env:NR_CLUSTER_NAME}
       logs:
         type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
         content:

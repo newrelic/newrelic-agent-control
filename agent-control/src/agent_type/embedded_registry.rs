@@ -110,11 +110,12 @@ impl EmbeddedRegistry {
 
 #[cfg(test)]
 pub mod tests {
-    use assert_matches::assert_matches;
-
-    use crate::agent_type::agent_type_id::AgentTypeID;
-
     use super::*;
+    use crate::agent_type::agent_type_id::AgentTypeID;
+    use assert_matches::assert_matches;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
 
     impl EmbeddedRegistry {
         pub fn iter_definitions(&self) -> impl Iterator<Item = &AgentTypeDefinition> {
@@ -203,5 +204,98 @@ pub mod tests {
         assert_matches!(err, AgentRepositoryError::AlreadyExists(name) => {
             assert_eq!("ns/agent:0.0.0", name);
         })
+    }
+
+    #[test]
+    fn test_insert_duplicate_via_dynamic_config() {
+        let tmp_dir = tempdir().expect("failed to create local temp dir");
+        let path = tmp_dir.path();
+        File::create(path.join("agent_type_1"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: ns
+name: io.test
+version: 0.0.0
+variables:
+  k8s:
+    version:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("same_agent_is_overwritten"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: ns
+name: io.test
+version: 0.0.0
+variables:
+  k8s:
+    different:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("main_agent_type_is_overwritten"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: newrelic
+name: com.newrelic.infrastructure
+version: 0.1.0
+variables:
+  k8s:
+    different:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("wrong_agent_is_skipped"))
+            .unwrap()
+            .write_all("asdkjfnad".as_bytes())
+            .unwrap();
+
+        File::create(path.join("empty_agent_is_skipped"))
+            .unwrap()
+            .write_all("".as_bytes())
+            .unwrap();
+
+        let registry = EmbeddedRegistry::new(path.to_path_buf());
+
+        let variables = registry.get("ns/io.test:0.0.0").unwrap().variables.k8s.0;
+        assert!(!variables.contains_key("version"));
+        assert!(variables.contains_key("different"));
+        assert!(
+            registry
+                .get("newrelic/com.newrelic.infrastructure:0.1.0")
+                .unwrap()
+                .variables
+                .k8s
+                .0
+                .contains_key("different")
+        );
     }
 }

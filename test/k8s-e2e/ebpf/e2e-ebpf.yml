@@ -5,7 +5,7 @@ custom_test_key: k8s.cluster.name
 scenarios:
   - description: Deploy eBPF Agent
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ac-values-ebpf.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/ebpf/ac-values-ebpf.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=ebpf --all-containers --prefix=true -n newrelic-agents
@@ -14,7 +14,7 @@ scenarios:
       - kubectl get helmrelease
       - kubectl get helmchart
       - helm list -a -A
-      - cd ../../ && tilt down
+      - cd ../../../ && tilt down
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey (k8s.cluster.name=$SCENARIO_TAG) is always added.
