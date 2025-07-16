@@ -8,7 +8,7 @@ use crate::agent_type::{
     runtime_config::Runtime,
     templates::Templateable,
     variable::{
-        definition::VariableDefinition,
+        Variable,
         namespace::{Namespace, NamespacedVariableName},
     },
 };
@@ -24,7 +24,7 @@ pub trait Renderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        environment_variables: HashMap<String, VariableDefinition>,
+        environment_variables: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError>;
 }
 
@@ -32,7 +32,7 @@ pub trait Renderer {
 pub struct TemplateRenderer<C: ConfigurationPersister> {
     persister: Option<C>,
     config_base_dir: Option<PathBuf>,
-    sa_variables: HashMap<NamespacedVariableName, VariableDefinition>,
+    sa_variables: HashMap<NamespacedVariableName, Variable>,
 }
 
 impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
@@ -42,7 +42,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        environment_variables: HashMap<String, VariableDefinition>,
+        environment_variables: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
@@ -88,7 +88,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     /// Adds variables to the renderer with the agent-control namespace.
     pub fn with_agent_control_variables(
         self,
-        variables: impl Iterator<Item = (String, VariableDefinition)>,
+        variables: impl Iterator<Item = (String, Variable)>,
     ) -> Self {
         Self {
             sa_variables: variables
@@ -114,8 +114,8 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     // Extends the path of all variables with the sub-agent generated config path.
     fn extend_variables_file_path(
         config_path: PathBuf,
-        mut variables: HashMap<String, VariableDefinition>,
-    ) -> HashMap<String, VariableDefinition> {
+        mut variables: HashMap<String, Variable>,
+    ) -> HashMap<String, Variable> {
         for var in variables.values_mut() {
             var.extend_file_path(config_path.as_path());
         }
@@ -123,7 +123,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     }
 
     fn check_all_vars_are_populated(
-        variables: &HashMap<String, VariableDefinition>,
+        variables: &HashMap<String, Variable>,
     ) -> Result<(), AgentTypeError> {
         let not_populated = variables
             .clone()
@@ -138,10 +138,10 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 
     fn build_namespaced_variables(
         &self,
-        variables: HashMap<String, VariableDefinition>,
-        environment_variables: HashMap<String, VariableDefinition>,
+        variables: HashMap<String, Variable>,
+        environment_variables: HashMap<String, Variable>,
         attributes: &AgentAttributes,
-    ) -> HashMap<NamespacedVariableName, VariableDefinition> {
+    ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
         let vars_iter = variables
             .into_iter()
@@ -154,7 +154,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
             .chain(sub_agent_vars_iter)
             .chain(environment_variables)
             .chain(self.sa_variables.clone())
-            .collect::<HashMap<NamespacedVariableName, VariableDefinition>>()
+            .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
 }
 
@@ -192,7 +192,7 @@ pub(crate) mod tests {
                 agent_type: AgentType,
                 values: YAMLConfig,
                 attributes: AgentAttributes,
-                environment_variables: HashMap<String, VariableDefinition>,
+                environment_variables: HashMap<String, Variable>,
             ) -> Result<Runtime, AgentTypeError>;
          }
     }
@@ -551,11 +551,11 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let env_vars = HashMap::from([
             (
                 Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE"),
-                VariableDefinition::new_final_string_variable("my-value".to_string()),
+                Variable::new_final_string_variable("my-value".to_string()),
             ),
             (
                 Namespace::EnvironmentVariable.namespaced_name("MY_VARIABLE_2"),
-                VariableDefinition::new_final_string_variable("my-value-2".to_string()),
+                Variable::new_final_string_variable("my-value-2".to_string()),
             ),
         ]);
 
@@ -611,11 +611,11 @@ config:
         let env_vars = HashMap::from([
             (
                 Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION"),
-                VariableDefinition::new_final_string_variable("test".to_string()),
+                Variable::new_final_string_variable("test".to_string()),
             ),
             (
                 Namespace::EnvironmentVariable.namespaced_name("DOUBLE_EXPANSION_2"),
-                VariableDefinition::new_final_string_variable("test-2".to_string()),
+                Variable::new_final_string_variable("test-2".to_string()),
             ),
         ]);
 
@@ -696,7 +696,7 @@ deployment:
 
         let env_vars = HashMap::from([(
             Namespace::EnvironmentVariable.namespaced_name("my_variable"),
-            VariableDefinition::new_final_string_variable("my-value".to_string()),
+            Variable::new_final_string_variable("my-value".to_string()),
         )]);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
@@ -731,7 +731,7 @@ deployment:
 
         let agent_control_variables = HashMap::from([(
             "sa-fake-var".to_string(),
-            VariableDefinition::new_final_string_variable("fake_value".to_string()),
+            Variable::new_final_string_variable("fake_value".to_string()),
         )]);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()

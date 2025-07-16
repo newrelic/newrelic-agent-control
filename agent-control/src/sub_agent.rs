@@ -730,6 +730,7 @@ pub mod tests {
     use crate::agent_type::embedded_registry::EmbeddedRegistry;
     use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
     use crate::agent_type::render::renderer::TemplateRenderer;
+    use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::event::channel::pub_sub;
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
@@ -972,6 +973,7 @@ deployment:
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition().into()),
             TemplateRenderer::default(),
+            VariableConstraints::default(),
         ));
 
         SubAgent::new(
@@ -1055,6 +1057,7 @@ deployment:
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             Arc::new(TestAgent::agent_type_definition().into()),
             TemplateRenderer::default(),
+            VariableConstraints::default(),
         ));
 
         let sub_agent = SubAgent::new(

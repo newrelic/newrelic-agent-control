@@ -88,7 +88,7 @@ mod tests {
     use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::k8s::K8s;
     use crate::agent_type::templates::Templateable;
-    use crate::agent_type::variable::definition::VariableDefinition;
+    use crate::agent_type::variable::Variable;
 
     const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"
 objects:
@@ -186,15 +186,15 @@ objects:
         let variables = Variables::from([
             (
                 "nr-var:any".to_string(),
-                VariableDefinition::new(String::default(), true, None, Some(value.to_string())),
+                Variable::new_string(String::default(), true, None, Some(value.to_string())),
             ),
             (
                 "nr-sub:agent_id".to_string(),
-                VariableDefinition::new_final_string_variable(test_agent_id.to_string()),
+                Variable::new_final_string_variable(test_agent_id.to_string()),
             ),
             (
                 "nr-ac:namespace".to_string(),
-                VariableDefinition::new_final_string_variable(test_namespace.to_string()),
+                Variable::new_final_string_variable(test_namespace.to_string()),
             ),
         ]);
 

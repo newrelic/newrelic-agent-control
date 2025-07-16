@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 
 /// Represents a collection of supported variants for a variable.
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct Variants<T: PartialEq>(pub(crate) Vec<T>); // TODO: we may not need it to be public
+pub struct Variants<T: PartialEq>(Vec<T>);
 
 /// Defines the configuration to be set when defining [Variants] from Agent Control configuration.
-#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct VariantsConfig<T>
 where
     T: PartialEq,
 {
     #[serde(default)]
     pub(crate) ac_config_field: Option<String>,
-    #[serde(default)]
+    #[serde(default = "Default::default")] // See <https://github.com/serde-rs/serde/issues/1541>
     pub(crate) values: Variants<T>,
 }
 
@@ -43,6 +43,24 @@ where
 {
     fn default() -> Self {
         Self(Vec::new())
+    }
+}
+
+impl<T> Default for VariantsConfig<T>
+where
+    T: PartialEq,
+{
+    fn default() -> Self {
+        Self {
+            ac_config_field: Default::default(),
+            values: Default::default(),
+        }
+    }
+}
+
+impl std::fmt::Display for Variants<String> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}]", self.0.join(", "))
     }
 }
 

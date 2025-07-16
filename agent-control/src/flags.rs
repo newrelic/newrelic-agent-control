@@ -133,6 +133,7 @@ impl Flags {
 
         let opamp = agent_control_config.fleet_control;
         let http_server = agent_control_config.server;
+        let agent_type_var_constraints = agent_control_config.agent_type_var_constraints;
 
         let run_config = AgentControlRunConfig {
             opamp,
@@ -147,6 +148,7 @@ impl Flags {
                 Environment::OnHost => K8sConfig::default(),
                 Environment::K8s => agent_control_config.k8s.ok_or(InitError::K8sConfig())?,
             },
+            agent_type_var_constraints,
         };
 
         Ok(Command::InitAgentControl(run_config, tracer))

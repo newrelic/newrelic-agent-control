@@ -12,7 +12,7 @@ use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
-use crate::agent_type::variable::definition::VariableDefinition;
+use crate::agent_type::variable::Variable;
 use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
@@ -90,7 +90,7 @@ impl AgentControlRunner {
 
         let agent_control_variables = HashMap::from([(
             HOST_ID_VARIABLE_NAME.to_string(),
-            VariableDefinition::new_final_string_variable(identifiers.host_id.clone()),
+            Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
         let instance_id_storer = Storer::new(
@@ -142,6 +142,7 @@ impl AgentControlRunner {
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
+            self.agent_type_var_constraints,
         ));
 
         let supervisor_builder =

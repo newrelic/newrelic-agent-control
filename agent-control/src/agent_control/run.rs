@@ -7,6 +7,7 @@ use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
@@ -71,6 +72,7 @@ pub struct AgentControlRunConfig {
     pub base_paths: BasePaths,
     pub proxy: ProxyConfig,
     pub k8s_config: K8sConfig,
+    pub agent_type_var_constraints: VariableConstraints,
 }
 
 /// Structure with all the data required to run the agent control.
@@ -93,6 +95,7 @@ pub struct AgentControlRunner {
     runtime: Arc<Runtime>,
 
     http_server_runner: Option<Runner>,
+    agent_type_var_constraints: VariableConstraints,
 }
 
 impl AgentControlRunner {
@@ -172,6 +175,7 @@ impl AgentControlRunner {
             sub_agent_publisher,
             base_paths: config.base_paths,
             signature_validator,
+            agent_type_var_constraints: config.agent_type_var_constraints,
         })
     }
 
