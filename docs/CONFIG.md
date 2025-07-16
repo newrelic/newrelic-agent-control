@@ -160,12 +160,8 @@ If set via config, after a failed upgrade we could have the "old" pod loading th
 
 ### agent_type_var_constraints
 
-Allows setting up specific constraints in the agent types supporting it.
+Allows setting up specific constraints in the agent types variables supporting it.
 
 - `variants`: if any agent-type defines a string variable with the `variants` fields and this configuration field defines the corresponding key. These variants will be used to validate values.
 
-```yaml
-agent_type_var_constraints:
-  variants: # map of variants
-    variable_variant_name: ["supported_value1", "supported_value2"] # The key should match what is defined in the Agent Type
-```
+See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for concrete example.
