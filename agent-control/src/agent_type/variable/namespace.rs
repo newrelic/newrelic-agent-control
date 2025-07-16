@@ -60,14 +60,11 @@ impl Display for Namespace {
 }
 
 impl FromStr for Namespace {
-    type Err = anyhow::Error;
+    type Err = NamespaceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if !s.starts_with(Self::PREFIX) {
-            return Err(anyhow::anyhow!(
-                "Namespace must start with '{}'",
-                Self::PREFIX
-            ));
+            return Err(NamespaceError::InvalidFormat(s.to_string()));
         }
 
         match &s[Self::PREFIX.len()..] {
@@ -75,9 +72,15 @@ impl FromStr for Namespace {
             Self::SUB_AGENT => Ok(Self::SubAgent),
             Self::AC => Ok(Self::AgentControl),
             Self::ENVIRONMENT_VARIABLE => Ok(Self::EnvironmentVariable),
-            _ => Err(anyhow::anyhow!("Unknown namespace: {}", s)),
+            _ => Err(NamespaceError::InvalidFormat(s.to_string())),
         }
     }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum NamespaceError {
+    #[error("Invalid namespace format: {0}")]
+    InvalidFormat(String),
 }
 
 #[cfg(test)]

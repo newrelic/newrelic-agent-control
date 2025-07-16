@@ -3,7 +3,7 @@ use std::{
     env,
 };
 
-use anyhow::Result;
+use tracing::error;
 
 use crate::agent_type::{
     templates::template_re,
@@ -28,6 +28,12 @@ use crate::agent_type::{
 /// ```
 pub struct RuntimeVariables {
     variables: HashMap<String, HashSet<String>>,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum RuntimeVariablesError {
+    #[error("Failed to load environment variable '{0}'")]
+    LoadEnvVarError(String),
 }
 
 impl RuntimeVariables {
@@ -63,7 +69,7 @@ impl RuntimeVariables {
     }
 
     /// Loads environment variables from the runtime variables.
-    pub fn load_env_vars(&self) -> Result<HashMap<String, Variable>> {
+    pub fn load_env_vars(&self) -> Result<HashMap<String, Variable>, RuntimeVariablesError> {
         let Some(keys) = self
             .variables
             .get(Namespace::EnvironmentVariable.to_string().as_str())
@@ -71,18 +77,26 @@ impl RuntimeVariables {
             return Ok(HashMap::new());
         };
 
+        let mut error = None;
         let mut result = HashMap::new();
-
         for key in keys {
             let value = env::var_os(key);
             let Some(value) = value else {
-                return Err(anyhow::anyhow!("Environment variable '{}' not found", key));
+                let env_var_missing = RuntimeVariablesError::LoadEnvVarError(key.clone());
+                error!("{env_var_missing}");
+                error = Some(env_var_missing);
+
+                continue;
             };
 
             result.insert(
                 Namespace::EnvironmentVariable.namespaced_name(key.as_str()),
                 Variable::new_final_string_variable(value.to_string_lossy().to_string()),
             );
+        }
+
+        if let Some(err) = error {
+            return Err(err);
         }
 
         Ok(result)
@@ -93,6 +107,7 @@ impl RuntimeVariables {
 mod tests {
     use rstest::rstest;
     use std::collections::HashSet;
+    use tracing_test::traced_test;
 
     use super::*;
 
@@ -162,5 +177,46 @@ eof"#;
 
         unsafe { env::remove_var("LOAD_ENV_VARS_A") };
         unsafe { env::remove_var("LOAD_ENV_VARS_B") };
+    }
+
+    #[test]
+    fn test_load_env_vars_when_no_environment_variables() {
+        let runtime_variables = RuntimeVariables {
+            variables: HashMap::new(),
+        };
+        let result = runtime_variables.load_env_vars().unwrap();
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_load_env_vars_when_environment_variable_not_found() {
+        let runtime_variables = RuntimeVariables {
+            variables: HashMap::from([(
+                "nr-env".to_string(),
+                HashSet::from([
+                    "NON_EXISTENT_ENV_VAR".to_string(),
+                    "NON_EXISTENT_ENV_VAR_2".to_string(),
+                    "NON_EXISTENT_ENV_VAR_3".to_string(),
+                ]),
+            )]),
+        };
+        let result = runtime_variables.load_env_vars();
+
+        assert!(logs_contain(
+            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR'"
+        ));
+        assert!(logs_contain(
+            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR_2'"
+        ));
+        assert!(logs_contain(
+            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR_3"
+        ));
+
+        assert!(result.is_err());
+        assert!(matches!(
+            result.unwrap_err(),
+            RuntimeVariablesError::LoadEnvVarError(_)
+        ));
     }
 }
