@@ -11,12 +11,8 @@ use super::{
     variable::{Variable, VariableDefinition, tree::Tree},
 };
 
-use crate::{
-    agent_control::defaults::default_capabilities,
-    agent_type::variable::constraints::VariableConstraints,
-};
+use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{agent_type::variable::tree::VarTree, values::yaml_config::YAMLConfig};
-use opamp_client::operation::capabilities::Capabilities;
 use serde::Deserialize;
 use std::collections::HashMap;
 use tracing::warn;
