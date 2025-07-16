@@ -36,14 +36,11 @@ impl Namespace {
 
     pub fn is_runtime_variable(s: &str) -> bool {
         let prefix = s.split(Self::PREFIX_NS_SEPARATOR).next();
-        let Some(namespace) = prefix.map(Namespace::from_str).map(Result::ok).flatten() else {
+        let Some(namespace) = prefix.map(Namespace::from_str).and_then(Result::ok) else {
             return false;
         };
 
-        match namespace {
-            Namespace::EnvironmentVariable => true,
-            _ => false,
-        }
+        matches!(namespace, Namespace::EnvironmentVariable)
     }
 }
 
