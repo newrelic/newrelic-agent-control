@@ -12,8 +12,8 @@ pub enum AgentTypeError {
     UnexpectedValueForKey(String, String),
     #[error("Missing required template key: `{0}`")]
     MissingTemplateKey(String),
-    #[error("Missing default value for a non-required spec key")]
-    MissingDefault,
+    #[error("Parsing AgentType variables: `{0}`")]
+    Parse(String),
     #[error("Not all values for this agent type have been populated: {0:?}")]
     ValuesNotPopulated(Vec<String>),
     #[error("Template value not parseable from the string `{0}")]

@@ -9,7 +9,7 @@ use crate::agent_type::{
     trivial_value::{FilePathWithContent, TrivialValue},
     variable::{
         constraints::VariableConstraints,
-        fields::{StringFields, StringFieldsDefinition},
+        fields::{StringFields, StringFieldsDefinition, YamlFieldsDefinition},
     },
 };
 
@@ -33,7 +33,7 @@ pub enum VariableTypeDefinition {
     #[serde(rename = "map[string]file")]
     MapStringFile(FieldsWithPathDefinition<HashMap<String, FilePathWithContent>>),
     #[serde(rename = "yaml")]
-    Yaml(FieldsDefinition<serde_yaml::Value>),
+    Yaml(YamlFieldsDefinition),
 }
 
 /// [VariableTypeDefinition] including information known at runtime.
