@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::FromStr};
 
 /// Holds the variable name prefixed with the namespace.
 /// Example: "nr-env:MY_ENV_VAR" for the environment variable "MY_ENV_VAR".
@@ -35,9 +35,15 @@ impl Namespace {
     }
 
     pub fn is_runtime_variable(s: &str) -> bool {
-        [Namespace::EnvironmentVariable]
-            .iter()
-            .any(|prefix| s.starts_with(&prefix.to_string()))
+        let prefix = s.split(Self::PREFIX_NS_SEPARATOR).next();
+        let Some(namespace) = prefix.map(Namespace::from_str).map(Result::ok).flatten() else {
+            return false;
+        };
+
+        match namespace {
+            Namespace::EnvironmentVariable => true,
+            _ => false,
+        }
     }
 }
 
@@ -50,6 +56,27 @@ impl Display for Namespace {
             Self::EnvironmentVariable => Self::ENVIRONMENT_VARIABLE,
         };
         write!(f, "{}{ns}", Self::PREFIX)
+    }
+}
+
+impl FromStr for Namespace {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.starts_with(Self::PREFIX) {
+            return Err(anyhow::anyhow!(
+                "Namespace must start with '{}'",
+                Self::PREFIX
+            ));
+        }
+
+        match &s[Self::PREFIX.len()..] {
+            Self::VARIABLE => Ok(Self::Variable),
+            Self::SUB_AGENT => Ok(Self::SubAgent),
+            Self::AC => Ok(Self::AgentControl),
+            Self::ENVIRONMENT_VARIABLE => Ok(Self::EnvironmentVariable),
+            _ => Err(anyhow::anyhow!("Unknown namespace: {}", s)),
+        }
     }
 }
 
