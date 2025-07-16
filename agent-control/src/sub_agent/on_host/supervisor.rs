@@ -143,6 +143,7 @@ impl NotStartedSupervisorOnHost {
                 health_checker,
                 sub_agent_internal_publisher,
                 health_config.interval,
+                health_config.initial_delay,
                 start_time,
             );
             return Ok(Some(started_thread_context));

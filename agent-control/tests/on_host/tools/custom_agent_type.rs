@@ -52,6 +52,7 @@ deployment:
   on_host:
     health:
       interval: 2s
+      initial_delay: 0s
       timeout: 1s
       file:
           path: "{}"

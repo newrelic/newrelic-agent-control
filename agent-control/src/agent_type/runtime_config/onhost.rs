@@ -560,6 +560,7 @@ restart_policy:
     pub const AGENT_GIVEN_YAML: &str = r#"
 health:
   interval: 3s
+  initial_delay: 3s
   timeout: 10s
   http:
     path: /healthz

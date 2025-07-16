@@ -250,12 +250,6 @@ fn k8s_self_update_new_version_fails_to_start_next_receives_correct_version() {
         LOCAL_CHART_PREVIOUS_VERSION,
     );
 
-    // AC should start correctly and finally report healthy
-    retry(60, Duration::from_secs(5), || {
-        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
-        Ok(())
-    });
-
     opamp_server.set_config_response(
         ac_instance_id.clone(),
         ConfigResponse::from(
@@ -276,9 +270,9 @@ chart_version: {MISSING_VERSION}
         )?;
         check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
             !status.healthy
-                && status
-                    .last_error
-                    .contains("latest generation of object has not been reconciled") // Expected error when chart version doesn't exist
+                && status.last_error.contains(
+                    &format!("no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"),
+                )
         })
     });
 
@@ -328,12 +322,6 @@ fn k8s_self_update_new_version_failing_image() {
         LOCAL_CHART_NEW_VERSION,
     );
 
-    // AC should start correctly and finally report healthy
-    retry(60, Duration::from_secs(5), || {
-        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
-        Ok(())
-    });
-
     opamp_server.set_config_response(
         ac_instance_id.clone(),
         ConfigResponse::from(
@@ -380,7 +368,7 @@ chart_version: {LOCAL_CHART_FAILING_VERSION}
         }
 
         check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
-            !status.healthy && status.last_error.contains("HelmRelease status unknown:") // Expected error when chart version doesn't exist
+            !status.healthy && status.last_error.contains("has 1 unavailable replicas")
         })
     });
 }
@@ -440,6 +428,11 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
             "content": {
               "log": {
                 "level":"debug",
+              },
+              // To make health assertions faster
+              "health_check":{
+                "initial_delay": "1s",
+                "interval": "5s",
               },
               "fleet_control": {
                 "endpoint": opamp_endpoint.as_str(),

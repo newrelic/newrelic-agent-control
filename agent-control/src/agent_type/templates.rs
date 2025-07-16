@@ -189,10 +189,12 @@ fn template_yaml_value_string(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_type::trivial_value::FilePathWithContent;
     use crate::agent_type::variable::fields::Fields;
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_yaml::Number;
+    use std::collections::HashMap;
 
     #[rstest]
     #[case::multiline_indent_line("\nline1\nline2\n", "|indent 1", "\n line1\n line2\n ")]

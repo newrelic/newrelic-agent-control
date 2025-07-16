@@ -43,10 +43,6 @@ pub(super) const DEFAULT_BACKOFF_LAST_RETRY_INTERVAL: Duration = Duration::from_
 pub struct BackoffDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffDelay {
-    pub fn new(value: Duration) -> Self {
-        Self(value)
-    }
-
     pub fn from_secs(value: u64) -> Self {
         Self(Duration::from_secs(value))
     }
@@ -57,10 +53,6 @@ impl BackoffDelay {
 pub struct BackoffLastRetryInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 impl BackoffLastRetryInterval {
-    pub fn new(value: Duration) -> Self {
-        Self(value)
-    }
-
     pub fn from_secs(value: u64) -> Self {
         Self(Duration::from_secs(value))
     }

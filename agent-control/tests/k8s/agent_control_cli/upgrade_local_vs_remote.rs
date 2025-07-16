@@ -2,6 +2,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
 use crate::k8s::self_update::{LOCAL_CHART_NEW_VERSION, LOCAL_CHART_PREVIOUS_VERSION};
+use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::agent_control::config::{
     AgentControlDynamicConfig, helmrelease_v2_type_meta,
@@ -24,50 +25,61 @@ use std::time::Duration;
 // The test is checking how local and remote upgrade are interacting
 fn k8s_cli_local_and_remote_updates() {
     let mut k8s_env = block_on(K8sEnv::new());
-    let namespace = block_on(k8s_env.test_namespace());
+    let ac_namespace = block_on(k8s_env.test_namespace());
+    let subagents_namespace = block_on(k8s_env.test_namespace());
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
 
     create_simple_values_secret(
         k8s_env.client.clone(),
-        &namespace,
+        &ac_namespace,
+        &subagents_namespace,
         "test-secret",
         "values.yaml",
     );
 
     // running installer first time
     let mut cmd = ac_install_cmd(
-        &namespace,
+        &ac_namespace,
         LOCAL_CHART_PREVIOUS_VERSION,
         "test-secret=values.yaml",
     );
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
         check_version_and_source(
             &k8s_client,
             LOCAL_CHART_PREVIOUS_VERSION,
             LOCAL_VAL,
-            &namespace,
+            &ac_namespace,
         )
     });
 
     // running installer second time and doing an upgrade
     let mut cmd = ac_install_cmd(
-        &namespace,
+        &ac_namespace,
         LOCAL_CHART_NEW_VERSION,
         "test-secret=values.yaml",
     );
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, LOCAL_CHART_NEW_VERSION, LOCAL_VAL, &namespace)
+        check_version_and_source(
+            &k8s_client,
+            LOCAL_CHART_NEW_VERSION,
+            LOCAL_VAL,
+            &ac_namespace,
+        )
     });
 
     // running updater doing an upgrade to "*"
     let updater = K8sACUpdater::new(
         k8s_client.clone(),
-        namespace.clone(),
+        ac_namespace.clone(),
         LOCAL_CHART_NEW_VERSION.to_string(),
     );
     let latest_version = "*";
@@ -80,23 +92,25 @@ fn k8s_cli_local_and_remote_updates() {
         .expect("updater should not fail");
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &namespace)
+        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &ac_namespace)
     });
 
     // running another local update does not change the version, but it updates anyway the helmRelease object
     let mut cmd = ac_install_cmd(
-        &namespace,
+        &ac_namespace,
         LOCAL_CHART_PREVIOUS_VERSION,
         "test-secret=values.yaml",
     );
     cmd.arg("--extra-labels").arg("env=testing");
-    cmd.assert().success();
+    let assert = cmd.assert();
+    print_cli_output(&assert);
+    assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &namespace)?;
+        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &ac_namespace)?;
 
         let obj = k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &namespace)?
+            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &ac_namespace)?
             .ok_or(VersionCheckError::Generic(format!(
                 "helmRelease object not found: {RELEASE_NAME}",
             )))?;

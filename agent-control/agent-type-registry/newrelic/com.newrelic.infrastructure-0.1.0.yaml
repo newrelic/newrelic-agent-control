@@ -37,7 +37,13 @@ variables:
       required: false
       default: 18003
   k8s:
+    # HelmChart based sub agents should always have `chart_values`.
     chart_values:
+      # Chart values should always must go under a key that has the chart name.
+      # In this case there are multiple sub-charts so each key is the sub-chart name.
+      # chart_values:
+      #   <chart name>: {values of the sub chart}
+      #   global: {}
       newrelic-infrastructure:
         description: "newrelic-infrastructure chart values"
         type: yaml
@@ -58,11 +64,13 @@ variables:
         type: yaml
         required: false
         default: { }
+      # Global values must have their own key, even if there is only one sub-chart.
       global:
         description: "Global chart values"
         type: yaml
         required: false
         default: { }
+    # HelmChart based sub agents should always have `chart_version`.
     chart_version:
       description: "nri-bundle chart version"
       type: string
@@ -72,6 +80,7 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
       interval: 5s
+      initial_delay: 5s
       timeout: 5s
       http:
         path: "/v1/status/health"
@@ -93,12 +102,16 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
+      # Flux [HelmRepository](https://fluxcd.io/flux/components/source/helmrepositories/).
       repository:
         apiVersion: source.toolkit.fluxcd.io/v1
         kind: HelmRepository
         metadata:
+          # The agent-id is a unique identifier. It is used to have an expected name without collision between agents.
           name: ${nr-sub:agent_id}
+          # All resources directly managed by AC are expected to be created in the same ns where AC is installed.
           namespace: ${nr-ac:namespace}
         spec:
           # Increasing the interval to 30 minutes because the HelmRepository is not as prone to frequent changes
@@ -106,8 +119,13 @@ deployment:
           # they trigger, a longer interval helps in reducing unnecessary load on the cluster without significantly
           # delaying the application of important updates.
           interval: 30m
+          # This value gets rendered when not specified, with "generic" as the default value.
+          # If we don't set the value explicitly here, in the agent type, the AC supervisor will detect
+          # a configuration drift and trigger the re-apply of the config in each interval.
+          # We want to avoid it, so we set it explicitly.
           provider: generic
           url: https://helm-charts.newrelic.com
+      # Creates HelmCharts values inside Secrets to avoid exposing any sensible information.
       values:
         apiVersion: v1
         kind: Secret
@@ -115,6 +133,9 @@ deployment:
           name: values-${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         stringData:
+          # These values contains default configuration that can be inherited from AC chart values,
+          # enhancing user experience when deploying sub-agents with minimal configuration.
+          # The env vars defined here are mounted into the AC pod.
           default.yaml: |
             newrelic-infrastructure:
               enabled: true
@@ -130,6 +151,7 @@ deployment:
               nrStaging: ${nr-env:NR_STAGING}
               lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
               verboseLog: ${nr-env:NR_VERBOSE_LOG}
+          # These values are the ones that are expected to be configured by the user.
           values.yaml: |
             newrelic-infrastructure: 
               ${nr-var:chart_values.newrelic-infrastructure | indent 2}
@@ -161,6 +183,7 @@ deployment:
               enabled: false
             newrelic-k8s-metrics-adapter:
               enabled: false 
+      # Flux [HelmRelease](https://fluxcd.io/flux/components/helmreleases/) that installs the nri-bundle chart.
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
         kind: HelmRelease
@@ -168,13 +191,23 @@ deployment:
           name: ${nr-sub:agent_id}
           namespace: ${nr-ac:namespace}
         spec:
+          # sub-agent charts workloads are installed under a different namespace for security reasons.
           targetNamespace: ${nr-ac:namespace_agents}
+          # The agent-id is a unique identifier. It is used to have an expected name without collision between agents.
           releaseName: ${nr-sub:agent_id}
-          interval: 3m
+          # An small interval has chosen to provide a faster feedback to values upgrades and HelmChart status errors.
+          # This is the interval at which any change in the chart values defined at the values-${nr-sub:agent_id} secret is re-applied.
+          # We also have detected that whenever there is an not-ready condition at the HelmChart (Flux CR) it doesn't get updated into
+          # the HelmRelease Status until one interval has finish.
+          interval: 30s
+          # Reference to the created HelmRepository.
           chart:
             spec:
               chart: nri-bundle
+              # This is where the chart version to be installed is defined. Whenever AC updates this Flux triggers a reconciliation.
               version: ${nr-var:chart_version}
+              # This value gets rendered even if not specified so, even 'ChartVersion' is the default, it is required to specify 
+              # it to avoid the drift detection on AC supervisor, and trigger re-apply on each interval.
               reconcileStrategy: ChartVersion
               sourceRef:
                 kind: HelmRepository
@@ -183,25 +216,24 @@ deployment:
               interval: 3m
           install:
             # Wait are disabled to avoid blocking the modifications/deletions of this CR while in reconciling state.
+            # Having this disable is equal to execute a `helm install` without the `--wait` flag.
+            # AC has it's own health check system that will flag the status of the installed chart.
             disableWait: true
             disableWaitForJobs: true
+            # TODO document why these
             disableTakeOwnership: true
-            remediation:
-              retries: 3
             replace: true
+            # This makes Flux create the agents namespace for AC (i.e. targetNamespace), if it doesn't exist.
             createNamespace: true
           upgrade:
+            # Same as the installation phase, waits are disabled.
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
             cleanupOnFail: true
             force: true
-            remediation:
-              retries: 3
-              strategy: rollback
-          rollback:
-            disableWait: true
-            disableWaitForJobs: true
+
+          # The values are applied in order, so latest always have precedence.
           valuesFrom:
             - kind: Secret
               name: values-${nr-sub:agent_id}

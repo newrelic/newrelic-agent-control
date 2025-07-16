@@ -55,8 +55,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = ''
-git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
+feature_branch = 'master'
 
 #### Set-up charts
 
@@ -82,7 +81,9 @@ helm_resource(
 local_resource(
     'local-child-chart-upload',
     cmd="""
+     rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
      CHART_VERSION=`(grep appVersion local/helm-charts-tmp/charts/agent-control/Chart.yaml | awk '{print $2}')` &&
+     helm dependency update local/helm-charts-tmp/charts/agent-control &&
      helm package --dependency-update --version ${CHART_VERSION} --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/${CHART_VERSION} &&
      curl --data-binary "@local/agent-control-deployment-${CHART_VERSION}.tgz" http://localhost:8080/api/charts
@@ -100,12 +101,12 @@ if cluster != '':
 
 #### Installs charts
 helm_resource(
-  'flux',
+  'agent-control',
   'local/helm-charts-tmp/charts/agent-control',
-  deps='local/helm-charts-tmp/charts', # re-deploy chart if modified locally
+  deps=['local/helm-charts-tmp/charts/agent-control',sa_chart_values_file], # re-deploy chart if modified locally
   namespace=namespace,
   release_name='sa',
-  update_dependencies=True,
+  update_dependencies=False, ## We do not update dependencies here to avoid an infinite loop of updating the chart
   flags=flags_helm,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),

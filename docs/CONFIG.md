@@ -98,7 +98,8 @@ Configuration fields to set-up Agent Control health-check
 
 ```yaml
 health_check:
-  interval: 120s # Defaults to 60s
+  interval: 120s # Defaults to 30s
+  initial_delay: 120s # Defaults to 30s
 ```
 
 ### self_instrumentation

@@ -22,7 +22,6 @@ use tracing::{debug, info};
 pub const RELEASE_NAME: &str = AC_DEPLOYMENT_CHART_NAME;
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
-const FIVE_MINUTES: &str = "300s";
 const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
@@ -237,10 +236,12 @@ fn helm_repository(
             annotations: Some(annotations),
             ..Default::default()
         },
+        // See com.newrelic.infrastructure Agent type for description of fields.
         data: serde_json::json!({
             "spec": {
                 "url": repository_url,
-                "interval": FIVE_MINUTES,
+                "interval": "30m",
+                "provider": "generic",
             }
         }),
     }
@@ -253,21 +254,39 @@ fn helm_release(
     annotations: BTreeMap<String, String>,
     version: &str,
 ) -> DynamicObject {
+    // See com.newrelic.infrastructure Agent type for description of fields.
     let mut data = serde_json::json!({
         "spec": {
-            "interval": FIVE_MINUTES,
-            "timeout": FIVE_MINUTES,
+            "interval": "30s",
             "chart": {
                 "spec": {
                     "chart": AC_DEPLOYMENT_CHART_NAME,
                     "version": version,
+                    "reconcileStrategy": "ChartVersion",
                     "sourceRef": {
                         "kind": "HelmRepository",
                         "name": REPOSITORY_NAME,
                     },
-                    "interval": FIVE_MINUTES,
+                    "interval": "3m",
                 },
-            }
+            },
+            "install": {
+                "disableWait": true,
+                "disableWaitForJobs": true,
+                "disableTakeOwnership": true,
+                "replace": true,
+            },
+            "upgrade": {
+                "disableWait": true,
+                "disableWaitForJobs": true,
+                "disableTakeOwnership": true,
+                "cleanupOnFail": true,
+                "force": true,
+            },
+            "rollback": {
+                "disableWait": true,
+                "disableWaitForJobs": true
+            },
         }
     });
 
@@ -401,7 +420,8 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "url": REPOSITORY_URL,
-                    "interval": "300s",
+                    "interval": "30m",
+                    "provider": "generic",
                 }
             }),
         }
@@ -437,19 +457,36 @@ mod tests {
             },
             data: serde_json::json!({
                 "spec": {
-                    "interval": "300s",
-                    "timeout": "300s",
+                    "interval": "30s",
                     "chart": {
                         "spec": {
                             "chart": AC_DEPLOYMENT_CHART_NAME,
                             "version": version,
+                            "reconcileStrategy": "ChartVersion",
                             "sourceRef": {
                                 "kind": "HelmRepository",
                                 "name": REPOSITORY_NAME,
                             },
-                            "interval": "300s",
-                        }
-                    }
+                            "interval": "3m",
+                        },
+                    },
+                    "install": {
+                        "disableWait": true,
+                        "disableWaitForJobs": true,
+                        "disableTakeOwnership": true,
+                        "replace": true,
+                    },
+                    "upgrade": {
+                        "disableWait": true,
+                        "disableWaitForJobs": true,
+                        "disableTakeOwnership": true,
+                        "cleanupOnFail": true,
+                        "force": true,
+                    },
+                    "rollback": {
+                        "disableWait": true,
+                        "disableWaitForJobs": true
+                    },
                 }
             }),
         }

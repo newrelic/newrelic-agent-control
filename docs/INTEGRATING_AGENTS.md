@@ -187,6 +187,7 @@ deployment:
     enable_file_logging: ${nr-var:enable_file_logging}
     health:
       interval: 5s
+      initial_delay: 5s
       timeout: 5s
       http:
         path: "/v1/status/health"
@@ -205,6 +206,7 @@ deployment:
   k8s:
     health:
       interval: 30s
+      initial_delay: 30s
     objects:
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
@@ -268,6 +270,7 @@ When set, this redirects the `stdout` and `stderr` of the created process to fil
 Enables periodically checking the health of the sub-agent. See [Health status](#health-status) below for more details. Accepts the following values:
 
 - `interval`: Periodicity of the check. A duration string.
+- `initial_delay`: Initial delay before the first health check is performed. A duration string.
 - `timeout`: Maximum duration a health check may run before considered failed.
 - `http` or `file`: The type of health check used.
   - `http` means that the supervisor for this sub-agent will attempt to query an HTTP endpoint and will decide on healthiness depending on the status code. Accepts the following fields:
@@ -299,11 +302,12 @@ The following fields are used for configuring the Kubernetes deployment of a sub
 
 The health configuration for Kubernetes. See [Health status](#health-status) below for more details. Accepts the following values:
 
-- `interval`: Periodicity pf the check. A duration string.
+- `interval`: Periodicity of the check. A duration string. Default to 60s
+- `initial_delay`: Initial delay before the first health check is performed. A duration string. Default to zero.
 
 ##### `objects`
 
-Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/overview/working-with-objects/) to be created by this sub-agent on deployment. The key is the name of the object, while the value is the object itself which accepts the following values:
+Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/overview/working-with-objects/) to be created by this sub-agent on deployment. The key is an internal identifier of the object, while the value is the object itself which accepts the following values:
 
 - `apiVersion`, a string.
 - `kind`, a string.
@@ -312,9 +316,10 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `namespace`, a string.
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
-  - `targetNamespace`, a string. Relevant for installing the sub-agent in the agents namespace.
+  
+Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation. 
 
-[Flux](https://fluxcd.io) is expected to be installed in the cluster to manage Flux resources.
+A detailed example of a Kubernetes deployment AgentType is available [here](../agent-control/agent-type-registry/newrelic/com.newrelic.infrastructure-0.1.0.yaml). This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
 
 ## Applying configurations
 

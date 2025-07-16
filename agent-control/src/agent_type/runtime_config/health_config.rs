@@ -6,7 +6,7 @@ use wrapper_with_default::WrapperWithDefault;
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use crate::health::health_checker::HealthCheckInterval;
+use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
 
 use super::templateable_value::TemplateableValue;
 
@@ -19,9 +19,15 @@ const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
+    #[serde(default)]
     pub(crate) interval: HealthCheckInterval,
 
+    /// The initial delay before the first health check is performed.
+    #[serde(default)]
+    pub(crate) initial_delay: InitialDelay,
+
     /// The maximum duration a health check may run before considered failed.
+    #[serde(default)]
     pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.

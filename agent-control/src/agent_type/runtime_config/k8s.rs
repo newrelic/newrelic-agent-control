@@ -1,7 +1,7 @@
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
-use crate::health::health_checker::HealthCheckInterval;
+use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 
@@ -76,7 +76,11 @@ impl Templateable for K8sObjectMeta {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct K8sHealthConfig {
     /// The duration to wait between health checks.
+    #[serde(default)]
     pub(crate) interval: HealthCheckInterval,
+    /// The initial delay before the first health check is performed.
+    #[serde(default)]
+    pub(crate) initial_delay: InitialDelay,
 }
 
 #[cfg(test)]

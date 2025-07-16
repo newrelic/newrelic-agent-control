@@ -5,6 +5,7 @@ update_settings ( k8s_upsert_timeout_secs = 150)
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
 load('ext://deployment', 'job_create')
+load('ext://helm_remote', 'helm_remote')
 
 #### Install Flux needed for some integration tests
 helm_repo(
@@ -95,7 +96,7 @@ helm_resource(
 #### build data/charts and upload it to chart museum
 ### Feature Branch Workaround ###
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-feature_branch = ""
+feature_branch = "master"
 
 # We're modifying the default image in the charts for different versions because we don't expose the values to be
 # modified by the remote_config but we do tests upgrading charts that require image modification
@@ -106,11 +107,11 @@ feature_branch = ""
 # - 0.0.2 and 0.0.4 the image tilt.local/ac-dev:dev
 # - 0.0.3 use an image executing exit 1
 
-git_checkout('https://github.com/newrelic/helm-charts#'+feature_branch, checkout_dir='local/helm-charts-tmp', unsafe_mode=True)
 
 local_resource(
     'package-and-upload-remote-image-chart',
-    cmd="""helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
+     helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
      curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts
     """,
@@ -146,3 +147,37 @@ local_resource(
     """,
     resource_deps=['package-and-upload-local-image-chart'],
 )
+
+enable_vault = os.getenv('ENABLE_VAULT', 'false').lower() == 'true'
+
+if enable_vault:
+    ### We create a vault instance reachable at http://127.0.0.1:8200 with a kv1 engine secret with the values from
+    ### data/vault_kv1_secrets.json and a kv2 engine secret with the values from vault_kv2_secrets.json, dev token is root
+    helm_remote(
+      'vault',
+      repo_name='hashicorp',
+      repo_url='https://helm.releases.hashicorp.com',
+      set=['server.dev.enabled=true','server.serviceAccount.create=true']
+    )
+
+    # expose the service on localhost:8200
+    k8s_resource(
+      workload='vault',
+      port_forwards=8200
+    )
+
+    local_resource(
+        'enable_kv1',
+        cmd="""curl --header "X-Vault-Token: root" --request POST --data '{"type":"kv","options":{"version":1}}' http://127.0.0.1:8200/v1/sys/mounts/kv-v1
+        """,
+        resource_deps=['vault'],
+    )
+
+    # kv2 is enabled by default
+    local_resource(
+        'populate_vault_v1_v2_secrets',
+        cmd="""curl --header "X-Vault-Token: root" --request POST --data @data/vault_kv1_secrets.json http://127.0.0.1:8200/v1/kv-v1/my-secret &&
+         curl --header "X-Vault-Token: root" --request POST --data @data/vault_kv2_secrets.json http://127.0.0.1:8200/v1/secret/data/my-secret
+       """,
+        resource_deps=['enable_kv1'],
+    )

@@ -46,23 +46,27 @@
       ],
     },
     {
-      customType: 'regex',
-      "managerFilePatterns": ["^Cargo\\.toml$"],
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/Cargo.toml"
+      ],
       "matchStrings": [
         "nr-auth = { git = \"https://github\\.com/newrelic/newrelic-auth-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
       ],
-      "depNameTemplate": "newrelic-auth-rs",
       "datasourceTemplate": "github-tags",
+      "depNameTemplate": "newrelic-auth-rs",
       "lookupNameTemplate": "newrelic/newrelic-auth-rs"
     },
     {
-      customType: 'regex',
-      "managerFilePatterns": ["^Cargo\\.toml$"],
+      "customType": "regex",
+      "managerFilePatterns": [
+        "**/Cargo.toml"
+      ],
       "matchStrings": [
         "opamp-client = { git = \"https://github\\.com/newrelic/newrelic-opamp-rs\\.git\", tag = \"(?<currentValue>\\d+\\.\\d+\\.\\d+)\" }"
       ],
-      "depNameTemplate": "newrelic-opamp-rs",
       "datasourceTemplate": "github-tags",
+      "depNameTemplate": "newrelic-opamp-rs",
       "lookupNameTemplate": "newrelic/newrelic-opamp-rs"
     }
   ],
