@@ -23,8 +23,7 @@ export ACCOUNT_ID=<NewRelic Staging testing account number>
 export API_REST_KEY=<NewRelic Staging testing api rest key>
 export LICENSE_KEY=<NewRelic Staging testing ingest key>
 export SPEC_PATH=<E2e spec path - Example "e2e-apm.yml">
-ctlptl create registry ctlptl-registry --port=5005
-ctlptl create cluster minikube --registry=ctlptl-registry
+minikube start --driver='docker'
 make test/k8s-e2e
 ```
 

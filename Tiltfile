@@ -103,10 +103,9 @@ if cluster != '':
 helm_resource(
   'agent-control',
   'local/helm-charts-tmp/charts/agent-control',
-  deps=['local/helm-charts-tmp/charts/agent-control',sa_chart_values_file], # re-deploy chart if modified locally
   namespace=namespace,
-  release_name='sa',
-  update_dependencies=False, ## We do not update dependencies here to avoid an infinite loop of updating the chart
+  release_name='ac',
+  update_dependencies=True,
   flags=flags_helm,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),

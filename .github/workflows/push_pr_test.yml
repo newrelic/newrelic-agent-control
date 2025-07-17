@@ -142,8 +142,7 @@ jobs:
 
   k8s-integration-tests:
     name: K8s integration tests
-    # minikube action requires ubuntu-22.04 at the moment
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -153,10 +152,10 @@ jobs:
         with:
           submodules: true
       - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.10.0
+        uses: manusa/actions-setup-minikube@v2.14.0
         with:
-          minikube version: v1.32.0
-          kubernetes version: "v1.30.9" # Should we support a specific range of versions?
+          minikube version: v1.35.0
+          kubernetes version: "v1.30.14"
           driver: docker
           github token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -191,63 +190,11 @@ jobs:
           BUILD_WITH: cargo
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
 
-  # These tests are using (by default) the released charts
-  # In case a breaking change is introduced by the PR, a feature branch can be used as explained
-  # in the test/k8s-e2e/Readme.md
   k8s-e2e-tests:
-    name: K8s e2e tests ${{ matrix.group }}
-    # minikube action requires ubuntu-22.04 at the moment
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [ apm, infra ]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-      - name: Setup Minikube
-        uses: manusa/actions-setup-minikube@v2.10.0
-        with:
-          minikube version: v1.32.0
-          kubernetes version: "v1.30.9"
-          driver: docker
-          github token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Tilt
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/tilt-dev/tilt/master/scripts/install.sh | bash
-
-      - name: Obtain Rust version from project
-        run: |
-          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
-          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
-
-      - name: Install Rust ${{ env.RUST_VERSION }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.RUST_VERSION }}
-
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
-
-
-      - name: Run k8s e2e-test ${{ matrix.group }}
-        uses: newrelic/newrelic-integration-e2e-action@v1
-        env:
-          # Tilt configs
-          ARCH: amd64
-          BUILD_WITH: cargo
-        with:
-          retry_attempts: 10
-          agent_enabled: false
-          spec_path: test/k8s-e2e/${{ matrix.group }}/e2e-${{ matrix.group }}.yml
-          account_id: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
-          api_key: ${{ secrets.COREINT_E2E_API_KEY }}
-          license_key: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
+    uses: ./.github/workflows/component_k8s_e2e.yml
+    with:
+      scenarios: '["infra"]'
+    secrets:
+      E2E_ACCOUNT_ID: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.COREINT_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
