@@ -11,13 +11,17 @@
 
 pub mod vault;
 
-use crate::secrets_provider::vault::VaultSecretPath;
+use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError, VaultSecretPath};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::thread::sleep;
 use std::time::Duration;
+use http::header::InvalidHeaderValue;
 use tracing::debug;
+use crate::http::config::ProxyConfig;
+
+const NR_VAULT:&str = "nr-vault";
 
 /// Configuration for supported secrets providers.
 ///
@@ -51,7 +55,10 @@ use tracing::debug;
 /// In the future, secrets could be retrieved from additional sources such as cloud providers.
 /// For example, AWS Secrets Manager, Azure Key Vault, etc.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
-pub struct SecretsProvidersConfig {}
+pub struct SecretsProvidersConfig {
+    pub vault: Option<VaultConfig>,
+    pub proxy_config: ProxyConfig,
+}
 
 /// Trait for building a client to retrieve secrets from a provider.
 ///
@@ -71,6 +78,9 @@ pub enum SecretsProvidersError {
 
     #[error("Invalid configuration for secrets provider: {0}")]
     InvalidProvider(String),
+
+    #[error("Failed building Vault client: {0}")]
+    VaultError(#[from] VaultError),
 }
 
 #[derive(Clone)]
@@ -130,7 +140,9 @@ pub trait SecretsProvider {
 /// The idea is that the [SecretsProvidersRegistry] holds a collection where each key is the name of the provider.
 /// The value can either be an instance of the [SecretsProvider] trait or a collection. In the latter, the key is
 /// the name of the source, and the value is an instance of [SecretsProvider].
-pub enum SecretsProviderKind {}
+pub enum SecretsProviderKind {
+    Vault(Vault),
+}
 
 /// Collection of [SecretsProviderKind]s.
 pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderKind>;
@@ -141,8 +153,15 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
     /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProvidersRegistry].
     ///
     /// If any of the configurations is invalid, it returns an error.
-    fn try_from(_config: SecretsProvidersConfig) -> Result<Self, Self::Error> {
-        Ok(HashMap::new())
+    fn try_from(config: SecretsProvidersConfig) -> Result<Self, Self::Error> {
+        let mut registry = SecretsProvidersRegistry::new();
+
+        if let Some(vault_config) = config.vault {
+            let vault = Vault::try_build(vault_config, config.proxy_config)?;
+            registry.insert(NR_VAULT.to_string(), SecretsProviderKind::Vault(vault));
+        }
+
+        Ok(registry)
     }
 }
 

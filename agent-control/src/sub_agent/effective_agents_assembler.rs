@@ -115,13 +115,13 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
-        _secrets_providers: SecretsProvidersRegistry,
+        secrets_providers: SecretsProvidersRegistry,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
             variable_constraints,
-            _secrets_providers,
+            _secrets_providers: secrets_providers,
         }
     }
 }

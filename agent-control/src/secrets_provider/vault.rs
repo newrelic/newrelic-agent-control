@@ -65,7 +65,7 @@ pub enum SecretEngine {
     Kv2,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 pub struct VaultConfig {
     pub(crate) sources: HashMap<String, VaultSourceConfig>,
 
@@ -170,7 +170,7 @@ impl SecretsProvider for Vault {
 
         let vault_source = self
             .sources
-            .get(&vault_secret_path.source.to_string())
+            .get(&vault_secret_path.source)
             .ok_or(VaultError::SourceNotFound)?;
 
         let url = Self::get_url_by_engine(
@@ -195,7 +195,7 @@ impl SecretsProvider for Vault {
             .send(request)
             .map_err(|e| VaultError::HttpTransportError(e.to_string()))?;
 
-        let body = String::from_utf8(response.body().clone())
+        let body = String::from_utf8(response.into_body())
             .map_err(|e| VaultError::DeserializeError(format!("invalid utf8 response: {e}")))?;
 
         let maybe_secret = match vault_source.engine {
@@ -355,16 +355,6 @@ client_timeout: 3s
                     name: "zip2".to_string(),
                 }),
                 expected: Ok("zap2".to_string()),
-            },
-            TestCase {
-                _name: "get secret from wrong existing source returns Not Found error",
-                secret_path: SecretPath::Vault(VaultSecretPath {
-                    source: "sourceB".to_string(),
-                    mount: "secret".to_string(),
-                    path: "my-secret".to_string(),
-                    name: "zip1".to_string(),
-                }),
-                expected: Err(VaultError::NotFound),
             },
             TestCase {
                 _name: "get secret from wrong existing source returns Not Found error",
