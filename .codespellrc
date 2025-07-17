@@ -1,5 +1,5 @@
 [codespell]
 check-filenames =
 check-hidden =
-ignore-words-list = crate
+ignore-words-list = crate,NotIn
 skip = ./.git,./Cargo.toml
