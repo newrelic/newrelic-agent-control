@@ -19,10 +19,9 @@ use std::thread::sleep;
 use std::time::Duration;
 use tracing::{debug, info};
 
-pub const RELEASE_NAME: &str = AC_DEPLOYMENT_CHART_NAME;
+pub const RELEASE_NAME: &str = "agent-control-deployment";
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
-const AC_DEPLOYMENT_CHART_NAME: &str = "agent-control-deployment";
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
 const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(3);
@@ -260,7 +259,7 @@ fn helm_release(
             "interval": "30s",
             "chart": {
                 "spec": {
-                    "chart": AC_DEPLOYMENT_CHART_NAME,
+                    "chart": RELEASE_NAME,
                     "version": version,
                     "reconcileStrategy": "ChartVersion",
                     "sourceRef": {
@@ -460,7 +459,7 @@ mod tests {
                     "interval": "30s",
                     "chart": {
                         "spec": {
-                            "chart": AC_DEPLOYMENT_CHART_NAME,
+                            "chart": RELEASE_NAME,
                             "version": version,
                             "reconcileStrategy": "ChartVersion",
                             "sourceRef": {

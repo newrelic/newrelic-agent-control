@@ -1,4 +1,4 @@
-use crate::common::runtime::tokio_runtime;
+use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use assert_cmd::Command;
@@ -15,10 +15,8 @@ use std::sync::Arc;
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_creates_resources() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
+    let mut k8s_env = block_on(K8sEnv::new());
+    let namespace = block_on(k8s_env.test_namespace());
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
@@ -153,10 +151,8 @@ fn k8s_cli_install_agent_control_creates_resources() {
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url() {
-    let runtime = crate::common::runtime::tokio_runtime();
-
-    let mut k8s_env = runtime.block_on(K8sEnv::new());
-    let namespace = runtime.block_on(k8s_env.test_namespace());
+    let mut k8s_env = block_on(K8sEnv::new());
+    let namespace = block_on(k8s_env.test_namespace());
 
     let repository_url = "https://cli-charts.newrelic.com";
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
