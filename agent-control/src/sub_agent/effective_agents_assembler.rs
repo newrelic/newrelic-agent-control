@@ -120,6 +120,7 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
+            variable_constraints,
             _secrets_providers,
         }
     }
