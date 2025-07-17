@@ -2,6 +2,17 @@ namespace: newrelic
 name: com.newrelic.prometheus
 version: 0.1.0
 variables:
+  common:
+    enable_debug:
+      description: "Enable debug mode for the Prometheus agent"
+      type: bool
+      required: false
+      default: false
+    scrape_interval:
+      description: "Default scrape interval for Prometheus targets"
+      type: string
+      required: false
+      default: "30s"
   k8s:
     chart_values:
       newrelic-prometheus-agent:
@@ -49,8 +60,30 @@ deployment:
               nrStaging: ${nr-env:NR_STAGING}
               lowDataMode: ${nr-env:NR_LOW_DATA_MODE}
               verboseLog: ${nr-env:NR_VERBOSE_LOG}
+              {{if enable_debug}}
+              # Debug configuration is applied when enable_debug is true
+              debug:
+                enabled: true
+                level: "debug"
+                logFormat: "json"
+              {{end}}
           values.yaml: |
             ${nr-var:chart_values.newrelic-prometheus-agent}
+            {{if enable_debug}}
+            # Additional debug configurations
+            prometheus:
+              config:
+                scrape_interval: ${nr-var:scrape_interval}
+                evaluation_interval: 15s
+                log_level: debug
+            {{else}}
+            # Standard production configurations
+            prometheus:
+              config:
+                scrape_interval: ${nr-var:scrape_interval}
+                evaluation_interval: 30s
+                log_level: info
+            {{end}}
           # chart_values.global will have precedence over chart_values.newrelic-prometheus-agent.global
           global.yaml: |
             global:

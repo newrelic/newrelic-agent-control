@@ -7,11 +7,13 @@
 //! - Resolving variable references and handling missing or undefined variables.
 //! - Replacing placeholders with their corresponding values, while supporting nested structures
 //!   like YAML mappings and sequences.
+//! - Processing conditional blocks with if/else logic similar to Helm templates.
 //!
 //! Additionally, this module includes utility functions and constants to facilitate the templating
 //! process, such as trimming template delimiters and normalizing variable references.
 use super::definition::Variables;
 use super::error::AgentTypeError;
+use super::templates_conditional::process_conditionals;
 use super::templates_function::{Function, SupportedFunction};
 use super::variable::Variable;
 use super::variable::variable_type::VariableType;
@@ -71,7 +73,11 @@ fn normalized_var<'a>(
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
     fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
-        template_string(self, variables)
+        // First process any conditional blocks in the template
+        let conditionally_processed = process_conditionals(self, variables)?;
+
+        // Then process variable substitutions in the resulting string
+        template_string(conditionally_processed, variables)
     }
 }
 
