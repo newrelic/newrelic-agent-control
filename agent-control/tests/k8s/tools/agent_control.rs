@@ -44,10 +44,10 @@ pub fn start_agent_control_with_testdata_config(
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
 ) -> StartedAgentControl {
-    let file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
-    std::fs::create_dir_all(file_path.parent().unwrap()).unwrap();
+    let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+    std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
 
-    std::fs::copy(dynamic_agent_type_path, file_path).unwrap();
+    std::fs::copy(dynamic_agent_type_path, agent_type_file_path).unwrap();
 
     create_local_agent_control_config(
         client.clone(),
