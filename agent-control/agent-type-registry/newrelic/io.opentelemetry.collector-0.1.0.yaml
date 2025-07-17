@@ -44,6 +44,30 @@ variables:
       description: "Newrelic otel collector chart version"
       type: string
       required: true
+    chart_name:
+      description: "nr-k8s-otel-collector chart name"
+      type: string
+      required: false
+      default: "nr-k8s-otel-collector"
+    chart_repository:
+      url:
+        description: "chart repository url"
+        type: string
+        required: false
+        default: "https://helm-charts.newrelic.com"
+        variants:
+          ac_config_field: "chart_repository_urls"
+          values: ["https://helm-charts.newrelic.com"]
+      secret_reference:
+        description: "HelmRepository secret reference (secretRef)"
+        type: yaml
+        required: false
+        default: null
+      certificate_secret_reference:
+        description: "HelmRepository certificate secret reference (certSecretRef)"
+        type: yaml
+        required: false
+        default: null
 deployment:
   on_host:
     health:
@@ -81,7 +105,9 @@ deployment:
         spec:
           interval: 30m
           provider: generic
-          url: https://helm-charts.newrelic.com
+          url: ${nr-var:chart_repository.url}
+          secretRef: ${nr-var:chart_repository.secret_reference}
+          certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
       values:
         apiVersion: v1
         kind: Secret
@@ -98,7 +124,6 @@ deployment:
               verboseLog: ${nr-env:NR_VERBOSE_LOG}
           values.yaml: |
             ${nr-var:chart_values.nr-k8s-otel-collector}
-          # chart_values.global will have precedence over chart_values.nr-k8s-otel-collector.global
           global.yaml: |
             global:
               ${nr-var:chart_values.global | indent 2}
@@ -114,7 +139,7 @@ deployment:
           interval: 30s
           chart:
             spec:
-              chart: nr-k8s-otel-collector
+              chart: ${nr-var:chart_name}
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
               sourceRef:

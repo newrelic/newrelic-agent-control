@@ -18,6 +18,30 @@ variables:
       description: "gateway chart version"
       type: string
       required: true
+    chart_name:
+      description: "pipeline-control-gateway chart name"
+      type: string
+      required: false
+      default: "pipeline-control-gateway"
+    chart_repository:
+      url:
+        description: "chart repository url"
+        type: string
+        required: false
+        default: "https://helm-charts.newrelic.com"
+        variants:
+          ac_config_field: "chart_repository_urls"
+          values: ["https://helm-charts.newrelic.com"]
+      secret_reference:
+        description: "HelmRepository secret reference (secretRef)"
+        type: yaml
+        required: false
+        default: null
+      certificate_secret_reference:
+        description: "HelmRepository certificate secret reference (certSecretRef)"
+        type: yaml
+        required: false
+        default: null
 deployment:
   # See com.newrelic.infrastructure Agent type for description of fields.
   k8s:
@@ -34,7 +58,9 @@ deployment:
         spec:
           interval: 30m
           provider: generic
-          url: https://helm-charts.newrelic.com
+          url: ${nr-var:chart_repository.url}
+          secretRef: ${nr-var:chart_repository.secret_reference}
+          certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
       values:
         apiVersion: v1
         kind: Secret
@@ -51,7 +77,6 @@ deployment:
               verboseLog: ${nr-env:NR_VERBOSE_LOG}
           values.yaml: |
             ${nr-var:chart_values.gateway}
-          # chart_values.global will have precedence over chart_values.gateway.global
           global.yaml: |
             global:
               ${nr-var:chart_values.global | indent 2}
@@ -67,7 +92,7 @@ deployment:
           interval: 30s
           chart:
             spec:
-              chart: pipeline-control-gateway
+              chart: ${nr-var:chart_name}
               version: ${nr-var:chart_version}
               reconcileStrategy: ChartVersion
               sourceRef:

@@ -1,4 +1,4 @@
-use crate::common::runtime::tokio_runtime;
+use crate::common::{global_logger::init_logger, runtime::tokio_runtime};
 
 use super::test_crd::create_foo_crd;
 use k8s_openapi::api::core::v1::Namespace;
@@ -27,6 +27,7 @@ impl K8sEnv {
         INIT_RUSTLS.call_once(|| {
             install_rustls_default_crypto_provider();
         });
+        init_logger();
 
         // Forces the client to use the dev kubeconfig file.
         unsafe { env::set_var("KUBECONFIG", KUBECONFIG_PATH) };
