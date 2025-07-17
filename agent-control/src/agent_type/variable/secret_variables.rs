@@ -72,7 +72,7 @@ impl SecretVariables {
     /// Loads secrets from all providers.
     pub fn load_all_secrets(
         &self,
-        secrets_providers_registry: SecretsProvidersRegistry,
+        secrets_providers_registry: &SecretsProvidersRegistry,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
@@ -97,8 +97,8 @@ impl SecretVariables {
     /// Loads secrets from the given provider.
     fn load_secrets_at<SP: SecretsProvider>(
         &self,
-        namespace: Namespace,
-        provider: SP,
+        namespace: &Namespace,
+        provider: &SP,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         let mut result = HashMap::new();
         let Some(secrets_paths) = self.variables.get(&namespace.to_string()) else {
@@ -198,7 +198,7 @@ eof"#;
             .returning(|_| Ok("mocked_value_D".to_string()));
 
         let result = runtime_variables
-            .load_secrets_at(Namespace::Vault, mock_vault)
+            .load_secrets_at(&Namespace::Vault, &mock_vault)
             .unwrap();
         assert_eq!(
             result,
@@ -215,7 +215,7 @@ eof"#;
             variables: HashMap::new(),
         };
         let result = runtime_variables
-            .load_all_secrets(SecretsProvidersRegistry::new())
+            .load_all_secrets(&SecretsProvidersRegistry::new())
             .unwrap();
         assert!(result.is_empty());
     }

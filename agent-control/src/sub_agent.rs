@@ -622,11 +622,18 @@ where
         yaml_config: YAMLConfig,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
         // Assemble the new agent
-        self.effective_agent_assembler.assemble_agent(
-            &self.identity,
-            yaml_config,
-            &self.environment,
-        )
+        self.effective_agent_assembler
+            .assemble_agent(&self.identity, yaml_config, &self.environment)
+            .inspect_err(|e| {
+                if let EffectiveAgentsAssemblerError::SecretVariablesError(error) = e {
+                    let unhealthy = HealthWithStartTime::from_unhealthy(
+                        Unhealthy::new(error.to_string()),
+                        SystemTime::now(),
+                    );
+                    self.sub_agent_internal_publisher
+                        .publish_health_event(unhealthy);
+                }
+            })
     }
 
     fn update_remote_config_state(&self, config_state: ConfigState) {

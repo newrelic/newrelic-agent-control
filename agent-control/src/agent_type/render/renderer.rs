@@ -25,6 +25,7 @@ pub trait Renderer {
         values: YAMLConfig,
         attributes: AgentAttributes,
         environment_variables: HashMap<String, Variable>,
+        secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError>;
 }
 
@@ -43,13 +44,16 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         values: YAMLConfig,
         attributes: AgentAttributes,
         environment_variables: HashMap<String, Variable>,
+        secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
-        // Notice that only environment variables are taken into consideration (no other vars for example)
-        let values_expanded = values.template_with(&environment_variables)?;
+        // Notice that only environment variables and secrets are taken into consideration (no other vars for example)
+        let mut runtime_variables = environment_variables.clone();
+        runtime_variables.extend(secrets.clone());
+        let values_expanded = values.template_with(&runtime_variables)?;
 
         // Fill agent variables
         // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
@@ -76,7 +80,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
 
         // Setup namespaced variables
         let ns_variables =
-            self.build_namespaced_variables(filled_variables, environment_variables, &attributes);
+            self.build_namespaced_variables(filled_variables, runtime_variables, &attributes);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -139,7 +143,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     fn build_namespaced_variables(
         &self,
         variables: HashMap<String, Variable>,
-        environment_variables: HashMap<String, Variable>,
+        runtime_variables: HashMap<String, Variable>,
         attributes: &AgentAttributes,
     ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
@@ -152,7 +156,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         // Join all variables together
         vars_iter
             .chain(sub_agent_vars_iter)
-            .chain(environment_variables)
+            .chain(runtime_variables)
             .chain(self.sa_variables.clone())
             .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
@@ -193,6 +197,7 @@ pub(crate) mod tests {
                 values: YAMLConfig,
                 attributes: AgentAttributes,
                 environment_variables: HashMap<String, Variable>,
+                secrets: HashMap<String, Variable>,
             ) -> Result<Runtime, AgentTypeError>;
          }
     }
@@ -215,8 +220,9 @@ pub(crate) mod tests {
                     //predicate::eq(attributes.clone()),
                     predicate::eq(attributes.clone()),
                     predicate::always(), // Not caring for env vars
+                    predicate::always(), // Not caring for secrets
                 )
-                .returning(move |_, _, _, _, _| Ok(runtime.clone()));
+                .returning(move |_, _, _, _, _, _| Ok(runtime.clone()));
         }
     }
 
@@ -239,7 +245,14 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .unwrap();
         assert_eq!(
             Args("--config_path=/some/path/config --foo=bar".into()),
@@ -263,7 +276,14 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
+        let result = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            HashMap::new(),
+        );
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -277,7 +297,14 @@ pub(crate) mod tests {
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let result = renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
+        let result = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            HashMap::new(),
+        );
         assert_matches!(result.unwrap_err(), AgentTypeError::ValuesNotPopulated(vars) => {
             assert_eq!(vars, vec!["config_path".to_string()])
         })
@@ -313,6 +340,7 @@ pub(crate) mod tests {
                 agent_type,
                 testing_values(values),
                 attributes,
+                HashMap::new(),
                 HashMap::new(),
             )
             .unwrap();
@@ -351,7 +379,14 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default()
             .with_config_persister(persister, data_dir.path().to_path_buf());
         let expected_error = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .err()
             .unwrap();
         assert_matches!(
@@ -386,6 +421,7 @@ pub(crate) mod tests {
                 testing_values(values),
                 attributes,
                 HashMap::new(),
+                HashMap::new(),
             )
             .err()
             .unwrap();
@@ -405,7 +441,14 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .unwrap();
 
         let backoff_strategy = &runtime_config
@@ -444,7 +487,14 @@ pub(crate) mod tests {
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .unwrap();
 
         let backoff_strategy = &runtime_config
@@ -525,7 +575,14 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .unwrap();
 
         let k8s = runtime_config.deployment.k8s.unwrap();
@@ -578,7 +635,14 @@ substituted_2: my-value-2
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            HashMap::new(),
+        );
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -632,7 +696,14 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            HashMap::new(),
+        );
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -650,8 +721,14 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let attributes = testing_agent_attributes(&agent_id);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config =
-            renderer.render(&agent_id, agent_type, values, attributes, HashMap::new());
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            HashMap::new(),
+        );
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -700,7 +777,14 @@ deployment:
         )]);
 
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
-        let runtime_config = renderer.render(&agent_id, agent_type, values, attributes, env_vars);
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            HashMap::new(),
+        );
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -737,7 +821,14 @@ deployment:
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.into_iter());
         let runtime_config = renderer
-            .render(&agent_id, agent_type, values, attributes, HashMap::new())
+            .render(
+                &agent_id,
+                agent_type,
+                values,
+                attributes,
+                HashMap::new(),
+                HashMap::new(),
+            )
             .unwrap();
         assert_eq!(
             Args("fake_value".into()),
@@ -750,6 +841,143 @@ deployment:
                 .args
                 .clone()
                 .get()
+        );
+    }
+
+    #[test]
+    fn test_render_with_secrets() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type =
+            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_SECRETS, &Environment::K8s);
+        let values = testing_values(K8S_CONFIG_YAML_VALUES);
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let secrets = HashMap::from([
+            (
+                Namespace::Vault.namespaced_name("MY_VARIABLE"),
+                Variable::new_final_string_variable("my-value".to_string()),
+            ),
+            (
+                Namespace::Vault.namespaced_name("MY_VARIABLE_2"),
+                Variable::new_final_string_variable("my-value-2".to_string()),
+            ),
+        ]);
+
+        let expected_spec_yaml = r#"
+values:
+  another_key:
+    nested: nested_value ${UNTOUCHED}
+    nested_list:
+      - item1
+      - item2
+      - item3_nested: value
+  empty_key:
+from_sub_agent: some-agent-id
+substituted: my-value
+collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
+substituted_2: my-value-2
+"#;
+
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            secrets,
+        );
+
+        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let cr1 = k8s.objects.get("cr1").unwrap();
+
+        assert_eq!("group/version".to_string(), cr1.api_version);
+        assert_eq!("ObjectKind".to_string(), cr1.kind);
+
+        let spec = cr1.fields.get("spec").unwrap().clone();
+        assert_eq!(expected_spec_value, spec);
+    }
+
+    #[test]
+    fn test_render_double_expansion_with_secrets() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type =
+            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
+        let values = testing_values(
+            r#"
+config:
+  text_values:
+    key: value
+    key2: ${UNTOUCHED}
+  values:
+    key: ${nr-vault:DOUBLE_EXPANSION}
+    key-2: ${nr-vault:DOUBLE_EXPANSION_2}
+"#,
+        );
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let secrets = HashMap::from([
+            (
+                Namespace::Vault.namespaced_name("DOUBLE_EXPANSION"),
+                Variable::new_final_string_variable("test".to_string()),
+            ),
+            (
+                Namespace::Vault.namespaced_name("DOUBLE_EXPANSION_2"),
+                Variable::new_final_string_variable("test-2".to_string()),
+            ),
+        ]);
+
+        let expected_spec_yaml = r#"
+values:
+  key: test
+  key-2: test-2
+from_sub_agent: some-agent-id
+text_values: "key: value\nkey2: ${UNTOUCHED}\n\n"
+collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
+"#;
+
+        let expected_spec_value: serde_yaml::Value =
+            serde_yaml::from_str(expected_spec_yaml).unwrap();
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            secrets,
+        );
+
+        let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
+        let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
+        assert_eq!(expected_spec_value, values.clone());
+    }
+
+    #[test]
+    fn test_render_with_secrets_not_found() {
+        let agent_id = AgentID::new("some-agent-id").unwrap();
+        let agent_type =
+            AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_SECRETS, &Environment::K8s);
+        let values = testing_values(K8S_CONFIG_YAML_VALUES);
+        let attributes = testing_agent_attributes(&agent_id);
+
+        let renderer: TemplateRenderer<ConfigurationPersisterFile> = TemplateRenderer::default();
+        let runtime_config = renderer.render(
+            &agent_id,
+            agent_type,
+            values,
+            attributes,
+            HashMap::new(),
+            HashMap::new(),
+        );
+
+        assert_matches!(
+            runtime_config.unwrap_err(),
+            AgentTypeError::MissingTemplateKey(_)
         );
     }
 
@@ -982,4 +1210,36 @@ config:
         - item2
         - item3_nested: value
     empty_key:"#;
+
+    const K8S_AGENT_TYPE_YAML_SECRETS: &str = r#"
+name: k8s-agent-type
+namespace: newrelic
+version: 0.0.1
+variables:
+  k8s:
+    config:
+      values:
+        description: "yaml values"
+        type: yaml
+        required: true
+      text_values:
+        description: "text values"
+        type: yaml
+        required: true
+deployment:
+  k8s:
+    objects:
+      cr1:
+        apiVersion: group/version
+        kind: ObjectKind
+        metadata:
+          name: test
+          namespace: test-namespace
+        spec:
+          values: ${nr-var:config.values}
+          from_sub_agent: ${nr-sub:agent_id}
+          substituted: ${nr-vault:MY_VARIABLE}
+          collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
+          substituted_2: ${nr-vault:MY_VARIABLE_2}
+"#;
 }

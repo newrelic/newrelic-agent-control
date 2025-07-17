@@ -11,6 +11,7 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
 use crate::secrets_provider::SecretsProvidersRegistry;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
@@ -32,6 +33,8 @@ pub enum EffectiveAgentsAssemblerError {
     AgentTypeError(#[from] AgentTypeError),
     #[error("error assembling agents: `{0}`")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
+    #[error("error loading secrets: `{0}`")]
+    SecretVariablesError(#[from] SecretVariablesError),
 }
 
 #[derive(Error, Debug)]
@@ -107,7 +110,7 @@ where
     registry: Arc<R>,
     renderer: Y,
     variable_constraints: VariableConstraints,
-    _secrets_providers: SecretsProvidersRegistry,
+    secrets_providers: SecretsProvidersRegistry,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -121,7 +124,7 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
             registry,
             renderer,
             variable_constraints,
-            _secrets_providers: secrets_providers,
+            secrets_providers,
         }
     }
 }
@@ -157,12 +160,29 @@ where
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
 
+        let config = String::try_from(values.clone()).map_err(|err| {
+            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
+                "Failed to convert YAMLConfig to String for agent: {}: {}",
+                agent_identity.id, err
+            ))
+        })?;
+        let secret_variables = SecretVariables::from_config(&config);
+        let Ok(secrets) = secret_variables.load_all_secrets(&self.secrets_providers) else {
+            return Err(
+                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
+                    "Failed to load secrets for agent: {}",
+                    agent_identity.id
+                )),
+            );
+        };
+
         let runtime_config = self.renderer.render(
             &agent_identity.id,
             agent_type,
             values,
             attributes,
             environment_variables,
+            secrets,
         )?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
@@ -273,7 +293,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer,
                 variable_constraints: VariableConstraints::default(),
-                _secrets_providers: SecretsProvidersRegistry::default(),
+                secrets_providers: SecretsProvidersRegistry::default(),
             }
         }
     }
