@@ -5,7 +5,7 @@ custom_test_key: appName
 scenarios:
   - description: Deploy SA with APM operator and Java, Python and Node.js agents
     before:
-      - cd ../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/agent-control-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
+      - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/apm/ac-values-apm.yml" CLUSTER=${SCENARIO_TAG} tilt ci
       # we need wait and retry since the resource might me not created yet
       - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents; do sleep 5; echo waiting on operator ; done"
       - sleep 60
@@ -31,7 +31,7 @@ scenarios:
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=operator --all-containers --prefix=true -n newrelic-agents
       - kubectl get all -o wide
-      - cd ../../ && tilt down
+      - cd ../../../ && tilt down
     tests:
       nrqls:
         # Checks that the metric exist for the test scenario, an extra where testKey=$SCENARIO_TAG is always added.

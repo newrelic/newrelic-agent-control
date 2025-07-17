@@ -5,14 +5,15 @@ use crate::common::retry::retry;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_sub_agent_values,
 };
+use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::DYNAMIC_AGENT_TYPE_FILENAME;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use std::time::Duration;
 use tempfile::tempdir;
+
 /// Given a agent-control with a sub-agent without supervised executables, it should be able to
 /// read the health status from the file and send it to the opamp server.
 #[test]

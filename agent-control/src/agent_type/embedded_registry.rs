@@ -1,12 +1,9 @@
-use std::{collections::HashMap, path::PathBuf};
-
-use std::fs;
-use tracing::{debug, error, info};
-
 use super::{
     agent_type_registry::{AgentRegistry, AgentRepositoryError},
     definition::AgentTypeDefinition,
 };
+use std::{collections::HashMap, fs, path::PathBuf};
+use tracing::{debug, error};
 
 // Include generated code
 include!(concat!(
@@ -30,9 +27,20 @@ impl Default for EmbeddedRegistry {
 
 impl EmbeddedRegistry {
     pub fn new(dynamic_agent_type_path: PathBuf) -> Self {
-        let dynamic_agent_type = Self::dynamic_agent_type(dynamic_agent_type_path);
-        let definitions = Self::definitions().chain(dynamic_agent_type);
-        Self::try_new(definitions).expect("Conflicting agent type definitions")
+        // Loading the static agentTypes
+        let mut registry =
+            Self::try_new(Self::definitions()).expect("Conflicting agent type definitions");
+
+        // Loading, if any, the dynamic agent types from the directory.
+        // Since they are dynamic, they are taking the precedence over the static ones.
+        Self::dynamic_agent_type(dynamic_agent_type_path)
+            .iter()
+            .for_each(|agent_type| {
+                let metadata = agent_type.agent_type_id.to_string();
+                debug!("Storing dynamic agent type: {}", metadata);
+                registry.0.insert(metadata, agent_type.clone());
+            });
+        registry
     }
 }
 
@@ -74,33 +82,40 @@ impl EmbeddedRegistry {
         })
     }
 
-    /// Read and return the dynamic agent type, if there is an error reading or deserializing it, logs the error and
-    /// returns None.
-    fn dynamic_agent_type(path: PathBuf) -> Option<AgentTypeDefinition> {
-        let p = path.to_string_lossy().to_string();
-        fs::read(path)
-            .inspect_err(|e| {
-                debug!(error = %e, "Dynamic agent type: Failed reading file");
-            })
-            .ok()
-            .and_then(|content| {
-                info!("Loading agentType : {:?}", p);
-                serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
-                    .inspect_err(|e| {
-                        error!(error = %e, "Dynamic agent type: Could not parse agent type");
-                    })
+    /// Read and return the dynamic agent types, if there is an error reading or deserializing it, logs the error.
+    fn dynamic_agent_type(path: PathBuf) -> Vec<AgentTypeDefinition> {
+        let Ok(entries) = fs::read_dir(path.clone()).inspect_err(
+            |err| debug!(error = %err, "Failed reading Dynamic agent types directory {path:?}"),
+        ) else {
+            return vec![];
+        };
+
+        entries
+            .flatten()
+            .flat_map(|entry| {
+                let file = entry.path();
+                fs::read(file.clone())
+                    .inspect_err(|e| debug!(error = %e, "Skipping file: {file:?}"))
                     .ok()
+                    .and_then(|content| {
+                        debug!("Loading Dynamic Agent Type: {file:?}");
+                        serde_yaml::from_slice::<AgentTypeDefinition>(content.as_slice())
+                            .inspect_err(|e| error!(error = %e, "Could not parse Dynamic Agent Type: {file:?}"))
+                            .ok()
+                    })
             })
+            .collect()
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use assert_matches::assert_matches;
-
-    use crate::agent_type::agent_type_id::AgentTypeID;
-
     use super::*;
+    use crate::agent_type::agent_type_id::AgentTypeID;
+    use assert_matches::assert_matches;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
 
     impl EmbeddedRegistry {
         pub fn iter_definitions(&self) -> impl Iterator<Item = &AgentTypeDefinition> {
@@ -189,5 +204,98 @@ pub mod tests {
         assert_matches!(err, AgentRepositoryError::AlreadyExists(name) => {
             assert_eq!("ns/agent:0.0.0", name);
         })
+    }
+
+    #[test]
+    fn test_insert_duplicate_via_dynamic_config() {
+        let tmp_dir = tempdir().expect("failed to create local temp dir");
+        let path = tmp_dir.path();
+        File::create(path.join("agent_type_1"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: ns
+name: io.test
+version: 0.0.0
+variables:
+  k8s:
+    version:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("same_agent_is_overwritten"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: ns
+name: io.test
+version: 0.0.0
+variables:
+  k8s:
+    different:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("main_agent_type_is_overwritten"))
+            .unwrap()
+            .write_all(
+                r#"
+namespace: newrelic
+name: com.newrelic.infrastructure
+version: 0.1.0
+variables:
+  k8s:
+    different:
+      type: string
+      required: true
+      description: "test"
+deployment:
+  k8s:
+    objects: {}
+    "#
+                .as_bytes(),
+            )
+            .unwrap();
+
+        File::create(path.join("wrong_agent_is_skipped"))
+            .unwrap()
+            .write_all("asdkjfnad".as_bytes())
+            .unwrap();
+
+        File::create(path.join("empty_agent_is_skipped"))
+            .unwrap()
+            .write_all("".as_bytes())
+            .unwrap();
+
+        let registry = EmbeddedRegistry::new(path.to_path_buf());
+
+        let variables = registry.get("ns/io.test:0.0.0").unwrap().variables.k8s.0;
+        assert!(!variables.contains_key("version"));
+        assert!(variables.contains_key("different"));
+        assert!(
+            registry
+                .get("newrelic/com.newrelic.infrastructure:0.1.0")
+                .unwrap()
+                .variables
+                .k8s
+                .0
+                .contains_key("different")
+        );
     }
 }

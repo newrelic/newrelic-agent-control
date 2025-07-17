@@ -155,7 +155,7 @@ jobs:
         with:
           retry_attempts: 15
           agent_enabled: false
-          spec_path: test/k8s-e2e/e2e-fleet-control.yml
+          spec_path: test/k8s-e2e/fleet-control/e2e-fleet-control.yml
           account_id: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
           api_key: ${{ secrets.AC_PROD_E2E_API_KEY }}
           license_key: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}

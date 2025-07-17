@@ -3,6 +3,7 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
 use predicates::prelude::predicate;
 use std::error::Error;
+use std::fs::create_dir_all;
 use std::time::Duration;
 use std::{
     fs::File,
@@ -15,8 +16,8 @@ pub fn create_temp_file(
     dir: &Path,
     file_name: &str,
     data: &str,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    std::fs::create_dir_all(dir)?;
+) -> Result<PathBuf, Box<dyn Error>> {
+    create_dir_all(dir)?;
     let file_path = dir.join(file_name);
     let mut file = File::create(&file_path)?;
     writeln!(file, "{data}")?;

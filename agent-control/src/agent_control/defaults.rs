@@ -44,7 +44,7 @@ cfg_if::cfg_if! {
 
 pub const SUB_AGENT_DIR: &str = "fleet/agents.d";
 pub const AGENT_CONTROL_CONFIG_FILENAME: &str = "config.yaml";
-pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-type.yaml";
+pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
 pub const IDENTIFIERS_FILENAME: &str = "identifiers.yaml";
 pub const VALUES_DIR: &str = "values";
 pub const VALUES_FILENAME: &str = "values.yaml";

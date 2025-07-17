@@ -1,7 +1,7 @@
 #![cfg(unix)]
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_FILENAME,
+    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_DIR,
 };
 use nix::{
     sys::signal::{self, Signal},
@@ -19,10 +19,9 @@ fn killing_subprocess_with_signal_restarts_as_root() -> Result<(), Box<dyn std::
     use crate::on_host::cli::create_temp_file;
 
     let dir = TempDir::new()?;
-
     let _agent_type_def = create_temp_file(
-        dir.path(),
-        DYNAMIC_AGENT_TYPE_FILENAME,
+        dir.path().join(DYNAMIC_AGENT_TYPE_DIR).as_path(),
+        "test-agent.yaml",
         r#"
 namespace: newrelic
 name: com.newrelic.test-agent
