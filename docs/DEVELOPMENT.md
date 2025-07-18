@@ -92,7 +92,6 @@ We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://til
 
 - Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system.
 - Install `minikube` for local Kubernetes cluster emulation.
-- Install [`ctlptl`](https://github.com/tilt-dev/ctlptl).
 - Ensure you have `tilt` installed for managing local development environments.
 - Add an Agent Control values file in `local/agent-control-tilt.yml`.
 

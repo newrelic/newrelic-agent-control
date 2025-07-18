@@ -71,7 +71,7 @@ proxy options can also be configured using the proxy configuration field. If bot
 2. `HTTP_PROXY` environment variable
 3. `HTTPS_PROXY` environment variable
 
-⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (recommended) or disable signature validation (highly discouraged).
+⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either, add a firewall exception to https://newrelic.com so requests to that endpoints can skip the proxy (recommended), use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (certificate rotation should need to manually handled) or disable signature validation (highly discouraged).
 
 ```yaml
 proxy:
@@ -80,6 +80,11 @@ proxy:
   ca_bundle_file: /some/pem/file # System path with CA certificates in PEM format.
   ignore_system_proxy: false # Default to false, if set to true HTTP_PROXY and HTTPS_PROXY environment variables will be ignored.
 ```
+
+#### proxy for Agents
+
+Configuring a proxy in Agent Control does not automatically configure the same proxy settings for the agents it manages. Each agent has its own proxy configuration that must be set separately according to that agent's specific configuration format and requirements.
+
 
 ### server
 
