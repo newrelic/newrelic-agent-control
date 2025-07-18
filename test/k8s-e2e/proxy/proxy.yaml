@@ -67,7 +67,7 @@ spec:
     spec:
       containers:
       - name: mitmproxy-container
-        image: mitmproxy/mitmproxy
+        image: mitmproxy/mitmproxy:12
         command: ["mitmweb"]
         args:
         - "--web-host"

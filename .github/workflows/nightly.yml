@@ -97,8 +97,6 @@ jobs:
       # Network policies needs calico installed
       start_args: '--cni=calico'
     secrets:
-      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
       E2E_ACCOUNT_ID: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
       E2E_API_KEY: ${{ secrets.COREINT_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
