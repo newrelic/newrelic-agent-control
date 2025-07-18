@@ -124,7 +124,7 @@ jobs:
     with:
       scenarios: '["proxy"]'
       # Network policies needs calico installed
-      start_args: '--cni=calico'
+      minikube_start_args: '--cni=calico'
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
