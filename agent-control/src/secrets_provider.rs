@@ -16,7 +16,7 @@ const NR_VAULT:&str = "nr-vault";
 ///
 /// Group of secrets providers configurations, that can be used to retrieve secrets from various sources.
 /// All providers should be optional. This allows users to configure only the ones they need.
-/// Besides, there no lower or upper limit on the number of providers that can be configured.
+/// Besides, there is no lower or upper limit on the number of providers that can be configured.
 /// Users can retrieve secrets from secret provider "A" and secret provider "B" at the same time.
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
