@@ -151,13 +151,26 @@ where
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
-        let config = String::try_from(values.clone()).map_err(|err| {
+        let values_config = String::try_from(values.clone()).map_err(|err| {
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
                 "Failed to convert YAMLConfig to String for agent: {}: {}",
                 agent_identity.id, err
             ))
         })?;
-        let runtime_variables = RuntimeVariables::from_config(&config);
+
+        let runtime_variables = match environment {
+            Environment::K8s => {
+                let k8s_deployment_config = agent_type.runtime_config.deployment.k8s.clone();
+                let k8s_env_config = k8s_deployment_config
+                    .and_then(|k8s| k8s.objects.get("values").cloned())
+                    .and_then(|v| serde_yaml::to_string(&v.fields).ok())
+                    .unwrap_or_default();
+                let config = format!("{}\n{}", k8s_env_config, values_config);
+
+                RuntimeVariables::from_config(&config)
+            }
+            Environment::OnHost => RuntimeVariables::from_config(&values_config),
+        };
 
         let Ok(environment_variables) = runtime_variables.load_env_vars() else {
             return Err(
