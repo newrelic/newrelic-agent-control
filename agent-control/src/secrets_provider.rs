@@ -69,8 +69,11 @@ pub enum SecretPath {
 pub trait SecretsProvider {
     type Error: Debug;
 
+    /// Gets a secret
+    /// By default is recommended to use get_secret_with_retry.
     fn get_secret(&self, secret_path: SecretPath) -> Result<String, Self::Error>;
 
+    /// Gets a secret with a retry policy
     fn get_secret_with_retry(
         &self,
         limit: u64,
