@@ -15,7 +15,7 @@ use wrapper_with_default::WrapperWithDefault;
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Possible errors when building a Hashicorp Vault secret provider.
+/// Enumerates the possible errors that can occur when interacting with Vault.
 #[derive(Debug, Error)]
 pub enum VaultError {
     #[error("could not build the vault http client: {0}")]
@@ -27,7 +27,7 @@ pub enum VaultError {
     #[error("could not parse mount and path for secret source: {0}")]
     ParseError(#[from] ParseError),
 
-    #[error("could not parse mount and path for secret source: {0}")]
+    #[error("error deserializing the config: {0}")]
     SerdeError(#[from] Error),
 
     /// Represents an error building the HttpClient
@@ -59,6 +59,7 @@ impl From<String> for VaultError {
     }
 }
 
+/// Represents a path to a secret in Vault, including source, mount, path, and name.
 #[derive(Clone)]
 pub struct VaultSecretPath {
     pub source: String,
@@ -67,6 +68,8 @@ pub struct VaultSecretPath {
     pub name: String,
 }
 
+/// Represents HashiCorp Vault secret engines for key-value storage.
+/// Kv1 is the original version, while Kv2 adds versioning capabilities.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 #[serde(rename_all = "lowercase")] // Automatically handle lowercase conversion
 pub enum SecretEngine {
@@ -74,9 +77,9 @@ pub enum SecretEngine {
     Kv2,
 }
 
+/// Configuration for a Vault source, including URL, token, and engine type.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
-    /// Vault credentials configuration
     pub(crate) url: Url,
     pub(crate) token: String,
     pub(crate) engine: SecretEngine,
@@ -87,16 +90,19 @@ pub struct VaultSourceConfig {
 #[wrapper_default_value(DEFAULT_CLIENT_TIMEOUT)]
 pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+/// Represents the data structure for KV1 secrets. Used for deserialization.
 #[derive(Deserialize)]
 struct KV1SecretData {
     data: HashMap<String, String>,
 }
 
+/// Represents the data structure for KV2 secrets. Used for deserialization.
 #[derive(Deserialize)]
 struct KV2SecretData {
     data: KV2DataField,
 }
 
+/// Represents the inner data field for KV2 secrets. Used for deserialization.
 #[derive(Deserialize)]
 struct KV2DataField {
     data: HashMap<String, String>,
@@ -130,6 +136,7 @@ pub struct VaultConfig {
     pub proxy_config: ProxyConfig,
 }
 
+/// Implements the SecretsProviderBuilder trait for VaultConfig, allowing it to build a Vault provider.
 impl SecretsProviderBuilder for VaultConfig {
     type Provider = Vault;
     type Error = VaultError;
@@ -139,12 +146,14 @@ impl SecretsProviderBuilder for VaultConfig {
     }
 }
 
+/// Represents a Vault client, including HTTP client and configured sources.
 pub struct Vault {
     client: HttpClient,
     sources: HashMap<String, VaultSource>,
 }
 
 impl Vault {
+    /// Attempts to build a Vault instance from the given configuration.
     pub fn try_build(config: VaultConfig) -> Result<Self, VaultError> {
         let http_config = HttpConfig::new(
             config.client_timeout.clone().into(),
@@ -167,6 +176,7 @@ impl Vault {
         })
     }
 
+    /// Constructs a URL for accessing secrets based on the engine type.
     fn get_url_by_engine(
         mut url: Url,
         mount: &str,
@@ -181,6 +191,7 @@ impl Vault {
     }
 }
 
+/// Implements the SecretsProvider trait for Vault, allowing it to retrieve secrets.
 impl SecretsProvider for Vault {
     type Error = VaultError;
 
