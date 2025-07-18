@@ -15,7 +15,7 @@ use wrapper_with_default::WrapperWithDefault;
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Enumerates the possible error building OpenTelemetry providers.
+/// Possible errors when building a Hashicorp Vault secret provider.
 #[derive(Debug, Error)]
 pub enum VaultError {
     #[error("could not build the vault http client: {0}")]
