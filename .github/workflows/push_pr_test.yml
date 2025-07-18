@@ -195,6 +195,6 @@ jobs:
     with:
       scenarios: '["infra"]'
     secrets:
-      E2E_ACCOUNT_ID: ${{ secrets.COREINT_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.COREINT_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.COREINT_E2E_LICENSE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
