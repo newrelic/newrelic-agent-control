@@ -53,6 +53,9 @@ pub trait SecretsProviderBuilder {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
+    #[error("Failed to retrieve secret from provider: {0}")]
+    GetSecret(String),
+
     #[error("Failed building Vault client: {0}")]
     VaultError(#[from] VaultError),
 }
@@ -67,7 +70,7 @@ pub enum SecretPath {
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
-    type Error: Debug;
+    type Error: Debug + From<String>;
 
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
@@ -80,11 +83,9 @@ pub trait SecretsProvider {
         retry_interval: Duration,
         secret_path: SecretPath,
     ) -> Result<String, Self::Error> {
-        let mut secret = Ok("".to_string());
         for attempt in 1..=limit {
             debug!("Checking for secret with retries {attempt}/{limit}");
-            secret = self.get_secret(secret_path.clone());
-            match secret.as_ref() {
+            match self.get_secret(secret_path.clone()) {
                 Ok(secret) => {
                     return Ok(secret.clone());
                 }
@@ -94,7 +95,9 @@ pub trait SecretsProvider {
             }
             sleep(retry_interval);
         }
-        secret
+        Err("Failed to retrieve secret after all retry attempts"
+            .to_string()
+            .into())
     }
 }
 
@@ -154,7 +157,13 @@ pub mod tests {
     #[derive(Error, Debug, PartialEq, Clone)]
     pub enum SecretProviderError {
         #[error("{0}")]
-        Generic(String),
+        GenericError(String),
+    }
+
+    impl From<String> for SecretProviderError {
+        fn from(s: String) -> Self {
+            SecretProviderError::GenericError(s)
+        }
     }
 
     mock! {
@@ -198,7 +207,7 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(|_path| {
-                Err(SecretProviderError::Generic(
+                Err(SecretProviderError::GenericError(
                     "error on first attempt".to_string(),
                 ))
             });
@@ -207,7 +216,7 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(|_path| {
-                Err(SecretProviderError::Generic(
+                Err(SecretProviderError::GenericError(
                     "error on second attempt".to_string(),
                 ))
             });
@@ -232,13 +241,13 @@ pub mod tests {
         secret_provider
             .expect_get_secret()
             .times(3)
-            .returning(|_path| Err(SecretProviderError::Generic("persistent error".to_string())));
+            .returning(|_path| Err(SecretProviderError::GenericError("an error".to_string())));
 
         let result =
             secret_provider.get_secret_with_retry(3, Duration::from_millis(10), SecretPath::None);
 
-        assert_matches!(result, Err(SecretProviderError::Generic(s)) => {
-            assert_eq!(s, "persistent error".to_string());
+        assert_matches!(result, Err(SecretProviderError::GenericError(s)) => {
+            assert_eq!(s, "Failed to retrieve secret after all retry attempts".to_string());
         });
     }
 }

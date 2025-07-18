@@ -48,6 +48,15 @@ pub enum VaultError {
 
     #[error("secret not found in the specified source")]
     NotFound,
+
+    #[error("{0}")]
+    GenericError(String),
+}
+
+impl From<String> for VaultError {
+    fn from(s: String) -> Self {
+        VaultError::GenericError(s)
+    }
 }
 
 #[derive(Clone)]
