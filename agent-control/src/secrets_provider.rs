@@ -1,14 +1,3 @@
-//! Secrets provider module
-//!
-//! This module defines the configuration and traits for secrets providers used in the agent control system.
-//! It allows for flexible integration of various secrets providers, enabling retrieval of secrets from different sources.
-//!
-//! Adding support for a new secrets provider involves:
-//!
-//! * Adding a field to the [SecretsProvidersConfig] struct for the new provider's configuration.
-//! * Implementing the [SecretsProviderBuilder] trait for the new provider's configuration.
-//! * Updating the TryFrom implementation for [SecretsProvidersRegistry] to include the new provider.
-
 pub mod vault;
 
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError, VaultSecretPath};
@@ -26,7 +15,7 @@ const NR_VAULT:&str = "nr-vault";
 /// Configuration for supported secrets providers.
 ///
 /// Group of secrets providers configurations, that can be used to retrieve secrets from various sources.
-/// All providers should be optional. This allow users to configure only the ones they need.
+/// All providers should be optional. This allows users to configure only the ones they need.
 /// Besides, there no lower or upper limit on the number of providers that can be configured.
 /// Users can retrieve secrets from secret provider "A" and secret provider "B" at the same time.
 ///
@@ -57,7 +46,6 @@ const NR_VAULT:&str = "nr-vault";
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct SecretsProvidersConfig {
     pub vault: Option<VaultConfig>,
-    pub proxy_config: ProxyConfig,
 }
 
 /// Trait for building a client to retrieve secrets from a provider.
@@ -67,18 +55,13 @@ pub struct SecretsProvidersConfig {
 /// supported operation.
 pub trait SecretsProviderBuilder {
     type Provider: SecretsProvider;
+    type Error: Debug;
 
-    fn build_provider(&self) -> Result<Self::Provider, String>;
+    fn build_provider(&self) -> Result<Self::Provider, Self::Error>;
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
-    #[error("Failed to retrieve secret from provider: {0}")]
-    GetSecret(String),
-
-    #[error("Invalid configuration for secrets provider: {0}")]
-    InvalidProvider(String),
-
     #[error("Failed building Vault client: {0}")]
     VaultError(#[from] VaultError),
 }
@@ -157,7 +140,7 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
         let mut registry = SecretsProvidersRegistry::new();
 
         if let Some(vault_config) = config.vault {
-            let vault = Vault::try_build(vault_config, config.proxy_config)?;
+            let vault = vault_config.build_provider()?;
             registry.insert(NR_VAULT.to_string(), SecretsProviderKind::Vault(vault));
         }
 

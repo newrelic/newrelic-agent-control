@@ -1,4 +1,4 @@
-use super::{SecretPath, SecretsProvider};
+use super::{SecretPath, SecretsProvider, SecretsProviderBuilder};
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
@@ -65,15 +65,6 @@ pub enum SecretEngine {
     Kv2,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
-pub struct VaultConfig {
-    pub(crate) sources: HashMap<String, VaultSourceConfig>,
-
-    /// Client timeout
-    #[serde(default)]
-    pub(crate) client_timeout: ClientTimeout,
-}
-
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
     /// Vault credentials configuration
@@ -118,17 +109,40 @@ impl VaultSource {
     }
 }
 
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+pub struct VaultConfig {
+    pub(crate) sources: HashMap<String, VaultSourceConfig>,
+
+    /// Client timeout
+    #[serde(default)]
+    pub(crate) client_timeout: ClientTimeout,
+
+    #[serde(skip)]
+    pub proxy_config: ProxyConfig,
+}
+
+impl SecretsProviderBuilder for VaultConfig {
+    type Provider = Vault;
+    type Error = VaultError;
+
+    fn build_provider(&self) -> Result<Self::Provider, Self::Error> {
+        Vault::try_build(self.clone())
+    }
+}
+
+
+
 pub struct Vault {
     client: HttpClient,
     sources: HashMap<String, VaultSource>,
 }
 
 impl Vault {
-    pub fn try_build(config: VaultConfig, proxy_config: ProxyConfig) -> Result<Self, VaultError> {
+    pub fn try_build(config: VaultConfig) -> Result<Self, VaultError> {
         let http_config = HttpConfig::new(
             config.client_timeout.clone().into(),
             config.client_timeout.into(),
-            proxy_config,
+            config.proxy_config,
         );
 
         let sources = config
@@ -287,7 +301,7 @@ client_timeout: 3s
         let parsed_vault_config =
             serde_yaml::from_str::<VaultConfig>(vault_config.as_str()).unwrap();
 
-        let vault_client = Vault::try_build(parsed_vault_config, ProxyConfig::default()).unwrap();
+        let vault_client = Vault::try_build(parsed_vault_config).unwrap();
 
         struct TestCase {
             _name: &'static str,
