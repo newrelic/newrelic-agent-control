@@ -130,8 +130,6 @@ impl SecretsProviderBuilder for VaultConfig {
     }
 }
 
-
-
 pub struct Vault {
     client: HttpClient,
     sources: HashMap<String, VaultSource>,

@@ -1,16 +1,16 @@
 pub mod vault;
 
+use crate::http::config::ProxyConfig;
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError, VaultSecretPath};
+use http::header::InvalidHeaderValue;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::thread::sleep;
 use std::time::Duration;
-use http::header::InvalidHeaderValue;
 use tracing::debug;
-use crate::http::config::ProxyConfig;
 
-const NR_VAULT:&str = "nr-vault";
+const NR_VAULT: &str = "nr-vault";
 
 /// Configuration for supported secrets providers.
 ///
@@ -29,20 +29,11 @@ const NR_VAULT:&str = "nr-vault";
 ///     new_provider: Option<NewProviderConfig>,
 /// }
 ///
-/// struct NewProviderConfig {
-///    sources: HashMap<String, NewProviderSourceConfig>,
-/// }
-///
-/// struct NewProviderSourceConfig {
-///    // fields specific to the source
-/// }
+/// struct NewProviderConfig {}
 /// ```
 ///
 /// Integrating support for new providers involves implementing the [SecretsProviderBuilder] trait for the new provider's
 /// configuration.
-///
-/// In the future, secrets could be retrieved from additional sources such as cloud providers.
-/// For example, AWS Secrets Manager, Azure Key Vault, etc.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct SecretsProvidersConfig {
     pub vault: Option<VaultConfig>,

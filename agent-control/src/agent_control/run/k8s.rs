@@ -134,13 +134,14 @@ impl AgentControlRunner {
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let secrets_providers = if let Some(config) = &agent_control_config.secrets_providers {
-            SecretsProvidersRegistry::try_from(config.clone())
-                .map_err(|e| {
-                    AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
-                        "Failed to load secrets providers: {e}"
-                    )))
-                })?
-        } else {HashMap::default()};
+            SecretsProvidersRegistry::try_from(config.clone()).map_err(|e| {
+                AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
+                    "Failed to load secrets providers: {e}"
+                )))
+            })?
+        } else {
+            HashMap::default()
+        };
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
