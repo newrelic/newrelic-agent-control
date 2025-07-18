@@ -8,6 +8,7 @@ use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
+use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
@@ -17,10 +18,8 @@ use newrelic_agent_control::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBU
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
-use std::str::FromStr;
 use std::time::Duration;
 use url::Url;
-
 // These tests leverages an in-cluster chart repository populated with fixed versions which consist in the latest
 // released chart with a changed version.
 // The AC image corresponds to the compiled from the current code. Tilt is used to orchestrate all these
@@ -40,10 +39,6 @@ const MISSING_VERSION: &str = "9.9.9";
 
 const SECRET_NAME: &str = "ac-values";
 const VALUES_KEY: &str = "values.yaml";
-
-// URL to access to services binded on ports from minikube host
-// https://minikube.sigs.k8s.io/docs/handbook/host-access/
-const MINIKUBE_HOST_ACCESS: &str = "host.minikube.internal";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -381,8 +376,7 @@ fn bootstrap_ac(
     namespace: &str,
     chart_version: &str,
 ) -> InstanceID {
-    let mut opamp_endpoint = Url::from_str(&opamp_server.endpoint()).unwrap();
-    opamp_endpoint.set_host(Some(MINIKUBE_HOST_ACCESS)).unwrap();
+    let opamp_endpoint = get_minikube_opamp_url_from_fake_server(opamp_server.endpoint().as_str());
 
     print_pod_logs(client.clone(), namespace, AC_LABEL_SELECTOR);
 

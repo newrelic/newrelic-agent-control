@@ -1,14 +1,14 @@
+use crate::common::opamp::{ConfigResponse, FakeServer};
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
 use crate::k8s::self_update::{LOCAL_CHART_NEW_VERSION, LOCAL_CHART_PREVIOUS_VERSION};
 use crate::k8s::tools::cmd::print_cli_output;
+use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use newrelic_agent_control::agent_control::config::{
-    AgentControlDynamicConfig, helmrelease_v2_type_meta,
-};
-use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
-use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
+use crate::k8s::tools::logs::print_pod_logs;
+use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
 use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
@@ -17,6 +17,8 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
+const CLI_AC_LABEL_SELECTOR: &str = "app.kubernetes.io/name=agent-control-deployment";
+
 #[test]
 #[ignore = "needs k8s cluster"]
 // This test can break if the chart introduces any breaking changes.
@@ -24,17 +26,21 @@ use std::time::Duration;
 // a similar workaround than the one we use in the tiltfile.
 // The test is checking how local and remote upgrade are interacting
 fn k8s_cli_local_and_remote_updates() {
+    let mut opamp_server = FakeServer::start_new();
     let mut k8s_env = block_on(K8sEnv::new());
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());
     let k8s_client =
         Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
 
+    print_pod_logs(k8s_env.client.clone(), &ac_namespace, CLI_AC_LABEL_SELECTOR);
+
     create_simple_values_secret(
         k8s_env.client.clone(),
         &ac_namespace,
         &subagents_namespace,
         "test-secret",
+        opamp_server.endpoint().as_str(),
         "values.yaml",
     );
 
@@ -76,20 +82,24 @@ fn k8s_cli_local_and_remote_updates() {
         )
     });
 
-    // running updater doing an upgrade to "*"
-    let updater = K8sACUpdater::new(
-        k8s_client.clone(),
-        ac_namespace.clone(),
-        LOCAL_CHART_NEW_VERSION.to_string(),
-    );
     let latest_version = "*";
-    let config_to_update = &AgentControlDynamicConfig {
-        agents: Default::default(),
-        chart_version: Some(latest_version.to_string()),
-    };
-    updater
-        .update(config_to_update)
-        .expect("updater should not fail");
+    let ac_instance_id = instance_id::get_instance_id(
+        k8s_env.client.clone(),
+        ac_namespace.as_str(),
+        &AgentID::new_agent_control_id(),
+    );
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        ConfigResponse::from(
+            format!(
+                r#"
+agents: {{}}
+chart_version: "{latest_version}"
+"#
+            )
+            .as_str(),
+        ),
+    );
 
     retry(15, Duration::from_secs(5), || {
         check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &ac_namespace)
