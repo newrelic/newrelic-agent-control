@@ -91,7 +91,7 @@ local_resource(
     resource_deps=['chartmuseum'],
 )
 
-flags_helm = ['--create-namespace', '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
+flags_helm = ['--timeout=150s', '--create-namespace', '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080' ,'--version=>=0.0.0-beta','--set=agent-control-deployment.image.imagePullPolicy=Always','--values=' + sa_chart_values_file]
 
 if license_key != '':
   flags_helm.append('--set=global.licenseKey='+license_key)
@@ -114,6 +114,6 @@ helm_resource(
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
-update_settings(k8s_upsert_timeout_secs=150)
+update_settings(k8s_upsert_timeout_secs=200)
 
 
