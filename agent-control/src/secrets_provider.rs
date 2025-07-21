@@ -55,9 +55,6 @@ pub trait SecretsProviderBuilder {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
-    #[error("Failed to retrieve secret from provider: {0}")]
-    GetSecret(String),
-
     #[error("Failed building Vault client: {0}")]
     VaultError(#[from] VaultError),
 }
