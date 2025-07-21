@@ -20,8 +20,6 @@ const NR_VAULT: &str = "nr-vault";
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a "config"
 /// represented as a [HashMap]. Augmenting the structure is simple.
-/// For example, in the case of Vault we have decided to use only one Provider so we can
-/// reuse the same client for each source.
 ///
 /// Example:
 ///
@@ -107,18 +105,6 @@ pub trait SecretsProvider {
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a variant
 /// represented as a [HashMap]. Augmenting the enum is simple. Example:
-///
-/// ```
-/// # use std::collections::HashMap;
-/// pub enum SecretsProviderType {
-///    NewKind(HashMap<String, NewProvider>),
-/// }
-/// # struct NewProvider {}
-/// ```
-///
-/// The idea is that the [SecretsProvidersRegistry] holds a collection where each key is the name of the provider.
-/// The value can either be an instance of the [SecretsProvider] trait or a collection. In the latter, the key is
-/// the name of the source, and the value is an instance of [SecretsProvider].
 pub enum SecretsProviderType {
     Vault(Vault),
 }
