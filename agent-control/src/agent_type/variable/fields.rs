@@ -85,7 +85,7 @@ impl<T> FieldsDefinition<T>
 where
     T: PartialEq,
 {
-    /// Returns the corresponding [Fields] according to the provided configuration.
+    /// Returns the corresponding inner [Fields].
     pub fn with_config(self, _: &VariableConstraints) -> Fields<T> {
         Fields {
             required: self.required,
@@ -96,7 +96,7 @@ where
 }
 
 impl YamlFieldsDefinition {
-    /// Returns the corresponding [Fields] according to the provided configuration.
+    /// Returns the corresponding inner [Fields].
     pub fn with_config(self, _: &VariableConstraints) -> Fields<serde_yaml::Value> {
         Fields {
             required: self.inner.required,
