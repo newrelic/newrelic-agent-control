@@ -160,12 +160,9 @@ where
 
         let runtime_variables = match environment {
             Environment::K8s => {
-                let k8s_deployment_config = agent_type.runtime_config.deployment.k8s.clone();
-                let k8s_env_config = k8s_deployment_config
-                    .and_then(|k8s| k8s.objects.get("values").cloned())
-                    .and_then(|v| serde_yaml::to_string(&v.fields).ok())
-                    .unwrap_or_default();
-                let config = format!("{}\n{}", k8s_env_config, values_config);
+                let deployment_config = agent_type.runtime_config.deployment.k8s.clone();
+                let deployment_config = format!("{:?}", deployment_config.unwrap());
+                let config = format!("{}\n{}", deployment_config, values_config);
 
                 RuntimeVariables::from_config(&config)
             }
