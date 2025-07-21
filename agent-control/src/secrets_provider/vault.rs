@@ -255,7 +255,6 @@ impl SecretsProvider for Vault {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::http::config::ProxyConfig;
     use crate::secrets_provider::vault::VaultConfig;
     use httpmock::Method::GET;
     use httpmock::MockServer;

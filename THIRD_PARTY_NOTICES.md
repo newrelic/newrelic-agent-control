@@ -314,12 +314,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## bindgen <https://crates.io/crates/bindgen>
-
-Distributed under the following license(s):
-
-* BSD-3-Clause
-
 ## bitflags <https://crates.io/crates/bitflags>
 
 Distributed under the following license(s):
@@ -382,13 +376,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## cexpr <https://crates.io/crates/cexpr>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## cfg-if <https://crates.io/crates/cfg-if>
 
 Distributed under the following license(s):
@@ -407,12 +394,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-* Apache-2.0
-
-## clang-sys <https://crates.io/crates/clang-sys>
-
-Distributed under the following license(s):
-
 * Apache-2.0
 
 ## clap <https://crates.io/crates/clap>
@@ -482,6 +463,20 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## const-random <https://crates.io/crates/const-random>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## const-random-macro <https://crates.io/crates/const-random-macro>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## const_panic <https://crates.io/crates/const_panic>
 
@@ -579,6 +574,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## crunchy <https://crates.io/crates/crunchy>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## crypto-common <https://crates.io/crates/crypto-common>
 
 Distributed under the following license(s):
@@ -670,6 +671,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## dlv-list <https://crates.io/crates/dlv-list>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## downcast <https://crates.io/crates/downcast>
 
 Distributed under the following license(s):
@@ -736,13 +744,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * MIT
-
-## errno <https://crates.io/crates/errno>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## event-listener <https://crates.io/crates/event-listener>
 
@@ -1276,13 +1277,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## lazycell <https://crates.io/crates/lazycell>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## libc <https://crates.io/crates/libc>
 
 Distributed under the following license(s):
@@ -1301,12 +1295,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## libloading <https://crates.io/crates/libloading>
-
-Distributed under the following license(s):
-
-* ISC
 
 ## linux-raw-sys <https://crates.io/crates/linux-raw-sys>
 
@@ -1549,6 +1537,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## ordered-float <https://crates.io/crates/ordered-float>
+
+Distributed under the following license(s):
+
+* MIT
+
+## ordered-multimap <https://crates.io/crates/ordered-multimap>
 
 Distributed under the following license(s):
 
@@ -1855,6 +1849,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## rust-ini <https://crates.io/crates/rust-ini>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## rust_decimal <https://crates.io/crates/rust_decimal>
 
 Distributed under the following license(s):
@@ -1867,13 +1867,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## rustc-hash <https://crates.io/crates/rustc-hash>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
 
 ## rusticata-macros <https://crates.io/crates/rusticata-macros>
 
@@ -2194,6 +2187,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## tiny-keccak <https://crates.io/crates/tiny-keccak>
+
+Distributed under the following license(s):
+
+* CC0-1.0
+
 ## tinystr <https://crates.io/crates/tinystr>
 
 Distributed under the following license(s):
@@ -2220,6 +2219,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## tokio-stream <https://crates.io/crates/tokio-stream>
+
+Distributed under the following license(s):
+
+* MIT
+
+## tokio-tungstenite <https://crates.io/crates/tokio-tungstenite>
 
 Distributed under the following license(s):
 
@@ -2330,6 +2335,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## tungstenite <https://crates.io/crates/tungstenite>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## typenum <https://crates.io/crates/typenum>
 
 Distributed under the following license(s):
@@ -2391,6 +2403,13 @@ Distributed under the following license(s):
 * ISC
 
 ## url <https://crates.io/crates/url>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## utf-8 <https://crates.io/crates/utf-8>
 
 Distributed under the following license(s):
 
@@ -2513,12 +2532,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * CDLA-Permissive-2.0
-
-## which <https://crates.io/crates/which>
-
-Distributed under the following license(s):
-
-* MIT
 
 ## winapi <https://crates.io/crates/winapi>
 
