@@ -19,7 +19,11 @@ const NR_VAULT: &str = "nr-vault";
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a "config"
-/// represented as a [HashMap]. Augmenting the structure is simple. Example:
+/// represented as a [HashMap]. Augmenting the structure is simple.
+/// For example, in the case of Vault we have decided to use only one Provider so we can
+/// reuse the same client for each source.
+///
+/// Example:
 ///
 /// ```
 /// # use std::collections::HashMap;

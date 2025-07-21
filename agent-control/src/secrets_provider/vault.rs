@@ -77,6 +77,15 @@ pub enum SecretEngine {
     Kv2,
 }
 
+impl SecretEngine {
+    fn get_url(&self, url: Url, mount: &str, path: &str) -> Result<Url, VaultError> {
+        match self {
+            SecretEngine::Kv1 => Ok(url.join(format!("{}/{}", mount, path).as_str())?),
+            SecretEngine::Kv2 => Ok(url.join(format!("{}/data/{}", mount, path).as_str())?),
+        }
+    }
+}
+
 /// Configuration for a Vault source, including URL, token, and engine type.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
@@ -116,8 +125,14 @@ pub struct VaultSource {
 
 impl VaultSource {
     fn new(config: VaultSourceConfig) -> Self {
+        let mut url = config.url;
+        let path = url.path();
+        if !path.ends_with('/') {
+            url.set_path(&format!("{}/", path));
+        }
+
         Self {
-            url: config.url,
+            url,
             token: config.token,
             engine: config.engine,
         }
@@ -175,20 +190,6 @@ impl Vault {
             sources,
         })
     }
-
-    /// Constructs a URL for accessing secrets based on the engine type.
-    fn get_url_by_engine(
-        mut url: Url,
-        mount: &str,
-        path: &str,
-        engine: &SecretEngine,
-    ) -> Result<Url, VaultError> {
-        url = url.join(format!("{}/", mount).as_str())?;
-        if engine == &SecretEngine::Kv2 {
-            url = url.join("data/")?;
-        }
-        Ok(url.join(path)?)
-    }
 }
 
 /// Implements the SecretsProvider trait for Vault, allowing it to retrieve secrets.
@@ -205,11 +206,10 @@ impl SecretsProvider for Vault {
             .get(&vault_secret_path.source)
             .ok_or(VaultError::SourceNotFound)?;
 
-        let url = Self::get_url_by_engine(
+        let url = vault_source.engine.get_url(
             vault_source.url.clone(),
             vault_secret_path.mount.as_str(),
             vault_secret_path.path.as_str(),
-            &vault_source.engine,
         )?;
 
         let mut request = Request::builder()
@@ -292,22 +292,25 @@ mod tests {
     fn test_get_secrets() {
         let target_server = MockServer::start();
         target_server.mock(|when, then| {
-            when.method(GET).path(KV1_PATH);
+            when.method(GET).path(format!("/v1{}", KV1_PATH));
             then.status(200).body(KV1_RESPONSE);
         });
         target_server.mock(|when, then| {
-            when.method(GET).path(KV2_PATH);
+            when.method(GET).path(format!("/v1{}", KV2_PATH));
             then.status(200).body(KV2_RESPONSE);
         });
+
+        // We set one source with and another without trailing-slash to ensure correct creation
+        // by the VaultSource creator
         let vault_config = format!(
             r#"
 sources:
   sourceA:
-    url: {}
+    url: {}/v1
     token: root
     engine: kv1
   sourceB:
-    url: {}
+    url: {}/v1/
     token: root
     engine: kv2
 client_timeout: 3s
