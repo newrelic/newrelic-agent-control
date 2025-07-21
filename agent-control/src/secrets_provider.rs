@@ -109,7 +109,7 @@ pub trait SecretsProvider {
 ///
 /// ```
 /// # use std::collections::HashMap;
-/// pub enum SecretsProviderKind {
+/// pub enum SecretsProviderType {
 ///    NewKind(HashMap<String, NewProvider>),
 /// }
 /// # struct NewProvider {}
@@ -118,12 +118,12 @@ pub trait SecretsProvider {
 /// The idea is that the [SecretsProvidersRegistry] holds a collection where each key is the name of the provider.
 /// The value can either be an instance of the [SecretsProvider] trait or a collection. In the latter, the key is
 /// the name of the source, and the value is an instance of [SecretsProvider].
-pub enum SecretsProviderKind {
+pub enum SecretsProviderType {
     Vault(Vault),
 }
 
-/// Collection of [SecretsProviderKind]s.
-pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderKind>;
+/// Collection of [SecretsProviderType]s.
+pub type SecretsProvidersRegistry = HashMap<String, SecretsProviderType>;
 
 impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
     type Error = SecretsProvidersError;
@@ -136,7 +136,7 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
 
         if let Some(vault_config) = config.vault {
             let vault = vault_config.build_provider()?;
-            registry.insert(NR_VAULT.to_string(), SecretsProviderKind::Vault(vault));
+            registry.insert(NR_VAULT.to_string(), SecretsProviderType::Vault(vault));
         }
 
         Ok(registry)
