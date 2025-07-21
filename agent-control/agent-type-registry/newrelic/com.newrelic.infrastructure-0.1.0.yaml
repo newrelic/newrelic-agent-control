@@ -75,6 +75,33 @@ variables:
       description: "nri-bundle chart version"
       type: string
       required: true
+    chart_name:
+      description: "nri-bundle chart name"
+      type: string
+      required: false
+      default: "nri-bundle"
+    chart_repository:
+      url:
+        description: "chart repository url"
+        type: string
+        required: false
+        default: "https://helm-charts.newrelic.com"
+        # For security reasons, the chart repository URL must be allow-listed.
+        variants:
+          ac_config_field: "chart_repository_urls"
+          values: ["https://helm-charts.newrelic.com"]
+      secret_reference:
+        description: "HelmRepository secret reference (secretRef)"
+        type: yaml
+        required: false
+        # Flux doesn't allow an empty secretRef field
+        default: null
+      certificate_secret_reference:
+        description: "HelmRepository certificate secret reference (certSecretRef)"
+        type: yaml
+        required: false
+        default: null
+    
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
@@ -124,7 +151,9 @@ deployment:
           # a configuration drift and trigger the re-apply of the config in each interval.
           # We want to avoid it, so we set it explicitly.
           provider: generic
-          url: https://helm-charts.newrelic.com
+          url: ${nr-var:chart_repository.url}
+          secretRef: ${nr-var:chart_repository.secret_reference}
+          certSecretRef: ${nr-var:chart_repository.certificate_secret_reference}
       # Creates HelmCharts values inside Secrets to avoid exposing any sensible information.
       values:
         apiVersion: v1
@@ -203,7 +232,7 @@ deployment:
           # Reference to the created HelmRepository.
           chart:
             spec:
-              chart: nri-bundle
+              chart: ${nr-var:chart_name}
               # This is where the chart version to be installed is defined. Whenever AC updates this Flux triggers a reconciliation.
               version: ${nr-var:chart_version}
               # This value gets rendered even if not specified so, even 'ChartVersion' is the default, it is required to specify 
