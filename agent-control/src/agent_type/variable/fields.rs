@@ -22,6 +22,15 @@ where
     pub(crate) default: Option<T>,
 }
 
+/// Type to support special default deserialization for 'null' Yaml value in 'default'.
+/// This type is special since the only way to specify the Yaml null value in the AgentType
+/// which is rendered from Yaml is by setting default to null which is equal to not define it.
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct YamlFieldsDefinition {
+    #[serde(flatten)]
+    pub(crate) inner: FieldsDefinition<serde_yaml::Value>,
+}
+
 /// Type support additional fields for the string type
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct StringFieldsDefinition {
@@ -81,6 +90,17 @@ where
         Fields {
             required: self.required,
             default: self.default,
+            final_value: None,
+        }
+    }
+}
+
+impl YamlFieldsDefinition {
+    /// Returns the corresponding [Fields] according to the provided configuration.
+    pub fn with_config(self, _: &VariableConstraints) -> Fields<serde_yaml::Value> {
+        Fields {
+            required: self.inner.required,
+            default: self.inner.default,
             final_value: None,
         }
     }
@@ -171,13 +191,58 @@ where
         }
 
         let intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
+
+        if intermediate_spec.required && intermediate_spec.default.is_some() {
+            return Err(D::Error::custom(AgentTypeError::Parse(
+                "default value cannot be specified for a required spec key".to_string(),
+            )));
+        }
+
         if intermediate_spec.default.is_none() && !intermediate_spec.required {
-            return Err(D::Error::custom(AgentTypeError::MissingDefault));
+            return Err(D::Error::custom(AgentTypeError::Parse(
+                "missing default value for a non-required spec key".to_string(),
+            )));
         }
 
         Ok(FieldsDefinition {
             default: intermediate_spec.default,
             required: intermediate_spec.required,
+        })
+    }
+}
+
+// An special deserializer is used in order to consider the absence of default as a 'null' Yaml default value.
+impl<'de> Deserialize<'de> for YamlFieldsDefinition {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        use serde::de::Error;
+
+        #[derive(Debug, Deserialize)]
+        struct IntermediateValueKind {
+            default: Option<serde_yaml::Value>,
+            required: bool,
+        }
+
+        let mut intermediate_spec = IntermediateValueKind::deserialize(deserializer)?;
+
+        if intermediate_spec.required && intermediate_spec.default.is_some() {
+            return Err(D::Error::custom(AgentTypeError::Parse(
+                "default value cannot be specified for a required spec key".to_string(),
+            )));
+        }
+
+        // Supports to set 'Null' Yaml default value.
+        if !intermediate_spec.required && intermediate_spec.default.is_none() {
+            intermediate_spec.default = Some(serde_yaml::Value::Null)
+        }
+
+        Ok(YamlFieldsDefinition {
+            inner: FieldsDefinition {
+                required: intermediate_spec.required,
+                default: intermediate_spec.default,
+            },
         })
     }
 }
@@ -188,12 +253,15 @@ mod tests {
 
     use assert_matches::assert_matches;
     use rstest::rstest;
+    use serde_yaml::Mapping;
 
     use crate::agent_type::{
         error::AgentTypeError,
         variable::{
             constraints::VariableConstraints,
-            fields::{StringFields, StringFieldsDefinition},
+            fields::{
+                FieldsDefinition, StringFields, StringFieldsDefinition, YamlFieldsDefinition,
+            },
             variants::Variants,
         },
     };
@@ -248,6 +316,14 @@ mod tests {
                     final_value,
                 },
                 variants,
+            }
+        }
+    }
+
+    impl YamlFieldsDefinition {
+        pub(crate) fn new(required: bool, default: Option<serde_yaml::Value>) -> Self {
+            Self {
+                inner: FieldsDefinition { required, default },
             }
         }
     }
@@ -324,5 +400,88 @@ mod tests {
 
         let fields = fields_def.with_config(&constraints);
         assert_eq!(fields, expected);
+    }
+
+    #[rstest]
+    #[case::null_explicit_title(
+        r#"
+        required: false
+        default: Null
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::null_explicit_lower(
+        r#"
+        required: false
+        default: null
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::null_explicit_upper(
+        r#"
+        required: false
+        default: NULL
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::null_explicit_symbol(
+        r#"
+        required: false
+        default: ~
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::null_explicit_empty(
+        r#"
+        required: false
+        default:
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::null_by_absence(
+        r#"
+        required: false
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Null),)
+    )]
+    #[case::emtpy_map(
+        r#"
+        required: false
+        default: { }
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Mapping(Mapping::default())),)
+    )]
+    #[case::other_yaml_value(
+        r#"
+        required: false
+        default: true
+        "#,
+        YamlFieldsDefinition::new(false, Some(serde_yaml::Value::Bool(true)),)
+    )]
+    fn test_parse_yaml_field_definition(
+        #[case] def_str: &str,
+        #[case] expected: YamlFieldsDefinition,
+    ) {
+        let fields_def: YamlFieldsDefinition = serde_yaml::from_str(def_str).unwrap();
+        assert_eq!(fields_def, expected);
+    }
+
+    #[rstest]
+    #[case::missing_required(
+        r#"
+        default: true
+        "#,
+        "missing"
+    )]
+    #[case::required_default(
+        r#"
+        required: true
+        default: true
+        "#,
+        "default value cannot be specified for a required spec key"
+    )]
+    fn test_fail_parse_yaml_field_definition(#[case] def_str: &str, #[case] expected_error: &str) {
+        let err = serde_yaml::from_str::<YamlFieldsDefinition>(def_str).unwrap_err();
+        assert!(err.to_string().contains(expected_error));
     }
 }

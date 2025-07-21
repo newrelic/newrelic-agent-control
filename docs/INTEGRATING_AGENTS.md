@@ -93,11 +93,13 @@ The value type that is accepted for this variable. As of now, the following type
 
 ##### `required` (`bool`)
 
-Specifies if providing a value for this variable is required or not. If `required` is `false`, a `default` value of its specified [type](#type-string) needs to be provided.
+Specifies if providing a value for this variable is required or not. If `required` is `false`, a `default` value of its specified [type](#type-string) needs to be provided. If `required` is `true`, then a `default` value cannot be specified.
 
 ##### `default` (optional)
 
 A default value for this variable, for the cases where no configuration value has been passed for this variable when creating an instance for the agent type. Its value must be of the same type as the one declared for the variable.
+
+In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
 
 ##### `file_path` (`String`, optional)
 

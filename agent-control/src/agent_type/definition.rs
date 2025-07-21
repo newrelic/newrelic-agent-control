@@ -359,7 +359,7 @@ variables:
     integrations:
       description: "Newrelic integrations configuration yamls"
       type: map[string]file
-      required: true
+      required: false
       default:
         kafka: |
           bootstrap: zookeeper
