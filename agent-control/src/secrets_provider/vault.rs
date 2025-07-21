@@ -110,9 +110,9 @@ impl SecretEngine {
 /// Configuration for a Vault source, including URL, token, and engine type.
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct VaultSourceConfig {
-    pub(crate) url: Url,
-    pub(crate) token: String,
-    pub(crate) engine: SecretEngine,
+    url: Url,
+    token: String,
+    engine: SecretEngine,
 }
 
 /// Type to represent a client timeout. It adds a default implementation to [std::time::Duration].
