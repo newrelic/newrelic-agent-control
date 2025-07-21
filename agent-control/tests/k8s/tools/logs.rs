@@ -6,7 +6,7 @@ use kube::api::{Api, WatchEvent};
 use kube::api::{LogParams, WatchParams};
 use kube::runtime::reflector::Lookup;
 use std::time::Duration;
-pub const AC_LABEL_SELECTOR: &str = "app.kubernetes.io/name=agent-control";
+pub const AC_LABEL_SELECTOR: &str = "app.kubernetes.io/instance=agent-control-deployment";
 /// Watches for newly created pods matching the specified label selector and spawns a logger for each pod.
 pub fn print_pod_logs(client: Client, namespace: &str, label_selector: &str) {
     let selector = label_selector.to_string();
