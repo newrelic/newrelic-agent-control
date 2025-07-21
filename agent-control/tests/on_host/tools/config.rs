@@ -44,6 +44,7 @@ pub fn create_agent_control_config_with_proxy(
 host_id: integration-test
 fleet_control:
   endpoint: {}
+  poll_interval: 5s
   signature_validation: 
     certificate_pem_file_path: {}
 agents: {}

@@ -5,16 +5,22 @@ use super::instance_id::getter::GetterError;
 use crate::agent_control::agent_id::AgentID;
 use crate::event::OpAMPEvent;
 use crate::event::channel::EventPublisher;
+use duration_str::deserialize_duration;
 use opamp_client::http::client::OpAMPHttpClient;
 use opamp_client::http::{NotStartedHttpClient, StartedHttpClient};
 use opamp_client::operation::settings::StartSettings;
 use opamp_client::{NotStartedClient, NotStartedClientError, StartedClient};
+use serde::Deserialize;
 use std::time::Duration;
 use thiserror::Error;
 use tracing::{error, info};
+use wrapper_with_default::WrapperWithDefault;
 
 /// Default poll interval for the OpAMP http managed client
 pub const DEFAULT_POLL_INTERVAL: Duration = Duration::from_secs(30);
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
+#[wrapper_default_value(DEFAULT_POLL_INTERVAL)]
+pub struct PollInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
@@ -45,7 +51,7 @@ where
 {
     effective_config_loader_builder: B,
     http_client_builder: C,
-    poll_interval: Duration,
+    poll_interval: PollInterval,
     disable_startup_check: bool,
 }
 
@@ -57,7 +63,7 @@ where
     pub fn new(
         http_client_builder: C,
         effective_config_loader_builder: B,
-        poll_interval: Duration,
+        poll_interval: PollInterval,
     ) -> Self {
         Self {
             effective_config_loader_builder,
@@ -96,7 +102,7 @@ where
         let effective_config_loader = self.effective_config_loader_builder.build(agent_id.clone());
         let callbacks = AgentCallbacks::new(agent_id, opamp_publisher, effective_config_loader);
         let not_started_client = NotStartedHttpClient::new(http_client, callbacks, start_settings)?;
-        let mut not_started_client = not_started_client.with_interval(self.poll_interval);
+        let mut not_started_client = not_started_client.with_interval(self.poll_interval.into());
         if self.disable_startup_check {
             not_started_client = not_started_client.with_startup_check_disabled();
         }

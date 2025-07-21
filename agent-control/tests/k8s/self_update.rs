@@ -24,7 +24,6 @@ use url::Url;
 // released chart with a changed version.
 // The AC image corresponds to the compiled from the current code. Tilt is used to orchestrate all these
 // test environment set-up.
-// TODO we might drastically reduce the execution time of these test if we hack a way to reduce the opamp poll interval
 
 pub const LOCAL_CHART_REPOSITORY: &str = "http://chartmuseum.default.svc.cluster.local:8080";
 // This version contains the image from remote
@@ -430,6 +429,7 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
               },
               "fleet_control": {
                 "endpoint": opamp_endpoint.as_str(),
+                "poll_interval": "5s",
                 "signature_validation": {
                   "enabled": "false",
                 },

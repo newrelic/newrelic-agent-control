@@ -13,6 +13,7 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
+use crate::opamp::client_builder::PollInterval;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
 use crate::opamp::remote_config::validators::signature::validator::{
     SignatureValidator, build_signature_validator,
@@ -21,7 +22,6 @@ use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::runtime::Runtime;
 use tracing::{debug, error};
 
@@ -67,7 +67,6 @@ impl Default for BasePaths {
 /// Structures for running the agent-control provided by CLI inputs
 pub struct AgentControlRunConfig {
     pub opamp: Option<OpAMPClientConfig>,
-    pub opamp_poll_interval: Duration,
     pub http_server: ServerConfig,
     pub base_paths: BasePaths,
     pub proxy: ProxyConfig,
@@ -83,7 +82,7 @@ pub struct AgentControlRunner {
     agent_type_registry: Arc<EmbeddedRegistry>,
     application_event_consumer: EventConsumer<ApplicationEvent>,
     opamp_http_builder: Option<OpAMPHttpClientBuilder<TokenRetrieverImpl>>,
-    opamp_poll_interval: Duration,
+    opamp_poll_interval: PollInterval,
     agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     signature_validator: SignatureValidator,
@@ -152,6 +151,12 @@ impl AgentControlRunner {
             config.base_paths.local_dir.join(DYNAMIC_AGENT_TYPE_DIR),
         ));
 
+        let opamp_poll_interval = config
+            .opamp
+            .as_ref()
+            .map(|c| c.poll_interval)
+            .unwrap_or_default();
+
         let signature_validator = config
             .opamp
             .map(|fleet_config| {
@@ -167,7 +172,7 @@ impl AgentControlRunner {
             agent_type_registry,
             application_event_consumer,
             opamp_http_builder,
-            opamp_poll_interval: config.opamp_poll_interval,
+            opamp_poll_interval,
             agent_control_publisher,
             sub_agent_publisher,
             base_paths: config.base_paths,

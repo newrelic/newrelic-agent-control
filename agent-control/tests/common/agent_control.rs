@@ -32,14 +32,8 @@ pub fn start_agent_control_with_custom_config(
 
         let agent_control_config = config_storer.load().unwrap();
 
-        // TODO - Temporal solution until https://new-relic.atlassian.net/browse/NR-343594 is done.
-        // There is a current issue with the diff computation the GC does in order to collect agents. If a new agent is added and removed
-        // before the GC process it, the resources will never be collected.
-        let opamp_poll_interval = Duration::from_secs(5);
-
         let run_config = AgentControlRunConfig {
             opamp: agent_control_config.fleet_control,
-            opamp_poll_interval,
             http_server: agent_control_config.server,
             base_paths,
             proxy: agent_control_config.proxy,

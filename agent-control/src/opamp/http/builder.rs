@@ -100,14 +100,12 @@ pub(crate) mod tests {
     use opamp_client::operation::settings::StartSettings;
     use opamp_client::{StartedClient, http::HttpClientError};
 
-    use crate::opamp::client_builder::OpAMPClientBuilderError;
+    use crate::opamp::client_builder::{OpAMPClientBuilderError, PollInterval};
     use crate::{
         agent_control::agent_id::AgentID,
         event::channel::pub_sub,
         opamp::{
-            client_builder::{
-                DEFAULT_POLL_INTERVAL, DefaultOpAMPClientBuilder, OpAMPClientBuilder,
-            },
+            client_builder::{DefaultOpAMPClientBuilder, OpAMPClientBuilder},
             effective_config::loader::tests::{
                 MockEffectiveConfigLoader, MockEffectiveConfigLoaderBuilder,
             },
@@ -160,7 +158,7 @@ pub(crate) mod tests {
         let builder = DefaultOpAMPClientBuilder::new(
             http_builder,
             effective_config_loader_builder,
-            DEFAULT_POLL_INTERVAL,
+            PollInterval::default(),
         );
 
         let started_client = builder
@@ -191,7 +189,7 @@ pub(crate) mod tests {
         let builder = DefaultOpAMPClientBuilder::new(
             http_builder,
             effective_config_loader_builder,
-            DEFAULT_POLL_INTERVAL,
+            PollInterval::default(),
         );
         let actual_client = builder.build_and_start(tx, agent_id, start_settings);
 
