@@ -84,6 +84,27 @@ impl SecretEngine {
             SecretEngine::Kv2 => Ok(url.join(format!("{}/data/{}", mount, path).as_str())?),
         }
     }
+
+    fn parse_secret_response(
+        &self,
+        vault_secret_path: VaultSecretPath,
+        body: String,
+    ) -> Result<Option<String>, VaultError> {
+        Ok(match self {
+            SecretEngine::Kv1 => {
+                let response: KV1SecretData = serde_json::from_str(&body)?;
+                response.data.get(vault_secret_path.name.as_str()).cloned()
+            }
+            SecretEngine::Kv2 => {
+                let response: KV2SecretData = serde_json::from_str(&body)?;
+                response
+                    .data
+                    .data
+                    .get(vault_secret_path.name.as_str())
+                    .cloned()
+            }
+        })
+    }
 }
 
 /// Configuration for a Vault source, including URL, token, and engine type.
@@ -230,20 +251,9 @@ impl SecretsProvider for Vault {
         let body = String::from_utf8(response.into_body())
             .map_err(|e| VaultError::DeserializeError(format!("invalid utf8 response: {e}")))?;
 
-        let maybe_secret = match vault_source.engine {
-            SecretEngine::Kv1 => {
-                let response: KV1SecretData = serde_json::from_str(&body)?;
-                response.data.get(vault_secret_path.name.as_str()).cloned()
-            }
-            SecretEngine::Kv2 => {
-                let response: KV2SecretData = serde_json::from_str(&body)?;
-                response
-                    .data
-                    .data
-                    .get(vault_secret_path.name.as_str())
-                    .cloned()
-            }
-        };
+        let maybe_secret = vault_source
+            .engine
+            .parse_secret_response(vault_secret_path, body)?;
 
         maybe_secret.map_or_else(
             || Err(VaultError::NotFound),
