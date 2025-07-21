@@ -1,5 +1,4 @@
 use crate::k8s::tools::k8s_port_forwarder::PortForwardServer;
-use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig, VaultSecretPath};
 use newrelic_agent_control::secrets_provider::{SecretPath, SecretsProvider};
 use serde_json::Value;

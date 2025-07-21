@@ -1,6 +1,4 @@
-use crate::common::opamp::FakeServer;
 use crate::common::runtime::tokio_runtime;
-use futures::StreamExt;
 use futures::TryStreamExt;
 use k8s_openapi::api::core::v1::Pod;
 use kube::runtime::wait::Error as KubeWaitError;
@@ -10,14 +8,10 @@ use kube::{
     runtime::wait::{await_condition, conditions::is_pod_running},
 };
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
-use resource_detection::system::detector::SystemDetectorError;
+use std::env;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::{env, fmt};
-use tempfile::TempDir;
 use thiserror::Error;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::TcpListenerStream;
 use tracing::*;
