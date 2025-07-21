@@ -1,8 +1,6 @@
 pub mod vault;
 
-use crate::http::config::ProxyConfig;
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError, VaultSecretPath};
-use http::header::InvalidHeaderValue;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;

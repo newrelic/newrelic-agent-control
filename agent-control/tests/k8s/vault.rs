@@ -1,3 +1,4 @@
+use crate::k8s::tools::k8s_port_forwarder::PortForwardServer;
 use newrelic_agent_control::http::config::ProxyConfig;
 use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig, VaultSecretPath};
 use newrelic_agent_control::secrets_provider::{SecretPath, SecretsProvider};
@@ -33,8 +34,11 @@ const KV2_DATA_PATH: &str = "tests/k8s/data/vault_kv2_secrets.json";
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_vault_get_secrets() {
+    // start the port_forwarder that will allow accessing vault in port 8200
+    let _port_forwarder = PortForwardServer::start_new("vault-0", 8200, 8200);
+
     let vault_config = serde_yaml::from_str::<VaultConfig>(VAULT_CONFIG).unwrap();
-    let vault_client = Vault::try_build(vault_config, ProxyConfig::default()).unwrap();
+    let vault_client = Vault::try_build(vault_config).unwrap();
 
     let mut file_kv1 = File::open(KV1_DATA_PATH).expect("Failed to open KV1 data file");
     let mut data_kv1 = String::new();
