@@ -104,7 +104,7 @@ pub trait SecretsProvider {
 ///
 /// The structure is flexible enough to support multiple sources from the same provider.
 /// This is a decision the implementer of the provider must make. This entails creating a variant
-/// represented as a [HashMap]. Augmenting the enum is simple. Example:
+/// represented as a [HashMap].
 pub enum SecretsProviderType {
     Vault(Vault),
 }
