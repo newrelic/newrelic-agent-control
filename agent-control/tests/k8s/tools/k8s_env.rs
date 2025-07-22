@@ -1,14 +1,42 @@
 use crate::common::runtime::tokio_runtime;
 
 use super::test_crd::create_foo_crd;
-use k8s_openapi::api::core::v1::Namespace;
+use futures::TryStreamExt;
+use k8s_openapi::api::core::v1::{Namespace, Pod};
 use k8s_openapi::api::rbac::v1::ClusterRole;
+use kube::runtime::conditions::is_pod_running;
+use kube::runtime::wait::Error as KubeWaitError;
+use kube::runtime::wait::await_condition;
 use kube::{
-    Api, Client,
+    Api, Client, ResourceExt,
     api::{DeleteParams, PostParams},
 };
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
+use std::net::SocketAddr;
 use std::{env, sync::Once};
+use thiserror::Error;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::task::JoinHandle;
+use tokio_stream::wrappers::TcpListenerStream;
+use tracing::{error, info};
+
+#[derive(Debug, Error)]
+enum PortForwardError {
+    #[error("kube wait error `{0}`")]
+    KubeWaitError(#[from] KubeWaitError),
+
+    #[error("pod not found: {0}")]
+    PodNotFound(String),
+
+    #[error("connection failed: {0}")]
+    ConnectionFailed(String),
+
+    #[error("operation timed out: {0}")]
+    Timeout(String),
+
+    #[error("an error occurred: {0}")]
+    Other(String),
+}
 
 pub const KUBECONFIG_PATH: &str = "tests/k8s/.kubeconfig-dev";
 
@@ -20,6 +48,7 @@ pub static INIT_RUSTLS: Once = Once::new();
 pub struct K8sEnv {
     pub client: Client,
     generated_namespaces: Vec<String>,
+    port_forwarder_handle: Option<JoinHandle<()>>,
 }
 
 impl K8sEnv {
@@ -37,6 +66,7 @@ impl K8sEnv {
         K8sEnv {
             client,
             generated_namespaces: Vec::new(),
+            port_forwarder_handle: None,
         }
     }
 
@@ -62,6 +92,68 @@ impl K8sEnv {
 
         ns
     }
+
+    pub fn port_forward(&mut self, pod_name: &str, local_port: u16, pod_port: u16) {
+        let pod_name = pod_name.to_string();
+        let client = self.client.clone();
+
+        let handle = tokio_runtime().spawn(async move {
+            if let Err(e) = async {
+                let pods: Api<Pod> = Api::default_namespaced(client);
+
+                let p = pods
+                    .get(&pod_name)
+                    .await
+                    .map_err(|_| PortForwardError::PodNotFound(pod_name.clone()))?;
+                info!("Found pod: {}", p.name_any());
+
+                let running = await_condition(pods.clone(), &pod_name, is_pod_running());
+                tokio::time::timeout(std::time::Duration::from_secs(60), running)
+                    .await
+                    .map_err(|_| {
+                        PortForwardError::Timeout("Pod running check timed out".to_string())
+                    })??;
+                info!("Pod is running");
+
+                let addr = SocketAddr::from(([127, 0, 0, 1], local_port));
+                let server =
+                    TcpListenerStream::new(TcpListener::bind(addr).await.map_err(|e| {
+                        PortForwardError::ConnectionFailed(format!("Failed to bind: {}", e))
+                    })?)
+                    .try_for_each(|client_conn| async {
+                        if let Ok(peer_addr) = client_conn.peer_addr() {
+                            info!(%peer_addr, "new connection");
+                        }
+                        let pods = pods.clone();
+                        let pod_name = pod_name.clone();
+                        // Spawn a new task to forward the connection to the pod.
+                        tokio::spawn(async move {
+                            if let Err(e) =
+                                forward_connection(&pods, &pod_name, pod_port, client_conn).await
+                            {
+                                error!(
+                                    error = e.to_string().as_str(),
+                                    "failed to forward connection"
+                                );
+                            }
+                        });
+                        Ok(())
+                    });
+
+                server
+                    .await
+                    .map_err(|e| PortForwardError::Other(format!("Server error: {}", e)))?;
+                info!("Shutting down");
+                Ok::<(), PortForwardError>(())
+            }
+            .await
+            {
+                error!(error = %e, "server error");
+            }
+        });
+
+        self.port_forwarder_handle = Some(handle);
+    }
 }
 
 impl Drop for K8sEnv {
@@ -86,6 +178,10 @@ impl Drop for K8sEnv {
         // ```
         // 'there is no reactor running, must be called from the context of a Tokio 1.x runtime
         // ```
+        if let Some(handle) = self.port_forwarder_handle.take() {
+            handle.abort();
+        }
+
         futures::executor::block_on(async move {
             let ns_api: Api<Namespace> = Api::all(self.client.clone());
             let cr_api: Api<ClusterRole> = Api::all(self.client.clone());
@@ -112,4 +208,35 @@ impl Drop for K8sEnv {
                 .unwrap();
         })
     }
+}
+
+/// forward_connection forwards the stream from calling porforward on a pod in a specific port
+/// to the TcpStream passed in client_conn
+async fn forward_connection(
+    pods: &Api<Pod>,
+    pod_name: &str,
+    port: u16,
+    mut client_conn: TcpStream,
+) -> Result<(), PortForwardError> {
+    let mut forwarder = pods
+        .portforward(pod_name, &[port])
+        .await
+        .map_err(|_| PortForwardError::PodNotFound(pod_name.to_string()))?;
+
+    let mut upstream_conn = forwarder
+        .take_stream(port)
+        .ok_or_else(|| PortForwardError::Other("port not found in forwarder".to_string()))?;
+
+    tokio::io::copy_bidirectional(&mut client_conn, &mut upstream_conn)
+        .await
+        .map_err(|_| PortForwardError::ConnectionFailed("failed to copy data".to_string()))?;
+
+    drop(upstream_conn);
+    forwarder
+        .join()
+        .await
+        .map_err(|_| PortForwardError::Timeout("failed to join forwarder".to_string()))?;
+
+    info!("connection closed");
+    Ok(())
 }

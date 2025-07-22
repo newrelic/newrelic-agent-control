@@ -1,4 +1,5 @@
-use crate::k8s::tools::k8s_port_forwarder::PortForwardServer;
+use crate::common::runtime::block_on;
+use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig, VaultSecretPath};
 use newrelic_agent_control::secrets_provider::{SecretPath, SecretsProvider};
 use serde_json::Value;
@@ -34,7 +35,8 @@ const KV2_DATA_PATH: &str = "tests/k8s/data/vault_kv2_secrets.json";
 #[ignore = "needs k8s cluster"]
 fn k8s_vault_get_secrets() {
     // start the port_forwarder that will allow accessing vault in port 8200
-    let _port_forwarder = PortForwardServer::start_new("vault-0", 8200, 8200);
+    let mut k8s = block_on(K8sEnv::new());
+    k8s.port_forward("vault-0", 8200, 8200);
 
     let vault_config = serde_yaml::from_str::<VaultConfig>(VAULT_CONFIG).unwrap();
     let vault_client = Vault::try_build(vault_config).unwrap();
