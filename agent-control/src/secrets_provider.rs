@@ -31,24 +31,9 @@ const NR_VAULT: &str = "nr-vault";
 ///
 /// struct NewProviderConfig {}
 /// ```
-///
-/// Integrating support for new providers involves implementing the [SecretsProviderBuilder] trait for the new provider's
-/// configuration.
 #[derive(Debug, Default, Deserialize, PartialEq, Clone)]
 pub struct SecretsProvidersConfig {
     pub vault: Option<VaultConfig>,
-}
-
-/// Trait for building a client to retrieve secrets from a provider.
-///
-/// Defines a method to build a client that implements the [SecretsProvider] trait.
-/// The client can then be used for retrieving secrets from the provider or any other
-/// supported operation.
-pub trait SecretsProviderBuilder {
-    type Provider: SecretsProvider;
-    type Error: Debug;
-
-    fn build_provider(&self) -> Result<Self::Provider, Self::Error>;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -122,7 +107,7 @@ impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
         let mut registry = SecretsProvidersRegistry::new();
 
         if let Some(vault_config) = config.vault {
-            let vault = vault_config.build_provider()?;
+            let vault = Vault::try_build(vault_config)?;
             registry.insert(NR_VAULT.to_string(), SecretsProviderType::Vault(vault));
         }
 

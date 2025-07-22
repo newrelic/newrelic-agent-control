@@ -1,4 +1,4 @@
-use super::{SecretPath, SecretsProvider, SecretsProviderBuilder};
+use super::{SecretPath, SecretsProvider};
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
@@ -170,16 +170,6 @@ pub struct VaultConfig {
 
     #[serde(skip)]
     pub proxy_config: ProxyConfig,
-}
-
-/// Implements the SecretsProviderBuilder trait for VaultConfig, allowing it to build a Vault provider.
-impl SecretsProviderBuilder for VaultConfig {
-    type Provider = Vault;
-    type Error = VaultError;
-
-    fn build_provider(&self) -> Result<Self::Provider, Self::Error> {
-        Vault::try_build(self.clone())
-    }
 }
 
 /// Represents a Vault client, including HTTP client and configured sources.
