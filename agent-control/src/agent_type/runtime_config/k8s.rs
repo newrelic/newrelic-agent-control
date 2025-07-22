@@ -4,6 +4,7 @@ use crate::agent_type::templates::Templateable;
 use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Display;
 
 /// The definition for an K8s supervisor.
 ///
@@ -12,6 +13,25 @@ use std::collections::{BTreeMap, HashMap};
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
     pub health: Option<K8sHealthConfig>,
+}
+
+impl Display for K8s {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let objects_string = self
+            .objects
+            .iter()
+            .map(|(k, v)| {
+                let values = v.to_string().replace("\n", "\n    ");
+                format!("  {k}:\n    {values}")
+            })
+            .collect::<Vec<_>>()
+            .join("");
+        let health_string = self
+            .health
+            .as_ref()
+            .map_or_else(|| "".to_string(), |h| format!(", health: {}", h));
+        write!(f, "objects:\n{objects_string}{health_string}")
+    }
 }
 
 /// A K8s object, usually a CR, to be managed by the agent-control.
@@ -26,6 +46,24 @@ pub struct K8sObject {
     pub fields: serde_yaml::Mapping,
 }
 
+impl Display for K8sObject {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut fields_string = serde_yaml::to_string(&self.fields).unwrap_or("".to_string());
+        if fields_string == "{}\n" {
+            fields_string = String::new();
+        } else {
+            fields_string = fields_string.replace("\n", "\n  ");
+        }
+        write!(
+            f,
+            "apiVersion: {}\nkind: {}\n{}\n{fields_string}",
+            self.api_version,
+            self.kind,
+            self.metadata,
+        )
+    }
+}
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct K8sObjectMeta {
@@ -33,6 +71,29 @@ pub struct K8sObjectMeta {
     pub labels: BTreeMap<String, String>,
     pub name: String,
     pub namespace: String,
+}
+
+impl Display for K8sObjectMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let labels_string = self
+            .labels
+            .iter()
+            .map(|(k, v)| {
+                let values = v.replace("\n", "\n  ");
+                format!("    {k}: {values}" )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        if labels_string.is_empty() {
+            write!(f, "metadata:\n  name: {}\n  namespace: {}", self.name, self.namespace)
+        } else {
+            write!(
+                f,
+                "metadata:\n  name: {}\n  namespace: {}\n  labels:\n{}",
+                self.name, self.namespace, labels_string
+            )
+        }
+    }
 }
 
 impl Templateable for K8s {
@@ -83,6 +144,16 @@ pub struct K8sHealthConfig {
     pub(crate) initial_delay: InitialDelay,
 }
 
+impl Display for K8sHealthConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "interval: {}, initial_delay: {}",
+            self.interval, self.initial_delay
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::agent_type::definition::Variables;
@@ -98,6 +169,9 @@ objects:
     metadata:
       name: test
       namespace: test-namespace
+      labels:
+        foo: bar
+        bar: baz
     spec:
       anyKey: any-value
   cr2:

@@ -8,6 +8,7 @@ use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use duration_str::deserialize_duration;
 use serde::Deserialize;
+use std::fmt::Display;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, error, info_span};
@@ -24,9 +25,21 @@ pub type StatusTime = SystemTime;
 #[wrapper_default_value(DEFAULT_HEALTH_CHECK_INTERVAL)]
 pub struct HealthCheckInterval(#[serde(deserialize_with = "deserialize_duration")] Duration);
 
+impl Display for HealthCheckInterval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_secs())
+    }
+}
+
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
 #[wrapper_default_value(DEFAULT_INITIAL_DELAY)]
 pub struct InitialDelay(#[serde(deserialize_with = "deserialize_duration")] Duration);
+
+impl Display for InitialDelay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0.as_secs())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Health {
