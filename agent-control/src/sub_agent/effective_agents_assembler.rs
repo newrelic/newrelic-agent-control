@@ -161,7 +161,7 @@ where
         let runtime_variables = match environment {
             Environment::K8s => {
                 let deployment_config = agent_type.runtime_config.deployment.k8s.clone();
-                let deployment_config = format!("{:?}", deployment_config.unwrap());
+                let deployment_config = format!("{:?}", deployment_config.expect("K8s deployment config should be present in K8s environment"));
                 let config = format!("{}\n{}", deployment_config, values_config);
 
                 RuntimeVariables::from_config(&config)
