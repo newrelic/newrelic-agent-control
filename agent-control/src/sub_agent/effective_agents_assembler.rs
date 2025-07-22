@@ -153,7 +153,7 @@ where
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let values_config = String::try_from(values.clone()).map_err(|err| {
             EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
-                "Failed to convert YAMLConfig to String for agent: {}: {}",
+                "failed to convert YAMLConfig to String for agent: {}: {}",
                 agent_identity.id, err
             ))
         })?;
@@ -172,7 +172,7 @@ where
         let Ok(environment_variables) = runtime_variables.load_env_vars() else {
             return Err(
                 EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
-                    "Failed to load environment variables for agent: {}",
+                    "failed to load environment variables for agent: {}",
                     agent_identity.id
                 )),
             );

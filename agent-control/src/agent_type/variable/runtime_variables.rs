@@ -32,7 +32,7 @@ pub struct RuntimeVariables {
 
 #[derive(thiserror::Error, Debug)]
 pub enum RuntimeVariablesError {
-    #[error("Failed to load environment variable '{0}'")]
+    #[error("failed to load environment variable '{0}'")]
     LoadEnvVarError(String),
 }
 
@@ -204,13 +204,13 @@ eof"#;
         let result = runtime_variables.load_env_vars();
 
         assert!(logs_contain(
-            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR'"
+            "failed to load environment variable 'NON_EXISTENT_ENV_VAR'"
         ));
         assert!(logs_contain(
-            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR_2'"
+            "failed to load environment variable 'NON_EXISTENT_ENV_VAR_2'"
         ));
         assert!(logs_contain(
-            "Failed to load environment variable 'NON_EXISTENT_ENV_VAR_3"
+            "failed to load environment variable 'NON_EXISTENT_ENV_VAR_3"
         ));
 
         assert!(result.is_err());
