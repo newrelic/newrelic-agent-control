@@ -1,4 +1,5 @@
 use crate::agent_control::AgentControl;
+use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -23,6 +24,7 @@ use crate::opamp::instance_id::on_host::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
+use crate::secrets_provider::SecretsProvidersRegistry;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
@@ -139,10 +141,21 @@ impl AgentControlRunner {
             )
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
+        let secrets_providers = if let Some(config) = &agent_control_config.secrets_providers {
+            SecretsProvidersRegistry::try_from(config.clone()).map_err(|e| {
+                AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
+                    "Failed to load secrets providers: {e}"
+                )))
+            })?
+        } else {
+            HashMap::default()
+        };
+
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),
             template_renderer,
             self.agent_type_var_constraints,
+            secrets_providers,
         ));
 
         let supervisor_builder =

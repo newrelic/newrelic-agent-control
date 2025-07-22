@@ -11,6 +11,7 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
+use crate::secrets_provider::SecretsProvidersRegistry;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -106,6 +107,7 @@ where
     registry: Arc<R>,
     renderer: Y,
     variable_constraints: VariableConstraints,
+    _secrets_providers: SecretsProvidersRegistry,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -113,11 +115,13 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
+        secrets_providers: SecretsProvidersRegistry,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
             variable_constraints,
+            _secrets_providers: secrets_providers,
         }
     }
 }
@@ -269,6 +273,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer,
                 variable_constraints: VariableConstraints::default(),
+                _secrets_providers: SecretsProvidersRegistry::default(),
             }
         }
     }

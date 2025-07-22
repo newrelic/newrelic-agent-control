@@ -2225,6 +2225,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## tokio-tungstenite <https://crates.io/crates/tokio-tungstenite>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## tokio-util <https://crates.io/crates/tokio-util>
 
 Distributed under the following license(s):
@@ -2330,6 +2336,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## tungstenite <https://crates.io/crates/tungstenite>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## typenum <https://crates.io/crates/typenum>
 
 Distributed under the following license(s):
@@ -2391,6 +2404,13 @@ Distributed under the following license(s):
 * ISC
 
 ## url <https://crates.io/crates/url>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## utf-8 <https://crates.io/crates/utf-8>
 
 Distributed under the following license(s):
 
