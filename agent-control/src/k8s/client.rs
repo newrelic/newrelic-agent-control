@@ -216,11 +216,6 @@ impl ClientConfig {
             client_timeout: ClientTimeout::default(),
         }
     }
-    pub fn with_client_timeout(self, timeout: Duration) -> Self {
-        Self {
-            client_timeout: timeout.into(),
-        }
-    }
 }
 /// Wrapper for the client_timeout.
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
