@@ -18,19 +18,19 @@ use tracing::*;
 
 #[derive(Debug, Error)]
 enum PortForwardError {
-    #[error("Kube wait error `{0}`")]
+    #[error("kube wait error `{0}`")]
     KubeWaitError(#[from] KubeWaitError),
 
-    #[error("Pod not found: {0}")]
+    #[error("pod not found: {0}")]
     PodNotFound(String),
 
-    #[error("Connection failed: {0}")]
+    #[error("connection failed: {0}")]
     ConnectionFailed(String),
 
-    #[error("Operation timed out: {0}")]
+    #[error("operation timed out: {0}")]
     Timeout(String),
 
-    #[error("An error occurred: {0}")]
+    #[error("an error occurred: {0}")]
     Other(String),
 }
 

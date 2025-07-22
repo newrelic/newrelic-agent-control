@@ -21,7 +21,7 @@ pub enum VaultError {
     #[error("could not build the vault http client: {0}")]
     HttpClient(#[from] HttpBuildError),
 
-    #[error("Invalid header: {0}")]
+    #[error("invalid header: {0}")]
     InvalidHeaderValue(#[from] InvalidHeaderValue),
 
     #[error("could not parse mount and path for secret source: {0}")]
