@@ -1,6 +1,6 @@
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::opamp::{ConfigResponse, FakeServer};
+use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{
@@ -56,12 +56,10 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     // Update the agent configuration via OpAMP
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
     chart_values:
       valid: true
            "#,
-        ),
     );
 
     // Check the expected HelmRelease is created with the spec values
@@ -131,12 +129,10 @@ valid: true
     // Update the agent configuration via OpAMP
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 chart_values:
   valid: super-super-true
             "#,
-        ),
     );
 
     // Check the expected HelmRelease is updated with the new configuration

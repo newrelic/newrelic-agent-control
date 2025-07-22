@@ -2,7 +2,7 @@ use super::tools::k8s_api::create_values_secret;
 use super::tools::k8s_env::K8sEnv;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::{check_latest_health_status, check_latest_health_status_was_healthy};
-use crate::common::opamp::{ConfigResponse, FakeServer};
+use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
@@ -62,10 +62,7 @@ chart_version: {LOCAL_CHART_PREVIOUS_VERSION}
 "#
     );
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(ac_config.as_str()),
-    );
+    opamp_server.set_config_response(ac_instance_id.clone(), ac_config.as_str());
 
     // Assert that opamp server receives Agent description with updated version.
     // Also the rest of the config with the new agent has been effectevely applied.
@@ -121,14 +118,11 @@ fn k8s_self_update_bump_chart_version() {
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+        format!(
+            r#"
 agents: {{}}
 chart_version: {LOCAL_CHART_NEW_VERSION}
 "#
-            )
-            .as_str(),
         ),
     );
 
@@ -186,10 +180,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
 "#
     );
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(ac_config.as_str()),
-    );
+    opamp_server.set_config_response(ac_instance_id.clone(), ac_config.as_str());
 
     // Assert that opamp server receives Agent description with updated version.
     // Also the rest of the config with the new agent has been effectevely applied.
@@ -246,14 +237,11 @@ fn k8s_self_update_new_version_fails_to_start_next_receives_correct_version() {
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+        format!(
+            r#"
 agents: {{}}
 chart_version: {MISSING_VERSION}
 "#
-            )
-            .as_str(),
         ),
     );
     retry(60, Duration::from_secs(5), || {
@@ -277,10 +265,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
 "#
     );
 
-    opamp_server.set_config_response(
-        ac_instance_id.clone(),
-        ConfigResponse::from(ac_config.as_str()),
-    );
+    opamp_server.set_config_response(ac_instance_id.clone(), ac_config.as_str());
 
     retry(60, Duration::from_secs(5), || {
         check_latest_effective_config_is_expected(
@@ -318,14 +303,11 @@ fn k8s_self_update_new_version_failing_image() {
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+        format!(
+            r#"
 agents: {{}}
 chart_version: {LOCAL_CHART_FAILING_VERSION}
 "#
-            )
-            .as_str(),
         ),
     );
 

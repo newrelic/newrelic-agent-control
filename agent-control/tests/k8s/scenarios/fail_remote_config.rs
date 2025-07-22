@@ -1,8 +1,6 @@
 use crate::common::{
-    effective_config::check_latest_effective_config_is_expected,
-    opamp::{ConfigResponse, FakeServer},
-    remote_config_status::check_latest_remote_config_status_is_expected,
-    retry::retry,
+    effective_config::check_latest_effective_config_is_expected, opamp::FakeServer,
+    remote_config_status::check_latest_remote_config_status_is_expected, retry::retry,
     runtime::block_on,
 };
 use crate::k8s::tools::{
@@ -46,11 +44,9 @@ fn k8s_fail_remote_config_missing_required_values() {
 
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 non_required_var: Configuration without required variable set
            "#,
-        ),
     );
 
     retry(60, Duration::from_secs(1), || {

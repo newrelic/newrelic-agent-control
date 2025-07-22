@@ -1,8 +1,4 @@
-use crate::common::{
-    opamp::{ConfigResponse, FakeServer},
-    retry::retry,
-    runtime::block_on,
-};
+use crate::common::{opamp::FakeServer, retry::retry, runtime::block_on};
 use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
 
 use crate::k8s::tools::{
@@ -52,12 +48,10 @@ fn k8s_signature_disabled() {
     // Update the agent configuration via OpAMP
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
     chart_values:
       value: "from remote config"
            "#,
-        ),
     );
 
     // Check the expected HelmRelease is created with the remote configuration

@@ -2,7 +2,6 @@
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
-use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::load_remote_config_content;
@@ -120,10 +119,7 @@ agents:
     );
 
     // When a new config with an agent is received from OpAMP
-    opamp_server.set_config_response(
-        agent_control_instance_id.clone(),
-        ConfigResponse::from(agents.as_str()),
-    );
+    opamp_server.set_config_response(agent_control_instance_id.clone(), agents.as_str());
 
     // Then the config should be updated in the remote filesystem.
     let expected_config = format!(
@@ -160,10 +156,7 @@ agents:
 
     // The sub-agent waits for the remote config to be set, it cannot be empty since it would default to local
     // which does not exist.
-    opamp_server.set_config_response(
-        subagent_instance_id.clone(),
-        ConfigResponse::from("fake_variable: value"),
-    );
+    opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");
     retry(60, Duration::from_secs(1), || {
         check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
     });
@@ -202,12 +195,10 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
     // When a new config with an agent is received from OpAMP
     opamp_server.set_config_response(
         agent_control_instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents: {}
 non-existing: {}
 "#,
-        ),
     );
 
     retry(60, Duration::from_secs(1), || {
@@ -540,10 +531,7 @@ status_time_unix_nano: 1725444001
     // Send remote configuration
     let remote_config = "fake_variable: valid remote config\n";
     // let remote_config = "fake_variable: valid remote config\n";
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        ConfigResponse::from(remote_config),
-    );
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), remote_config);
 
     retry(30, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(

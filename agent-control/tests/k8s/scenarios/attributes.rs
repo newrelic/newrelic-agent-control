@@ -2,7 +2,6 @@ use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
 };
-use crate::common::opamp::ConfigResponse;
 use crate::common::retry::retry;
 use crate::common::{opamp::FakeServer, runtime::block_on};
 use crate::k8s::tools::agent_control::CUSTOM_AGENT_TYPE_PATH;
@@ -56,13 +55,11 @@ fn k8s_test_attributes_from_existing_agent_type() {
     );
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents:
   hello-world:
     agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
             "#,
-        ),
     );
 
     let ac_expected_identifying_attributes = convert_to_vec_key_value(Vec::from([

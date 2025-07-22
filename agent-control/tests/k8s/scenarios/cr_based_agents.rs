@@ -9,11 +9,7 @@ use crate::k8s::tools::{
     k8s_env::K8sEnv,
 };
 use crate::{
-    common::{
-        opamp::{ConfigResponse, FakeServer},
-        retry::retry,
-        runtime::block_on,
-    },
+    common::{opamp::FakeServer, retry::retry, runtime::block_on},
     k8s::tools::agent_control::FOO_CR_AGENT_TYPE_PATH,
 };
 use kube::{Api, CustomResource, CustomResourceExt};
@@ -58,13 +54,11 @@ fn k8s_opamp_foo_cr_subagent() {
 
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents:
   foo-agent:
     agent_type: "newrelic/com.newrelic.foo-cr-agent:0.0.1"
             "#,
-        ),
     );
 
     // Set sub-agent remote config (there is no local config and the supervisor will not start otherwise)
@@ -73,7 +67,7 @@ agents:
         &namespace,
         &AgentID::new("foo-agent").unwrap(),
     );
-    server.set_config_response(subagent_instance_id, "data: some-data\n".into());
+    server.set_config_response(subagent_instance_id, "data: some-data\n");
 
     let api: Api<Foo> = Api::namespaced(k8s.client.clone(), &namespace);
 
@@ -88,11 +82,9 @@ agents:
     // Asserts the agent resources are garbage collected
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents: {}
             "#,
-        ),
     );
 
     retry(120, Duration::from_secs(1), || {
@@ -148,13 +140,11 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     // Set AC remote config
     server.set_config_response(
         instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents:
   bar-agent:
     agent_type: "newrelic/com.newrelic.bar-cr-agent:0.0.1"
             "#,
-        ),
     );
 
     let api: Api<Bar> = Api::namespaced(k8s.client.clone(), &namespace);
@@ -173,7 +163,7 @@ agents:
         &namespace,
         &AgentID::new("bar-agent").unwrap(),
     );
-    server.set_config_response(subagent_instance_id, "data: some-data\n".into());
+    server.set_config_response(subagent_instance_id, "data: some-data\n");
 
     block_on(api.get("bar-agent")).expect_err("there is no Bar CRD");
 

@@ -2,8 +2,8 @@
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config,
-        effective_config::check_latest_effective_config_is_expected, opamp::ConfigResponse,
-        opamp::FakeServer, retry::retry,
+        effective_config::check_latest_effective_config_is_expected, opamp::FakeServer,
+        retry::retry,
     },
     on_host::tools::{
         config::{create_agent_control_config, create_sub_agent_values},
@@ -87,7 +87,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     });
 
     // When the config is remotely set as empty, it should fall back to local
-    opamp_server.set_config_response(sub_agent_instance_id.clone(), ConfigResponse::from(""));
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), "");
 
     retry(60, Duration::from_secs(1), || {
         // The retrieved effective config should match the expected local config
@@ -154,10 +154,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
 
     // When the config is remotely set, the sub-agent's supervisor should start
     let remote_values_config = "fake_variable: from-remote\n";
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        ConfigResponse::from(remote_values_config),
-    );
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), remote_values_config);
 
     retry(60, Duration::from_secs(1), || {
         // The retrieved effective config should match the expected local config

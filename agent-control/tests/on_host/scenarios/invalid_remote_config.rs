@@ -1,7 +1,6 @@
 #![cfg(unix)]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
-use crate::common::opamp::ConfigResponse;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::load_remote_config_content;
@@ -74,7 +73,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     opamp_server.set_config_response(
         sub_agent_instance_id.clone(),
         // The configuration is invalid since a string is expected
-        ConfigResponse::from("fake_variable: 123"),
+        "fake_variable: 123",
     );
 
     retry(60, Duration::from_secs(1), || {
@@ -153,7 +152,7 @@ fn test_invalid_config_executalbe_less_supervisor() {
     opamp_server.set_config_response(
         sub_agent_instance_id.clone(),
         // The configuration is invalid since a string is expected
-        ConfigResponse::from("fake_variable: 123"),
+        "fake_variable: 123",
     );
 
     retry(60, Duration::from_secs(1), || {
@@ -241,10 +240,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     let sub_agent_instance_id = get_instance_id(&sub_agent_id, base_paths.clone());
 
     let valid_remote_config = "fake_variable: valid from remote\n";
-    opamp_server.set_config_response(
-        sub_agent_instance_id.clone(),
-        ConfigResponse::from(valid_remote_config),
-    );
+    opamp_server.set_config_response(sub_agent_instance_id.clone(), valid_remote_config);
 
     // Verify valid remote config was applied
     retry(60, Duration::from_secs(1), || {
@@ -259,7 +255,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     opamp_server.set_config_response(
         sub_agent_instance_id.clone(),
         // fake_variable expects string
-        ConfigResponse::from("fake_variable: 123\n"),
+        "fake_variable: 123\n",
     );
     // Verify valid remote config was applied
     retry(60, Duration::from_secs(1), || {
