@@ -52,7 +52,7 @@ pub enum SecretPath {
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
-    type Error: Debug + From<String>;
+    type Error: std::error::Error + From<String>;
 
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
