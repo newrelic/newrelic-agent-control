@@ -1,6 +1,8 @@
+pub mod k8s_secret;
 pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
+use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -30,7 +32,7 @@ use tracing::debug;
 ///
 /// struct NewProviderConfig {}
 /// ```
-#[derive(Debug, Default, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
 pub struct SecretsProvidersConfig {
     pub vault: Option<VaultConfig>,
 }
@@ -85,6 +87,7 @@ pub trait SecretsProvider {
 /// represented as a [HashMap].
 pub enum SecretsProviderType {
     Vault(Vault),
+    K8sSecret(K8sSecretProvider),
 }
 
 /// Collection of [SecretsProviderType]s.

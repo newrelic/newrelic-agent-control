@@ -1,10 +1,14 @@
-use crate::common::runtime::block_on;
+use crate::common::runtime::{block_on, tokio_runtime};
+use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
 use newrelic_agent_control::secrets_provider::SecretsProvider;
+use newrelic_agent_control::secrets_provider::k8s_secret::K8sSecretProvider;
 use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig};
 use serde_json::Value;
 use std::fs::File;
 use std::io::Read;
+use std::sync::Arc;
 
 const VAULT_CONFIG: &str = r#"
 sources:
@@ -78,4 +82,26 @@ fn k8s_vault_get_secrets() {
             }
         }
     }
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_secret_provider() {
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+
+    let name = "secret-name";
+    let key = "secret-key";
+    let value = "stored value";
+    create_values_secret(k8s.client.clone(), &namespace, name, key, value.to_string());
+
+    let k8s_client = SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::default()).unwrap();
+
+    let provider = K8sSecretProvider::new(Arc::new(k8s_client));
+
+    let secret = provider
+        .get_secret(format!("{namespace}:{name}:{key}").as_str())
+        .unwrap();
+
+    assert_eq!(secret, value.to_string())
 }
