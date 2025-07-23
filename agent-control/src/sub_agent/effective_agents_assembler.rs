@@ -160,24 +160,16 @@ where
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
 
-        let config = String::try_from(values.clone()).map_err(|err| {
-            EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
-                "Failed to convert YAMLConfig to String for agent: {}: {}",
-                agent_identity.id, err
-            ))
-        })?;
+        let config: String = values
+            .clone()
+            .try_into()
+            .expect("YAMLConfig came from string, so it should be valid");
         let secret_variables = SecretVariables::from_config(&config);
-        let Ok(secrets) = secret_variables.load_all_secrets(&self.secrets_providers) else {
-            return Err(
-                EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(format!(
-                    "Failed to load secrets for agent: {}",
-                    agent_identity.id
-                )),
-            );
-        };
+        let secrets = secret_variables.load_all_secrets(&self.secrets_providers)?;
 
         let mut runtime_variables = environment_variables.clone();
         runtime_variables.extend(secrets);
+
         let runtime_config = self.renderer.render(
             &agent_identity.id,
             agent_type,
