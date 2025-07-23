@@ -7,6 +7,7 @@ use http::{HeaderValue, Request};
 use serde::Deserialize;
 use serde_json::Error;
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
 use url::{ParseError, Url};
@@ -66,6 +67,34 @@ pub struct VaultSecretPath {
     pub mount: String,
     pub path: String,
     pub name: String,
+}
+
+impl FromStr for VaultSecretPath {
+    type Err = VaultError;
+
+    fn from_str(secret_path: &str) -> Result<Self, Self::Err> {
+        let parts: Vec<&str> = secret_path.split(':').collect();
+        if parts.len() != 4 {
+            return Err(VaultError::IncorrectSecretPath);
+        }
+
+        let secret_path = VaultSecretPath {
+            source: parts[0].to_string(),
+            mount: parts[1].to_string(),
+            path: parts[2].to_string(),
+            name: parts[3].to_string(),
+        };
+
+        if secret_path.source.is_empty()
+            || secret_path.mount.is_empty()
+            || secret_path.path.is_empty()
+            || secret_path.name.is_empty()
+        {
+            return Err(VaultError::IncorrectSecretPath);
+        }
+
+        Ok(secret_path)
+    }
 }
 
 /// Represents HashiCorp Vault secret engines for key-value storage.
@@ -204,28 +233,22 @@ impl SecretsProvider for Vault {
     type Error = VaultError;
 
     fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
-        let parts: Vec<&str> = secret_path.split(':').collect();
-        if parts.len() != 4 {
-            return Err(VaultError::IncorrectSecretPath);
-        }
-
-        let secret_path = VaultSecretPath {
-            source: parts[0].to_string(),
-            mount: parts[1].to_string(),
-            path: parts[2].to_string(),
-            name: parts[3].to_string(),
-        };
+        let VaultSecretPath {
+            source,
+            mount,
+            path,
+            name,
+        } = VaultSecretPath::from_str(secret_path)?;
 
         let vault_source = self
             .sources
-            .get(&secret_path.source)
+            .get(&source)
             .ok_or(VaultError::SourceNotFound)?;
 
-        let url = vault_source.engine.get_url(
-            vault_source.url.clone(),
-            secret_path.mount.as_str(),
-            secret_path.path.as_str(),
-        )?;
+        let url =
+            vault_source
+                .engine
+                .get_url(vault_source.url.clone(), mount.as_str(), path.as_str())?;
 
         let mut request = Request::builder()
             .method("GET")
@@ -245,9 +268,7 @@ impl SecretsProvider for Vault {
         let body = String::from_utf8(response.into_body())
             .map_err(|e| VaultError::DeserializeError(format!("invalid utf8 response: {e}")))?;
 
-        let maybe_secret = vault_source
-            .engine
-            .parse_secret_response(&secret_path.name, body)?;
+        let maybe_secret = vault_source.engine.parse_secret_response(&name, body)?;
 
         maybe_secret.map_or_else(
             || Err(VaultError::NotFound),
