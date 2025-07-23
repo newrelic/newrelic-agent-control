@@ -7,6 +7,7 @@ use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
 use crate::k8s::client::ClientConfig;
 use crate::opamp::auth::config::AuthConfig;
+use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfigError;
 use crate::opamp::remote_config::validators::signature::validator::SignatureValidatorConfig;
 use crate::secrets_provider::SecretsProvidersConfig;
@@ -148,8 +149,13 @@ pub struct SubAgentConfig {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct OpAMPClientConfig {
+    /// OpAMP server endpoint.
     pub endpoint: Url,
+    /// Poll interval for the OpAMP client.
+    pub poll_interval: PollInterval,
+    /// Headers to be sent with the OpAMP requests.
     pub headers: HeaderMap,
+    /// Authentication configuration for the OpAMP communications.
     pub auth_config: Option<AuthConfig>,
     /// Unique identifier for the fleet in which the super agent will join upon initialization.
     pub fleet_id: String,
@@ -165,12 +171,14 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         struct IntermediateOpAMPClientConfig {
-            #[serde(default)]
-            fleet_id: String,
             endpoint: Url,
+            #[serde(default)]
+            poll_interval: PollInterval,
             #[serde(default, with = "http_serde::header_map")]
             headers: HeaderMap,
             auth_config: Option<AuthConfig>,
+            #[serde(default)]
+            fleet_id: String,
             #[serde(default)]
             pub signature_validation: SignatureValidatorConfig,
         }
@@ -191,10 +199,11 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             .collect::<HeaderMap>();
 
         Ok(OpAMPClientConfig {
-            fleet_id: intermediate_spec.fleet_id,
             endpoint: intermediate_spec.endpoint,
+            poll_interval: intermediate_spec.poll_interval,
             headers: censored_headers,
             auth_config: intermediate_spec.auth_config,
+            fleet_id: intermediate_spec.fleet_id,
             signature_validation: intermediate_spec.signature_validation,
         })
     }
@@ -313,6 +322,7 @@ pub(crate) mod tests {
             OpAMPClientConfig {
                 fleet_id: String::default(),
                 endpoint: "http://localhost".try_into().unwrap(),
+                poll_interval: PollInterval::default(),
                 headers: HeaderMap::default(),
                 auth_config: None,
                 signature_validation: Default::default(),

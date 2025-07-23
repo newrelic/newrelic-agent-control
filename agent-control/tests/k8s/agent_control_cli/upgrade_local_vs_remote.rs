@@ -1,4 +1,4 @@
-use crate::common::opamp::{ConfigResponse, FakeServer};
+use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
@@ -90,14 +90,11 @@ fn k8s_cli_local_and_remote_updates() {
     );
     opamp_server.set_config_response(
         ac_instance_id.clone(),
-        ConfigResponse::from(
-            format!(
-                r#"
+        format!(
+            r#"
 agents: {{}}
 chart_version: "{latest_version}"
 "#
-            )
-            .as_str(),
         ),
     );
 

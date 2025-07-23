@@ -10,7 +10,6 @@ use crate::agent_control::run::set_debug_dirs;
 use crate::instrumentation::tracing::{
     TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
-use crate::opamp::client_builder::DEFAULT_POLL_INTERVAL;
 use crate::values::file::ConfigRepositoryFile;
 use crate::{
     agent_control::{
@@ -137,7 +136,6 @@ impl Flags {
 
         let run_config = AgentControlRunConfig {
             opamp,
-            opamp_poll_interval: DEFAULT_POLL_INTERVAL,
             http_server,
             base_paths,
             proxy,

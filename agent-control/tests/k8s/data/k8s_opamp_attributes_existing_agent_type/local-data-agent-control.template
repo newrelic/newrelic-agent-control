@@ -1,7 +1,6 @@
 fleet_control:
   endpoint: <opamp-endpoint>
-  headers:
-    api-key: test-api-key
+  poll_interval: 5s
   signature_validation:
     certificate_pem_file_path: <cert-path>
 k8s:

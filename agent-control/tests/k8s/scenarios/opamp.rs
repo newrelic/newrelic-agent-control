@@ -1,9 +1,7 @@
 use crate::{
     common::{
         effective_config::check_latest_effective_config_is_expected,
-        health::check_latest_health_status_was_healthy,
-        opamp::{ConfigResponse, FakeServer},
-        retry::retry,
+        health::check_latest_health_status_was_healthy, opamp::FakeServer, retry::retry,
         runtime::block_on,
     },
     k8s::tools::agent_control::CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
@@ -105,7 +103,7 @@ fn k8s_opamp_remove_subagent() {
     agents: {}
     "#;
 
-    server.set_config_response(ac_instance_id.clone(), ConfigResponse::from(remote_config));
+    server.set_config_response(ac_instance_id.clone(), remote_config);
 
     retry(60, Duration::from_secs(1), || {
         if block_on(check_helmrelease_exists(
@@ -160,13 +158,11 @@ fn k8s_opamp_add_subagent() {
 
     server.set_config_response(
         ac_instance_id.clone(),
-        ConfigResponse::from(
-            r#"
+        r#"
 agents:
   hello-world:
     agent_type: "newrelic/com.newrelic.custom_agent:0.0.1"
             "#,
-        ),
     );
 
     let sub_agent_instance_id = instance_id::get_instance_id(
@@ -239,10 +235,7 @@ fn k8s_opamp_modify_subagent_config() {
         nameOverride: from-first-remote
     "#;
 
-    server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(first_remote_config),
-    );
+    server.set_config_response(instance_id.clone(), first_remote_config);
 
     retry(60, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(
@@ -265,10 +258,7 @@ fn k8s_opamp_modify_subagent_config() {
         nameOverride: from-second-remote
     "#;
 
-    server.set_config_response(
-        instance_id.clone(),
-        ConfigResponse::from(second_remote_config),
-    );
+    server.set_config_response(instance_id.clone(), second_remote_config);
 
     retry(60, Duration::from_secs(1), || {
         check_latest_effective_config_is_expected(
