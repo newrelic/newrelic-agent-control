@@ -1,5 +1,7 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
+use crate::health::k8s::health_checker::resources::helm_release::FluxSystemHealthChecker;
+use crate::health::k8s::health_checker::resources::instrumentation::K8sHealthNRInstrumentation;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -7,7 +9,6 @@ use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
     daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
-    helm_release::K8sHealthFluxHelmRelease, instrumentation::K8sHealthNRInstrumentation,
     stateful_set::K8sHealthStatefulSet,
 };
 use std::sync::Arc;
@@ -22,7 +23,7 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
 #[derive(Debug)]
 pub enum K8sResourceHealthChecker {
-    Flux(K8sHealthFluxHelmRelease),
+    Flux(FluxSystemHealthChecker),
     NewRelic(K8sHealthNRInstrumentation),
     StatefulSet(K8sHealthStatefulSet),
     DaemonSet(K8sHealthDaemonSet),
@@ -57,11 +58,12 @@ pub fn health_checkers_for_type_meta(
         let target_namespace = target_namespace.unwrap_or(namespace.clone());
 
         vec![
-            K8sResourceHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+            K8sResourceHealthChecker::Flux(FluxSystemHealthChecker::new(
                 k8s_client.clone(),
                 type_meta,
                 name.clone(),
                 namespace.clone(),
+                "0.0.10".to_string(), //TO CHANGE
                 start_time,
             )),
             K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(
