@@ -1,7 +1,7 @@
 use crate::common::runtime::block_on;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use newrelic_agent_control::secrets_provider::SecretsProvider;
-use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig, VaultSecretPath};
+use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig};
 use serde_json::Value;
 use std::fs::File;
 use std::io::Read;
@@ -51,14 +51,9 @@ fn k8s_vault_get_secrets() {
     let parsed: Value = serde_json::from_str(&data_kv1).expect("Failed to parse JSON data");
     if let Value::Object(map) = parsed {
         for (key, value) in map.iter() {
-            let vault_secret_path = VaultSecretPath {
-                source: KV1_SOURCE.to_string(),
-                mount: KV1_MOUNT.to_string(),
-                path: PATH.to_string(),
-                name: key.to_string(),
-            };
+            let secret_path = format!("{}:{}:{}:{}", KV1_SOURCE, KV1_MOUNT, PATH, key);
             assert_eq!(
-                vault_client.get_secret(vault_secret_path).unwrap(),
+                vault_client.get_secret(&secret_path).unwrap(),
                 value.clone()
             );
         }
@@ -75,14 +70,9 @@ fn k8s_vault_get_secrets() {
     if let Value::Object(map) = parsed {
         if let Some(Value::Object(data_map)) = map.get("data") {
             for (key, value) in data_map.iter() {
-                let vault_secret_path = VaultSecretPath {
-                    source: KV2_SOURCE.to_string(),
-                    mount: KV2_MOUNT.to_string(),
-                    path: PATH.to_string(),
-                    name: key.to_string(),
-                };
+                let secret_path = format!("{}:{}:{}:{}", KV2_SOURCE, KV2_MOUNT, PATH, key);
                 assert_eq!(
-                    vault_client.get_secret(vault_secret_path).unwrap(),
+                    vault_client.get_secret(&secret_path).unwrap(),
                     value.clone()
                 );
             }
