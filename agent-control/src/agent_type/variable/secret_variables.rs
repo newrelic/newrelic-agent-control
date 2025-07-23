@@ -108,13 +108,13 @@ impl SecretVariables {
         };
 
         for secret in secrets {
-            let Some(path) = secret.split_once(':').map(|(_, v)| v) else {
-                return Err(SecretVariablesError::InvalidSecretPath(secret.to_string()));
-            };
-
+            let secret_path = secret.split_once(':').map(|(_, v)| v).unwrap_or_default();
             let secret_value = provider
-                .get_secret(path)
-                .map_err(|_| SecretVariablesError::SecretsLoadError(path.to_string()))?;
+                .get_secret(secret_path)
+                .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))
+                .inspect_err(|error| {
+                    error!("{error}");
+                })?;
             result.insert(
                 namespace.namespaced_name(secret),
                 Variable::new_final_string_variable(secret_value),
