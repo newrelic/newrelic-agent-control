@@ -12,8 +12,7 @@ pub enum Namespace {
     AgentControl,
 
     // Below variables are "runtime" variables.
-    // When we receive a config, the config could have new environment variables, for example.
-    // These kind of variables must be loaded every time the subagent is started.
+    // These are loaded every time a remote config is received.
     EnvironmentVariable,
     Vault,
 }
