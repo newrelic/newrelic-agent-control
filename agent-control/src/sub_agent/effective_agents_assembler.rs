@@ -176,13 +176,14 @@ where
             );
         };
 
+        let mut runtime_variables = environment_variables.clone();
+        runtime_variables.extend(secrets);
         let runtime_config = self.renderer.render(
             &agent_identity.id,
             agent_type,
             values,
             attributes,
-            environment_variables,
-            secrets,
+            runtime_variables,
         )?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))

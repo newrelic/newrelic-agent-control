@@ -613,7 +613,6 @@ fn iterate_test_cases(environment: &Environment) {
                 variables,
                 attributes,
                 values.additional_env.clone(),
-                HashMap::new(),
             );
 
             assert!(
