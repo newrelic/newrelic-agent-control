@@ -176,9 +176,7 @@ eof"#;
         let runtime_variables = SecretVariables {
             variables: HashMap::from([(
                 "nr-vault".to_string(),
-                HashSet::from(
-                    ["sourceA:my_database:admin/credentials:username".to_string()],
-                ),
+                HashSet::from(["sourceA:my_database:admin/credentials:username".to_string()]),
             )]),
         };
 
