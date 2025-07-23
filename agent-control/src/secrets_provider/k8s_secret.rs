@@ -9,11 +9,6 @@ use crate::secrets_provider::SecretsProvider;
 #[derive(Debug, Error)]
 #[error("resolving k8s secret: {0}")]
 pub struct K8sSecretProviderError(String);
-impl From<String> for K8sSecretProviderError {
-    fn from(s: String) -> Self {
-        K8sSecretProviderError(s)
-    }
-}
 
 /// A secrets provider that retrieves secrets from Kubernetes.
 #[derive(Debug)]
