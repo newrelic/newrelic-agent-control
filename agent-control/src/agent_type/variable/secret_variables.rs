@@ -32,12 +32,6 @@ pub struct SecretVariables {
 
 #[derive(thiserror::Error, Debug)]
 pub enum SecretVariablesError {
-    #[error("invalid secret path: {0}")]
-    InvalidSecretPath(String),
-
-    #[error("failed to build secret path: {0}")]
-    SecretPathBuildError(String),
-
     #[error("failed to load secret: {0}")]
     SecretsLoadError(String),
 }
