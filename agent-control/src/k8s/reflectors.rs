@@ -1,5 +1,6 @@
 use super::error::K8sError;
 use futures::StreamExt;
+use kube::runtime::watcher::Config;
 use kube::{
     Api, Client,
     core::DynamicObject,
@@ -51,26 +52,18 @@ impl ReflectorBuilder {
         &self,
         ns: &str,
         api_resource: &ApiResource,
-        stop_on_watcher_err: bool,
     ) -> Result<Reflector<DynamicObject>, K8sError> {
         trace!("Building k8s reflector for {:?}", api_resource);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
                 Api::namespaced_with(self.client.clone(), ns, api_resource),
-                self.watcher_config(),
                 REFLECTOR_START_TIMEOUT,
-                || Writer::new(api_resource.clone()),
-                stop_on_watcher_err,
+                Writer::new(api_resource.clone()),
             )
             .await
         })
         .await
         .inspect_err(|err| error!(%err, "Failure building reflector for {:?}", api_resource))
-    }
-
-    /// Returns the watcher_config to use in reflectors
-    pub fn watcher_config(&self) -> watcher::Config {
-        Default::default()
     }
 }
 
@@ -103,15 +96,11 @@ where
     /// Returns a `Result` with either the initialized [Reflector] or an error.
     async fn try_new(
         api: Api<K>,
-        watcher_config: watcher::Config,
         start_timeout: Duration,
-        writer_builder_fn: impl Fn() -> Writer<K>,
-        stop_on_watcher_err: bool,
+        writer: Writer<K>,
     ) -> Result<Self, K8sError> {
-        let writer = writer_builder_fn();
         let reader = writer.as_reader();
-        let writer_close_handle =
-            Self::start_reflector(api, watcher_config, writer, stop_on_watcher_err).abort_handle();
+        let writer_close_handle = Self::start_reflector(api, writer).abort_handle();
 
         Self::wait_until_reader_is_ready(&reader, start_timeout).await?;
         Ok(Reflector {
@@ -158,16 +147,11 @@ where
 
     /// Spawns a tokio task waiting for events and updating the provided writer.
     /// Returns the task [JoinHandle<()>].
-    fn start_reflector(
-        api: Api<K>,
-        wc: watcher::Config,
-        writer: Writer<K>,
-        stop_on_watcher_err: bool,
-    ) -> JoinHandle<()> {
+    fn start_reflector(api: Api<K>, writer: Writer<K>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let resource_url = api.resource_url().to_string();
 
-            let mut stream = watcher(api, wc)
+            let mut stream = watcher(api, Config::default())
                 // The watcher recovers automatically from api errors, the backoff could be customized.
                 .default_backoff()
                 // All changes are reflected into the writer.
@@ -182,7 +166,7 @@ where
                     // In those particular cases, we should stop the reflector, to avoid serving outdated stored data.
                     // As is not complealty defined which are exactly those cases, the approach taken is to stop the current
                     // reflector assuming that a new one will be created with correct data.
-                    Some(Err(watcher::Error::WatchFailed(err))) if stop_on_watcher_err => {
+                    Some(Err(watcher::Error::WatchFailed(err))) => {
                         warn!(
                             "Error updating internal cache for resource '{}'. The cache will attempt to auto-recover: {}",
                             resource_url, err

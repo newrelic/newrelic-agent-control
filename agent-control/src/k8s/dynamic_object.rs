@@ -53,7 +53,7 @@ impl DynamicObjectManager {
             client: client.clone(),
             api_resource: api_resource.clone(),
             reflector: builder
-                .try_build_with_api_resource(&tmn.namespace, &api_resource, DYN_WATCHER_STOP_POLICY)
+                .try_build_with_api_resource(&tmn.namespace, &api_resource)
                 .await?,
         })
     }
