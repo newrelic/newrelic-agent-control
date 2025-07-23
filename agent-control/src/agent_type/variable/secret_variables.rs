@@ -97,12 +97,11 @@ impl SecretVariables {
         provider: SP,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         let mut result = HashMap::new();
-        let Some(secrets) = self.variables.get(&namespace.to_string()) else {
+        let Some(secrets_paths) = self.variables.get(&namespace.to_string()) else {
             return Ok(HashMap::new());
         };
 
-        for secret in secrets {
-            let secret_path = secret.split_once(':').map(|(_, v)| v).unwrap_or_default();
+        for secret_path in secrets_paths {
             let secret_value = provider
                 .get_secret(secret_path)
                 .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))
@@ -110,7 +109,7 @@ impl SecretVariables {
                     error!("{error}");
                 })?;
             result.insert(
-                namespace.namespaced_name(secret),
+                namespace.namespaced_name(secret_path),
                 Variable::new_final_string_variable(secret_value),
             );
         }
@@ -178,7 +177,7 @@ eof"#;
             variables: HashMap::from([(
                 "nr-vault".to_string(),
                 HashSet::from(
-                    ["PATH_D:sourceA:my_database:admin/credentials:username".to_string()],
+                    ["sourceA:my_database:admin/credentials:username".to_string()],
                 ),
             )]),
         };
@@ -197,7 +196,7 @@ eof"#;
         assert_eq!(
             result,
             HashMap::from([(
-                "nr-vault:PATH_D:sourceA:my_database:admin/credentials:username".to_string(),
+                "nr-vault:sourceA:my_database:admin/credentials:username".to_string(),
                 Variable::new_final_string_variable("mocked_value_D".to_string())
             )])
         );
