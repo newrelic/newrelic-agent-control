@@ -3,7 +3,7 @@ use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_PATH, start_agent_control_with_testdata_config,
 };
-use crate::k8s::tools::k8s_api::check_helmrelease_spec_values;
+use crate::k8s::tools::k8s_api::{check_helmrelease_spec_values, create_values_secret};
 use crate::k8s::tools::k8s_env::K8sEnv;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -33,10 +33,19 @@ fn k8s_template_secrets() {
         tmp_dir.path(),
     );
 
+    // Now, we create all the required secrets.
+    // * Hashicorp Vault secrets -> handled in the Tiltfile.
+    // * K8s secrets -> created here on demand.
+    let name = "pod-secrets";
+    let key = "api-key";
+    let value = "bar3";
+    create_values_secret(k8s.client.clone(), &namespace, name, key, value.to_string());
+
     // Check the HelmRelease is created with the secrets correctly populated
     let expected_spec_values = r#"
 hashicorpVaultV1Key: bar1
 hashicorpVaultV2Key: bar2
+k8sSecretKey: bar3
     "#;
 
     retry(60, Duration::from_secs(1), || {
