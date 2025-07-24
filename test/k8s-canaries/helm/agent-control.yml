@@ -6,7 +6,7 @@ agent-control-deployment:
     agentControl:
       content:
         log:
-          level: info
+          level: debug
         self_instrumentation:
           opentelemetry:
             traces:

@@ -103,17 +103,17 @@ feature_branch = "master"
 # in order to ensure the correct behavior.
 
 # We are doing modifications to the checkout and pushing them after each modification to create the following versions:
-# - 0.0.1 uses remote image
-# - 0.0.2 and 0.0.4 the image tilt.local/ac-dev:dev
-# - 0.0.3 use an image executing exit 1
+# - 0.0.0-latest-released uses remote image
+# - 0.0.1-dev and 0.0.2-dev the image tilt.local/ac-dev:dev
+# - 0.0.0-crash use an image executing exit 1
 
 
 local_resource(
     'package-and-upload-remote-image-chart',
     cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
-     helm package --dependency-update --version "0.0.1" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts
+     helm package --dependency-update --version "0.0.0-latest-released" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-latest-released &&
+     curl --data-binary "@local/agent-control-deployment-0.0.0-latest-released.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['chartmuseum'],
 )
@@ -123,12 +123,12 @@ local_resource(
     'package-and-upload-local-image-chart',
     cmd="""yq eval ".image.repository = \\"tilt.local/ac-dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.tag = \\"dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
-     helm package --dependency-update --version "0.0.2" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.4" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2 &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.4 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.2.tgz" http://localhost:8080/api/charts &&
-     curl --data-binary "@local/agent-control-deployment-0.0.4.tgz" http://localhost:8080/api/charts
+     helm package --dependency-update --version "0.0.1-dev" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.2-dev" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1-dev &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2-dev &&
+     curl --data-binary "@local/agent-control-deployment-0.0.1-dev.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/agent-control-deployment-0.0.2-dev.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-remote-image-chart'],
 )
@@ -141,9 +141,9 @@ local_resource(
      yq eval ".image.tag = \\"latest\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.command = [\\"sh\\", \\"-c\\", \\"exit 1\\"]" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".podLabels.app = \\"failing-pod\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
-     helm package --dependency-update --version "0.0.3" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.3 &&
-     curl --data-binary "@local/agent-control-deployment-0.0.3.tgz" http://localhost:8080/api/charts
+     helm package --dependency-update --version "0.0.0-crash" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-crash &&
+     curl --data-binary "@local/agent-control-deployment-0.0.0-crash.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-local-image-chart'],
 )

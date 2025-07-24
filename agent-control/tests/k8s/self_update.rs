@@ -7,6 +7,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::instance_id;
+use crate::k8s::tools::local_chart::*;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
@@ -18,23 +19,11 @@ use newrelic_agent_control::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBU
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
+use std::thread::sleep;
 use std::time::Duration;
 use url::Url;
-// These tests leverages an in-cluster chart repository populated with fixed versions which consist in the latest
-// released chart with a changed version.
-// The AC image corresponds to the compiled from the current code. Tilt is used to orchestrate all these
-// test environment set-up.
 
-pub const LOCAL_CHART_REPOSITORY: &str = "http://chartmuseum.default.svc.cluster.local:8080";
-// This version contains the image from remote
-pub const LOCAL_CHART_REMOTE_VERSION: &str = "0.0.1";
-// This version contains the compiled dev image
-pub const LOCAL_CHART_PREVIOUS_VERSION: &str = "0.0.2";
-// This version contains the compiled dev image
-pub const LOCAL_CHART_NEW_VERSION: &str = "0.0.4";
-// This version contains image failing with exit 1
-pub const LOCAL_CHART_FAILING_VERSION: &str = "0.0.3";
-const MISSING_VERSION: &str = "9.9.9";
+const POLL_INTERVAL: u64 = 5;
 
 const SECRET_NAME: &str = "ac-values";
 const VALUES_KEY: &str = "values.yaml";
@@ -52,13 +41,13 @@ fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
         k8s.client.clone(),
         &opamp_server,
         &namespace,
-        LOCAL_CHART_REMOTE_VERSION,
+        CHART_VERSION_LATEST_RELEASE,
     );
 
     let ac_config = format!(
         r#"
 agents: {{}}
-chart_version: {LOCAL_CHART_PREVIOUS_VERSION}
+chart_version: {CHART_VERSION_DEV_1}
 "#
     );
 
@@ -76,7 +65,7 @@ chart_version: {LOCAL_CHART_PREVIOUS_VERSION}
             .contains(&KeyValue {
                 key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
-                    value: Some(Value::StringValue(LOCAL_CHART_PREVIOUS_VERSION.to_string())),
+                    value: Some(Value::StringValue(CHART_VERSION_DEV_1.to_string())),
                 }),
             })
         {
@@ -113,7 +102,7 @@ fn k8s_self_update_bump_chart_version() {
         k8s.client.clone(),
         &opamp_server,
         &namespace,
-        LOCAL_CHART_PREVIOUS_VERSION,
+        CHART_VERSION_DEV_1,
     );
 
     opamp_server.set_config_response(
@@ -121,7 +110,7 @@ fn k8s_self_update_bump_chart_version() {
         format!(
             r#"
 agents: {{}}
-chart_version: {LOCAL_CHART_NEW_VERSION}
+chart_version: {CHART_VERSION_DEV_2}
 "#
         ),
     );
@@ -137,7 +126,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
             .contains(&KeyValue {
                 key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
-                    value: Some(Value::StringValue(LOCAL_CHART_NEW_VERSION.to_string())),
+                    value: Some(Value::StringValue(CHART_VERSION_DEV_2.to_string())),
                 }),
             })
         {
@@ -164,7 +153,7 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
         k8s.client.clone(),
         &opamp_server,
         &namespace,
-        LOCAL_CHART_PREVIOUS_VERSION,
+        CHART_VERSION_DEV_1,
     );
 
     // This agent will not actually be deployed since misses the chart_version config.
@@ -176,7 +165,7 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
     let ac_config = format!(
         r#"
 {agents_config}
-chart_version: {LOCAL_CHART_NEW_VERSION}
+chart_version: {CHART_VERSION_DEV_2}
 "#
     );
 
@@ -194,7 +183,7 @@ chart_version: {LOCAL_CHART_NEW_VERSION}
             .contains(&KeyValue {
                 key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
-                    value: Some(Value::StringValue(LOCAL_CHART_NEW_VERSION.to_string())),
+                    value: Some(Value::StringValue(CHART_VERSION_DEV_2.to_string())),
                 }),
             })
         {
@@ -232,7 +221,7 @@ fn k8s_self_update_new_version_fails_to_start_next_receives_correct_version() {
         k8s.client.clone(),
         &opamp_server,
         &namespace,
-        LOCAL_CHART_PREVIOUS_VERSION,
+        CHART_VERSION_DEV_1,
     );
 
     opamp_server.set_config_response(
@@ -261,7 +250,7 @@ chart_version: {MISSING_VERSION}
     let ac_config = format!(
         r#"
 agents: {{}}
-chart_version: {LOCAL_CHART_NEW_VERSION}
+chart_version: {CHART_VERSION_DEV_2}
 "#
     );
 
@@ -298,7 +287,7 @@ fn k8s_self_update_new_version_failing_image() {
         k8s.client.clone(),
         &opamp_server,
         &namespace,
-        LOCAL_CHART_NEW_VERSION,
+        CHART_VERSION_DEV_2,
     );
 
     opamp_server.set_config_response(
@@ -306,7 +295,7 @@ fn k8s_self_update_new_version_failing_image() {
         format!(
             r#"
 agents: {{}}
-chart_version: {LOCAL_CHART_FAILING_VERSION}
+chart_version: {CHART_VERSION_CRASHLOOP}
 "#
         ),
     );
@@ -371,6 +360,11 @@ fn bootstrap_ac(
 
     install_ac_with_cli(namespace, chart_version);
 
+    // make some OpAMP seq number gap between old and new pod to avoid the fake server to
+    // always send full-resend flag for each pod, and finally keep the new pod data once
+    // the old pod die.
+    sleep(Duration::from_secs(POLL_INTERVAL * 4));
+
     instance_id::get_instance_id(client.clone(), namespace, &AgentID::new_agent_control_id())
 }
 
@@ -407,11 +401,11 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
               // To make health assertions faster
               "health_check":{
                 "initial_delay": "1s",
-                "interval": "5s",
+                "interval": "20s",
               },
               "fleet_control": {
                 "endpoint": opamp_endpoint.as_str(),
-                "poll_interval": "5s",
+                "poll_interval": format!("{POLL_INTERVAL}s"),
                 "signature_validation": {
                   "enabled": "false",
                 },
