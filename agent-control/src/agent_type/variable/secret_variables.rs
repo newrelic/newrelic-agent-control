@@ -10,6 +10,14 @@ use crate::{
     secrets_provider::{SecretsProvider, SecretsProviderType, SecretsProvidersRegistry},
 };
 
+/// Represents the prefix used for namespaced variables.
+/// Example: "nr-vault", "nr-var", etc.
+type NamespacePrefix = String;
+
+/// Represents a collection of variable names for a specific namespace.
+/// Example: {"PATH_A", "PATH_B", "sourceA:kv:secrets:password"}.
+type VariablesNamesCollection = HashSet<String>;
+
 /// Represents a collection of secret variables extracted from a sub-agent configuration.
 ///
 /// It will contain something like:
@@ -27,7 +35,7 @@ use crate::{
 /// }
 /// ```
 pub struct SecretVariables {
-    variables: HashMap<String, HashSet<String>>,
+    variables: HashMap<NamespacePrefix, VariablesNamesCollection>,
 }
 
 impl From<&str> for SecretVariables {
