@@ -1,7 +1,7 @@
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
+use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::secrets_provider::SecretsProvider;
 use newrelic_agent_control::secrets_provider::k8s_secret::K8sSecretProvider;
 use newrelic_agent_control::secrets_provider::vault::{Vault, VaultConfig};
@@ -95,7 +95,7 @@ fn k8s_secret_provider() {
     let value = "stored value";
     create_values_secret(k8s.client.clone(), &namespace, name, key, value.to_string());
 
-    let k8s_client = SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::default()).unwrap();
+    let k8s_client = SyncK8sClient::try_new(tokio_runtime()).unwrap();
 
     let provider = K8sSecretProvider::new(Arc::new(k8s_client));
 

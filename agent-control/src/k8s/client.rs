@@ -275,21 +275,25 @@ impl AsyncK8sClient {
         key: &str,
     ) -> Result<Option<String>, K8sError> {
         let secret_client = Api::<Secret>::namespaced(self.client.clone(), namespace);
-        if let Some(secret) = secret_client.get_opt(name).await? {
-            if let Some(data) = secret.data {
-                if let Some(value) = data.get(key) {
-                    let v = std::str::from_utf8(&value.0)
-                        .map_err(|e| K8sError::Generic(format!("decoding secret key: {}", e)))?;
-                    return Ok(Some(v.to_string()));
-                }
-                debug!("Secret {}:{} missing key {}", namespace, name, key);
-            } else {
-                debug!("Secret {}:{} missing data", namespace, name);
-            }
-        } else {
+
+        let Some(secret) = secret_client.get_opt(name).await? else {
             debug!("Secret {}:{} not found", namespace, name);
-        }
-        Ok(None)
+            return Ok(None);
+        };
+
+        let Some(data) = secret.data else {
+            debug!("Secret {}:{} missing data", namespace, name);
+            return Ok(None);
+        };
+
+        let Some(value) = data.get(key) else {
+            debug!("Secret {}:{} missing key {}", namespace, name, key);
+            return Ok(None);
+        };
+
+        let v = std::str::from_utf8(&value.0)
+            .map_err(|e| K8sError::Generic(format!("decoding secret key: {}", e)))?;
+        Ok(Some(v.to_string()))
     }
 
     pub async fn delete_configmap_collection(
@@ -312,20 +316,22 @@ impl AsyncK8sClient {
         let cm_client: Api<ConfigMap> =
             Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
 
-        if let Some(cm) = cm_client.get_opt(name).await? {
-            if let Some(data) = cm.data {
-                if let Some(key) = data.get(key) {
-                    return Ok(Some(key.clone()));
-                }
-                debug!("ConfigMap {} missing key {}", name, key)
-            } else {
-                debug!("ConfigMap {} missing data", name)
-            }
-        } else {
-            debug!("ConfigMap {} not found", name)
-        }
+        let Some(cm) = cm_client.get_opt(name).await? else {
+            debug!("ConfigMap {}:{} not found", namespace, name);
+            return Ok(None);
+        };
 
-        Ok(None)
+        let Some(data) = cm.data else {
+            debug!("ConfigMap {}:{} missing data", namespace, name);
+            return Ok(None);
+        };
+
+        let Some(value) = data.get(key) else {
+            debug!("ConfigMap {}:{} missing key {}", namespace, name, key);
+            return Ok(None);
+        };
+
+        Ok(Some(value.clone()))
     }
 
     pub async fn set_configmap_key(

@@ -11,7 +11,6 @@ use crate::secrets_provider::SecretsProvider;
 pub struct K8sSecretProviderError(String);
 
 /// A secrets provider that retrieves secrets from Kubernetes.
-#[derive(Debug)]
 pub struct K8sSecretProvider {
     k8s_client: Arc<SyncK8sClient>,
 }
@@ -26,32 +25,25 @@ impl SecretsProvider for K8sSecretProvider {
     type Error = K8sSecretProviderError;
 
     fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
-        let k8s_secret_path = K8sSecretPath::try_from(secret_path)?;
+        let K8sSecretPath {
+            namespace,
+            name,
+            key,
+        } = K8sSecretPath::try_from(secret_path)?;
 
         self.k8s_client
-            .get_secret_key(
-                &k8s_secret_path.name,
-                &k8s_secret_path.namespace,
-                &k8s_secret_path.key,
-            )
-            .map_err(|err| {
-                K8sSecretProviderError(format!("getting {k8s_secret_path} secret: {err}"))
-            })?
-            .ok_or_else(|| K8sSecretProviderError(format!("'{k8s_secret_path}' secret not found")))
+            .get_secret_key(&name, &namespace, &key)
+            .map_err(|err| K8sSecretProviderError(format!("getting {secret_path} secret: {err}")))?
+            .ok_or_else(|| K8sSecretProviderError(format!("'{secret_path}' secret not found")))
     }
 }
 
 /// Represents a Kubernetes secret path in the format `<namespace>:<name>:<key>`.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug)]
 pub struct K8sSecretPath {
     namespace: String,
     name: String,
     key: String,
-}
-impl std::fmt::Display for K8sSecretPath {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}", self.namespace, self.name, self.key)
-    }
 }
 
 /// Converts a format like <namespace>:<name>:<key> into a [K8sSecretPath].
