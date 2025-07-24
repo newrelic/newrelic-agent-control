@@ -15,6 +15,7 @@ use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::variable::namespace::Namespace;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -23,7 +24,8 @@ use crate::opamp::instance_id::k8s::getter::{Identifiers, get_identifiers};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::SecretsProvidersRegistry;
+use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::secrets_provider::{SecretsProviderType, SecretsProvidersRegistry};
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
@@ -133,7 +135,7 @@ impl AgentControlRunner {
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
-        let secrets_providers = if let Some(config) = &agent_control_config.secrets_providers {
+        let mut secrets_providers = if let Some(config) = &agent_control_config.secrets_providers {
             SecretsProvidersRegistry::try_from(config.clone()).map_err(|e| {
                 AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
                     "Failed to load secrets providers: {e}"
@@ -142,6 +144,10 @@ impl AgentControlRunner {
         } else {
             HashMap::default()
         };
+        secrets_providers.insert(
+            Namespace::K8sSecret,
+            SecretsProviderType::K8sSecret(K8sSecretProvider::new(k8s_client.clone())),
+        );
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
             self.agent_type_registry.clone(),

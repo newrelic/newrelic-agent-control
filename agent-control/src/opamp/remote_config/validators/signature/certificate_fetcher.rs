@@ -79,7 +79,7 @@ mod tests {
     use crate::http::config::ProxyConfig;
     use crate::http::tls::install_rustls_default_crypto_provider;
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
-    use crate::utils::tests::retry;
+    use crate::utils::retry::retry;
     use assert_matches::assert_matches;
 
     const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -108,13 +108,12 @@ mod tests {
                         CertificateFetcher::Https(Url::parse(self.url).unwrap(), client.clone())
                             .fetch()
                     {
-                        return Err(
-                            format!("fetching cert err '{}', case: '{}'", e, self.name).into()
-                        );
+                        return Err(format!("fetching cert err '{}', case: '{}'", e, self.name));
                     }
 
                     Ok(())
-                });
+                })
+                .unwrap();
             }
         }
         let test_cases = vec![

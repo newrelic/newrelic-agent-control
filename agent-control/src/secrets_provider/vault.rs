@@ -54,12 +54,6 @@ pub enum VaultError {
     GenericError(String),
 }
 
-impl From<String> for VaultError {
-    fn from(s: String) -> Self {
-        VaultError::GenericError(s)
-    }
-}
-
 /// Represents a path to a secret in Vault, including source, mount, path, and name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VaultSecretPath {

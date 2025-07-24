@@ -84,6 +84,9 @@ impl SecretVariables {
                 SecretsProviderType::Vault(provider) => {
                     self.load_secrets_at(namespace, provider)?
                 }
+                SecretsProviderType::K8sSecret(provider) => {
+                    self.load_secrets_at(namespace, provider)?
+                }
             };
             result.extend(secrets_map);
         }

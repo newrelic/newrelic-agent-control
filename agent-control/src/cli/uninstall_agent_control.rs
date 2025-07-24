@@ -3,10 +3,11 @@ use crate::agent_control::config::{
 };
 use crate::cli::errors::CliError;
 use crate::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
-use crate::cli::utils::{retry, try_new_k8s_client};
+use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
+use crate::utils::retry::retry;
 use clap::Parser;
 use either::Either;
 use kube::api::{DynamicObject, ObjectList, TypeMeta};

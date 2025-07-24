@@ -6,7 +6,7 @@ use crate::k8s::dynamic_object::TypeMetaNamespaced;
 use crate::k8s::utils::{get_namespace, get_type_meta};
 use either::Either;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{APIResourceList, ObjectMeta};
 use kube::api::ObjectList;
 use kube::api::entry::Entry;
@@ -157,6 +157,17 @@ impl SyncK8sClient {
             .block_on(self.async_client.get_configmap_key(name, namespace, key))
     }
 
+    // Gets the decoded secret key assuming it contains a String.
+    pub fn get_secret_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        self.runtime
+            .block_on(self.async_client.get_secret_key(name, namespace, key))
+    }
+
     pub fn set_configmap_key(
         &self,
         name: &str,
@@ -256,6 +267,35 @@ impl AsyncK8sClient {
         Ok(list)
     }
 
+    /// Gets the decoded secret key assuming it contains a String.
+    pub async fn get_secret_key(
+        &self,
+        name: &str,
+        namespace: &str,
+        key: &str,
+    ) -> Result<Option<String>, K8sError> {
+        let secret_client = Api::<Secret>::namespaced(self.client.clone(), namespace);
+
+        let Some(secret) = secret_client.get_opt(name).await? else {
+            debug!("Secret {}:{} not found", namespace, name);
+            return Ok(None);
+        };
+
+        let Some(data) = secret.data else {
+            debug!("Secret {}:{} missing data", namespace, name);
+            return Ok(None);
+        };
+
+        let Some(value) = data.get(key) else {
+            debug!("Secret {}:{} missing key {}", namespace, name, key);
+            return Ok(None);
+        };
+
+        let v = std::str::from_utf8(&value.0)
+            .map_err(|e| K8sError::Generic(format!("decoding secret key: {}", e)))?;
+        Ok(Some(v.to_string()))
+    }
+
     pub async fn delete_configmap_collection(
         &self,
         namespace: &str,
@@ -276,20 +316,22 @@ impl AsyncK8sClient {
         let cm_client: Api<ConfigMap> =
             Api::<ConfigMap>::namespaced(self.client.clone(), namespace);
 
-        if let Some(cm) = cm_client.get_opt(name).await? {
-            if let Some(data) = cm.data {
-                if let Some(key) = data.get(key) {
-                    return Ok(Some(key.clone()));
-                }
-                debug!("ConfigMap {} missing key {}", name, key)
-            } else {
-                debug!("ConfigMap {} missing data", name)
-            }
-        } else {
-            debug!("ConfigMap {} not found", name)
-        }
+        let Some(cm) = cm_client.get_opt(name).await? else {
+            debug!("ConfigMap {}:{} not found", namespace, name);
+            return Ok(None);
+        };
 
-        Ok(None)
+        let Some(data) = cm.data else {
+            debug!("ConfigMap {}:{} missing data", namespace, name);
+            return Ok(None);
+        };
+
+        let Some(value) = data.get(key) else {
+            debug!("ConfigMap {}:{} missing key {}", namespace, name, key);
+            return Ok(None);
+        };
+
+        Ok(Some(value.clone()))
     }
 
     pub async fn set_configmap_key(
