@@ -2,10 +2,12 @@ use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_values_secret};
-use crate::k8s::self_update::{LOCAL_CHART_NEW_VERSION, LOCAL_CHART_PREVIOUS_VERSION};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use crate::k8s::tools::local_chart::{
+    CHART_VERSION_DEV_1, CHART_VERSION_DEV_2, CHART_VERSION_LATEST_RELEASE,
+};
 use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
@@ -46,7 +48,7 @@ fn k8s_cli_local_and_remote_updates() {
     // running installer first time
     let mut cmd = ac_install_cmd(
         &ac_namespace,
-        LOCAL_CHART_PREVIOUS_VERSION,
+        CHART_VERSION_DEV_1,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -54,18 +56,13 @@ fn k8s_cli_local_and_remote_updates() {
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(
-            &k8s_client,
-            LOCAL_CHART_PREVIOUS_VERSION,
-            LOCAL_VAL,
-            &ac_namespace,
-        )
+        check_version_and_source(&k8s_client, CHART_VERSION_DEV_1, LOCAL_VAL, &ac_namespace)
     });
 
     // running installer second time and doing an upgrade
     let mut cmd = ac_install_cmd(
         &ac_namespace,
-        LOCAL_CHART_NEW_VERSION,
+        CHART_VERSION_DEV_2,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -73,15 +70,9 @@ fn k8s_cli_local_and_remote_updates() {
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(
-            &k8s_client,
-            LOCAL_CHART_NEW_VERSION,
-            LOCAL_VAL,
-            &ac_namespace,
-        )
+        check_version_and_source(&k8s_client, CHART_VERSION_DEV_2, LOCAL_VAL, &ac_namespace)
     });
 
-    let latest_version = "*";
     let ac_instance_id = instance_id::get_instance_id(
         k8s_env.client.clone(),
         ac_namespace.as_str(),
@@ -92,19 +83,24 @@ fn k8s_cli_local_and_remote_updates() {
         format!(
             r#"
 agents: {{}}
-chart_version: "{latest_version}"
+chart_version: "{CHART_VERSION_LATEST_RELEASE}"
 "#
         ),
     );
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &ac_namespace)
+        check_version_and_source(
+            &k8s_client,
+            CHART_VERSION_LATEST_RELEASE,
+            REMOTE_VAL,
+            &ac_namespace,
+        )
     });
 
     // running another local update does not change the version, but it updates anyway the helmRelease object
     let mut cmd = ac_install_cmd(
         &ac_namespace,
-        LOCAL_CHART_PREVIOUS_VERSION,
+        CHART_VERSION_DEV_1,
         "test-secret=values.yaml",
     );
     cmd.arg("--extra-labels").arg("env=testing");
@@ -113,7 +109,12 @@ chart_version: "{latest_version}"
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, latest_version, REMOTE_VAL, &ac_namespace)?;
+        check_version_and_source(
+            &k8s_client,
+            CHART_VERSION_LATEST_RELEASE,
+            REMOTE_VAL,
+            &ac_namespace,
+        )?;
 
         let obj = k8s_client
             .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &ac_namespace)?

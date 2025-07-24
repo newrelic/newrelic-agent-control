@@ -201,10 +201,15 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
 
     // Check sequence number
     let mut flags = ServerToAgentFlags::Unspecified as u64;
-    if message.sequence_num == (state.sequence_number + 1) || message.sequence_num == 0 {
+    if message.sequence_num == (state.sequence_number + 1) {
+        // case 1: first opamp connection start with seq number 1
+        // case 2: Any valid new sequence number
         state.sequence_number += 1;
     } else {
         flags = ServerToAgentFlags::ReportFullState as u64;
+        // upon report full state the opamp client will send a new AgentToServer
+        // increasing the seq number so current should be the valid
+        state.sequence_number = message.sequence_num;
     }
 
     if let Some(health) = message.health {

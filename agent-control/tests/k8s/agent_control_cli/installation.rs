@@ -1,9 +1,11 @@
 use crate::common::opamp::FakeServer;
 use crate::common::runtime::block_on;
-use crate::k8s::self_update::LOCAL_CHART_REPOSITORY;
 use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
+use crate::k8s::tools::local_chart::{
+    CHART_VERSION_LATEST_RELEASE, LOCAL_CHART_REPOSITORY, MISSING_VERSION,
+};
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use kube::Client;
@@ -33,12 +35,15 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
     );
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&ac_namespace, "0.0.0", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, MISSING_VERSION, "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
         &assert,
-        "no 'agent-control-deployment' chart with version matching '0.0.0' found",
+        format!(
+            "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"
+        )
+        .as_str(),
     );
     assert.failure(); // The installation check should detect that the upgrade failed
 }
@@ -58,7 +63,11 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&ac_namespace, "*", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        CHART_VERSION_LATEST_RELEASE,
+        "test-secret=values.yaml",
+    );
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -85,18 +94,25 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
         "values.yaml",
     );
 
-    let mut cmd = ac_install_cmd(&ac_namespace, "*", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        CHART_VERSION_LATEST_RELEASE,
+        "test-secret=values.yaml",
+    );
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success(); // Install successfully
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&ac_namespace, "0.0.0", "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(&ac_namespace, MISSING_VERSION, "test-secret=values.yaml");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
         &assert,
-        "no 'agent-control-deployment' chart with version matching '0.0.0' found",
+        format!(
+            "no 'agent-control-deployment' chart with version matching '{MISSING_VERSION}' found"
+        )
+        .as_str(),
     );
     assert.failure(); // The installation check should detect that the upgrade failed
 }
