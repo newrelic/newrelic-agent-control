@@ -8,6 +8,7 @@ use crate::{
         variable::{Variable, namespace::Namespace},
     },
     secrets_provider::{SecretsProvider, SecretsProviderType, SecretsProvidersRegistry},
+    values::yaml_config::YAMLConfig,
 };
 
 /// Represents the prefix used for namespaced variables.
@@ -62,10 +63,24 @@ impl From<&str> for SecretVariables {
     }
 }
 
+impl TryFrom<YAMLConfig> for SecretVariables {
+    type Error = SecretVariablesError;
+
+    fn try_from(config: YAMLConfig) -> Result<Self, Self::Error> {
+        let config: String = config
+            .try_into()
+            .map_err(|_| SecretVariablesError::YamlParseError)?;
+        Ok(SecretVariables::from(config.as_str()))
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum SecretVariablesError {
     #[error("failed to load secret: {0}")]
     SecretsLoadError(String),
+
+    #[error("failed to parse yaml config")]
+    YamlParseError,
 }
 
 impl SecretVariables {
