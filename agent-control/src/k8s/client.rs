@@ -4,7 +4,6 @@ use crate::agent_control::config::{
 };
 use crate::k8s::dynamic_object::TypeMetaNamespaced;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use duration_str::deserialize_duration;
 use either::Either;
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, StatefulSet};
 use k8s_openapi::api::core::v1::ConfigMap;
@@ -18,13 +17,12 @@ use kube::{
     config::KubeConfigOptions,
     core::{DynamicObject, TypeMeta},
 };
-use serde::{Deserialize, de::DeserializeOwned};
+use serde::de::DeserializeOwned;
+use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::{collections::BTreeMap, sync::Arc};
-use std::{fmt::Debug, time::Duration};
 use tokio::runtime::Runtime;
 use tracing::debug;
-use wrapper_with_default::WrapperWithDefault;
 
 /// Provides a _sync_ implementation of [AsyncK8sClient].
 ///
@@ -55,9 +53,9 @@ impl Debug for SyncK8sClient {
 
 #[cfg_attr(test, mockall::automock)]
 impl SyncK8sClient {
-    pub fn try_new(runtime: Arc<Runtime>, config: &ClientConfig) -> Result<Self, K8sError> {
+    pub fn try_new(runtime: Arc<Runtime>) -> Result<Self, K8sError> {
         Ok(Self {
-            async_client: runtime.block_on(AsyncK8sClient::try_new(config))?,
+            async_client: runtime.block_on(AsyncK8sClient::try_new())?,
             runtime,
         })
     }
@@ -197,36 +195,6 @@ impl SyncK8sClient {
     }
 }
 
-/// Same as upstream kube-rs default client timeout (read/write). This timeout is used internally by the Stream than handles the request/responses
-/// to the API, but the API call doesn't have a timeout itself.
-///
-/// The default value has been set equal to the upstream (295s) which is a value between the watcher default timeout [watcher::Config] (290s) and the k8s max watcher
-/// timeout (300s). But according [this](https://github.com/kube-rs/kube/issues/334) the upstream assumption might be outdated. In the case a lower
-/// value is picked <290s the watcher will fail.
-const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(295);
-#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
-pub struct ClientConfig {
-    /// The maximum duration the client will wait for a response from an external API or complete internal processing before timing out.
-    #[serde(default)]
-    pub client_timeout: ClientTimeout,
-}
-impl ClientConfig {
-    pub fn new() -> Self {
-        Self {
-            client_timeout: ClientTimeout::default(),
-        }
-    }
-    pub fn with_client_timeout(self, timeout: Duration) -> Self {
-        Self {
-            client_timeout: timeout.into(),
-        }
-    }
-}
-/// Wrapper for the client_timeout.
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
-#[wrapper_default_value(DEFAULT_CLIENT_TIMEOUT)]
-pub struct ClientTimeout(#[serde(deserialize_with = "deserialize_duration")] Duration);
-
 pub struct AsyncK8sClient {
     client: Client,
     dynamic_object_managers: DynamicObjectManagers,
@@ -238,10 +206,10 @@ impl AsyncK8sClient {
     /// If loading from the inCluster config fail we fall back to kube-config
     /// This will respect the `$KUBECONFIG` envvar, but otherwise default to `~/.kube/config`.
     /// Not leveraging infer() to check inClusterConfig first
-    pub async fn try_new(client_config: &ClientConfig) -> Result<Self, K8sError> {
+    pub async fn try_new() -> Result<Self, K8sError> {
         debug!("trying inClusterConfig for k8s client");
 
-        let mut config = match Config::incluster() {
+        let config = match Config::incluster() {
             Ok(c) => c,
             Err(e) => {
                 debug!("inClusterConfig {}, trying kubeconfig for k8s client", e);
@@ -249,17 +217,17 @@ impl AsyncK8sClient {
                 Config::from_kubeconfig(&c).await?
             }
         };
-        config.read_timeout = Some(client_config.client_timeout.into());
-        config.write_timeout = Some(client_config.client_timeout.into());
+
+        // This test is a workaround in place to avoid long hangs https://github.com/kube-rs/kube/issues/1796
+        // Once that it is properly fixed, this can be removed and we could leverage the same client for both.
+        let reflector_client = Client::try_from(config.clone())?;
+        let reflector_builder = ReflectorBuilder::new(reflector_client);
 
         let client = Client::try_from(config)?;
-
-        let reflector_builder = ReflectorBuilder::new(client.clone());
-
         debug!("k8s client initialization succeeded");
         Ok(Self {
             client: client.clone(),
-            dynamic_object_managers: DynamicObjectManagers::new(client.clone(), reflector_builder),
+            dynamic_object_managers: DynamicObjectManagers::new(client, reflector_builder),
         })
     }
 
@@ -563,19 +531,9 @@ pub(crate) mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
     use crate::k8s::utils::{get_name, get_target_namespace};
-    use http::Uri;
     use k8s_openapi::serde_json;
     use kube::Client;
     use tower_test::mock;
-
-    #[test]
-    fn test_upstream_default_client_timeout() {
-        let config = Config::new(Uri::try_from("https://localhost.com").unwrap());
-        let msg =
-            "looks like kube-rs has revisit the timeout, see [DEFAULT_CLIENT_TIMEOUT] for details.";
-        assert_eq!(config.read_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
-        assert_eq!(config.write_timeout, Some(DEFAULT_CLIENT_TIMEOUT), "{msg}");
-    }
 
     // This test checks that an unexpected api-server error response when building reflectors doesn't
     // make the k8s client creation fail.

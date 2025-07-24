@@ -11,7 +11,6 @@ use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::mock;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
-use newrelic_agent_control::k8s::client::ClientConfig;
 use newrelic_agent_control::opamp::remote_config::hash::ConfigState;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -79,8 +78,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
         AgentTypeID::try_from("ns/test:1.2.3").unwrap(),
     ));
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
 
     let resource_name = "test-different-from-agent-id";
     let secret_name = "test-secret-name";
@@ -240,9 +238,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
     };
 
     let gc = K8sGarbageCollector {
-        k8s_client: Arc::new(
-            SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
-        ),
+        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap()),
         namespace: test_ns.clone(),
         namespace_agents: test_ns.clone(),
         cr_type_meta: vec![missing_kind, foo_type_meta()],
@@ -273,8 +269,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
         None,
     ));
 
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
@@ -365,9 +360,7 @@ agents:
     );
 
     let gc = K8sGarbageCollector {
-        k8s_client: Arc::new(
-            SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap(),
-        ),
+        k8s_client: Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap()),
         namespace: test_ns.clone(),
         namespace_agents: test_ns.clone(),
         cr_type_meta: vec![foo_type_meta()],

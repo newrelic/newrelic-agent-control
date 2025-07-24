@@ -10,7 +10,7 @@ use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
-use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
+use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use newrelic_agent_control::sub_agent::version::version_checker::VersionCheckError;
 use std::error::Error;
@@ -30,8 +30,7 @@ fn k8s_cli_local_and_remote_updates() {
     let mut k8s_env = block_on(K8sEnv::new());
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
 
     print_pod_logs(k8s_env.client.clone(), &ac_namespace, CLI_AC_LABEL_SELECTOR);
 
