@@ -1,0 +1,3 @@
+chart_values: 
+  hashicorpVaultV1Key: ${nr-vault:sourceA:kv-v1:my-secret:foo1}
+  hashicorpVaultV2Key: ${nr-vault:sourceB:secret:my-secret:foo2}
