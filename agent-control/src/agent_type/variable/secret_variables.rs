@@ -30,15 +30,8 @@ pub struct SecretVariables {
     variables: HashMap<String, HashSet<String>>,
 }
 
-#[derive(thiserror::Error, Debug)]
-pub enum SecretVariablesError {
-    #[error("failed to load secret: {0}")]
-    SecretsLoadError(String),
-}
-
-impl SecretVariables {
-    /// Extracts secret variables from a configuration string.
-    pub fn from_config(s: &str) -> Self {
+impl From<&str> for SecretVariables {
+    fn from(s: &str) -> Self {
         let mut result = SecretVariables {
             variables: HashMap::new(),
         };
@@ -59,15 +52,15 @@ impl SecretVariables {
 
         result
     }
+}
 
-    fn add_namespaced_variable(&mut self, variable: &str) {
-        let (prefix, var_name) = variable
-            .split_once(Namespace::PREFIX_NS_SEPARATOR)
-            .map(|v| (v.0.to_string(), v.1.to_string()))
-            .expect("Namespace format should be valid");
-        self.variables.entry(prefix).or_default().insert(var_name);
-    }
+#[derive(thiserror::Error, Debug)]
+pub enum SecretVariablesError {
+    #[error("failed to load secret: {0}")]
+    SecretsLoadError(String),
+}
 
+impl SecretVariables {
     /// Loads secrets from all providers.
     pub fn load_all_secrets(
         &self,
@@ -116,6 +109,14 @@ impl SecretVariables {
 
         Ok(result)
     }
+
+    fn add_namespaced_variable(&mut self, variable: &str) {
+        let (prefix, var_name) = variable
+            .split_once(Namespace::PREFIX_NS_SEPARATOR)
+            .map(|v| (v.0.to_string(), v.1.to_string()))
+            .expect("Namespace format should be valid");
+        self.variables.entry(prefix).or_default().insert(var_name);
+    }
 }
 
 #[cfg(test)]
@@ -149,7 +150,7 @@ eof"#;
                 "sourceA:my_database:admin/credentials:username".to_string(),
             ]),
         )]);
-        assert_eq!(SecretVariables::from_config(input).variables, expected);
+        assert_eq!(SecretVariables::from(input).variables, expected);
     }
 
     #[rstest]
@@ -165,10 +166,7 @@ eof"#;
         )]
         input: &str,
     ) {
-        assert_eq!(
-            SecretVariables::from_config(input).variables,
-            HashMap::new()
-        );
+        assert_eq!(SecretVariables::from(input).variables, HashMap::new());
     }
 
     #[test]
