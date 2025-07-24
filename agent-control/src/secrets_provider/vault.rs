@@ -41,8 +41,8 @@ pub enum VaultError {
     #[error("unable to deserialize body: `{0}`")]
     DeserializeError(String),
 
-    #[error("secret path is not in vault format")]
-    IncorrectSecretPath,
+    #[error("secret path '{0}' does not have a valid format 'source:mount:path:name'")]
+    IncorrectSecretPath(String),
 
     #[error("secret source not found")]
     SourceNotFound,
@@ -74,8 +74,8 @@ impl FromStr for VaultSecretPath {
 
     fn from_str(secret_path: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = secret_path.split(':').collect();
-        if parts.len() != 4 {
-            return Err(VaultError::IncorrectSecretPath);
+        if parts.len() != 4 || parts.iter().any(|p| p.is_empty()) {
+            return Err(VaultError::IncorrectSecretPath(secret_path.to_string()));
         }
 
         let secret_path = VaultSecretPath {
@@ -84,14 +84,6 @@ impl FromStr for VaultSecretPath {
             path: parts[2].to_string(),
             name: parts[3].to_string(),
         };
-
-        if secret_path.source.is_empty()
-            || secret_path.mount.is_empty()
-            || secret_path.path.is_empty()
-            || secret_path.name.is_empty()
-        {
-            return Err(VaultError::IncorrectSecretPath);
-        }
 
         Ok(secret_path)
     }
