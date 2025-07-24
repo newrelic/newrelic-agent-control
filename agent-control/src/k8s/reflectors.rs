@@ -31,13 +31,13 @@ const REFLECTOR_START_MAX_ATTEMPTS: u32 = 3;
 /// let deployment_reflector = builder.try_build::<Deployment>().unwrap();
 /// ```
 pub struct ReflectorBuilder {
-    client: Client,
+    reflector_client: Client,
 }
 
 impl ReflectorBuilder {
     /// Returns a reflector builder, consuming the provided client.
-    pub fn new(client: Client) -> Self {
-        ReflectorBuilder { client }
+    pub fn new(reflector_client: Client) -> Self {
+        ReflectorBuilder { reflector_client }
     }
 
     /// Builds the DynamicObject reflector using the builder.
@@ -56,7 +56,7 @@ impl ReflectorBuilder {
         trace!("Building k8s reflector for {:?}", api_resource);
         Reflector::retry_build_on_timeout(REFLECTOR_START_MAX_ATTEMPTS, || async {
             Reflector::try_new(
-                Api::namespaced_with(self.client.clone(), ns, api_resource),
+                Api::namespaced_with(self.reflector_client.clone(), ns, api_resource),
                 REFLECTOR_START_TIMEOUT,
                 Writer::new(api_resource.clone()),
             )

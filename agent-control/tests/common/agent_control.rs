@@ -10,7 +10,6 @@ use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::values::file::ConfigRepositoryFile;
 use std::sync::Arc;
-use std::time::Duration;
 
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
 /// Take into account that some of the logic from main is not present here.
@@ -42,14 +41,9 @@ pub fn start_agent_control_with_custom_config(
             k8s_config: match mode {
                 // This config is not used on the OnHost environment, a blank config is used.
                 Environment::OnHost => K8sConfig::default(),
-                Environment::K8s => {
-                    let mut cfg = agent_control_config
-                        .k8s
-                        .expect("K8s config must be present when running in K8s");
-
-                    cfg.client_config.client_timeout = Duration::from_secs(30).into();
-                    cfg
-                }
+                Environment::K8s => agent_control_config
+                    .k8s
+                    .expect("K8s config must be present when running in K8s"),
             },
         };
 

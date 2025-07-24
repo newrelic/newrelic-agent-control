@@ -5,7 +5,6 @@ use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
 use crate::instrumentation::config::logs::config::LoggingConfig;
-use crate::k8s::client::ClientConfig;
 use crate::opamp::auth::config::AuthConfig;
 use crate::opamp::client_builder::PollInterval;
 use crate::opamp::remote_config::OpampRemoteConfigError;
@@ -214,9 +213,6 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
 pub struct K8sConfig {
     /// cluster_name is an attribute used to identify all monitored data in a particular kubernetes cluster. Required
     pub cluster_name: String,
-    /// client configuration
-    #[serde(flatten)]
-    pub client_config: ClientConfig,
     /// namespace where all resources directly managed by the agent control will be created.
     pub namespace: String,
     /// namespace where all resources managed by flux will be created.
@@ -296,7 +292,6 @@ impl Default for K8sConfig {
     fn default() -> Self {
         Self {
             cluster_name: Default::default(),
-            client_config: Default::default(),
             namespace: Default::default(),
             namespace_agents: Default::default(),
             current_chart_version: Default::default(),
@@ -315,7 +310,7 @@ pub(crate) mod tests {
         },
         sub_agent::identity::AgentIdentity,
     };
-    use std::{path::PathBuf, time::Duration};
+    use std::path::PathBuf;
 
     impl Default for OpAMPClientConfig {
         fn default() -> Self {
@@ -584,7 +579,6 @@ k8s:
   namespace: some-namespace
   namespace_agents: some-namespace-agents
   cluster_name: some-cluster
-  client_timeout: 3s
   cr_type_meta:
     - apiVersion: "custom.io/v1"
       kind: "CustomKind"
@@ -602,10 +596,6 @@ k8s:
         assert_eq!(k8s.cr_type_meta, vec![custom_type_meta]);
         assert_eq!(k8s.namespace, "some-namespace");
         assert_eq!(k8s.cluster_name, "some-cluster");
-        assert_eq!(
-            k8s.client_config.client_timeout,
-            Duration::from_secs(3).into()
-        );
     }
 
     #[test]

@@ -53,10 +53,14 @@ pub struct K8sEnv {
 
 impl K8sEnv {
     pub async fn new() -> Self {
+        init_logger();
+        K8sEnv::new_without_logs().await
+    }
+
+    pub async fn new_without_logs() -> Self {
         INIT_RUSTLS.call_once(|| {
             install_rustls_default_crypto_provider();
         });
-        init_logger();
 
         // Forces the client to use the dev kubeconfig file.
         unsafe { env::set_var("KUBECONFIG", KUBECONFIG_PATH) };

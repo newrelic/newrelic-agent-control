@@ -47,7 +47,7 @@ impl AgentControlRunner {
     pub(super) fn run_k8s(self) -> Result<(), AgentError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
-            SyncK8sClient::try_new(self.runtime, &self.k8s_config.client_config)
+            SyncK8sClient::try_new(self.runtime)
                 .map_err(|e| AgentError::ExternalError(e.to_string()))?,
         );
         let k8s_store = Arc::new(K8sStore::new(

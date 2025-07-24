@@ -10,7 +10,7 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
 use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
-use newrelic_agent_control::k8s::client::{ClientConfig, SyncK8sClient};
+use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -22,8 +22,7 @@ fn k8s_run_updater() {
     // set up the k8s environment
     let mut k8s = block_on(K8sEnv::new());
     let test_ns = block_on(k8s.test_namespace());
-    let k8s_client =
-        Arc::new(SyncK8sClient::try_new(tokio_runtime(), &ClientConfig::new()).unwrap());
+    let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
 
     let current_version = "1.2.3-beta".to_string();
     let new_version = "1.2.3".to_string();
