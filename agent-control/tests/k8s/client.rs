@@ -732,6 +732,7 @@ fn k8s_remove_crd_after_dynamic_resource_initialized() {
 // Once that it is properly fixed, this test can be removed
 async fn k8s_client_does_not_hang_in_case_of_incomplete_message() {
     let now = SystemTime::now();
+    // when the logs are enabled, the test hangs less often and it is no longer valid
     let mut test = K8sEnv::new_without_logs().await;
     let test_ns_1 = test.test_namespace().await;
     let name = "test-cm";
