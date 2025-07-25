@@ -274,6 +274,13 @@ pub fn deployment_type_meta() -> TypeMeta {
     }
 }
 
+pub fn crds_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "apiextensions.k8s.io/v1".to_string(),
+        kind: "CustomResourceDefinition".to_string(),
+    }
+}
+
 pub fn default_group_version_kinds() -> Vec<TypeMeta> {
     // In flux health check we are currently supporting just a single helm_release_type_meta
     // Each time we support a new version we should decide if and how to support retrieving its health

@@ -1,6 +1,7 @@
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
-use crate::health::k8s::health_checker::resources::helm_release::FluxSystemHealthChecker;
+use crate::health::k8s::health_checker::resources::crds::FluxCrdsHealthChecker;
+use crate::health::k8s::health_checker::resources::helm_release::K8sHealthFluxHelmRelease;
 use crate::health::k8s::health_checker::resources::instrumentation::K8sHealthNRInstrumentation;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 #[cfg_attr(test, mockall_double::double)]
@@ -23,7 +24,8 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
 #[derive(Debug)]
 pub enum K8sResourceHealthChecker {
-    Flux(FluxSystemHealthChecker),
+    Crds(FluxCrdsHealthChecker),
+    Flux(K8sHealthFluxHelmRelease),
     NewRelic(K8sHealthNRInstrumentation),
     StatefulSet(K8sHealthStatefulSet),
     DaemonSet(K8sHealthDaemonSet),
@@ -33,6 +35,7 @@ pub enum K8sResourceHealthChecker {
 impl HealthChecker for K8sResourceHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
+            K8sResourceHealthChecker::Crds(crds) => crds.check_health(),
             K8sResourceHealthChecker::Flux(flux) => flux.check_health(),
             K8sResourceHealthChecker::NewRelic(nr_instrumentation) => {
                 nr_instrumentation.check_health()
@@ -58,12 +61,11 @@ pub fn health_checkers_for_type_meta(
         let target_namespace = target_namespace.unwrap_or(namespace.clone());
 
         vec![
-            K8sResourceHealthChecker::Flux(FluxSystemHealthChecker::new(
+            K8sResourceHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
                 k8s_client.clone(),
                 type_meta,
                 name.clone(),
                 namespace.clone(),
-                "0.0.10".to_string(), //TO CHANGE
                 start_time,
             )),
             K8sResourceHealthChecker::StatefulSet(K8sHealthStatefulSet::new(

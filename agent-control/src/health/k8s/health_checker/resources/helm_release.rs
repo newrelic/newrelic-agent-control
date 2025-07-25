@@ -32,22 +32,20 @@ impl From<&str> for ConditionStatus {
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
 #[derive(Debug)]
-pub struct FluxSystemHealthChecker {
+pub struct K8sHealthFluxHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     name: String,
     namespace: String,
-    expected_version: String,
     start_time: StartTime,
 }
 
-impl FluxSystemHealthChecker {
+impl K8sHealthFluxHelmRelease {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         name: String,
         namespace: String,
-        expected_version: String,
         start_time: StartTime,
     ) -> Self {
         Self {
@@ -55,7 +53,6 @@ impl FluxSystemHealthChecker {
             type_meta,
             name,
             namespace,
-            expected_version,
             start_time,
         }
     }
@@ -108,99 +105,6 @@ impl FluxSystemHealthChecker {
         None
     }
 
-    /// Checks that Flux CRDs exist and have the expected version label.
-    fn check_crds(&self) -> Result<(), String> {
-        let expected_crds = [
-            "gitrepositories.source.toolkit.fluxcd.io",
-            "kustomizations.kustomize.toolkit.fluxcd.io",
-            "helmreleases.helm.toolkit.fluxcd.io",
-            "helmcharts.source.toolkit.fluxcd.io",
-            "helmrepositories.source.toolkit.fluxcd.io",
-        ];
-
-        for crd_name in expected_crds {
-            let crd = self
-                .k8s_client
-                .get_dynamic_object(&self.type_meta, crd_name, "")
-                .map_err(|e| format!("Error checking CRD {}: {}", crd_name, e))?
-                .ok_or_else(|| format!("Flux CRD not found: {}", crd_name))?;
-
-            let labels = crd
-                .metadata
-                .labels
-                .as_ref()
-                .ok_or_else(|| format!("CRD '{}' has no labels", crd_name))?;
-            let version = labels.get("app.kubernetes.io/version").ok_or_else(|| {
-                format!(
-                    "CRD '{}' is missing the 'app.kubernetes.io/version' label",
-                    crd_name
-                )
-            })?;
-
-            if version != &self.expected_version {
-                return Err(format!(
-                    "Incorrect version for CRD '{}'. Expected: {}, Found: {}",
-                    crd_name, self.expected_version, version
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    /// Checks that a Flux controller deployment is ready and has the expected image version.
-    fn check_controller(&self, name: &str) -> Result<(), String> {
-        let deployment = self
-            .k8s_client
-            .get_dynamic_object(&self.type_meta, name, &self.namespace)
-            .map_err(|e| format!("Error fetching deployment {}: {}", name, e))?
-            .ok_or_else(|| {
-                format!(
-                    "Flux controller deployment '{}' not found in namespace '{}'",
-                    name, self.namespace
-                )
-            })?;
-
-        // Parse the DynamicObject to get readyReplicas
-        let ready_replicas = deployment
-            .data
-            .get("status")
-            .and_then(|s| s.get("readyReplicas"))
-            .and_then(|r| r.as_i64())
-            .unwrap_or(0);
-
-        if ready_replicas == 0 {
-            return Err(format!(
-                "Flux controller deployment '{}' is not ready (0 ready replicas)",
-                name
-            ));
-        }
-
-        // Parse the DynamicObject to get the container image
-        let image = deployment
-            .data
-            .get("spec")
-            .and_then(|s| s.get("template"))
-            .and_then(|t| t.get("spec"))
-            .and_then(|p| p.get("containers"))
-            .and_then(|c| c.as_array())
-            .and_then(|cs| cs.get(0))
-            .and_then(|c| c.get("image"))
-            .and_then(|i| i.as_str())
-            .ok_or_else(|| format!("Could not find container image for deployment '{}'", name))?;
-
-        let image_tag = image.split(':').last().unwrap_or("");
-        let version_from_tag = image_tag.trim_start_matches('v');
-
-        if version_from_tag != self.expected_version {
-            return Err(format!(
-                "Incorrect version for controller '{}'. Expected: {}, Found in image tag: {}",
-                name, self.expected_version, version_from_tag
-            ));
-        }
-
-        Ok(())
-    }
-
     /// Evaluates the health of a HelmRelease based on the presence and status of its 'Ready' condition.
     /// Returns a tuple where the first element is a boolean indicating health,
     /// and the second is a message detailing the health status or issues found.
@@ -239,7 +143,7 @@ impl FluxSystemHealthChecker {
     }
 }
 
-impl HealthChecker for FluxSystemHealthChecker {
+impl HealthChecker for K8sHealthFluxHelmRelease {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
@@ -296,7 +200,7 @@ pub mod tests {
             Result<Health, HealthCheckerError>,
             fn(&mut MockSyncK8sClient),
         );
-        let test_cases: Vec<TestCase> = vec![
+        let test_cases : Vec<TestCase> = vec![
             (
                 "Helm release healthy when ready and status true",
                 Ok(Healthy::new().into()),
@@ -373,7 +277,7 @@ pub mod tests {
                 )),
                 |mock: &mut MockSyncK8sClient| {
                     mock.expect_get_dynamic_object()
-                        .returning(|_, _, _| Err(Error::GetDynamic("Error".to_string())));
+                        .returning(|_, _,_| Err(Error::GetDynamic("Error".to_string())));
                 },
             ),
         ];
@@ -382,12 +286,11 @@ pub mod tests {
             let mut mock_client = MockSyncK8sClient::new();
             setup_mock(&mut mock_client);
             let start_time = StartTime::now();
-            let checker = FluxSystemHealthChecker::new(
+            let checker = K8sHealthFluxHelmRelease::new(
                 Arc::new(mock_client),
                 helmrelease_v2_type_meta(),
                 "example-release".to_string(),
                 TEST_NAMESPACE.to_string(),
-                "0.1.1".to_string(),
                 start_time,
             );
             let result = checker.check_health();

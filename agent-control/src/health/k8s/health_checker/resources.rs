@@ -8,6 +8,7 @@ use k8s_openapi::{
 use kube::core::{Expression, Selector, SelectorExt};
 use std::{any::Any, sync::Arc};
 
+pub mod crds;
 pub mod daemon_set;
 pub mod deployment;
 pub mod helm_release;
