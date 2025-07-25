@@ -67,6 +67,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     let expected_release = serde_json::json!({
         "interval": "30s",
+        "releaseName": RELEASE_NAME,
         "chart": {
             "spec": {
                 "chart": "agent-control-deployment",
