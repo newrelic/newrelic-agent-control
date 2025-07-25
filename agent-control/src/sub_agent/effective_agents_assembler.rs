@@ -3,7 +3,6 @@ use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
-use crate::agent_type::environment_variable::retrieve_env_var_variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
@@ -158,21 +157,12 @@ where
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
-        let environment_variables = retrieve_env_var_variables();
-
         let secret_variables = SecretVariables::try_from(values.clone())?;
         let secrets = secret_variables.load_all_secrets(&self.secrets_providers)?;
 
-        let mut runtime_variables = environment_variables.clone();
-        runtime_variables.extend(secrets);
-
-        let runtime_config = self.renderer.render(
-            &agent_identity.id,
-            agent_type,
-            values,
-            attributes,
-            runtime_variables,
-        )?;
+        let runtime_config =
+            self.renderer
+                .render(&agent_identity.id, agent_type, values, attributes, secrets)?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }

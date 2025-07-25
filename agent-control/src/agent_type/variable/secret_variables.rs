@@ -59,6 +59,12 @@ impl From<&str> for SecretVariables {
             }
         }
 
+        for (key, _) in std::env::vars_os() {
+            let key = key.to_string_lossy().to_string();
+            let prefix = Namespace::EnvironmentVariable.to_string();
+            result.variables.entry(prefix).or_default().insert(key);
+        }
+
         result
     }
 }
@@ -102,6 +108,7 @@ impl SecretVariables {
                 SecretsProviderType::K8sSecret(provider) => {
                     self.load_secrets_at(namespace, provider)?
                 }
+                SecretsProviderType::Env(provider) => self.load_secrets_at(namespace, provider)?,
             };
             result.extend(secrets_map);
         }
@@ -176,11 +183,14 @@ eof"#;
                 "sourceA:my_database:admin/credentials:username".to_string(),
             ]),
         )]);
-        assert_eq!(SecretVariables::from(input).variables, expected);
+
+        let variables = SecretVariables::from(input).variables;
+        assert_eq!(variables.get("nr-vault").unwrap(), &expected["nr-vault"]);
+        assert!(variables.len() == 2 && variables.contains_key("nr-env"));
     }
 
     #[rstest]
-    fn test_extract_runtime_variables_when_no_runtime_variables_are_present(
+    fn test_extract_runtime_variables_when_no_runtime_variables_present_in_string(
         #[values(
             "test string",
             "${nr-var:var.name}",
@@ -192,7 +202,8 @@ eof"#;
         )]
         input: &str,
     ) {
-        assert_eq!(SecretVariables::from(input).variables, HashMap::new());
+        let variables = SecretVariables::from(input).variables;
+        assert!(variables.len() == 1 && variables.contains_key("nr-env"));
     }
 
     #[test]

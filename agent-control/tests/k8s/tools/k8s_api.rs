@@ -60,6 +60,39 @@ pub async fn check_helmrelease_spec_values(
     Ok(())
 }
 
+/// Check if the `HelmRelease` with the provided name has the the expected version.
+pub async fn check_helmrelease_labels_contains(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    expected_labels: Option<BTreeMap<String, String>>,
+) -> Result<(), Box<dyn Error>> {
+    let api = create_k8s_api(k8s_client, namespace).await;
+
+    let obj = api.get(name).await?;
+    let found_labels = &obj.metadata.labels;
+    if found_labels.is_none() && expected_labels.is_some() {
+        return Err(format!(
+            "helm release spec labels are None, but expected: {:?}",
+            expected_labels
+        )
+        .into());
+    }
+
+    let found_labels = found_labels.as_ref().unwrap();
+    let expected_labels = expected_labels.unwrap_or_default();
+    for (key, value) in &expected_labels {
+        if found_labels.get(key) != Some(value) {
+            return Err(format!(
+                "helm release spec labels don't match with expected. Expected: {:?}, Found: {:?}",
+                expected_labels, found_labels,
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
 /// Check if the `HelmRelease` exists.
 pub async fn check_helmrelease_exists(
     k8s_client: Client,

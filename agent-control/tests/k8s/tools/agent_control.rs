@@ -25,6 +25,7 @@ use std::{fs::File, io::Write};
 pub const TEST_CLUSTER_NAME: &str = "minikube";
 pub const CUSTOM_AGENT_TYPE_PATH: &str = "tests/k8s/data/custom_agent_type.yml";
 pub const CUSTOM_AGENT_TYPE_SPLIT_NS_PATH: &str = "tests/k8s/data/custom_agent_type_split_ns.yml";
+pub const CUSTOM_AGENT_TYPE_SECRETS_PATH: &str = "tests/k8s/data/custom_agent_type_secrets.yml";
 pub const FOO_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/foo_cr_agent_type.yml";
 pub const BAR_CR_AGENT_TYPE_PATH: &str = "tests/k8s/data/bar_cr_agent_type.yml";
 

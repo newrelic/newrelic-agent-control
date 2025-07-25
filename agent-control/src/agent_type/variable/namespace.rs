@@ -41,9 +41,13 @@ impl Namespace {
     }
 
     pub fn is_secret_variable(s: &str) -> bool {
-        [Namespace::Vault, Namespace::K8sSecret]
-            .iter()
-            .any(|ns| s.starts_with(ns.to_string().as_str()))
+        [
+            Namespace::Vault,
+            Namespace::K8sSecret,
+            Namespace::EnvironmentVariable,
+        ]
+        .iter()
+        .any(|ns| s.starts_with(ns.to_string().as_str()))
     }
 }
 

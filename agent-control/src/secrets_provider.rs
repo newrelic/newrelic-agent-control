@@ -1,12 +1,18 @@
+pub mod env;
 pub mod k8s_secret;
 pub mod vault;
 
 use crate::agent_type::variable::namespace::Namespace;
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
+use crate::secrets_provider::env::Env;
 use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
+
 /// Configuration for supported secrets providers.
 ///
 /// Group of secrets providers configurations, that can be used to retrieve secrets from various sources.
@@ -60,25 +66,56 @@ pub trait SecretsProvider {
 pub enum SecretsProviderType {
     Vault(Vault),
     K8sSecret(K8sSecretProvider),
+    Env(Env),
 }
 
 /// Collection of [SecretsProviderType]s.
-pub type SecretsProvidersRegistry = HashMap<Namespace, SecretsProviderType>;
+#[derive(Default)]
+pub struct SecretsProvidersRegistry(HashMap<Namespace, SecretsProviderType>);
 
-impl TryFrom<SecretsProvidersConfig> for SecretsProvidersRegistry {
-    type Error = SecretsProvidersError;
+impl SecretsProvidersRegistry {
+    pub fn new() -> Self {
+        SecretsProvidersRegistry(HashMap::new())
+    }
 
-    /// Tries to convert a [SecretsProvidersConfig] into a [SecretsProvidersRegistry].
-    ///
-    /// If any of the configurations is invalid, it returns an error.
-    fn try_from(config: SecretsProvidersConfig) -> Result<Self, Self::Error> {
-        let mut registry = SecretsProvidersRegistry::new();
+    pub fn with_env(mut self) -> Self {
+        self.0.insert(
+            Namespace::EnvironmentVariable,
+            SecretsProviderType::Env(Env {}),
+        );
+        self
+    }
 
+    pub fn with_k8s_secret(mut self, k8s_client: Arc<SyncK8sClient>) -> Self {
+        self.0.insert(
+            Namespace::K8sSecret,
+            SecretsProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
+        );
+        self
+    }
+
+    pub fn with_config(
+        mut self,
+        config: SecretsProvidersConfig,
+    ) -> Result<Self, SecretsProvidersError> {
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
-            registry.insert(Namespace::Vault, SecretsProviderType::Vault(vault));
+            self.0
+                .insert(Namespace::Vault, SecretsProviderType::Vault(vault));
         }
+        Ok(self)
+    }
 
-        Ok(registry)
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl<'a> IntoIterator for &'a SecretsProvidersRegistry {
+    type Item = (&'a Namespace, &'a SecretsProviderType);
+    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, SecretsProviderType>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
