@@ -34,10 +34,11 @@ fn k8s_template_secrets() {
     );
 
     // Now, we create all the required secrets.
-    // * Hashicorp Vault secrets -> handled in the Tiltfile.
-    // * K8s secrets -> created here on demand.
+    // Hashicorp Vault secrets -> handled in the Tiltfile.
+
+    // K8s secrets -> created here on demand.
     let name = "pod-secrets";
-    let key = "api-key";
+    let key = "foo3";
     let value = "bar3";
     create_values_secret(k8s.client.clone(), &namespace, name, key, value.to_string());
 

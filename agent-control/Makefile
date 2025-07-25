@@ -40,7 +40,7 @@ test/k8s/integration: test/k8s/integration-part1 test/k8s/integration-part2
 .PHONY: test/k8s/integration-part1
 test/k8s/integration-part1:
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
-	tilt ci --file ./tests/k8s/Tiltfile
+	ENABLE_VAULT=true  tilt ci --file ./tests/k8s/Tiltfile
 	# reducing the number of threads to 1 forces the tests to run sequentially
 	cargo test k8s::scenarios -- --nocapture --ignored  --test-threads=1
 	cargo test k8s::agent_control_cli -- --nocapture --ignored  --test-threads=1
