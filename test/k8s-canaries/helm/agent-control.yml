@@ -16,11 +16,6 @@ agent-control-deployment:
         type: newrelic/com.newrelic.infrastructure:0.1.0
         content:
           chart_version: "*" # Use latest
-          chart_values:
-            nri-metadata-injection:
-              # TODO we are currently disabling the metadata injection since if enabled it breaks when installed
-              # together with the gatewayRESE
-              enabled: false
       prometheus:
         type: newrelic/com.newrelic.prometheus:0.1.0
         content:
