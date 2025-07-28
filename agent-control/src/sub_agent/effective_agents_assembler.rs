@@ -160,8 +160,7 @@ where
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let environment_variables = retrieve_env_var_variables();
 
-        let secret_variables = SecretVariables::try_from(values.clone())
-            .expect("YAMLConfig came from string, so it should be valid");
+        let secret_variables = SecretVariables::try_from(values.clone())?;
         let secrets = secret_variables.load_all_secrets(&self.secrets_providers)?;
 
         let mut runtime_variables = environment_variables.clone();
