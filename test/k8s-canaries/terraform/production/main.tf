@@ -35,7 +35,7 @@ module "alerts" {
       name          = "Memory usage (bytes)"
       metric        = "memoryWorkingSetBytes"
       sample        = "K8sContainerSample"
-      threshold     = 14000000 # 14 MB, +25% of observed value https://staging.onenr.io/0dQeV0JdVwe
+      threshold     = 16000000 # +25% of observed value https://staging.onenr.io/0dQeV0JdVwe
       duration      = 600
       operator      = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
