@@ -39,11 +39,12 @@ use event_handler::on_version::on_version;
 use identity::AgentIdentity;
 use opamp_client::StartedClient;
 use remote_config_parser::{RemoteConfigParser, RemoteConfigParserError};
+use std::fmt::Display;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::SystemTime;
 use supervisor::builder::SupervisorBuilder;
-use supervisor::starter::{SupervisorStarter, SupervisorStarterError};
+use supervisor::starter::SupervisorStarter;
 use supervisor::stopper::SupervisorStopper;
 use tracing::{debug, error, info, info_span, trace, warn};
 
@@ -215,7 +216,8 @@ where
                     .inspect_err(|e| error!("Failed to update effective config: {e}"));
             });
 
-            self.start_supervisor(stopped_supervisor)
+            stopped_supervisor
+                .start(self.sub_agent_internal_publisher.clone())
                 .map_err(SupervisorCreationError::from)
                 .inspect_err(|e| error!("Failed to start supervisor: {e}"))
         });
@@ -244,7 +246,14 @@ where
             }
         }
 
-        started_supervisor.ok()
+        started_supervisor
+            .inspect_err(|err| {
+                // If there was an error building or starting the initial supervisor, the sub-agent becomes un-healthy.
+                // This doesn't collide with the health reported by health-checker: because the health-checker is
+                // started by the supervisor.
+                self.report_unhealthy_from_error(err);
+            })
+            .ok()
     }
 
     pub fn runtime(self) -> JoinHandle<Result<(), SubAgentError>> {
@@ -511,7 +520,8 @@ where
         stop_supervisor(old_supervisor);
 
         // Start the new supervisor
-        self.start_supervisor(new_supervisor)
+        new_supervisor
+            .start(self.sub_agent_internal_publisher.clone())
             // Alter the state depending on the outcome
             .inspect(|_| {
                 self.update_remote_config_state(ConfigState::Applied);
@@ -519,6 +529,8 @@ where
                 let _ = report_state(ConfigState::Applied, hash.clone(), opamp_client);
             })
             .inspect_err(|e| {
+                error!("Failure starting the supervisor: {e}");
+                self.report_unhealthy_from_error(e);
                 let state = ConfigState::Failed {
                     error_message: e.to_string(),
                 };
@@ -597,26 +609,6 @@ where
         .map_err(SupervisorCreationError::from)
     }
 
-    pub(crate) fn start_supervisor(
-        &self,
-        not_started_supervisor: B::SupervisorStarter,
-    ) -> Result<
-        <B::SupervisorStarter as SupervisorStarter>::SupervisorStopper,
-        SupervisorStarterError,
-    > {
-        not_started_supervisor
-            .start(self.sub_agent_internal_publisher.clone())
-            .inspect_err(|err| {
-                let unhealthy = HealthWithStartTime::from_unhealthy(
-                    Unhealthy::new(err.to_string()),
-                    SystemTime::now(),
-                );
-                error!("Failure starting supervisor: {err}");
-                self.sub_agent_internal_publisher
-                    .publish_health_event(unhealthy);
-            })
-    }
-
     fn effective_agent(
         &self,
         yaml_config: YAMLConfig,
@@ -636,6 +628,14 @@ where
             .inspect_err(|err| {
                 warn!("Could not update the config state: {err}");
             });
+    }
+
+    /// Helper to report unhealthy given an error
+    fn report_unhealthy_from_error(&self, err: impl Display) {
+        let unhealthy =
+            HealthWithStartTime::from_unhealthy(Unhealthy::new(err.to_string()), SystemTime::now());
+        self.sub_agent_internal_publisher
+            .publish_health_event(unhealthy);
     }
 }
 
@@ -740,6 +740,7 @@ pub mod tests {
     use crate::secrets_provider::SecretsProvidersRegistry;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
+    use assert_matches::assert_matches;
     use mockall::mock;
     use opamp_client::opamp::proto::{RemoteConfigStatus, RemoteConfigStatuses};
     use opamp_client::operation::capabilities::Capabilities;
@@ -878,6 +879,27 @@ variables:
       type: string
       required: false
       default: ""
+deployment:
+  on_host:
+    executable:
+      path: ${nr-var:var}
+"#,
+            )
+            .unwrap()
+        }
+
+        fn agent_type_definition_with_required_var() -> AgentTypeDefinition {
+            serde_yaml::from_str(
+                r#"
+name: default
+namespace: default
+version: 0.0.1
+variables:
+  common:
+    var:
+      description: "fake"
+      type: string
+      required: true
 deployment:
   on_host:
     executable:
@@ -1472,6 +1494,7 @@ deployment:
 
         assert!(supervisor.is_none());
     }
+
     #[test]
     fn test_bootstrap_local_config() {
         let (config_repository, mut opamp_client) = test_mocks();
@@ -1489,6 +1512,43 @@ deployment:
 
         assert!(supervisor.is_some())
     }
+
+    #[test]
+    fn test_bootstrap_fail_to_assemble_agent_from_local_config() {
+        let (config_repository, opamp_client) = test_mocks();
+
+        let config = YAMLConfig::try_from("{}").unwrap(); // missing mandatory value
+        config_repository
+            .store_local(&TestAgent::id(), &config)
+            .unwrap();
+
+        let supervisor_builder = expect_supervisor_do_not_build();
+
+        let mut sub_agent = sub_agent(Some(opamp_client), supervisor_builder, config_repository);
+        // customize the effective_agent_assembler in order to use a different agent type
+        sub_agent.effective_agent_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
+            Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
+            TemplateRenderer::default(),
+            VariableConstraints::default(),
+            SecretsProvidersRegistry::default(),
+        ));
+
+        let supervisor = sub_agent.init_supervisor();
+
+        assert!(supervisor.is_none());
+
+        // Check that unhealthy event is published
+        assert_eq!(sub_agent.sub_agent_internal_consumer.as_ref().len(), 1);
+        let event = sub_agent
+            .sub_agent_internal_consumer
+            .as_ref()
+            .recv()
+            .unwrap();
+        assert_matches!(event, SubAgentInternalEvent::AgentHealthInfo(health) => {
+            assert!(health.last_error().unwrap().contains("var")); // The missing var name
+        });
+    }
+
     #[test]
     fn test_bootstrap_remote_config_applied_to_applied() {
         let (config_repository, mut opamp_client) = test_mocks();
