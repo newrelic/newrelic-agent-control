@@ -42,9 +42,10 @@ pub async fn check_helmrelease_spec_values(
     k8s_client: Client,
     namespace: &str,
     name: &str,
-    expected_valus_as_yaml: &str,
+    expected_values_as_yaml: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let expected_as_json: serde_json::Value = serde_yaml::from_str(expected_valus_as_yaml).unwrap();
+    let expected_as_json: serde_json::Value =
+        serde_yaml::from_str(expected_values_as_yaml).unwrap();
     let api = create_k8s_api(k8s_client, namespace).await;
 
     let obj = api.get(name).await?;
