@@ -27,7 +27,13 @@ fn k8s_run_updater() {
     let current_version = "1.2.3-beta".to_string();
     let new_version = "1.2.3".to_string();
 
-    let updater = K8sACUpdater::new(k8s_client.clone(), test_ns.clone(), current_version.clone());
+    let updater = K8sACUpdater::new(
+        true,
+        true,
+        k8s_client.clone(),
+        test_ns.clone(),
+        current_version.clone(),
+    );
 
     let config_to_update = &AgentControlDynamicConfig {
         agents: Default::default(),
