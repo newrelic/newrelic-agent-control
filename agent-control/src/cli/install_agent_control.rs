@@ -228,7 +228,7 @@ fn build_dynamic_object_list(
         ),
         helm_release(
             namespace,
-            &value,
+            value.secrets,
             helm_release_labels,
             annotations,
             version.as_str(),
@@ -271,7 +271,7 @@ fn helm_repository(
 
 fn helm_release(
     namespace: &str,
-    value: &AgentControlInstallData,
+    values_secrets: Option<String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
     version: &str,
@@ -314,7 +314,7 @@ fn helm_release(
         }
     });
 
-    if let Some(secrets) = value.secrets.as_deref() {
+    if let Some(secrets) = values_secrets.as_deref() {
         data["spec"]["valuesFrom"] = secrets_to_json(secrets);
     }
 
@@ -751,23 +751,13 @@ mod tests {
         );
 
         assert!(
-            dynamic_objects
-                .iter()
-                .any(|obj| obj.data.get("spec").is_some_and(|spec| {
-                    spec.get("secretRef").is_some_and(|secret_ref| {
-                        secret_ref.get("name") == Some(&serde_json::json!("secRef"))
-                    })
-                }))
+            dynamic_objects.iter().any(|obj| {
+                obj.data["spec"]["secretRef"]["name"].eq(&serde_json::json!("secRef"))
+            })
         );
-        assert!(
-            dynamic_objects
-                .iter()
-                .any(|obj| obj.data.get("spec").is_some_and(|spec| {
-                    spec.get("certSecretRef").is_some_and(|cert_secret_ref| {
-                        cert_secret_ref.get("name") == Some(&serde_json::json!("certSecRef"))
-                    })
-                }))
-        );
+        assert!(dynamic_objects.iter().any(|obj| {
+            obj.data["spec"]["certSecretRef"]["name"].eq(&serde_json::json!("certSecRef"))
+        }));
     }
 
     #[test]
@@ -779,16 +769,8 @@ mod tests {
         };
         let dynamic_objects = build_dynamic_object_list(TEST_NAMESPACE, None, agent_control_data);
 
-        assert!(
-            dynamic_objects
-                .iter()
-                .any(|obj| obj.data.get("spec").is_some_and(|spec| {
-                    spec.get("chart").is_some_and(|chart| {
-                        chart.get("spec").is_some_and(|spec| {
-                            spec.get("chart") == Some(&serde_json::json!(chart_name))
-                        })
-                    })
-                }))
-        );
+        assert!(dynamic_objects.iter().any(|obj| {
+            obj.data["spec"]["chart"]["spec"]["chart"].eq(&serde_json::json!(chart_name))
+        }));
     }
 }
