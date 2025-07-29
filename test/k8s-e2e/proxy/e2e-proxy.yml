@@ -8,16 +8,21 @@ scenarios:
       # Deploys a Networkpolicy that forces all external req to go through the proxy in the current namespace.
       - kubectl apply -f ./proxy.yaml
       - kubectl wait --for=condition=complete --timeout=60s job/assert-policy-proxy
-      # Deploy test scenario.
-      - kubectl get secret sys-identity || kubectl create secret generic sys-identity --from-literal=CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=private_key="${NR_SYSTEM_IDENTITY_PRIVATE_KEY}"
+      # save the NR_SYSTEM_IDENTITY_PRIVATE_KEY to a file
+      - printf '%s' "$NR_SYSTEM_IDENTITY_PRIVATE_KEY" > ./.key.temp
+      - kubectl get secret sys-identity-creds || kubectl create secret generic sys-identity-creds --from-literal=NEW_RELIC_AUTH_CLIENT_ID="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --from-literal=NEW_RELIC_AUTH_TOKEN="$(docker run --volume ./.key.temp:/key newrelic/agent-control-system-identity-registration authenticate --client-id="${NR_SYSTEM_IDENTITY_CLIENT_ID}" --environment "${REGION}" --output-token-format PLAIN  --private-key-path /key)"
       - cd ../../../ && SA_CHART_VALUES_FILE="test/k8s-e2e/proxy/ac-values-proxy.yml" CLUSTER=${SCENARIO_TAG} tilt ci
     after:
       - kubectl logs job/assert-policy-proxy
       - kubectl logs -l app=mitmproxy --all-containers --prefix=true
       - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true -n newrelic-agents
       - kubectl logs -l app.kubernetes.io/name=agent-control --all-containers --prefix=true
+      - kubectl logs -l job-name=ac-agent-control-install-job --all-containers --prefix=true
+      - kubectl logs -l job-name=ac-agent-control-flux-install-job --all-containers --prefix=true
+      - kubectl logs -l job-name=ac-agent-control-generate-system-identity --all-containers --prefix=true
       - kubectl get secrets --show-labels
-      - kubectl get all -o wide
+      - kubectl get pods -o yaml
+      - kubectl get all -o wide  --show-labels
       - kubectl get helmrelease
       - kubectl get helmchart
       - helm list -a -A

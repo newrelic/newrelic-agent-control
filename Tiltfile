@@ -144,6 +144,7 @@ helm_resource(
   namespace=namespace,
   release_name='ac',
   update_dependencies=True,
+  # workaround for https://github.com/tilt-dev/tilt/issues/6058
   pod_readiness='ignore',
   flags=ac_flags,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
