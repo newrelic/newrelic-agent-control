@@ -11,6 +11,7 @@ use crate::k8s::annotations::Annotations;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
+use crate::k8s::utils::retain_not_null;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
@@ -108,8 +109,14 @@ impl NotStartedSupervisorK8s {
             annotations: Some(annotations.get()),
             ..Default::default()
         };
+        let mut k8s_obj_fields = k8s_obj.fields.clone();
 
-        let data = serde_json::to_value(&k8s_obj.fields).map_err(|e| {
+        // Remove keys with null values to prevent spurious change detection.
+        // When k8s resources are applied, null values are automatically removed from the stored object,
+        // but the change detector would see this as a difference if we don't remove them beforehand.
+        retain_not_null(&mut k8s_obj_fields);
+
+        let data = serde_json::to_value(&k8s_obj_fields).map_err(|e| {
             SupervisorStarterError::ConfigError(format!("Error serializing fields: {e}"))
         })?;
 

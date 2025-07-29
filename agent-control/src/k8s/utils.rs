@@ -4,6 +4,7 @@ use k8s_openapi::{
     Metadata, NamespaceResourceScope, Resource, apimachinery::pkg::util::intstr::IntOrString,
 };
 use kube::api::{DynamicObject, ObjectMeta, TypeMeta};
+use serde_yaml::{Mapping, Value};
 
 /// This is a helper to have the number of pods or percentages for update strategies.
 ///
@@ -163,10 +164,55 @@ pub fn get_target_namespace(obj: &DynamicObject) -> Option<String> {
     })
 }
 
+/// This function recursively traverses the mapping structure and removes any key-value
+/// pairs where the value is `Value::Null`.
+pub fn retain_not_null(mapping: &mut Mapping) {
+    mapping.retain(|_, value| match value {
+        Value::Null => false,
+        Value::Mapping(inner_mapping) => {
+            retain_not_null(inner_mapping);
+            true
+        }
+        _ => true,
+    });
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use k8s_openapi::api::apps::v1::{DaemonSet, Deployment};
+
+    #[test]
+    fn test_retain_not_null() {
+        let mut input = serde_yaml::from_str::<Mapping>(
+            r#"
+        should_retain_string: some
+        should_retain_bool: true
+        should_retain_slice: [1,2,3]
+        should_retain_number: 0
+        should_removed: Null
+        nested:
+          should_retain: some
+          should_removed: Null
+        "#,
+        )
+        .unwrap();
+        let expected = serde_yaml::from_str::<Mapping>(
+            r#"
+        should_retain_string: some
+        should_retain_bool: true
+        should_retain_slice: [1,2,3]
+        should_retain_number: 0
+        nested:
+          should_retain: some
+        "#,
+        )
+        .unwrap();
+
+        retain_not_null(&mut input);
+
+        assert_eq!(input, expected);
+    }
 
     #[test]
     fn int_or_percentage_parse() {
