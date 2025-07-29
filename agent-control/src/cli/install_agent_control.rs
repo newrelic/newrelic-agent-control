@@ -28,6 +28,10 @@ const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(
 
 #[derive(Debug, Clone, Parser)]
 pub struct AgentControlInstallData {
+    /// Name of the Helm chart to be installed
+    #[arg(long, default_value = RELEASE_NAME)]
+    pub chart_name: String,
+
     /// Version of the agent control deployment chart
     #[arg(long)]
     pub chart_version: String,
@@ -72,6 +76,16 @@ pub struct AgentControlInstallData {
     /// Repository URl from where the chart will be downloaded
     #[arg(long, default_value = REPOSITORY_URL)]
     pub repository_url: String,
+
+    /// Optional Flux HelmRepository secret reference (secretRef)
+    /// More details: https://fluxcd.io/flux/components/source/helmrepositories/#secret-reference
+    #[arg(long)]
+    pub repository_secret_reference_name: Option<String>,
+
+    /// Optional Flux HelmRepository certificate secret reference (certSecretRef)
+    /// More details: https://fluxcd.io/flux/components/source/helmrepositories/#cert-secret-reference
+    #[arg(long)]
+    pub repository_certificate_secret_reference_name: Option<String>,
 }
 
 // helper needed because the arguments from the duration_str's parse function and the one expected by the clap
@@ -207,15 +221,18 @@ fn build_dynamic_object_list(
         helm_repository(
             namespace,
             value.repository_url.clone(),
+            value.repository_secret_reference_name.clone(),
+            value.repository_certificate_secret_reference_name.clone(),
             labels.clone(),
             annotations.clone(),
         ),
         helm_release(
             namespace,
-            &value,
+            value.secrets,
             helm_release_labels,
             annotations,
             version.as_str(),
+            &value.chart_name,
         ),
     ]
 }
@@ -223,9 +240,13 @@ fn build_dynamic_object_list(
 fn helm_repository(
     namespace: &str,
     repository_url: String,
+    maybe_secret_ref: Option<String>,
+    maybe_cert_secret_ref: Option<String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
 ) -> DynamicObject {
+    let secret_ref = maybe_secret_ref.map(|name| serde_json::json!({"name": name}));
+    let cert_secret_ref = maybe_cert_secret_ref.map(|name| serde_json::json!({"name": name}));
     DynamicObject {
         types: Some(helmrepository_type_meta()),
         metadata: ObjectMeta {
@@ -241,6 +262,8 @@ fn helm_repository(
                 "url": repository_url,
                 "interval": "30m",
                 "provider": "generic",
+                "secretRef": secret_ref,
+                "certSecretRef": cert_secret_ref,
             }
         }),
     }
@@ -248,18 +271,20 @@ fn helm_repository(
 
 fn helm_release(
     namespace: &str,
-    value: &AgentControlInstallData,
+    values_secrets: Option<String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
     version: &str,
+    name: &str,
 ) -> DynamicObject {
     // See com.newrelic.infrastructure Agent type for description of fields.
     let mut data = serde_json::json!({
         "spec": {
             "interval": "30s",
+            "releaseName": RELEASE_NAME,
             "chart": {
                 "spec": {
-                    "chart": RELEASE_NAME,
+                    "chart": name,
                     "version": version,
                     "reconcileStrategy": "ChartVersion",
                     "sourceRef": {
@@ -289,7 +314,7 @@ fn helm_release(
         }
     });
 
-    if let Some(secrets) = value.secrets.as_deref() {
+    if let Some(secrets) = values_secrets.as_deref() {
         data["spec"]["valuesFrom"] = secrets_to_json(secrets);
     }
 
@@ -380,15 +405,21 @@ mod tests {
 
     const LOCAL_TEST_VERSION: &str = "1.0.0";
     const TEST_NAMESPACE: &str = "test-namespace";
-    fn agent_control_data() -> AgentControlInstallData {
-        AgentControlInstallData {
-            chart_version: LOCAL_TEST_VERSION.to_string(),
-            secrets: None,
-            extra_labels: None,
-            skip_installation_check: false,
-            installation_check_initial_delay: Duration::from_secs(10),
-            installation_check_timeout: Duration::from_secs(300),
-            repository_url: REPOSITORY_URL.to_string(),
+
+    impl Default for AgentControlInstallData {
+        fn default() -> Self {
+            AgentControlInstallData {
+                chart_name: RELEASE_NAME.to_string(),
+                chart_version: LOCAL_TEST_VERSION.to_string(),
+                secrets: None,
+                extra_labels: None,
+                skip_installation_check: false,
+                installation_check_initial_delay: Duration::from_secs(10),
+                installation_check_timeout: Duration::from_secs(300),
+                repository_url: REPOSITORY_URL.to_string(),
+                repository_secret_reference_name: None,
+                repository_certificate_secret_reference_name: None,
+            }
         }
     }
 
@@ -421,6 +452,8 @@ mod tests {
                     "url": REPOSITORY_URL,
                     "interval": "30m",
                     "provider": "generic",
+                    "secretRef": serde_json::Value::Null,
+                    "certSecretRef": serde_json::Value::Null,
                 }
             }),
         }
@@ -457,6 +490,7 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "interval": "30s",
+                    "releaseName": RELEASE_NAME,
                     "chart": {
                         "spec": {
                             "chart": RELEASE_NAME,
@@ -508,7 +542,7 @@ mod tests {
                     }
                 }),
             })),
-            agent_control_data(),
+            AgentControlInstallData::default(),
         );
         assert_eq!(
             dynamic_objects,
@@ -544,7 +578,7 @@ mod tests {
                     }
                 }),
             })),
-            agent_control_data(),
+            AgentControlInstallData::default(),
         );
         assert_eq!(
             dynamic_objects,
@@ -578,7 +612,7 @@ mod tests {
                     }
                 }),
             })),
-            agent_control_data(),
+            AgentControlInstallData::default(),
         );
         assert_eq!(
             dynamic_objects,
@@ -591,7 +625,8 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects = build_dynamic_object_list(TEST_NAMESPACE, None, agent_control_data());
+        let dynamic_objects =
+            build_dynamic_object_list(TEST_NAMESPACE, None, AgentControlInstallData::default());
         assert_eq!(
             dynamic_objects,
             vec![
@@ -603,9 +638,12 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_with_secrets() {
-        let mut agent_control_data = agent_control_data();
-        agent_control_data.secrets =
-            Some("secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string());
+        let agent_control_data = AgentControlInstallData {
+            secrets: Some(
+                "secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string(),
+            ),
+            ..Default::default()
+        };
         let dynamic_objects = build_dynamic_object_list(TEST_NAMESPACE, None, agent_control_data);
 
         let mut expected_release_object = release_object(LOCAL_TEST_VERSION, LOCAL_VAL);
@@ -633,8 +671,10 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_with_labels_and_annotations() {
-        let mut agent_control_data = agent_control_data();
-        agent_control_data.extra_labels = Some("label1=value1,label2=value2".to_string());
+        let agent_control_data = AgentControlInstallData {
+            extra_labels: Some("label1=value1,label2=value2".to_string()),
+            ..Default::default()
+        };
         let dynamic_objects = build_dynamic_object_list(TEST_NAMESPACE, None, agent_control_data);
 
         let agent_identity = AgentIdentity::new_agent_control_identity();
@@ -696,5 +736,41 @@ mod tests {
                 "valuesKey": "global.yaml",
             }])
         );
+    }
+
+    #[test]
+    fn test_secret_ref() {
+        let dynamic_objects = build_dynamic_object_list(
+            TEST_NAMESPACE,
+            None,
+            AgentControlInstallData {
+                repository_secret_reference_name: Some("secRef".to_string()),
+                repository_certificate_secret_reference_name: Some("certSecRef".to_string()),
+                ..Default::default()
+            },
+        );
+
+        assert!(
+            dynamic_objects.iter().any(|obj| {
+                obj.data["spec"]["secretRef"]["name"].eq(&serde_json::json!("secRef"))
+            })
+        );
+        assert!(dynamic_objects.iter().any(|obj| {
+            obj.data["spec"]["certSecretRef"]["name"].eq(&serde_json::json!("certSecRef"))
+        }));
+    }
+
+    #[test]
+    fn test_chart_name() {
+        let chart_name = "my-chart";
+        let agent_control_data = AgentControlInstallData {
+            chart_name: chart_name.to_string(),
+            ..Default::default()
+        };
+        let dynamic_objects = build_dynamic_object_list(TEST_NAMESPACE, None, agent_control_data);
+
+        assert!(dynamic_objects.iter().any(|obj| {
+            obj.data["spec"]["chart"]["spec"]["chart"].eq(&serde_json::json!(chart_name))
+        }));
     }
 }
