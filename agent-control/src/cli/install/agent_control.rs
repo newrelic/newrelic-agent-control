@@ -8,7 +8,7 @@ use crate::{
     cli::{
         install::{
             DynamicObjectListBuilder, InstallData, get_local_or_remote_version, helm_release,
-            helm_repository,
+            helm_repository, obj_meta_data,
         },
         utils::parse_key_value_pairs,
     },
@@ -49,33 +49,35 @@ impl DynamicObjectListBuilder for InstallAgentControl {
         let labels = labels.get();
         debug!("Parsed labels: {:?}", labels);
 
-        // This is not strictly necessary, but it helps to ensure that the labels are consistent
-        let mut helm_release_labels = labels.clone();
-
-        helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
-
         let annotations = Annotations::new_agent_type_id_annotation(&agent_identity.agent_type_id);
         let annotations = annotations.get();
 
+        let helm_repository_obj_meta_data = obj_meta_data(
+            REPOSITORY_NAME,
+            namespace,
+            labels.clone(),
+            annotations.clone(),
+        );
+        // This is not strictly necessary, but it helps to ensure that the labels are consistent
+        let mut helm_release_labels = labels;
+        helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
+
+        let helm_release_obj_meta_data =
+            obj_meta_data(RELEASE_NAME, namespace, helm_release_labels, annotations);
+
         vec![
             helm_repository(
-                namespace,
-                REPOSITORY_NAME,
-                data.repository_url.clone(),
+                data.repository_url.as_str(),
                 data.repository_secret_reference_name.clone(),
                 data.repository_certificate_secret_reference_name.clone(),
-                labels.clone(),
-                annotations.clone(),
+                helm_repository_obj_meta_data,
             ),
             helm_release(
-                namespace,
                 &data.secrets,
-                RELEASE_NAME,
                 REPOSITORY_NAME,
-                helm_release_labels,
-                annotations,
                 version.as_str(),
                 &data.chart_name,
+                helm_release_obj_meta_data,
             ),
         ]
     }

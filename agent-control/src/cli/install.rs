@@ -206,26 +206,32 @@ fn get_local_or_remote_version(
     }
 }
 
-fn helm_repository(
+fn obj_meta_data(
+    name: &str,
     namespace: &str,
-    repository_name: &str,
-    repository_url: String,
-    maybe_secret_ref: Option<String>,
-    maybe_cert_secret_ref: Option<String>,
     labels: BTreeMap<String, String>,
     annotations: BTreeMap<String, String>,
+) -> ObjectMeta {
+    ObjectMeta {
+        name: Some(name.to_string()),
+        namespace: Some(namespace.to_string()),
+        labels: Some(labels),
+        annotations: Some(annotations),
+        ..Default::default()
+    }
+}
+
+fn helm_repository(
+    repository_url: &str,
+    maybe_secret_ref: Option<String>,
+    maybe_cert_secret_ref: Option<String>,
+    obj_meta_data: ObjectMeta,
 ) -> DynamicObject {
     let secret_ref = maybe_secret_ref.map(|name| serde_json::json!({"name": name}));
     let cert_secret_ref = maybe_cert_secret_ref.map(|name| serde_json::json!({"name": name}));
     DynamicObject {
         types: Some(helmrepository_type_meta()),
-        metadata: ObjectMeta {
-            name: Some(repository_name.to_string()),
-            namespace: Some(namespace.to_string()),
-            labels: Some(labels),
-            annotations: Some(annotations),
-            ..Default::default()
-        },
+        metadata: obj_meta_data,
         // See com.newrelic.infrastructure Agent type for description of fields.
         data: serde_json::json!({
             "spec": {
@@ -240,20 +246,17 @@ fn helm_repository(
 }
 
 fn helm_release(
-    namespace: &str,
     values_secrets: &Option<String>,
-    release_name: &str,
     repository_name: &str,
-    labels: BTreeMap<String, String>,
-    annotations: BTreeMap<String, String>,
     version: &str,
     chart_name: &str,
+    obj_meta_data: ObjectMeta,
 ) -> DynamicObject {
     // See com.newrelic.infrastructure Agent type for description of fields.
     let mut data = serde_json::json!({
         "spec": {
             "interval": "30s",
-            "releaseName": release_name,
+            "releaseName": obj_meta_data.name.as_ref(),
             "chart": {
                 "spec": {
                     "chart": chart_name,
@@ -292,13 +295,7 @@ fn helm_release(
 
     DynamicObject {
         types: Some(helmrelease_v2_type_meta()),
-        metadata: ObjectMeta {
-            name: Some(release_name.to_string()),
-            namespace: Some(namespace.to_string()),
-            labels: Some(labels),
-            annotations: Some(annotations),
-            ..Default::default()
-        },
+        metadata: obj_meta_data,
         data,
     }
 }
