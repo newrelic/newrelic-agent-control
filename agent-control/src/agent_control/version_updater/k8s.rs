@@ -9,7 +9,9 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 pub struct K8sACUpdater {
+    #[allow(dead_code)]
     ac_remote_update: bool,
+    #[allow(dead_code)]
     cd_remote_update: bool,
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
