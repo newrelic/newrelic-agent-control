@@ -1,4 +1,5 @@
 pub mod agent_control;
+pub mod flux;
 
 use std::{collections::BTreeMap, sync::Arc, thread, time::Duration};
 
