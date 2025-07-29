@@ -9,6 +9,8 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 pub struct K8sACUpdater {
+    ac_remote_update: bool,
+    cd_remote_update: bool,
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
     // current_chart_version is the version of the agent control that is currently running.
@@ -57,11 +59,15 @@ impl VersionUpdater for K8sACUpdater {
 
 impl K8sACUpdater {
     pub fn new(
+        ac_remote_update: bool,
+        cd_remote_update: bool,
         k8s_client: Arc<SyncK8sClient>,
         namespace: String,
         current_chart_version: String,
     ) -> Self {
         Self {
+            ac_remote_update,
+            cd_remote_update,
             k8s_client,
             namespace,
             current_chart_version,
@@ -115,6 +121,8 @@ pub mod tests {
         k8s_client.expect_patch_dynamic_object().never();
 
         let updater = K8sACUpdater::new(
+            true,
+            true,
             Arc::new(k8s_client),
             TEST_NAMESPACE.to_string(),
             "1.0.0".to_string(),
@@ -135,6 +143,8 @@ pub mod tests {
         let current_version = "1.0.0".to_string();
 
         let updater = K8sACUpdater::new(
+            true,
+            true,
             Arc::new(k8s_client),
             TEST_NAMESPACE.to_string(),
             current_version.clone(),

@@ -226,6 +226,12 @@ pub struct K8sConfig {
     /// CRDs is a list of crds that AC should watch and be able to create/delete.
     #[serde(default = "default_group_version_kinds")]
     pub cr_type_meta: Vec<TypeMeta>,
+    /// ac_remote_update enables or disables remote update for agent-control-deployment chart
+    #[serde(default)]
+    pub ac_remote_update: bool,
+    /// cd_remote_update enables or disables remote update for the agent-control-cd chart
+    #[serde(default)]
+    pub cd_remote_update: bool,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -296,6 +302,8 @@ impl Default for K8sConfig {
             namespace_agents: Default::default(),
             current_chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
+            ac_remote_update: Default::default(),
+            cd_remote_update: Default::default(),
         }
     }
 }
@@ -374,6 +382,8 @@ agents:
 k8s:
   namespace: default
   cluster_name: some-cluster
+  ac_remote_update: true,
+  cd_remote_update: true,
 "#;
 
     const AGENTCONTROL_CONFIG_WRONG_AGENT_ID: &str = r#"
