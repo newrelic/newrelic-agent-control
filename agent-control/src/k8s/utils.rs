@@ -190,6 +190,7 @@ pub mod tests {
         should_retain_bool: true
         should_retain_slice: [1,2,3]
         should_retain_number: 0
+        should_retain_empty_mapping: {}
         should_removed: Null
         nested:
           should_retain: some
@@ -203,6 +204,7 @@ pub mod tests {
         should_retain_bool: true
         should_retain_slice: [1,2,3]
         should_retain_number: 0
+        should_retain_empty_mapping: {}
         nested:
           should_retain: some
         "#,
