@@ -389,6 +389,8 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
     serde_json::json!({
         // give a unique name per test to the cluster role to avoid collisions
         "nameOverride": name_override,
+        "acRemoteUpdate": true,
+        "cdRemoteUpdate": false,
         "config": {
           // Disable the SI creation
           "fleet_control": {
