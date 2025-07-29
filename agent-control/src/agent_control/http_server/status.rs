@@ -140,7 +140,8 @@ pub(super) struct SubAgentStatus {
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     agent_type: AgentTypeID,
     agent_start_time_unix_nano: u64,
-    health_info: HealthInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    health_info: Option<HealthInfo>,
 }
 
 /// Health-related information of a Sub Agent.
@@ -181,13 +182,7 @@ impl SubAgentStatus {
             agent_id: agent_identity.id,
             agent_type: agent_identity.agent_type_id,
             agent_start_time_unix_nano: 0,
-            health_info: HealthInfo {
-                healthy: false,
-                last_error: None,
-                status: String::default(),
-                start_time_unix_nano: 0,
-                status_time_unix_nano: 0,
-            },
+            health_info: None,
         }
     }
 
@@ -201,11 +196,13 @@ impl SubAgentStatus {
     // This struct only has context inside the Sub Agents struct, so it makes it easier to interact
     // if we make it mutable
     pub fn update_health(&mut self, health: HealthWithStartTime) {
-        self.health_info.healthy = health.is_healthy();
-        self.health_info.last_error = health.last_error();
-        self.health_info.status = health.status().to_string();
-        self.health_info.start_time_unix_nano = time_to_unix_timestamp(health.start_time());
-        self.health_info.status_time_unix_nano = time_to_unix_timestamp(health.status_time());
+        self.health_info = Some(HealthInfo {
+            healthy: health.is_healthy(),
+            last_error: health.last_error(),
+            status: health.status().to_string(),
+            start_time_unix_nano: time_to_unix_timestamp(health.start_time()),
+            status_time_unix_nano: time_to_unix_timestamp(health.status_time()),
+        });
     }
 }
 
@@ -231,37 +228,7 @@ impl SubAgentsStatus {
 /// Agent Control, Sub Agents and OpAMP status and health.
 /// This information will be shown when the status endpoint is called.
 ///
-/// Example:
-/// ```json
-/// {
-///   "agent_control": {
-///     "healthy": true,
-///     "last_error": "",
-///     "status": ""
-///   },
-///   "fleet": {
-///     "enabled": true,
-///     "endpoint": "https://example.com/opamp/v1",
-///     "reachable": true
-///   },
-///   "sub_agents": [
-///     {
-///       "agent_id": "infrastructure_agent_id_1",
-///       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
-///       "healthy": true,
-///       "last_error": "",
-///       "status": ""
-///     },
-///     {
-///       "agent_id": "infrastructure_agent_id_1",
-///       "agent_type": "newrelic/com.newrelic.infrastructure:0.0.1",
-///       "healthy": false,
-///       "last_error": "The sub-agent exceeded the number of retries defined in its restart policy.",
-///       "status": "[xx/xx/xx xx:xx:xx.xxxx] debug: could not read config at /etc/newrelic-infra.yml"
-///     }
-///   ]
-/// }
-/// ```
+/// Example: see [tests::test_status_serialization]
 #[derive(Debug, Serialize, PartialEq, Default)]
 pub(super) struct Status {
     pub(super) agent_control: AgentControlStatus,
@@ -329,7 +296,7 @@ pub mod tests {
                 agent_id,
                 agent_type,
                 agent_start_time_unix_nano,
-                health_info,
+                health_info: Some(health_info),
             }
         }
 
@@ -395,5 +362,107 @@ pub mod tests {
                 error_message: Some(error_message),
             }
         }
+    }
+
+    #[test]
+    fn test_status_serialization() {
+        let status = Status {
+            agent_control: AgentControlStatus {
+                healthy: true,
+                last_error: None,
+                status: "".to_string(),
+            },
+            fleet: OpAMPStatus {
+                enabled: true,
+                endpoint: Some("https://opamp.server/v1/opamp".parse().unwrap()),
+                reachable: true,
+                error_code: None,
+                error_message: None,
+            },
+            sub_agents: SubAgentsStatus(
+                [
+                    (
+                        AgentID::new("agent-id-1").unwrap(),
+                        SubAgentStatus {
+                            agent_id: AgentID::new("agent-id-1").unwrap(),
+                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                            agent_start_time_unix_nano: 0,
+                            health_info: None,
+                        },
+                    ),
+                    (
+                        AgentID::new("agent-id-2").unwrap(),
+                        SubAgentStatus {
+                            agent_id: AgentID::new("agent-id-2").unwrap(),
+                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                            agent_start_time_unix_nano: 0,
+                            health_info: Some(HealthInfo {
+                                healthy: true,
+                                last_error: None,
+                                status: "".to_string(),
+                                start_time_unix_nano: 0,
+                                status_time_unix_nano: 0,
+                            }),
+                        },
+                    ),
+                    (
+                        AgentID::new("agent-id-3").unwrap(),
+                        SubAgentStatus {
+                            agent_id: AgentID::new("agent-id-3").unwrap(),
+                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                            agent_start_time_unix_nano: 0,
+                            health_info: Some(HealthInfo {
+                                healthy: false,
+                                last_error: Some("some error".to_string()),
+                                status: "some error status".to_string(),
+                                start_time_unix_nano: 0,
+                                status_time_unix_nano: 0,
+                            }),
+                        },
+                    ),
+                ]
+                .into(),
+            ),
+        };
+        let expected = serde_json::json!({
+            "agent_control": {
+                "healthy": true,
+            },
+            "fleet": {
+                "enabled": true,
+                "endpoint": "https://opamp.server/v1/opamp",
+                "reachable": true,
+            },
+            "sub_agents": {
+                "agent-id-1": {
+                    "agent_id": "agent-id-1",
+                    "agent_type": "ns/some.type:1.2.3",
+                    "agent_start_time_unix_nano": 0
+                },
+                "agent-id-2": {
+                    "agent_id": "agent-id-2",
+                    "agent_type": "ns/some.type:1.2.3",
+                    "agent_start_time_unix_nano": 0,
+                    "health_info": {
+                        "healthy":true,
+                        "start_time_unix_nano": 0,
+                        "status_time_unix_nano": 0
+                    },
+                },
+                "agent-id-3": {
+                    "agent_id": "agent-id-3",
+                    "agent_type": "ns/some.type:1.2.3",
+                    "agent_start_time_unix_nano": 0,
+                    "health_info": {
+                        "healthy": false,
+                        "status": "some error status",
+                        "last_error": "some error",
+                        "start_time_unix_nano": 0,
+                        "status_time_unix_nano": 0
+                    },
+                },
+            }
+        });
+        assert_eq!(serde_json::to_value(&status).unwrap(), expected);
     }
 }
