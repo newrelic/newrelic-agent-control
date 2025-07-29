@@ -1,8 +1,9 @@
 use clap::{Parser, Subcommand};
 use newrelic_agent_control::cli::errors::CliError;
-use newrelic_agent_control::cli::install_agent_control::{
-    AgentControlInstallData, install_or_upgrade_agent_control,
+use newrelic_agent_control::cli::install::agent_control::{
+    InstallAgentControl, RELEASE_NAME as AGENT_CONTROL_RELEASE_NAME,
 };
+use newrelic_agent_control::cli::install::{InstallData, install_or_upgrade};
 use newrelic_agent_control::cli::uninstall_agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
@@ -36,7 +37,7 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Operations {
     /// Install agent control chart and create required resources
-    InstallAgentControl(AgentControlInstallData),
+    InstallAgentControl(InstallData),
     /// Uninstall agent control and delete related resources
     UninstallAgentControl(AgentControlUninstallData),
 }
@@ -59,9 +60,12 @@ fn main() -> ExitCode {
     install_rustls_default_crypto_provider();
 
     let result = match cli.operation {
-        Operations::InstallAgentControl(agent_control_data) => {
-            install_or_upgrade_agent_control(agent_control_data, &cli.namespace)
-        }
+        Operations::InstallAgentControl(agent_control_data) => install_or_upgrade(
+            InstallAgentControl,
+            &agent_control_data,
+            AGENT_CONTROL_RELEASE_NAME,
+            &cli.namespace,
+        ),
         Operations::UninstallAgentControl(agent_control_data) => {
             uninstall_agent_control(&cli.namespace, &agent_control_data.namespace_agents)
         }

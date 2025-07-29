@@ -5,7 +5,7 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use newrelic_agent_control::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
+use newrelic_agent_control::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;

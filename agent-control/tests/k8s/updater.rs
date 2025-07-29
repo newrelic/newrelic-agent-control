@@ -9,7 +9,7 @@ use newrelic_agent_control::agent_control::config::{
 };
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
-use newrelic_agent_control::cli::install_agent_control::RELEASE_NAME;
+use newrelic_agent_control::cli::install::agent_control::RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
