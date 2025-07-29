@@ -3,6 +3,7 @@ use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install::agent_control::{
     InstallAgentControl, RELEASE_NAME as AGENT_CONTROL_RELEASE_NAME,
 };
+use newrelic_agent_control::cli::install::flux::{InstallFlux, RELEASE_NAME as FLUX_RELEASE_NAME};
 use newrelic_agent_control::cli::install::{InstallData, install_or_upgrade};
 use newrelic_agent_control::cli::uninstall_agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
@@ -40,6 +41,9 @@ enum Operations {
     InstallAgentControl(InstallData),
     /// Uninstall agent control and delete related resources
     UninstallAgentControl(AgentControlUninstallData),
+
+    /// Install Flux
+    InstallFlux(InstallData),
 }
 
 fn main() -> ExitCode {
@@ -68,6 +72,9 @@ fn main() -> ExitCode {
         ),
         Operations::UninstallAgentControl(agent_control_data) => {
             uninstall_agent_control(&cli.namespace, &agent_control_data.namespace_agents)
+        }
+        Operations::InstallFlux(flux_data) => {
+            install_or_upgrade(InstallFlux, &flux_data, FLUX_RELEASE_NAME, &cli.namespace)
         }
     };
 

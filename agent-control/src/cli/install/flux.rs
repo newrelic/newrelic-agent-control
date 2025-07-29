@@ -9,6 +9,8 @@ use crate::cli::install::{DynamicObjectListBuilder, InstallData};
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
+pub const RELEASE_NAME: &str = "flux";
+
 impl DynamicObjectListBuilder for InstallFlux {
     fn build_dynamic_object_list(
         &self,
