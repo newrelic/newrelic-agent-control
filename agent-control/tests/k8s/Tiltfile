@@ -19,6 +19,7 @@ helm_resource(
   'newrelic/agent-control',
   namespace='default',
   release_name='flux',
+  pod_readiness='ignore',
   update_dependencies=False,
   flags=[
     '--create-namespace',
