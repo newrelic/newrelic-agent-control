@@ -60,7 +60,7 @@ pub async fn check_helmrelease_spec_values(
     Ok(())
 }
 
-/// Check if the `HelmRelease` with the provided name has the the expected version.
+/// Check if the `HelmRelease` with the provided name contains the expected labels.
 pub async fn check_helmrelease_labels_contains(
     k8s_client: Client,
     namespace: &str,
