@@ -19,12 +19,13 @@ helm_resource(
   'newrelic/agent-control',
   namespace='default',
   release_name='flux',
+  pod_readiness='ignore',
   update_dependencies=False,
   flags=[
     '--create-namespace',
     '--version=>=0.0.0-beta',
     # Each integration test runs on a different ephimeral namespace.
-    '--set=flux2.watchAllNamespaces=true',
+    '--set=agent-control-cd.flux2.watchAllNamespaces=true',
     '--set=agent-control-deployment.enabled=false',
     ],
   resource_deps=['newrelic-helm-repo']
