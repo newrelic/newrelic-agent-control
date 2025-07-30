@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use kube::api::DynamicObject;
 use tracing::debug;
 
@@ -31,7 +29,7 @@ impl DynamicObjectListBuilder for InstallAgentControl {
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
-        maybe_existing_helm_release: Option<Arc<DynamicObject>>,
+        maybe_existing_helm_release: Option<&DynamicObject>,
         data: &InstallData,
     ) -> Vec<DynamicObject> {
         let (version, source) =

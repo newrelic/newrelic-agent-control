@@ -95,7 +95,7 @@ pub trait DynamicObjectListBuilder {
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
-        maybe_existing_helm_release: Option<Arc<DynamicObject>>,
+        maybe_existing_helm_release: Option<&DynamicObject>,
         data: &InstallData,
     ) -> Vec<DynamicObject>;
 }
@@ -112,7 +112,7 @@ pub fn install_or_upgrade(
     release_name: &str,
     namespace: &str,
 ) -> Result<(), CliError> {
-    info!("Installing agent control");
+    info!("Installing release {release_name}");
     let k8s_client = try_new_k8s_client()?;
     let maybe_helm_release = k8s_client
         .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, namespace)
@@ -126,9 +126,11 @@ pub fn install_or_upgrade(
     let installation_check_timeout = install_data.installation_check_timeout;
     let installation_check_initial_delay = install_data.installation_check_initial_delay;
 
+    // I think we are able to not care about the DynamicObject being inside an Arc for the operations defined here (and the possible `dyn_object_list_builder` implementations). Working with references suffices given the current setup.
+    let maybe_existing_helm_release = maybe_helm_release.as_ref().map(|o| o.as_ref());
     let dynamic_objects = dyn_object_list_builder.build_dynamic_object_list(
         namespace,
-        maybe_helm_release,
+        maybe_existing_helm_release,
         install_data,
     );
 
@@ -165,7 +167,7 @@ fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<
     Ok(())
 }
 
-fn is_version_managed_remotely(obj: &Arc<DynamicObject>) -> bool {
+fn is_version_managed_remotely(obj: &DynamicObject) -> bool {
     obj.metadata.labels.as_ref().is_some_and(|labels| {
         labels
             .get(AGENT_CONTROL_VERSION_SET_FROM)
@@ -174,37 +176,38 @@ fn is_version_managed_remotely(obj: &Arc<DynamicObject>) -> bool {
 }
 
 fn get_local_or_remote_version(
-    maybe_existing_helm_release: Option<Arc<DynamicObject>>,
-    local_version: String,
+    maybe_existing_helm_release: Option<&DynamicObject>,
+    chart_version: String,
 ) -> (String, String) {
-    if maybe_existing_helm_release
-        .as_ref()
-        .is_none_or(|helm_release| !is_version_managed_remotely(helm_release))
-    {
-        debug!("Using local version: {}", local_version);
-        return (local_version, LOCAL_VAL.to_string());
-    }
+    maybe_existing_helm_release
+        .filter(|obj| is_version_managed_remotely(obj))
+        .and_then(get_remote_version)
+        .map(|remote_version| {
+            debug!("Using remote version: {remote_version}");
+            (remote_version, REMOTE_VAL.to_string())
+        })
+        .unwrap_or_else(|| {
+            debug!("Using local version: {}", &chart_version);
+            (chart_version, LOCAL_VAL.to_string())
+        })
+}
 
-    let remote_version = maybe_existing_helm_release
-        .as_ref()
-        .map(|obj| &obj.data)
-        .and_then(|data| data.get("spec"))
+fn get_remote_version(helm_release: &DynamicObject) -> Option<String> {
+    let remote_version = helm_release
+        .data
+        .get("spec")
         .and_then(|spec| spec.get("chart"))
         .and_then(|spec| spec.get("spec"))
         .and_then(|chart| chart.get("version"))
         // Passing through the str is needed to avoid quotes
-        .and_then(|v| v.as_str());
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
 
-    match remote_version {
-        Some(version) => {
-            debug!("Using remote version: {version}",);
-            (version.to_string(), REMOTE_VAL.to_string())
-        }
-        None => {
-            debug!("Remote version not found, using local: {local_version}");
-            (local_version, LOCAL_VAL.to_string())
-        }
+    if remote_version.is_none() {
+        debug!("Remote version not found in HelmRelease");
     }
+
+    remote_version
 }
 
 fn obj_meta_data(
@@ -407,7 +410,7 @@ mod tests {
             metadata: ObjectMeta {
                 name: Some(agent_control::REPOSITORY_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
-                labels: Some(BTreeMap::from_iter(vec![
+                labels: Some(BTreeMap::from_iter([
                     (
                         "app.kubernetes.io/managed-by".to_string(),
                         "newrelic-agent-control".to_string(),
@@ -421,7 +424,7 @@ mod tests {
                     "newrelic.io/agent-type-id".to_string(),
                     agent_identity.agent_type_id.to_string(),
                 )])),
-                ..Default::default()
+                ..ObjectMeta::default()
             },
             data: serde_json::json!({
                 "spec": {
@@ -505,7 +508,7 @@ mod tests {
     fn test_existing_object_no_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            Some(Arc::new(DynamicObject {
+            Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta::default(),
                 data: serde_json::json!({
@@ -517,7 +520,7 @@ mod tests {
                         }
                     }
                 }),
-            })),
+            }),
             &InstallData::default(),
         );
         assert_eq!(
@@ -535,7 +538,7 @@ mod tests {
 
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            Some(Arc::new(DynamicObject {
+            Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
                     labels: Some(BTreeMap::from_iter(vec![(
@@ -553,7 +556,7 @@ mod tests {
                         }
                     }
                 }),
-            })),
+            }),
             &InstallData::default(),
         );
         assert_eq!(
@@ -569,7 +572,7 @@ mod tests {
     fn test_existing_object_local_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            Some(Arc::new(DynamicObject {
+            Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
                     labels: Some(BTreeMap::from_iter(vec![(
@@ -587,7 +590,7 @@ mod tests {
                         }
                     }
                 }),
-            })),
+            }),
             &InstallData::default(),
         );
         assert_eq!(
