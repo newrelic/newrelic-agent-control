@@ -122,6 +122,7 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");
+    cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg(chart_version);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets").arg(secrets);

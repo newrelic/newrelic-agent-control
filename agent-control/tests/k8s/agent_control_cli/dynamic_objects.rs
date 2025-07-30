@@ -20,6 +20,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
+    cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--extra-labels")
@@ -157,6 +158,7 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     let repository_url = "https://cli-charts.newrelic.com";
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
+    cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
