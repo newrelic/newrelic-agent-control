@@ -25,7 +25,7 @@ helm_resource(
     '--create-namespace',
     '--version=>=0.0.0-beta',
     # Each integration test runs on a different ephimeral namespace.
-    '--set=flux2.watchAllNamespaces=true',
+    '--set=agent-control-cd.flux2.watchAllNamespaces=true',
     '--set=agent-control-deployment.enabled=false',
     ],
   resource_deps=['newrelic-helm-repo']
