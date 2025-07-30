@@ -375,6 +375,7 @@ fn check_installation(
 #[cfg(test)]
 mod tests {
     use crate::{
+        agent_control::config::helmrepository_type_meta,
         cli::install::agent_control::{InstallAgentControl, RELEASE_NAME},
         k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         sub_agent::identity::AgentIdentity,
@@ -385,20 +386,18 @@ mod tests {
     const LOCAL_TEST_VERSION: &str = "1.0.0";
     const TEST_NAMESPACE: &str = "test-namespace";
 
-    impl Default for InstallData {
-        fn default() -> Self {
-            InstallData {
-                chart_name: RELEASE_NAME.to_string(),
-                chart_version: LOCAL_TEST_VERSION.to_string(),
-                secrets: None,
-                extra_labels: None,
-                skip_installation_check: false,
-                installation_check_initial_delay: Duration::from_secs(10),
-                installation_check_timeout: Duration::from_secs(300),
-                repository_url: REPOSITORY_URL.to_string(),
-                repository_secret_reference_name: None,
-                repository_certificate_secret_reference_name: None,
-            }
+    fn ac_install_data() -> InstallData {
+        InstallData {
+            chart_name: RELEASE_NAME.to_string(),
+            chart_version: LOCAL_TEST_VERSION.to_string(),
+            secrets: None,
+            extra_labels: None,
+            skip_installation_check: false,
+            installation_check_initial_delay: Duration::from_secs(10),
+            installation_check_timeout: Duration::from_secs(300),
+            repository_url: REPOSITORY_URL.to_string(),
+            repository_secret_reference_name: None,
+            repository_certificate_secret_reference_name: None,
         }
     }
 
@@ -521,7 +520,7 @@ mod tests {
                     }
                 }),
             }),
-            &InstallData::default(),
+            &ac_install_data(),
         );
         assert_eq!(
             dynamic_objects,
@@ -557,7 +556,7 @@ mod tests {
                     }
                 }),
             }),
-            &InstallData::default(),
+            &ac_install_data(),
         );
         assert_eq!(
             dynamic_objects,
@@ -591,7 +590,7 @@ mod tests {
                     }
                 }),
             }),
-            &InstallData::default(),
+            &ac_install_data(),
         );
         assert_eq!(
             dynamic_objects,
@@ -604,11 +603,8 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
-            TEST_NAMESPACE,
-            None,
-            &InstallData::default(),
-        );
+        let dynamic_objects =
+            InstallAgentControl.build_dynamic_object_list(TEST_NAMESPACE, None, &ac_install_data());
         assert_eq!(
             dynamic_objects,
             vec![
@@ -624,7 +620,7 @@ mod tests {
             secrets: Some(
                 "secret1=default.yaml,secret2=values.yaml,secret3=fixed.yaml".to_string(),
             ),
-            ..Default::default()
+            ..ac_install_data()
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
@@ -659,7 +655,7 @@ mod tests {
     fn test_to_dynamic_objects_with_labels_and_annotations() {
         let agent_control_data = InstallData {
             extra_labels: Some("label1=value1,label2=value2".to_string()),
-            ..Default::default()
+            ..ac_install_data()
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
@@ -736,7 +732,7 @@ mod tests {
             &InstallData {
                 repository_secret_reference_name: Some("secRef".to_string()),
                 repository_certificate_secret_reference_name: Some("certSecRef".to_string()),
-                ..Default::default()
+                ..ac_install_data()
             },
         );
 
@@ -755,7 +751,7 @@ mod tests {
         let chart_name = "my-chart";
         let agent_control_data = InstallData {
             chart_name: chart_name.to_string(),
-            ..Default::default()
+            ..ac_install_data()
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,

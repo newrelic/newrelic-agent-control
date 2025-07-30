@@ -78,7 +78,7 @@ impl DynamicObjectListBuilder for InstallFlux {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, time::Duration};
 
     use kube::api::ObjectMeta;
 
@@ -132,6 +132,21 @@ mod tests {
         notificationController:
           create: false
     */
+
+    fn flux2_install_data() -> InstallData {
+        InstallData {
+            chart_name: RELEASE_NAME.to_string(),
+            chart_version: LOCAL_TEST_VERSION.to_string(),
+            secrets: None,
+            extra_labels: None,
+            skip_installation_check: false,
+            installation_check_initial_delay: Duration::from_secs(10),
+            installation_check_timeout: Duration::from_secs(300),
+            repository_url: REPOSITORY_URL.to_string(),
+            repository_secret_reference_name: None,
+            repository_certificate_secret_reference_name: None,
+        }
+    }
 
     fn flux2_repository_object() -> DynamicObject {
         DynamicObject {
@@ -214,7 +229,7 @@ mod tests {
                     }
                 }),
             }),
-            &InstallData::default(),
+            &flux2_install_data(),
         );
         assert_eq!(
             dynamic_objects,
