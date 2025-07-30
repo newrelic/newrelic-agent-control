@@ -106,7 +106,7 @@ helm_resource(
   namespace=namespace,
   release_name='ac',
   update_dependencies=True,
-  pod_readiness='Ignore',
+  pod_readiness='ignore',
   flags=flags_helm,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
