@@ -24,7 +24,7 @@ pub trait Renderer {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        runtime_variables: HashMap<String, Variable>,
+        secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError>;
 }
 
@@ -42,14 +42,14 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
-        runtime_variables: HashMap<String, Variable>,
+        secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables and secrets are taken into consideration (no other vars for example)
-        let values_expanded = values.template_with(&runtime_variables)?;
+        let values_expanded = values.template_with(&secrets)?;
 
         // Fill agent variables
         // `filled_variables` needs to be mutable, in case there are `File` or `MapStringFile` variables, whose path
@@ -75,8 +75,7 @@ impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
         }
 
         // Setup namespaced variables
-        let ns_variables =
-            self.build_namespaced_variables(filled_variables, runtime_variables, &attributes);
+        let ns_variables = self.build_namespaced_variables(filled_variables, secrets, &attributes);
         // Render runtime config
         let rendered_runtime_config = runtime_config.template_with(&ns_variables)?;
 
@@ -139,7 +138,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
     fn build_namespaced_variables(
         &self,
         variables: HashMap<String, Variable>,
-        runtime_variables: HashMap<String, Variable>,
+        secrets: HashMap<String, Variable>,
         attributes: &AgentAttributes,
     ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
@@ -152,7 +151,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         // Join all variables together
         vars_iter
             .chain(sub_agent_vars_iter)
-            .chain(runtime_variables)
+            .chain(secrets)
             .chain(self.sa_variables.clone())
             .collect::<HashMap<NamespacedVariableName, Variable>>()
     }
@@ -192,7 +191,7 @@ pub(crate) mod tests {
                 agent_type: AgentType,
                 values: YAMLConfig,
                 attributes: AgentAttributes,
-                runtime_variables: HashMap<String, Variable>,
+                secrets: HashMap<String, Variable>,
             ) -> Result<Runtime, AgentTypeError>;
          }
     }
