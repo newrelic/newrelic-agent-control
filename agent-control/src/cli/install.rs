@@ -29,7 +29,7 @@ const INSTALLATION_CHECK_DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(
 #[derive(Debug, Clone, Parser)]
 pub struct InstallData {
     /// Name of the Helm chart to be installed
-    #[arg(long, default_value = agent_control::RELEASE_NAME)]
+    #[arg(long)]
     pub chart_name: String,
 
     /// Version of the agent control deployment chart
