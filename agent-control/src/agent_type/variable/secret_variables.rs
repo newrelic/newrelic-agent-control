@@ -59,12 +59,6 @@ impl From<&str> for SecretVariables {
             }
         }
 
-        for (key, _) in std::env::vars_os() {
-            let key = key.to_string_lossy().to_string();
-            let prefix = Namespace::EnvironmentVariable.to_string();
-            result.variables.entry(prefix).or_default().insert(key);
-        }
-
         result
     }
 }
@@ -90,8 +84,25 @@ pub enum SecretVariablesError {
 }
 
 impl SecretVariables {
+    /// Loads all environment variables present in the system.
+    ///
+    /// This will load all environment variables present in the system,
+    /// not just those extracted from the configuration.
+    pub fn load_all_env_vars(&self) -> HashMap<String, Variable> {
+        std::env::vars_os()
+            .map(|(k, v)| {
+                (
+                    Namespace::EnvironmentVariable.namespaced_name(&k.to_string_lossy()),
+                    Variable::new_final_string_variable(v.to_string_lossy().to_string()),
+                )
+            })
+            .collect::<HashMap<String, Variable>>()
+    }
+
     /// Loads secrets from all providers.
-    pub fn load_all_secrets(
+    ///
+    /// This will only load secrets extracted from the configuration.
+    pub fn load_secrets(
         &self,
         secrets_providers_registry: &SecretsProvidersRegistry,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
@@ -183,10 +194,7 @@ eof"#;
                 "sourceA:my_database:admin/credentials:username".to_string(),
             ]),
         )]);
-
-        let variables = SecretVariables::from(input).variables;
-        assert_eq!(variables.get("nr-vault").unwrap(), &expected["nr-vault"]);
-        assert!(variables.len() == 2 && variables.contains_key("nr-env"));
+        assert_eq!(SecretVariables::from(input).variables, expected);
     }
 
     #[rstest]
@@ -202,8 +210,7 @@ eof"#;
         )]
         input: &str,
     ) {
-        let variables = SecretVariables::from(input).variables;
-        assert!(variables.len() == 1 && variables.contains_key("nr-env"));
+        assert!(SecretVariables::from(input).variables.is_empty());
     }
 
     #[test]
@@ -241,7 +248,7 @@ eof"#;
             variables: HashMap::new(),
         };
         let result = secrets
-            .load_all_secrets(&SecretsProvidersRegistry::new())
+            .load_secrets(&SecretsProvidersRegistry::new())
             .unwrap();
         assert!(result.is_empty());
     }

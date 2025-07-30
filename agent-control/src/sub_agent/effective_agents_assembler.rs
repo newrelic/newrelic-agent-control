@@ -158,11 +158,17 @@ where
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let secret_variables = SecretVariables::try_from(values.clone())?;
-        let secrets = secret_variables.load_all_secrets(&self.secrets_providers)?;
+        let env_vars = secret_variables.load_all_env_vars();
+        let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
 
-        let runtime_config =
-            self.renderer
-                .render(&agent_identity.id, agent_type, values, attributes, secrets)?;
+        let runtime_config = self.renderer.render(
+            &agent_identity.id,
+            agent_type,
+            values,
+            attributes,
+            env_vars,
+            secrets,
+        )?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }
