@@ -102,10 +102,7 @@ impl SecretVariables {
             for secret_path in secrets_paths {
                 let secret_value = provider
                     .get_secret(secret_path)
-                    .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))
-                    .inspect_err(|error| {
-                        error!("{error}");
-                    })?;
+                    .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))?;
                 result.insert(
                     namespace.namespaced_name(secret_path),
                     Variable::new_final_string_variable(secret_value),
