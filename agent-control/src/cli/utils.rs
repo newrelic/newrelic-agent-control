@@ -24,8 +24,8 @@ use tracing::debug;
 ///     ("key3".to_string(), "value3".to_string()),
 /// ]));
 /// ```
-pub fn parse_key_value_pairs(data: &str) -> BTreeMap<String, String> {
-    let pairs = data.split(',');
+pub fn parse_key_value_pairs(data: impl AsRef<str>) -> BTreeMap<String, String> {
+    let pairs = data.as_ref().split(',');
     let key_values = pairs.map(|pair| pair.split_once('='));
     let valid_key_values = key_values.flatten();
 

@@ -2,7 +2,7 @@ use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use crate::cli::errors::CliError;
-use crate::cli::install_agent_control::{RELEASE_NAME, REPOSITORY_NAME};
+use crate::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -116,9 +116,10 @@ fn delete_agent_control_crs(
                 })?;
             if is_resource_deleted(res) {
                 info!("Resources of type {} deleted", tm.kind);
-                return Ok(());
+                Ok(())
+            } else {
+                Err(CliError::DeleteResource(format!("{tm:?}")))
             }
-            Err(CliError::DeleteResource(format!("{tm:?}")))
         })?;
     }
 
@@ -127,19 +128,12 @@ fn delete_agent_control_crs(
 
 fn is_collection_deleted(res: Either<ObjectList<DynamicObject>, Status>) -> bool {
     match res {
-        Either::Left(l) => {
-            if l.items.is_empty() {
-                return true;
-            }
-            false
-        }
         Either::Right(_) => true,
+        Either::Left(l) if l.items.is_empty() => true,
+        Either::Left(_) => false,
     }
 }
 
 fn is_resource_deleted(res: Either<DynamicObject, Status>) -> bool {
-    match res {
-        Either::Left(_) => false,
-        Either::Right(_) => true,
-    }
+    res.is_right()
 }

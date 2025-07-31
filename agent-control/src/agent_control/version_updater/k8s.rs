@@ -1,6 +1,6 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::cli::install_agent_control::RELEASE_NAME;
+use crate::cli::install::agent_control::RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
