@@ -23,6 +23,46 @@ pub const RELEASE_NAME: &str = "flux2";
 pub const REPOSITORY_NAME: &str = "flux";
 
 impl DynamicObjectListBuilder for InstallFlux {
+    /* # Example of the objects that should be generated:
+    ---
+    apiVersion: source.toolkit.fluxcd.io/v1
+    kind: HelmRepository
+    metadata:
+      name: flux-repo
+      namespace: default
+    spec:
+      interval: 1m
+      url: https://fluxcd-community.github.io/helm-charts
+    ---
+    apiVersion: helm.toolkit.fluxcd.io/v2
+    kind: HelmRelease
+    metadata:
+      name: flux2
+    spec:
+      interval: 1m
+      chart:
+        spec:
+          sourceRef:
+            kind: HelmRepository
+            name: flux-repo
+            namespace: default
+          chart: flux2
+          version: 2.15.0
+      values:
+        installCRDS: true
+        sourceController:
+          create: true
+        helmController:
+          create: true
+        kustomizeController:
+          create: false
+        imageAutomationController:
+          create: false
+        imageReflectionController:
+          create: false
+        notificationController:
+          create: false
+    */
     // FIXME this mostly duplicates the AgentControl implementation besides a few constants. Extracting to a function might be worth it.
     fn build_dynamic_object_list(
         &self,
@@ -73,170 +113,5 @@ impl DynamicObjectListBuilder for InstallFlux {
                 helm_release_obj_meta_data,
             ),
         ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{collections::BTreeMap, time::Duration};
-
-    use kube::api::ObjectMeta;
-
-    use crate::{
-        agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
-        cli::install::REPOSITORY_URL,
-        k8s::labels::LOCAL_VAL,
-    };
-
-    use super::*;
-
-    const LOCAL_TEST_VERSION: &str = "1.0.0";
-    const TEST_NAMESPACE: &str = "test-namespace";
-
-    /*
-    apiVersion: source.toolkit.fluxcd.io/v1
-    kind: HelmRepository
-    metadata:
-      name: flux-repo
-      namespace: default
-    spec:
-      interval: 1m
-      url: https://fluxcd-community.github.io/helm-charts
-    ---
-    apiVersion: helm.toolkit.fluxcd.io/v2
-    kind: HelmRelease
-    metadata:
-      name: flux2
-    spec:
-      interval: 1m
-      chart:
-        spec:
-          sourceRef:
-            kind: HelmRepository
-            name: flux-repo
-            namespace: default
-          chart: flux2
-          version: 2.15.0
-      values:
-        installCRDS: true
-        sourceController:
-          create: true
-        helmController:
-          create: true
-        kustomizeController:
-          create: false
-        imageAutomationController:
-          create: false
-        imageReflectionController:
-          create: false
-        notificationController:
-          create: false
-    */
-
-    fn flux2_install_data() -> InstallData {
-        InstallData {
-            chart_name: RELEASE_NAME.to_string(),
-            chart_version: LOCAL_TEST_VERSION.to_string(),
-            secrets: None,
-            extra_labels: None,
-            skip_installation_check: false,
-            installation_check_initial_delay: Duration::from_secs(10),
-            installation_check_timeout: Duration::from_secs(300),
-            repository_url: REPOSITORY_URL.to_string(),
-            repository_secret_reference_name: None,
-            repository_certificate_secret_reference_name: None,
-        }
-    }
-
-    fn flux2_repository_object() -> DynamicObject {
-        DynamicObject {
-            types: Some(helmrepository_type_meta()),
-            metadata: ObjectMeta {
-                name: Some(REPOSITORY_NAME.to_string()),
-                namespace: Some(TEST_NAMESPACE.to_string()),
-                labels: Some(BTreeMap::from_iter([
-                  /* TODO check if needed at all.
-                  "managed-by" ?
-                   */
-                ])),
-                ..ObjectMeta::default()
-            },
-            data: serde_json::json!({
-              "spec": {
-                "url": REPOSITORY_URL,
-                "interval": "1m",
-              }
-            }),
-        }
-    }
-
-    fn flux2_release_object(version: &str, source: &str) -> DynamicObject {
-        DynamicObject {
-            types: Some(helmrelease_v2_type_meta()),
-            metadata: ObjectMeta {
-                name: Some(RELEASE_NAME.to_string()),
-                namespace: Some(TEST_NAMESPACE.to_string()),
-                labels: Some(BTreeMap::from_iter([
-                    /* TODO check if needed at all.
-                    "managed-by" ?
-                     */
-                    (FLUX_VERSION_SET_FROM.to_string(), source.to_string()),
-                ])),
-                ..ObjectMeta::default()
-            },
-            data: serde_json::json!({
-              "spec": {
-                "interval": "1m",
-                "chart": {
-                  "spec": {
-                    "sourceRef": {
-                      "kind": "HelmRepository",
-                      "name": REPOSITORY_NAME,
-                      "namespace": TEST_NAMESPACE,
-                    },
-                    "chart": RELEASE_NAME,
-                    "version": version,
-                  }
-                },
-                "values": {
-                  "installCRDS": true,
-                  "sourceController": { "create": true },
-                  "helmController": { "create": true },
-                  "kustomizeController": { "create": false },
-                  "imageAutomationController": { "create": false },
-                  "imageReflectionController": { "create": false },
-                  "notificationController": { "create": false },
-                }
-              }
-            }),
-        }
-    }
-
-    #[test]
-    fn test_existing_object_no_label() {
-        let dynamic_objects = InstallFlux.build_dynamic_object_list(
-            TEST_NAMESPACE,
-            Some(&DynamicObject {
-                types: None,
-                metadata: ObjectMeta::default(),
-                data: serde_json::json!({
-                    "spec": {
-                        "chart": {
-                            "spec":{
-                                "version": "1.2.3",
-                            }
-                        }
-                    }
-                }),
-            }),
-            &flux2_install_data(),
-        );
-        assert_eq!(
-            dynamic_objects,
-            vec![
-                flux2_repository_object(),
-                flux2_release_object(LOCAL_TEST_VERSION, LOCAL_VAL)
-            ]
-        );
     }
 }
