@@ -106,7 +106,7 @@ fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
     duration_str::parse(arg)
 }
 
-pub fn install_or_upgrade(
+pub fn apply_resources(
     dyn_object_list_builder: impl DynamicObjectListBuilder,
     install_data: &InstallData,
     release_name: &str,
