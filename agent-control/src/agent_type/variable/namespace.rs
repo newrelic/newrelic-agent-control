@@ -11,7 +11,7 @@ pub enum Namespace {
     SubAgent,
     AgentControl,
 
-    // Below variables are "runtime" variables.
+    // Below variables are "secret" variables.
     // These are loaded every time a remote config is received.
     EnvironmentVariable,
     Vault,
@@ -29,7 +29,7 @@ impl Namespace {
     /// Encapsulates attributes related to the agent-control
     const AC: &'static str = "ac";
 
-    /// Encapsulates the environment variables that are available to the sub-agent
+    /// Encapsulates the environment variables
     const ENVIRONMENT_VARIABLE: &'static str = "env";
     /// Encapsulates the secrets retrieved from a HashiCorp Vault
     const VAULT_SECRET: &'static str = "vault";
@@ -41,9 +41,13 @@ impl Namespace {
     }
 
     pub fn is_secret_variable(s: &str) -> bool {
-        [Namespace::Vault, Namespace::K8sSecret]
-            .iter()
-            .any(|ns| s.starts_with(ns.to_string().as_str()))
+        [
+            Namespace::Vault,
+            Namespace::K8sSecret,
+            Namespace::EnvironmentVariable,
+        ]
+        .iter()
+        .any(|ns| s.starts_with(ns.to_string().as_str()))
     }
 }
 

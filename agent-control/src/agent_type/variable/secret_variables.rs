@@ -84,8 +84,25 @@ pub enum SecretVariablesError {
 }
 
 impl SecretVariables {
+    /// Loads all environment variables present in the system.
+    ///
+    /// This will load all environment variables present in the system,
+    /// not just those extracted from the configuration.
+    pub fn load_all_env_vars(&self) -> HashMap<String, Variable> {
+        std::env::vars_os()
+            .map(|(k, v)| {
+                (
+                    Namespace::EnvironmentVariable.namespaced_name(&k.to_string_lossy()),
+                    Variable::new_final_string_variable(v.to_string_lossy().to_string()),
+                )
+            })
+            .collect::<HashMap<String, Variable>>()
+    }
+
     /// Loads secrets from all providers.
-    pub fn load_all_secrets(
+    ///
+    /// This will only load secrets extracted from the configuration.
+    pub fn load_secrets(
         &self,
         secrets_providers_registry: &SecretsProvidersRegistry,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
@@ -102,6 +119,7 @@ impl SecretVariables {
                 SecretsProviderType::K8sSecret(provider) => {
                     self.load_secrets_at(namespace, provider)?
                 }
+                SecretsProviderType::Env(provider) => self.load_secrets_at(namespace, provider)?,
             };
             result.extend(secrets_map);
         }
@@ -156,7 +174,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_extract_runtime_variables() {
+    fn test_extract_secrets() {
         let input = r#"
 data: ${nr-var:var.name|indent 2}
 path:${nr-vault:PATH_A|indent 2|indent 2}
@@ -180,7 +198,7 @@ eof"#;
     }
 
     #[rstest]
-    fn test_extract_runtime_variables_when_no_runtime_variables_are_present(
+    fn test_extract_secrets_when_no_secrets_present_in_string(
         #[values(
             "test string",
             "${nr-var:var.name}",
@@ -192,12 +210,12 @@ eof"#;
         )]
         input: &str,
     ) {
-        assert_eq!(SecretVariables::from(input).variables, HashMap::new());
+        assert!(SecretVariables::from(input).variables.is_empty());
     }
 
     #[test]
     fn test_load_secrets_at() {
-        let runtime_variables = SecretVariables {
+        let secrets = SecretVariables {
             variables: HashMap::from([(
                 "nr-vault".to_string(),
                 HashSet::from(["sourceA:my_database:admin/credentials:username".to_string()]),
@@ -212,7 +230,7 @@ eof"#;
             ))
             .returning(|_| Ok("mocked_value_D".to_string()));
 
-        let result = runtime_variables
+        let result = secrets
             .load_secrets_at(&Namespace::Vault, &mock_vault)
             .unwrap();
         assert_eq!(
@@ -226,11 +244,11 @@ eof"#;
 
     #[test]
     fn test_load_secrets_with_empty_registry() {
-        let runtime_variables = SecretVariables {
+        let secrets = SecretVariables {
             variables: HashMap::new(),
         };
-        let result = runtime_variables
-            .load_all_secrets(&SecretsProvidersRegistry::new())
+        let result = secrets
+            .load_secrets(&SecretsProvidersRegistry::new())
             .unwrap();
         assert!(result.is_empty());
     }
