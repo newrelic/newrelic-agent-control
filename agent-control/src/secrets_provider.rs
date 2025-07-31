@@ -5,8 +5,8 @@ pub mod vault;
 use crate::agent_type::variable::namespace::Namespace;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::secrets_provider::env::Env;
-use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::secrets_provider::env::{Env, EnvError};
+use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -41,8 +41,14 @@ pub struct SecretsProvidersConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
-    #[error("Failed building Vault client: {0}")]
+    #[error("vault provider failed: {0}")]
     VaultError(#[from] VaultError),
+
+    #[error("k8s secret provider failed: {0}")]
+    K8sSecretProviderError(#[from] K8sSecretProviderError),
+
+    #[error("env var provider failed: {0}")]
+    EnvError(#[from] EnvError),
 }
 
 /// Trait for operating with secrets providers.
@@ -67,6 +73,18 @@ pub enum SecretsProviderType {
     Vault(Vault),
     K8sSecret(K8sSecretProvider),
     Env(Env),
+}
+
+impl SecretsProvider for SecretsProviderType {
+    type Error = SecretsProvidersError;
+
+    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+        match self {
+            SecretsProviderType::Vault(provider) => Ok(provider.get_secret(secret_path)?),
+            SecretsProviderType::K8sSecret(provider) => Ok(provider.get_secret(secret_path)?),
+            SecretsProviderType::Env(provider) => Ok(provider.get_secret(secret_path)?),
+        }
+    }
 }
 
 /// Collection of [SecretsProviderType]s.

@@ -269,17 +269,6 @@ pub mod tests {
     use crate::secrets_provider::vault::VaultConfig;
     use httpmock::Method::GET;
     use httpmock::MockServer;
-    use mockall::mock;
-
-    mock! {
-        pub Vault {}
-
-        impl SecretsProvider for Vault {
-            type Error = VaultError;
-
-            fn get_secret(&self, secret_path: &str) -> Result<String, VaultError>;
-        }
-    }
 
     const KV1_PATH: &str = "/kv-v1/my-secret";
     const KV1_RESPONSE: &str = r#"{
