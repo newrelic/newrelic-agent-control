@@ -737,7 +737,7 @@ pub mod tests {
     use crate::opamp::remote_config::hash::Hash;
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
-    use crate::secrets_provider::SecretsProvidersRegistry;
+    use crate::secrets_provider::SecretsProviders;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::tests::InMemoryConfigRepository;
     use assert_matches::assert_matches;
@@ -997,7 +997,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition().into()),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProvidersRegistry::default(),
+            SecretsProviders::new(),
         ));
 
         SubAgent::new(
@@ -1082,7 +1082,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition().into()),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProvidersRegistry::default(),
+            SecretsProviders::new(),
         ));
 
         let sub_agent = SubAgent::new(
@@ -1530,7 +1530,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProvidersRegistry::default(),
+            SecretsProviders::new(),
         ));
 
         let supervisor = sub_agent.init_supervisor();

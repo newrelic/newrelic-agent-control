@@ -13,7 +13,7 @@ use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::secret_variables::{
     SecretVariables, SecretVariablesError, load_env_vars,
 };
-use crate::secrets_provider::SecretsProvidersRegistry;
+use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -111,7 +111,7 @@ where
     registry: Arc<R>,
     renderer: Y,
     variable_constraints: VariableConstraints,
-    secrets_providers: SecretsProvidersRegistry,
+    secrets_providers: SecretsProviders,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -119,7 +119,7 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
-        secrets_providers: SecretsProvidersRegistry,
+        secrets_providers: SecretsProviders,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
@@ -280,7 +280,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer,
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: SecretsProvidersRegistry::default(),
+                secrets_providers: SecretsProviders::new(),
             }
         }
     }

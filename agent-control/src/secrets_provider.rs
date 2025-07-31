@@ -88,14 +88,22 @@ impl SecretsProvider for SecretsProviderType {
 }
 
 /// Collection of [SecretsProviderType]s.
-#[derive(Default)]
-pub struct SecretsProvidersRegistry(HashMap<Namespace, SecretsProviderType>);
+pub type SecretsProviders = Registry<SecretsProviderType>;
 
-impl SecretsProvidersRegistry {
+#[derive(Default)]
+pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
+
+impl<S: SecretsProvider> Registry<S> {
     pub fn new() -> Self {
-        SecretsProvidersRegistry(HashMap::new())
+        Registry(HashMap::new())
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Registry<SecretsProviderType> {
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
@@ -123,17 +131,20 @@ impl SecretsProvidersRegistry {
         }
         Ok(self)
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
-impl<'a> IntoIterator for &'a SecretsProvidersRegistry {
-    type Item = (&'a Namespace, &'a SecretsProviderType);
-    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, SecretsProviderType>;
+impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
+    type Item = (&'a Namespace, &'a S);
+    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, S>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
+    }
+}
+
+#[cfg(test)]
+impl<S: SecretsProvider> From<HashMap<Namespace, S>> for Registry<S> {
+    fn from(value: HashMap<Namespace, S>) -> Self {
+        Self(value)
     }
 }

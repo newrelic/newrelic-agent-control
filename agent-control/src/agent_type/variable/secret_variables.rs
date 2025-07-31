@@ -7,7 +7,7 @@ use crate::{
         templates::template_re,
         variable::{Variable, namespace::Namespace},
     },
-    secrets_provider::{SecretsProvider, SecretsProvidersRegistry},
+    secrets_provider::{Registry, SecretsProvider},
     values::yaml_config::YAMLConfig,
 };
 
@@ -85,9 +85,9 @@ pub enum SecretVariablesError {
 
 impl SecretVariables {
     /// Loads secrets from all providers.
-    pub fn load_secrets(
+    pub fn load_secrets<S: SecretsProvider>(
         &self,
-        secrets_providers_registry: &SecretsProvidersRegistry,
+        secrets_providers_registry: &Registry<S>,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
@@ -139,8 +139,11 @@ pub fn load_env_vars() -> HashMap<String, Variable> {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate;
     use rstest::rstest;
     use std::collections::HashSet;
+
+    use crate::secrets_provider::{Registry, SecretsProviders, vault::tests::MockVault};
 
     use super::*;
 
@@ -188,29 +191,28 @@ eof"#;
     fn test_load_secrets() {
         let secrets = SecretVariables {
             variables: HashMap::from([(
-                "nr-env".to_string(),
-                HashSet::from(["LOAD_SECRETS_TEST_PASSWORD".to_string()]),
+                "nr-vault".to_string(),
+                HashSet::from(["sourceA:my_database:admin/credentials:username".to_string()]),
             )]),
         };
 
-        unsafe {
-            std::env::set_var("LOAD_SECRETS_TEST_PASSWORD", "1234");
-        }
+        let mut mock_vault = MockVault::new();
+        mock_vault
+            .expect_get_secret()
+            .with(predicate::eq(
+                "sourceA:my_database:admin/credentials:username",
+            ))
+            .returning(|_| Ok("mocked_value_D".to_string()));
 
-        let secrets_providers_registry = SecretsProvidersRegistry::new().with_env();
-
-        let result = secrets.load_secrets(&secrets_providers_registry).unwrap();
+        let registry = Registry::from(HashMap::from_iter(vec![(Namespace::Vault, mock_vault)]));
+        let result = secrets.load_secrets(&registry).unwrap();
         assert_eq!(
             result,
             HashMap::from([(
-                "nr-env:LOAD_SECRETS_TEST_PASSWORD".to_string(),
-                Variable::new_final_string_variable("1234".to_string())
+                "nr-vault:sourceA:my_database:admin/credentials:username".to_string(),
+                Variable::new_final_string_variable("mocked_value_D".to_string())
             )])
         );
-
-        unsafe {
-            std::env::remove_var("LOAD_SECRETS_TEST_PASSWORD");
-        }
     }
 
     #[test]
@@ -218,9 +220,7 @@ eof"#;
         let secrets = SecretVariables {
             variables: HashMap::new(),
         };
-        let result = secrets
-            .load_secrets(&SecretsProvidersRegistry::new())
-            .unwrap();
+        let result = secrets.load_secrets(&SecretsProviders::new()).unwrap();
         assert!(result.is_empty());
     }
 }

@@ -23,7 +23,7 @@ use crate::opamp::instance_id::k8s::getter::{Identifiers, get_identifiers};
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::SecretsProvidersRegistry;
+use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
@@ -133,7 +133,7 @@ impl AgentControlRunner {
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
-        let mut secrets_providers = SecretsProvidersRegistry::new()
+        let mut secrets_providers = SecretsProviders::new()
             .with_env()
             .with_k8s_secret(k8s_client.clone());
         if let Some(config) = &agent_control_config.secrets_providers {

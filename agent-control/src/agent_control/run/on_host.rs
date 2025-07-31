@@ -24,7 +24,7 @@ use crate::opamp::instance_id::on_host::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
-use crate::secrets_provider::SecretsProvidersRegistry;
+use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
@@ -141,7 +141,7 @@ impl AgentControlRunner {
             )
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
-        let mut secrets_providers = SecretsProvidersRegistry::new().with_env();
+        let mut secrets_providers = SecretsProviders::new().with_env();
         if let Some(config) = &agent_control_config.secrets_providers {
             secrets_providers = secrets_providers.with_config(config.clone()).map_err(|e| {
                 AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
