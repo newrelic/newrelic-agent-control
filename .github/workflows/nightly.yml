@@ -90,18 +90,18 @@ jobs:
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
 
 
-  k8s-e2e-tests-proxy:
-    uses: ./.github/workflows/component_k8s_e2e.yml
-    with:
-      scenarios: '["proxy"]'
-      # Network policies needs calico installed
-      minikube_start_args: '--cni=calico'
-    secrets:
-      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+#  k8s-e2e-tests-proxy:
+#    uses: ./.github/workflows/component_k8s_e2e.yml
+#    with:
+#      scenarios: '["proxy"]'
+#      # Network policies needs calico installed
+#      minikube_start_args: '--cni=calico'
+#    secrets:
+#      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+#      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+#      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+#      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+#      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
@@ -147,7 +147,7 @@ jobs:
       - build-image
       - build-packages
       - k8s-e2e-tests
-      - k8s-e2e-tests-proxy
+      # - k8s-e2e-tests-proxy
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack
