@@ -7,7 +7,7 @@ use crate::{
         templates::template_re,
         variable::{Variable, namespace::Namespace},
     },
-    secrets_provider::{SecretsProvider, SecretsProviderType, SecretsProvidersRegistry},
+    secrets_provider::{Registry, SecretsProvider},
     values::yaml_config::YAMLConfig,
 };
 
@@ -84,27 +84,10 @@ pub enum SecretVariablesError {
 }
 
 impl SecretVariables {
-    /// Loads all environment variables present in the system.
-    ///
-    /// This will load all environment variables present in the system,
-    /// not just those extracted from the configuration.
-    pub fn load_all_env_vars(&self) -> HashMap<String, Variable> {
-        std::env::vars_os()
-            .map(|(k, v)| {
-                (
-                    Namespace::EnvironmentVariable.namespaced_name(&k.to_string_lossy()),
-                    Variable::new_final_string_variable(v.to_string_lossy().to_string()),
-                )
-            })
-            .collect::<HashMap<String, Variable>>()
-    }
-
     /// Loads secrets from all providers.
-    ///
-    /// This will only load secrets extracted from the configuration.
-    pub fn load_secrets(
+    pub fn load_secrets<S: SecretsProvider>(
         &self,
-        secrets_providers_registry: &SecretsProvidersRegistry,
+        secrets_providers_registry: &Registry<S>,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
@@ -112,43 +95,19 @@ impl SecretVariables {
 
         let mut result = HashMap::new();
         for (namespace, provider) in secrets_providers_registry {
-            let secrets_map = match provider {
-                SecretsProviderType::Vault(provider) => {
-                    self.load_secrets_at(namespace, provider)?
-                }
-                SecretsProviderType::K8sSecret(provider) => {
-                    self.load_secrets_at(namespace, provider)?
-                }
-                SecretsProviderType::Env(provider) => self.load_secrets_at(namespace, provider)?,
+            let Some(secrets_paths) = self.variables.get(&namespace.to_string()) else {
+                continue;
             };
-            result.extend(secrets_map);
-        }
 
-        Ok(result)
-    }
-
-    /// Loads secrets from the given provider.
-    fn load_secrets_at<SP: SecretsProvider>(
-        &self,
-        namespace: &Namespace,
-        provider: &SP,
-    ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
-        let mut result = HashMap::new();
-        let Some(secrets_paths) = self.variables.get(&namespace.to_string()) else {
-            return Ok(HashMap::new());
-        };
-
-        for secret_path in secrets_paths {
-            let secret_value = provider
-                .get_secret(secret_path)
-                .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))
-                .inspect_err(|error| {
-                    error!("{error}");
-                })?;
-            result.insert(
-                namespace.namespaced_name(secret_path),
-                Variable::new_final_string_variable(secret_value),
-            );
+            for secret_path in secrets_paths {
+                let secret_value = provider
+                    .get_secret(secret_path)
+                    .map_err(|_| SecretVariablesError::SecretsLoadError(secret_path.to_string()))?;
+                result.insert(
+                    namespace.namespaced_name(secret_path),
+                    Variable::new_final_string_variable(secret_value),
+                );
+            }
         }
 
         Ok(result)
@@ -163,13 +122,25 @@ impl SecretVariables {
     }
 }
 
+/// Loads all environment variables present in the system.
+pub fn load_env_vars() -> HashMap<String, Variable> {
+    std::env::vars_os()
+        .map(|(k, v)| {
+            (
+                Namespace::EnvironmentVariable.namespaced_name(&k.to_string_lossy()),
+                Variable::new_final_string_variable(v.to_string_lossy().to_string()),
+            )
+        })
+        .collect::<HashMap<String, Variable>>()
+}
+
 #[cfg(test)]
 mod tests {
     use mockall::predicate;
     use rstest::rstest;
     use std::collections::HashSet;
 
-    use crate::secrets_provider::vault::tests::MockVault;
+    use crate::secrets_provider::{Registry, SecretsProviders, vault::tests::MockVault};
 
     use super::*;
 
@@ -214,7 +185,7 @@ eof"#;
     }
 
     #[test]
-    fn test_load_secrets_at() {
+    fn test_load_secrets() {
         let secrets = SecretVariables {
             variables: HashMap::from([(
                 "nr-vault".to_string(),
@@ -230,9 +201,8 @@ eof"#;
             ))
             .returning(|_| Ok("mocked_value_D".to_string()));
 
-        let result = secrets
-            .load_secrets_at(&Namespace::Vault, &mock_vault)
-            .unwrap();
+        let registry = Registry::from(HashMap::from_iter(vec![(Namespace::Vault, mock_vault)]));
+        let result = secrets.load_secrets(&registry).unwrap();
         assert_eq!(
             result,
             HashMap::from([(
@@ -247,9 +217,7 @@ eof"#;
         let secrets = SecretVariables {
             variables: HashMap::new(),
         };
-        let result = secrets
-            .load_secrets(&SecretsProvidersRegistry::new())
-            .unwrap();
+        let result = secrets.load_secrets(&SecretsProviders::new()).unwrap();
         assert!(result.is_empty());
     }
 }

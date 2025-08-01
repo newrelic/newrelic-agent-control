@@ -10,8 +10,10 @@ use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::onhost::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
-use crate::agent_type::variable::secret_variables::{SecretVariables, SecretVariablesError};
-use crate::secrets_provider::SecretsProvidersRegistry;
+use crate::agent_type::variable::secret_variables::{
+    SecretVariables, SecretVariablesError, load_env_vars,
+};
+use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
@@ -109,7 +111,7 @@ where
     registry: Arc<R>,
     renderer: Y,
     variable_constraints: VariableConstraints,
-    secrets_providers: SecretsProvidersRegistry,
+    secrets_providers: SecretsProviders,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -117,7 +119,7 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         registry: Arc<EmbeddedRegistry>,
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
-        secrets_providers: SecretsProvidersRegistry,
+        secrets_providers: SecretsProviders,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
@@ -158,7 +160,7 @@ where
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
         let secret_variables = SecretVariables::try_from(values.clone())?;
-        let env_vars = secret_variables.load_all_env_vars();
+        let env_vars = load_env_vars();
         let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
 
         let runtime_config = self.renderer.render(
@@ -278,7 +280,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer,
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: SecretsProvidersRegistry::default(),
+                secrets_providers: SecretsProviders::new(),
             }
         }
     }

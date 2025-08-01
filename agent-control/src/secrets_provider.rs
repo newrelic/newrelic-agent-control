@@ -5,8 +5,8 @@ pub mod vault;
 use crate::agent_type::variable::namespace::Namespace;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::secrets_provider::env::Env;
-use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::secrets_provider::env::{Env, EnvError};
+use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
 use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -41,8 +41,14 @@ pub struct SecretsProvidersConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub enum SecretsProvidersError {
-    #[error("Failed building Vault client: {0}")]
+    #[error("vault provider failed: {0}")]
     VaultError(#[from] VaultError),
+
+    #[error("k8s secret provider failed: {0}")]
+    K8sSecretProviderError(#[from] K8sSecretProviderError),
+
+    #[error("env var provider failed: {0}")]
+    EnvError(#[from] EnvError),
 }
 
 /// Trait for operating with secrets providers.
@@ -69,15 +75,35 @@ pub enum SecretsProviderType {
     Env(Env),
 }
 
-/// Collection of [SecretsProviderType]s.
-#[derive(Default)]
-pub struct SecretsProvidersRegistry(HashMap<Namespace, SecretsProviderType>);
+impl SecretsProvider for SecretsProviderType {
+    type Error = SecretsProvidersError;
 
-impl SecretsProvidersRegistry {
+    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+        match self {
+            SecretsProviderType::Vault(provider) => Ok(provider.get_secret(secret_path)?),
+            SecretsProviderType::K8sSecret(provider) => Ok(provider.get_secret(secret_path)?),
+            SecretsProviderType::Env(provider) => Ok(provider.get_secret(secret_path)?),
+        }
+    }
+}
+
+/// Collection of [SecretsProviderType]s.
+pub type SecretsProviders = Registry<SecretsProviderType>;
+
+#[derive(Default)]
+pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
+
+impl<S: SecretsProvider> Registry<S> {
     pub fn new() -> Self {
-        SecretsProvidersRegistry(HashMap::new())
+        Registry(HashMap::new())
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl Registry<SecretsProviderType> {
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
@@ -105,17 +131,20 @@ impl SecretsProvidersRegistry {
         }
         Ok(self)
     }
-
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
-impl<'a> IntoIterator for &'a SecretsProvidersRegistry {
-    type Item = (&'a Namespace, &'a SecretsProviderType);
-    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, SecretsProviderType>;
+impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
+    type Item = (&'a Namespace, &'a S);
+    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, S>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
+    }
+}
+
+#[cfg(test)]
+impl<S: SecretsProvider> From<HashMap<Namespace, S>> for Registry<S> {
+    fn from(value: HashMap<Namespace, S>) -> Self {
+        Self(value)
     }
 }
