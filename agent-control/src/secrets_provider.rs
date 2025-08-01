@@ -55,67 +55,33 @@ pub enum SecretsProvidersError {
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
-    type Error: std::error::Error;
-
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error>;
+    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError>;
 }
-
-/// Supported secrets providers.
-///
-/// Each variant must contain an implementation of the [SecretsProvider] trait.
-///
-/// The structure is flexible enough to support multiple sources from the same provider.
-/// This is a decision the implementer of the provider must make. This entails creating a variant
-/// represented as a [HashMap].
-pub enum SecretsProviderType {
-    Vault(Vault),
-    K8sSecret(K8sSecretProvider),
-    Env(Env),
-}
-
-impl SecretsProvider for SecretsProviderType {
-    type Error = SecretsProvidersError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
-        match self {
-            SecretsProviderType::Vault(provider) => Ok(provider.get_secret(secret_path)?),
-            SecretsProviderType::K8sSecret(provider) => Ok(provider.get_secret(secret_path)?),
-            SecretsProviderType::Env(provider) => Ok(provider.get_secret(secret_path)?),
-        }
-    }
-}
-
-/// Collection of [SecretsProviderType]s.
-pub type SecretsProviders = Registry<SecretsProviderType>;
 
 #[derive(Default)]
-pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
+pub struct SecretsProviders(HashMap<Namespace, Box<dyn SecretsProvider + Send + Sync>>);
 
-impl<S: SecretsProvider> Registry<S> {
+impl SecretsProviders {
     pub fn new() -> Self {
-        Registry(HashMap::new())
+        SecretsProviders(HashMap::new())
     }
 
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-}
 
-impl Registry<SecretsProviderType> {
     pub fn with_env(mut self) -> Self {
-        self.0.insert(
-            Namespace::EnvironmentVariable,
-            SecretsProviderType::Env(Env {}),
-        );
+        self.0
+            .insert(Namespace::EnvironmentVariable, Box::new(Env {}));
         self
     }
 
     pub fn with_k8s_secret(mut self, k8s_client: Arc<SyncK8sClient>) -> Self {
         self.0.insert(
             Namespace::K8sSecret,
-            SecretsProviderType::K8sSecret(K8sSecretProvider::new(k8s_client)),
+            Box::new(K8sSecretProvider::new(k8s_client)),
         );
         self
     }
@@ -126,16 +92,16 @@ impl Registry<SecretsProviderType> {
     ) -> Result<Self, SecretsProvidersError> {
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
-            self.0
-                .insert(Namespace::Vault, SecretsProviderType::Vault(vault));
+            self.0.insert(Namespace::Vault, Box::new(vault));
         }
         Ok(self)
     }
 }
 
-impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
-    type Item = (&'a Namespace, &'a S);
-    type IntoIter = std::collections::hash_map::Iter<'a, Namespace, S>;
+impl<'a> IntoIterator for &'a SecretsProviders {
+    type Item = (&'a Namespace, &'a Box<dyn SecretsProvider + Send + Sync>);
+    type IntoIter =
+        std::collections::hash_map::Iter<'a, Namespace, Box<dyn SecretsProvider + Send + Sync>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
@@ -143,8 +109,8 @@ impl<'a, S: SecretsProvider> IntoIterator for &'a Registry<S> {
 }
 
 #[cfg(test)]
-impl<S: SecretsProvider> From<HashMap<Namespace, S>> for Registry<S> {
-    fn from(value: HashMap<Namespace, S>) -> Self {
+impl From<HashMap<Namespace, Box<dyn SecretsProvider + Send + Sync>>> for SecretsProviders {
+    fn from(value: HashMap<Namespace, Box<dyn SecretsProvider + Send + Sync>>) -> Self {
         Self(value)
     }
 }

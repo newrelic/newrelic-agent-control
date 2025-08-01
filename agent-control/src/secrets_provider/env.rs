@@ -1,4 +1,4 @@
-use crate::secrets_provider::SecretsProvider;
+use crate::secrets_provider::{SecretsProvider, SecretsProvidersError};
 
 pub struct Env {}
 
@@ -7,9 +7,8 @@ pub struct Env {}
 pub struct EnvError(String);
 
 impl SecretsProvider for Env {
-    type Error = EnvError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
-        std::env::var(secret_path).map_err(|e| EnvError(e.to_string()))
+    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError> {
+        std::env::var(secret_path)
+            .map_err(|e| SecretsProvidersError::EnvError(EnvError(e.to_string())))
     }
 }

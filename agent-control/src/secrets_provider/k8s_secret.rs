@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::secrets_provider::SecretsProvider;
+use crate::secrets_provider::{SecretsProvider, SecretsProvidersError};
 
 #[derive(Debug, Error)]
 #[error("resolving k8s secret: {0}")]
@@ -22,9 +22,7 @@ impl K8sSecretProvider {
 }
 
 impl SecretsProvider for K8sSecretProvider {
-    type Error = K8sSecretProviderError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError> {
         let K8sSecretPath {
             namespace,
             name,
@@ -33,8 +31,16 @@ impl SecretsProvider for K8sSecretProvider {
 
         self.k8s_client
             .get_secret_key(&name, &namespace, &key)
-            .map_err(|err| K8sSecretProviderError(format!("getting {secret_path} secret: {err}")))?
-            .ok_or_else(|| K8sSecretProviderError(format!("'{secret_path}' secret not found")))
+            .map_err(|err| {
+                SecretsProvidersError::K8sSecretProviderError(K8sSecretProviderError(format!(
+                    "getting {secret_path} secret: {err}"
+                )))
+            })?
+            .ok_or_else(|| {
+                SecretsProvidersError::K8sSecretProviderError(K8sSecretProviderError(format!(
+                    "'{secret_path}' secret not found"
+                )))
+            })
     }
 }
 

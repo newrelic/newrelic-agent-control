@@ -1,6 +1,7 @@
 use super::SecretsProvider;
 use crate::http::client::{HttpBuildError, HttpClient};
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::secrets_provider::SecretsProvidersError;
 use duration_str::deserialize_duration;
 use http::header::InvalidHeaderValue;
 use http::{HeaderValue, Request};
@@ -216,9 +217,7 @@ impl Vault {
 
 /// Implements the SecretsProvider trait for Vault, allowing it to retrieve secrets.
 impl SecretsProvider for Vault {
-    type Error = VaultError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError> {
         let VaultSecretPath {
             source,
             mount,
@@ -231,19 +230,23 @@ impl SecretsProvider for Vault {
             .get(&source)
             .ok_or(VaultError::SourceNotFound)?;
 
-        let url =
-            vault_source
-                .engine
-                .get_url(vault_source.url.clone(), mount.as_str(), path.as_str())?;
+        let url = vault_source
+            .engine
+            .get_url(vault_source.url.clone(), mount.as_str(), path.as_str())
+            .map_err(SecretsProvidersError::VaultError)?;
 
         let mut request = Request::builder()
             .method("GET")
             .uri(url.as_str())
             .body(Vec::new())
-            .map_err(|e| VaultError::BuildingError(e.to_string()))?;
+            .map_err(|e| {
+                SecretsProvidersError::VaultError(VaultError::BuildingError(e.to_string()))
+            })?;
         request.headers_mut().insert(
             "X-Vault-Token",
-            HeaderValue::from_str(vault_source.token.as_str())?,
+            HeaderValue::from_str(vault_source.token.as_str()).map_err(|e| {
+                SecretsProvidersError::VaultError(VaultError::InvalidHeaderValue(e))
+            })?,
         );
 
         let response = self
@@ -257,7 +260,7 @@ impl SecretsProvider for Vault {
         let maybe_secret = vault_source.engine.parse_secret_response(&name, body)?;
 
         maybe_secret.map_or_else(
-            || Err(VaultError::NotFound),
+            || Err(SecretsProvidersError::VaultError(VaultError::NotFound)),
             |secret| Ok(secret.to_string()),
         )
     }
@@ -275,9 +278,7 @@ pub mod tests {
         pub Vault {}
 
         impl SecretsProvider for Vault {
-            type Error = VaultError;
-
-            fn get_secret(&self, secret_path: &str) -> Result<String, VaultError>;
+            fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError>;
         }
     }
 
@@ -348,7 +349,7 @@ client_timeout: 3s
         struct TestCase {
             _name: &'static str,
             secret_path: &'static str,
-            expected: Result<String, VaultError>,
+            expected: Result<String, SecretsProvidersError>,
         }
 
         impl TestCase {
@@ -395,12 +396,14 @@ client_timeout: 3s
             TestCase {
                 _name: "get secret from wrong existing source returns Not Found error",
                 secret_path: "sourceB:secret:my-secret:zip1",
-                expected: Err(VaultError::NotFound),
+                expected: Err(SecretsProvidersError::VaultError(VaultError::NotFound)),
             },
             TestCase {
                 _name: "get secret from wrong existing source returns Source Not Found error",
                 secret_path: "sourceC:secret:my-secret:zip1",
-                expected: Err(VaultError::SourceNotFound),
+                expected: Err(SecretsProvidersError::VaultError(
+                    VaultError::SourceNotFound,
+                )),
             },
         ];
 

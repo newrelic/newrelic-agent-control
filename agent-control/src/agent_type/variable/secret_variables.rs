@@ -7,7 +7,7 @@ use crate::{
         templates::template_re,
         variable::{Variable, namespace::Namespace},
     },
-    secrets_provider::{Registry, SecretsProvider},
+    secrets_provider::SecretsProviders,
     values::yaml_config::YAMLConfig,
 };
 
@@ -85,9 +85,9 @@ pub enum SecretVariablesError {
 
 impl SecretVariables {
     /// Loads secrets from all providers.
-    pub fn load_secrets<S: SecretsProvider>(
+    pub fn load_secrets(
         &self,
-        secrets_providers_registry: &Registry<S>,
+        secrets_providers_registry: &SecretsProviders,
     ) -> Result<HashMap<String, Variable>, SecretVariablesError> {
         if secrets_providers_registry.is_empty() {
             return Ok(HashMap::new());
@@ -140,7 +140,7 @@ mod tests {
     use rstest::rstest;
     use std::collections::HashSet;
 
-    use crate::secrets_provider::{Registry, SecretsProviders, vault::tests::MockVault};
+    use crate::secrets_provider::{SecretsProviders, vault::tests::MockVault};
 
     use super::*;
 
@@ -201,7 +201,10 @@ eof"#;
             ))
             .returning(|_| Ok("mocked_value_D".to_string()));
 
-        let registry = Registry::from(HashMap::from_iter(vec![(Namespace::Vault, mock_vault)]));
+        let registry = SecretsProviders::from(HashMap::from_iter(vec![(
+            Namespace::Vault,
+            Box::new(mock_vault) as Box<dyn crate::secrets_provider::SecretsProvider + Send + Sync>,
+        )]));
         let result = secrets.load_secrets(&registry).unwrap();
         assert_eq!(
             result,
