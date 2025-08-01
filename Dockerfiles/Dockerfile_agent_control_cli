@@ -3,12 +3,26 @@
 FROM debian:trixie-slim
 
 ARG TARGETARCH
+ARG KUBECTL_VERSION=1.33.3
+ARG HELM_VERSION=3.17.4
 
 COPY --chmod=755 bin/newrelic-agent-control-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
 
 RUN apt-get update && \
     apt-get upgrade -y && \
+    apt-get install -y ca-certificates curl && \
     apt-get clean
+
+# Install kubectl
+RUN curl -LO "https://dl.k8s.io/release/v$KUBECTL_VERSION/bin/linux/$TARGETARCH/kubectl" && \
+    chmod +x kubectl && \
+    mv kubectl /usr/local/bin/kubectl
+
+# Install Helm
+RUN curl -LO "https://get.helm.sh/helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
+    tar -xzf "helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
+    mv "linux-$TARGETARCH/helm" /usr/local/bin/helm && \
+    rm -rf "helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" linux-$TARGETARCH
 
 USER nobody
 
