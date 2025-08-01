@@ -1,14 +1,14 @@
-use crate::secrets_provider::{SecretsProvider, SecretsProvidersError};
+use crate::secrets_provider::SecretsProvider;
+use anyhow::{Result, anyhow};
 
 pub struct Env {}
 
-#[derive(Debug, thiserror::Error)]
-#[error("failed to retrieve secret from environment variable: {0}")]
-pub struct EnvError(String);
-
 impl SecretsProvider for Env {
-    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError> {
-        std::env::var(secret_path)
-            .map_err(|e| SecretsProvidersError::EnvError(EnvError(e.to_string())))
+    fn get_secret(&self, secret_path: &str) -> Result<String> {
+        std::env::var(secret_path).map_err(|e| {
+            anyhow!(format!(
+                "failed to retrieve env var secret '{secret_path}': {e}"
+            ))
+        })
     }
 }

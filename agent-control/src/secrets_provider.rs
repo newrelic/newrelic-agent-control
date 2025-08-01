@@ -5,13 +5,15 @@ pub mod vault;
 use crate::agent_type::variable::namespace::Namespace;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::secrets_provider::env::{Env, EnvError};
-use crate::secrets_provider::k8s_secret::{K8sSecretProvider, K8sSecretProviderError};
-use crate::secrets_provider::vault::{Vault, VaultConfig, VaultError};
+use crate::secrets_provider::env::Env;
+use crate::secrets_provider::k8s_secret::K8sSecretProvider;
+use crate::secrets_provider::vault::{Vault, VaultConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
+
+use anyhow::Result;
 
 /// Configuration for supported secrets providers.
 ///
@@ -39,25 +41,13 @@ pub struct SecretsProvidersConfig {
     pub vault: Option<VaultConfig>,
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum SecretsProvidersError {
-    #[error("vault provider failed: {0}")]
-    VaultError(#[from] VaultError),
-
-    #[error("k8s secret provider failed: {0}")]
-    K8sSecretProviderError(#[from] K8sSecretProviderError),
-
-    #[error("env var provider failed: {0}")]
-    EnvError(#[from] EnvError),
-}
-
 /// Trait for operating with secrets providers.
 ///
 /// Defines common operations among the different secrets providers.
 pub trait SecretsProvider {
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
-    fn get_secret(&self, secret_path: &str) -> Result<String, SecretsProvidersError>;
+    fn get_secret(&self, secret_path: &str) -> Result<String>;
 }
 
 #[derive(Default)]
@@ -86,10 +76,7 @@ impl SecretsProviders {
         self
     }
 
-    pub fn with_config(
-        mut self,
-        config: SecretsProvidersConfig,
-    ) -> Result<Self, SecretsProvidersError> {
+    pub fn with_config(mut self, config: SecretsProvidersConfig) -> Result<Self> {
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
             self.0.insert(Namespace::Vault, Box::new(vault));
