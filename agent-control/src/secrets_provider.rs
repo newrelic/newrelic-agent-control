@@ -10,10 +10,9 @@ use crate::secrets_provider::k8s_secret::K8sSecretProvider;
 use crate::secrets_provider::vault::{Vault, VaultConfig};
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::error::Error;
 use std::fmt::Debug;
 use std::sync::Arc;
-
-use anyhow::Result;
 
 /// Configuration for supported secrets providers.
 ///
@@ -47,7 +46,7 @@ pub struct SecretsProvidersConfig {
 pub trait SecretsProvider {
     /// Gets a secret
     /// By default is recommended to use get_secret_with_retry.
-    fn get_secret(&self, secret_path: &str) -> Result<String>;
+    fn get_secret(&self, secret_path: &str) -> Result<String, Box<dyn Error>>;
 }
 
 #[derive(Default)]
@@ -76,7 +75,7 @@ impl SecretsProviders {
         self
     }
 
-    pub fn with_config(mut self, config: SecretsProvidersConfig) -> Result<Self> {
+    pub fn with_config(mut self, config: SecretsProvidersConfig) -> Result<Self, Box<dyn Error>> {
         if let Some(vault_config) = config.vault {
             let vault = Vault::try_build(vault_config)?;
             self.0.insert(Namespace::Vault, Box::new(vault));
