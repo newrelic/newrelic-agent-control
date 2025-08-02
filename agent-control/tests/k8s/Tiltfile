@@ -1,7 +1,8 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the integration tests to setup the environment.
 
-update_settings ( k8s_upsert_timeout_secs = 150)
+update_settings( k8s_upsert_timeout_secs = 150)
+ci_settings(readiness_timeout = '10m')
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
 load('ext://deployment', 'job_create')
@@ -35,8 +36,9 @@ helm_resource(
 # build_with options:
 # cargo: No crosscompilation, faster than cross
 # cross: Supports crosscompilaton
-build_with = os.getenv('BUILD_WITH','cross')
+build_with = os.getenv('BUILD_WITH','zig')
 arch = os.getenv('ARCH','arm64')
+target_tuple = os.getenv('TARGET_TUPLE', 'aarch64-unknown-linux-musl')
 
 #### Build SA binary
 
@@ -51,8 +53,20 @@ elif build_with == 'cross':
   local_resource(
       'build-binary',
       dir="../../../",
-      cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch,
+      cmd="make BUILD_MODE=debug ARCH=%s cross-build-agent-control-k8s" % arch,
       deps=["../../../agent-control/src"]
+  )
+elif build_with == 'zig':
+  local_resource(
+      'build-binary',
+      dir="../../../",
+      cmd="""cargo zigbuild --package newrelic_agent_control --bin newrelic-agent-control-k8s --target """+target_tuple+""" &&
+        mkdir -p bin &&
+        rm -f bin/newrelic-agent-control-"""+arch+""" &&
+        mv target/"""+target_tuple+"""/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"""+arch,
+      deps=[
+        './agent-control',
+      ]
   )
 
 # Why not using docker_build: 

@@ -28,6 +28,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: >-
+            x86_64-unknown-linux-musl
+
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
@@ -41,10 +44,17 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install --locked cargo-zigbuild
+
       - name: Build k8s in release mode
-        run: cargo build --release --package newrelic_agent_control --bin newrelic-agent-control-k8s
+        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
       - name: Build onhost in release mode
-        run: cargo build --release --package newrelic_agent_control --bin newrelic-agent-control-onhost
+        run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-onhost --target x86_64-unknown-linux-musl
 
   required:
     runs-on: ubuntu-latest
@@ -63,6 +73,9 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: >-
+            aarch64-unknown-linux-musl,
+            x86_64-unknown-linux-musl
 
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -78,6 +91,12 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install --locked cargo-zigbuild
 
       - name: Run workspace tests excluding the agent control package
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
@@ -172,6 +191,8 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_VERSION }}
+          targets: >-
+            x86_64-unknown-linux-musl
 
       - uses: actions/cache@v4
         with:
@@ -183,11 +204,18 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
 
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Install cargo-zigbuild
+        run: |
+          cargo install --locked cargo-zigbuild
+
       - name: Run k8s integration tests
         env:
           # Tilt configs
           ARCH: amd64
-          BUILD_WITH: cargo
+          TARGET_TUPLE: x86_64-unknown-linux-musl
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
 
   k8s-e2e-tests:

@@ -29,6 +29,10 @@ build-%:
 	@echo "Building $* with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
 	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
+cross-build-%:
+	@echo "Building $* using cross-rs with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
+	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary_cross.sh
+
 .PHONY: tilt-up
 tilt-up:
 	tilt up ; tilt down
