@@ -148,7 +148,8 @@ helm_resource(
   flags=ac_flags,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
-              ('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')],
+              [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
+              ('agent-control-cd.installerImage.registry', 'agent-control-cd.installerImage.repository', 'agent-control-cd.installerImage.tag')]],
   resource_deps=['build-binary', 'local-child-chart-upload']
 )
 
