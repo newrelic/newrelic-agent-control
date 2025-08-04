@@ -106,7 +106,7 @@ jobs:
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic"]'
+      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic", "custom-repo"]'
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
