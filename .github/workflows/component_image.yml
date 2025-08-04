@@ -10,6 +10,10 @@ on:
         description: 'Image tag'
         type: string
         required: true
+      ac-version:
+        description: 'Agent Control version to embed in the binary'
+        type: string
+        required: true
       push:
         description: 'Push image'
         type: boolean
@@ -54,7 +58,7 @@ jobs:
 
       - name: Build Agent Control for K8s
         env:
-          AGENT_CONTROL_VERSION: ${{ inputs.image-tag }}
+          AGENT_CONTROL_VERSION: ${{ inputs.ac-version }}
         run: |
           make build-agent-control-k8s ARCH=arm64 PKG=newrelic_agent_control
           make build-agent-control-k8s ARCH=amd64 PKG=newrelic_agent_control

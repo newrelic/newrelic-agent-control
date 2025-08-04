@@ -27,5 +27,6 @@ jobs:
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: 0.100.0
+      ac-version: 0.100.0
       push: false
     secrets: inherit

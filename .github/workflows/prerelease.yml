@@ -22,6 +22,9 @@ jobs:
     uses: ./.github/workflows/component_image.yml
     with:
       image-tag: ${{ github.event.release.tag_name }}-rc
+      # The binary remains the same between the rc and released image
+      # so here we burn the final released one.
+      ac-version: ${{ github.event.release.tag_name }}
       push: true
     secrets: inherit
 
