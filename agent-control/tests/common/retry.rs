@@ -17,3 +17,23 @@ where
     }
     last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts} attempts: {err}"))
 }
+
+pub struct DeferredCommand {
+    cleanup_fn: Option<Box<dyn Fn()>>,
+}
+
+impl DeferredCommand {
+    pub fn new(cleanup_fn: Box<dyn Fn()>) -> Self {
+        Self {
+            cleanup_fn: Some(cleanup_fn),
+        }
+    }
+}
+
+impl Drop for DeferredCommand {
+    fn drop(&mut self) {
+        if let Some(cleanup_fn) = self.cleanup_fn.take() {
+            cleanup_fn();
+        }
+    }
+}

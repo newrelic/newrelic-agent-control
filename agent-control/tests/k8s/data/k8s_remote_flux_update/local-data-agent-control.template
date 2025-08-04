@@ -1,0 +1,13 @@
+k8s:
+  namespace: <ns>
+  namespace_agents: <agents-ns>
+  cluster_name: <cluster-name>
+  cd_remote_update: true
+  ac_remote_update: false
+  cd_release_name: agent-control-cd
+fleet_control:
+  endpoint: <opamp-endpoint>
+  poll_interval: 5s
+  signature_validation:
+    certificate_pem_file_path: <cert-path>
+agents: {}

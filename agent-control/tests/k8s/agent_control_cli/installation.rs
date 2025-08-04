@@ -4,7 +4,8 @@ use crate::k8s::tools::cmd::{assert_stdout_contains, print_cli_output};
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::local_chart::{
-    CHART_VERSION_LATEST_RELEASE, LOCAL_CHART_REPOSITORY, MISSING_VERSION,
+    LOCAL_CHART_REPOSITORY,
+    agent_control_deploymet::{CHART_VERSION_LATEST_RELEASE, MISSING_VERSION},
 };
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
