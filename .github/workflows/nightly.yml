@@ -23,6 +23,7 @@ jobs:
     with:
       # the packages are created with 0.100.run_id, however we still push the image with nightly
       image-tag: nightly
+      ac-version: nightly
       push: true
     secrets: inherit
 
