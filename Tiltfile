@@ -116,7 +116,10 @@ local_resource(
      curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
      helm package --dependency-update --version 0.0.1 --destination local/helm-charts-tmp local/helm-charts-tmp/charts/nri-bundle &&
      curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/nri-bundle/0.0.1 &&
-     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/nri-bundle-0.0.1.tgz" http://localhost:8080/api/charts
+     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/nri-bundle-0.0.1.tgz" http://localhost:8080/api/charts &&
+     helm package --dependency-update --version 0.0.1 --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-cd &&
+     curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/agent-control-cd/0.0.1 &&
+     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-cd-0.0.1.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['chartmuseum'],
 )
@@ -124,8 +127,10 @@ local_resource(
 ac_flags = [
   '--timeout=150s',
   '--create-namespace',
-  '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.chartVersion=0.0.1',
+  '--set=installationJob.acChartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.acChartVersion=0.0.1',
+  '--set=installationJob.cdChartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.cdChartVersion=0.0.1',
   '--version=>=0.0.0-beta',
   '--set=agent-control-deployment.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
