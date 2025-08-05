@@ -43,7 +43,7 @@ enum Operations {
     UninstallAgentControl(AgentControlUninstallData),
 
     /// Install the Continuous Deployment utility (currently Flux) to manage AC's K8s resources
-    CreateCDResources(InstallData),
+    CreateFluxResources(InstallData),
 }
 
 fn main() -> ExitCode {
@@ -73,7 +73,7 @@ fn main() -> ExitCode {
         Operations::UninstallAgentControl(agent_control_data) => {
             uninstall_agent_control(&cli.namespace, &agent_control_data.namespace_agents)
         }
-        Operations::CreateCDResources(cd_install_data) => {
+        Operations::CreateFluxResources(cd_install_data) => {
             // Currently this means installing Flux, but in the future it could mean other CD tool
             // or support different ones
             apply_resources(
