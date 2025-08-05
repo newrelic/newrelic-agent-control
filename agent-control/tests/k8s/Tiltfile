@@ -19,6 +19,7 @@ helm_resource(
   'newrelic/agent-control',
   namespace='default',
   release_name='flux',
+  # workaround for https://github.com/tilt-dev/tilt/issues/6058
   pod_readiness='ignore',
   update_dependencies=False,
   flags=[

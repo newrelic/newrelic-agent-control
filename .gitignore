@@ -51,3 +51,6 @@ agent-control/tests/k8s/local/
 
 # Coverage info outputs
 coverage/
+
+# this is the key created by the e2e proxy test dumping the secret
+**/.key.temp

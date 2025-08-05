@@ -4,12 +4,34 @@ installationJob:
 
 # Flux proxy configuration.
 agent-control-cd:
+  installer:
+    extraEnv:
+      # Configures helm repo add to use the proxy.
+      - name: HTTPS_PROXY
+        # we faced an issue with the proxy when using https://, so we use http://
+        # https://github.com/helm/helm/issues/31111
+        value: http://mitmproxy-service:8080
+      # except for in-cluster request.
+      - name: "NO_PROXY"
+        value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
+    extraVolumeMounts:
+      # Mount a CA certificate bundle to the source-controller Trust root store.
+      # It should contain the proxy CA certificates on it.
+      - mountPath: /etc/ssl/certs/ca-certificates.crt
+        subPath: ca-certificates.crt
+        name: shared-volume-ca
+    extraVolumes:
+      - name: shared-volume-ca
+        persistentVolumeClaim:
+          claimName: mitm-ca-pvc
+
+
   flux2:
     sourceController:
       extraEnv:
         # Configures Flux source-controller to proxy all request.
         - name: HTTPS_PROXY
-          value: https://mitmproxy-service:8080
+          value: http://mitmproxy-service:8080
         # except for in-cluster request.
         - name: "NO_PROXY"
           value: ".cluster.local.,.cluster.local,cluster.local,.svc,127.0.0.0/8,10.0.0.0/8"
@@ -26,6 +48,7 @@ agent-control-cd:
 
 
 agent-control-deployment:
+  customIdentitySecretName: "sys-identity-creds"
   subAgentsNamespace: "newrelic-agents"
   verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
   # Mount a CA certificate bundle to the source-controller Trust root store.
@@ -38,6 +61,8 @@ agent-control-deployment:
     - name: shared-volume-ca
       persistentVolumeClaim:
         claimName: mitm-ca-pvc
+  proxy:
+    url: https://mitmproxy-service:8080
   config:
     fleet_control:
       enabled: true
@@ -45,13 +70,9 @@ agent-control-deployment:
       # This fleet doesn't have any deployment configured.
       fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTgwOTZiLTk2NzctNzllNi05OWJmLTQ4YWRlOTRiYmZjMw
       auth:
-        secret:
-          create: false
-          name: "sys-identity"
+        organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
     agentControl:
       content:
-        proxy:
-          url: https://mitmproxy-service:8080
         fleet_control:
           signature_validation:
             # Disable this as is not supported by the proxy.
@@ -64,3 +85,12 @@ agent-control-deployment:
         content:
           chart_version: "*"
           # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
+  systemIdentityRegistration:
+    extraVolumeMounts:
+      - mountPath: /etc/ssl/certs/ca-certificates.crt
+        subPath: ca-certificates.crt
+        name: shared-volume-ca
+    extraVolumes:
+      - name: shared-volume-ca
+        persistentVolumeClaim:
+          claimName: mitm-ca-pvc

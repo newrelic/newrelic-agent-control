@@ -75,15 +75,15 @@ jobs:
       - name: Run k8s e2e-test ${{ matrix.group }}
         uses: newrelic/newrelic-integration-e2e-action@v1
         env:
-          # SI L2 for AC
+          # SI L2->L2 for AC
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
           NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
           # Tilt configs
           ARCH: amd64
           BUILD_WITH: cargo
         with:
-          retry_attempts: 30
-          retry_seconds: 30
+          retry_attempts: 20
+          retry_seconds: 15
           agent_enabled: false
           spec_path: test/k8s-e2e/${{ matrix.group }}/e2e-${{ matrix.group }}.yml
           account_id: ${{ secrets.E2E_ACCOUNT_ID }}

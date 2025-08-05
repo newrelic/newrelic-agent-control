@@ -122,18 +122,18 @@ jobs:
       PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
-#  k8s-e2e-tests-proxy:
-#    uses: ./.github/workflows/component_k8s_e2e.yml
-#    with:
-#      scenarios: '["proxy"]'
-#      # Network policies needs calico installed
-#      minikube_start_args: '--cni=calico'
-#    secrets:
-#      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-#      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-#      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-#      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-#      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+  k8s-e2e-tests-proxy:
+    uses: ./.github/workflows/component_k8s_e2e.yml
+    with:
+      scenarios: '["proxy"]'
+      # Network policies needs calico installed
+      minikube_start_args: '--cni=calico'
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml
