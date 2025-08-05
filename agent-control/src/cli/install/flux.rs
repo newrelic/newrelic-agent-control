@@ -19,8 +19,8 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
-pub const RELEASE_NAME: &str = "flux2";
-pub const REPOSITORY_NAME: &str = "flux";
+pub const RELEASE_NAME: &str = "agent-control-cd";
+pub const REPOSITORY_NAME: &str = "agent-control-cd";
 
 impl DynamicObjectListBuilder for InstallFlux {
     /* # Example of the objects that should be generated:
