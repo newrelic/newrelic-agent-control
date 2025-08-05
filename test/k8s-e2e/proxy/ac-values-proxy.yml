@@ -8,6 +8,8 @@ agent-control-cd:
     extraEnv:
       # Configures helm repo add to use the proxy.
       - name: HTTPS_PROXY
+        # we faced an issue with the proxy when using https://, so we use http://
+        # https://github.com/helm/helm/issues/31111
         value: http://mitmproxy-service:8080
       # except for in-cluster request.
       - name: "NO_PROXY"
