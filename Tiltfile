@@ -127,10 +127,10 @@ local_resource(
 ac_flags = [
   '--timeout=150s',
   '--create-namespace',
-  '--set=installationJob.acChartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.acChartVersion=0.0.1',
-  '--set=installationJob.cdChartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.cdChartVersion=0.0.1',
+  '--set=installationJob.agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.agentControlDeployment.chartVersion=0.0.1',
+  '--set=installationJob.agentControlCd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.agentControlCd.chartVersion=0.0.1',
   '--version=>=0.0.0-beta',
   '--set=agent-control-deployment.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
@@ -154,7 +154,7 @@ helm_resource(
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
               [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
-              ('agent-control-cd.installerImage.registry', 'agent-control-cd.installerImage.repository', 'agent-control-cd.installerImage.tag')]],
+              ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
   resource_deps=['build-binary', 'local-child-chart-upload']
 )
 
