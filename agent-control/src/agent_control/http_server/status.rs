@@ -216,7 +216,7 @@ impl From<HashMap<AgentID, SubAgentStatus>> for SubAgentsStatus {
 }
 
 impl SubAgentsStatus {
-    pub(super) fn entry(&mut self, agent_id: AgentID) -> Entry<AgentID, SubAgentStatus> {
+    pub(super) fn entry(&mut self, agent_id: AgentID) -> Entry<'_, AgentID, SubAgentStatus> {
         self.0.entry(agent_id)
     }
 
