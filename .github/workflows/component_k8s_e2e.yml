@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: ''
+      use_latest_flux:
+        description: 'enables using the latest flux chart'
+        required: false
+        type: boolean
+        default: false
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID:
         required: false
@@ -78,6 +83,7 @@ jobs:
           # SI L2->L2 for AC
           NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
           NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+          USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
           ARCH: amd64
           BUILD_WITH: cargo
