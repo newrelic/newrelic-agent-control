@@ -2,6 +2,7 @@ pub mod agent_control_cli;
 mod client;
 mod flux_self_update;
 mod garbage_collector;
+mod health_flux;
 mod scenarios;
 pub mod self_update;
 mod store;
