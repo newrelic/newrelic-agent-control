@@ -7,7 +7,7 @@ use crate::k8s::utils::{get_name, get_namespace, get_target_namespace, get_type_
 use kube::api::{DynamicObject, TypeMeta};
 use resources::{
     daemon_set::K8sHealthDaemonSet, deployment::K8sHealthDeployment,
-    helm_release::K8sHealthFluxHelmRelease, instrumentation::K8sHealthNRInstrumentation,
+    helm_release::K8sHealthHelmRelease, instrumentation::K8sHealthNRInstrumentation,
     stateful_set::K8sHealthStatefulSet,
 };
 use std::sync::Arc;
@@ -22,7 +22,7 @@ pub const LABEL_RELEASE_FLUX: &str = "helm.toolkit.fluxcd.io/name";
 /// This enum wraps all the health check implementations related to a Kubernetes resource.
 #[derive(Debug)]
 pub enum K8sResourceHealthChecker {
-    Flux(K8sHealthFluxHelmRelease),
+    HelmRelease(K8sHealthHelmRelease),
     NewRelic(K8sHealthNRInstrumentation),
     StatefulSet(K8sHealthStatefulSet),
     DaemonSet(K8sHealthDaemonSet),
@@ -32,7 +32,7 @@ pub enum K8sResourceHealthChecker {
 impl HealthChecker for K8sResourceHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
-            K8sResourceHealthChecker::Flux(flux) => flux.check_health(),
+            K8sResourceHealthChecker::HelmRelease(helm_release) => helm_release.check_health(),
             K8sResourceHealthChecker::NewRelic(nr_instrumentation) => {
                 nr_instrumentation.check_health()
             }
@@ -57,7 +57,7 @@ pub fn health_checkers_for_type_meta(
         let target_namespace = target_namespace.unwrap_or(namespace.clone());
 
         vec![
-            K8sResourceHealthChecker::Flux(K8sHealthFluxHelmRelease::new(
+            K8sResourceHealthChecker::HelmRelease(K8sHealthHelmRelease::new(
                 k8s_client.clone(),
                 type_meta,
                 name.clone(),
@@ -144,6 +144,10 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
             health_checkers,
             start_time,
         }
+    }
+
+    pub fn checkers_count(&self) -> usize {
+        self.health_checkers.len()
     }
 }
 
@@ -293,7 +297,7 @@ pub mod tests {
         assert_eq!(health_checker.health_checkers.len(), 4);
         assert_matches!(
             health_checker.health_checkers[0],
-            K8sResourceHealthChecker::Flux(_)
+            K8sResourceHealthChecker::HelmRelease(_)
         );
         assert_matches!(
             health_checker.health_checkers[1],
