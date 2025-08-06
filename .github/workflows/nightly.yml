@@ -103,6 +103,18 @@ jobs:
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
+  k8s-e2e-tests-latest-flux:
+    uses: ./.github/workflows/component_k8s_e2e.yml
+    with:
+      scenarios: '["apm", "collector", "fleet-control", "ebpf", "dynamic"]'
+      use_latest_flux: true
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+
   k8s_canaries:
     uses: ./.github/workflows/component_k8s_canaries.yml
     needs: [ build-image ]
