@@ -11,7 +11,7 @@ use crate::{
         },
         utils::parse_key_value_pairs,
     },
-    k8s::labels::FLUX_VERSION_SET_FROM,
+    k8s::labels::AGENT_CONTROL_VERSION_SET_FROM,
 };
 
 /// Implementation of [`DynamicObjectListBuilder`] for generating the dynamic object lists corresponding to the Agent Control resources.
@@ -49,7 +49,7 @@ impl DynamicObjectListBuilder for InstallFlux {
 
         // This is not strictly necessary, but it helps to ensure that the labels are consistent
         let mut helm_release_labels = labels;
-        helm_release_labels.insert(FLUX_VERSION_SET_FROM.to_string(), source);
+        helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
         let helm_release_obj_meta_data = obj_meta_data(
             HELM_RELEASE_NAME,
