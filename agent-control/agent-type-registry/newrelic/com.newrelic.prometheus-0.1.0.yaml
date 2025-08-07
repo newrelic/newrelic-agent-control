@@ -104,14 +104,12 @@ deployment:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
-            replace: true
             createNamespace: true
           upgrade:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
             cleanupOnFail: true
-            force: true
           valuesFrom:
             - kind: Secret
               name: values-${nr-sub:agent_id}

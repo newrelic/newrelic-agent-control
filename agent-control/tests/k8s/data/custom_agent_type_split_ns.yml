@@ -55,7 +55,6 @@ deployment:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
-            replace: true
             # namespaces lifecycle is handled by the test.
             # createNamespace: true
           upgrade:
@@ -63,7 +62,6 @@ deployment:
             disableWaitForJobs: true
             disableTakeOwnership: true 
             cleanupOnFail: true
-            force: true
           valuesFrom:
             - kind: Secret
               name: default-values-${nr-sub:agent_id}

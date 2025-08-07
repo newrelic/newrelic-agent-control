@@ -85,14 +85,12 @@ fn k8s_cli_install_agent_control_creates_resources() {
             "disableWait": true,
             "disableWaitForJobs": true,
             "disableTakeOwnership": true,
-            "replace": true,
         },
         "upgrade": {
             "disableWait": true,
             "disableWaitForJobs": true,
             "disableTakeOwnership": true,
             "cleanupOnFail": true,
-            "force": true,
         },
         "rollback": {
             "disableWait": true,
