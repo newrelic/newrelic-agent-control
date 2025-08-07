@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
 
 set -e
-set -x
 
-if [ "$ARCH" = "arm64" ];then
+if [ "$ARCH" = "arm64" ]; then
   ARCH_NAME="aarch64"
 fi
 
-if [ "$ARCH" = "amd64" ];then
+if [ "$ARCH" = "amd64" ]; then
   ARCH_NAME="x86_64"
 fi
 
-if [ "$BUILD_MODE" = "debug" ];then
+if [ "$BUILD_MODE" = "debug" ]; then
   BUILD_MODE="dev"
   BUILD_OUT_DIR="debug"
 fi
