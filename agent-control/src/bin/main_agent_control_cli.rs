@@ -3,7 +3,9 @@ use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install::agent_control::{
     InstallAgentControl, RELEASE_NAME as AGENT_CONTROL_RELEASE_NAME,
 };
-use newrelic_agent_control::cli::install::flux::{InstallFlux, RELEASE_NAME as FLUX_RELEASE_NAME};
+use newrelic_agent_control::cli::install::flux::{
+    HELM_RELEASE_NAME as FLUX_RELEASE_NAME, InstallFlux,
+};
 use newrelic_agent_control::cli::install::{InstallData, apply_resources};
 use newrelic_agent_control::cli::uninstall_agent_control::{
     AgentControlUninstallData, uninstall_agent_control,

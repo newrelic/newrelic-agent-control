@@ -19,51 +19,11 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
-pub const RELEASE_NAME: &str = "agent-control-cd";
-pub const REPOSITORY_NAME: &str = "agent-control-cd";
+pub const HELM_RELEASE_NAME: &str = "agent-control-cd";
+pub const HELM_REPOSITORY_NAME: &str = "agent-control-cd";
 
 impl DynamicObjectListBuilder for InstallFlux {
-    /* # Example of the objects that should be generated:
-    ---
-    apiVersion: source.toolkit.fluxcd.io/v1
-    kind: HelmRepository
-    metadata:
-      name: flux-repo
-      namespace: default
-    spec:
-      interval: 1m
-      url: https://fluxcd-community.github.io/helm-charts
-    ---
-    apiVersion: helm.toolkit.fluxcd.io/v2
-    kind: HelmRelease
-    metadata:
-      name: flux2
-    spec:
-      interval: 1m
-      chart:
-        spec:
-          sourceRef:
-            kind: HelmRepository
-            name: flux-repo
-            namespace: default
-          chart: flux2
-          version: 2.15.0
-      values:
-        installCRDS: true
-        sourceController:
-          create: true
-        helmController:
-          create: true
-        kustomizeController:
-          create: false
-        imageAutomationController:
-          create: false
-        imageReflectionController:
-          create: false
-        notificationController:
-          create: false
-    */
-    // FIXME this mostly duplicates the AgentControl implementation besides a few constants. Extracting to a function might be worth it.
+    // TODO this mostly duplicates the AgentControl implementation besides a few constants. Extracting to a function might be worth it.
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
@@ -81,7 +41,7 @@ impl DynamicObjectListBuilder for InstallFlux {
         debug!("Parsed labels: {:?}", labels);
 
         let helm_repository_obj_meta_data = obj_meta_data(
-            REPOSITORY_NAME,
+            HELM_REPOSITORY_NAME,
             namespace,
             labels.clone(),
             BTreeMap::default(),
@@ -92,7 +52,7 @@ impl DynamicObjectListBuilder for InstallFlux {
         helm_release_labels.insert(FLUX_VERSION_SET_FROM.to_string(), source);
 
         let helm_release_obj_meta_data = obj_meta_data(
-            RELEASE_NAME,
+            HELM_RELEASE_NAME,
             namespace,
             helm_release_labels,
             BTreeMap::default(),
@@ -107,7 +67,7 @@ impl DynamicObjectListBuilder for InstallFlux {
             ),
             helm_release(
                 &data.secrets,
-                REPOSITORY_NAME,
+                HELM_REPOSITORY_NAME,
                 version.as_str(),
                 &data.chart_name,
                 helm_release_obj_meta_data,
