@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-set -e
 
-# Install cargo cross
-which cross || cargo install cross
+set -e
+set -x
 
 if [ "$ARCH" = "arm64" ];then
   ARCH_NAME="aarch64"
@@ -16,6 +15,7 @@ if [ "$BUILD_MODE" = "debug" ];then
   BUILD_MODE="dev"
   BUILD_OUT_DIR="debug"
 fi
+
 # compile release version if not specified
 : "${BUILD_MODE:=release}"
 : "${BUILD_OUT_DIR:=release}"

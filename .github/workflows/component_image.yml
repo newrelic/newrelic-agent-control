@@ -56,6 +56,9 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
 
+      - name: Install cross
+        run: cargo install --locked cross
+
       - name: Build Agent Control for K8s
         env:
           AGENT_CONTROL_VERSION: ${{ inputs.ac-version }}
