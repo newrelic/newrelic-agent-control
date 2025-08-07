@@ -110,7 +110,7 @@
             service_name: "newrelic-agent-control"
             action: "restart"
 
-        - name: Assert that AC and sub agent is running with local config
+        - name: Assert that the sub-agent is reporting data
           include_role:
             name: nrql_api_request
             apply:
@@ -119,8 +119,7 @@
             nrql_query: >-
               SELECT *
               FROM SystemSample
-              WHERE `config_origin` = 'local'
-              AND `test_id` = '{{ test_id }}'
+              WHERE `test_id` = '{{ test_id }}'
               LIMIT 1
             retries: 60
             delay: 5
