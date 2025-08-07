@@ -64,7 +64,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'master'
+feature_branch = 'feat/flux-install-update'
 
 #### Set-up charts
 
@@ -116,7 +116,10 @@ local_resource(
      curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
      helm package --dependency-update --version 0.0.1 --destination local/helm-charts-tmp local/helm-charts-tmp/charts/nri-bundle &&
      curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/nri-bundle/0.0.1 &&
-     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/nri-bundle-0.0.1.tgz" http://localhost:8080/api/charts
+     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/nri-bundle-0.0.1.tgz" http://localhost:8080/api/charts &&
+     helm package --dependency-update --version 0.0.1 --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-cd &&
+     curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/agent-control-cd/0.0.1 &&
+     curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-cd-0.0.1.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['chartmuseum'],
 )
@@ -124,8 +127,10 @@ local_resource(
 ac_flags = [
   '--timeout=150s',
   '--create-namespace',
-  '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.chartVersion=0.0.1',
+  '--set=installationJob.agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.agentControlDeployment.chartVersion=0.0.1',
+  '--set=installationJob.agentControlCd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.agentControlCd.chartVersion=0.0.1',
   '--version=>=0.0.0-beta',
   '--set=agent-control-deployment.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
@@ -149,7 +154,8 @@ helm_resource(
   flags=ac_flags,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
-              ('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')],
+              [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
+              ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
   resource_deps=['build-binary', 'local-child-chart-upload']
 )
 

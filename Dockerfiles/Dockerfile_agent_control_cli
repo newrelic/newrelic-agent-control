@@ -21,9 +21,16 @@ RUN curl -LO "https://dl.k8s.io/release/v$KUBECTL_VERSION/bin/linux/$TARGETARCH/
 # Install Helm
 RUN curl -LO "https://get.helm.sh/helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
     tar -xzf "helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" && \
+    chmod +x "linux-$TARGETARCH/helm" && \
     mv "linux-$TARGETARCH/helm" /usr/local/bin/helm && \
     rm -rf "helm-v$HELM_VERSION-linux-$TARGETARCH.tar.gz" linux-$TARGETARCH
 
+# Create a home directory for nobody user and set ownership
+# This is so Helm can actually run as it tries to write to the home directory
+RUN mkdir -p /home/nobody && \
+    chown nobody:nogroup /home/nobody
+
 USER nobody
+ENV HOME=/home/nobody
 
 ENTRYPOINT ["/bin/newrelic-agent-control-cli"]
