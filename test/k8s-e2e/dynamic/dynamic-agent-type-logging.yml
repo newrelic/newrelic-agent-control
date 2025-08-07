@@ -83,14 +83,12 @@ deployment:
             disableTakeOwnership: true
             remediation:
               retries: 3
-            replace: true
             createNamespace: true
           upgrade:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
             cleanupOnFail: true
-            force: true
             remediation:
               retries: 3
               strategy: rollback

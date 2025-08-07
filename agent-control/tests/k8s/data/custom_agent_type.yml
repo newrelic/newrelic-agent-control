@@ -47,7 +47,6 @@ deployment:
             disableWait: true
             disableWaitForJobs: true
             disableTakeOwnership: true
-            replace: true
             # namespaces lifecycle is handled by the test.
             # createNamespace: true
           upgrade:
@@ -55,6 +54,5 @@ deployment:
             disableWaitForJobs: true
             disableTakeOwnership: true 
             cleanupOnFail: true
-            force: true
           values:
             ${nr-var:chart_values}

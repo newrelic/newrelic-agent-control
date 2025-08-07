@@ -249,9 +249,8 @@ deployment:
             # AC has it's own health check system that will flag the status of the installed chart.
             disableWait: true
             disableWaitForJobs: true
-            # TODO document why these
+            # We fail installing if there are resources matching the same name that are owned by another release.
             disableTakeOwnership: true
-            replace: true
             # This makes Flux create the agents namespace for AC (i.e. targetNamespace), if it doesn't exist.
             createNamespace: true
           upgrade:
@@ -260,8 +259,6 @@ deployment:
             disableWaitForJobs: true
             disableTakeOwnership: true
             cleanupOnFail: true
-            force: true
-
           # The values are applied in order, so latest always have precedence.
           valuesFrom:
             - kind: Secret

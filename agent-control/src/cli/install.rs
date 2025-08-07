@@ -273,14 +273,12 @@ fn helm_release(
                 "disableWait": true,
                 "disableWaitForJobs": true,
                 "disableTakeOwnership": true,
-                "replace": true,
             },
             "upgrade": {
                 "disableWait": true,
                 "disableWaitForJobs": true,
                 "disableTakeOwnership": true,
                 "cleanupOnFail": true,
-                "force": true,
             },
             "rollback": {
                 "disableWait": true,
@@ -482,14 +480,12 @@ mod tests {
                         "disableWait": true,
                         "disableWaitForJobs": true,
                         "disableTakeOwnership": true,
-                        "replace": true,
                     },
                     "upgrade": {
                         "disableWait": true,
                         "disableWaitForJobs": true,
                         "disableTakeOwnership": true,
                         "cleanupOnFail": true,
-                        "force": true,
                     },
                     "rollback": {
                         "disableWait": true,
