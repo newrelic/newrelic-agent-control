@@ -19,8 +19,9 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
-pub const HELM_RELEASE_NAME: &str = "agent-control-cd";
-pub const HELM_REPOSITORY_NAME: &str = "agent-control-cd";
+const CHART_NAME: &str = "agent-control-cd";
+pub const HELM_RELEASE_NAME: &str = CHART_NAME;
+pub const HELM_REPOSITORY_NAME: &str = CHART_NAME;
 
 impl DynamicObjectListBuilder for InstallFlux {
     // TODO this mostly duplicates the AgentControl implementation besides a few constants. Extracting to a function might be worth it.
