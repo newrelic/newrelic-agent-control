@@ -15,7 +15,7 @@
     {
       customType: 'regex',
       managerFilePatterns: [
-        '/^.Dockerfile_agent_control_cli$/',
+        '/^Dockerfiles/Dockerfile_agent_control_cli$/',
       ],
       depNameTemplate: 'helm/helm',
       datasourceTemplate: 'github-releases',
