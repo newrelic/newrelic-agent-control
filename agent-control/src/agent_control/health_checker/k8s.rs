@@ -1,10 +1,10 @@
 use std::{sync::Arc, time::SystemTime};
 
+use crate::cli::install::agent_control::RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
     agent_control::config::helmrelease_v2_type_meta,
-    cli::install::agent_control::RELEASE_NAME,
     health::k8s::health_checker::{K8sHealthChecker, health_checkers_for_type_meta},
 };
 

@@ -246,6 +246,7 @@ pub(crate) mod tests {
                     },
                 )]),
                 chart_version: Some("1.0.0".to_string()),
+                cd_chart_version: None,
             },
             host_id: "some".to_string(),
             ..Default::default()

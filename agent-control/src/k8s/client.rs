@@ -292,7 +292,7 @@ impl AsyncK8sClient {
         };
 
         let v = std::str::from_utf8(&value.0)
-            .map_err(|e| K8sError::Generic(format!("decoding secret key: {}", e)))?;
+            .map_err(|e| K8sError::Generic(format!("decoding secret key: {e}")))?;
         Ok(Some(v.to_string()))
     }
 

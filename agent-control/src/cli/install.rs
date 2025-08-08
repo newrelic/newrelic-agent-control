@@ -22,6 +22,7 @@ use crate::{
     },
 };
 
+pub const CD_RELEASE_NAME: &str = "agent-control-cd";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
@@ -441,7 +442,7 @@ mod tests {
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(agent_control::RELEASE_NAME.to_string()),
+                name: Some(RELEASE_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(BTreeMap::from_iter(vec![
                     (
@@ -469,7 +470,7 @@ mod tests {
                     "releaseName": RELEASE_NAME,
                     "chart": {
                         "spec": {
-                            "chart": agent_control::RELEASE_NAME,
+                            "chart": RELEASE_NAME,
                             "version": version,
                             "reconcileStrategy": "ChartVersion",
                             "sourceRef": {

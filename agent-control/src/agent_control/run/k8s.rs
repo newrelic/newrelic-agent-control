@@ -205,6 +205,7 @@ impl AgentControlRunner {
             k8s_client,
             self.k8s_config.namespace.clone(),
             self.k8s_config.current_chart_version.clone(),
+            self.k8s_config.cd_release_name,
         );
 
         AgentControl::new(

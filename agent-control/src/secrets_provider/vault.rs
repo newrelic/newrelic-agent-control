@@ -95,8 +95,8 @@ pub enum SecretEngine {
 impl SecretEngine {
     fn get_url(&self, url: Url, mount: &str, path: &str) -> Result<Url, VaultError> {
         match self {
-            SecretEngine::Kv1 => Ok(url.join(format!("{}/{}", mount, path).as_str())?),
-            SecretEngine::Kv2 => Ok(url.join(format!("{}/data/{}", mount, path).as_str())?),
+            SecretEngine::Kv1 => Ok(url.join(format!("{mount}/{path}").as_str())?),
+            SecretEngine::Kv2 => Ok(url.join(format!("{mount}/data/{path}").as_str())?),
         }
     }
 
@@ -160,7 +160,7 @@ impl VaultSource {
         let mut url = config.url;
         let path = url.path();
         if !path.ends_with('/') {
-            url.set_path(&format!("{}/", path));
+            url.set_path(&format!("{path}/"));
         }
 
         Self {

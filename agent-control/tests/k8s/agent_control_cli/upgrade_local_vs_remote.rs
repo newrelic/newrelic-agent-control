@@ -56,7 +56,14 @@ fn k8s_cli_local_and_remote_updates() {
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, CHART_VERSION_DEV_1, LOCAL_VAL, &ac_namespace)
+        check_version_and_source(
+            &k8s_client,
+            CHART_VERSION_DEV_1,
+            LOCAL_VAL,
+            &ac_namespace,
+            RELEASE_NAME,
+            AGENT_CONTROL_VERSION_SET_FROM,
+        )
     });
 
     // running installer second time and doing an upgrade
@@ -70,7 +77,14 @@ fn k8s_cli_local_and_remote_updates() {
     assert.success();
 
     retry(15, Duration::from_secs(5), || {
-        check_version_and_source(&k8s_client, CHART_VERSION_DEV_2, LOCAL_VAL, &ac_namespace)
+        check_version_and_source(
+            &k8s_client,
+            CHART_VERSION_DEV_2,
+            LOCAL_VAL,
+            &ac_namespace,
+            RELEASE_NAME,
+            AGENT_CONTROL_VERSION_SET_FROM,
+        )
     });
 
     let ac_instance_id = instance_id::get_instance_id(
@@ -94,6 +108,8 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
+            RELEASE_NAME,
+            AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
 
@@ -114,6 +130,8 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
+            RELEASE_NAME,
+            AGENT_CONTROL_VERSION_SET_FROM,
         )?;
 
         let obj = k8s_client
@@ -143,11 +161,13 @@ pub fn check_version_and_source(
     version: &str,
     source: &str,
     namespace: &str,
+    release_name: &str,
+    main_label: &str,
 ) -> Result<(), Box<dyn Error>> {
     let obj = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, namespace)?
+        .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, namespace)?
         .ok_or(VersionCheckError::Generic(format!(
-            "helmRelease object not found: {RELEASE_NAME}",
+            "helmRelease object not found: {release_name}",
         )))?;
 
     if version
@@ -174,7 +194,7 @@ pub fn check_version_and_source(
             .clone()
             .labels
             .unwrap_or_default()
-            .get(AGENT_CONTROL_VERSION_SET_FROM)
+            .get(main_label)
             .unwrap()
     {
         return Err(format!("HelmRelease source not correct: {source}, {obj:?}").into());

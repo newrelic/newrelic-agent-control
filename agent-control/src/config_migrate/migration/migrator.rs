@@ -146,6 +146,7 @@ mod tests {
                 Ok(AgentControlDynamicConfig {
                     agents: agents.clone(),
                     chart_version: None,
+                    cd_chart_version: None,
                 })
             });
 

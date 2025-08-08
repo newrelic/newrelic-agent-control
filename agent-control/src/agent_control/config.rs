@@ -94,6 +94,8 @@ pub struct AgentControlDynamicConfig {
     pub agents: SubAgentsMap,
     /// chart_version represent the AC version that needs to be executed.
     pub chart_version: Option<String>,
+    /// cd_chart_version represent the agent control cd chart version that needs to be executed.
+    pub cd_chart_version: Option<String>,
 }
 
 pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
@@ -232,6 +234,9 @@ pub struct K8sConfig {
     /// cd_remote_update enables or disables remote update for the agent-control-cd chart
     #[serde(default)]
     pub cd_remote_update: bool,
+    /// agent_control_cd release name
+    #[serde(default)]
+    pub cd_release_name: String,
 }
 
 pub fn helmrelease_v2_type_meta() -> TypeMeta {
@@ -304,6 +309,7 @@ impl Default for K8sConfig {
             cr_type_meta: default_group_version_kinds(),
             ac_remote_update: Default::default(),
             cd_remote_update: Default::default(),
+            cd_release_name: Default::default(),
         }
     }
 }
