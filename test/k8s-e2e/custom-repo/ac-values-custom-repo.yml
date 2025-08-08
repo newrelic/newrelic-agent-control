@@ -1,6 +1,10 @@
 installationJob:
-  logLevel: debug
-  repositorySecretReferenceName: chartmuseum-auth
+  agentControlDeployment:
+    logLevel: debug
+    repositorySecretReferenceName: chartmuseum-auth
+  agentControlCd:
+    logLevel: debug
+    repositorySecretReferenceName: chartmuseum-auth
 
 agent-control-deployment:
   subAgentsNamespace: "newrelic-agents"
@@ -12,7 +16,7 @@ agent-control-deployment:
       content:
         log:
           level: debug
-    allowedChartRepositoryUrl: ["http://chartmuseum.default.svc.cluster.local:8080"]
+    allowedChartRepositoryUrl: [ "http://chartmuseum.default.svc.cluster.local:8080" ]
     subAgents:
       prometheus:
         type: newrelic/com.newrelic.prometheus:0.1.0
