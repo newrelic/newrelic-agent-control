@@ -10,6 +10,7 @@ use newrelic_agent_control::cli::install::{InstallData, apply_resources};
 use newrelic_agent_control::cli::uninstall::agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
+use newrelic_agent_control::cli::uninstall::flux::remove_flux_crs;
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
     http::tls::install_rustls_default_crypto_provider,
@@ -44,9 +45,13 @@ enum Operations {
     /// Uninstall agent control and delete related resources
     UninstallAgentControl(AgentControlUninstallData),
 
-    /// Install the Continuous Deployment utility (currently Flux) to manage AC's K8s resources
+    /// Creates the resources needed to handle the Continuous Deployment utility (currently Flux) from Agent Control.
     #[clap(name = "create-cd-resources")]
     CreateCDResources(InstallData),
+
+    /// Removes the resources created to handled the Continuos DeploymentUtility
+    #[clap(name = "remove-cd-resources")]
+    RemoveCDResources,
 }
 
 fn main() -> ExitCode {
@@ -86,6 +91,7 @@ fn main() -> ExitCode {
                 &cli.namespace,
             )
         }
+        Operations::RemoveCDResources => remove_flux_crs(&cli.namespace),
     };
 
     match result {

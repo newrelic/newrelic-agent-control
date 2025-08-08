@@ -3,17 +3,15 @@ use crate::agent_control::config::{
 };
 use crate::cli::errors::CliError;
 use crate::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
-use crate::cli::uninstall::{Deleter, is_collection_deleted, is_resource_deleted};
+use crate::cli::uninstall::Deleter;
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
-use crate::utils::retry::retry;
 use clap::Parser;
 use kube::api::TypeMeta;
 use std::collections::HashSet;
 use std::time::Duration;
-use tracing::info;
 
 #[derive(Debug, Clone, Parser)]
 pub struct AgentControlUninstallData {
