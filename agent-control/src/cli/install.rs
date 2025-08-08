@@ -126,7 +126,6 @@ pub fn apply_resources(
     let installation_check_timeout = install_data.installation_check_timeout;
     let installation_check_initial_delay = install_data.installation_check_initial_delay;
 
-    // I think we are able to not care about the DynamicObject being inside an Arc for the operations defined here (and the possible `dyn_object_list_builder` implementations). Working with references suffices given the current setup.
     let maybe_existing_helm_release = maybe_helm_release.as_ref().map(|o| o.as_ref());
     let dynamic_objects = dyn_object_list_builder.build_dynamic_object_list(
         namespace,
