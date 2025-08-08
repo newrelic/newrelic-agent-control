@@ -64,7 +64,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'feat/flux-install-update'
+feature_branch = 'master'
 
 #### Set-up charts
 
