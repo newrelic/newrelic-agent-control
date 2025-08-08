@@ -23,8 +23,9 @@ scenarios:
       - kubectl logs -l app.kubernetes.io/instance=prometheus --all-containers --prefix=true -n newrelic-agents
       - kubectl get secrets --show-labels
       - kubectl get all -o wide
-      - kubectl get helmrelease
-      - kubectl get helmchart
+      - kubectl get helmrelease -o yaml
+      - kubectl get helmchart -o yaml
+      - kubectl get helmrepository -o yaml
       - helm list -a -A
       - cd ../../../ && tilt down
     tests:
