@@ -15,6 +15,17 @@
     {
       customType: 'regex',
       managerFilePatterns: [
+        '/^.Dockerfile_agent_control_cli$/',
+      ],
+      depNameTemplate: 'helm/helm',
+      datasourceTemplate: 'github-releases',
+      matchStrings: [
+        'ARG HELM_VERSION=(?<currentValue>.+)',
+      ],
+    },
+    {
+      customType: 'regex',
+      managerFilePatterns: [
         '/^.goreleaser.yml$/',
       ],
       depNameTemplate: 'newrelic/infrastructure-agent',
