@@ -2,20 +2,17 @@ permissions:
   contents: read
 on:
   pull_request:
-    types: [opened, synchronize, labeled]
+    types: [ opened, synchronize, labeled ] # Also trigger when adding labels
   merge_group:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
-name: test-extended
+name: test-extended-label
 
 jobs:
   k8s-e2e-tests-extended:
-    if: contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e') ||
-        contains(github.event.pull_request.changed_files, 'test/k8s-e2e') ||
-        contains(github.event.pull_request.changed_files, 'Tiltfile') ||
-        contains(github.event.pull_request.changed_files, 'agent-control/tests/k8s/Tiltfile')
+    if: contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e')
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
       scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo"]'
@@ -25,8 +22,7 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests-fc:
-    if: contains(github.event.pull_request.labels.*.name, 'k8s-fc-e2e') ||
-        contains(github.event.pull_request.changed_files, 'test/k8s-e2e/fleet-control')
+    if: contains(github.event.pull_request.labels.*.name, 'k8s-fc-e2e')
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
       scenarios: '["fleet-control"]'

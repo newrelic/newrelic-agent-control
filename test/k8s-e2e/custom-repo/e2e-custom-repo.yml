@@ -1,6 +1,6 @@
 # This test exercise the use case where a custom local helm repository with basic auth is used for all charts.
 # Ensuring any exposed parameter related to this feature is being correctly wired.
-description: E2E Test
+description: E2E Test custom repo
 
 custom_test_key: cluster_name
 
