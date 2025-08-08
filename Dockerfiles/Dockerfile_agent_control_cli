@@ -4,7 +4,7 @@ FROM debian:trixie-slim
 
 ARG TARGETARCH
 # Automatically bumpled by a Renovate regex rule.
-ARG HELM_VERSION=v3.17.4
+ARG HELM_VERSION=v3.18.4
 
 COPY --chmod=755 bin/newrelic-agent-control-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
 
