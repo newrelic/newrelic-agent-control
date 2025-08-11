@@ -9,8 +9,8 @@ As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program
 To compile and run locally:
 
 1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system.
-2. Run `cargo build --bin newrelic-agent-control-onhost`
-3. `newrelic-agent-control-onhost` binary will be generated at `./target/debug/newrelic-agent-control-onhost`
+2. Run `cargo build --bin newrelic-agent-control`
+3. `newrelic-agent-control` binary will be generated at `./target/debug/newrelic-agent-control`
 4. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
 
     ```yaml

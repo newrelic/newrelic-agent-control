@@ -40,10 +40,10 @@ mkdir -p "bin"
 
 # Handle the cases of the two newrelic-agent-control binaries:
 # - newrelic-agent-control-k8s
-# - newrelic-agent-control-onhost
+# - newrelic-agent-control
 # When any of these two is found, rename them to newrelic-agent-control
 TRIMMED_BIN="${BIN}"
-if [ "$BIN" = "newrelic-agent-control-onhost" ] || [ "$BIN" = "newrelic-agent-control-k8s" ]; then
+if [ "$BIN" = "newrelic-agent-control-k8s" ]; then
   TRIMMED_BIN="newrelic-agent-control"
 fi
 
