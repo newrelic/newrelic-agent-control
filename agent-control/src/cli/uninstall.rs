@@ -1,1 +1,82 @@
+use std::time::Duration;
+
+use either::Either;
+use kube::{
+    api::{DynamicObject, ObjectList, TypeMeta},
+    core::Status,
+};
+use tracing::info;
+
+#[cfg_attr(test, mockall_double::double)]
+use crate::k8s::client::SyncK8sClient;
+use crate::{cli::errors::CliError, utils::retry::retry};
+
 pub mod agent_control;
+pub mod flux;
+
+// Helper to remove k8s objects and collections.
+struct Deleter<'a> {
+    k8s_client: &'a SyncK8sClient,
+    max_attempts: usize,
+    interval: Duration,
+}
+
+impl Deleter<'_> {
+    fn delete_object_with_retry(
+        &self,
+        tm: &TypeMeta,
+        name: &str,
+        namespace: &str,
+    ) -> Result<(), CliError> {
+        retry(self.max_attempts, self.interval, || {
+            let res = self
+                .k8s_client
+                .delete_dynamic_object(tm, name, namespace)
+                .map_err(|err| {
+                    CliError::K8sClient(format!("failed to delete resource {}: {}", tm.kind, err))
+                })?;
+            if is_resource_deleted(res) {
+                info!("Resource of type {} deleted", tm.kind);
+                Ok(())
+            } else {
+                Err(CliError::DeleteResource(format!("{tm:?}")))
+            }
+        })?;
+        Ok(())
+    }
+
+    fn delete_collection_with_retry(
+        &self,
+        tm: &TypeMeta,
+        namespace: &str,
+        selector: &str,
+    ) -> Result<(), CliError> {
+        retry(self.max_attempts, self.interval, || {
+            let res = self
+                .k8s_client
+                .delete_dynamic_object_collection(tm, namespace, selector)
+                .map_err(|err| {
+                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
+                })?;
+            if is_collection_deleted(res) {
+                info!("Resources of type {} deleted", tm.kind);
+                Ok(())
+            } else {
+                Err(CliError::DeleteResource(format!("{tm:?}")))
+            }
+        })?;
+        Ok(())
+    }
+}
+
+fn is_collection_deleted(res: Either<ObjectList<DynamicObject>, Status>) -> bool {
+    match res {
+        Either::Right(_) => true,
+        Either::Left(l) if l.items.is_empty() => true,
+        Either::Left(_) => false,
+    }
+}
+
+fn is_resource_deleted(res: Either<DynamicObject, Status>) -> bool {
+    res.is_right()
+}

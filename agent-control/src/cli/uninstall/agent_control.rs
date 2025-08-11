@@ -3,15 +3,14 @@ use crate::agent_control::config::{
 };
 use crate::cli::errors::CliError;
 use crate::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
+use crate::cli::uninstall::{Deleter, is_collection_deleted, is_resource_deleted};
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::utils::retry::retry;
 use clap::Parser;
-use either::Either;
-use kube::api::{DynamicObject, ObjectList, TypeMeta};
-use kube::client::Status;
+use kube::api::TypeMeta;
 use std::collections::HashSet;
 use std::time::Duration;
 use tracing::info;
@@ -62,20 +61,13 @@ fn delete_owned_objects(
     namespace: &str,
 ) -> Result<(), CliError> {
     let ac_owned_label_selector = Labels::default().selector();
-
+    let deleter = Deleter {
+        k8s_client,
+        max_attempts: 30,
+        interval: Duration::from_secs(10),
+    };
     for tm in objects_to_delete(kinds_available) {
-        retry(30, Duration::from_secs(10), || {
-            let res = k8s_client
-                .delete_dynamic_object_collection(&tm, namespace, ac_owned_label_selector.as_str())
-                .map_err(|err| {
-                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
-                })?;
-            if is_collection_deleted(res) {
-                info!("Resources of type {} deleted in {}", tm.kind, namespace);
-                return Ok(());
-            }
-            Err(CliError::DeleteResource(format!("{tm:?}")))
-        })?;
+        deleter.delete_collection_with_retry(&tm, namespace, &ac_owned_label_selector)?;
     }
     Ok(())
 }
@@ -107,33 +99,15 @@ fn delete_agent_control_crs(
     ];
 
     crs_to_delete.retain(|(tm, _)| kinds_available.contains(tm));
+
+    let deleter = Deleter {
+        k8s_client,
+        max_attempts: 30,
+        interval: Duration::from_secs(10),
+    };
     for (tm, object_name) in crs_to_delete {
-        retry(30, Duration::from_secs(10), || {
-            let res = k8s_client
-                .delete_dynamic_object(&tm, object_name, namespace)
-                .map_err(|err| {
-                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
-                })?;
-            if is_resource_deleted(res) {
-                info!("Resources of type {} deleted", tm.kind);
-                Ok(())
-            } else {
-                Err(CliError::DeleteResource(format!("{tm:?}")))
-            }
-        })?;
+        deleter.delete_object_with_retry(&tm, object_name, namespace)?;
     }
 
     Ok(())
-}
-
-fn is_collection_deleted(res: Either<ObjectList<DynamicObject>, Status>) -> bool {
-    match res {
-        Either::Right(_) => true,
-        Either::Left(l) if l.items.is_empty() => true,
-        Either::Left(_) => false,
-    }
-}
-
-fn is_resource_deleted(res: Either<DynamicObject, Status>) -> bool {
-    res.is_right()
 }
