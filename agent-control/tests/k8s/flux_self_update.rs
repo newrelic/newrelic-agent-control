@@ -19,7 +19,6 @@ use crate::k8s::tools::local_chart::LOCAL_CHART_REPOSITORY;
 use crate::k8s::tools::local_chart::agent_control_cd::{
     CHART_VERSION_UPSTREAM_1, CHART_VERSION_UPSTREAM_1_PKG, CHART_VERSION_UPSTREAM_2,
 };
-use k8s_openapi::api::core::v1::ServiceAccount;
 use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
@@ -44,7 +43,7 @@ fn k8s_cli_install_and_update_flux_resources_success() {
     let namespace = block_on(k8s.test_namespace());
 
     // install flux chart (simulate what the install flux job does)
-    flux_bootstrap(k8s.client.clone(), &namespace);
+    flux_bootstrap_via_helm_command(k8s.client.clone(), &namespace);
 
     let ns = namespace.to_string();
     let _remove_finalizers = DeferredCommand::new(Box::new(move || {
@@ -69,7 +68,7 @@ fn k8s_remote_flux_update() {
     let namespace = block_on(k8s.test_namespace());
 
     // install flux chart (simulate what the install flux job does)
-    flux_bootstrap(k8s.client.clone(), &namespace);
+    flux_bootstrap_via_helm_command(k8s.client.clone(), &namespace);
 
     let ns = namespace.to_string();
     let _remove_finalizers = DeferredCommand::new(Box::new(move || {
@@ -211,7 +210,7 @@ fn remove_finalizer(namespace: &str, resource: impl AsRef<str>) {
 ///
 /// Note: The namespace-scoped RBAC limits the operations this Flux instance can perform
 /// compared to a standard cluster-wide installation.
-fn flux_bootstrap(k8s_client: Client, namespace: &str) {
+fn flux_bootstrap_via_helm_command(k8s_client: Client, namespace: &str) {
     block_on(create_flux_rbac(k8s_client.clone(), namespace));
     let mut cmd = assert_cmd::Command::new("helm");
     cmd.timeout(Duration::from_secs(90)); // to fail fast in case unrecoverable error.
@@ -224,13 +223,12 @@ fn flux_bootstrap(k8s_client: Client, namespace: &str) {
         .arg("--dependency-update")
         .arg("--set=flux2.installCRDs=false")
         .arg("--set=flux2.rbac.create=false")
-        .arg("--set=flux2.rbac.createAggregation=false")
-        .arg("--set=flux2.sourceController.serviceAccount.create=false")
-        .arg("--set=flux2.helmController.serviceAccount.create=false");
+        .arg("--set=flux2.rbac.createAggregation=false");
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 
+    // Create a values secret with the Flux values to be used by the HelmRelease
     create_values_secret(
         k8s_client,
         namespace,
@@ -242,18 +240,13 @@ flux2:
   rbac:
     create: false
     createAggregation: false
-  sourceController:
-    serviceAccount:
-      create: false
-  helmController:
-    serviceAccount:
-      create: false
 "#
         .to_string(),
     );
 }
 
 /// Creates RBAC resources for Flux in a test namespace.
+/// This is needed because Flux is hardcoding names for cluster-wide resources
 ///
 /// This allows multiple Flux installations in the same cluster for testing purposes
 /// by creating namespace-scoped ServiceAccounts, Role, and RoleBinding resources.
@@ -263,26 +256,8 @@ flux2:
 /// --set=flux2.installCRDs=false
 /// --set=flux2.rbac.create=false
 /// --set=flux2.rbac.createAggregation=false
-/// --set=flux2.sourceController.serviceAccount.create=false
-/// --set=flux2.helmController.serviceAccount.create=false
 /// ```
 async fn create_flux_rbac(k8s_client: Client, namespace: &str) {
-    let sa_api: Api<ServiceAccount> = Api::namespaced(k8s_client.clone(), namespace);
-    sa_api
-        .create(
-            &PostParams::default(),
-            &serde_yaml::from_str(SA_SOURCE_CONTROLLER).unwrap(),
-        )
-        .await
-        .unwrap();
-    sa_api
-        .create(
-            &PostParams::default(),
-            &serde_yaml::from_str(SA_HELM_CONTROLLER).unwrap(),
-        )
-        .await
-        .unwrap();
-
     let role_api: Api<Role> = Api::namespaced(k8s_client.clone(), namespace);
     role_api
         .create(
@@ -302,20 +277,6 @@ async fn create_flux_rbac(k8s_client: Client, namespace: &str) {
         .unwrap();
 }
 
-/// This SA name is hardcoded in flux chart.
-const SA_SOURCE_CONTROLLER: &str = r#"
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: source-controller
-"#;
-/// This SA name is hardcoded in flux chart.
-const SA_HELM_CONTROLLER: &str = r#"
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: helm-controller
-"#;
 const ROLE_FLUX: &str = r#"
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

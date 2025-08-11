@@ -114,10 +114,11 @@ pub async fn check_helmrelease_chart_version(
 ) -> Result<(), Box<dyn Error>> {
     let api = helmrelease_api(k8s_client, namespace).await;
     let hr = api.get(name).await?;
-    if hr.data["spec"]["chart"]["spec"]["version"] != version {
+    let retrieved_version = hr.data["spec"]["chart"]["spec"]["version"].clone();
+
+    if retrieved_version != version {
         return Err(format!(
-            "HelmRelease chart version mismatch. Expected: {}, Found: {}",
-            version, hr.data["spec"]["chart"]["spec"]["version"]
+            "HelmRelease chart version mismatch. Expected: {version}, Found: {retrieved_version}",
         )
         .into());
     }

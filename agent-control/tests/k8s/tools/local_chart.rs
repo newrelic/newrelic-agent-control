@@ -22,7 +22,8 @@ pub mod agent_control_deploymet {
 /// Variables related to agent-control-cd chart:
 pub mod agent_control_cd {
     pub const CHART_VERSION_UPSTREAM_1: &str = "0.0.1-upstream";
+    pub const CHART_VERSION_UPSTREAM_2: &str = "0.0.2-upstream";
+    /// Tilt generates this chart. It is installed directly via Helm to simulate the installation job.
     pub const CHART_VERSION_UPSTREAM_1_PKG: &str =
         "./tests/k8s/local/helm-charts-tmp/agent-control-cd-0.0.1-upstream.tgz";
-    pub const CHART_VERSION_UPSTREAM_2: &str = "0.0.2-upstream";
 }
