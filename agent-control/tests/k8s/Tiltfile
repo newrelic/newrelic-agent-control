@@ -134,7 +134,7 @@ local_resource(
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-latest-released &&
      curl --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.0-latest-released.tgz" http://localhost:8080/api/charts
     """,
-    resource_deps=['chartmuseum','clone-charts-repo'],
+    resource_deps=['package-and-upload-ac-cd'],
 )
 
 # We are modifying the default image to tilt.local/ac-dev:dev.
