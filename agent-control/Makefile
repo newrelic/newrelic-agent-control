@@ -45,10 +45,19 @@ test/k8s/integration-part1:
 	cargo test k8s::scenarios -- --nocapture --ignored  --test-threads=1
 	cargo test k8s::agent_control_cli -- --nocapture --ignored  --test-threads=1
 
+# Flux upgrade tests require isolated test environments with Flux installed.
+# This installs an initial Flux instance with CRDs that only reconciles the default namespace,
+# allowing each test to create its own namespace with a separate Flux instance.
+.PHONY: test/k8s/integration-flux-self-update
+test/k8s/integration-flux-self-update:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	WATCH_ALL_NAMESPACES=false tilt ci --file ./tests/k8s/Tiltfile
+	cargo test k8s::flux_self_update -- --nocapture --ignored  --test-threads=1
+
 .PHONY: test/k8s/integration-part2
 test/k8s/integration-part2:
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
-	ENABLE_VAULT=true tilt ci --file ./tests/k8s/Tiltfile
+	tilt ci --file ./tests/k8s/Tiltfile
 	# reducing the number of threads to 1 forces the tests to run sequentially
 	# We use this approach to split the k8s tests into two parts. We need to update it if this takes too long to run.
-	cargo test k8s_ --  --skip k8s::scenarios --skip k8s::agent_control_cli --nocapture --ignored  --test-threads=1
+	cargo test k8s_ --  --skip k8s::scenarios --skip k8s::agent_control_cli --skip k8s::flux_self_update --nocapture --ignored  --test-threads=1

@@ -4,7 +4,7 @@ use crate::k8s::agent_control_cli::installation::ac_install_cmd;
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_api::create_values_secret;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use crate::k8s::tools::local_chart::CHART_VERSION_LATEST_RELEASE;
+use crate::k8s::tools::local_chart::agent_control_deploymet::CHART_VERSION_LATEST_RELEASE;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use assert_cmd::Command;
 use k8s_openapi::api::apps::v1::Deployment;

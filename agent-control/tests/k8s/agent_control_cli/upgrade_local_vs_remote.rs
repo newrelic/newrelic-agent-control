@@ -5,7 +5,7 @@ use crate::k8s::agent_control_cli::installation::{ac_install_cmd, create_simple_
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::instance_id;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use crate::k8s::tools::local_chart::{
+use crate::k8s::tools::local_chart::agent_control_deploymet::{
     CHART_VERSION_DEV_1, CHART_VERSION_DEV_2, CHART_VERSION_LATEST_RELEASE,
 };
 use crate::k8s::tools::logs::print_pod_logs;

@@ -17,3 +17,20 @@ where
     }
     last_err.unwrap_or_else(|err| panic!("retry failed after {max_attempts} attempts: {err}"))
 }
+
+/// DeferredCommand is a struct that allows you to register a cleanup function that is executed on Drop.
+pub struct DeferredCommand {
+    cleanup_fn: Box<dyn Fn()>,
+}
+
+impl DeferredCommand {
+    pub fn new(cleanup_fn: Box<dyn Fn()>) -> Self {
+        Self { cleanup_fn }
+    }
+}
+
+impl Drop for DeferredCommand {
+    fn drop(&mut self) {
+        (self.cleanup_fn)()
+    }
+}

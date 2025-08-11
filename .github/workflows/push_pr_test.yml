@@ -146,7 +146,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [ part1, part2 ]
+        group: [ part1, part2, flux-self-update ]
     steps:
       - uses: actions/checkout@v4
         with:

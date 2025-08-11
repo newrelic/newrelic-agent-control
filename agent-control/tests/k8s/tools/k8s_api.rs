@@ -3,6 +3,7 @@ use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::api::PostParams;
 use kube::{Api, Client, api::DynamicObject, core::GroupVersion};
+use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use std::collections::BTreeMap;
 use std::time::Duration;
 use std::{error::Error, str::FromStr};
@@ -46,7 +47,7 @@ pub async fn check_helmrelease_spec_values(
 ) -> Result<(), Box<dyn Error>> {
     let expected_as_json: serde_json::Value =
         serde_yaml::from_str(expected_values_as_yaml).unwrap();
-    let api = create_k8s_api(k8s_client, namespace).await;
+    let api = helmrelease_api(k8s_client, namespace).await;
 
     let obj = api.get(name).await?;
     let found_values = &obj.data["spec"]["values"];
@@ -67,7 +68,7 @@ pub async fn check_helmrelease_labels_contains(
     name: &str,
     expected_labels: Option<BTreeMap<String, String>>,
 ) -> Result<(), Box<dyn Error>> {
-    let api = create_k8s_api(k8s_client, namespace).await;
+    let api = helmrelease_api(k8s_client, namespace).await;
 
     let obj = api.get(name).await?;
     let found_labels = &obj.metadata.labels;
@@ -99,8 +100,28 @@ pub async fn check_helmrelease_exists(
     namespace: &str,
     name: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let api = create_k8s_api(k8s_client, namespace).await;
+    let api = helmrelease_api(k8s_client, namespace).await;
     api.get(name).await?;
+    Ok(())
+}
+
+/// Check if the `HelmRelease` chart version.
+pub async fn check_helmrelease_chart_version(
+    k8s_client: Client,
+    namespace: &str,
+    name: &str,
+    version: &str,
+) -> Result<(), Box<dyn Error>> {
+    let api = helmrelease_api(k8s_client, namespace).await;
+    let hr = api.get(name).await?;
+    let retrieved_version = hr.data["spec"]["chart"]["spec"]["version"].clone();
+
+    if retrieved_version != version {
+        return Err(format!(
+            "HelmRelease chart version mismatch. Expected: {version}, Found: {retrieved_version}",
+        )
+        .into());
+    }
     Ok(())
 }
 
@@ -110,7 +131,7 @@ pub async fn delete_helm_release(
     namespace: &str,
     name: &str,
 ) -> Result<(), Box<dyn Error>> {
-    let api = create_k8s_api(k8s_client, namespace).await;
+    let api = helmrelease_api(k8s_client, namespace).await;
     if api.delete(name, &Default::default()).await?.is_left() {
         // left signals that object is being deleted, waiting some time to ensure it is deleted.
         sleep(Duration::from_secs(2)).await;
@@ -119,10 +140,10 @@ pub async fn delete_helm_release(
 }
 
 /// Create the k8s api to be used by other functions
-async fn create_k8s_api(k8s_client: Client, namespace: &str) -> Api<DynamicObject> {
-    let gvk = &GroupVersion::from_str("helm.toolkit.fluxcd.io/v2")
+async fn helmrelease_api(k8s_client: Client, namespace: &str) -> Api<DynamicObject> {
+    let gvk = &GroupVersion::from_str(helmrelease_v2_type_meta().api_version.as_str())
         .unwrap()
-        .with_kind("HelmRelease");
+        .with_kind(helmrelease_v2_type_meta().kind.as_str());
     let (api_resource, _) = kube::discovery::pinned_kind(&k8s_client, gvk)
         .await
         .unwrap();

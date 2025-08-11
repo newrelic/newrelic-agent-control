@@ -7,7 +7,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::retry::retry;
 use crate::common::runtime::block_on;
 use crate::k8s::tools::instance_id;
-use crate::k8s::tools::local_chart::*;
+use crate::k8s::tools::local_chart::{LOCAL_CHART_REPOSITORY, agent_control_deploymet::*};
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;

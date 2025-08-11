@@ -14,21 +14,22 @@ helm_repo(
   resource_name='newrelic-helm-repo',
   )
 
+watch_all_namespaces = os.getenv('WATCH_ALL_NAMESPACES','true')
+
+flags_helm = [
+  # Each integration test runs on a different ephimeral namespace.
+  '--set=agent-control-cd.flux2.watchAllNamespaces=' + watch_all_namespaces,
+  '--set=agent-control-deployment.enabled=false',
+]
+
 helm_resource(
   'flux',
   'newrelic/agent-control',
-  namespace='default',
   release_name='flux',
   # workaround for https://github.com/tilt-dev/tilt/issues/6058
   pod_readiness='ignore',
   update_dependencies=False,
-  flags=[
-    '--create-namespace',
-    '--version=>=0.0.0-beta',
-    # Each integration test runs on a different ephimeral namespace.
-    '--set=agent-control-cd.flux2.watchAllNamespaces=true',
-    '--set=agent-control-deployment.enabled=false',
-    ],
+  flags= flags_helm,
   resource_deps=['newrelic-helm-repo']
 )
 
@@ -111,13 +112,29 @@ feature_branch = "master"
 
 
 local_resource(
-    'package-and-upload-remote-image-chart',
-    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
-     helm package --dependency-update --version "0.0.0-latest-released" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-latest-released &&
-     curl --data-binary "@local/agent-control-deployment-0.0.0-latest-released.tgz" http://localhost:8080/api/charts
+    'clone-charts-repo',
+    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp""",
+)
+
+local_resource(
+    'package-and-upload-ac-cd',
+    cmd="""helm package --dependency-update --version "0.0.1-upstream" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-cd &&
+     helm package --dependency-update --version "0.0.2-upstream" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-cd &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-cd/0.0.1-upstream &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-cd/0.0.2-upstream &&
+     curl --data-binary "@local/helm-charts-tmp/agent-control-cd-0.0.1-upstream.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/helm-charts-tmp/agent-control-cd-0.0.2-upstream.tgz" http://localhost:8080/api/charts
     """,
-    resource_deps=['chartmuseum'],
+    resource_deps=['chartmuseum','clone-charts-repo'],
+)
+
+local_resource(
+    'package-and-upload-remote-image-chart',
+    cmd="""helm package --dependency-update --version "0.0.0-latest-released" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-deployment &&
+     curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-latest-released &&
+     curl --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.0-latest-released.tgz" http://localhost:8080/api/charts
+    """,
+    resource_deps=['package-and-upload-ac-cd'],
 )
 
 # We are modifying the default image to tilt.local/ac-dev:dev.
@@ -125,12 +142,12 @@ local_resource(
     'package-and-upload-local-image-chart',
     cmd="""yq eval ".image.repository = \\"tilt.local/ac-dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.tag = \\"dev\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
-     helm package --dependency-update --version "0.0.1-dev" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
-     helm package --dependency-update --version "0.0.2-dev" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.1-dev" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.2-dev" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1-dev &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.2-dev &&
-     curl --data-binary "@local/agent-control-deployment-0.0.1-dev.tgz" http://localhost:8080/api/charts &&
-     curl --data-binary "@local/agent-control-deployment-0.0.2-dev.tgz" http://localhost:8080/api/charts
+     curl --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.1-dev.tgz" http://localhost:8080/api/charts &&
+     curl --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.2-dev.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-remote-image-chart'],
 )
@@ -143,9 +160,9 @@ local_resource(
      yq eval ".image.tag = \\"latest\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".image.command = [\\"sh\\", \\"-c\\", \\"exit 1\\"]" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
      yq eval ".podLabels.app = \\"failing-pod\\"" -i local/helm-charts-tmp/charts/agent-control-deployment/values.yaml &&
-     helm package --dependency-update --version "0.0.0-crash" --destination local local/helm-charts-tmp/charts/agent-control-deployment &&
+     helm package --dependency-update --version "0.0.0-crash" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.0-crash &&
-     curl --data-binary "@local/agent-control-deployment-0.0.0-crash.tgz" http://localhost:8080/api/charts
+     curl --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.0-crash.tgz" http://localhost:8080/api/charts
     """,
     resource_deps=['package-and-upload-local-image-chart'],
 )
