@@ -14,6 +14,9 @@ use crate::{cli::errors::CliError, utils::retry::retry};
 pub mod agent_control;
 pub mod flux;
 
+const DELETER_DEFAULT_MAX_ATTEMPTS: usize = 30;
+const DELETER_DEFAULT_INTERVAL: Duration = Duration::from_secs(10);
+
 // Helper to remove k8s objects and collections.
 struct Deleter<'a> {
     k8s_client: &'a SyncK8sClient,
@@ -21,7 +24,15 @@ struct Deleter<'a> {
     interval: Duration,
 }
 
-impl Deleter<'_> {
+impl<'a> Deleter<'a> {
+    fn with_default_retry_setup(k8s_client: &'a SyncK8sClient) -> Self {
+        Self {
+            k8s_client,
+            max_attempts: DELETER_DEFAULT_MAX_ATTEMPTS,
+            interval: DELETER_DEFAULT_INTERVAL,
+        }
+    }
+
     fn delete_object_with_retry(
         &self,
         tm: &TypeMeta,

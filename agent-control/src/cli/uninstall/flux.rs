@@ -47,11 +47,7 @@ pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
         SUSPEND_CHECK_INTERVAL,
     )?;
 
-    let deleter = Deleter {
-        k8s_client: &k8s_client,
-        max_attempts: 30,
-        interval: Duration::from_secs(10),
-    };
+    let deleter = Deleter::with_default_retry_setup(&k8s_client);
     deleter.delete_object_with_retry(&helmrelease_type_meta, HELM_RELEASE_NAME, namespace)?;
     delete_helmchart_object(&deleter, HELM_RELEASE_NAME, &helmrelease)?;
     deleter.delete_object_with_retry(&helmrepository_type_meta, HELM_REPOSITORY_NAME, namespace)?;

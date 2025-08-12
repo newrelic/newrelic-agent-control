@@ -11,7 +11,6 @@ use crate::k8s::labels::Labels;
 use clap::Parser;
 use kube::api::TypeMeta;
 use std::collections::HashSet;
-use std::time::Duration;
 
 #[derive(Debug, Clone, Parser)]
 pub struct AgentControlUninstallData {
@@ -59,11 +58,7 @@ fn delete_owned_objects(
     namespace: &str,
 ) -> Result<(), CliError> {
     let ac_owned_label_selector = Labels::default().selector();
-    let deleter = Deleter {
-        k8s_client,
-        max_attempts: 30,
-        interval: Duration::from_secs(10),
-    };
+    let deleter = Deleter::with_default_retry_setup(k8s_client);
     for tm in objects_to_delete(kinds_available) {
         deleter.delete_collection_with_retry(&tm, namespace, &ac_owned_label_selector)?;
     }
@@ -98,11 +93,7 @@ fn delete_agent_control_crs(
 
     crs_to_delete.retain(|(tm, _)| kinds_available.contains(tm));
 
-    let deleter = Deleter {
-        k8s_client,
-        max_attempts: 30,
-        interval: Duration::from_secs(10),
-    };
+    let deleter = Deleter::with_default_retry_setup(k8s_client);
     for (tm, object_name) in crs_to_delete {
         deleter.delete_object_with_retry(&tm, object_name, namespace)?;
     }
