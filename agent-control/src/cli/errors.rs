@@ -21,6 +21,9 @@ pub enum CliError {
 
     #[error("failed to delete resource: {0}")]
     DeleteResource(String),
+
+    #[error("{0}")]
+    Generic(String),
 }
 
 impl CliError {
@@ -38,7 +41,8 @@ impl CliError {
             CliError::DeleteResource(_)
             | CliError::ApplyResource(_)
             | CliError::GetResource(_)
-            | CliError::InstallationCheck(_) => ExitCode::from(1),
+            | CliError::InstallationCheck(_)
+            | CliError::Generic(_) => ExitCode::from(1),
         }
     }
 }

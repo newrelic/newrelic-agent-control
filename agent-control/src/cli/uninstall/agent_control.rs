@@ -38,7 +38,7 @@ fn retrieve_api_resources(k8s_client: &SyncK8sClient) -> Result<HashSet<TypeMeta
 
     let all_api_resource_list = k8s_client
         .list_api_resources()
-        .map_err(|err| CliError::K8sClient(format!("failed to retrieve api_resources: {err}")))?;
+        .map_err(|err| CliError::Generic(format!("failed to retrieve api_resources: {err}")))?;
 
     for api_resource_list in &all_api_resource_list {
         for resource in &api_resource_list.resources {

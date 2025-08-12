@@ -22,7 +22,7 @@ pub enum K8sError {
     #[error("cannot post object `{0:?}`")]
     CommitError(#[from] api::entry::CommitError),
 
-    #[error("cannot patch object {0} with `{0}`")]
+    #[error("cannot patch object {0} with `{1}`")]
     PatchError(String, String),
 
     #[error("the kind of the resource is missing")]

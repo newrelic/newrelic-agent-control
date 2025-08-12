@@ -39,18 +39,25 @@ impl<'a> Deleter<'a> {
         name: &str,
         namespace: &str,
     ) -> Result<(), CliError> {
+        info!(%name, type=tm.kind, "Deleting resource");
         retry(self.max_attempts, self.interval, || {
             let res = self
                 .k8s_client
                 .delete_dynamic_object(tm, name, namespace)
                 .map_err(|err| {
-                    CliError::K8sClient(format!("failed to delete resource {}: {}", tm.kind, err))
+                    CliError::DeleteResource(format!(
+                        "could not delete resource '{}' of type '{}': {}",
+                        name, tm.kind, err
+                    ))
                 })?;
             if is_resource_deleted(res) {
-                info!("Resource of type {} deleted", tm.kind);
+                info!(%name, type=tm.kind, "Resource deleted");
                 Ok(())
             } else {
-                Err(CliError::DeleteResource(format!("{tm:?}")))
+                Err(CliError::DeleteResource(format!(
+                    "deletion of resource '{}' of type '{}' is not complete",
+                    name, tm.kind
+                )))
             }
         })
     }
@@ -62,17 +69,24 @@ impl<'a> Deleter<'a> {
         selector: &str,
     ) -> Result<(), CliError> {
         retry(self.max_attempts, self.interval, || {
+            info!(type=tm.kind, %selector, "Deleting resources");
             let res = self
                 .k8s_client
                 .delete_dynamic_object_collection(tm, namespace, selector)
                 .map_err(|err| {
-                    CliError::K8sClient(format!("failed to delete resources {}: {}", tm.kind, err))
+                    CliError::DeleteResource(format!(
+                        "failed to delete resources of type '{}': {}",
+                        tm.kind, err
+                    ))
                 })?;
             if is_collection_deleted(res) {
-                info!("Resources of type {} deleted", tm.kind);
+                info!(type=tm.kind, %selector, "Resources deleted");
                 Ok(())
             } else {
-                Err(CliError::DeleteResource(format!("{tm:?}")))
+                Err(CliError::DeleteResource(format!(
+                    "deletion of resources of type '{}' is not complete",
+                    tm.kind
+                )))
             }
         })
     }

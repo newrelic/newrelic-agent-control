@@ -71,9 +71,7 @@ fn suspend_helmrelease(
     let patch = json!({"spec": {"suspend": true}});
     k8s_client
         .patch_dynamic_object(helmrelease_type_meta, name, namespace, patch)
-        .map_err(|err| {
-            CliError::K8sClient(format!("could not suspend HelmRelease {name}: {err}"))
-        })?;
+        .map_err(|err| CliError::Generic(format!("could not suspend HelmRelease {name}: {err}")))?;
     debug!(
         helrelease_name = name,
         "Checking that the helm-release is effectively suspended"
@@ -84,7 +82,7 @@ fn suspend_helmrelease(
         if is_helmrelease_updated_after_suspension(helmrelease, &current) {
             Ok(())
         } else {
-            Err(CliError::K8sClient(format!(
+            Err(CliError::Generic(format!(
                 "Could not verify that HelmRelease {name} was effectively suspended"
             )))
         }
