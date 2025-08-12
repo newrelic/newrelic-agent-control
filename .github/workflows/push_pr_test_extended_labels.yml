@@ -11,21 +11,12 @@ concurrency:
 name: test-extended-label
 
 jobs:
+
   k8s-e2e-tests-extended:
     if: contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e')
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo"]'
-    secrets:
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
-  k8s-e2e-tests-fc:
-    if: contains(github.event.pull_request.labels.*.name, 'k8s-fc-e2e')
-    uses: ./.github/workflows/component_k8s_e2e.yml
-    with:
-      scenarios: '["fleet-control"]'
+      scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo", "fleet-control"]'
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
