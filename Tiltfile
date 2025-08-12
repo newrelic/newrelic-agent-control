@@ -129,7 +129,6 @@ ac_flags = [
   '--create-namespace',
   '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
   '--set=installationJob.chartVersion=0.0.1',
-  '--set=agent-control-cd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
   '--version=>=0.0.0-beta',
   '--set=agent-control-deployment.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
