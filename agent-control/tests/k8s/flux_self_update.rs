@@ -46,10 +46,10 @@ fn k8s_cli_install_and_update_flux_resources_success() {
     flux_bootstrap_via_helm_command(k8s.client.clone(), &namespace);
 
     let ns = namespace.to_string();
-    let _remove_finalizers = DeferredCommand::new(Box::new(move || {
-        remove_finalizer(&ns, format!("helmrelease/{HELM_RELEASE_NAME}"));
-        remove_finalizer(&ns, format!("helmchart/{ns}-{HELM_RELEASE_NAME}"));
-        remove_finalizer(&ns, format!("helmrepository/{HELM_REPOSITORY_NAME}"));
+    // Flux resources need to be removed before the test ends, otherwise the namespace will fail to be removed
+    // as these resources include finalizers pointing to flux.
+    let _remove_resources = DeferredCommand::new(Box::new(move || {
+        remove_flux_resources(&ns);
     }));
 
     // Installs flux resources
@@ -71,10 +71,10 @@ fn k8s_remote_flux_update() {
     flux_bootstrap_via_helm_command(k8s.client.clone(), &namespace);
 
     let ns = namespace.to_string();
-    let _remove_finalizers = DeferredCommand::new(Box::new(move || {
-        remove_finalizer(&ns, format!("helmrelease/{HELM_RELEASE_NAME}"));
-        remove_finalizer(&ns, format!("helmchart/{ns}-{HELM_RELEASE_NAME}"));
-        remove_finalizer(&ns, format!("helmrepository/{HELM_REPOSITORY_NAME}"));
+    // Flux resources need to be removed before the test ends, otherwise the namespace will fail to be removed
+    // as these resources include finalizers pointing to flux.
+    let _remove_resources = DeferredCommand::new(Box::new(move || {
+        remove_flux_resources(&ns);
     }));
 
     // Installs flux resources
@@ -184,19 +184,14 @@ fn create_flux_resources(namespace: &str, chart_version: &str) {
     assert.success();
 }
 
-fn remove_finalizer(namespace: &str, resource: impl AsRef<str>) {
-    let mut cmd = assert_cmd::Command::new("kubectl");
-    cmd.arg("patch")
-        .arg(resource.as_ref())
-        .arg("--namespace")
-        .arg(namespace)
-        .arg("--type")
-        .arg("json")
-        .arg("-p")
-        .arg(r#"[{"op": "remove", "path": "/metadata/finalizers"}]"#);
-
+fn remove_flux_resources(namespace: &str) {
+    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    cmd.timeout(Duration::from_secs(60));
+    cmd.arg("remove-cd-resources");
+    cmd.arg("--namespace").arg(namespace);
     let assert = cmd.assert();
     print_cli_output(&assert);
+    assert.success();
 }
 
 /// Bootstraps a Flux installation using the local Helm chart with namespace-scoped RBAC.

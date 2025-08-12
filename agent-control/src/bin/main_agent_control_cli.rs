@@ -49,7 +49,7 @@ enum Operations {
     #[clap(name = "create-cd-resources")]
     CreateCDResources(InstallData),
 
-    /// Removes the resources created to handled the Continuos DeploymentUtility
+    /// Removes the resources created to handled the Continuous Deployment utility
     #[clap(name = "remove-cd-resources")]
     RemoveCDResources,
 }
