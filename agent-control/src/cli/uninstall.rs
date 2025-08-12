@@ -52,8 +52,7 @@ impl<'a> Deleter<'a> {
             } else {
                 Err(CliError::DeleteResource(format!("{tm:?}")))
             }
-        })?;
-        Ok(())
+        })
     }
 
     fn delete_collection_with_retry(
@@ -75,8 +74,7 @@ impl<'a> Deleter<'a> {
             } else {
                 Err(CliError::DeleteResource(format!("{tm:?}")))
             }
-        })?;
-        Ok(())
+        })
     }
 }
 
