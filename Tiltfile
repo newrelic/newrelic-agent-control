@@ -127,10 +127,8 @@ local_resource(
 ac_flags = [
   '--timeout=150s',
   '--create-namespace',
-  '--set=installationJob.agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.agentControlDeployment.chartVersion=0.0.1',
-  '--set=installationJob.agentControlCd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.agentControlCd.chartVersion=0.0.1',
+  '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=installationJob.chartVersion=0.0.1',
   '--version=>=0.0.0-beta',
   '--set=agent-control-deployment.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
