@@ -69,8 +69,6 @@ agent-control-deployment:
       # Fleet with name 'ac-e2e-empty-deployment'. The sub-agent reports data to the 'Agent Control Canaries' account.
       # This fleet doesn't have any deployment configured.
       fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTgwOTZiLTk2NzctNzllNi05OWJmLTQ4YWRlOTRiYmZjMw
-      auth:
-        organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
     agentControl:
       content:
         fleet_control:
@@ -85,7 +83,8 @@ agent-control-deployment:
         content:
           chart_version: "*"
           # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
-  systemIdentityRegistration:
+  systemIdentity:
+    organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
     extraVolumeMounts:
       - mountPath: /etc/ssl/certs/ca-certificates.crt
         subPath: ca-certificates.crt

@@ -4,15 +4,15 @@ installationJob:
 agent-control-deployment:
   subAgentsNamespace: "newrelic-agents"
   verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
+  systemIdentity:
+    create: false
+    secretName: "sys-identity"
+
   config:
     fleet_control:
       enabled: true
       # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
       fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
-      auth:
-        secret:
-          create: false
-          name: "sys-identity"
     agentControl:
       content:
         log:
