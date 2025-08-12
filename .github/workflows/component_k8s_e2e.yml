@@ -89,7 +89,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Run k8s e2e-test ${{ matrix.group }}
         uses: newrelic/newrelic-integration-e2e-action@v1

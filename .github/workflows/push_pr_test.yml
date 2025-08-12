@@ -49,7 +49,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Build k8s in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control-k8s --target x86_64-unknown-linux-musl
@@ -96,7 +96,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Run workspace tests excluding the agent control package
         run: cargo test --workspace --exclude 'newrelic_agent_control' --all-targets
@@ -209,7 +209,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Run k8s integration tests
         env:
