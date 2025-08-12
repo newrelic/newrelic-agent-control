@@ -39,6 +39,8 @@ pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
 
     suspend_helmrelease(
         &k8s_client,
+        HELM_RELEASE_NAME,
+        namespace,
         &helmrelease_type_meta,
         &helmrelease,
         SUSPEND_CHECK_MAX_RETRIES,
@@ -51,7 +53,7 @@ pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
         interval: Duration::from_secs(10),
     };
     deleter.delete_object_with_retry(&helmrelease_type_meta, HELM_RELEASE_NAME, namespace)?;
-    delete_helmchart_object(&deleter, &helmrelease)?;
+    delete_helmchart_object(&deleter, HELM_RELEASE_NAME, &helmrelease)?;
     deleter.delete_object_with_retry(&helmrepository_type_meta, HELM_REPOSITORY_NAME, namespace)?;
 
     Ok(())
@@ -61,22 +63,13 @@ pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
 /// is effectively applied.
 fn suspend_helmrelease(
     k8s_client: &SyncK8sClient,
+    name: &str,
+    namespace: &str,
     helmrelease_type_meta: &TypeMeta,
     helmrelease: &DynamicObject,
     suspend_check_max_retries: usize,
     suspend_check_interval: Duration,
 ) -> Result<(), CliError> {
-    let name = helmrelease
-        .metadata
-        .name
-        .as_ref()
-        .expect("name needs to be present as metadata");
-    let namespace = helmrelease
-        .metadata
-        .namespace
-        .as_ref()
-        .expect("namespace needs to be present as metadata");
-
     info!(helrelease_name = name, "Suspending HelmRelease");
 
     let patch = json!({"spec": {"suspend": true}});
@@ -142,7 +135,11 @@ fn is_helmrelease_updated_after_suspension(
 }
 
 /// Deletes the HelmChart referenced in the provided HelmRelease if any.
-fn delete_helmchart_object(deleter: &Deleter, helmrelease: &DynamicObject) -> Result<(), CliError> {
+fn delete_helmchart_object(
+    deleter: &Deleter,
+    helmrelease_name: &str,
+    helmrelease: &DynamicObject,
+) -> Result<(), CliError> {
     let Some((helmchart_namespace, helmchart_name)) = helmrelease
         .data
         .get("status")
@@ -152,11 +149,7 @@ fn delete_helmchart_object(deleter: &Deleter, helmrelease: &DynamicObject) -> Re
     else {
         info!(
             "There was no HelmChart referenced in \"{}\", skipping deletion",
-            helmrelease
-                .metadata
-                .name
-                .as_ref()
-                .expect(".metadata.name is expected")
+            helmrelease_name,
         );
         return Ok(());
     };
@@ -266,6 +259,8 @@ mod tests {
 
         let result = suspend_helmrelease(
             &mock_k8s_client,
+            HELM_RELEASE_NAME,
+            namespace,
             &helmrelease_type_meta,
             &helmrelease,
             10,
@@ -301,7 +296,7 @@ mod tests {
             max_attempts: 10,
             interval: Duration::from_millis(10),
         };
-        let result = delete_helmchart_object(&deleter, &helmrelease);
+        let result = delete_helmchart_object(&deleter, HELM_RELEASE_NAME, &helmrelease);
         assert!(result.is_ok());
     }
 }
