@@ -58,7 +58,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Set tag and skip_upload=false for pre-release
         if: ${{ inputs.pre-release}}
