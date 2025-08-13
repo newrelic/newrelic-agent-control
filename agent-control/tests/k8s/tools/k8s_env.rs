@@ -123,7 +123,7 @@ impl K8sEnv {
                 let addr = SocketAddr::from(([127, 0, 0, 1], local_port));
                 let server =
                     TcpListenerStream::new(TcpListener::bind(addr).await.map_err(|e| {
-                        PortForwardError::ConnectionFailed(format!("Failed to bind: {}", e))
+                        PortForwardError::ConnectionFailed(format!("Failed to bind: {e}"))
                     })?)
                     .try_for_each(|client_conn| async {
                         if let Ok(peer_addr) = client_conn.peer_addr() {
@@ -147,7 +147,7 @@ impl K8sEnv {
 
                 server
                     .await
-                    .map_err(|e| PortForwardError::Other(format!("Server error: {}", e)))?;
+                    .map_err(|e| PortForwardError::Other(format!("Server error: {e}")))?;
                 info!("Shutting down");
                 Ok::<(), PortForwardError>(())
             }

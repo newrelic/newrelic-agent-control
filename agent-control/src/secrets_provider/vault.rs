@@ -314,11 +314,11 @@ pub mod tests {
     fn test_get_secrets() {
         let target_server = MockServer::start();
         target_server.mock(|when, then| {
-            when.method(GET).path(format!("/v1{}", KV1_PATH));
+            when.method(GET).path(format!("/v1{KV1_PATH}"));
             then.status(200).body(KV1_RESPONSE);
         });
         target_server.mock(|when, then| {
-            when.method(GET).path(format!("/v1{}", KV2_PATH));
+            when.method(GET).path(format!("/v1{KV2_PATH}"));
             then.status(200).body(KV2_RESPONSE);
         });
 
