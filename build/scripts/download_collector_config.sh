@@ -16,7 +16,7 @@ cp ${TEMPLATE_DEFAULT} ${FINAL_DEFAULT}
 mkdir -p ${BUILD_TMP_FOLDER}
 
 # Download nr-otel-collector config
-curl -s -o "${BUILD_TMP_FOLDER}/${DEFAULT_CONFIG_FILENAME}" "${URL}/${DEFAULT_CONFIG_FILENAME}"
+curl -s -o "${BUILD_TMP_FOLDER}/${DEFAULT_CONFIG_FILENAME}" "${URL}"
 
 # Add spaces to be embedded in the values.yaml
 docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app ubuntu /bin/bash -c "sed -i 's/^/  /g' ${BUILD_TMP_FOLDER}/${DEFAULT_CONFIG_FILENAME}"
