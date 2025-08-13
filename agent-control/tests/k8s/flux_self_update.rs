@@ -48,9 +48,9 @@ fn k8s_cli_install_and_update_flux_resources_success() {
     let ns = namespace.to_string();
     // Flux resources need to be removed before the test ends, otherwise the namespace will fail to be removed
     // as these resources include finalizers pointing to flux.
-    let _remove_resources = DeferredCommand::new(Box::new(move || {
+    let _remove_resources = DeferredCommand::new(move || {
         remove_flux_resources(&ns);
-    }));
+    });
 
     // Installs flux resources
     create_flux_resources(&namespace, CHART_VERSION_UPSTREAM_1);
@@ -73,9 +73,9 @@ fn k8s_remote_flux_update() {
     let ns = namespace.to_string();
     // Flux resources need to be removed before the test ends, otherwise the namespace will fail to be removed
     // as these resources include finalizers pointing to flux.
-    let _remove_resources = DeferredCommand::new(Box::new(move || {
+    let _remove_resources = DeferredCommand::new(move || {
         remove_flux_resources(&ns);
-    }));
+    });
 
     // Installs flux resources
     create_flux_resources(&namespace, CHART_VERSION_UPSTREAM_1);

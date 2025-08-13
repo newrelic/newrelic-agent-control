@@ -19,17 +19,17 @@ where
 }
 
 /// DeferredCommand is a struct that allows you to register a cleanup function that is executed on Drop.
-pub struct DeferredCommand {
-    cleanup_fn: Box<dyn Fn()>,
+pub struct DeferredCommand<F: Fn()> {
+    cleanup_fn: F,
 }
 
-impl DeferredCommand {
-    pub fn new(cleanup_fn: Box<dyn Fn()>) -> Self {
+impl<F: Fn()> DeferredCommand<F> {
+    pub fn new(cleanup_fn: F) -> Self {
         Self { cleanup_fn }
     }
 }
 
-impl Drop for DeferredCommand {
+impl<F: Fn()> Drop for DeferredCommand<F> {
     fn drop(&mut self) {
         (self.cleanup_fn)()
     }
