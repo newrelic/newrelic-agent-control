@@ -737,6 +737,13 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
+## erased-serde <https://crates.io/crates/erased-serde>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## errno <https://crates.io/crates/errno>
 
 Distributed under the following license(s):
@@ -1993,6 +2000,13 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## serde-untagged <https://crates.io/crates/serde-untagged>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## serde-value <https://crates.io/crates/serde-value>
 
 Distributed under the following license(s):
@@ -2337,6 +2351,13 @@ Distributed under the following license(s):
 * MIT
 
 ## tungstenite <https://crates.io/crates/tungstenite>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## typeid <https://crates.io/crates/typeid>
 
 Distributed under the following license(s):
 
