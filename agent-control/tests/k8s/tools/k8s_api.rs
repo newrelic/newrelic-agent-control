@@ -74,8 +74,7 @@ pub async fn check_helmrelease_labels_contains(
     let found_labels = &obj.metadata.labels;
     if found_labels.is_none() && expected_labels.is_some() {
         return Err(format!(
-            "helm release spec labels are None, but expected: {:?}",
-            expected_labels
+            "helm release spec labels are None, but expected: {expected_labels:?}"
         )
         .into());
     }
@@ -85,8 +84,7 @@ pub async fn check_helmrelease_labels_contains(
     for (key, value) in &expected_labels {
         if found_labels.get(key) != Some(value) {
             return Err(format!(
-                "helm release spec labels don't match with expected. Expected: {:?}, Found: {:?}",
-                expected_labels, found_labels,
+                "helm release spec labels don't match with expected. Expected: {expected_labels:?}, Found: {found_labels:?}",
             )
             .into());
         }

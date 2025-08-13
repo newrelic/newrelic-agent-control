@@ -138,7 +138,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ))?;
         let health = health_checker.check_health()?;
         if let Some(error) = health.last_error() {
-            return Err(format!("HelmRelease unhealthy with: {}", error).into());
+            return Err(format!("HelmRelease unhealthy with: {error}").into());
         }
         Ok(())
     });
@@ -155,7 +155,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ))?;
         let health = health_checker.check_health()?;
         if let Some(error) = health.last_error() {
-            return Err(format!("HelmRelease unhealthy with: {}", error).into());
+            return Err(format!("HelmRelease unhealthy with: {error}").into());
         }
         Ok(())
     });
