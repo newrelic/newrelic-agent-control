@@ -3,7 +3,7 @@ env:
   # Artifacts Versions
   # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
   - NEWRELIC_INFRA_AGENT_VERSION=1.66.1
-  - NR_OTEL_COLLECTOR_VERSION=1.2.0
+  - NR_OTEL_COLLECTOR_VERSION=1.3.0
   - NR_AUTH_CLIENT_VERSION=0.0.10
   #
 builds:
