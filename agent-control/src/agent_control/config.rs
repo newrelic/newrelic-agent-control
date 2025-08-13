@@ -260,6 +260,13 @@ pub fn helmrepository_type_meta() -> TypeMeta {
     }
 }
 
+pub fn helmchart_type_meta() -> TypeMeta {
+    TypeMeta {
+        api_version: "source.toolkit.fluxcd.io/v1".to_string(),
+        kind: "HelmChart".to_string(),
+    }
+}
+
 pub fn statefulset_type_meta() -> TypeMeta {
     TypeMeta {
         api_version: "apps/v1".to_string(),
