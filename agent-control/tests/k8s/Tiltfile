@@ -99,7 +99,7 @@ helm_resource(
 #### build data/charts and upload it to chart museum
 ### Feature Branch Workaround ###
 # Use the branch source to get the chart form a feature branch in the NR helm-charts repo.
-feature_branch = "master"
+feature_branch = "feat/remove-flux-crs"
 
 # We're modifying the default image in the charts for different versions because we don't expose the values to be
 # modified by the remote_config but we do tests upgrading charts that require image modification

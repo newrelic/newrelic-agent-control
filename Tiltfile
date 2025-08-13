@@ -64,7 +64,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'master'
+feature_branch = 'feat/remove-flux-crs'
 
 #### Set-up charts
 
@@ -159,5 +159,3 @@ helm_resource(
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
 update_settings(k8s_upsert_timeout_secs=200)
-
-
