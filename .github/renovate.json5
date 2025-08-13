@@ -6,6 +6,7 @@
     'dependencies',
   ],
   automerge: false,
+  lockFileMaintenance: { enabled: true }, // Update transitive dependencies by keeping lockfile updated
   enabledManagers: [
     'cargo',
     'custom.regex',
