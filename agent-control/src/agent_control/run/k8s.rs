@@ -208,6 +208,10 @@ impl AgentControlRunner {
             self.k8s_config.cd_release_name,
         );
 
+        // TODO add version checker threadcontext here, so it's dropped when we get out of `run`.
+        // If I am to implement it completely, it needs a reference to the opamp client. Do I have it?
+        // If not, I should leverage events and receive a publisher channel somewhere
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
