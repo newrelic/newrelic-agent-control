@@ -32,7 +32,7 @@ impl From<&str> for ConditionStatus {
 /// instances, each corresponding to a different HelmRelease, allowing for
 /// health checks across several Helm releases within a Kubernetes cluster.
 #[derive(Debug)]
-pub struct K8sHealthFluxHelmRelease {
+pub struct K8sHealthHelmRelease {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     name: String,
@@ -40,7 +40,7 @@ pub struct K8sHealthFluxHelmRelease {
     start_time: StartTime,
 }
 
-impl K8sHealthFluxHelmRelease {
+impl K8sHealthHelmRelease {
     pub fn new(
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
@@ -143,7 +143,7 @@ impl K8sHealthFluxHelmRelease {
     }
 }
 
-impl HealthChecker for K8sHealthFluxHelmRelease {
+impl HealthChecker for K8sHealthHelmRelease {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
@@ -286,7 +286,7 @@ pub mod tests {
             let mut mock_client = MockSyncK8sClient::new();
             setup_mock(&mut mock_client);
             let start_time = StartTime::now();
-            let checker = K8sHealthFluxHelmRelease::new(
+            let checker = K8sHealthHelmRelease::new(
                 Arc::new(mock_client),
                 helmrelease_v2_type_meta(),
                 "example-release".to_string(),
