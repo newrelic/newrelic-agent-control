@@ -58,7 +58,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Set tag and skip_upload=false for pre-release
         if: ${{ inputs.pre-release}}
@@ -76,11 +76,9 @@ jobs:
           echo SKIP_UPLOAD=--skip=publish >> $GITHUB_ENV 
 
       - name: Release packages with GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
-          distribution: goreleaser
-          version: latest
-          args: release ${{ env.SKIP_UPLOAD }} --clean --debug --timeout 2h
+          args: release ${{ env.SKIP_UPLOAD }} --clean --verbose --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}

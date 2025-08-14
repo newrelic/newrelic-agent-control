@@ -64,7 +64,7 @@ jobs:
 
       - name: Install cargo-zigbuild
         run: |
-          cargo install --locked cargo-zigbuild
+          cargo install --locked cargo-zigbuild --force
 
       - name: Build Agent Control for K8s
         env:

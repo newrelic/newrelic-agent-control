@@ -1,3 +1,4 @@
+version: 2
 project_name: newrelic-agent-control
 env:
   # Artifacts Versions
@@ -5,62 +6,47 @@ env:
   - NEWRELIC_INFRA_AGENT_VERSION=1.66.1
   - NR_OTEL_COLLECTOR_VERSION=1.3.0
   - NR_AUTH_CLIENT_VERSION=0.0.10
-  #
 builds:
   - id: newrelic-agent-control
-    main: ./build/dummy.go
-    goos:
-      - linux
-    goarch:
-      - arm64
-      - amd64
+    builder: rust
     binary: newrelic-agent-control
+    targets:
+      - x86_64-unknown-linux-musl
+      - aarch64-unknown-linux-musl
+    flags:
+      - --release
+      - --package=newrelic_agent_control
+      - --bin=newrelic-agent-control
+    env:
+      - AGENT_CONTROL_VERSION={{ .Version }}
+      - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
+      - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
+      - NR_AUTH_CLIENT_VERSION={{ .Env.NR_AUTH_CLIENT_VERSION }}
     hooks:
       post:
-        - cmd: sh ./build/scripts/build_binary.sh
-          env:
-            - ARCH={{ .Arch }}
-            - BIN=newrelic-agent-control-onhost
-            - AGENT_CONTROL_VERSION={{ .Version }}
-            - NEWRELIC_INFRA_AGENT_VERSION={{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}
-            - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
-            - NR_AUTH_CLIENT_VERSION={{ .Env.NR_AUTH_CLIENT_VERSION }}
-            - PKG=newrelic_agent_control
-        - cmd: sh ./build/scripts/replace_go_with_rust.sh
-          env:
-            - ARCH={{ .Arch }}
-            - BIN=newrelic-agent-control
-        - cmd: sh ./build/scripts/download_embedded.sh
+        - cmd: ./build/scripts/download_embedded.sh
           env:
             - ARCH={{ .Arch }}
             - ARTIFACTS_VERSIONS={"newrelic-infra":"{{ .Env.NEWRELIC_INFRA_AGENT_VERSION }}","nr-otel-collector":"{{ .Env.NR_OTEL_COLLECTOR_VERSION }}","newrelic-auth-cli":"{{ .Env.NR_AUTH_CLIENT_VERSION }}"}
-        - cmd: sh ./build/scripts/download_collector_config.sh
+        - cmd: ./build/scripts/download_collector_config.sh
           env:
             - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
   - id: newrelic-config-migrate
-    main: ./build/dummy.go
-    goos:
-      - linux
-    goarch:
-      - arm64
-      - amd64
+    builder: rust
     binary: newrelic-config-migrate
-    hooks:
-      post:
-        - cmd: sh ./build/scripts/build_binary.sh
-          env:
-            - ARCH={{ .Arch }}
-            - BIN=newrelic-config-migrate
-            - PKG=newrelic_agent_control
-            - AGENT_CONTROL_VERSION={{ .Version }}
-        - cmd: sh ./build/scripts/replace_go_with_rust.sh
-          env:
-            - ARCH={{ .Arch }}
-            - BIN=newrelic-config-migrate
+    targets:
+      - x86_64-unknown-linux-musl
+      - aarch64-unknown-linux-musl
+    flags:
+      - --release
+      - --package=newrelic_agent_control
+      - --bin=newrelic-config-migrate
+    env:
+      - AGENT_CONTROL_VERSION={{ .Version }}
 archives:
-  - format: tar.gz
+  - formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    builds:
+    ids:
       - newrelic-agent-control
       - newrelic-config-migrate
 
@@ -189,7 +175,7 @@ nfpms:
       - fluent-bit
 
     id: newrelic-agent-control
-    builds:
+    ids:
       - newrelic-agent-control
       - newrelic-config-migrate
     formats:
@@ -241,4 +227,4 @@ checksum:
 
 # Skip auto-generating changelog.
 changelog:
-  skip: true
+  disable: true
