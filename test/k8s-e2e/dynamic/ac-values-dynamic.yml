@@ -7,7 +7,9 @@ agent-control-deployment:
   config:
     fleet_control:
       enabled: false
-    agentControl:
+    log:
+      level: debug
+    override:
       content:
         k8s:
           cr_type_meta:
@@ -21,14 +23,13 @@ agent-control-deployment:
               kind: "Secret"
             - apiVersion: "newrelic.com/v1beta1"
               kind: "Instrumentation"
-        log:
-          level: debug
-    subAgents:
+    agents:
       logs:
-        type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
-        content:
-          chart_version: "*" # Use latest
-
+        agent_type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
+  agentsConfig:
+    logs:
+      content:
+        chart_version: "*" # Use latest
 
   extraVolumeMounts:
     - name: dynamic

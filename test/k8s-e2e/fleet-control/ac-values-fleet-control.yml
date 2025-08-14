@@ -3,7 +3,6 @@ installationJob:
   logLevel: debug
 agent-control-deployment:
   subAgentsNamespace: "newrelic-agents"
-  verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
   systemIdentity:
     create: false
     secretName: "sys-identity"
@@ -13,17 +12,17 @@ agent-control-deployment:
       enabled: true
       # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
       fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
-    agentControl:
-      content:
-        log:
-          level: debug
-    subAgents:
+    log:
+      level: debug
+    agents:
       infra:
-        type: newrelic/com.newrelic.infrastructure:0.1.0
-        content:
-          chart_version: "*" # Use latest
-          chart_values:
-            global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
-              customAttributes:
-                cluster_name: ${nr-env:NR_CLUSTER_NAME}
-                config_origin: local
+        agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+  agentsConfig:
+    infra:
+      content:
+        chart_version: "*" # Use latest
+        chart_values:
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+            customAttributes:
+              cluster_name: ${nr-env:NR_CLUSTER_NAME}
+              config_origin: local

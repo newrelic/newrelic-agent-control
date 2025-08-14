@@ -151,7 +151,7 @@ pub(crate) fn create_simple_values_secret(
             "fleet_control": {
                 "enabled": false,
             },
-            "agentControl": {
+            "override": {
                 "content": {
                     "fleet_control": {
                         "endpoint": opamp_endpoint.as_str(),

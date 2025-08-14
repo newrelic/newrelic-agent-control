@@ -4,17 +4,19 @@ installationJob:
 agent-control-deployment:
   subAgentsNamespace: "newrelic-agents"
   config:
-    agentControl:
-      content:
-        log:
-          level: debug
-    subAgents:
-      # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
-      nr-ebpf:
-        type: newrelic/com.newrelic.ebpf:0.1.0
-        content:
-          # Testing the latest released version of the chart
-          chart_version: "*"
-
+    log:
+      level: debug
     fleet_control:
       enabled: false
+    agents:
+      # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
+      nr-ebpf:
+        agent_type: newrelic/com.newrelic.ebpf:0.1.0
+  agentsConfig:
+    # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
+    nr-ebpf:
+      content:
+        # Testing the latest released version of the chart
+        chart_version: "*"
+
+

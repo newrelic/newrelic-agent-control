@@ -6,53 +6,59 @@ agent-control-deployment:
   config:
     fleet_control:
       enabled: false
-    agentControl:
-      content:
-        log:
-          level: trace
-    subAgents:
+    log:
+      level: trace
+    agents:
       operator:
-        type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
-        content:
-          chart_version: "*"
+        agent_type: newrelic/com.newrelic.k8s_agent_operator:0.1.0
       # One agent per language
       java-agent:
-        type: newrelic/com.newrelic.apm_java:0.1.0
-        content:
-          podLabelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: "In"
-                values: ["javaapp"]
+        agent_type: newrelic/com.newrelic.apm_java:0.1.0
       python-agent:
-        type: newrelic/com.newrelic.apm_python:0.1.0
-        content:
-          podLabelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: "In"
-                values: ["pythonapp"]
+        agent_type: newrelic/com.newrelic.apm_python:0.1.0
       node-agent:
-        type: newrelic/com.newrelic.apm_node:0.1.0
-        content:
-          podLabelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: "In"
-                values: ["nodeapp"]
+        agent_type: newrelic/com.newrelic.apm_node:0.1.0
       ruby-agent:
-        type: newrelic/com.newrelic.apm_ruby:0.1.0
-        content:
-          podLabelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: "In"
-                values: ["rubyapp"]
+        agent_type: newrelic/com.newrelic.apm_ruby:0.1.0
       dotnet-agent:
-        type: newrelic/com.newrelic.apm_dotnet:0.1.0
-        content:
-          podLabelSelector:
-            matchExpressions:
-              - key: "app"
-                operator: "In"
-                values: ["dotneteapp"]
+        agent_type: newrelic/com.newrelic.apm_dotnet:0.1.0
+  agentsConfig:
+    operator:
+      content:
+        chart_version: "*"
+    # One agent per language
+    java-agent:
+      content:
+        podLabelSelector:
+          matchExpressions:
+            - key: "app"
+              operator: "In"
+              values: [ "javaapp" ]
+    python-agent:
+      content:
+        podLabelSelector:
+          matchExpressions:
+            - key: "app"
+              operator: "In"
+              values: [ "pythonapp" ]
+    node-agent:
+      content:
+        podLabelSelector:
+          matchExpressions:
+            - key: "app"
+              operator: "In"
+              values: [ "nodeapp" ]
+    ruby-agent:
+      content:
+        podLabelSelector:
+          matchExpressions:
+            - key: "app"
+              operator: "In"
+              values: [ "rubyapp" ]
+    dotnet-agent:
+      content:
+        podLabelSelector:
+          matchExpressions:
+            - key: "app"
+              operator: "In"
+              values: [ "dotneteapp" ]
