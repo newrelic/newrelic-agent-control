@@ -11,13 +11,13 @@ agent-control-deployment:
       level: debug
     agents:
       infra:
-        type: newrelic/com.newrelic.infrastructure:0.1.0
+        agent_type: newrelic/com.newrelic.infrastructure:0.1.0
       prometheus:
-        type: newrelic/com.newrelic.prometheus:0.1.0
+        agent_type: newrelic/com.newrelic.prometheus:0.1.0
       logs:
-        type: newrelic/io.fluentbit:0.1.0
+        agent_type: newrelic/io.fluentbit:0.1.0
       gateway:
-        type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+        agent_type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
 
   agentsConfig:
     infra:
