@@ -118,7 +118,7 @@ endif
     --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.custom_attributes."label\.app\.kubernetes\.io/name"=agent-control \
     --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.endpoint="$(OTLP_ENDPOINT)" \
     --set agent-control-deployment.config.agentControl.content.self_instrumentation.opentelemetry.headers.api-key=$(NR_LICENSE_KEY) \
-    --set agent-control-deployment.config.fleet_control.auth.secret.create=false \
-    --set agent-control-deployment.config.fleet_control.auth.secret.name="sys-identity" \
     --set agent-control-deployment.config.fleet_control.fleet_id="$(FLEET_ID)" \
+    --set agent-control-deployment.systemIdentity.create=false \
+    --set agent-control-deployment.systemIdentity.secretName="sys-identity" \
     --set agent-control-deployment.podAnnotations.deploymentKey="$(DEPLOYMENT_KEY)"
