@@ -7,7 +7,7 @@ members = ["agent-control", "resource-detection", "fs", "wrapper_with_default"]
 authors = ["The New Relic Agent Control Team"]
 edition = "2024"
 publish = false
-rust-version = "1.86.0"
+rust-version = "1.88.0"
 license-file = "./LICENSE.md"
 
 [workspace.dependencies]
