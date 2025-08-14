@@ -2792,6 +2792,7 @@ name = "newrelic_agent_control"
 version = "0.46.0"
 dependencies = [
  "actix-web",
+ "anyhow",
  "assert_cmd",
  "assert_matches",
  "async-trait",

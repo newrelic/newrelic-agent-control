@@ -1,58 +1,20 @@
 use super::SecretsProvider;
-use crate::http::client::{HttpBuildError, HttpClient};
+use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use duration_str::deserialize_duration;
-use http::header::InvalidHeaderValue;
 use http::{HeaderValue, Request};
 use serde::Deserialize;
-use serde_json::Error;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
-use thiserror::Error;
-use url::{ParseError, Url};
+use url::Url;
 use wrapper_with_default::WrapperWithDefault;
+
+use std::error::Error;
+use std::fmt;
 
 /// Default timeout for HTTP client.
 const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
-
-/// Enumerates the possible errors that can occur when interacting with Vault.
-#[derive(Debug, Error)]
-pub enum VaultError {
-    #[error("could not build the vault http client: {0}")]
-    HttpClient(#[from] HttpBuildError),
-
-    #[error("invalid header: {0}")]
-    InvalidHeaderValue(#[from] InvalidHeaderValue),
-
-    #[error("could not parse mount and path for secret source: {0}")]
-    ParseError(#[from] ParseError),
-
-    #[error("error deserializing the config: {0}")]
-    SerdeError(#[from] Error),
-
-    /// Represents an error building the HttpClient
-    #[error("could not build the HTTP client: `{0}`")]
-    BuildingError(String),
-
-    #[error("http transport error: `{0}`")]
-    HttpTransportError(String),
-
-    #[error("unable to deserialize body: `{0}`")]
-    DeserializeError(String),
-
-    #[error("secret path '{0}' does not have a valid format 'source:mount:path:name'")]
-    IncorrectSecretPath(String),
-
-    #[error("secret source not found")]
-    SourceNotFound,
-
-    #[error("secret not found in the specified source")]
-    NotFound,
-
-    #[error("{0}")]
-    GenericError(String),
-}
 
 /// Represents a path to a secret in Vault, including source, mount, path, and name.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -64,12 +26,15 @@ pub struct VaultSecretPath {
 }
 
 impl FromStr for VaultSecretPath {
-    type Err = VaultError;
+    type Err = Box<dyn Error>;
 
     fn from_str(secret_path: &str) -> Result<Self, Self::Err> {
         let parts: Vec<&str> = secret_path.split(':').collect();
         if parts.len() != 4 || parts.iter().any(|p| p.is_empty()) {
-            return Err(VaultError::IncorrectSecretPath(secret_path.to_string()));
+            return Err(VaultError(format!(
+                "secret path '{secret_path}' does not have a valid format 'source:mount:path:name'"
+            ))
+            .into());
         }
 
         let secret_path = VaultSecretPath {
@@ -93,7 +58,7 @@ pub enum SecretEngine {
 }
 
 impl SecretEngine {
-    fn get_url(&self, url: Url, mount: &str, path: &str) -> Result<Url, VaultError> {
+    fn get_url(&self, url: Url, mount: &str, path: &str) -> Result<Url, Box<dyn Error>> {
         match self {
             SecretEngine::Kv1 => Ok(url.join(format!("{mount}/{path}").as_str())?),
             SecretEngine::Kv2 => Ok(url.join(format!("{mount}/data/{path}").as_str())?),
@@ -104,7 +69,7 @@ impl SecretEngine {
         &self,
         name: &str,
         body: String,
-    ) -> Result<Option<String>, VaultError> {
+    ) -> Result<Option<String>, Box<dyn Error>> {
         Ok(match self {
             SecretEngine::Kv1 => {
                 let response: KV1SecretData = serde_json::from_str(&body)?;
@@ -183,6 +148,17 @@ pub struct VaultConfig {
     pub proxy_config: ProxyConfig,
 }
 
+#[derive(Debug, Clone)]
+struct VaultError(String);
+
+impl fmt::Display for VaultError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "failed to retrieve vault secret: {}", self.0)
+    }
+}
+
+impl Error for VaultError {}
+
 /// Represents a Vault client, including HTTP client and configured sources.
 pub struct Vault {
     client: HttpClient,
@@ -191,7 +167,7 @@ pub struct Vault {
 
 impl Vault {
     /// Attempts to build a Vault instance from the given configuration.
-    pub fn try_build(config: VaultConfig) -> Result<Self, VaultError> {
+    pub fn try_build(config: VaultConfig) -> Result<Self, Box<dyn Error>> {
         let http_config = HttpConfig::new(
             config.client_timeout.clone().into(),
             config.client_timeout.into(),
@@ -203,12 +179,13 @@ impl Vault {
             .iter()
             .map(|(source_name, source_config)| {
                 let source = VaultSource::new(source_config.clone());
-                Ok((source_name.clone(), source))
+                (source_name.clone(), source)
             })
-            .collect::<Result<HashMap<String, VaultSource>, VaultError>>()?;
+            .collect::<HashMap<String, VaultSource>>();
 
         Ok(Self {
-            client: HttpClient::new(http_config).map_err(VaultError::HttpClient)?,
+            client: HttpClient::new(http_config)
+                .map_err(|e| VaultError(format!("could not build the vault http client: {e}")))?,
             sources,
         })
     }
@@ -216,9 +193,7 @@ impl Vault {
 
 /// Implements the SecretsProvider trait for Vault, allowing it to retrieve secrets.
 impl SecretsProvider for Vault {
-    type Error = VaultError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_secret(&self, secret_path: &str) -> Result<String, Box<dyn Error>> {
         let VaultSecretPath {
             source,
             mount,
@@ -229,37 +204,45 @@ impl SecretsProvider for Vault {
         let vault_source = self
             .sources
             .get(&source)
-            .ok_or(VaultError::SourceNotFound)?;
+            .ok_or_else(|| VaultError("secret source not found".into()))?;
 
-        let url =
-            vault_source
-                .engine
-                .get_url(vault_source.url.clone(), mount.as_str(), path.as_str())?;
+        let url = vault_source
+            .engine
+            .get_url(vault_source.url.clone(), mount.as_str(), path.as_str())
+            .map_err(|e| {
+                VaultError(format!(
+                    "could not parse mount and path for secret source: {e}"
+                ))
+            })?;
 
         let mut request = Request::builder()
             .method("GET")
             .uri(url.as_str())
             .body(Vec::new())
-            .map_err(|e| VaultError::BuildingError(e.to_string()))?;
+            .map_err(|e| VaultError(format!("could not build the HTTP client: `{e}`")))?;
         request.headers_mut().insert(
             "X-Vault-Token",
-            HeaderValue::from_str(vault_source.token.as_str())?,
+            HeaderValue::from_str(vault_source.token.as_str())
+                .map_err(|e| VaultError(format!("invalid header: {e}")))?,
         );
 
         let response = self
             .client
             .send(request)
-            .map_err(|e| VaultError::HttpTransportError(e.to_string()))?;
+            .map_err(|e| VaultError(format!("http transport error: `{e}`")))?;
 
-        let body = String::from_utf8(response.into_body())
-            .map_err(|e| VaultError::DeserializeError(format!("invalid utf8 response: {e}")))?;
+        let body = String::from_utf8(response.into_body()).map_err(|e| {
+            VaultError(format!(
+                "unable to deserialize body: invalid utf8 response: {e}"
+            ))
+        })?;
 
-        let maybe_secret = vault_source.engine.parse_secret_response(&name, body)?;
-
-        maybe_secret.map_or_else(
-            || Err(VaultError::NotFound),
-            |secret| Ok(secret.to_string()),
-        )
+        vault_source
+            .engine
+            .parse_secret_response(&name, body)?
+            .ok_or_else(|| {
+                VaultError("secret not found in the specified source".to_string()).into()
+            })
     }
 }
 
@@ -275,9 +258,7 @@ pub mod tests {
         pub Vault {}
 
         impl SecretsProvider for Vault {
-            type Error = VaultError;
-
-            fn get_secret(&self, secret_path: &str) -> Result<String, VaultError>;
+            fn get_secret(&self, secret_path: &str) -> Result<String, Box<dyn Error>>;
         }
     }
 
@@ -348,7 +329,7 @@ client_timeout: 3s
         struct TestCase {
             _name: &'static str,
             secret_path: &'static str,
-            expected: Result<String, VaultError>,
+            expected: Result<String, Box<dyn Error>>,
         }
 
         impl TestCase {
@@ -395,12 +376,14 @@ client_timeout: 3s
             TestCase {
                 _name: "get secret from wrong existing source returns Not Found error",
                 secret_path: "sourceB:secret:my-secret:zip1",
-                expected: Err(VaultError::NotFound),
+                expected: Err(Box::new(VaultError(
+                    "secret not found in the specified source".into(),
+                ))),
             },
             TestCase {
                 _name: "get secret from wrong existing source returns Source Not Found error",
                 secret_path: "sourceC:secret:my-secret:zip1",
-                expected: Err(VaultError::SourceNotFound),
+                expected: Err(Box::new(VaultError("secret source not found".into()))),
             },
         ];
 
