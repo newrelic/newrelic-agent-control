@@ -11,7 +11,7 @@ const VERSION_CHECKER_THREAD_NAME: &str = "version_checker";
 
 pub trait VersionChecker {
     /// Use it to report the agent version for the opamp client
-    /// Uses a thread to check the version of and agent and report it
+    /// Uses a thread to check the version of an agent and report it
     /// with internal events. The reported AgentVersion should
     /// contain "version" and the field for opamp that is going to contain the version
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError>;
