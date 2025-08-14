@@ -81,7 +81,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'master'
+feature_branch = 'feat/remove-flux-crs'
 
 #### Set-up charts
 
