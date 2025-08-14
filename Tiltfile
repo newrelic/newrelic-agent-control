@@ -1,5 +1,7 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the e2e tests to setup the environment and for local development.
+ci_settings(readiness_timeout = '10m')
+
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
 
@@ -17,8 +19,9 @@ chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
 # build_with options:
 # cargo: No crosscompilation, faster than cross
 # cross: Supports crosscompilaton
-build_with = os.getenv('BUILD_WITH','cross')
+build_with = os.getenv('BUILD_WITH','zig')
 arch = os.getenv('ARCH','arm64')
+target_tuple = os.getenv('TARGET_TUPLE', 'aarch64-unknown-linux-musl')
 
 #### Build SA binary
 
@@ -39,8 +42,22 @@ if build_with == 'cargo':
 elif build_with == 'cross': 
   local_resource(
       'build-binary',
-      cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-cli" % arch +
-           "&& make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch ,
+      cmd="make BUILD_MODE=debug ARCH=%s cross-build-agent-control-cli" % arch +
+           "&& make BUILD_MODE=debug ARCH=%s cross-build-agent-control-k8s" % arch ,
+      deps=[
+        './agent-control',
+      ]
+  )
+elif build_with == 'zig':
+  local_resource(
+      'build-binary',
+      cmd="""cargo zigbuild --package newrelic_agent_control --bin newrelic-agent-control-k8s --target """+target_tuple+""" &&
+        mkdir -p bin &&
+        rm -f bin/newrelic-agent-control-"""+arch+""" &&
+        mv target/"""+target_tuple+"""/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"""+arch+""" &&
+        cargo zigbuild --package newrelic_agent_control --bin newrelic-agent-control-cli --target """+target_tuple+""" &&
+        mkdir -p bin && rm -f bin/newrelic-agent-control-cli-"""+arch+""" &&
+        mv target/"""+target_tuple+"""/debug/newrelic-agent-control-cli bin/newrelic-agent-control-cli-"""+arch,
       deps=[
         './agent-control',
       ]

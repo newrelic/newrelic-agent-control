@@ -1,21 +1,15 @@
 #!/usr/bin/env bash
 set -e
 
-# This script assumes that the following tools are installed:
-# - The Rust toolchain with the targets for cross-compilation:
-#   - `aarch64-unknown-linux-musl`.
-#   - `x86_64-unknown-linux-musl`.
-# - `zig` for using it as linker.
-# - `cargo-zigbuild` for building.
+# Install cargo cross
+which cross || cargo install cross
 
 if [ "$ARCH" = "arm64" ];then
   ARCH_NAME="aarch64"
-  TARGET_TUPLE="aarch64-unknown-linux-musl"
 fi
 
 if [ "$ARCH" = "amd64" ];then
   ARCH_NAME="x86_64"
-  TARGET_TUPLE="x86_64-unknown-linux-musl"
 fi
 
 if [ "$BUILD_MODE" = "debug" ];then
@@ -34,7 +28,8 @@ export GIT_COMMIT
 export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
-cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
+export CROSS_CONFIG=${CROSS_CONFIG:-"./Cross.toml"}
+cross build --target "${ARCH_NAME}-unknown-linux-musl" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
 
 mkdir -p "bin"
 
@@ -48,4 +43,4 @@ if [ "$BIN" = "newrelic-agent-control-onhost" ] || [ "$BIN" = "newrelic-agent-co
 fi
 
 # Copy the generated binaries to the bin directory
-cp "./target/${TARGET_TUPLE}/${BUILD_OUT_DIR}/${BIN}" "./bin/${TRIMMED_BIN}-${ARCH}"
+cp "./target/${ARCH_NAME}-unknown-linux-musl/${BUILD_OUT_DIR}/${BIN}" "./bin/${TRIMMED_BIN}-${ARCH}"
