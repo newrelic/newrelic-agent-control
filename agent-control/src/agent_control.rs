@@ -13,7 +13,7 @@ pub mod uptime_report;
 pub mod version_updater;
 
 use crate::event::AgentControlInternalEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::channel::EventPublisher;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
     channel::EventConsumer,
@@ -93,13 +93,15 @@ where
         agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
         dynamic_config_validator: DV,
         resource_cleaner: RC,
         version_updater: VU,
         health_checker_builder: HCB,
         initial_config: AgentControlConfig,
     ) -> Self {
-        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+        // let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         Self {
             opamp_client,
             sub_agent_builder,
@@ -323,6 +325,7 @@ where
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
                                 },
+                                AgentControlInternalEvent::AgentControlCdVersionUpdated(version) => todo!("DEVELOP VERSION CHECKER AND CALLBACK HERE"),
                             }
                         },
                     }
@@ -786,6 +789,7 @@ agents:
                 ..Default::default()
             };
 
+            let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
             let agent_control = {
                 AgentControl::new(
                     Some(started_client),
@@ -795,6 +799,8 @@ agents:
                     agent_control_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    agent_control_internal_publisher,
+                    agent_control_internal_consumer,
                     dynamic_config_validator,
                     resource_cleaner,
                     version_updater,

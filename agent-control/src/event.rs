@@ -11,7 +11,7 @@ pub mod channel;
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
-use crate::sub_agent::version::version_checker::AgentVersion;
+use crate::version_checker::AgentVersion;
 use crate::{agent_control::agent_id::AgentID, opamp::remote_config::OpampRemoteConfig};
 use std::time::SystemTime;
 
@@ -56,6 +56,7 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentControlInternalEvent {
     HealthUpdated(HealthWithStartTime),
+    AgentControlCdVersionUpdated(AgentVersion)
 }
 
 /// Defines internal events for the SubAgent component.

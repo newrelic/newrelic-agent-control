@@ -15,6 +15,7 @@ use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -28,6 +29,8 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
+use crate::utils::thread_context::NotStartedThreadContext;
+use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
@@ -208,6 +211,15 @@ impl AgentControlRunner {
             self.k8s_config.cd_release_name,
         );
 
+        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+        // let _cd_version_checker = spawn_version_checker(
+        //     agent_id,
+        //     version_checker,
+        //     version_event_publisher,
+        //     version_event_generator,
+        //     interval,
+        // );
+
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -216,6 +228,8 @@ impl AgentControlRunner {
             self.agent_control_publisher,
             self.application_event_consumer,
             maybe_opamp_consumer,
+            agent_control_internal_publisher,
+            agent_control_internal_consumer,
             dynamic_config_validator,
             garbage_collector,
             k8s_ac_updater,
