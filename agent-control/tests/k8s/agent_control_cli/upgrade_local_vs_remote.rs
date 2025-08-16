@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
 use newrelic_agent_control::cli::install::agent_control::RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
-use newrelic_agent_control::sub_agent::version::version_checker::VersionCheckError;
+use newrelic_agent_control::version_checker::VersionCheckError;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;

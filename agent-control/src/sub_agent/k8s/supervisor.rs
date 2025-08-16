@@ -15,11 +15,11 @@ use crate::k8s::utils::retain_not_null;
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::version::k8s::checkers::K8sAgentVersionChecker;
-use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
+use crate::version_checker::k8s::checkers::K8sAgentVersionChecker;
+use crate::version_checker::spawn_version_checker;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};
@@ -202,6 +202,7 @@ impl NotStartedSupervisorK8s {
             self.agent_identity.id.clone(),
             k8s_version_checker,
             sub_agent_internal_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
             VersionCheckerInterval::default(),
         ))
     }

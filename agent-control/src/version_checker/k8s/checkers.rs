@@ -3,9 +3,9 @@ use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1b
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use crate::sub_agent::version::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::sub_agent::version::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::version_checker::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 use tracing::warn;

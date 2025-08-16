@@ -1,12 +1,14 @@
+pub mod k8s;
+pub mod onhost;
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
-use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
 use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
+use std::fmt::Debug;
 use tracing::{debug, error, info, info_span, warn};
-
 const VERSION_CHECKER_THREAD_NAME: &str = "version_checker";
 
 pub trait VersionChecker {
@@ -44,15 +46,19 @@ pub enum VersionCheckError {
     Generic(String),
 }
 
-pub(crate) fn spawn_version_checker<V>(
+pub(crate) fn spawn_version_checker<V, T, F>(
     agent_id: AgentID,
     version_checker: V,
-    sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
+    version_event_publisher: EventPublisher<T>,
+    version_event_generator: F,
     interval: VersionCheckerInterval,
 ) -> StartedThreadContext
 where
     V: VersionChecker + Send + Sync + 'static,
+    T: Debug + Send + Sync + 'static,
+    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
 {
+    let thread_name = format!("{agent_id}_{VERSION_CHECKER_THREAD_NAME}");
     // Stores if the version was retrieved in last iteration for logging purposes.
     let mut version_retrieved = false;
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
@@ -72,8 +78,8 @@ where
                 }
 
                 publish_version_event(
-                    &sub_agent_internal_publisher,
-                    SubAgentInternalEvent::AgentVersionInfo(agent_data),
+                    &version_event_publisher,
+                    version_event_generator(agent_data),
                 );
             }
             Err(error) => {
@@ -87,34 +93,30 @@ where
         }
     };
 
-    NotStartedThreadContext::new(VERSION_CHECKER_THREAD_NAME, callback).start()
+    NotStartedThreadContext::new(thread_name, callback).start()
 }
 
-pub(crate) fn publish_version_event(
-    sub_agent_internal_publisher: &EventPublisher<SubAgentInternalEvent>,
-    event: SubAgentInternalEvent,
-) {
+pub(crate) fn publish_version_event<T>(version_event_publisher: &EventPublisher<T>, event: T)
+where
+    T: Debug + Send + Sync + 'static,
+{
     let event_type_str = format!("{event:?}");
-    _ = sub_agent_internal_publisher
-        .publish(event)
-        .inspect_err(|e| {
-            error!(
-                err = e.to_string(),
-                event_type = event_type_str,
-                "could not publish sub agent event"
-            )
-        });
+    _ = version_event_publisher.publish(event).inspect_err(|e| {
+        error!(
+            err = e.to_string(),
+            event_type = event_type_str,
+            "could not publish version event"
+        )
+    });
 }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::agent_control::agent_id::AgentID;
+    use super::*;
     use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;
     use crate::event::channel::pub_sub;
-    use crate::sub_agent::version::version_checker::{
-        AgentVersion, VersionCheckError, VersionChecker, spawn_version_checker,
-    };
+    use crate::{agent_control::agent_id::AgentID, event::SubAgentInternalEvent};
     use mockall::{Sequence, mock};
     use std::time::Duration;
 
@@ -155,6 +157,7 @@ pub mod tests {
             AgentID::default(),
             version_checker,
             version_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
             Duration::from_millis(10).into(),
         );
 

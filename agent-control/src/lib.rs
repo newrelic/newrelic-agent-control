@@ -19,3 +19,4 @@ pub mod secrets_provider;
 pub mod sub_agent;
 pub mod utils;
 pub mod values;
+pub mod version_checker;

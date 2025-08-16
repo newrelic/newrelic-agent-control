@@ -21,12 +21,12 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
-use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use crate::utils::threads::spawn_named_thread;
+use crate::version_checker::onhost::OnHostAgentVersionChecker;
+use crate::version_checker::spawn_version_checker;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -163,6 +163,7 @@ impl NotStartedSupervisorOnHost {
             self.agent_identity.id.clone(),
             onhost_version_checker,
             sub_agent_internal_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
             VersionCheckerInterval::default(),
         ))
     }

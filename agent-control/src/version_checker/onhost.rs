@@ -2,7 +2,7 @@ use crate::agent_control::defaults::{
     AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use tracing::error;
 
 const NEWRELIC_INFRA_AGENT_VERSION: &str =

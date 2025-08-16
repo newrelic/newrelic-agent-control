@@ -8,7 +8,6 @@ pub mod k8s;
 pub mod on_host;
 pub mod remote_config_parser;
 pub mod supervisor;
-pub mod version;
 
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;

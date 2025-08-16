@@ -1,8 +1,8 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::{AgentVersion, VersionChecker};
+use crate::{agent_control::agent_id::AgentID, version_checker::VersionCheckError};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 
