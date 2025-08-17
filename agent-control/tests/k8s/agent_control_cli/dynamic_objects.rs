@@ -114,7 +114,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     let mut labels: BTreeMap<String, String> = [
         ("app.kubernetes.io/managed-by", "newrelic-agent-control"),
-        ("newrelic.io/agent-id", &agent_identity.id),
+        ("newrelic.io/agent-id", agent_identity.id.as_str()),
         ("chart", "podinfo"),
         ("env", "testing"),
         ("app", "ac"),

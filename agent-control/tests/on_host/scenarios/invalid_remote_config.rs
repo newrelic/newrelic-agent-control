@@ -28,7 +28,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sub_agent_id = AgentID::new("nr-sleep-agent").unwrap();
+    let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
@@ -113,7 +113,7 @@ fn test_invalid_config_executalbe_less_supervisor() {
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
-    let sub_agent_id = AgentID::new("test-agent").unwrap();
+    let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let agent_type = get_agent_type_without_deployment(local_dir.path().to_path_buf());
 
@@ -198,7 +198,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sub_agent_id = AgentID::new("nr-sleep-agent").unwrap();
+    let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),

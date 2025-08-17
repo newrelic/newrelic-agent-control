@@ -156,8 +156,7 @@ pub fn create_local_agent_control_config(
     block_on(create_config_map(
         client,
         ac_ns,
-        K8sStore::build_cm_name(&AgentID::new_agent_control_id(), CM_NAME_LOCAL_DATA_PREFIX)
-            .as_str(),
+        K8sStore::build_cm_name(&AgentID::AgentControl, CM_NAME_LOCAL_DATA_PREFIX).as_str(),
         content.clone(),
     ));
 

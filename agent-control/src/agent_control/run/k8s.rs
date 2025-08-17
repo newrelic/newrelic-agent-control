@@ -202,7 +202,7 @@ impl AgentControlRunner {
         let k8s_ac_updater = K8sACUpdater::new(
             self.k8s_config.ac_remote_update,
             self.k8s_config.cd_remote_update,
-            k8s_client,
+            k8s_client.clone(),
             self.k8s_config.namespace.clone(),
             self.k8s_config.current_chart_version.clone(),
             self.k8s_config.cd_release_name,

@@ -144,7 +144,7 @@ pub mod tests {
         // In this test we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
         let mut k8s_client = MockSyncK8sClient::default();
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         k8s_client
             .expect_set_configmap_key()
@@ -155,7 +155,7 @@ pub mod tests {
                     CM_NAME_OPAMP_DATA_PREFIX,
                 )),
                 predicate::eq(TEST_NAMESPACE),
-                predicate::eq(Labels::new(&AgentID::new(AGENT_NAME).unwrap()).get()),
+                predicate::eq(Labels::new(&AgentID::try_from(AGENT_NAME).unwrap()).get()),
                 predicate::eq(STORE_KEY_TEST),
                 predicate::eq(DATA_STORED),
             )
@@ -190,7 +190,7 @@ pub mod tests {
     fn test_get_input_parameters_dependencies() {
         // remote
         let mut k8s_client = MockSyncK8sClient::default();
-        let agent_id = &AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = &AgentID::try_from(AGENT_NAME).unwrap();
 
         k8s_client
             .expect_get_configmap_key()
@@ -216,7 +216,10 @@ pub mod tests {
             .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
         _ = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
-            .get_local_data::<DataToBeStored>(&AgentID::new(AGENT_NAME).unwrap(), STORE_KEY_TEST);
+            .get_local_data::<DataToBeStored>(
+                &AgentID::try_from(AGENT_NAME).unwrap(),
+                STORE_KEY_TEST,
+            );
     }
 
     #[test]
@@ -231,7 +234,7 @@ pub mod tests {
 
         k8s_store
             .get::<DataToBeStored>(
-                &AgentID::new(AGENT_NAME).unwrap(),
+                &AgentID::try_from(AGENT_NAME).unwrap(),
                 PREFIX_TEST,
                 STORE_KEY_TEST,
             )
@@ -250,7 +253,7 @@ pub mod tests {
 
         let data = k8s_store
             .get::<DataToBeStored>(
-                &AgentID::new(AGENT_NAME).unwrap(),
+                &AgentID::try_from(AGENT_NAME).unwrap(),
                 PREFIX_TEST,
                 STORE_KEY_TEST,
             )
@@ -269,7 +272,7 @@ pub mod tests {
 
         let data = k8s_store
             .get::<DataToBeStored>(
-                &AgentID::new(AGENT_NAME).unwrap(),
+                &AgentID::try_from(AGENT_NAME).unwrap(),
                 PREFIX_TEST,
                 STORE_KEY_TEST,
             )
@@ -292,7 +295,7 @@ pub mod tests {
         let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let id = k8s_store.set_opamp_data(
-            &AgentID::new(AGENT_NAME).unwrap(),
+            &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
@@ -308,7 +311,7 @@ pub mod tests {
             .returning(move |_, _, _, _, _| Ok(()));
         let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
         let id = k8s_store.set_opamp_data(
-            &AgentID::new(AGENT_NAME).unwrap(),
+            &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
         );
@@ -317,7 +320,7 @@ pub mod tests {
 
     #[test]
     fn test_build_cm_name() {
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         assert_eq!(
             "prefix-agent1",
             K8sStore::build_cm_name(&agent_id, PREFIX_TEST)

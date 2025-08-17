@@ -119,8 +119,8 @@ mod tests {
 
     #[test]
     fn test_migrate() {
-        let agent_a = AgentID::new("infra-agent-a").unwrap();
-        let agent_b = AgentID::new("infra-agent-b").unwrap();
+        let agent_a = AgentID::try_from("infra-agent-a").unwrap();
+        let agent_b = AgentID::try_from("infra-agent-b").unwrap();
         let agents: HashMap<AgentID, SubAgentConfig> = HashMap::from([
             (
                 agent_a.clone(),

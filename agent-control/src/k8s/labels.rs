@@ -25,9 +25,10 @@ impl Labels {
     /// Adds the agent id label to the set.
     pub fn new(agent_id: &AgentID) -> Self {
         let mut labels = Self::default();
-        labels
-            .0
-            .insert(AGENT_ID_LABEL_KEY.to_string(), agent_id.get());
+        labels.0.insert(
+            AGENT_ID_LABEL_KEY.to_string(),
+            agent_id.as_str().to_string(),
+        );
         labels
     }
 
@@ -71,7 +72,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_selector() {
-        let agent_id = &AgentID::new("test").unwrap();
+        let agent_id = &AgentID::try_from("test").unwrap();
         let labels = Labels::new(agent_id);
         assert_eq!(
             format!("{MANAGED_BY_KEY}=={MANAGED_BY_VAL},{AGENT_ID_LABEL_KEY}=={agent_id}"),
@@ -81,7 +82,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_append_extra_labels() {
-        let agent_id = &AgentID::new("test").unwrap();
+        let agent_id = &AgentID::try_from("test").unwrap();
         let mut labels = Labels::new(agent_id);
         labels.append_extra_labels(&BTreeMap::from([
             (

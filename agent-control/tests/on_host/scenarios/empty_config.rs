@@ -75,7 +75,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         // Then the retrieved effective config should match the expected remote config
@@ -141,7 +141,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     // The supervisor will not start but the agent will be able to receive remote configurations
     retry(60, Duration::from_secs(1), || {

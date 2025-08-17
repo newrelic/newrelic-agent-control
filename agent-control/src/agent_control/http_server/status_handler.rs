@@ -38,7 +38,7 @@ mod tests {
     async fn test_handler_without_optional_fields() {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
+            AgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
@@ -86,7 +86,7 @@ mod tests {
     async fn test_handler() {
         // Given there is a healthy Sub Agent registered
         let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
+            AgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());

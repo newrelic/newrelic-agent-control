@@ -648,7 +648,7 @@ k8s:
     #[test]
     fn test_sub_agent_removal_diff_with_removal() {
         let old_sub_agents = helper_get_agent_list();
-        let agent_id_to_remove = AgentID::new("infra-agent").unwrap();
+        let agent_id_to_remove = AgentID::try_from("infra-agent").unwrap();
         let mut new_sub_agents = old_sub_agents.clone();
         new_sub_agents.remove(&agent_id_to_remove);
 
@@ -668,14 +668,14 @@ k8s:
 
         assert_eq!(diff.len(), 2);
         assert!(diff.contains(&(
-            &AgentID::new("infra-agent").unwrap(),
+            &AgentID::try_from("infra-agent").unwrap(),
             &SubAgentConfig {
                 agent_type:
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
             },
         )));
         assert!(diff.contains(&(
-            &AgentID::new("nrdot").unwrap(),
+            &AgentID::try_from("nrdot").unwrap(),
             &SubAgentConfig {
                 agent_type:
                     AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap(),
@@ -699,7 +699,7 @@ k8s:
     ////////////////////////////////////////////////////////////////////////////////////
 
     pub fn infra_identity() -> AgentIdentity {
-        let id = AgentID::new("infra-agent").unwrap();
+        let id = AgentID::try_from("infra-agent").unwrap();
         let agent_type_id =
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap();
         AgentIdentity { id, agent_type_id }
@@ -716,7 +716,7 @@ k8s:
     }
 
     pub fn nrdot_identity() -> AgentIdentity {
-        let id = AgentID::new("nrdot").unwrap();
+        let id = AgentID::try_from("nrdot").unwrap();
         let agent_type_id =
             AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap();
         AgentIdentity { id, agent_type_id }

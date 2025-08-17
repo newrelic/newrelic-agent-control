@@ -226,7 +226,7 @@ mod tests {
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
-                        AgentID::new("some-agent-id").unwrap(),
+                        AgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
@@ -240,9 +240,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
-                        AgentID::new("some-agent-id").unwrap(),
+                        AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::new("some-agent-id").unwrap(),
+                            AgentID::try_from("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(String::default(), true, None, 0, 0),
@@ -255,7 +255,7 @@ mod tests {
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
-                        AgentID::new("some-agent-id").unwrap(),
+                        AgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(
@@ -274,9 +274,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
-                        AgentID::new("some-agent-id").unwrap(),
+                        AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::new("some-agent-id").unwrap(),
+                            AgentID::try_from("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(
@@ -295,7 +295,7 @@ mod tests {
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
                     AgentIdentity::from((
-                        AgentID::new("some-agent-id").unwrap(),
+                        AgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(
@@ -310,9 +310,9 @@ mod tests {
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
-                            AgentID::new("some-agent-id").unwrap(),
+                            AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-agent-id").unwrap(),
+                                AgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -325,9 +325,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::new("some-other-id").unwrap(),
+                            AgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-other-id").unwrap(),
+                                AgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -346,9 +346,9 @@ mod tests {
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
-                            AgentID::new("some-agent-id").unwrap(),
+                            AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-agent-id").unwrap(),
+                                AgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -361,9 +361,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::new("some-other-id").unwrap(),
+                            AgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-other-id").unwrap(),
+                                AgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -380,16 +380,18 @@ mod tests {
             },
             Test {
                 _name: "Sub Agent gets removed",
-                agent_control_event: Some(SubAgentRemoved(AgentID::new("some-agent-id").unwrap())),
+                agent_control_event: Some(SubAgentRemoved(
+                    AgentID::try_from("some-agent-id").unwrap(),
+                )),
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from(HashMap::from([
                         (
-                            AgentID::new("some-agent-id").unwrap(),
+                            AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-agent-id").unwrap(),
+                                AgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -402,9 +404,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::new("some-other-id").unwrap(),
+                            AgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::new("some-other-id").unwrap(),
+                                AgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -422,9 +424,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random,
                     sub_agents: SubAgentsStatus::from(HashMap::from([(
-                        AgentID::new("some-other-id").unwrap(),
+                        AgentID::try_from("some-other-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::new("some-other-id").unwrap(),
+                            AgentID::try_from("some-other-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(String::default(), true, Some(String::default()), 0, 0),
@@ -501,7 +503,7 @@ mod tests {
         let last_error = healthy
             .then_some(Words(3..5).fake::<Vec<String>>().join(" "))
             .or(Some(String::default()));
-        let agent_id = AgentID::new(Word().fake::<&str>()).unwrap();
+        let agent_id = AgentID::try_from(Word().fake::<&str>()).unwrap();
         let agent_type_fqn = format!(
             "{}/{}:{}",
             Word().fake::<&str>(),

@@ -30,7 +30,11 @@ impl NewrelicInstrumentationVersionChecker {
 
     fn get_instrumentation(&self) -> Result<Arc<DynamicObject>, VersionCheckError> {
         self.k8s_client
-            .get_dynamic_object(&self.type_meta, self.namespace.as_str(), &self.agent_id)
+            .get_dynamic_object(
+                &self.type_meta,
+                self.agent_id.as_str(),
+                self.namespace.as_str(),
+            )
             .map_err(|err| {
                 VersionCheckError::Generic(format!(
                     "Error fetching Instrumentation for agent_id '{}': {}",

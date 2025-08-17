@@ -67,10 +67,9 @@ pub(crate) mod tests {
 
     impl AgentControlDynamicConfigRepository for InMemoryAgentControlDynamicConfigRepository {
         fn load(&self) -> Result<AgentControlDynamicConfig, AgentControlConfigError> {
-            let config = self.values_repository.load_remote_fallback_local(
-                &AgentID::new_agent_control_id(),
-                &Capabilities::default(),
-            )?;
+            let config = self
+                .values_repository
+                .load_remote_fallback_local(&AgentID::AgentControl, &Capabilities::default())?;
             Ok(config
                 .unwrap_or_default()
                 .get_yaml_config()
@@ -81,25 +80,25 @@ pub(crate) mod tests {
         fn store(&self, config: &RemoteConfig) -> Result<(), AgentControlConfigError> {
             Ok(self
                 .values_repository
-                .store_remote(&AgentID::new_agent_control_id(), config)?)
+                .store_remote(&AgentID::AgentControl, config)?)
         }
 
         fn update_state(&self, state: ConfigState) -> Result<(), AgentControlConfigError> {
             Ok(self
                 .values_repository
-                .update_state(&AgentID::new_agent_control_id(), state)?)
+                .update_state(&AgentID::AgentControl, state)?)
         }
 
         fn get_remote_config(&self) -> Result<Option<RemoteConfig>, AgentControlConfigError> {
             Ok(self
                 .values_repository
-                .get_remote_config(&AgentID::new_agent_control_id())?)
+                .get_remote_config(&AgentID::AgentControl)?)
         }
 
         fn delete(&self) -> Result<(), AgentControlConfigError> {
             Ok(self
                 .values_repository
-                .delete_remote(&AgentID::new_agent_control_id())?)
+                .delete_remote(&AgentID::AgentControl)?)
         }
     }
 }

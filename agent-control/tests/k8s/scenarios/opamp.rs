@@ -49,11 +49,11 @@ fn k8s_opamp_remove_subagent() {
     );
 
     let ac_instance_id =
-        instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::new_agent_control_id());
+        instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::AgentControl);
     let sub_agent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &ac_ns,
-        &AgentID::new("hello-world").unwrap(),
+        &AgentID::try_from("hello-world").unwrap(),
     );
 
     retry(60, Duration::from_secs(1), || {
@@ -154,7 +154,7 @@ fn k8s_opamp_add_subagent() {
     );
 
     let ac_instance_id =
-        instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::new_agent_control_id());
+        instance_id::get_instance_id(k8s.client.clone(), &ac_ns, &AgentID::AgentControl);
 
     server.set_config_response(
         ac_instance_id.clone(),
@@ -168,7 +168,7 @@ agents:
     let sub_agent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &ac_ns,
-        &AgentID::new("hello-world").unwrap(),
+        &AgentID::try_from("hello-world").unwrap(),
     );
 
     retry(60, Duration::from_secs(1), || {
@@ -217,7 +217,7 @@ fn k8s_opamp_modify_subagent_config() {
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("hello-world").unwrap(),
+        &AgentID::try_from("hello-world").unwrap(),
     );
 
     retry(60, Duration::from_secs(1), || {

@@ -131,7 +131,7 @@ pub mod tests {
     fn test_not_found() {
         let mut mock = MockInstanceIDStorer::new();
 
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         mock.expect_get()
             .once()
             .with(predicate::eq(agent_id.clone()))
@@ -141,7 +141,7 @@ pub mod tests {
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
-        let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
+        let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
     }
@@ -150,13 +150,13 @@ pub mod tests {
     fn test_error_get() {
         let mut mock = MockInstanceIDStorer::new();
 
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         mock.expect_get()
             .once()
             .with(predicate::eq(agent_id.clone()))
             .returning(|_| Err(MockStorerError));
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
-        let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
+        let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
     }
@@ -165,7 +165,7 @@ pub mod tests {
     fn test_error_set() {
         let mut mock = MockInstanceIDStorer::new();
 
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         mock.expect_get()
             .once()
             .with(predicate::eq(agent_id.clone()))
@@ -176,7 +176,7 @@ pub mod tests {
             .returning(|_, _| Err(MockStorerError));
 
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
-        let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
+        let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
     }
@@ -185,7 +185,7 @@ pub mod tests {
     fn test_instance_id_already_present() {
         let mut mock = MockInstanceIDStorer::new();
         let instance_id = InstanceID::create();
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
         mock.expect_get()
@@ -198,7 +198,7 @@ pub mod tests {
                 }))
             });
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
-        let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
+        let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
         assert_eq!(instance_id, res.unwrap());
@@ -208,7 +208,7 @@ pub mod tests {
     fn test_instance_id_present_but_different_identifiers() {
         let mut mock = MockInstanceIDStorer::new();
         let instance_id = InstanceID::create();
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
         mock.expect_get()
@@ -225,7 +225,7 @@ pub mod tests {
             .with(predicate::eq(agent_id.clone()), predicate::always())
             .returning(|_, _| Ok(()));
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
-        let res = getter.get(&AgentID::new(AGENT_NAME).unwrap());
+        let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
         assert_ne!(instance_id, res.unwrap());
@@ -235,7 +235,7 @@ pub mod tests {
     fn test_thread_safety() {
         let mut mock = MockInstanceIDStorer::new();
 
-        let agent_id = AgentID::new(AGENT_NAME).unwrap();
+        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         // Data is read twice: first time it returns nothing, second time it returns data
         mock.expect_get()
             .once()
@@ -264,11 +264,11 @@ pub mod tests {
         let getter2 = getter1.clone();
 
         let t1 = thread::spawn(move || {
-            let res = getter1.get(&AgentID::new(AGENT_NAME).unwrap());
+            let res = getter1.get(&AgentID::try_from(AGENT_NAME).unwrap());
             assert!(res.is_ok());
         });
         let t2 = thread::spawn(move || {
-            let res = getter2.get(&AgentID::new(AGENT_NAME).unwrap());
+            let res = getter2.get(&AgentID::try_from(AGENT_NAME).unwrap());
             assert!(res.is_ok());
         });
         t1.join().unwrap();

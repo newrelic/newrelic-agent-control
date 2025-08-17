@@ -576,7 +576,7 @@ fn iterate_test_cases(environment: &Environment) {
             continue;
         };
 
-        let agent_id = AgentID::new("random-agent-id").unwrap();
+        let agent_id = AgentID::try_from("random-agent-id").unwrap();
 
         // Create the renderer with specifics for the environment
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {

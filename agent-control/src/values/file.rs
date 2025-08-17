@@ -79,7 +79,7 @@ where
     F: FileWriter + FileReader,
 {
     pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        if agent_id.is_agent_control_id() {
+        if agent_id == &AgentID::AgentControl {
             return self.local_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
         }
         concatenate_sub_agent_dir_path(&self.local_conf_path, agent_id)
@@ -88,7 +88,7 @@ where
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
         // This file (soon files) will often be removed, but its parent directory contains files
         // that should persist across these deletions.
-        if agent_id.is_agent_control_id() {
+        if agent_id == &AgentID::AgentControl {
             return self.remote_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
         }
         concatenate_sub_agent_dir_path(&self.remote_conf_path, agent_id)
@@ -416,7 +416,7 @@ pub mod tests {
 
     #[fixture]
     fn agent_id() -> AgentID {
-        AgentID::new("some-agent-id").unwrap()
+        AgentID::try_from("some-agent-id").unwrap()
     }
 
     #[rstest]

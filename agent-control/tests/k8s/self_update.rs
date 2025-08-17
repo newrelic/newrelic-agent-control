@@ -365,7 +365,7 @@ fn bootstrap_ac(
     // the old pod die.
     sleep(Duration::from_secs(POLL_INTERVAL * 4));
 
-    instance_id::get_instance_id(client.clone(), namespace, &AgentID::new_agent_control_id())
+    instance_id::get_instance_id(client.clone(), namespace, &AgentID::AgentControl)
 }
 
 fn install_ac_with_cli(namespace: &str, chart_version: &str) {

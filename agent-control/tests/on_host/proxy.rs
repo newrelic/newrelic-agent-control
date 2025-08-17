@@ -67,7 +67,7 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
 
     retry(60, Duration::from_secs(1), || {
         let expected_config = "agents: {}\n";

@@ -57,7 +57,7 @@ impl K8sGarbageCollector {
         agent_type_id: &AgentTypeID,
     ) -> Result<(), K8sGarbageCollectorError> {
         // Do not collect anything if the agent id is the one for Agent Control
-        if id.is_agent_control_id() {
+        if id == &AgentID::AgentControl {
             return Err(K8sGarbageCollectorError::AgentControlId);
         }
 
@@ -136,10 +136,11 @@ impl K8sGarbageCollector {
             return Ok(false);
         }
 
-        let agent_id_from_labels =
-            labels::get_agent_id(labels).ok_or(K8sGarbageCollectorError::MissingLabels)?;
+        let agent_id_from_labels = labels::get_agent_id(labels)
+            .ok_or(K8sGarbageCollectorError::MissingLabels)?
+            .as_str();
 
-        let agent_id_from_labels = match AgentID::new(agent_id_from_labels) {
+        let agent_id_from_labels = match AgentID::try_from(agent_id_from_labels) {
             Ok(id) => id,
             // We must not delete anything with reserved AgentIDs (currently only Agent Control)
             Err(AgentIDError::Reserved(_)) => return Ok(false),
@@ -282,7 +283,7 @@ mod tests {
             namespace: TEST_NAMESPACE.to_string(),
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
-        let ac_id = &AgentID::new_agent_control_id();
+        let ac_id = &AgentID::AgentControl;
         let ac_type_id =
             &AgentTypeID::try_from("newrelic/com.newrelic.agent-control:0.0.1").unwrap();
 
@@ -326,7 +327,7 @@ mod tests {
             namespace: TEST_NAMESPACE.to_string(),
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
         };
-        let ac_id = &AgentID::new("foo-agent").unwrap();
+        let ac_id = &AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = &AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
 
         assert!(garbage_collector.collect(ac_id, agent_type_id).is_ok());

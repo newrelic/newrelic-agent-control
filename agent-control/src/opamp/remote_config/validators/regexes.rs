@@ -645,7 +645,7 @@ config: |
     // Helpers
     ///////////////////////////////////////////////////////
     fn test_id() -> AgentID {
-        AgentID::new("test").unwrap()
+        AgentID::try_from("test").unwrap()
     }
 
     fn infra_agent() -> AgentIdentity {

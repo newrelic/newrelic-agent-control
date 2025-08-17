@@ -94,11 +94,7 @@ fn k8s_remote_flux_update() {
         tmp_dir.path(),
     );
 
-    let ac_instance_id = get_instance_id(
-        k8s.client.clone(),
-        &namespace,
-        &AgentID::new_agent_control_id(),
-    );
+    let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
     opamp_server.set_config_response(
         ac_instance_id.clone(),

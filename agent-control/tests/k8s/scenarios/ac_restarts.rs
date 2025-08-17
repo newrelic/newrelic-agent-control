@@ -50,7 +50,7 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("hello-world").unwrap(),
+        &AgentID::try_from("hello-world").unwrap(),
     );
 
     // Update the agent configuration via OpAMP
