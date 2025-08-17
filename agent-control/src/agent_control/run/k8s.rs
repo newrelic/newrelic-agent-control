@@ -1,5 +1,5 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfigError, K8sConfig};
+use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -15,6 +15,8 @@ use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::event::AgentControlInternalEvent;
 use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
@@ -30,6 +32,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::NotStartedThreadContext;
+use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
@@ -212,13 +215,19 @@ impl AgentControlRunner {
         );
 
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
-        // let _cd_version_checker = spawn_version_checker(
-        //     agent_id,
-        //     version_checker,
-        //     version_event_publisher,
-        //     version_event_generator,
-        //     interval,
-        // );
+
+        let _cd_version_checker = spawn_version_checker(
+            agent_id,
+            HelmReleaseVersionChecker::new(
+                k8s_client.clone(),
+                helmrelease_v2_type_meta(),
+                self.k8s_config.namespace.clone(),
+                self.k8s_config.cd_release_name, // FIXME
+            ),
+            agent_control_internal_publisher.clone(),
+            AgentControlInternalEvent::AgentControlCdVersionUpdated,
+            VersionCheckerInterval::default(),
+        );
 
         AgentControl::new(
             maybe_client,
