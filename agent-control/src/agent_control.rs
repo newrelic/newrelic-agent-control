@@ -27,6 +27,7 @@ use crate::sub_agent::{
 };
 use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
+use crate::version_checker::handler::on_version;
 use agent_id::AgentID;
 use config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference};
 use config_repository::repository::AgentControlDynamicConfigRepository;
@@ -325,7 +326,12 @@ where
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
                                 },
-                                AgentControlInternalEvent::AgentControlCdVersionUpdated(version) => todo!("DEVELOP VERSION CHECKER AND CALLBACK HERE"),
+                                AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
+                                    let _ = on_version(
+                                        cd_version,
+                                        self.opamp_client.as_ref()
+                                    )
+                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message"));},
                             }
                         },
                     }
