@@ -1,5 +1,8 @@
 name: Latest Flux e2e
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   schedule:

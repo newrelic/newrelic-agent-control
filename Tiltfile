@@ -179,7 +179,7 @@ helm_resource(
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
               [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
               ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
-  resource_deps=['build-binary', 'chart_resource']
+  resource_deps=['build-binary', chart_resource]
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
