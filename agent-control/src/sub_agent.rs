@@ -363,6 +363,7 @@ where
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
                                 let _ = on_version(
                                     agent_data,
+                                    &self.identity.id,
                                     self.maybe_opamp_client.as_ref(),
                                     )
                                     .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));

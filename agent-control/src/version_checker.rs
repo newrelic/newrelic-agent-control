@@ -22,23 +22,8 @@ pub trait VersionChecker {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AgentVersion {
-    version: String,
-    opamp_field: String,
-}
-
-impl AgentVersion {
-    pub fn new(version: String, opamp_field: String) -> Self {
-        Self {
-            version,
-            opamp_field,
-        }
-    }
-    pub fn version(&self) -> &str {
-        &self.version
-    }
-    pub fn opamp_field(&self) -> &str {
-        &self.opamp_field
-    }
+    pub version: String,
+    pub opamp_field: String,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -148,10 +133,10 @@ pub mod tests {
             .once()
             .in_sequence(&mut seq)
             .returning(move || {
-                Ok(AgentVersion::new(
-                    "1.0.0".to_string(),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                ))
+                Ok(AgentVersion {
+                    version: "1.0.0".to_string(),
+                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                })
             });
 
         let started_thread_context = spawn_version_checker(

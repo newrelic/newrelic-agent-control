@@ -32,26 +32,33 @@ impl HelmReleaseVersionChecker {
             agent_id: agent_id.clone(),
         }
     }
+
     fn extract_version(
         &self,
         data: &Map<String, Value>,
     ) -> Result<AgentVersion, VersionCheckError> {
         let extractors = [from_version, from_last_deployed, from_history];
 
-        for extractor in &extractors {
-            if let Some(version) = extractor(data) {
-                if !version.is_empty() {
-                    return Ok(AgentVersion::new(
-                        version,
-                        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                    ));
-                }
-            }
-        }
+        extractors
+            .iter()
+            // Look for the first extractor that recovers something that is not an empty string
+            .find_map(|extractor| extractor(data).filter(|v| !v.is_empty()))
+            // Construct the AgentVersion structure, with the field dependent on the Agent ID.
+            .map(|v| AgentVersion {
+                version: v,
+                opamp_field: self.opamp_field(),
+            })
+            .ok_or(VersionCheckError::Generic(
+                "No valid version found in HelmRelease".to_string(),
+            ))
+    }
 
-        Err(VersionCheckError::Generic(
-            "No valid version found in HelmRelease".to_string(),
-        ))
+    fn opamp_field(&self) -> String {
+        match self.agent_id {
+            AgentID::AgentControl | AgentID::SubAgent(_) => OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+            AgentID::K8sCD => "k8s_cd.chart.version", // TODO CHANGEME after discussion with FC
+        }
+        .to_string()
     }
 }
 
@@ -83,7 +90,7 @@ impl VersionChecker for HelmReleaseVersionChecker {
     }
 }
 
-//Attempt to get version from chart
+// Attempt to get version from chart
 fn from_version(helm_data: &Map<String, Value>) -> Option<String> {
     let version = helm_data
         .get("spec")?
@@ -201,26 +208,26 @@ pub mod tests {
         let test_cases: Vec<TestCase> = vec![
             TestCase {
                 name: "Helm version is obtained from the chart version",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.12.12"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.12.12"),
+                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("1.12.12", "1.15.1"),
             },
             TestCase {
                 name: "Helm version is obtained from the last attempted revision",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.15.1"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.15.1"),
+                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("*", "1.15.1"),
             },
             TestCase {
                 name: "Helm version is obtained from the history",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.43.6"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.43.6"),
+                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("*", ""),
             },
             TestCase {

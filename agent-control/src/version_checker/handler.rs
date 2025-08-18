@@ -1,47 +1,56 @@
+use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::error::SubAgentError;
 use crate::version_checker::AgentVersion;
 use opamp_client::StartedClient;
-use opamp_client::opamp::proto::{AgentDescription, AnyValue, KeyValue, any_value};
+use opamp_client::opamp::proto::{AnyValue, KeyValue, any_value};
 
 /// This method request the AgentDescription from the current opamp client and, updates or add the
 /// field from agent version to be sent to opamp server
 pub fn on_version<C>(
     agent_data: AgentVersion,
+    agent_id: &AgentID,
     maybe_opamp_client: Option<&C>,
 ) -> Result<(), SubAgentError>
 where
     C: StartedClient,
 {
     if let Some(client) = maybe_opamp_client.as_ref() {
-        let agent_description = client.get_agent_description()?;
-        client.set_agent_description(add_or_change_chart_version_into_agent_description(
-            agent_description,
-            agent_data,
-        ))?;
+        let mut agent_description = client.get_agent_description()?;
+        match agent_id {
+            AgentID::AgentControl | AgentID::SubAgent(_) => {
+                agent_description.identifying_attributes =
+                    update_version_key_values(agent_description.identifying_attributes, agent_data);
+            }
+            AgentID::K8sCD => {
+                // TODO CHANGEME after discussion with FC
+                agent_description.non_identifying_attributes = update_version_key_values(
+                    agent_description.non_identifying_attributes,
+                    agent_data,
+                )
+            }
+        }
+        client.set_agent_description(agent_description)?;
     }
     Ok(())
 }
 
-fn add_or_change_chart_version_into_agent_description(
-    mut agent_description: AgentDescription,
+fn update_version_key_values(
+    mut key_values: Vec<KeyValue>,
     agent_data: AgentVersion,
-) -> AgentDescription {
-    let version_info = Some(AnyValue {
-        value: Some(any_value::Value::StringValue(
-            agent_data.version().to_string(),
-        )),
+) -> Vec<KeyValue> {
+    let version_value = Some(AnyValue {
+        value: Some(any_value::Value::StringValue(agent_data.version)),
     });
-    if let Some(attribute) = agent_description
-        .identifying_attributes
+    if let Some(attribute) = key_values
         .iter_mut()
-        .find(|attr| attr.key == agent_data.opamp_field())
+        .find(|attr| attr.key == agent_data.opamp_field)
     {
-        attribute.value = version_info;
+        attribute.value = version_value;
     } else {
-        agent_description.identifying_attributes.push(KeyValue {
-            key: agent_data.opamp_field().to_string(),
-            value: version_info,
+        key_values.push(KeyValue {
+            key: agent_data.opamp_field,
+            value: version_value,
         });
     }
-    agent_description
+    key_values
 }

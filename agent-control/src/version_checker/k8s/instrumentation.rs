@@ -69,8 +69,10 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
                 ))
             })?;
 
-        let agent_version =
-            AgentVersion::new(version, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string());
+        let agent_version = AgentVersion {
+            version,
+            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        };
 
         Ok(agent_version)
     }

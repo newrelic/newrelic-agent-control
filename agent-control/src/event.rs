@@ -56,7 +56,7 @@ impl SubAgentEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentControlInternalEvent {
     HealthUpdated(HealthWithStartTime),
-    AgentControlCdVersionUpdated(AgentVersion)
+    AgentControlCdVersionUpdated(AgentVersion),
 }
 
 /// Defines internal events for the SubAgent component.
