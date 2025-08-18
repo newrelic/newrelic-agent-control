@@ -60,6 +60,7 @@ agent-control-deployment:
     - name: shared-volume-ca
       persistentVolumeClaim:
         claimName: mitm-ca-pvc
+
   proxy:
     url: https://mitmproxy-service:8080
   config:
@@ -86,11 +87,3 @@ agent-control-deployment:
       # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
   systemIdentity:
     organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
-    extraVolumeMounts:
-      - mountPath: /etc/ssl/certs/ca-certificates.crt
-        subPath: ca-certificates.crt
-        name: shared-volume-ca
-    extraVolumes:
-      - name: shared-volume-ca
-        persistentVolumeClaim:
-          claimName: mitm-ca-pvc
