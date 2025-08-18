@@ -1,39 +1,38 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-installationJob:
-  logLevel: debug
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
-  config:
-    fleet_control:
-      enabled: false
-    log:
-      level: debug
-    override:
-      k8s:
-        cr_type_meta:
-          - apiVersion: "helm.toolkit.fluxcd.io/v2"
-            kind: "HelmRelease"
-          - apiVersion: "source.toolkit.fluxcd.io/v1"
-            kind: "HelmRepository"
-          - apiVersion: "source.toolkit.fluxcd.io/v1"
-            kind: "GitRepository"
-          - apiVersion: "v1"
-            kind: "Secret"
-          - apiVersion: "newrelic.com/v1beta1"
-            kind: "Instrumentation"
-    agents:
+agentControlDeployment:
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
+    config:
+      fleet_control:
+        enabled: false
+      log:
+        level: debug
+      override:
+        k8s:
+          cr_type_meta:
+            - apiVersion: "helm.toolkit.fluxcd.io/v2"
+              kind: "HelmRelease"
+            - apiVersion: "source.toolkit.fluxcd.io/v1"
+              kind: "HelmRepository"
+            - apiVersion: "source.toolkit.fluxcd.io/v1"
+              kind: "GitRepository"
+            - apiVersion: "v1"
+              kind: "Secret"
+            - apiVersion: "newrelic.com/v1beta1"
+              kind: "Instrumentation"
+      agents:
+        logs:
+          agent_type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
+    agentsConfig:
       logs:
-        agent_type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
-  agentsConfig:
-    logs:
-      chart_version: "*" # Use latest
+        chart_version: "*" # Use latest
 
-  extraVolumeMounts:
-    - name: dynamic
-      mountPath: /etc/newrelic-agent-control/dynamic-agent-types
-      readOnly: true
-  extraVolumes:
-    - name: dynamic
-      configMap:
-        name: dynamic-agent
+    extraVolumeMounts:
+      - name: dynamic
+        mountPath: /etc/newrelic-agent-control/dynamic-agent-types
+        readOnly: true
+    extraVolumes:
+      - name: dynamic
+        configMap:
+          name: dynamic-agent
