@@ -60,7 +60,11 @@ impl VersionChecker for HelmReleaseVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(&self.type_meta, &self.agent_id, self.namespace.as_str())
+            .get_dynamic_object(
+                &self.type_meta,
+                self.agent_id.as_str(),
+                self.namespace.as_str(),
+            )
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
@@ -171,7 +175,7 @@ pub mod tests {
                     Arc::new(k8s_client),
                     helmrelease_v2_type_meta(),
                     "fake-namespace".to_string(),
-                    &AgentID::new("default-test").unwrap(),
+                    &AgentID::try_from("default-test").unwrap(),
                 );
                 let result = check.check_agent_version();
                 match self.expected {

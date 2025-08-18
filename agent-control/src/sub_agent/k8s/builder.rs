@@ -219,7 +219,7 @@ pub mod tests {
     #[test]
     fn k8s_agent_build_success() {
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -254,7 +254,7 @@ pub mod tests {
     #[test]
     fn k8s_agent_error_building_opamp() {
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -293,7 +293,7 @@ pub mod tests {
     #[test]
     fn supervisor_build_ok() {
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -317,7 +317,7 @@ pub mod tests {
     #[test]
     fn supervisor_build_fails_for_invalid_k8s_object_kind() {
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -414,7 +414,7 @@ pub mod tests {
         // instance id getter mock
         let mut instance_id_getter = MockInstanceIDGetter::new();
         instance_id_getter.should_get(&agent_identity.id, instance_id.clone());
-        instance_id_getter.should_get(&AgentID::new_agent_control_id(), instance_id);
+        instance_id_getter.should_get(&AgentID::AgentControl, instance_id);
 
         (opamp_builder, instance_id_getter)
     }

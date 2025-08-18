@@ -51,7 +51,7 @@ where
     type Loader = EffectiveConfigLoaderImpl<Y>;
 
     fn build(&self, agent_id: AgentID) -> Self::Loader {
-        if agent_id.is_agent_control_id() {
+        if agent_id == AgentID::AgentControl {
             return EffectiveConfigLoaderImpl::AgentControl(
                 AgentControlEffectiveConfigLoader::new(self.yaml_config_repository.clone()),
             );
@@ -114,12 +114,12 @@ pub mod tests {
         let builder =
             DefaultEffectiveConfigLoaderBuilder::new(Arc::new(MockConfigRepository::default()));
 
-        match builder.build(AgentID::new_agent_control_id()) {
+        match builder.build(AgentID::AgentControl) {
             EffectiveConfigLoaderImpl::AgentControl(_) => {}
             _ => panic!("Expected AgentControl loader"),
         }
 
-        match builder.build(AgentID::new("test").unwrap()) {
+        match builder.build(AgentID::try_from("test").unwrap()) {
             EffectiveConfigLoaderImpl::SubAgent(_) => {}
             _ => panic!("Expected SubAgent loader"),
         }

@@ -78,7 +78,7 @@ where
         Self {
             config_builder,
             values_repository,
-            agent_control_id: AgentID::new_agent_control_id(),
+            agent_control_id: AgentID::AgentControl,
             agent_control_capabilities: default_capabilities(),
         }
     }
@@ -190,7 +190,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .store_local(&AgentID::AgentControl, &local_config)
             .unwrap();
 
         let store = AgentControlConfigStore::new(Arc::new(config_repository));
@@ -216,7 +216,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .store_local(&AgentID::AgentControl, &local_config)
             .unwrap();
         let remote_config: YAMLConfig = r#"
         agents:
@@ -228,10 +228,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_remote(
-                &AgentID::new_agent_control_id(),
-                &remote_config.clone().into(),
-            )
+            .store_remote(&AgentID::AgentControl, &remote_config.clone().into())
             .unwrap();
 
         let store = AgentControlConfigStore::new(Arc::new(config_repository));
@@ -240,7 +237,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::new("rolldice").unwrap(),
+                    AgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
@@ -267,7 +264,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .store_local(&AgentID::AgentControl, &local_config)
             .unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
@@ -281,7 +278,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::new("rolldice").unwrap(),
+                    AgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
@@ -312,7 +309,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .store_local(&AgentID::AgentControl, &local_config)
             .unwrap();
 
         // We set the environment variable with the `__` separator which will create the nested
@@ -326,7 +323,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::new("overrideme").unwrap(),
+                    AgentID::try_from("overrideme").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/from.env:0.0.2").unwrap(),
                     },
@@ -356,7 +353,7 @@ pub(crate) mod tests {
         .unwrap();
 
         config_repository
-            .store_local(&AgentID::new_agent_control_id(), &local_config)
+            .store_local(&AgentID::AgentControl, &local_config)
             .unwrap();
 
         let store = AgentControlConfigStore::new(Arc::new(config_repository));

@@ -157,7 +157,7 @@ where
             (self.health_checker_builder)(self.start_time).map(|health_checker| {
                 debug!("Starting Agent Control health-checker");
                 spawn_health_checker(
-                    AgentID::new_agent_control_id(),
+                    AgentID::AgentControl,
                     health_checker,
                     self.agent_control_internal_publisher.clone(),
                     self.initial_config.health_check.interval,
@@ -668,7 +668,7 @@ agents:
             let config = self
                 .dyn_config_store
                 .values_repository
-                .get_remote_config(&AgentID::new_agent_control_id())
+                .get_remote_config(&AgentID::AgentControl)
                 .expect("Error getting the remote config for Agent control")
                 .expect("No remote config found for Agent Control");
             f(config)
@@ -683,7 +683,7 @@ agents:
         fn build_ac_remote_config(&self, s: &str) -> OpampRemoteConfig {
             let hash = Hash::new(s);
             OpampRemoteConfig::new(
-                AgentID::new_agent_control_id(),
+                AgentID::AgentControl,
                 hash,
                 ConfigState::Applying,
                 Some(ConfigurationMap::new(HashMap::from([(
@@ -748,7 +748,7 @@ agents:
             values
                 .into_iter()
                 .map(|(id, at)| {
-                    let agent_id = AgentID::new(id).unwrap();
+                    let agent_id = AgentID::try_from(id).unwrap();
                     let agent_type_id = AgentTypeID::try_from(at).unwrap();
                     AgentIdentity {
                         id: agent_id,
@@ -832,7 +832,7 @@ agents:
             // store as local
             self.sa_dynamic_config_store
                 .values_repository
-                .store_local(&AgentID::new_agent_control_id(), &as_yaml)
+                .store_local(&AgentID::AgentControl, &as_yaml)
                 .unwrap();
             // load the dynamic part
             let dyn_config = self.sa_dynamic_config_store.load().unwrap();

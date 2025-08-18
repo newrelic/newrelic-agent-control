@@ -46,11 +46,8 @@ fn k8s_opamp_foo_cr_subagent() {
         tmp_dir.path(),
     );
 
-    let instance_id = instance_id::get_instance_id(
-        k8s.client.clone(),
-        &namespace,
-        &AgentID::new_agent_control_id(),
-    );
+    let instance_id =
+        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
     server.set_config_response(
         instance_id.clone(),
@@ -65,7 +62,7 @@ agents:
     let subagent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("foo-agent").unwrap(),
+        &AgentID::try_from("foo-agent").unwrap(),
     );
     server.set_config_response(subagent_instance_id, "data: some-data\n");
 
@@ -131,11 +128,8 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
     );
     wait_until_agent_control_with_opamp_is_started(k8s.client.clone(), namespace.as_str());
 
-    let instance_id = instance_id::get_instance_id(
-        k8s.client.clone(),
-        &namespace,
-        &AgentID::new_agent_control_id(),
-    );
+    let instance_id =
+        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
     // Set AC remote config
     server.set_config_response(
@@ -161,7 +155,7 @@ agents:
     let subagent_instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("bar-agent").unwrap(),
+        &AgentID::try_from("bar-agent").unwrap(),
     );
     server.set_config_response(subagent_instance_id, "data: some-data\n");
 

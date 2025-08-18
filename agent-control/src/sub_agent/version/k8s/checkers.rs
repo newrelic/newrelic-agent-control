@@ -123,7 +123,7 @@ mod tests {
                 let k8s_objects = Arc::new(self.k8s_objects);
                 let result = K8sAgentVersionChecker::checked_new(
                     Arc::new(MockSyncK8sClient::new()),
-                    &AgentID::new("some-agent-id").unwrap(),
+                    &AgentID::try_from("some-agent-id").unwrap(),
                     k8s_objects,
                 );
                 let check = self.check;

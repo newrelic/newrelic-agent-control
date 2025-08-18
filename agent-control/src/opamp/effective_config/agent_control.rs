@@ -31,7 +31,7 @@ where
     pub fn new(yaml_config_repository: Arc<Y>) -> Self {
         Self {
             yaml_config_repository,
-            agent_id: AgentID::new_agent_control_id(),
+            agent_id: AgentID::AgentControl,
             agent_control_capabilities: default_capabilities(),
         }
     }
@@ -149,7 +149,7 @@ mod tests {
         }
         impl TestCase {
             fn run(self) {
-                let agent_id = AgentID::new_agent_control_id();
+                let agent_id = AgentID::AgentControl;
                 let capabilities = default_capabilities();
 
                 let yaml_config = YAMLConfig::try_from(String::from(self.yaml_config)).unwrap();
@@ -172,14 +172,14 @@ mod tests {
                     .once()
                     .returning(move |agent_id, c| {
                         assert_eq!(c, &capabilities);
-                        assert!(agent_id.is_agent_control_id());
+                        assert!(agent_id == &AgentID::AgentControl);
                         Ok(None)
                     });
                 config_repository
                     .expect_load_local()
                     .once()
                     .returning(move |agent_id| {
-                        assert!(agent_id.is_agent_control_id());
+                        assert!(agent_id == &AgentID::AgentControl);
                         Ok(Some(Config::LocalConfig(
                             YAMLConfig::try_from(String::from(self.yaml_config))
                                 .unwrap()
@@ -257,7 +257,7 @@ agents:
 
     #[test]
     fn test_sa_effective_config_load_error() {
-        let agent_id = AgentID::new_agent_control_id();
+        let agent_id = AgentID::AgentControl;
         let capabilities = default_capabilities();
 
         // Prepare the mock repository to load from remote

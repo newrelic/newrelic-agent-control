@@ -107,7 +107,7 @@ mod tests {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stdout(AgentID::new_agent_control_id())];
+        let loggers = vec![Logger::Stdout(AgentID::AgentControl)];
 
         let (sender_thd, logger_thds) = spawn_logger_inner(read_mock, loggers);
         sender_thd.join().unwrap();
@@ -148,7 +148,7 @@ mod tests {
             .in_sequence(&mut seq)
             .returning(|_| Ok(0));
 
-        let loggers = vec![Logger::Stderr(AgentID::new_agent_control_id())];
+        let loggers = vec![Logger::Stderr(AgentID::AgentControl)];
 
         // I wait for the logging threads to finish and return to make assertions, otherwise
         // the test will assert before the threads are done and the logs are printed, failing.
@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn spawn_logger_with_file_logging() {
         // Create a writer and from it build a Logger::File(FileLogger)
-        let agent_id = AgentID::new("test-agent").unwrap();
+        let agent_id = AgentID::try_from("test-agent").unwrap();
         let mut temp_file = tempfile().unwrap();
         let file_logger = Logger::File(
             FileLogger::from(temp_file.try_clone().unwrap()),

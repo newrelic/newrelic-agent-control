@@ -382,18 +382,18 @@ pub mod tests {
             sub_agents: SubAgentsStatus(
                 [
                     (
-                        AgentID::new("agent-id-1").unwrap(),
+                        AgentID::try_from("agent-id-1").unwrap(),
                         SubAgentStatus {
-                            agent_id: AgentID::new("agent-id-1").unwrap(),
+                            agent_id: AgentID::try_from("agent-id-1").unwrap(),
                             agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                             agent_start_time_unix_nano: 0,
                             health_info: None,
                         },
                     ),
                     (
-                        AgentID::new("agent-id-2").unwrap(),
+                        AgentID::try_from("agent-id-2").unwrap(),
                         SubAgentStatus {
-                            agent_id: AgentID::new("agent-id-2").unwrap(),
+                            agent_id: AgentID::try_from("agent-id-2").unwrap(),
                             agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                             agent_start_time_unix_nano: 0,
                             health_info: Some(HealthInfo {
@@ -406,9 +406,9 @@ pub mod tests {
                         },
                     ),
                     (
-                        AgentID::new("agent-id-3").unwrap(),
+                        AgentID::try_from("agent-id-3").unwrap(),
                         SubAgentStatus {
-                            agent_id: AgentID::new("agent-id-3").unwrap(),
+                            agent_id: AgentID::try_from("agent-id-3").unwrap(),
                             agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                             agent_start_time_unix_nano: 0,
                             health_info: Some(HealthInfo {

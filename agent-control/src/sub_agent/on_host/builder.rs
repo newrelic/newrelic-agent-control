@@ -220,7 +220,7 @@ mod tests {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
-            AgentID::new("infra-agent").unwrap(),
+            AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -240,7 +240,7 @@ mod tests {
             &agent_identity.agent_type_id,
         );
 
-        let agent_control_id = AgentID::new_agent_control_id();
+        let agent_control_id = AgentID::AgentControl;
 
         let mut started_client = MockStartedOpAMPClient::new();
         // Report config status as applied
@@ -344,7 +344,7 @@ mod tests {
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
         let agent_identity = AgentIdentity::from((
-            AgentID::new("infra-agent").unwrap(),
+            AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
         let sub_agent_instance_id = InstanceID::create();
@@ -363,7 +363,7 @@ mod tests {
             state: ConfigState::Applying,
         };
 
-        let agent_control_id = AgentID::new_agent_control_id();
+        let agent_control_id = AgentID::AgentControl;
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
         instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());

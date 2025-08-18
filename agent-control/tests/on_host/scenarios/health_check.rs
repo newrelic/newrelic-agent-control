@@ -68,7 +68,7 @@ deployment:
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
-        get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
+        get_instance_id(&AgentID::try_from("test-agent").unwrap(), base_paths);
 
     create_file(
         r#"
@@ -183,7 +183,7 @@ deployment:
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
     let agent_control_instance_id =
-        get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths);
+        get_instance_id(&AgentID::try_from("test-agent").unwrap(), base_paths);
 
     retry(30, Duration::from_secs(1), || {
         if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {

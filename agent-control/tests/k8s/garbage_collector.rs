@@ -74,7 +74,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let test_ns = block_on(test.test_namespace());
 
     let agent_identity = AgentIdentity::from((
-        AgentID::new("sub-agent").unwrap(),
+        AgentID::try_from("sub-agent").unwrap(),
         AgentTypeID::try_from("ns/test:1.2.3").unwrap(),
     ));
 
@@ -260,11 +260,11 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let sa_id = &AgentID::new_agent_control_id();
+    let sa_id = &AgentID::AgentControl;
     block_on(create_foo_cr(
         test.client.to_owned(),
         test_ns.as_str(),
-        sa_id,
+        sa_id.as_str(),
         Some(Labels::new(sa_id).get()),
         None,
     ));
@@ -308,8 +308,8 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
     let test_ns = block_on(test.test_namespace());
     let fqn = &AgentTypeID::try_from("ns/test:1.2.3").unwrap();
     let fqn_old = &AgentTypeID::try_from("ns/test:0.0.1").unwrap();
-    let agent_id = &AgentID::new("agent-id").unwrap();
-    let agent_id_unknonw = &AgentID::new("agent-id-unknown").unwrap();
+    let agent_id = &AgentID::try_from("agent-id").unwrap();
+    let agent_id_unknonw = &AgentID::try_from("agent-id-unknown").unwrap();
 
     block_on(create_foo_cr(
         test.client.to_owned(),
@@ -323,7 +323,7 @@ fn k8s_garbage_collector_deletes_only_expected_resources() {
         test.client.to_owned(),
         test_ns.as_str(),
         "sa-id",
-        Some(Labels::new(&AgentID::new_agent_control_id()).get()),
+        Some(Labels::new(&AgentID::AgentControl).get()),
         None,
     ));
 

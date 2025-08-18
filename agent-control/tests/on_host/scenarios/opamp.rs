@@ -54,7 +54,7 @@ fn onhost_opamp_agent_control_local_effective_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
 
     retry(60, Duration::from_secs(1), || {
         let expected_config = "agents: {}\n";
@@ -107,8 +107,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id =
-        get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
 
     let agents = format!(
         r#"
@@ -151,8 +150,10 @@ agents:
         check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
     });
 
-    let subagent_instance_id =
-        get_instance_id(&AgentID::new("nr-sleep-agent").unwrap(), base_paths.clone());
+    let subagent_instance_id = get_instance_id(
+        &AgentID::try_from("nr-sleep-agent").unwrap(),
+        base_paths.clone(),
+    );
 
     // The sub-agent waits for the remote config to be set, it cannot be empty since it would default to local
     // which does not exist.
@@ -190,7 +191,7 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id = get_instance_id(&AgentID::new_agent_control_id(), base_paths);
+    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths);
 
     // When a new config with an agent is received from OpAMP
     opamp_server.set_config_response(
@@ -292,7 +293,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     };
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -371,7 +372,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -433,7 +434,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let sub_agent_instance_id = get_instance_id(&AgentID::new(agent_id).unwrap(), base_paths);
+    let sub_agent_instance_id = get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths);
 
     retry(60, Duration::from_secs(1), || {
         {
@@ -489,7 +490,7 @@ agents:
         opamp_server.cert_file_path(),
     );
 
-    let sub_agent_id = AgentID::new("no-executables").unwrap();
+    let sub_agent_id = AgentID::try_from("no-executables").unwrap();
     let local_values_config = "fake_variable: valid local config\n";
     create_sub_agent_values(
         sub_agent_id.to_string(),

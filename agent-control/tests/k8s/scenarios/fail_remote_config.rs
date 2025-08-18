@@ -39,7 +39,7 @@ fn k8s_fail_remote_config_missing_required_values() {
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("fake-agent").unwrap(),
+        &AgentID::try_from("fake-agent").unwrap(),
     );
 
     server.set_config_response(

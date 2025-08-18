@@ -136,7 +136,7 @@ pub(crate) mod tests {
         let mut http_client = MockHttpClient::default();
         let mut http_builder = MockHttpClientBuilder::new();
         let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::new_agent_control_id();
+        let agent_id = AgentID::AgentControl;
         let start_settings = StartSettings::default();
 
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();
@@ -173,7 +173,7 @@ pub(crate) mod tests {
     fn test_default_http_client_builder_error() {
         let mut http_builder = MockHttpClientBuilder::new();
         let (tx, _rx) = pub_sub();
-        let agent_id = AgentID::new_agent_control_id();
+        let agent_id = AgentID::AgentControl;
         let start_settings = StartSettings::default();
 
         let mut effective_config_loader_builder = MockEffectiveConfigLoaderBuilder::new();

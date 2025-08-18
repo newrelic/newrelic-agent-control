@@ -135,7 +135,7 @@ agents:
                 expected: AgentControlDynamicConfig {
                     agents: HashMap::from([
                         (
-                            AgentID::new("infra-agent-a").unwrap(),
+                            AgentID::try_from("infra-agent-a").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
@@ -144,7 +144,7 @@ agents:
                             },
                         ),
                         (
-                            AgentID::new("infra-agent-b").unwrap(),
+                            AgentID::try_from("infra-agent-b").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
@@ -176,7 +176,7 @@ agents:
                 expected: AgentControlDynamicConfig {
                     agents: HashMap::from([
                         (
-                            AgentID::new("infra-agent-a").unwrap(),
+                            AgentID::try_from("infra-agent-a").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.2",
@@ -185,7 +185,7 @@ agents:
                             },
                         ),
                         (
-                            AgentID::new("infra-agent-b").unwrap(),
+                            AgentID::try_from("infra-agent-b").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:0.0.3",
@@ -194,7 +194,7 @@ agents:
                             },
                         ),
                         (
-                            AgentID::new("infra-agent-c").unwrap(),
+                            AgentID::try_from("infra-agent-c").unwrap(),
                             SubAgentConfig {
                                 agent_type: AgentTypeID::try_from(
                                     "newrelic/com.newrelic.infrastructure:1.0.3",

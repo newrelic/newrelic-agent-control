@@ -35,7 +35,7 @@ where
     OB: OpAMPClientBuilder,
     IG: InstanceIDGetter,
 {
-    let agent_control_id = AgentID::new_agent_control_id();
+    let agent_control_id = AgentID::AgentControl;
     let parent_instance_id = instance_id_getter.get(&agent_control_id)?;
 
     non_identifying_attributes.insert(

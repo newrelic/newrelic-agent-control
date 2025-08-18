@@ -90,7 +90,7 @@ fn k8s_cli_local_and_remote_updates() {
     let ac_instance_id = instance_id::get_instance_id(
         k8s_env.client.clone(),
         ac_namespace.as_str(),
-        &AgentID::new_agent_control_id(),
+        &AgentID::AgentControl,
     );
     opamp_server.set_config_response(
         ac_instance_id.clone(),

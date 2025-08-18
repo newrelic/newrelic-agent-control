@@ -19,7 +19,7 @@ impl AgentIdentity {
         let ac_agent_type_id =
             format!("{AGENT_CONTROL_NAMESPACE}/{AGENT_CONTROL_TYPE}:{AGENT_CONTROL_VERSION}");
         Self::from((
-            AgentID::new_agent_control_id(),
+            AgentID::AgentControl,
             // This is a safe unwrap because we are creating the AgentTypeID from a string that we know is valid.
             // Unit tests will catch any issues with the string format, before it gets to be released.
             AgentTypeID::try_from(ac_agent_type_id.as_str()).unwrap_or_else(|_| {
@@ -59,7 +59,7 @@ pub mod tests {
     impl Default for AgentIdentity {
         fn default() -> Self {
             AgentIdentity {
-                id: AgentID::new("default").unwrap(),
+                id: AgentID::try_from("default").unwrap(),
                 agent_type_id: AgentTypeID::try_from("default/default:0.0.1").unwrap(),
             }
         }

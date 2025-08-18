@@ -56,11 +56,12 @@ fn test_attributes_from_non_existing_agent_type() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id_ac =
-        get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
+    let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
 
-    let agent_control_instance_id =
-        get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths.clone());
+    let agent_control_instance_id = get_instance_id(
+        &AgentID::try_from("test-agent").unwrap(),
+        base_paths.clone(),
+    );
 
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
@@ -135,10 +136,11 @@ fn test_attributes_from_an_existing_agent_type() {
 
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
-    let agent_control_instance_id_ac =
-        get_instance_id(&AgentID::new_agent_control_id(), base_paths.clone());
-    let agent_control_instance_id =
-        get_instance_id(&AgentID::new("test-agent").unwrap(), base_paths.clone());
+    let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
+    let agent_control_instance_id = get_instance_id(
+        &AgentID::try_from("test-agent").unwrap(),
+        base_paths.clone(),
+    );
 
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (

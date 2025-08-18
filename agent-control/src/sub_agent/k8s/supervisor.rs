@@ -297,7 +297,7 @@ pub mod tests {
     #[test]
     fn test_build_dynamic_objects() {
         let agent_identity = AgentIdentity::from((
-            AgentID::new("test").unwrap(),
+            AgentID::try_from("test").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -342,7 +342,7 @@ pub mod tests {
     fn test_k8s_objects_supervisor() {
         let interval = Duration::from_millis(250);
         let agent_identity = AgentIdentity::from((
-            AgentID::new("test").unwrap(),
+            AgentID::try_from("test").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
         let apply_issue = "some issue";
@@ -475,7 +475,7 @@ pub mod tests {
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
     ) -> NotStartedSupervisorK8s {
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
@@ -498,7 +498,7 @@ pub mod tests {
         let sub_agent_consumer = sub_agent_publisher.subscribe();
 
         let agent_identity = AgentIdentity::from((
-            AgentID::new(TEST_AGENT_ID).unwrap(),
+            AgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
@@ -603,7 +603,7 @@ pub mod tests {
                 panic!("SubAgentStarted event expected")
             }
             SubAgentEvent::SubAgentStarted(identity, _) => {
-                assert_eq!(identity.id.get(), TEST_AGENT_ID)
+                assert_eq!(identity.id.as_str(), TEST_AGENT_ID)
             }
         }
 

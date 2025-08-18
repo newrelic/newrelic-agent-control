@@ -48,11 +48,8 @@ fn k8s_test_attributes_from_existing_agent_type() {
     );
 
     let expected_chart_version = "1.2.3-beta".to_string(); // Set in <test_name>/local-data-agent-control.template
-    let instance_id = instance_id::get_instance_id(
-        k8s.client.clone(),
-        &namespace,
-        &AgentID::new_agent_control_id(),
-    );
+    let instance_id =
+        instance_id::get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
     server.set_config_response(
         instance_id.clone(),
         r#"
@@ -146,7 +143,7 @@ agents:
         let instance_id_sub_agent = instance_id::get_instance_id(
             k8s.client.clone(),
             &namespace,
-            &AgentID::new("hello-world").unwrap(),
+            &AgentID::try_from("hello-world").unwrap(),
         );
         check_latest_identifying_attributes_match_expected(
             &server,

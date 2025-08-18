@@ -154,7 +154,7 @@ where
 
         // Build the agent attributes
         let attributes = AgentAttributes {
-            agent_id: agent_identity.id.get(),
+            agent_id: agent_identity.id.as_str().to_string(),
         };
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
@@ -315,7 +315,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
+            AgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
@@ -361,7 +361,7 @@ pub(crate) mod tests {
 
         // Objects
         let agent_identity = AgentIdentity::from((
-            AgentID::new("some-agent-id").unwrap(),
+            AgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/name:0.0.1").unwrap(),
         ));
 

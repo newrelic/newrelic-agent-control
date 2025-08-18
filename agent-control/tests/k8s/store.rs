@@ -40,8 +40,8 @@ fn k8s_instance_id_store() {
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
-    let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
-    let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
+    let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
+    let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
     let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
         k8s_store,
@@ -80,8 +80,8 @@ fn k8s_hash_in_config_map() {
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
-    let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
-    let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
+    let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
+    let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
     let config_repository = ConfigRepositoryConfigMap::new(k8s_store);
 
@@ -140,8 +140,8 @@ fn k8s_value_repository_config_map() {
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client, test_ns.clone()));
-    let agent_id_1 = AgentID::new(AGENT_ID_1).unwrap();
-    let agent_id_2 = AgentID::new(AGENT_ID_2).unwrap();
+    let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
+    let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
     let mut value_repository = ConfigRepositoryConfigMap::new(k8s_store.clone());
     let capabilities = default_capabilities();
     // without values the none is expected
@@ -250,8 +250,7 @@ agents:
     block_on(create_config_map(
         test.client.clone(),
         test_ns.as_str(),
-        K8sStore::build_cm_name(&AgentID::new_agent_control_id(), CM_NAME_LOCAL_DATA_PREFIX)
-            .as_str(),
+        K8sStore::build_cm_name(&AgentID::AgentControl, CM_NAME_LOCAL_DATA_PREFIX).as_str(),
         agents_cfg_local,
     ));
 
@@ -298,7 +297,7 @@ fn k8s_multiple_store_entries() {
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
-    let agent_id = AgentID::new(AGENT_ID_1).unwrap();
+    let agent_id = AgentID::try_from(AGENT_ID_1).unwrap();
 
     // Persisters sharing the ConfigMap
     let config_repository = ConfigRepositoryConfigMap::new(k8s_store.clone());

@@ -42,7 +42,7 @@ fn k8s_signature_disabled() {
     let instance_id = instance_id::get_instance_id(
         k8s.client.clone(),
         &namespace,
-        &AgentID::new("hello-world").unwrap(),
+        &AgentID::try_from("hello-world").unwrap(),
     );
 
     // Update the agent configuration via OpAMP

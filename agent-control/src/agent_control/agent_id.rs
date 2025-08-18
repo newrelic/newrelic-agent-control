@@ -1,7 +1,6 @@
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-use std::ops::Deref;
 use std::path::Path;
 use thiserror::Error;
 
@@ -9,11 +8,15 @@ const AGENT_ID_MAX_LENGTH: usize = 32;
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Hash, Eq)]
 #[serde(try_from = "String")]
+#[serde(into = "String")]
 /// AgentID is a unique identifier for any agent, including agent-control.
 /// It must contain 32 characters at most, contain alphanumeric characters or dashes only,
 /// start with alphabetic, and end with alphanumeric,
 /// following [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names).
-pub struct AgentID(String);
+pub enum AgentID {
+    AgentControl,
+    SubAgent(String),
+}
 
 #[derive(Error, Debug)]
 pub enum AgentIDError {
@@ -26,19 +29,13 @@ pub enum AgentIDError {
 }
 
 impl AgentID {
-    pub fn new(str: &str) -> Result<Self, AgentIDError> {
-        Self::try_from(str.to_string())
+    pub fn as_str(&self) -> &str {
+        match self {
+            AgentID::AgentControl => AGENT_CONTROL_ID,
+            AgentID::SubAgent(id) => id,
+        }
     }
-    // For agent control ID we need to skip validation
-    pub fn new_agent_control_id() -> Self {
-        Self(AGENT_CONTROL_ID.to_string())
-    }
-    pub fn get(&self) -> String {
-        String::from(&self.0)
-    }
-    pub fn is_agent_control_id(&self) -> bool {
-        self.0.eq(AGENT_CONTROL_ID)
-    }
+
     /// Checks if a string reference has valid format to build an [AgentID].
     /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),
     /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
@@ -53,37 +50,43 @@ impl AgentID {
 
 impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
-    fn try_from(str: String) -> Result<Self, Self::Error> {
-        if str.eq(AGENT_CONTROL_ID) {
-            return Err(AgentIDError::Reserved(AGENT_CONTROL_ID.to_string()));
-        }
-
-        if AgentID::is_valid_format(&str) {
-            Ok(AgentID(str))
+    fn try_from(input: String) -> Result<Self, Self::Error> {
+        if input.eq_ignore_ascii_case(AGENT_CONTROL_ID) {
+            Err(AgentIDError::Reserved(input))
+        } else if AgentID::is_valid_format(&input) {
+            Ok(AgentID::SubAgent(input))
         } else {
             Err(AgentIDError::InvalidFormat)
         }
     }
 }
 
-impl Deref for AgentID {
-    type Target = str;
+impl TryFrom<&str> for AgentID {
+    type Error = AgentIDError;
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
+        Self::try_from(input.to_string())
+    }
+}
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
+impl From<AgentID> for String {
+    fn from(val: AgentID) -> Self {
+        match val {
+            AgentID::AgentControl => AGENT_CONTROL_ID.to_string(),
+            AgentID::SubAgent(id) => id,
+        }
+    }
+}
+
+impl Display for AgentID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
     }
 }
 
 impl AsRef<Path> for AgentID {
     fn as_ref(&self) -> &Path {
         // TODO: define how AgentID should be converted to a Path here.
-        Path::new(&self.0)
-    }
-}
-
-impl Display for AgentID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.as_str())
+        Path::new(self.as_str())
     }
 }
 
@@ -94,17 +97,16 @@ pub(crate) mod tests {
 
     impl Default for AgentID {
         fn default() -> Self {
-            AgentID::new("default").unwrap()
+            AgentID::try_from("default").unwrap()
         }
     }
 
     #[test]
     fn agent_control_id() {
-        let agent_id = AgentID::new_agent_control_id();
-        assert_eq!(agent_id.get(), AGENT_CONTROL_ID);
-        assert!(agent_id.is_agent_control_id());
+        let agent_id = AgentID::AgentControl;
+        assert_eq!(agent_id.as_str(), AGENT_CONTROL_ID);
 
-        AgentID::new(AGENT_CONTROL_ID).unwrap_err();
+        AgentID::try_from(AGENT_CONTROL_ID).unwrap_err();
     }
     #[test]
     fn agent_id_validator() {
