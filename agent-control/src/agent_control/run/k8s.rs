@@ -32,7 +32,6 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::utils::thread_context::NotStartedThreadContext;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
