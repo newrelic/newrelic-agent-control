@@ -39,9 +39,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         },
         "agentsConfig": {
             "nrdot":{
-                "content": {
-                    "chart_version" : "*"
-                }
+                "chart_version" : "*"
             },
         },
         "global": {

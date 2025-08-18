@@ -392,26 +392,24 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
         "config": {
           // Disable the SI creation
           "fleet_control": {
-              "enabled": false,
+            "enabled": false,
           },
           "acRemoteUpdate": true,
           "cdRemoteUpdate": false,
           "override": {
-            "content": {
-              "log": {
-                "level":"debug",
-              },
+            "log": {
+               "level":"debug",
+            },
               // To make health assertions faster
-              "health_check":{
-                "initial_delay": "1s",
-                "interval": "20s",
-              },
-              "fleet_control": {
-                "endpoint": opamp_endpoint.as_str(),
-                "poll_interval": format!("{POLL_INTERVAL}s"),
-                "signature_validation": {
-                  "enabled": "false",
-                },
+            "health_check":{
+              "initial_delay": "1s",
+              "interval": "20s",
+            },
+            "fleet_control": {
+              "endpoint": opamp_endpoint.as_str(),
+              "poll_interval": format!("{POLL_INTERVAL}s"),
+              "signature_validation": {
+                "enabled": "false",
               },
             },
           }

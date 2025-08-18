@@ -19,10 +19,9 @@ agent-control-deployment:
         agent_type: newrelic/com.newrelic.infrastructure:0.1.0
   agentsConfig:
     infra:
-      content:
-        chart_version: "*" # Use latest
-        chart_values:
-          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
-            customAttributes:
-              cluster_name: ${nr-env:NR_CLUSTER_NAME}
-              config_origin: local
+      chart_version: "*" # Use latest
+      chart_values:
+        global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+          customAttributes:
+            cluster_name: ${nr-env:NR_CLUSTER_NAME}
+            config_origin: local

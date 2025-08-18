@@ -70,22 +70,20 @@ agent-control-deployment:
       # Fleet with name 'ac-e2e-empty-deployment'. The sub-agent reports data to the 'Agent Control Canaries' account.
       # This fleet doesn't have any deployment configured.
       fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTgwOTZiLTk2NzctNzllNi05OWJmLTQ4YWRlOTRiYmZjMw
-    agentControl:
-      content:
-        fleet_control:
-          signature_validation:
-            # Disable this as is not supported by the proxy.
-            # On a prod environment is recommended to add an exception for the firewall to newrelic.com or 
-            # mount the downloaded Certificate.
-            enabled: false
+    override:
+      fleet_control:
+        signature_validation:
+          # Disable this as is not supported by the proxy.
+          # On a prod environment is recommended to add an exception for the firewall to newrelic.com or
+          # mount the downloaded Certificate.
+          enabled: false
     agents:
       prometheus:
         agent_type: newrelic/com.newrelic.prometheus:0.1.0
   agentsConfig:
     prometheus:
-      content:
-        chart_version: "*"
-        # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
+      chart_version: "*"
+      # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
   systemIdentity:
     organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
     extraVolumeMounts:

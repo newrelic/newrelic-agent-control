@@ -24,41 +24,35 @@ agent-control-deployment:
         agent_type: newrelic/com.newrelic.apm_dotnet:0.1.0
   agentsConfig:
     operator:
-      content:
-        chart_version: "*"
+      chart_version: "*"
     # One agent per language
     java-agent:
-      content:
-        podLabelSelector:
-          matchExpressions:
-            - key: "app"
-              operator: "In"
-              values: [ "javaapp" ]
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: [ "javaapp" ]
     python-agent:
-      content:
-        podLabelSelector:
-          matchExpressions:
-            - key: "app"
-              operator: "In"
-              values: [ "pythonapp" ]
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: [ "pythonapp" ]
     node-agent:
-      content:
-        podLabelSelector:
-          matchExpressions:
-            - key: "app"
-              operator: "In"
-              values: [ "nodeapp" ]
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: [ "nodeapp" ]
     ruby-agent:
-      content:
-        podLabelSelector:
-          matchExpressions:
-            - key: "app"
-              operator: "In"
-              values: [ "rubyapp" ]
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: [ "rubyapp" ]
     dotnet-agent:
-      content:
-        podLabelSelector:
-          matchExpressions:
-            - key: "app"
-              operator: "In"
-              values: [ "dotneteapp" ]
+      podLabelSelector:
+        matchExpressions:
+          - key: "app"
+            operator: "In"
+            values: [ "dotneteapp" ]

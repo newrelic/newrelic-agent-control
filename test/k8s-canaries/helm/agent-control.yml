@@ -3,24 +3,25 @@ agent-control-deployment:
   image:
     pullPolicy: Always
   config:
-    agentControl:
-      content:
-        log:
-          level: debug
-        self_instrumentation:
-          opentelemetry:
-            traces:
-              enabled: true
-    subAgents:
+    log:
+      level: debug
+    override:
+      self_instrumentation:
+        opentelemetry:
+          traces:
+            enabled: true
+    agents:
       infra:
-        type: newrelic/com.newrelic.infrastructure:0.1.0
-        content:
-          chart_version: "*" # Use latest
+        agent_type: newrelic/com.newrelic.infrastructure:0.1.0
       prometheus:
-        type: newrelic/com.newrelic.prometheus:0.1.0
-        content:
-          chart_version: "*" # Use latest
+        agent_type: newrelic/com.newrelic.prometheus:0.1.0
       logs:
-        type: newrelic/io.fluentbit:0.1.0
-        content:
-          chart_version: "*" # Use latest
+        agent_type: newrelic/io.fluentbit:0.1.0
+  agentsConfig:
+    infra:
+      chart_version: "*" # Use latest
+    prometheus:
+      chart_version: "*" # Use latest
+    logs:
+      chart_version: "*" # Use latest
+
