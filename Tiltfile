@@ -104,12 +104,10 @@ helm_resource(
   port_forwards=['8080']
 )
 
-chart_resource = 'local-child-chart-upload'
-
 ## we are saving the chart version for agent-control-deployment that is expected by agent-control
 ## also nri-bundle that is expected by some tests.
 local_resource(
-    chart_resource,
+    'local-child-chart-upload',
     cmd="""
      rm -rf local/helm-charts-tmp &&
      git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
@@ -136,6 +134,8 @@ ac_flags = [
   '--values=' + sa_chart_values_file,
 ]
 
+ac_chart_deps = ['build-binary', 'local-child-chart-upload']
+
 latest_flux = os.getenv('LATEST_FLUX', 'false').lower() == 'true'
 
 if latest_flux:
@@ -151,12 +151,10 @@ if latest_flux:
          curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/agent-control-cd/${cd_latest_version} &&
          curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-cd-${cd_latest_version}.tgz" http://localhost:8080/api/charts
         """,
-        resource_deps=[chart_resource],
+        resource_deps=['local-child-chart-upload'],
     )
 
-    # overwriting chart_resource to the one with latest flux so next resource waits on it.
-    chart_resource = 'local-latest-flux-chart-upload'
-
+    ac_chart_deps.append('local-latest-flux-chart-upload')
     ac_flags.append('--set=agent-control-cd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080')
 
 if license_key != '':
@@ -179,7 +177,7 @@ helm_resource(
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
               [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
               ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
-  resource_deps=['build-binary', chart_resource]
+  resource_deps=ac_chart_deps
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
