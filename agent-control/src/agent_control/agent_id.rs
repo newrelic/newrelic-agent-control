@@ -50,11 +50,11 @@ impl AgentID {
 
 impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
-    fn try_from(str: String) -> Result<Self, Self::Error> {
-        if str.eq(AGENT_CONTROL_ID) {
-            Err(AgentIDError::Reserved(str))
-        } else if AgentID::is_valid_format(&str) {
-            Ok(AgentID::SubAgent(str))
+    fn try_from(input: String) -> Result<Self, Self::Error> {
+        if input.eq_ignore_ascii_case(AGENT_CONTROL_ID) {
+            Err(AgentIDError::Reserved(input))
+        } else if AgentID::is_valid_format(&input) {
+            Ok(AgentID::SubAgent(input))
         } else {
             Err(AgentIDError::InvalidFormat)
         }
@@ -63,14 +63,8 @@ impl TryFrom<String> for AgentID {
 
 impl TryFrom<&str> for AgentID {
     type Error = AgentIDError;
-    fn try_from(str: &str) -> Result<Self, Self::Error> {
-        if str.eq(AGENT_CONTROL_ID) {
-            Err(AgentIDError::Reserved(str.to_string()))
-        } else if AgentID::is_valid_format(str) {
-            Ok(AgentID::SubAgent(str.to_string()))
-        } else {
-            Err(AgentIDError::InvalidFormat)
-        }
+    fn try_from(input: &str) -> Result<Self, Self::Error> {
+        Self::try_from(input.to_string())
     }
 }
 
