@@ -6,6 +6,9 @@ use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
 
 pub const AGENT_CONTROL_ID: &str = "agent-control";
+pub const AGENT_CONTROL_CD_ID: &str = "agent-control-cd";
+pub const RESERVED_AGENT_IDS: [&str; 2] = [AGENT_CONTROL_ID, AGENT_CONTROL_CD_ID];
+
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
 pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");

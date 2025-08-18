@@ -1,4 +1,5 @@
 use crate::agent_control::AgentControl;
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
@@ -213,16 +214,15 @@ impl AgentControlRunner {
             self.k8s_config.current_chart_version.clone(),
             self.k8s_config.cd_release_name,
         );
-
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let _cd_version_checker = spawn_version_checker(
-            agent_id,
+            AgentID::K8sCD,
             HelmReleaseVersionChecker::new(
-                k8s_client.clone(),
+                k8s_client,
                 helmrelease_v2_type_meta(),
                 self.k8s_config.namespace.clone(),
-                self.k8s_config.cd_release_name, // FIXME
+                &AgentID::K8sCD,
             ),
             agent_control_internal_publisher.clone(),
             AgentControlInternalEvent::AgentControlCdVersionUpdated,
