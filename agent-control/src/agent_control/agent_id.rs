@@ -1,4 +1,4 @@
-use crate::agent_control::defaults::{AGENT_CONTROL_CD_ID, AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
+use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::Path;
@@ -15,7 +15,6 @@ const AGENT_ID_MAX_LENGTH: usize = 32;
 /// following [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names).
 pub enum AgentID {
     AgentControl,
-    K8sCD,
     SubAgent(String),
 }
 
@@ -33,7 +32,6 @@ impl AgentID {
     pub fn as_str(&self) -> &str {
         match self {
             AgentID::AgentControl => AGENT_CONTROL_ID,
-            AgentID::K8sCD => AGENT_CONTROL_CD_ID,
             AgentID::SubAgent(id) => id,
         }
     }
@@ -53,7 +51,7 @@ impl AgentID {
 impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
     fn try_from(str: String) -> Result<Self, Self::Error> {
-        if RESERVED_AGENT_IDS.contains(&str.as_str()) {
+        if str.eq(AGENT_CONTROL_ID) {
             Err(AgentIDError::Reserved(str))
         } else if AgentID::is_valid_format(&str) {
             Ok(AgentID::SubAgent(str))
@@ -66,7 +64,7 @@ impl TryFrom<String> for AgentID {
 impl TryFrom<&str> for AgentID {
     type Error = AgentIDError;
     fn try_from(str: &str) -> Result<Self, Self::Error> {
-        if RESERVED_AGENT_IDS.contains(&str) {
+        if str.eq(AGENT_CONTROL_ID) {
             Err(AgentIDError::Reserved(str.to_string()))
         } else if AgentID::is_valid_format(str) {
             Ok(AgentID::SubAgent(str.to_string()))
@@ -80,7 +78,6 @@ impl From<AgentID> for String {
     fn from(val: AgentID) -> Self {
         match val {
             AgentID::AgentControl => AGENT_CONTROL_ID.to_string(),
-            AgentID::K8sCD => AGENT_CONTROL_CD_ID.to_string(),
             AgentID::SubAgent(id) => id,
         }
     }
