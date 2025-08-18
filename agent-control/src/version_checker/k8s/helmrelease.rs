@@ -95,10 +95,11 @@ fn from_version(helm_data: &Map<String, Value>) -> Option<String> {
         .to_string();
 
     if version.contains(LATEST_REVISION) {
-        return None;
+        None
+    } else {
+        debug!(%version, "version extracted from spec version");
+        Some(version)
     }
-    debug!(%version, "version extracted from version");
-    Some(version)
 }
 
 //Attempt to get version from last attempted deployed revision
@@ -111,10 +112,11 @@ fn from_last_deployed(helm_data: &Map<String, Value>) -> Option<String> {
         .to_string();
 
     if version.is_empty() {
-        return None;
+        None
+    } else {
+        debug!("version extracted from lastAttemptedRevision");
+        Some(version)
     }
-    debug!("version extracted from lastAttemptedRevision");
-    Some(version)
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
