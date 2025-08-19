@@ -27,7 +27,7 @@ use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
-use crate::version_checker::handler::on_version;
+use crate::version_checker::handler::set_agent_description_version;
 use crossbeam::channel::never;
 use crossbeam::select;
 use effective_agents_assembler::EffectiveAgentsAssemblerError;
@@ -361,11 +361,11 @@ where
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
-                                let _ = on_version(
+                                let _ = set_agent_description_version(
                                     agent_data,
                                     self.maybe_opamp_client.as_ref(),
-                                    )
-                                    .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
                             }
                         }
                     }

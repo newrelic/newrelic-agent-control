@@ -5,7 +5,7 @@ use opamp_client::opamp::proto::{AnyValue, KeyValue, any_value};
 
 /// This method request the AgentDescription from the current opamp client and, updates or add the
 /// field from agent version to be sent to opamp server
-pub fn on_version<C>(
+pub fn set_agent_description_version<C>(
     version: AgentVersion,
     maybe_opamp_client: Option<&C>,
 ) -> Result<(), SubAgentError>

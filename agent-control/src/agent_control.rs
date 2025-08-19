@@ -27,7 +27,7 @@ use crate::sub_agent::{
 };
 use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
-use crate::version_checker::handler::on_version;
+use crate::version_checker::handler::set_agent_description_version;
 use agent_id::AgentID;
 use config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference};
 use config_repository::repository::AgentControlDynamicConfigRepository;
@@ -327,7 +327,7 @@ where
                                     self.report_health(health);
                                 },
                                 AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
-                                    let _ = on_version(
+                                    let _ = set_agent_description_version(
                                         cd_version,
                                         self.opamp_client.as_ref()
                                     )
