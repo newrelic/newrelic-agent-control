@@ -1,4 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::SubAgentInternalEvent;
@@ -196,6 +197,7 @@ impl NotStartedSupervisorK8s {
             self.k8s_client.clone(),
             &self.agent_identity.id,
             resources,
+            OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
         )?;
 
         Some(spawn_version_checker(

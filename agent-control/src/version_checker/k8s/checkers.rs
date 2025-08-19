@@ -1,6 +1,5 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
-use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
@@ -57,6 +56,7 @@ impl K8sAgentVersionChecker {
         k8s_client: Arc<SyncK8sClient>,
         agent_id: &AgentID,
         k8s_objects: Arc<Vec<DynamicObject>>,
+        opamp_field: String,
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
@@ -79,7 +79,7 @@ impl K8sAgentVersionChecker {
                         type_meta,
                         namespace,
                         agent_id.as_str().to_string(),
-                        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                        opamp_field,
                     ))
                 }
                 SupportedResourceType::Instrumentation => {
@@ -101,7 +101,10 @@ impl K8sAgentVersionChecker {
 mod tests {
     use super::*;
     use crate::{
-        agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
+        agent_control::{
+            config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
+            defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+        },
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
@@ -132,6 +135,7 @@ mod tests {
                     Arc::new(MockSyncK8sClient::new()),
                     &AgentID::try_from("some-agent-id").unwrap(),
                     k8s_objects,
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 );
                 let check = self.check;
                 check(self.name, result);

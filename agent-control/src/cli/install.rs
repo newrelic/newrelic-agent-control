@@ -22,7 +22,6 @@ use crate::{
     },
 };
 
-pub const CD_RELEASE_NAME: &str = "agent-control-cd";
 const REPOSITORY_URL: &str = "https://helm-charts.newrelic.com";
 const INSTALLATION_CHECK_DEFAULT_INITIAL_DELAY: &str = "10s";
 const INSTALLATION_CHECK_DEFAULT_TIMEOUT: &str = "5m";
@@ -374,7 +373,7 @@ fn check_installation(
 mod tests {
     use crate::{
         agent_control::config::helmrepository_type_meta,
-        cli::install::agent_control::{InstallAgentControl, RELEASE_NAME},
+        cli::install::agent_control::{AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, InstallAgentControl},
         k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         sub_agent::identity::AgentIdentity,
     };
@@ -386,7 +385,7 @@ mod tests {
 
     fn ac_install_data() -> InstallData {
         InstallData {
-            chart_name: RELEASE_NAME.to_string(),
+            chart_name: AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             chart_version: LOCAL_TEST_VERSION.to_string(),
             secrets: None,
             extra_labels: None,
@@ -441,7 +440,7 @@ mod tests {
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(RELEASE_NAME.to_string()),
+                name: Some(AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(BTreeMap::from_iter(vec![
                     (
@@ -466,10 +465,10 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "interval": "30s",
-                    "releaseName": RELEASE_NAME,
+                    "releaseName": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
                     "chart": {
                         "spec": {
-                            "chart": RELEASE_NAME,
+                            "chart": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
                             "version": version,
                             "reconcileStrategy": "ChartVersion",
                             "sourceRef": {

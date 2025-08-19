@@ -11,8 +11,8 @@ use crate::k8s::tools::{
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_VERSION, CLUSTER_NAME_ATTRIBUTE_KEY, FLEET_ID_ATTRIBUTE_KEY,
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME,
+    OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use nix::unistd::gethostname;
@@ -73,7 +73,7 @@ agents:
             Value::StringValue(AGENT_CONTROL_VERSION.to_string()),
         ),
         (
-            OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+            OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
             Value::StringValue(expected_chart_version.to_string()),
         ),
     ]));
@@ -122,7 +122,7 @@ agents:
             Value::StringValue("0.0.1".to_string()),
         ),
         (
-            OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+            OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
             Value::StringValue("0.1.0".to_string()),
         ),
     ]));

@@ -19,6 +19,7 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
+pub const AGENT_CONTROL_CD_RELEASE_NAME: &str = "agent-control-cd";
 const CHART_NAME: &str = "agent-control-cd";
 pub const HELM_RELEASE_NAME: &str = CHART_NAME;
 pub const HELM_REPOSITORY_NAME: &str = CHART_NAME;

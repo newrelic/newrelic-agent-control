@@ -1,6 +1,6 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::cli::install::agent_control::RELEASE_NAME;
+use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
@@ -42,7 +42,7 @@ impl VersionUpdater for K8sACUpdater {
                 Component::AgentControl,
                 config.chart_version.as_ref(),
                 &self.current_chart_version,
-                RELEASE_NAME,
+                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             )?;
         }
         if !self.ac_remote_update {
@@ -209,7 +209,7 @@ impl K8sACUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::install::agent_control::RELEASE_NAME;
+    use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
     use crate::k8s::Error as K8sError;
     use crate::k8s::client::MockSyncK8sClient;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -265,13 +265,13 @@ mod tests {
             .expect_get_dynamic_object()
             .with(
                 eq(helmrelease_v2_type_meta()),
-                eq(RELEASE_NAME),
+                eq(AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME),
                 eq(TEST_NAMESPACE),
             )
             .times(1)
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
-                    RELEASE_NAME,
+                    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
                     CURRENT_AC_VERSION,
                     BTreeMap::new(),
                 ))))
@@ -281,7 +281,7 @@ mod tests {
         mock_client
             .expect_patch_dynamic_object()
             .withf(|_, name, _, patch| {
-                name == RELEASE_NAME
+                name == AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME
                     && patch
                         .pointer("/spec/chart/spec/version")
                         .unwrap()
@@ -292,7 +292,7 @@ mod tests {
             .times(1)
             .returning(|_, _, _, _| {
                 Ok(mock_helm_release(
-                    RELEASE_NAME,
+                    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
                     CURRENT_AC_VERSION,
                     BTreeMap::new(),
                 ))
@@ -375,9 +375,9 @@ mod tests {
         mock_client
             .expect_get_dynamic_object()
             .returning(|_, name, _| {
-                if name == RELEASE_NAME {
+                if name == AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME {
                     Ok(Some(Arc::new(mock_helm_release(
-                        RELEASE_NAME,
+                        AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
                         CURRENT_AC_VERSION,
                         BTreeMap::new(),
                     ))))

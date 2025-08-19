@@ -98,7 +98,7 @@ where
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
+    use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::event::SubAgentInternalEvent::AgentVersionInfo;
     use crate::event::channel::pub_sub;
     use crate::{agent_control::agent_id::AgentID, event::SubAgentInternalEvent};
@@ -134,7 +134,7 @@ pub mod tests {
             .returning(move || {
                 Ok(AgentVersion {
                     version: "1.0.0".to_string(),
-                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 })
             });
 
@@ -150,7 +150,7 @@ pub mod tests {
         assert_eq!(
             AgentVersionInfo(AgentVersion {
                 version: "1.0.0".to_string(),
-                opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
             }),
             version_consumer.as_ref().recv().unwrap()
         );

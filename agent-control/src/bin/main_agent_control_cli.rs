@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use newrelic_agent_control::cli::errors::CliError;
 use newrelic_agent_control::cli::install::agent_control::{
-    InstallAgentControl, RELEASE_NAME as AGENT_CONTROL_RELEASE_NAME,
+    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, InstallAgentControl,
 };
 use newrelic_agent_control::cli::install::flux::{
     HELM_RELEASE_NAME as FLUX_RELEASE_NAME, InstallFlux,
@@ -75,7 +75,7 @@ fn main() -> ExitCode {
         Operations::InstallAgentControl(agent_control_data) => apply_resources(
             InstallAgentControl,
             &agent_control_data,
-            AGENT_CONTROL_RELEASE_NAME,
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             &cli.namespace,
         ),
         Operations::UninstallAgentControl(agent_control_data) => {

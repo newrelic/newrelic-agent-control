@@ -153,7 +153,7 @@ fn from_history(helm_data: &Map<String, Value>) -> Option<String> {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
-    use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
+    use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::k8s::client::MockSyncK8sClient;
     use kube::api::DynamicObject;
     use serde_json::{Value, json};
@@ -185,7 +185,7 @@ pub mod tests {
                     helmrelease_v2_type_meta(),
                     "fake-namespace".to_string(),
                     "default-test".to_string(),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 );
                 let result = check.check_agent_version();
                 match self.expected {
@@ -211,7 +211,7 @@ pub mod tests {
                 name: "Helm version is obtained from the chart version",
                 expected: Ok(AgentVersion {
                     version: String::from("1.12.12"),
-                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 }),
                 mock_return: build_json_data("1.12.12", "1.15.1"),
             },
@@ -219,7 +219,7 @@ pub mod tests {
                 name: "Helm version is obtained from the last attempted revision",
                 expected: Ok(AgentVersion {
                     version: String::from("1.15.1"),
-                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 }),
                 mock_return: build_json_data("*", "1.15.1"),
             },
@@ -227,7 +227,7 @@ pub mod tests {
                 name: "Helm version is obtained from the history",
                 expected: Ok(AgentVersion {
                     version: String::from("1.43.6"),
-                    opamp_field: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 }),
                 mock_return: build_json_data("*", ""),
             },

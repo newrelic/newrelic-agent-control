@@ -4,9 +4,9 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_CD_ID, AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
-    OPAMP_K8S_CD_VERSION_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -17,6 +17,7 @@ use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
@@ -216,12 +217,12 @@ impl AgentControlRunner {
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let _cd_version_checker = spawn_version_checker(
-            AGENT_CONTROL_CD_ID.to_string(),
+            AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
             HelmReleaseVersionChecker::new(
                 k8s_client,
                 helmrelease_v2_type_meta(),
                 self.k8s_config.namespace.clone(),
-                AGENT_CONTROL_CD_ID.to_string(),
+                AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
                 OPAMP_K8S_CD_VERSION_ATTRIBUTE_KEY.to_string(),
             ),
             agent_control_internal_publisher.clone(),
@@ -289,7 +290,7 @@ fn agent_control_additional_opamp_identifying_attributes(
     let chart_version = k8s_config.current_chart_version.to_string();
 
     attributes.insert(
-        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+        OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
         DescriptionValueType::String(chart_version),
     );
 

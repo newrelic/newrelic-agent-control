@@ -11,7 +11,7 @@ use crate::k8s::tools::local_chart::agent_control_deploymet::{
 use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::cli::install::agent_control::RELEASE_NAME;
+use newrelic_agent_control::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use newrelic_agent_control::version_checker::VersionCheckError;
@@ -61,7 +61,7 @@ fn k8s_cli_local_and_remote_updates() {
             CHART_VERSION_DEV_1,
             LOCAL_VAL,
             &ac_namespace,
-            RELEASE_NAME,
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -82,7 +82,7 @@ fn k8s_cli_local_and_remote_updates() {
             CHART_VERSION_DEV_2,
             LOCAL_VAL,
             &ac_namespace,
-            RELEASE_NAME,
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -108,7 +108,7 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
-            RELEASE_NAME,
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -130,14 +130,18 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
-            RELEASE_NAME,
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
             AGENT_CONTROL_VERSION_SET_FROM,
         )?;
 
         let obj = k8s_client
-            .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &ac_namespace)?
+            .get_dynamic_object(
+                &helmrelease_v2_type_meta(),
+                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                &ac_namespace,
+            )?
             .ok_or(VersionCheckError::Generic(format!(
-                "helmRelease object not found: {RELEASE_NAME}",
+                "helmRelease object not found: {AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME}",
             )))?;
 
         // Notice that the extra label is set by the installer despite the fact that the version is not changed.

@@ -5,7 +5,9 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use newrelic_agent_control::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
+use newrelic_agent_control::cli::install::agent_control::{
+    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, REPOSITORY_NAME,
+};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
@@ -62,13 +64,17 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     // Assert release data
     let release = k8s_client
-        .get_dynamic_object(&helmrelease_v2_type_meta(), RELEASE_NAME, &namespace)
+        .get_dynamic_object(
+            &helmrelease_v2_type_meta(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            &namespace,
+        )
         .unwrap()
         .unwrap();
 
     let expected_release = serde_json::json!({
         "interval": "30s",
-        "releaseName": RELEASE_NAME,
+        "releaseName": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
         "chart": {
             "spec": {
                 "chart": "agent-control-deployment",
