@@ -16,7 +16,9 @@ jobs:
     if: contains(github.event.pull_request.labels.*.name, 'k8s-extended-e2e')
     uses: ./.github/workflows/component_k8s_e2e.yml
     with:
-      scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo", "fleet-control"]'
+      scenarios: '["apm", "collector", "ebpf", "dynamic", "custom-repo", "fleet-control", "proxy"]'
+      # Network policies needs calico installed, the others do not
+      minikube_start_args: '--cni=calico'
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
