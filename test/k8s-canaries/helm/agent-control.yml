@@ -24,4 +24,3 @@ agent-control-deployment:
       chart_version: "*" # Use latest
     logs:
       chart_version: "*" # Use latest
-
