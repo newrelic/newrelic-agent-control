@@ -6,7 +6,7 @@ use opamp_client::opamp::proto::{AnyValue, KeyValue, any_value};
 /// This method request the AgentDescription from the current opamp client and, updates or add the
 /// field from agent version to be sent to opamp server
 pub fn on_version<C>(
-    agent_data: AgentVersion,
+    version: AgentVersion,
     maybe_opamp_client: Option<&C>,
 ) -> Result<(), SubAgentError>
 where
@@ -15,7 +15,7 @@ where
     if let Some(client) = maybe_opamp_client.as_ref() {
         let mut agent_description = client.get_agent_description()?;
         agent_description.identifying_attributes =
-            update_version_key_values(agent_description.identifying_attributes, agent_data);
+            update_version_key_values(agent_description.identifying_attributes, version);
         client.set_agent_description(agent_description)?;
     }
     Ok(())
