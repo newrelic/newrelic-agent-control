@@ -23,7 +23,7 @@
     - name: Install AC and assert a remote config is applied.
       block:
         - name: Cleanup
-          include_tasks: ./tasks/clean_all.yaml 
+          include_tasks: ./tasks/clean_all.yaml
 
         - name: Install Agent Control
           include_role:
@@ -75,6 +75,8 @@
                   client_id: "{{ system_identity_client_id }}"
                   provider: local
                   private_key_path: "{{ agent_control_private_key }}"
+                signature_validation:
+                  enabled: false
 
         - name: Add license to service
           shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
