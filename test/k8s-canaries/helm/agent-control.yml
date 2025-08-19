@@ -1,19 +1,4 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-<<<<<<< HEAD
-agent-control-deployment:
-  image:
-    pullPolicy: Always
-  config:
-    log:
-      level: debug
-    override:
-      self_instrumentation:
-        # most of the otel config is set in the makefile
-        opentelemetry:
-          traces:
-            enabled: true
-    agents:
-=======
 agentControlDeployment:
   chartValues:
     image:
@@ -34,7 +19,6 @@ agentControlDeployment:
         logs:
           agent_type: newrelic/io.fluentbit:0.1.0
     agentsConfig:
->>>>>>> 337fd92d (chore: adapt chart values to new structure)
       infra:
         chart_version: "*" # Use latest
       prometheus:
