@@ -102,7 +102,6 @@ where
         health_checker_builder: HCB,
         initial_config: AgentControlConfig,
     ) -> Self {
-        // let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         Self {
             opamp_client,
             sub_agent_builder,
