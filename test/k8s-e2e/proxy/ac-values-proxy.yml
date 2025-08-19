@@ -48,7 +48,6 @@ agent-control-cd:
 
 
 agent-control-deployment:
-  customIdentitySecretName: "sys-identity-creds"
   subAgentsNamespace: "newrelic-agents"
   # Mount a CA certificate bundle to the source-controller Trust root store.
   # It should contain the proxy CA certificates on it.
@@ -63,6 +62,7 @@ agent-control-deployment:
 
   proxy:
     url: https://mitmproxy-service:8080
+
   config:
     log:
       level: trace
@@ -87,3 +87,14 @@ agent-control-deployment:
       # Proxy config should be added to Prom config on a prod environment. But this is out of scope of AC.
   systemIdentity:
     organizationId: b961cf81-d62b-4359-8822-7b1d6dadd374
+    parentIdentity:
+      fromSecret: sys-identity-creds
+
+    extraVolumeMounts:
+      - mountPath: /etc/ssl/certs/ca-certificates.crt
+        subPath: ca-certificates.crt
+        name: shared-volume-ca
+    extraVolumes:
+      - name: shared-volume-ca
+        persistentVolumeClaim:
+          claimName: mitm-ca-pvc
