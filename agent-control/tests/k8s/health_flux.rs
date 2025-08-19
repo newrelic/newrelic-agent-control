@@ -96,7 +96,7 @@ fn bootstrap_ac(
     // the old pod die.
     sleep(Duration::from_secs(POLL_INTERVAL * 4));
 
-    instance_id::get_instance_id(client.clone(), namespace, &AgentID::new_agent_control_id())
+    instance_id::get_instance_id(client.clone(), namespace, &AgentID::AgentControl)
 }
 
 fn install_ac_with_cli(namespace: &str, chart_version: &str) {
@@ -156,7 +156,7 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
 }
 
 fn uninstall_helm_release(release_name: &str, namespace: &str) {
-    println!("helm uninstallation {} -n {}", release_name, namespace);
+    println!("helm uninstallation {release_name} -n {namespace}");
 
     let status = std::process::Command::new("helm")
         .arg("uninstall")
@@ -169,11 +169,8 @@ fn uninstall_helm_release(release_name: &str, namespace: &str) {
         .expect("Failed to execute helm command");
 
     if !status.success() {
-        panic!(
-            "Command 'helm uninstall {}' failed with exit code {}",
-            release_name, status
-        );
+        panic!("Command 'helm uninstall {release_name}' failed with exit code {status}");
     }
 
-    println!("Uninstallation of '{}' complete.", release_name);
+    println!("Uninstallation of '{release_name}' complete.");
 }
