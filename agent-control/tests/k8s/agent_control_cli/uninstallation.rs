@@ -31,14 +31,16 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
             "fleet_control": {
                 "enabled": false,
             },
-            "subAgents": {
+            "agents": {
                 "nrdot":{
-                    "type" : "newrelic/io.opentelemetry.collector:0.1.0",
-                    "content": {
-                        "chart_version" : "*"
-                    }
+                    "agent_type" : "newrelic/io.opentelemetry.collector:0.1.0",
                 },
             }
+        },
+        "agentsConfig": {
+            "nrdot":{
+                "chart_version" : "*"
+            },
         },
         "global": {
             "cluster": "test-cluster",

@@ -7,28 +7,27 @@ agent-control-deployment:
   config:
     fleet_control:
       enabled: false
-    agentControl:
-      content:
-        k8s:
-          cr_type_meta:
-            - apiVersion: "helm.toolkit.fluxcd.io/v2"
-              kind: "HelmRelease"
-            - apiVersion: "source.toolkit.fluxcd.io/v1"
-              kind: "HelmRepository"
-            - apiVersion: "source.toolkit.fluxcd.io/v1"
-              kind: "GitRepository"
-            - apiVersion: "v1"
-              kind: "Secret"
-            - apiVersion: "newrelic.com/v1beta1"
-              kind: "Instrumentation"
-        log:
-          level: debug
-    subAgents:
+    log:
+      level: debug
+    override:
+      k8s:
+        cr_type_meta:
+          - apiVersion: "helm.toolkit.fluxcd.io/v2"
+            kind: "HelmRelease"
+          - apiVersion: "source.toolkit.fluxcd.io/v1"
+            kind: "HelmRepository"
+          - apiVersion: "source.toolkit.fluxcd.io/v1"
+            kind: "GitRepository"
+          - apiVersion: "v1"
+            kind: "Secret"
+          - apiVersion: "newrelic.com/v1beta1"
+            kind: "Instrumentation"
+    agents:
       logs:
-        type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
-        content:
-          chart_version: "*" # Use latest
-
+        agent_type: newrelic/io.fluentbit:0.1.0 # these agent-types are overwritten yb the e2e test
+  agentsConfig:
+    logs:
+      chart_version: "*" # Use latest
 
   extraVolumeMounts:
     - name: dynamic

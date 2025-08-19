@@ -151,14 +151,12 @@ pub(crate) fn create_simple_values_secret(
             "fleet_control": {
                 "enabled": false,
             },
-            "agentControl": {
-                "content": {
-                    "fleet_control": {
-                        "endpoint": opamp_endpoint.as_str(),
-                        "poll_interval": "5s",
-                        "signature_validation": {
-                            "enabled": "false",
-                        },
+            "override": {
+                "fleet_control": {
+                    "endpoint": opamp_endpoint.as_str(),
+                    "poll_interval": "5s",
+                    "signature_validation": {
+                        "enabled": "false",
                     },
                 },
             },

@@ -389,29 +389,27 @@ fn ac_chart_values(opamp_endpoint: Url, name_override: &str) -> String {
     serde_json::json!({
         // give a unique name per test to the cluster role to avoid collisions
         "nameOverride": name_override,
-        "acRemoteUpdate": true,
-        "cdRemoteUpdate": false,
         "config": {
           // Disable the SI creation
           "fleet_control": {
-              "enabled": false,
+            "enabled": false,
           },
-          "agentControl": {
-            "content": {
-              "log": {
-                "level":"debug",
-              },
+          "acRemoteUpdate": true,
+          "cdRemoteUpdate": false,
+          "override": {
+            "log": {
+               "level":"debug",
+            },
               // To make health assertions faster
-              "health_check":{
-                "initial_delay": "1s",
-                "interval": "20s",
-              },
-              "fleet_control": {
-                "endpoint": opamp_endpoint.as_str(),
-                "poll_interval": format!("{POLL_INTERVAL}s"),
-                "signature_validation": {
-                  "enabled": "false",
-                },
+            "health_check":{
+              "initial_delay": "1s",
+              "interval": "20s",
+            },
+            "fleet_control": {
+              "endpoint": opamp_endpoint.as_str(),
+              "poll_interval": format!("{POLL_INTERVAL}s"),
+              "signature_validation": {
+                "enabled": "false",
               },
             },
           }
