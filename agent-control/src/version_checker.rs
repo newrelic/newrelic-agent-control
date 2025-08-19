@@ -2,7 +2,6 @@ pub mod handler;
 pub mod k8s;
 pub mod onhost;
 
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -33,7 +32,7 @@ pub enum VersionCheckError {
 }
 
 pub(crate) fn spawn_version_checker<V, T, F>(
-    agent_id: AgentID,
+    version_checker_id: String,
     version_checker: V,
     version_event_publisher: EventPublisher<T>,
     version_event_generator: F,
@@ -44,13 +43,13 @@ where
     T: Debug + Send + Sync + 'static,
     F: Fn(AgentVersion) -> T + Send + Sync + 'static,
 {
-    let thread_name = format!("{agent_id}_{VERSION_CHECKER_THREAD_NAME}");
+    let thread_name = format!("{version_checker_id}_{VERSION_CHECKER_THREAD_NAME}");
     // Stores if the version was retrieved in last iteration for logging purposes.
     let mut version_retrieved = false;
     let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
         let span = info_span!(
             "version_check",
-            { ID_ATTRIBUTE_NAME } = %agent_id
+            { ID_ATTRIBUTE_NAME } = %version_checker_id
         );
         let _guard = span.enter();
 
@@ -140,7 +139,7 @@ pub mod tests {
             });
 
         let started_thread_context = spawn_version_checker(
-            AgentID::default(),
+            AgentID::default().as_str().to_string(),
             version_checker,
             version_publisher,
             SubAgentInternalEvent::AgentVersionInfo,

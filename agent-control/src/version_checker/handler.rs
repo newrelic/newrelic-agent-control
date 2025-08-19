@@ -1,4 +1,3 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::sub_agent::error::SubAgentError;
 use crate::version_checker::AgentVersion;
 use opamp_client::StartedClient;
@@ -8,7 +7,6 @@ use opamp_client::opamp::proto::{AnyValue, KeyValue, any_value};
 /// field from agent version to be sent to opamp server
 pub fn on_version<C>(
     agent_data: AgentVersion,
-    agent_id: &AgentID,
     maybe_opamp_client: Option<&C>,
 ) -> Result<(), SubAgentError>
 where
@@ -16,19 +14,8 @@ where
 {
     if let Some(client) = maybe_opamp_client.as_ref() {
         let mut agent_description = client.get_agent_description()?;
-        match agent_id {
-            AgentID::AgentControl | AgentID::SubAgent(_) => {
-                agent_description.identifying_attributes =
-                    update_version_key_values(agent_description.identifying_attributes, agent_data);
-            }
-            AgentID::K8sCD => {
-                // TODO CHANGEME after discussion with FC
-                agent_description.non_identifying_attributes = update_version_key_values(
-                    agent_description.non_identifying_attributes,
-                    agent_data,
-                )
-            }
-        }
+        agent_description.identifying_attributes =
+            update_version_key_values(agent_description.identifying_attributes, agent_data);
         client.set_agent_description(agent_description)?;
     }
     Ok(())

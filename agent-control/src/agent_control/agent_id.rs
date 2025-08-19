@@ -1,4 +1,4 @@
-use crate::agent_control::defaults::{AGENT_CONTROL_CD_ID, AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
+use crate::agent_control::defaults::{AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::Path;
@@ -15,7 +15,6 @@ const AGENT_ID_MAX_LENGTH: usize = 32;
 /// following [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names).
 pub enum AgentID {
     AgentControl,
-    K8sCD,
     SubAgent(String),
 }
 
@@ -33,7 +32,6 @@ impl AgentID {
     pub fn as_str(&self) -> &str {
         match self {
             Self::AgentControl => AGENT_CONTROL_ID,
-            Self::K8sCD => AGENT_CONTROL_CD_ID,
             Self::SubAgent(id) => id,
         }
     }
@@ -77,7 +75,6 @@ impl From<AgentID> for String {
     fn from(val: AgentID) -> Self {
         match val {
             AgentID::AgentControl => AGENT_CONTROL_ID.to_string(),
-            AgentID::K8sCD => AGENT_CONTROL_CD_ID.to_string(),
             AgentID::SubAgent(id) => id,
         }
     }

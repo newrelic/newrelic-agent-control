@@ -329,7 +329,6 @@ where
                                 AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
                                     let _ = on_version(
                                         cd_version,
-                                        &AgentID::K8sCD,
                                         self.opamp_client.as_ref()
                                     )
                                     .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message"));

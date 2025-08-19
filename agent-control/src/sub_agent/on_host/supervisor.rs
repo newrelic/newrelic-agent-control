@@ -160,7 +160,7 @@ impl NotStartedSupervisorOnHost {
             OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id.clone(),
+            self.agent_identity.id.as_str().to_string(),
             onhost_version_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentVersionInfo,

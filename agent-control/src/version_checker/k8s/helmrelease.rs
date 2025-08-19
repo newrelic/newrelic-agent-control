@@ -1,8 +1,7 @@
-use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::version_checker::AgentVersion;
 use crate::version_checker::{VersionCheckError, VersionChecker};
-use crate::{agent_control::agent_id::AgentID, version_checker::AgentVersion};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
@@ -15,7 +14,11 @@ pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     namespace: String,
-    agent_id: AgentID,
+    release_name: String,
+    /// The field of the OpAMP payload where the retrieved version will be stored.
+    ///
+    /// Currently, this is always an identifying_attribute.
+    opamp_field: String,
 }
 
 impl HelmReleaseVersionChecker {
@@ -23,13 +26,15 @@ impl HelmReleaseVersionChecker {
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         namespace: String,
-        agent_id: &AgentID,
+        release_name: String,
+        opamp_field: String,
     ) -> Self {
         Self {
             k8s_client,
             type_meta,
             namespace,
-            agent_id: agent_id.clone(),
+            release_name,
+            opamp_field,
         }
     }
 
@@ -46,19 +51,11 @@ impl HelmReleaseVersionChecker {
             // Construct the AgentVersion structure, with the field dependent on the Agent ID.
             .map(|v| AgentVersion {
                 version: v,
-                opamp_field: self.opamp_field(),
+                opamp_field: self.opamp_field.to_string(),
             })
             .ok_or(VersionCheckError::Generic(
                 "No valid version found in HelmRelease".to_string(),
             ))
-    }
-
-    fn opamp_field(&self) -> String {
-        match self.agent_id {
-            AgentID::AgentControl | AgentID::SubAgent(_) => OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
-            AgentID::K8sCD => "k8s_cd.chart.version", // TODO CHANGEME after discussion with FC
-        }
-        .to_string()
     }
 }
 
@@ -69,17 +66,20 @@ impl VersionChecker for HelmReleaseVersionChecker {
             .k8s_client
             .get_dynamic_object(
                 &self.type_meta,
-                self.agent_id.as_str(),
+                self.release_name.as_str(),
                 self.namespace.as_str(),
             )
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
-                    &self.agent_id, e
+                    &self.release_name, e
                 ))
             })?
             .ok_or_else(|| {
-                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.agent_id))
+                VersionCheckError::Generic(format!(
+                    "HelmRelease '{}' not found",
+                    &self.release_name
+                ))
             })?;
 
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
@@ -164,7 +164,7 @@ pub mod tests {
             write!(
                 f,
                 "HelmReleaseVersionChecker{{agent_id: {}}}",
-                self.agent_id
+                self.release_name
             )
         }
     }
@@ -184,7 +184,8 @@ pub mod tests {
                     Arc::new(k8s_client),
                     helmrelease_v2_type_meta(),
                     "fake-namespace".to_string(),
-                    &AgentID::try_from("default-test").unwrap(),
+                    "default-test".to_string(),
+                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 );
                 let result = check.check_agent_version();
                 match self.expected {

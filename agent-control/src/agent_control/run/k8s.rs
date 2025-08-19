@@ -1,12 +1,12 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
+    AGENT_CONTROL_CD_ID, AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_K8S_CD_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -216,12 +216,13 @@ impl AgentControlRunner {
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let _cd_version_checker = spawn_version_checker(
-            AgentID::K8sCD,
+            AGENT_CONTROL_CD_ID.to_string(),
             HelmReleaseVersionChecker::new(
                 k8s_client,
                 helmrelease_v2_type_meta(),
                 self.k8s_config.namespace.clone(),
-                &AgentID::K8sCD,
+                AGENT_CONTROL_CD_ID.to_string(),
+                OPAMP_K8S_CD_VERSION_ATTRIBUTE_KEY.to_string(),
             ),
             agent_control_internal_publisher.clone(),
             AgentControlInternalEvent::AgentControlCdVersionUpdated,

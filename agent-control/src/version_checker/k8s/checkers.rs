@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
+use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
@@ -72,9 +73,15 @@ impl K8sAgentVersionChecker {
             };
 
             let health_checker = match resource_type {
-                SupportedResourceType::HelmRelease => Self::HelmRelease(
-                    HelmReleaseVersionChecker::new(k8s_client, type_meta, namespace, agent_id),
-                ),
+                SupportedResourceType::HelmRelease => {
+                    Self::HelmRelease(HelmReleaseVersionChecker::new(
+                        k8s_client,
+                        type_meta,
+                        namespace,
+                        agent_id.as_str().to_string(),
+                        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                    ))
+                }
                 SupportedResourceType::Instrumentation => {
                     Self::Instrumentation(NewrelicInstrumentationVersionChecker::new(
                         k8s_client, type_meta, namespace, agent_id,
