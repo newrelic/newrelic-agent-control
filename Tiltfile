@@ -17,8 +17,8 @@ cluster = os.getenv('CLUSTER', "")
 chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
 
 # build_with options:
-# cargo: No crosscompilation, faster than cross
-# cross: Supports crosscompilaton
+# cargo: No crosscompilation, faster than cargo-zigbuild
+# zig: Supports crosscompilaton
 build_with = os.getenv('BUILD_WITH','zig')
 arch = os.getenv('ARCH','arm64')
 target_tuple = os.getenv('TARGET_TUPLE', 'aarch64-unknown-linux-musl')
@@ -35,15 +35,6 @@ if build_with == 'cargo':
         cargo build --package newrelic_agent_control --bin newrelic-agent-control-cli &&
         rm -f bin/newrelic-agent-control-cli-"""+arch+""" &&
         mv target/debug/newrelic-agent-control-cli bin/newrelic-agent-control-cli-"""+arch,
-      deps=[
-        './agent-control',
-      ]
-  )
-elif build_with == 'cross': 
-  local_resource(
-      'build-binary',
-      cmd="make BUILD_MODE=debug ARCH=%s cross-build-agent-control-cli" % arch +
-           "&& make BUILD_MODE=debug ARCH=%s cross-build-agent-control-k8s" % arch ,
       deps=[
         './agent-control',
       ]

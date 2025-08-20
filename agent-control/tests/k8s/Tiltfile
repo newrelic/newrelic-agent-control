@@ -34,8 +34,8 @@ helm_resource(
 )
 
 # build_with options:
-# cargo: No crosscompilation, faster than cross
-# cross: Supports crosscompilaton
+# cargo: No crosscompilation, faster than cargo-zigbuild
+# zig: Supports crosscompilaton
 build_with = os.getenv('BUILD_WITH','zig')
 arch = os.getenv('ARCH','arm64')
 target_tuple = os.getenv('TARGET_TUPLE', 'aarch64-unknown-linux-musl')
@@ -47,13 +47,6 @@ if build_with == 'cargo':
       'build-binary',
       dir="../../../",
       cmd="cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s && mkdir -p bin && rm -f bin/newrelic-agent-control-"+arch+" && mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"+arch,
-      deps=["../../../agent-control/src"]
-  )
-elif build_with == 'cross': 
-  local_resource(
-      'build-binary',
-      dir="../../../",
-      cmd="make BUILD_MODE=debug ARCH=%s cross-build-agent-control-k8s" % arch,
       deps=["../../../agent-control/src"]
   )
 elif build_with == 'zig':

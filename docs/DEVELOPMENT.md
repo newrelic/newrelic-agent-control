@@ -2,16 +2,17 @@
 
 ## Compiling and running Agent Control
 
-As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program is written in Rust, and for multiplatform compilation we leverage [`cross`](https://github.com/cross-rs/cross).
+As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program is written in Rust, and for multiplatform compilation we leverage [`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild) and musl libc.
 
 ### On-host
 
 To compile and run locally:
 
-1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system.
-2. Run `cargo build --bin newrelic-agent-control-onhost`
-3. `newrelic-agent-control-onhost` binary will be generated at `./target/debug/newrelic-agent-control-onhost`
-4. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
+1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the relevant target for your system, e.g. (`rustup target add x86_64-unknown-linux-musl`).
+2. Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
+3. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either `x86_64` or `aarch64`, depending on your system.
+4. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
+5. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
 
     ```yaml
     fleet_control:
@@ -23,7 +24,7 @@ To compile and run locally:
         agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
     ```
 
-5. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
+6. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
    `agents:` list. Example:
 
     ```yaml
@@ -34,7 +35,7 @@ To compile and run locally:
       # pipelines:
     ```
 
-6. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
+7. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
 
 #### Filesystem layout and persistence
 
@@ -94,14 +95,6 @@ We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://til
 - Install `minikube` for local Kubernetes cluster emulation.
 - Ensure you have `tilt` installed for managing local development environments.
 - Add an Agent Control values file in `local/agent-control-tilt.yml`.
-
-> [!CAUTION]
-> Be aware that `cross` 0.2.5 [broke cross-compilation](https://github.com/cross-rs/cross/issues/1214). If you are using
-> it, run the following command.
->
-> ```sh
-> docker pull ghcr.io/cross-rs/aarch64-unknown-linux-musl:0.2.5 --platform linux/x86_64
-> ```
 
 Note: Adding the `'chart_repo'` setting, pointing to the [New Relic charts](https://github.com/newrelic/helm-charts/tree/master/charts) on a local path, allows using local helm charts.
 
