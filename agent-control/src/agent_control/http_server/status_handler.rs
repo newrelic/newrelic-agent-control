@@ -53,7 +53,7 @@ mod tests {
         let sub_agents = HashMap::from([(agent_identity.id, sub_agent_status)]);
 
         let mut st = Status::default()
-            .with_sub_agents(sub_agents.into())
+            .with_sub_agents(sub_agents)
             .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
         st.agent_control.set_health(HealthWithStartTime::new(
@@ -100,7 +100,7 @@ mod tests {
         let sub_agents = HashMap::from([(agent_identity.id, sub_agent_status)]);
 
         let mut st = Status::default()
-            .with_sub_agents(sub_agents.into())
+            .with_sub_agents(sub_agents)
             .with_opamp(Url::try_from("http://127.0.0.1").unwrap());
 
         st.agent_control.set_health(HealthWithStartTime::new(
