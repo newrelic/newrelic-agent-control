@@ -2,7 +2,7 @@ use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use crate::cli::errors::CliError;
-use crate::cli::install::agent_control::{RELEASE_NAME, REPOSITORY_NAME};
+use crate::cli::install::agent_control::{AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, REPOSITORY_NAME};
 use crate::cli::uninstall::Deleter;
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
@@ -87,7 +87,10 @@ fn delete_agent_control_crs(
     namespace: &str,
 ) -> Result<(), CliError> {
     let mut crs_to_delete: Vec<(TypeMeta, &str)> = vec![
-        (helmrelease_v2_type_meta(), RELEASE_NAME),
+        (
+            helmrelease_v2_type_meta(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+        ),
         (helmrepository_type_meta(), REPOSITORY_NAME),
     ];
 

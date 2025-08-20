@@ -15,7 +15,7 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
+use newrelic_agent_control::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::{AnyValue, KeyValue, RemoteConfigStatuses};
@@ -63,7 +63,7 @@ chart_version: {CHART_VERSION_DEV_1}
         if !current_attributes
             .identifying_attributes
             .contains(&KeyValue {
-                key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                key: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
                     value: Some(Value::StringValue(CHART_VERSION_DEV_1.to_string())),
                 }),
@@ -124,7 +124,7 @@ chart_version: {CHART_VERSION_DEV_2}
         if !current_attributes
             .identifying_attributes
             .contains(&KeyValue {
-                key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                key: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
                     value: Some(Value::StringValue(CHART_VERSION_DEV_2.to_string())),
                 }),
@@ -181,7 +181,7 @@ chart_version: {CHART_VERSION_DEV_2}
         if !current_attributes
             .identifying_attributes
             .contains(&KeyValue {
-                key: OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                key: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 value: Some(AnyValue {
                     value: Some(Value::StringValue(CHART_VERSION_DEV_2.to_string())),
                 }),

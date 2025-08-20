@@ -21,12 +21,12 @@ use crate::sub_agent::on_host::command::shutdown::{
 };
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
-use crate::sub_agent::version::onhost::OnHostAgentVersionChecker;
-use crate::sub_agent::version::version_checker::spawn_version_checker;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use crate::utils::threads::spawn_named_thread;
+use crate::version_checker::onhost::OnHostAgentVersionChecker;
+use crate::version_checker::spawn_version_checker;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -160,9 +160,14 @@ impl NotStartedSupervisorOnHost {
             OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id.clone(),
+            self.agent_identity.id.to_string(),
             onhost_version_checker,
             sub_agent_internal_publisher,
+            // The below argument expects a function "AgentVersion -> T"
+            // where T is the "event" sendable by the above publisher.
+            // Using an enum variant that wraps a type is the same as a function taking the type.
+            // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentVersionInfo(x)"
+            SubAgentInternalEvent::AgentVersionInfo,
             VersionCheckerInterval::default(),
         ))
     }
@@ -178,14 +183,13 @@ impl NotStartedSupervisorOnHost {
         _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
 
         let executable_data_clone = executable_data.clone();
-        let agent_id = self.agent_identity.id.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
         // This should be refactored to work as the other threads used by the supervisor.
         let callback = move |_| loop {
             let span = info_span!(
                 "start_executable",
-                { ID_ATTRIBUTE_NAME } = %agent_id
+                { ID_ATTRIBUTE_NAME } = %self.agent_identity.id
             );
             let span_guard = span.enter();
             // locks the current_pid to prevent `wait_for_termination` finishing before the process
@@ -220,7 +224,7 @@ impl NotStartedSupervisorOnHost {
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
                 "stop_executable",
-                { ID_ATTRIBUTE_NAME } = %agent_id
+                { ID_ATTRIBUTE_NAME } = %self.agent_identity.id
             );
             let _span_guard = span.enter();
 

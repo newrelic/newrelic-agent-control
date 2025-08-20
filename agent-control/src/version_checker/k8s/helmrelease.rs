@@ -1,8 +1,7 @@
-use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::AgentVersion;
+use crate::version_checker::{VersionCheckError, VersionChecker};
 use chrono::NaiveDateTime;
 use kube::api::TypeMeta;
 use serde_json::{Map, Value};
@@ -15,7 +14,11 @@ pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     namespace: String,
-    agent_id: AgentID,
+    name: String,
+    /// The field of the OpAMP payload where the retrieved version will be stored.
+    ///
+    /// Currently, this is always an identifying_attribute.
+    opamp_field: String,
 }
 
 impl HelmReleaseVersionChecker {
@@ -23,35 +26,35 @@ impl HelmReleaseVersionChecker {
         k8s_client: Arc<SyncK8sClient>,
         type_meta: TypeMeta,
         namespace: String,
-        agent_id: &AgentID,
+        release_name: String,
+        opamp_field: String,
     ) -> Self {
         Self {
             k8s_client,
             type_meta,
             namespace,
-            agent_id: agent_id.clone(),
+            name: release_name,
+            opamp_field,
         }
     }
+
     fn extract_version(
         &self,
         data: &Map<String, Value>,
     ) -> Result<AgentVersion, VersionCheckError> {
         let extractors = [from_version, from_last_deployed, from_history];
 
-        for extractor in &extractors {
-            if let Some(version) = extractor(data) {
-                if !version.is_empty() {
-                    return Ok(AgentVersion::new(
-                        version,
-                        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                    ));
-                }
-            }
-        }
-
-        Err(VersionCheckError::Generic(
-            "No valid version found in HelmRelease".to_string(),
-        ))
+        extractors
+            .iter()
+            // Look for the first extractor that recovers something that is not an empty string
+            .find_map(|extractor| extractor(data).filter(|v| !v.is_empty()))
+            .map(|v| AgentVersion {
+                version: v,
+                opamp_field: self.opamp_field.to_string(),
+            })
+            .ok_or(VersionCheckError::Generic(
+                "No valid version found in HelmRelease".to_string(),
+            ))
     }
 }
 
@@ -60,19 +63,15 @@ impl VersionChecker for HelmReleaseVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(
-                &self.type_meta,
-                self.agent_id.as_str(),
-                self.namespace.as_str(),
-            )
+            .get_dynamic_object(&self.type_meta, self.name.as_str(), self.namespace.as_str())
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
-                    &self.agent_id, e
+                    &self.name, e
                 ))
             })?
             .ok_or_else(|| {
-                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.agent_id))
+                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.name))
             })?;
 
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
@@ -83,7 +82,7 @@ impl VersionChecker for HelmReleaseVersionChecker {
     }
 }
 
-//Attempt to get version from chart
+// Attempt to get version from chart
 fn from_version(helm_data: &Map<String, Value>) -> Option<String> {
     let version = helm_data
         .get("spec")?
@@ -95,10 +94,11 @@ fn from_version(helm_data: &Map<String, Value>) -> Option<String> {
         .to_string();
 
     if version.contains(LATEST_REVISION) {
-        return None;
+        None
+    } else {
+        debug!(%version, "version extracted from spec version");
+        Some(version)
     }
-    debug!(%version, "version extracted from version");
-    Some(version)
 }
 
 //Attempt to get version from last attempted deployed revision
@@ -111,10 +111,11 @@ fn from_last_deployed(helm_data: &Map<String, Value>) -> Option<String> {
         .to_string();
 
     if version.is_empty() {
-        return None;
+        None
+    } else {
+        debug!("version extracted from lastAttemptedRevision");
+        Some(version)
     }
-    debug!("version extracted from lastAttemptedRevision");
-    Some(version)
 }
 
 //Attempt to get version from the history looking for status deployed and sort by date
@@ -144,7 +145,7 @@ fn from_history(helm_data: &Map<String, Value>) -> Option<String> {
 pub mod tests {
     use super::*;
     use crate::agent_control::config::helmrelease_v2_type_meta;
-    use crate::agent_control::defaults::OPAMP_CHART_VERSION_ATTRIBUTE_KEY;
+    use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
     use crate::k8s::client::MockSyncK8sClient;
     use kube::api::DynamicObject;
     use serde_json::{Value, json};
@@ -152,11 +153,7 @@ pub mod tests {
 
     impl std::fmt::Debug for HelmReleaseVersionChecker {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(
-                f,
-                "HelmReleaseVersionChecker{{agent_id: {}}}",
-                self.agent_id
-            )
+            write!(f, "HelmReleaseVersionChecker{{agent_id: {}}}", self.name)
         }
     }
 
@@ -175,7 +172,8 @@ pub mod tests {
                     Arc::new(k8s_client),
                     helmrelease_v2_type_meta(),
                     "fake-namespace".to_string(),
-                    &AgentID::try_from("default-test").unwrap(),
+                    "default-test".to_string(),
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 );
                 let result = check.check_agent_version();
                 match self.expected {
@@ -199,26 +197,26 @@ pub mod tests {
         let test_cases: Vec<TestCase> = vec![
             TestCase {
                 name: "Helm version is obtained from the chart version",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.12.12"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.12.12"),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("1.12.12", "1.15.1"),
             },
             TestCase {
                 name: "Helm version is obtained from the last attempted revision",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.15.1"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.15.1"),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("*", "1.15.1"),
             },
             TestCase {
                 name: "Helm version is obtained from the history",
-                expected: Ok(AgentVersion::new(
-                    String::from("1.43.6"),
-                    OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                )),
+                expected: Ok(AgentVersion {
+                    version: String::from("1.43.6"),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                }),
                 mock_return: build_json_data("*", ""),
             },
             TestCase {

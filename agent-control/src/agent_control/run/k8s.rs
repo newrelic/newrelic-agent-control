@@ -1,11 +1,12 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfigError, K8sConfig};
+use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CHART_VERSION_ATTRIBUTE_KEY,
+    OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -15,6 +16,10 @@ use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
+use crate::event::AgentControlInternalEvent;
+use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -28,6 +33,9 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
+use crate::utils::thread_context::StartedThreadContext;
+use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
@@ -207,6 +215,13 @@ impl AgentControlRunner {
             self.k8s_config.current_chart_version.clone(),
             self.k8s_config.cd_release_name,
         );
+        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
+
+        let _cd_version_checker = start_cd_version_checker(
+            k8s_client,
+            self.k8s_config.namespace.clone(),
+            agent_control_internal_publisher.clone(),
+        );
 
         AgentControl::new(
             maybe_client,
@@ -216,6 +231,8 @@ impl AgentControlRunner {
             self.agent_control_publisher,
             self.application_event_consumer,
             maybe_opamp_consumer,
+            agent_control_internal_publisher,
+            agent_control_internal_consumer,
             dynamic_config_validator,
             garbage_collector,
             k8s_ac_updater,
@@ -224,6 +241,30 @@ impl AgentControlRunner {
         )
         .run()
     }
+}
+
+fn start_cd_version_checker(
+    k8s_client: Arc<SyncK8sClient>,
+    namespace: String,
+    ac_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+) -> StartedThreadContext {
+    spawn_version_checker(
+        AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+        HelmReleaseVersionChecker::new(
+            k8s_client,
+            helmrelease_v2_type_meta(),
+            namespace,
+            AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+            OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+        ),
+        ac_internal_publisher,
+        // The below argument expects a function "AgentVersion -> T"
+        // where T is the "event" sendable by the above publisher.
+        // Using an enum variant that wraps a type is the same as a function taking the type.
+        // Same as passing "|x| AgentControlInternalEvent::AgentControlCdVersionUpdated(x)"
+        AgentControlInternalEvent::AgentControlCdVersionUpdated,
+        VersionCheckerInterval::default(),
+    )
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
@@ -266,7 +307,7 @@ fn agent_control_additional_opamp_identifying_attributes(
     let chart_version = k8s_config.current_chart_version.to_string();
 
     attributes.insert(
-        OPAMP_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+        OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
         DescriptionValueType::String(chart_version),
     );
 

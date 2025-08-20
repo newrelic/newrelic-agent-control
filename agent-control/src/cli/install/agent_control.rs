@@ -22,7 +22,7 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallAgentControl;
 
-pub const RELEASE_NAME: &str = "agent-control-deployment";
+pub const AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME: &str = "agent-control-deployment";
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 
 impl DynamicObjectListBuilder for InstallAgentControl {
@@ -60,8 +60,12 @@ impl DynamicObjectListBuilder for InstallAgentControl {
         let mut helm_release_labels = labels;
         helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
-        let helm_release_obj_meta_data =
-            obj_meta_data(RELEASE_NAME, namespace, helm_release_labels, annotations);
+        let helm_release_obj_meta_data = obj_meta_data(
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            namespace,
+            helm_release_labels,
+            annotations,
+        );
 
         vec![
             helm_repository(

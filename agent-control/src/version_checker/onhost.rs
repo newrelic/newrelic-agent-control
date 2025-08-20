@@ -2,7 +2,7 @@ use crate::agent_control::defaults::{
     AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use tracing::error;
 
 const NEWRELIC_INFRA_AGENT_VERSION: &str =
@@ -34,14 +34,14 @@ impl VersionChecker for OnHostAgentVersionChecker {
 
 fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, VersionCheckError> {
     match agent_type_id.name() {
-        AGENT_TYPE_NAME_INFRA_AGENT => Ok(AgentVersion::new(
-            NEWRELIC_INFRA_AGENT_VERSION.to_string(),
-            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        )),
-        AGENT_TYPE_NAME_NRDOT => Ok(AgentVersion::new(
-            NR_OTEL_COLLECTOR_VERSION.to_string(),
-            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        )),
+        AGENT_TYPE_NAME_INFRA_AGENT => Ok(AgentVersion {
+            version: NEWRELIC_INFRA_AGENT_VERSION.to_string(),
+            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        }),
+        AGENT_TYPE_NAME_NRDOT => Ok(AgentVersion {
+            version: NR_OTEL_COLLECTOR_VERSION.to_string(),
+            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        }),
         _ => Err(VersionCheckError::Generic(format!(
             "no match found for agent type: {agent_type_id}"
         ))),
@@ -87,12 +87,12 @@ mod tests {
                 check: |name, result| {
                     let r = result.unwrap();
                     assert_matches!(
-                        r.check_agent_version().unwrap().version(),
+                        r.check_agent_version().unwrap().version.as_str(),
                         NEWRELIC_INFRA_AGENT_VERSION,
                         "{name}",
                     );
                     assert_matches!(
-                        r.check_agent_version().unwrap().opamp_field(),
+                        r.check_agent_version().unwrap().opamp_field.as_str(),
                         OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
                         "{name}",
                     );

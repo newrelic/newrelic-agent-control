@@ -14,6 +14,7 @@ use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
+use crate::event::channel::pub_sub;
 use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
@@ -182,6 +183,7 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
+        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         AgentControl::new(
             maybe_client,
             sub_agent_builder,
@@ -190,6 +192,8 @@ impl AgentControlRunner {
             self.agent_control_publisher,
             self.application_event_consumer,
             maybe_sa_opamp_consumer,
+            agent_control_internal_publisher,
+            agent_control_internal_consumer,
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,

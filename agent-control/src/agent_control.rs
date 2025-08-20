@@ -13,7 +13,7 @@ pub mod uptime_report;
 pub mod version_updater;
 
 use crate::event::AgentControlInternalEvent;
-use crate::event::channel::{EventPublisher, pub_sub};
+use crate::event::channel::EventPublisher;
 use crate::event::{
     AgentControlEvent, ApplicationEvent, OpAMPEvent, broadcaster::unbounded::UnboundedBroadcast,
     channel::EventConsumer,
@@ -27,6 +27,7 @@ use crate::sub_agent::{
 };
 use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
+use crate::version_checker::handler::set_agent_description_version;
 use agent_id::AgentID;
 use config::{AgentControlConfig, AgentControlDynamicConfig, SubAgentsMap, sub_agents_difference};
 use config_repository::repository::AgentControlDynamicConfigRepository;
@@ -93,13 +94,14 @@ where
         agent_control_publisher: UnboundedBroadcast<AgentControlEvent>,
         application_event_consumer: EventConsumer<ApplicationEvent>,
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
+        agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+        agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
         dynamic_config_validator: DV,
         resource_cleaner: RC,
         version_updater: VU,
         health_checker_builder: HCB,
         initial_config: AgentControlConfig,
     ) -> Self {
-        let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
         Self {
             opamp_client,
             sub_agent_builder,
@@ -322,6 +324,13 @@ where
                             match internal_event {
                                 AgentControlInternalEvent::HealthUpdated(health) => {
                                     self.report_health(health);
+                                },
+                                AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
+                                    let _ = self.opamp_client.as_ref().map(|c| set_agent_description_version(
+                                        c,
+                                        cd_version,
+                                    )
+                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                             }
                         },
@@ -786,6 +795,7 @@ agents:
                 ..Default::default()
             };
 
+            let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
             let agent_control = {
                 AgentControl::new(
                     Some(started_client),
@@ -795,6 +805,8 @@ agents:
                     agent_control_publisher,
                     application_event_consumer,
                     Some(opamp_consumer),
+                    agent_control_internal_publisher,
+                    agent_control_internal_consumer,
                     dynamic_config_validator,
                     resource_cleaner,
                     version_updater,

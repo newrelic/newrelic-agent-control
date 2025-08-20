@@ -3,9 +3,9 @@ use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1b
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
-use crate::sub_agent::version::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::sub_agent::version::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
-use crate::sub_agent::version::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
+use crate::version_checker::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
 use tracing::warn;
@@ -56,6 +56,7 @@ impl K8sAgentVersionChecker {
         k8s_client: Arc<SyncK8sClient>,
         agent_id: &AgentID,
         k8s_objects: Arc<Vec<DynamicObject>>,
+        opamp_field: String,
     ) -> Option<Self> {
         // It returns the first version-checker matching an object.
         for object in k8s_objects.iter() {
@@ -72,9 +73,15 @@ impl K8sAgentVersionChecker {
             };
 
             let health_checker = match resource_type {
-                SupportedResourceType::HelmRelease => Self::HelmRelease(
-                    HelmReleaseVersionChecker::new(k8s_client, type_meta, namespace, agent_id),
-                ),
+                SupportedResourceType::HelmRelease => {
+                    Self::HelmRelease(HelmReleaseVersionChecker::new(
+                        k8s_client,
+                        type_meta,
+                        namespace,
+                        agent_id.to_string(),
+                        opamp_field,
+                    ))
+                }
                 SupportedResourceType::Instrumentation => {
                     Self::Instrumentation(NewrelicInstrumentationVersionChecker::new(
                         k8s_client, type_meta, namespace, agent_id,
@@ -94,7 +101,10 @@ impl K8sAgentVersionChecker {
 mod tests {
     use super::*;
     use crate::{
-        agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
+        agent_control::{
+            config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
+            defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+        },
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
@@ -125,6 +135,7 @@ mod tests {
                     Arc::new(MockSyncK8sClient::new()),
                     &AgentID::try_from("some-agent-id").unwrap(),
                     k8s_objects,
+                    OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
                 );
                 let check = self.check;
                 check(self.name, result);

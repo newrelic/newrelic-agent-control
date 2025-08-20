@@ -25,10 +25,9 @@ impl Labels {
     /// Adds the agent id label to the set.
     pub fn new(agent_id: &AgentID) -> Self {
         let mut labels = Self::default();
-        labels.0.insert(
-            AGENT_ID_LABEL_KEY.to_string(),
-            agent_id.as_str().to_string(),
-        );
+        labels
+            .0
+            .insert(AGENT_ID_LABEL_KEY.to_string(), agent_id.to_string());
         labels
     }
 

@@ -1,4 +1,4 @@
-use crate::agent_control::defaults::AGENT_CONTROL_ID;
+use crate::agent_control::defaults::{AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::Path;
@@ -31,8 +31,8 @@ pub enum AgentIDError {
 impl AgentID {
     pub fn as_str(&self) -> &str {
         match self {
-            AgentID::AgentControl => AGENT_CONTROL_ID,
-            AgentID::SubAgent(id) => id,
+            Self::AgentControl => AGENT_CONTROL_ID,
+            Self::SubAgent(id) => id,
         }
     }
 
@@ -51,7 +51,10 @@ impl AgentID {
 impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
     fn try_from(input: String) -> Result<Self, Self::Error> {
-        if input.eq_ignore_ascii_case(AGENT_CONTROL_ID) {
+        if RESERVED_AGENT_IDS
+            .iter()
+            .any(|id| input.eq_ignore_ascii_case(id))
+        {
             Err(AgentIDError::Reserved(input))
         } else if AgentID::is_valid_format(&input) {
             Ok(AgentID::SubAgent(input))

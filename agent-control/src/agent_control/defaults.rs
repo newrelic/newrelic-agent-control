@@ -1,4 +1,6 @@
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
+use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
@@ -6,12 +8,21 @@ use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
 
 pub const AGENT_CONTROL_ID: &str = "agent-control";
+
+pub const RESERVED_AGENT_IDS: [&str; 3] = [
+    AGENT_CONTROL_ID,
+    AGENT_CONTROL_CD_RELEASE_NAME,
+    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+];
+
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
 pub const AGENT_CONTROL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // Keys identifying attributes
-pub const OPAMP_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
+pub const OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version";
+pub const OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY: &str = "chart.version"; // TODO `ac.chart.version`?
+pub const OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY: &str = "cd.chart.version";
 pub const OPAMP_SERVICE_NAME: &str = "service.name";
 pub const OPAMP_SERVICE_VERSION: &str = "service.version";
 pub const OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";

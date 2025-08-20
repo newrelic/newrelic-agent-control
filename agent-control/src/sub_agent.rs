@@ -8,7 +8,6 @@ pub mod k8s;
 pub mod on_host;
 pub mod remote_config_parser;
 pub mod supervisor;
-pub mod version;
 
 use crate::agent_control::defaults::default_capabilities;
 use crate::agent_control::run::Environment;
@@ -28,6 +27,7 @@ use crate::utils::threads::spawn_named_thread;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::ConfigRepository;
 use crate::values::yaml_config::YAMLConfig;
+use crate::version_checker::handler::set_agent_description_version;
 use crossbeam::channel::never;
 use crossbeam::select;
 use effective_agents_assembler::EffectiveAgentsAssemblerError;
@@ -35,7 +35,6 @@ use effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use error::SubAgentStopError;
 use error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use event_handler::on_health::on_health;
-use event_handler::on_version::on_version;
 use identity::AgentIdentity;
 use opamp_client::StartedClient;
 use remote_config_parser::{RemoteConfigParser, RemoteConfigParserError};
@@ -362,11 +361,11 @@ where
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
-                                let _ = on_version(
+                                let _ = self.maybe_opamp_client.as_ref().map(|c| set_agent_description_version(
+                                    c,
                                     agent_data,
-                                    self.maybe_opamp_client.as_ref(),
-                                    )
-                                    .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
+                                )
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
                             }
                         }
                     }
