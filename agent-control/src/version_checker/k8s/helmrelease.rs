@@ -14,7 +14,7 @@ pub struct HelmReleaseVersionChecker {
     k8s_client: Arc<SyncK8sClient>,
     type_meta: TypeMeta,
     namespace: String,
-    release_name: String,
+    name: String,
     /// The field of the OpAMP payload where the retrieved version will be stored.
     ///
     /// Currently, this is always an identifying_attribute.
@@ -33,7 +33,7 @@ impl HelmReleaseVersionChecker {
             k8s_client,
             type_meta,
             namespace,
-            release_name,
+            name: release_name,
             opamp_field,
         }
     }
@@ -48,7 +48,6 @@ impl HelmReleaseVersionChecker {
             .iter()
             // Look for the first extractor that recovers something that is not an empty string
             .find_map(|extractor| extractor(data).filter(|v| !v.is_empty()))
-            // Construct the AgentVersion structure, with the field dependent on the Agent ID.
             .map(|v| AgentVersion {
                 version: v,
                 opamp_field: self.opamp_field.to_string(),
@@ -64,22 +63,15 @@ impl VersionChecker for HelmReleaseVersionChecker {
         // Attempt to get the HelmRelease from Kubernetes
         let helm_release = self
             .k8s_client
-            .get_dynamic_object(
-                &self.type_meta,
-                self.release_name.as_str(),
-                self.namespace.as_str(),
-            )
+            .get_dynamic_object(&self.type_meta, self.name.as_str(), self.namespace.as_str())
             .map_err(|e| {
                 VersionCheckError::Generic(format!(
                     "Error fetching HelmRelease '{}': {}",
-                    &self.release_name, e
+                    &self.name, e
                 ))
             })?
             .ok_or_else(|| {
-                VersionCheckError::Generic(format!(
-                    "HelmRelease '{}' not found",
-                    &self.release_name
-                ))
+                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.name))
             })?;
 
         let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
@@ -161,11 +153,7 @@ pub mod tests {
 
     impl std::fmt::Debug for HelmReleaseVersionChecker {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(
-                f,
-                "HelmReleaseVersionChecker{{agent_id: {}}}",
-                self.release_name
-            )
+            write!(f, "HelmReleaseVersionChecker{{agent_id: {}}}", self.name)
         }
     }
 
