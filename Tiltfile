@@ -134,6 +134,29 @@ ac_flags = [
   '--values=' + sa_chart_values_file,
 ]
 
+ac_chart_deps = ['build-binary', 'local-child-chart-upload']
+
+latest_flux = os.getenv('LATEST_FLUX', 'false').lower() == 'true'
+
+if latest_flux:
+    ## we are saving the latest flux version chart in the local repository and updating the dependencies to point to it in
+    ## agent-control-cd so we can test the latest version of flux.
+    local_resource(
+        'local-latest-flux-chart-upload',
+        cmd="""
+         flux_latest_version=$(curl -s https://fluxcd-community.github.io/helm-charts/index.yaml | yq eval '.entries.flux2[0].version' -) &&
+         cd_latest_version=$(curl -s https://newrelic.github.io/helm-charts/index.yaml | yq eval '.entries.agent-control-cd[0].version' -) &&
+         yq eval ".dependencies |= map(select(.name == \\"flux2\\") | .version = \\"$flux_latest_version\\")" -i local/helm-charts-tmp/charts/agent-control-cd/Chart.yaml &&
+         helm package --dependency-update --version "$cd_latest_version" --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-cd &&
+         curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/agent-control-cd/${cd_latest_version} &&
+         curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-cd-${cd_latest_version}.tgz" http://localhost:8080/api/charts
+        """,
+        resource_deps=['local-child-chart-upload'],
+    )
+
+    ac_chart_deps.append('local-latest-flux-chart-upload')
+    ac_flags.append('--set=agent-control-cd.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080')
+
 if license_key != '':
   ac_flags.append('--set=global.licenseKey='+license_key)
   
@@ -154,7 +177,7 @@ helm_resource(
   image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
               [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
               ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
-  resource_deps=['build-binary', 'local-child-chart-upload']
+  resource_deps=ac_chart_deps
 )
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
