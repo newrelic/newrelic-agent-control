@@ -78,7 +78,7 @@ impl K8sAgentVersionChecker {
                         k8s_client,
                         type_meta,
                         namespace,
-                        agent_id.as_str().to_string(),
+                        agent_id.to_string(),
                         opamp_field,
                     ))
                 }

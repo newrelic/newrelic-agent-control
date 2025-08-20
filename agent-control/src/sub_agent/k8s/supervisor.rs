@@ -201,7 +201,7 @@ impl NotStartedSupervisorK8s {
         )?;
 
         Some(spawn_version_checker(
-            self.agent_identity.id.as_str().to_string(),
+            self.agent_identity.id.to_string(),
             k8s_version_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentVersionInfo,

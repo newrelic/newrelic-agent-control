@@ -154,7 +154,7 @@ where
 
         // Build the agent attributes
         let attributes = AgentAttributes {
-            agent_id: agent_identity.id.as_str().to_string(),
+            agent_id: agent_identity.id.to_string(),
         };
 
         // Values are expanded substituting all ${nr-env...} with environment variables.

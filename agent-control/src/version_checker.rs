@@ -139,7 +139,7 @@ pub mod tests {
             });
 
         let started_thread_context = spawn_version_checker(
-            AgentID::default().as_str().to_string(),
+            AgentID::default().to_string(),
             version_checker,
             version_publisher,
             SubAgentInternalEvent::AgentVersionInfo,
