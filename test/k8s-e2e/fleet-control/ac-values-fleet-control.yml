@@ -11,13 +11,6 @@ agentControlDeployment:
         enabled: true
         # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
         fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
-      override:
-        fleet_control:
-          signature_validation:
-            # Disable this as is not supported by the proxy.
-            # On a prod environment is recommended to add an exception for the firewall to newrelic.com or
-            # mount the downloaded Certificate.
-            enabled: false
       log:
         level: debug
       agents:
