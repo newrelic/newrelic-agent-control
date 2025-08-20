@@ -19,7 +19,7 @@ use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use crate::event::AgentControlInternalEvent;
-use crate::event::channel::pub_sub;
+use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
@@ -33,6 +33,7 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
+use crate::utils::thread_context::StartedThreadContext;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
@@ -216,18 +217,10 @@ impl AgentControlRunner {
         );
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
-        let _cd_version_checker = spawn_version_checker(
-            AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
-            HelmReleaseVersionChecker::new(
-                k8s_client,
-                helmrelease_v2_type_meta(),
-                self.k8s_config.namespace.clone(),
-                AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
-                OPAMP_K8S_CD_VERSION_ATTRIBUTE_KEY.to_string(),
-            ),
+        let _cd_version_checker = start_cd_version_checker(
+            k8s_client,
+            self.k8s_config.namespace.clone(),
             agent_control_internal_publisher.clone(),
-            AgentControlInternalEvent::AgentControlCdVersionUpdated,
-            VersionCheckerInterval::default(),
         );
 
         AgentControl::new(
@@ -248,6 +241,30 @@ impl AgentControlRunner {
         )
         .run()
     }
+}
+
+fn start_cd_version_checker(
+    k8s_client: Arc<SyncK8sClient>,
+    namespace: String,
+    ac_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+) -> StartedThreadContext {
+    spawn_version_checker(
+        AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+        HelmReleaseVersionChecker::new(
+            k8s_client,
+            helmrelease_v2_type_meta(),
+            namespace,
+            AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+            OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+        ),
+        ac_internal_publisher,
+        // The below argument expects a function "AgentVersion -> T"
+        // where T is the "event" sendable by the above publisher.
+        // Using an enum variant that wraps a type is the same as a function taking the type.
+        // Same as passing "|x| AgentControlInternalEvent::AgentControlCdVersionUpdated(x)"
+        AgentControlInternalEvent::AgentControlCdVersionUpdated,
+        VersionCheckerInterval::default(),
+    )
 }
 
 pub fn agent_control_opamp_non_identifying_attributes(
