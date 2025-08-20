@@ -326,11 +326,11 @@ where
                                     self.report_health(health);
                                 },
                                 AgentControlInternalEvent::AgentControlCdVersionUpdated(cd_version) => {
-                                    let _ = set_agent_description_version(
+                                    let _ = self.opamp_client.as_ref().map(|c| set_agent_description_version(
+                                        c,
                                         cd_version,
-                                        self.opamp_client.as_ref()
                                     )
-                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message"));
+                                    .inspect_err(|e| error!(error = %e, select_arm = "agent_control_internal_consumer", "processing version message")));
                                 },
                             }
                         },

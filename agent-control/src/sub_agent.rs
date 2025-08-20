@@ -361,11 +361,11 @@ where
                                 .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "Processing health message"));
                             },
                             Ok(SubAgentInternalEvent::AgentVersionInfo(agent_data)) => {
-                                let _ = set_agent_description_version(
+                                let _ = self.maybe_opamp_client.as_ref().map(|c| set_agent_description_version(
+                                    c,
                                     agent_data,
-                                    self.maybe_opamp_client.as_ref(),
                                 )
-                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message"));
+                                .inspect_err(|e| error!(error = %e, select_arm = "sub_agent_internal_consumer", "processing version message")));
                             }
                         }
                     }
