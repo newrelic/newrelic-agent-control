@@ -23,6 +23,7 @@ const SECRET_NAME: &str = "ac-values";
 const VALUES_KEY: &str = "values.yaml";
 
 const NEW_FLUX_VERSION: &str = "flux2-1.0.0";
+
 #[test]
 #[ignore = "needs k8s cluster"]
 fn k8s_health_check_for_flux_when_fails() {
