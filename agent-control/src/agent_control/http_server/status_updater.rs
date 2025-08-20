@@ -239,7 +239,7 @@ mod tests {
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from(HashMap::from([(
+                    sub_agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-agent-id").unwrap(),
@@ -247,7 +247,7 @@ mod tests {
                             0,
                             HealthInfo::new(String::default(), true, None, 0, 0),
                         ),
-                    )])),
+                    )]),
                 },
             },
             Test {
@@ -273,7 +273,7 @@ mod tests {
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from(HashMap::from([(
+                    sub_agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-agent-id").unwrap(),
@@ -287,7 +287,7 @@ mod tests {
                                 0,
                             ),
                         ),
-                    )])),
+                    )]),
                 },
             },
             Test {
@@ -308,7 +308,7 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from(HashMap::from([
+                    sub_agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -339,12 +339,12 @@ mod tests {
                                 ),
                             ),
                         ),
-                    ])),
+                    ]),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from(HashMap::from([
+                    sub_agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -375,7 +375,7 @@ mod tests {
                                 ),
                             ),
                         ),
-                    ])),
+                    ]),
                 },
             },
             Test {
@@ -387,7 +387,7 @@ mod tests {
                 current_status: Arc::new(RwLock::new(Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
-                    sub_agents: SubAgentsStatus::from(HashMap::from([
+                    sub_agents: SubAgentsStatus::from([
                         (
                             AgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
@@ -418,12 +418,12 @@ mod tests {
                                 ),
                             ),
                         ),
-                    ])),
+                    ]),
                 })),
                 expected_status: Status {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random,
-                    sub_agents: SubAgentsStatus::from(HashMap::from([(
+                    sub_agents: SubAgentsStatus::from([(
                         AgentID::try_from("some-other-id").unwrap(),
                         SubAgentStatus::new(
                             AgentID::try_from("some-other-id").unwrap(),
@@ -431,7 +431,7 @@ mod tests {
                             0,
                             HealthInfo::new(String::default(), true, Some(String::default()), 0, 0),
                         ),
-                    )])),
+                    )]),
                 },
             },
             Test {

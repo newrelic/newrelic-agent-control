@@ -7,7 +7,6 @@ use crate::opamp::{LastErrorCode, LastErrorMessage};
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Serialize;
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::time::SystemTime;
 use url::Url;
 
@@ -206,24 +205,7 @@ impl SubAgentStatus {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Default, Clone)]
-pub(super) struct SubAgentsStatus(HashMap<AgentID, SubAgentStatus>);
-
-impl From<HashMap<AgentID, SubAgentStatus>> for SubAgentsStatus {
-    fn from(value: HashMap<AgentID, SubAgentStatus>) -> Self {
-        SubAgentsStatus(value)
-    }
-}
-
-impl SubAgentsStatus {
-    pub(super) fn entry(&mut self, agent_id: AgentID) -> Entry<AgentID, SubAgentStatus> {
-        self.0.entry(agent_id)
-    }
-
-    pub(super) fn remove(&mut self, agent_id: &AgentID) {
-        self.0.remove(agent_id);
-    }
-}
+pub(super) type SubAgentsStatus = HashMap<AgentID, SubAgentStatus>;
 
 /// Agent Control, Sub Agents and OpAMP status and health.
 /// This information will be shown when the status endpoint is called.
@@ -379,50 +361,47 @@ pub mod tests {
                 error_code: None,
                 error_message: None,
             },
-            sub_agents: SubAgentsStatus(
-                [
-                    (
-                        AgentID::try_from("agent-id-1").unwrap(),
-                        SubAgentStatus {
-                            agent_id: AgentID::try_from("agent-id-1").unwrap(),
-                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
-                            agent_start_time_unix_nano: 0,
-                            health_info: None,
-                        },
-                    ),
-                    (
-                        AgentID::try_from("agent-id-2").unwrap(),
-                        SubAgentStatus {
-                            agent_id: AgentID::try_from("agent-id-2").unwrap(),
-                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
-                            agent_start_time_unix_nano: 0,
-                            health_info: Some(HealthInfo {
-                                healthy: true,
-                                last_error: None,
-                                status: "".to_string(),
-                                start_time_unix_nano: 0,
-                                status_time_unix_nano: 0,
-                            }),
-                        },
-                    ),
-                    (
-                        AgentID::try_from("agent-id-3").unwrap(),
-                        SubAgentStatus {
-                            agent_id: AgentID::try_from("agent-id-3").unwrap(),
-                            agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
-                            agent_start_time_unix_nano: 0,
-                            health_info: Some(HealthInfo {
-                                healthy: false,
-                                last_error: Some("some error".to_string()),
-                                status: "some error status".to_string(),
-                                start_time_unix_nano: 0,
-                                status_time_unix_nano: 0,
-                            }),
-                        },
-                    ),
-                ]
-                .into(),
-            ),
+            sub_agents: SubAgentsStatus::from([
+                (
+                    AgentID::try_from("agent-id-1").unwrap(),
+                    SubAgentStatus {
+                        agent_id: AgentID::try_from("agent-id-1").unwrap(),
+                        agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                        agent_start_time_unix_nano: 0,
+                        health_info: None,
+                    },
+                ),
+                (
+                    AgentID::try_from("agent-id-2").unwrap(),
+                    SubAgentStatus {
+                        agent_id: AgentID::try_from("agent-id-2").unwrap(),
+                        agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                        agent_start_time_unix_nano: 0,
+                        health_info: Some(HealthInfo {
+                            healthy: true,
+                            last_error: None,
+                            status: "".to_string(),
+                            start_time_unix_nano: 0,
+                            status_time_unix_nano: 0,
+                        }),
+                    },
+                ),
+                (
+                    AgentID::try_from("agent-id-3").unwrap(),
+                    SubAgentStatus {
+                        agent_id: AgentID::try_from("agent-id-3").unwrap(),
+                        agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
+                        agent_start_time_unix_nano: 0,
+                        health_info: Some(HealthInfo {
+                            healthy: false,
+                            last_error: Some("some error".to_string()),
+                            status: "some error status".to_string(),
+                            start_time_unix_nano: 0,
+                            status_time_unix_nano: 0,
+                        }),
+                    },
+                ),
+            ]),
         };
         let expected = serde_json::json!({
             "agent_control": {
