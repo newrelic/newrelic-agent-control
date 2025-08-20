@@ -1,34 +1,33 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-installationJob:
-  logLevel: debug
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  systemIdentity:
-    create: false
-    secretName: "sys-identity"
+agentControlDeployment:
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    systemIdentity:
+      create: false
+      secretName: "sys-identity"
 
-  config:
-    fleet_control:
-      enabled: true
-      # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
-      fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
-    override:
+    config:
       fleet_control:
-        signature_validation:
-          # Disable this as is not supported by the proxy.
-          # On a prod environment is recommended to add an exception for the firewall to newrelic.com or
-          # mount the downloaded Certificate.
-          enabled: false
-    log:
-      level: debug
-    agents:
+        enabled: true
+        # Fleet with name 'ac-e2e-2'. The sub-agent reports data to the 'Agent Control Canaries' account.
+        fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVjOGJkLTc3ZjYtN2Y2Ni05ZDQ4LTgxMzFlYTJlNWRkMw
+      override:
+        fleet_control:
+          signature_validation:
+            # Disable this as is not supported by the proxy.
+            # On a prod environment is recommended to add an exception for the firewall to newrelic.com or
+            # mount the downloaded Certificate.
+            enabled: false
+      log:
+        level: debug
+      agents:
+        infra:
+          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+    agentsConfig:
       infra:
-        agent_type: newrelic/com.newrelic.infrastructure:0.1.0
-  agentsConfig:
-    infra:
-      chart_version: "*" # Use latest
-      chart_values:
-        global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
-          customAttributes:
-            cluster_name: ${nr-env:NR_CLUSTER_NAME}
-            config_origin: local
+        chart_version: "*" # Use latest
+        chart_values:
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+            customAttributes:
+              cluster_name: ${nr-env:NR_CLUSTER_NAME}
+              config_origin: local

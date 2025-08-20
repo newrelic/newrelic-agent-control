@@ -1,59 +1,56 @@
-installationJob:
-  logLevel: debug
+agentControlDeployment:
   repositorySecretReferenceName: chartmuseum-auth
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    verboseLog: true
+    config:
+      fleet_control:
+        enabled: false
+      log:
+        level: debug
+      allowedChartRepositoryUrl: [ "http://chartmuseum.default.svc.cluster.local:8080" ]
+      agents:
+        prometheus:
+          agent_type: newrelic/com.newrelic.prometheus:0.1.0
 
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  verboseLog: true
-  config:
-    fleet_control:
-      enabled: false
-    log:
-      level: debug
-    allowedChartRepositoryUrl: [ "http://chartmuseum.default.svc.cluster.local:8080" ]
-    agents:
+    agentsConfig:
       prometheus:
-        agent_type: newrelic/com.newrelic.prometheus:0.1.0
-
-  agentsConfig:
-    prometheus:
-      # This configuration extracts the Prometheus agent from the nri-bundle chart to test custom repository functionality.
-      # While this approach of using a bundle chart for a single component isn't typical in production,
-      # it allows comprehensive testing of all custom repository features and authentication mechanisms.
-      chart_repository:
-        url: http://chartmuseum.default.svc.cluster.local:8080
-        secret_reference:
-          name: chartmuseum-auth
-      chart_name: nri-bundle
-      chart_version: "*"
-      chart_values:
-        newrelic-prometheus-agent:
-          # For the purpose of the test only prom agent is required for assertions.
+        # This configuration extracts the Prometheus agent from the nri-bundle chart to test custom repository functionality.
+        # While this approach of using a bundle chart for a single component isn't typical in production,
+        # it allows comprehensive testing of all custom repository features and authentication mechanisms.
+        chart_repository:
+          url: http://chartmuseum.default.svc.cluster.local:8080
+          secret_reference:
+            name: chartmuseum-auth
+        chart_name: nri-bundle
+        chart_version: "*"
+        chart_values:
           newrelic-prometheus-agent:
-            enabled: true
-          # The rest of sub-charts are disabled to avoid any extra load.
-          nri-prometheus:
-            enabled: false
-          newrelic-infrastructure:
-            enabled: false
-          nri-metadata-injection:
-            enabled: false
-          kube-state-metrics:
-            enabled: false
-          nri-kube-events:
-            enabled: false
-          newrelic-logging:
-            enabled: false
-          newrelic-pixie:
-            enabled: false
-          newrelic-eapm-agent:
-            enabled: false
-          k8s-agents-operator:
-            enabled: false
-          pixie-chart:
-            enabled: false
-          newrelic-infra-operator:
-            enabled: false
-          newrelic-k8s-metrics-adapter:
-            enabled: false
-
+            # For the purpose of the test only prom agent is required for assertions.
+            newrelic-prometheus-agent:
+              enabled: true
+            # The rest of sub-charts are disabled to avoid any extra load.
+            nri-prometheus:
+              enabled: false
+            newrelic-infrastructure:
+              enabled: false
+            nri-metadata-injection:
+              enabled: false
+            kube-state-metrics:
+              enabled: false
+            nri-kube-events:
+              enabled: false
+            newrelic-logging:
+              enabled: false
+            newrelic-pixie:
+              enabled: false
+            newrelic-eapm-agent:
+              enabled: false
+            k8s-agents-operator:
+              enabled: false
+            pixie-chart:
+              enabled: false
+            newrelic-infra-operator:
+              enabled: false
+            newrelic-k8s-metrics-adapter:
+              enabled: false

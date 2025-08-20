@@ -64,7 +64,7 @@ docker_build(
 
 ######## Feature Branch ########
 # We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = "master"
+feature_branch = 'master'
 
 #### Set-up charts
 
@@ -127,10 +127,10 @@ local_resource(
 ac_flags = [
   '--timeout=150s',
   '--create-namespace',
-  '--set=installationJob.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
-  '--set=installationJob.chartVersion=0.0.1',
+  '--set=agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
+  '--set=agentControlDeployment.chartVersion=0.0.1',
   '--version=>=0.0.0-beta',
-  '--set=agent-control-deployment.image.imagePullPolicy=Always',
+  '--set=agentControlDeployment.chartValues.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
 ]
 
@@ -159,5 +159,3 @@ helm_resource(
 
 # We had flaky e2e test failing due to timeout applying the chart on 30s
 update_settings(k8s_upsert_timeout_secs=200)
-
-

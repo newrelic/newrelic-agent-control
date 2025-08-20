@@ -1,22 +1,20 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-installationJob:
-  logLevel: debug
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  config:
-    log:
-      level: trace
-    fleet_control:
-      enabled: false
-    agents:
+agentControlDeployment:
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    config:
+      log:
+        level: trace
+      fleet_control:
+        enabled: false
+      agents:
+        open-telemetry:
+          agent_type: newrelic/io.opentelemetry.collector:0.1.0
+
+    agentsConfig:
       open-telemetry:
-        agent_type: newrelic/io.opentelemetry.collector:0.1.0
-
-  agentsConfig:
-    open-telemetry:
-      # Testing the latest released version of the chart
-      chart_version: "*"
-      chart_values:
-        nr-k8s-otel-collector:
-          verboseLog: true
-
+        # Testing the latest released version of the chart
+        chart_version: "*"
+        chart_values:
+          nr-k8s-otel-collector:
+            verboseLog: true

@@ -1,43 +1,42 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-installationJob:
-  logLevel: debug
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
-  config:
-    fleet_control:
-      enabled: false
-    log:
-      level: debug
-    agents:
-      infra:
-        agent_type: newrelic/com.newrelic.infrastructure:0.1.0
-      prometheus:
-        agent_type: newrelic/com.newrelic.prometheus:0.1.0
-      logs:
-        agent_type: newrelic/io.fluentbit:0.1.0
-      gateway:
-        agent_type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
-
-  agentsConfig:
-    infra:
-      chart_version: "*" # Use latest
-      chart_values:
-        global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
-          customAttributes:
-            cluster_name: ${nr-env:NR_CLUSTER_NAME}
-    prometheus:
-      chart_version: "*" # Use latest
-    logs:
-      chart_version: "*" # Use latest
-    gateway:
-      chart_version: "*" # Use latest
-      chart_values:
-        # we override resources since to fit in the small ci/cd minikube
+agentControlDeployment:
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    verboseLog: true # It is propagated to some agents (same as licenseKey and cluster)
+    config:
+      fleet_control:
+        enabled: false
+      log:
+        level: debug
+      agents:
+        infra:
+          agent_type: newrelic/com.newrelic.infrastructure:0.1.0
+        prometheus:
+          agent_type: newrelic/com.newrelic.prometheus:0.1.0
+        logs:
+          agent_type: newrelic/io.fluentbit:0.1.0
         gateway:
-          # TODO we are currently not testing the gateway behaviour, only that the chart is deployed
-          # For this reason we are blocking the creation of pods
-          customSecretName: "not-existing"
-          customSecretLicenseKey: "not-existing"
-          nodeSelector:
-            not-existing/os: "not-existing"
+          agent_type: newrelic/com.newrelic.pipeline_control_gateway:0.1.0
+
+    agentsConfig:
+      infra:
+        chart_version: "*" # Use latest
+        chart_values:
+          global: # add 'cluster_name' (nri-kubernetes events have 'clusterName' attribute)
+            customAttributes:
+              cluster_name: ${nr-env:NR_CLUSTER_NAME}
+      prometheus:
+        chart_version: "*" # Use latest
+      logs:
+        chart_version: "*" # Use latest
+      gateway:
+        chart_version: "*" # Use latest
+        chart_values:
+          # we override resources since to fit in the small ci/cd minikube
+          gateway:
+            # TODO we are currently not testing the gateway behaviour, only that the chart is deployed
+            # For this reason we are blocking the creation of pods
+            customSecretName: "not-existing"
+            customSecretLicenseKey: "not-existing"
+            nodeSelector:
+              not-existing/os: "not-existing"

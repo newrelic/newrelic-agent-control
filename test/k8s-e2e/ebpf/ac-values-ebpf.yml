@@ -1,21 +1,18 @@
 # Cluster and License info is set with "--set" in the e2e-spec file
-installationJob:
-  logLevel: debug
-agent-control-deployment:
-  subAgentsNamespace: "newrelic-agents"
-  config:
-    log:
-      level: debug
-    fleet_control:
-      enabled: false
-    agents:
+agentControlDeployment:
+  chartValues:
+    subAgentsNamespace: "newrelic-agents"
+    config:
+      log:
+        level: debug
+      fleet_control:
+        enabled: false
+      agents:
+        # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
+        nr-ebpf:
+          agent_type: newrelic/com.newrelic.ebpf:0.1.0
+    agentsConfig:
       # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
       nr-ebpf:
-        agent_type: newrelic/com.newrelic.ebpf:0.1.0
-  agentsConfig:
-    # Currently ebpf agent only supports amd64 nodes. Testing this on a local minikube arm64 will not work.
-    nr-ebpf:
-      # Testing the latest released version of the chart
-      chart_version: "*"
-
-
+        # Testing the latest released version of the chart
+        chart_version: "*"
