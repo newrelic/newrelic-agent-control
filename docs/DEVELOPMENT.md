@@ -8,11 +8,12 @@ As of now, Agent Control is supported on Linux (x86_64 and aarch64). The program
 
 To compile and run locally:
 
-1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the relevant target for your system, e.g. (`rustup target add x86_64-unknown-linux-musl`).
-2. Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
-3. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either `x86_64` or `aarch64`, depending on your system.
-4. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
-5. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
+1. Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
+2. Install Zig with one of the [supported methods](https://github.com/ziglang/zig#installation).
+3. Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
+4. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either `x86_64` or `aarch64`, depending on your system.
+5. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
+6. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
 
     ```yaml
     fleet_control:
@@ -24,7 +25,7 @@ To compile and run locally:
         agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
     ```
 
-6. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
+7. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
    `agents:` list. Example:
 
     ```yaml
@@ -35,7 +36,7 @@ To compile and run locally:
       # pipelines:
     ```
 
-7. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
+8. Execute the binary with the config file with `sudo ./target/debug/newrelic-agent-control`
 
 #### Filesystem layout and persistence
 
