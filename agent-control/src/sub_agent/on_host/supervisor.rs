@@ -45,7 +45,7 @@ pub struct StartedSupervisorOnHost {
 pub struct NotStartedSupervisorOnHost {
     pub(super) agent_identity: AgentIdentity,
     pub(super) ctx: Context<bool>,
-    pub(crate) maybe_exec: Option<ExecutableData>,
+    pub(crate) executables: Vec<ExecutableData>,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
@@ -60,18 +60,28 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
 
-        let thread_contexts = vec![
+        let executable_thread_contexts = self
+            .executables
+            .clone()
+            .into_iter()
+            .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e.clone()));
+
+        let thread_contexts: Vec<StartedThreadContext> = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
             self.start_version_checker(sub_agent_internal_publisher.clone()),
-            // the process thread is created if exec is Some
-            self.maybe_exec
-                .clone()
-                .map(|e| self.start_process_thread(sub_agent_internal_publisher, e)),
-        ];
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        let thread_contexts = executable_thread_contexts
+            .into_iter()
+            .chain(thread_contexts)
+            .collect();
 
         Ok(StartedSupervisorOnHost {
             ctx,
-            thread_contexts: thread_contexts.into_iter().flatten().collect(),
+            thread_contexts,
         })
     }
 }
@@ -101,14 +111,14 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 impl NotStartedSupervisorOnHost {
     pub fn new(
         agent_identity: AgentIdentity,
-        maybe_exec: Option<ExecutableData>,
+        executables: Vec<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
             ctx,
-            maybe_exec,
+            executables,
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
@@ -173,7 +183,7 @@ impl NotStartedSupervisorOnHost {
     }
 
     fn start_process_thread(
-        self,
+        &self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
         executable_data: ExecutableData,
     ) -> StartedThreadContext {
@@ -182,14 +192,19 @@ impl NotStartedSupervisorOnHost {
         let shutdown_ctx = Context::new();
         _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
 
-        let executable_data_clone = executable_data.clone();
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
         // as input. In that specific case it's not used, but we need to pass it to comply with the signature.
         // This should be refactored to work as the other threads used by the supervisor.
+
+        let executable_data_clone = executable_data.clone();
+        let ctx = self.ctx.clone();
+        let agent_id = self.agent_identity.id.clone();
+        let log_to_file = self.log_to_file;
+        let logging_path = self.logging_path.clone();
         let callback = move |_| loop {
             let span = info_span!(
                 "start_executable",
-                { ID_ATTRIBUTE_NAME } = %self.agent_identity.id
+                { ID_ATTRIBUTE_NAME } = %agent_id
             );
             let span_guard = span.enter();
             // locks the current_pid to prevent `wait_for_termination` finishing before the process
@@ -200,7 +215,7 @@ impl NotStartedSupervisorOnHost {
 
             // A context cancelled means that the supervisor has been gracefully stopped
             // before the process was started.
-            if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+            if *Context::get_lock_cvar(&ctx).0.lock().unwrap() {
                 debug!("supervisor stopped before starting the process");
                 break;
             }
@@ -210,7 +225,12 @@ impl NotStartedSupervisorOnHost {
             shutdown_ctx.reset().unwrap();
             // Signals return exit_code 0, if in the future we need to act on them we can import
             // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let not_started_command = self.not_started_command(&executable_data_clone);
+            let not_started_command = CommandOSNotStarted::new(
+                agent_id.clone(),
+                &executable_data_clone,
+                log_to_file,
+                logging_path.clone(),
+            );
 
             let supervisor_start_time = SystemTime::now();
 
@@ -224,7 +244,7 @@ impl NotStartedSupervisorOnHost {
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
                 "stop_executable",
-                { ID_ATTRIBUTE_NAME } = %self.agent_identity.id
+                { ID_ATTRIBUTE_NAME } = %agent_id
             );
             let _span_guard = span.enter();
 
@@ -239,7 +259,7 @@ impl NotStartedSupervisorOnHost {
                     handle_termination(
                         exit_status,
                         &internal_event_publisher,
-                        &self.agent_identity.id,
+                        &agent_id,
                         executable_data_clone.bin.to_string(),
                         supervisor_start_time,
                     )
@@ -247,7 +267,7 @@ impl NotStartedSupervisorOnHost {
 
             // A context cancelled means that the supervisor has been gracefully stopped and is the
             // most probably reason why process has been exited.
-            if *Context::get_lock_cvar(&self.ctx).0.lock().unwrap() {
+            if *Context::get_lock_cvar(&ctx).0.lock().unwrap() {
                 info!(
                     supervisor = executable_data_clone.bin,
                     msg = "supervisor has been stopped and process terminated"
@@ -286,21 +306,11 @@ impl NotStartedSupervisorOnHost {
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
-                wait_exit_timeout(self.ctx.clone(), duration);
+                wait_exit_timeout(ctx.clone(), duration);
             });
         };
 
         NotStartedThreadContext::new(executable_data.bin, callback).start()
-    }
-
-    pub fn not_started_command(&self, executable_data: &ExecutableData) -> CommandOSNotStarted {
-        //TODO extract to to a builder so we can mock it
-        CommandOSNotStarted::new(
-            self.agent_identity.id.clone(),
-            executable_data,
-            self.log_to_file,
-            self.logging_path.clone(),
-        )
     }
 }
 
@@ -421,6 +431,11 @@ pub mod tests {
         ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
         None,
         vec!["supervisor stopped before starting the process", "stopped supervisor without process running"])]
+    #[case::long_running_process_shutdown_after_start(
+        "long-running",
+        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        Some(Duration::from_secs(1)),
+        vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     fn test_supervisor_gracefully_shutdown(
         #[case] agent_id: &str,
         #[case] executable: ExecutableData,
@@ -431,10 +446,10 @@ pub mod tests {
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
         let any_exit_code = vec![];
-        let executable_data = Some(executable.with_restart_policy(RestartPolicy::new(
+        let executable_data = vec![executable.with_restart_policy(RestartPolicy::new(
             BackoffStrategy::Fixed(backoff),
             any_exit_code,
-        )));
+        ))];
 
         let agent_identity = AgentIdentity::from((
             agent_id.to_owned().try_into().unwrap(),
@@ -482,15 +497,8 @@ pub mod tests {
     }
 
     #[test]
-    fn test_supervisor_retries_and_exits_on_wrong_command() {
-        let backoff = Backoff::new()
-            .with_initial_delay(Duration::new(0, 100))
-            .with_max_retries(3)
-            .with_last_retry_interval(Duration::new(30, 0));
-
-        let exec = ExecutableData::new("wrong-command".to_owned())
-            .with_args(vec!["x".to_owned()])
-            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
+    fn test_supervisor_without_executables_expect_no_errors() {
+        let executables = vec![];
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
@@ -498,7 +506,38 @@ pub mod tests {
         ));
 
         let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+
+        for thread_context in agent.thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
+        }
+    }
+
+    #[test]
+    fn test_supervisor_retries_and_exits_on_wrong_command() {
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let executables = vec![
+            ExecutableData::new("wrong-command".to_owned())
+                .with_args(vec!["x".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            "wrong-command".to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -520,9 +559,11 @@ pub mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("wrong-command".to_owned())
-            .with_args(vec!["x".to_owned()])
-            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
+        let executables = vec![
+            ExecutableData::new("wrong-command".to_owned())
+                .with_args(vec!["x".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+        ];
 
         let agent_identity = AgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
@@ -530,7 +571,7 @@ pub mod tests {
         ));
 
         let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -551,9 +592,11 @@ pub mod tests {
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
-        let exec = ExecutableData::new("echo".to_owned())
-            .with_args(vec!["hello!".to_owned()])
-            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
+        let executables = vec![
+            ExecutableData::new("echo".to_owned())
+                .with_args(vec!["hello!".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+        ];
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
@@ -561,7 +604,7 @@ pub mod tests {
         ));
 
         let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -598,9 +641,11 @@ pub mod tests {
 
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
-        let exec = ExecutableData::new("echo".to_owned())
-            .with_args(vec!["".to_owned()])
-            .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0]));
+        let executables = vec![
+            ExecutableData::new("echo".to_owned())
+                .with_args(vec!["".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+        ];
 
         let agent_identity = AgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
@@ -608,7 +653,7 @@ pub mod tests {
         ));
 
         let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, Some(exec), Context::new(), None);
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");

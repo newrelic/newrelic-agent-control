@@ -131,30 +131,30 @@ For on-host deployment, use the following format:
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${nr-var:config_agent}"
-      env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: ${nr-var:backoff_delay}
-      health:
-        interval: 5s
-        timeout: 5s
-        http:
-          path: "/v1/status"
-          port: 8003
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${nr-var:config_agent}"
+        env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "/v1/status"
+        port: 8003
 ```
 
 In this section:
 
 * `enable_file_logging`: This setting turns on logging for the agent supervisor
 * `executables`: This outlines the list of binaries the agent supervisor runs. Developers can define:
-  * `path`: The location of the binary required.
-  * `args`: The command-line arguments needed by the binary.
-  * `env`: Specifies the required environment variables.
-* `restart_policy`: The guidelines for if or when the process should be restarted.
+  - * `path`: The location of the binary required.
+    * `args`: The command-line arguments needed by the binary.
+    * `env`: Specifies the required environment variables.
+    * `restart_policy`: The guidelines for if or when the process should be restarted.
 * `health`: The measures used to check the health status of the agent.
 
 These diverse options offer extensive customization for your agent's deployment.
@@ -378,14 +378,14 @@ variables:
     
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/telegraf
-      args: "--config ${nr-var:config_file}"
-      env: ""
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: ${nr-var:backoff_delay}
+    executables:
+      - path: /usr/bin/telegraf
+        args: "--config ${nr-var:config_file}"
+        env: ""
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
 ```
 
 2. Copy the agent type definition to the folder `/etc/newrelic-agent-control/dynamic-agent-types`

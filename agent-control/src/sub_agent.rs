@@ -880,8 +880,8 @@ variables:
       default: ""
 deployment:
   on_host:
-    executable:
-      path: ${nr-var:var}
+    executables:
+      - path: ${nr-var:var}
 "#,
             )
             .unwrap()
@@ -901,8 +901,8 @@ variables:
       required: true
 deployment:
   on_host:
-    executable:
-      path: ${nr-var:var}
+    executables:
+      - path: ${nr-var:var}
 "#,
             )
             .unwrap()
@@ -1052,8 +1052,8 @@ deployment:
                 effective_agent
                     .get_onhost_config()
                     .unwrap()
-                    .executable
-                    .as_ref()
+                    .executables
+                    .first()
                     .unwrap()
                     .path
                     .clone()

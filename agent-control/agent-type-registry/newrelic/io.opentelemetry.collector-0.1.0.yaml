@@ -77,19 +77,19 @@ deployment:
       http:
         path: "${nr-var:health_check.path}"
         port: ${nr-var:health_check.port}
-    executable:
-      # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
-      path: /usr/bin/nrdot-collector-host
-      args: >-
-        --config=${nr-var:config}
-        --feature-gates=-pkg.translator.prometheus.NormalizeName
-      env:
-        # sets the otel-collector "env" source resource detector 
-        OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: ${nr-var:backoff_delay}
+    executables:
+      - # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
+        path: /usr/bin/nrdot-collector-host
+        args: >-
+          --config=${nr-var:config}
+          --feature-gates=-pkg.translator.prometheus.NormalizeName
+        env:
+          # sets the otel-collector "env" source resource detector
+          OTEL_RESOURCE_ATTRIBUTES: "host.id=${nr-ac:host_id}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
   # See com.newrelic.infrastructure Agent type for description of fields.
   k8s:
     health:
