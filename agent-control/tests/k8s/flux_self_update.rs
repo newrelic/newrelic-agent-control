@@ -24,7 +24,7 @@ use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::cli::install::flux::{HELM_RELEASE_NAME, HELM_REPOSITORY_NAME};
+use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
 use newrelic_agent_control::health::health_checker::HealthChecker;
 use newrelic_agent_control::health::k8s::health_checker::{
     K8sHealthChecker, health_checkers_for_type_meta,
@@ -35,6 +35,8 @@ use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::tempdir;
+
+const HELM_RELEASE_NAME: &str = "agent-control-cd";
 
 #[test]
 #[ignore = "needs k8s cluster"]

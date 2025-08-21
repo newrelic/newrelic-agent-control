@@ -5,6 +5,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use clap::Parser;
 use kube::api::{DynamicObject, TypeMeta};
 use serde_json::json;
 use tracing::{debug, info};
@@ -13,7 +14,7 @@ use crate::agent_control::config::{
     helmchart_type_meta, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use crate::cli::errors::CliError;
-use crate::cli::install::flux::{HELM_RELEASE_NAME, HELM_REPOSITORY_NAME};
+use crate::cli::install::flux::HELM_REPOSITORY_NAME;
 use crate::cli::uninstall::Deleter;
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
@@ -23,23 +24,26 @@ use crate::utils::retry::retry;
 const SUSPEND_CHECK_MAX_RETRIES: usize = 30;
 const SUSPEND_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 
+#[derive(Debug, Clone, Parser)]
+pub struct FluxUninstallData {
+    /// Name of the Helm release
+    #[arg(long)]
+    pub release_name: String,
+}
+
 /// Suspends the HelmRelease and then removes the HelmRelease, HelmChart and HelmRepository used to handle
 /// the Flux installation in Agent Control.
-pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
+pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), CliError> {
     let k8s_client = try_new_k8s_client()?;
     let helmrelease_type_meta = helmrelease_v2_type_meta();
     let helmrepository_type_meta = helmrepository_type_meta();
 
-    let helmrelease = get_helmrelease(
-        &k8s_client,
-        &helmrelease_type_meta,
-        HELM_RELEASE_NAME,
-        namespace,
-    )?;
+    let helmrelease =
+        get_helmrelease(&k8s_client, &helmrelease_type_meta, release_name, namespace)?;
 
     suspend_helmrelease(
         &k8s_client,
-        HELM_RELEASE_NAME,
+        release_name,
         namespace,
         &helmrelease_type_meta,
         &helmrelease,
@@ -48,8 +52,8 @@ pub fn remove_flux_crs(namespace: &str) -> Result<(), CliError> {
     )?;
 
     let deleter = Deleter::with_default_retry_setup(&k8s_client);
-    deleter.delete_object_with_retry(&helmrelease_type_meta, HELM_RELEASE_NAME, namespace)?;
-    delete_helmchart_object(&deleter, HELM_RELEASE_NAME, &helmrelease)?;
+    deleter.delete_object_with_retry(&helmrelease_type_meta, release_name, namespace)?;
+    delete_helmchart_object(&deleter, release_name, &helmrelease)?;
     deleter.delete_object_with_retry(&helmrepository_type_meta, HELM_REPOSITORY_NAME, namespace)?;
 
     Ok(())
@@ -163,6 +167,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    const HELM_RELEASE_NAME: &str = "test-helm-release";
 
     /// Minimum release object for testing purposes.
     fn testing_helmrelease(

@@ -2,7 +2,7 @@ use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
 use crate::cli::errors::CliError;
-use crate::cli::install::agent_control::{AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, REPOSITORY_NAME};
+use crate::cli::install::agent_control::REPOSITORY_NAME;
 use crate::cli::uninstall::Deleter;
 use crate::cli::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
@@ -17,14 +17,22 @@ pub struct AgentControlUninstallData {
     /// namespace were the agent control agents were running
     #[arg(long)]
     pub namespace_agents: String,
+
+    /// Name of the Helm release
+    #[arg(long)]
+    pub release_name: String,
 }
 
-pub fn uninstall_agent_control(namespace: &str, namespace_agents: &str) -> Result<(), CliError> {
+pub fn uninstall_agent_control(
+    namespace: &str,
+    namespace_agents: &str,
+    release_name: &str,
+) -> Result<(), CliError> {
     let k8s_client = try_new_k8s_client()?;
     let kinds_available = retrieve_api_resources(&k8s_client)?;
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
-    delete_agent_control_crs(&k8s_client, &kinds_available, namespace)?;
+    delete_agent_control_crs(&k8s_client, &kinds_available, namespace, release_name)?;
     // Deleting remaining objects owned by AC
     delete_owned_objects(&k8s_client, &kinds_available, namespace)?;
     // Deleting remaining objects owned by AC in the namespace_agents. for example the instrumentation CR.
@@ -85,12 +93,10 @@ fn delete_agent_control_crs(
     k8s_client: &SyncK8sClient,
     kinds_available: &HashSet<TypeMeta>,
     namespace: &str,
+    release_name: &str,
 ) -> Result<(), CliError> {
     let mut crs_to_delete: Vec<(TypeMeta, &str)> = vec![
-        (
-            helmrelease_v2_type_meta(),
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-        ),
+        (helmrelease_v2_type_meta(), release_name),
         (helmrepository_type_meta(), REPOSITORY_NAME),
     ];
 
