@@ -23,9 +23,6 @@ builds:
       - NR_OTEL_COLLECTOR_VERSION={{ .Env.NR_OTEL_COLLECTOR_VERSION }}
       - NR_AUTH_CLIENT_VERSION={{ .Env.NR_AUTH_CLIENT_VERSION }}
     hooks:
-      # Potentially required on macOS hosts due to <https://github.com/ziglang/zig/issues/23273>
-      pre:
-        - bash -c "if [[ "$OSTYPE" == "darwin"* ]]; then ulimit -n 4096; fi"
       post:
         - cmd: ./build/scripts/download_embedded.sh
           env:
