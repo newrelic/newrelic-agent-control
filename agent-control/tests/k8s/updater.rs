@@ -10,7 +10,6 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
 use newrelic_agent_control::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
-use newrelic_agent_control::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
@@ -21,6 +20,7 @@ const CURRENT_AC_VERSION: &str = "1.2.3-beta";
 const NEW_AC_VERSION: &str = "1.2.3";
 const CURRENT_CD_VERSION: &str = "1.2.5-beta";
 const NEW_CD_VERSION: &str = "1.2.5";
+const AGENT_CONTROL_CD_RELEASE_NAME: &str = "test-cd-release-name";
 
 #[test]
 #[ignore = "needs k8s cluster"]

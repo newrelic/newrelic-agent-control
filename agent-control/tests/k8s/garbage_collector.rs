@@ -172,6 +172,7 @@ agents:
                 kind: "Secret".to_string(),
             },
         ],
+        cd_release_name: "test-cd-release-name".to_string(),
     };
 
     // Expects the GC to keep the agent cr and secret from the config, event if looking for multiple kinds or that
@@ -242,6 +243,7 @@ fn k8s_garbage_collector_with_missing_and_extra_kinds() {
         namespace: test_ns.clone(),
         namespace_agents: test_ns.clone(),
         cr_type_meta: vec![missing_kind, foo_type_meta()],
+        cd_release_name: "test-cd-release-name".to_string(),
     };
 
     let agents_config = serde_yaml::from_str::<AgentControlDynamicConfig>("agents: {}")
@@ -284,6 +286,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
         namespace: test_ns.clone(),
         namespace_agents: test_ns.clone(),
         cr_type_meta: default_group_version_kinds(),
+        cd_release_name: "test-cd-release-name".to_string(),
     };
 
     // Expects the GC do not clean any resource related to the SA.
@@ -364,6 +367,7 @@ agents:
         namespace: test_ns.clone(),
         namespace_agents: test_ns.clone(),
         cr_type_meta: vec![foo_type_meta()],
+        cd_release_name: "test-cd-release-name".to_string(),
     };
 
     // Expects the GC do not clean any resource related to the SA, running SubAgents or unmanaged resources.
