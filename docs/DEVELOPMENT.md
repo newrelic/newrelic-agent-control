@@ -12,6 +12,21 @@ To compile and run locally:
 2. Install Zig with one of the [supported methods](https://github.com/ziglang/zig#installation).
 3. Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
 4. Run `cargo zigbuild --bin newrelic-agent-control --target <ARCH>-unknown-linux-musl`, where `<ARCH>` is either `x86_64` or `aarch64`, depending on your system.
+    - On macOS, you might run into an error like the following:
+
+      ```console
+      ❯ cargo zigbuild --bin newrelic-agent-control-onhost --target aarch64-unknown-linux-musl
+      [...]
+        = note: some arguments are omitted. use `--verbose` to show all linker arguments
+        = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
+      ```
+
+      This is a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329). To address it, increase the number of file descriptors for the current shell session with:
+
+      ```sh
+      ulimit -n 4096
+      ```
+
 5. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
 6. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
 
@@ -92,7 +107,9 @@ We use [`minikube`](https://minikube.sigs.k8s.io/docs/) and [`tilt`](https://til
 
 #### Prerequisites
 
-- Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system.
+- Install the [Rust toolchain](https://www.rust-lang.org/tools/install) for your system, also add the targets you wish to compile for, e.g. (`rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl`).
+- Install Zig with one of the [supported methods](https://github.com/ziglang/zig#installation).
+- Install `cargo-zigbuild` with `cargo install --locked cargo-zigbuild`.
 - Install `minikube` for local Kubernetes cluster emulation.
 - Ensure you have `tilt` installed for managing local development environments.
 - Add an Agent Control values file in `local/agent-control-tilt.yml`.
@@ -104,6 +121,21 @@ Note: Adding the `'chart_repo'` setting, pointing to the [New Relic charts](http
 ```sh
 minikube start --driver='docker'
 make tilt-up
+```
+
+On macOS, you might run into an error like the following:
+
+```console
+❯ cargo zigbuild --bin newrelic-agent-control-onhost --target aarch64-unknown-linux-musl
+[...]
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: error: unable to search for static library /<SOME_PATH_TO_RLIB_FILE>.rlib: ProcessFdQuotaExceeded
+```
+
+This is a [known](https://github.com/ziglang/zig/issues/23273) [issue](https://github.com/rust-cross/cargo-zigbuild/issues/329). To address it, increase the number of file descriptors for the current shell session with:
+
+```sh
+ulimit -n 4096
 ```
 
 ## Troubleshooting
