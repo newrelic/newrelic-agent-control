@@ -376,6 +376,7 @@ fn install_ac_with_cli(namespace: &str, chart_version: &str) {
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg(chart_version);
+    cmd.arg("--release-name").arg("agent-control-deployment");
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets")
         .arg(format!("{SECRET_NAME}={VALUES_KEY}"));

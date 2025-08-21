@@ -123,5 +123,6 @@ fn ac_uninstall_cmd(namespace: &str, namespace_agents: &str) -> Command {
     cmd.arg("uninstall-agent-control");
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--namespace-agents").arg(namespace_agents);
+    cmd.arg("--release-name").arg("agent-control-deployment");
     cmd
 }
