@@ -33,7 +33,8 @@ test/**/roles
 agent-control/tests/k8s/.kubeconfig-dev
 
 # local build
-.cargo
+.cargo/*
+!.cargo/config.toml
 /bin/
 
 # local directory for testing purposes
