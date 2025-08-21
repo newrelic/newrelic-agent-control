@@ -31,12 +31,16 @@ fn k8s_health_check_for_flux_when_fails() {
     let mut k8s = block_on(K8sEnv::new());
     let namespace = block_on(k8s.test_namespace());
 
+    println!("Using namespace: {namespace}");
+
     let ac_instance_id = bootstrap_ac(
         k8s.client.clone(),
         &opamp_server,
         &namespace,
         CHART_VERSION_DEV_1,
     );
+
+    println!("BOOTSTRAPPED AC");
 
     let agents_config = r#"agents:
   nrdot:
@@ -95,7 +99,7 @@ fn bootstrap_ac(
     // make some OpAMP seq number gap between old and new pod to avoid the fake server to
     // always send full-resend flag for each pod, and finally keep the new pod data once
     // the old pod die.
-    sleep(Duration::from_secs(POLL_INTERVAL * 4));
+    sleep(Duration::from_secs(POLL_INTERVAL * 400));
 
     instance_id::get_instance_id(client.clone(), namespace, &AgentID::AgentControl)
 }
