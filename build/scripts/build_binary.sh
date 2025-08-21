@@ -34,6 +34,11 @@ export GIT_COMMIT
 export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  echo "macOS detected, increasing ulimit to 4096 for concurrent Zig linking"
+  ulimit -n 4096
+fi
 cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
 
 mkdir -p "bin"
