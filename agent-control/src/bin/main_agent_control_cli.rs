@@ -70,20 +70,18 @@ fn main() -> ExitCode {
 
     let result = match cli.operation {
         Operations::InstallAgentControl(agent_control_data) => {
-            apply_resources(InstallAgentControl, &agent_control_data, &cli.namespace)
+            apply_resources(InstallAgentControl, &cli.namespace, &agent_control_data)
         }
-        Operations::UninstallAgentControl(agent_control_data) => uninstall_agent_control(
-            &cli.namespace,
-            &agent_control_data.namespace_agents,
-            &agent_control_data.release_name,
-        ),
-        Operations::CreateCDResources(cd_install_data) => {
+        Operations::UninstallAgentControl(agent_control_data) => {
+            uninstall_agent_control(&cli.namespace, &agent_control_data)
+        }
+        Operations::CreateCDResources(cd_data) => {
             // Currently this means installing Flux, but in the future it could mean other CD tool
             // or support different ones
-            apply_resources(InstallFlux, &cd_install_data, &cli.namespace)
+            apply_resources(InstallFlux, &cli.namespace, &cd_data)
         }
-        Operations::RemoveCDResources(cd_uninstall_data) => {
-            remove_flux_crs(&cli.namespace, &cd_uninstall_data.release_name)
+        Operations::RemoveCDResources(cd_data) => {
+            remove_flux_crs(&cli.namespace, &cd_data.release_name)
         }
     };
 

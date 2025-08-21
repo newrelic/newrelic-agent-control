@@ -25,11 +25,14 @@ pub struct AgentControlUninstallData {
 
 pub fn uninstall_agent_control(
     namespace: &str,
-    namespace_agents: &str,
-    release_name: &str,
+    uninstall_data: &AgentControlUninstallData,
 ) -> Result<(), CliError> {
     let k8s_client = try_new_k8s_client()?;
     let kinds_available = retrieve_api_resources(&k8s_client)?;
+    let AgentControlUninstallData {
+        namespace_agents,
+        release_name,
+    } = uninstall_data;
 
     // we delete first the AC so that it does not interfere (by recreating resources that we have just deleted).
     delete_agent_control_crs(&k8s_client, &kinds_available, namespace, release_name)?;

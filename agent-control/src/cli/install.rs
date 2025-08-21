@@ -113,8 +113,8 @@ fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
 
 pub fn apply_resources(
     dyn_object_list_builder: impl DynamicObjectListBuilder,
-    install_data: &InstallData,
     namespace: &str,
+    install_data: &InstallData,
 ) -> Result<(), CliError> {
     let release_name = &install_data.release_name;
     info!("Installing release {release_name}");
