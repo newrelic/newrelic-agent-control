@@ -1,6 +1,5 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
@@ -31,6 +30,8 @@ pub struct K8sACUpdater {
     // current_chart_version is the version of the agent control that is currently running.
     // It is loaded at startup, and it is populated by the HelmChart.
     current_chart_version: String,
+    // release name for agent control deployment loaded from config
+    ac_release_name: String,
     // release name for agent control cd loaded from config
     cd_release_name: String,
 }
@@ -41,7 +42,7 @@ impl VersionUpdater for K8sACUpdater {
             self.update_helm_release_version(
                 Component::AgentControl,
                 config.chart_version.as_ref(),
-                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                &self.ac_release_name,
                 || Ok(self.current_chart_version.clone()),
             )?;
         } else {
@@ -70,7 +71,8 @@ impl K8sACUpdater {
         k8s_client: Arc<SyncK8sClient>,
         namespace: String,
         current_chart_version: String,
-        cd_deployment_name: String,
+        ac_release_name: String,
+        cd_release_name: String,
     ) -> Self {
         Self {
             ac_remote_update_enabled: ac_remote_update,
@@ -78,7 +80,8 @@ impl K8sACUpdater {
             k8s_client,
             namespace,
             current_chart_version,
-            cd_release_name: cd_deployment_name,
+            ac_release_name,
+            cd_release_name,
         }
     }
 
@@ -208,7 +211,6 @@ impl K8sACUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
     use crate::k8s::Error as K8sError;
     use crate::k8s::client::MockSyncK8sClient;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -221,7 +223,8 @@ mod tests {
     const NEW_AC_VERSION: &str = "1.1.0";
     const CURRENT_CD_VERSION: &str = "2.0.0";
     const NEW_CD_VERSION: &str = "2.1.0";
-    const CD_RELEASE_NAME_TEST: &str = "flux-cd";
+    const TEST_AC_RELEASE_NAME: &str = "test-ac-release-name";
+    const TEST_CD_RELEASE_NAME: &str = "test-cd-release-name";
 
     /// Creates a dynamic configuration for tests.
     fn test_config(
@@ -264,13 +267,13 @@ mod tests {
             .expect_get_dynamic_object()
             .with(
                 eq(helmrelease_v2_type_meta()),
-                eq(AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME),
+                eq(TEST_AC_RELEASE_NAME),
                 eq(TEST_NAMESPACE),
             )
             .times(1)
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
-                    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                    TEST_AC_RELEASE_NAME,
                     CURRENT_AC_VERSION,
                     BTreeMap::new(),
                 ))))
@@ -280,7 +283,7 @@ mod tests {
         mock_client
             .expect_patch_dynamic_object()
             .withf(|_, name, _, patch| {
-                name == AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME
+                name == TEST_AC_RELEASE_NAME
                     && patch
                         .pointer("/spec/chart/spec/version")
                         .unwrap()
@@ -291,7 +294,7 @@ mod tests {
             .times(1)
             .returning(|_, _, _, _| {
                 Ok(mock_helm_release(
-                    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                    TEST_AC_RELEASE_NAME,
                     CURRENT_AC_VERSION,
                     BTreeMap::new(),
                 ))
@@ -303,7 +306,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), None));
@@ -320,13 +324,13 @@ mod tests {
             .expect_get_dynamic_object()
             .with(
                 eq(helmrelease_v2_type_meta()),
-                eq(CD_RELEASE_NAME_TEST),
+                eq(TEST_CD_RELEASE_NAME),
                 eq(TEST_NAMESPACE),
             )
             .times(2)
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
-                    CD_RELEASE_NAME_TEST,
+                    TEST_CD_RELEASE_NAME,
                     CURRENT_CD_VERSION,
                     BTreeMap::new(),
                 ))))
@@ -336,7 +340,7 @@ mod tests {
         mock_client
             .expect_patch_dynamic_object()
             .withf(|_, name, _, patch| {
-                name == CD_RELEASE_NAME_TEST
+                name == TEST_CD_RELEASE_NAME
                     && patch
                         .pointer("/spec/chart/spec/version")
                         .unwrap()
@@ -347,7 +351,7 @@ mod tests {
             .times(1)
             .returning(|_, _, _, _| {
                 Ok(mock_helm_release(
-                    CD_RELEASE_NAME_TEST,
+                    TEST_CD_RELEASE_NAME,
                     CURRENT_CD_VERSION,
                     BTreeMap::new(),
                 ))
@@ -359,7 +363,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(None, Some(NEW_CD_VERSION)));
@@ -374,15 +379,15 @@ mod tests {
         mock_client
             .expect_get_dynamic_object()
             .returning(|_, name, _| {
-                if name == AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME {
+                if name == TEST_AC_RELEASE_NAME {
                     Ok(Some(Arc::new(mock_helm_release(
-                        AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                        TEST_AC_RELEASE_NAME,
                         CURRENT_AC_VERSION,
                         BTreeMap::new(),
                     ))))
-                } else if name == CD_RELEASE_NAME_TEST {
+                } else if name == TEST_CD_RELEASE_NAME {
                     Ok(Some(Arc::new(mock_helm_release(
-                        CD_RELEASE_NAME_TEST,
+                        TEST_CD_RELEASE_NAME,
                         CURRENT_CD_VERSION,
                         BTreeMap::new(),
                     ))))
@@ -410,7 +415,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), Some(NEW_CD_VERSION)));
@@ -428,7 +434,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), Some(NEW_CD_VERSION)));
@@ -446,7 +453,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(None, None));
@@ -462,12 +470,12 @@ mod tests {
             .expect_get_dynamic_object()
             .with(
                 eq(helmrelease_v2_type_meta()),
-                eq(CD_RELEASE_NAME_TEST),
+                eq(TEST_CD_RELEASE_NAME),
                 eq(TEST_NAMESPACE),
             )
             .returning(|_, _, _| {
                 Ok(Some(Arc::new(mock_helm_release(
-                    CD_RELEASE_NAME_TEST,
+                    TEST_CD_RELEASE_NAME,
                     CURRENT_CD_VERSION,
                     BTreeMap::new(),
                 ))))
@@ -479,7 +487,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         // We pass the current versions, not the new ones
@@ -504,7 +513,8 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
-            CD_RELEASE_NAME_TEST.to_string(),
+            TEST_AC_RELEASE_NAME.to_string(),
+            TEST_CD_RELEASE_NAME.to_string(),
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), None));

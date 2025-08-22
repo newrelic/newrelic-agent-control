@@ -10,7 +10,6 @@ use assert_cmd::Command;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
-use newrelic_agent_control::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 use std::time::Duration;
 
 #[test]
@@ -58,9 +57,11 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
 
     print_pod_logs(k8s_env.client.clone(), &ac_namespace, AC_LABEL_SELECTOR);
 
+    let release_name = "install-ac-installation-and-uninstallation";
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_LATEST_RELEASE,
+        release_name,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -71,11 +72,12 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
     let config_maps: Api<ConfigMap> = Api::namespaced(k8s_env.client.clone(), &ac_namespace);
     let secrets: Api<Secret> = Api::namespaced(k8s_env.client.clone(), &ac_namespace);
 
+    let deployment_name = format!("{}-agent-control-deploy", release_name);
     retry(10, Duration::from_secs(1), || {
         // We set "nameOverride" in the secret values to force the deployment name
         // to be equal to the release name. This avoids breaking the test if the
         // default value changes in the chart.
-        let _ = block_on(deployments.get(AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME))?;
+        let _ = block_on(deployments.get(&deployment_name))?;
         Ok(())
     });
     retry(10, Duration::from_secs(1), || {
@@ -87,13 +89,13 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
         Ok(())
     });
 
-    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace, release_name);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 
     let _ =
-        block_on(deployments.get("agent-control")).expect_err("AC deployment should be deleted");
+        block_on(deployments.get(&deployment_name)).expect_err("AC deployment should be deleted");
     let _ = block_on(config_maps.get("local-data-nrdot"))
         .expect_err("SubAgent config_map should be deleted");
     let _ = block_on(secrets.get("values-nrdot")).expect_err("SubAgent secret should be deleted");
@@ -106,23 +108,24 @@ fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
     let ac_namespace = block_on(k8s_env.test_namespace());
     let subagents_namespace = block_on(k8s_env.test_namespace());
 
-    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
+    let release_name = "uninstall-ac-clean-empty-cluster";
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace, release_name);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 
-    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace);
+    let mut cmd = ac_uninstall_cmd(&ac_namespace, &subagents_namespace, release_name);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
 }
 
 /// Builds an uninstallation command for testing purposes with a curated set of defaults and the provided arguments.
-fn ac_uninstall_cmd(namespace: &str, namespace_agents: &str) -> Command {
+fn ac_uninstall_cmd(namespace: &str, namespace_agents: &str, release_name: &str) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("uninstall-agent-control");
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--namespace-agents").arg(namespace_agents);
-    cmd.arg("--release-name").arg("agent-control-deployment");
+    cmd.arg("--release-name").arg(release_name);
     cmd
 }

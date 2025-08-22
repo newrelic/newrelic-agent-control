@@ -3,7 +3,6 @@ use crate::common::{global_logger::init_logger, runtime::tokio_runtime};
 use super::test_crd::create_foo_crd;
 use futures::TryStreamExt;
 use k8s_openapi::api::core::v1::{Namespace, Pod};
-use k8s_openapi::api::rbac::v1::ClusterRole;
 use kube::runtime::conditions::is_pod_running;
 use kube::runtime::wait::Error as KubeWaitError;
 use kube::runtime::wait::await_condition;
@@ -189,8 +188,6 @@ impl Drop for K8sEnv {
 
         futures::executor::block_on(async move {
             let ns_api: Api<Namespace> = Api::all(self.client.clone());
-            let cr_api: Api<ClusterRole> = Api::all(self.client.clone());
-
             let generated_namespaces = self.generated_namespaces.clone();
             tokio_runtime()
                 .spawn(async move {
@@ -200,14 +197,6 @@ impl Drop for K8sEnv {
                             .await
                             .expect("fail to remove namespace");
                     }
-
-                    // TODO This is a workaround. As soon as we have a way to configure RELEASE_NAME in the tests, we can remove this.
-                    let _ = cr_api
-                        .delete(
-                            "agent-control-deployment-resources",
-                            &DeleteParams::default(),
-                        )
-                        .await;
                 })
                 .await
                 .unwrap();

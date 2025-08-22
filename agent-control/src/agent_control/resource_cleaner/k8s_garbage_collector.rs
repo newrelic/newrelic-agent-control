@@ -32,6 +32,7 @@ pub struct K8sGarbageCollector {
     /// The namespace where agents are running. We are garbage collecting resources here only due to Instrumentation
     pub namespace_agents: String,
     pub cr_type_meta: Vec<TypeMeta>,
+    pub ac_release_name: String,
     pub cd_release_name: String,
 }
 
@@ -141,7 +142,10 @@ impl K8sGarbageCollector {
             .ok_or(K8sGarbageCollectorError::MissingLabels)?
             .as_str();
 
-        if agent_id_from_labels == self.cd_release_name {
+        // TODO AgentId should be aware of the "ac" and "cd" release names.
+        if agent_id_from_labels == self.ac_release_name
+            || agent_id_from_labels == self.cd_release_name
+        {
             return Ok(false);
         }
 
@@ -273,7 +277,8 @@ mod tests {
 
     const TEST_NAMESPACE: &str = "test-namespace";
     const TEST_NAMESPACE_AGENTS: &str = "test-namespace-agents";
-    const TEST_RELEASE_NAME: &str = "test-release-name";
+    const TEST_AC_RELEASE_NAME: &str = "test-ac-release-name";
+    const TEST_CD_RELEASE_NAME: &str = "test-cd-release-name";
 
     #[test]
     fn errors_if_ac_id() {
@@ -288,7 +293,8 @@ mod tests {
             cr_type_meta: vec![],
             namespace: TEST_NAMESPACE.to_string(),
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
-            cd_release_name: TEST_RELEASE_NAME.to_string(),
+            ac_release_name: TEST_AC_RELEASE_NAME.to_string(),
+            cd_release_name: TEST_CD_RELEASE_NAME.to_string(),
         };
         let ac_id = &AgentID::AgentControl;
         let ac_type_id =
@@ -333,7 +339,8 @@ mod tests {
             cr_type_meta: vec![type_meta],
             namespace: TEST_NAMESPACE.to_string(),
             namespace_agents: TEST_NAMESPACE_AGENTS.to_string(),
-            cd_release_name: TEST_RELEASE_NAME.to_string(),
+            ac_release_name: TEST_AC_RELEASE_NAME.to_string(),
+            cd_release_name: TEST_CD_RELEASE_NAME.to_string(),
         };
         let ac_id = &AgentID::try_from("foo-agent").unwrap();
         let agent_type_id = &AgentTypeID::try_from("newrelic/com.example.foo:0.0.1").unwrap();
