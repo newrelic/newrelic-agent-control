@@ -388,13 +388,13 @@ mod tests {
 
     const LOCAL_TEST_VERSION: &str = "1.0.0";
     const TEST_NAMESPACE: &str = "test-namespace";
-    const RELEASE_NAME: &str = "test-release-name";
+    const TEST_RELEASE_NAME: &str = "test-release-name";
 
     fn ac_install_data() -> InstallData {
         InstallData {
-            chart_name: RELEASE_NAME.to_string(),
+            chart_name: TEST_RELEASE_NAME.to_string(),
             chart_version: LOCAL_TEST_VERSION.to_string(),
-            release_name: RELEASE_NAME.to_string(),
+            release_name: TEST_RELEASE_NAME.to_string(),
             secrets: None,
             extra_labels: None,
             skip_installation_check: false,
@@ -448,7 +448,7 @@ mod tests {
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(RELEASE_NAME.to_string()),
+                name: Some(TEST_RELEASE_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(BTreeMap::from_iter(vec![
                     (
@@ -473,10 +473,10 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "interval": "30s",
-                    "releaseName": RELEASE_NAME,
+                    "releaseName": TEST_RELEASE_NAME,
                     "chart": {
                         "spec": {
-                            "chart": RELEASE_NAME,
+                            "chart": TEST_RELEASE_NAME,
                             "version": version,
                             "reconcileStrategy": "ChartVersion",
                             "sourceRef": {
@@ -510,7 +510,7 @@ mod tests {
     fn test_existing_object_no_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta::default(),
@@ -541,7 +541,7 @@ mod tests {
 
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
@@ -576,7 +576,7 @@ mod tests {
     fn test_existing_object_local_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
@@ -611,7 +611,7 @@ mod tests {
     fn test_to_dynamic_objects_no_values() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             None,
             &ac_install_data(),
         );
@@ -634,7 +634,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );
@@ -670,7 +670,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );
@@ -740,7 +740,7 @@ mod tests {
     fn test_secret_ref() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             None,
             &InstallData {
                 repository_secret_reference_name: Some("secRef".to_string()),
@@ -768,7 +768,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
-            RELEASE_NAME,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );

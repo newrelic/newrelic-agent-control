@@ -168,7 +168,7 @@ mod tests {
 
     use super::*;
 
-    const CD_RELEASE_NAME: &str = "test-cd-release";
+    const TEST_RELEASE_NAME: &str = "test-cd-release";
 
     /// Minimum release object for testing purposes.
     fn testing_helmrelease(
@@ -180,7 +180,7 @@ mod tests {
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(CD_RELEASE_NAME.to_string()),
+                name: Some(TEST_RELEASE_NAME.to_string()),
                 namespace: Some(namespace.to_string()),
                 resource_version: Some(resource_version.to_string()),
                 ..Default::default()
@@ -205,7 +205,7 @@ mod tests {
             .expect_patch_dynamic_object()
             .with(
                 predicate::eq(helmrelease_v2_type_meta()),
-                predicate::eq(CD_RELEASE_NAME),
+                predicate::eq(TEST_RELEASE_NAME),
                 predicate::eq(namespace),
                 predicate::eq(json!({"spec": {"suspend": true}})),
             )
@@ -259,7 +259,7 @@ mod tests {
 
         let result = suspend_helmrelease(
             &mock_k8s_client,
-            CD_RELEASE_NAME,
+            TEST_RELEASE_NAME,
             namespace,
             &helmrelease_type_meta,
             &helmrelease,
@@ -296,7 +296,7 @@ mod tests {
             max_attempts: 10,
             interval: Duration::from_millis(10),
         };
-        let result = delete_helmchart_object(&deleter, CD_RELEASE_NAME, &helmrelease);
+        let result = delete_helmchart_object(&deleter, TEST_RELEASE_NAME, &helmrelease);
         assert!(result.is_ok());
     }
 }
