@@ -1,6 +1,5 @@
 use crate::agent_control::config::{AgentControlDynamicConfig, helmrelease_v2_type_meta};
 use crate::agent_control::version_updater::updater::{UpdaterError, VersionUpdater};
-use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, REMOTE_VAL};
@@ -31,6 +30,8 @@ pub struct K8sACUpdater {
     // current_chart_version is the version of the agent control that is currently running.
     // It is loaded at startup, and it is populated by the HelmChart.
     current_chart_version: String,
+    // release name for agent control deployment loaded from config
+    ac_release_name: String,
     // release name for agent control cd loaded from config
     cd_release_name: String,
 }
@@ -42,7 +43,7 @@ impl VersionUpdater for K8sACUpdater {
                 Component::AgentControl,
                 config.chart_version.as_ref(),
                 &self.current_chart_version,
-                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                &self.ac_release_name,
             )?;
         }
         if !self.ac_remote_update {
@@ -74,7 +75,8 @@ impl K8sACUpdater {
         k8s_client: Arc<SyncK8sClient>,
         namespace: String,
         current_chart_version: String,
-        cd_deployment_name: String,
+        ac_release_name: String,
+        cd_release_name: String,
     ) -> Self {
         Self {
             ac_remote_update,
@@ -82,7 +84,8 @@ impl K8sACUpdater {
             k8s_client,
             namespace,
             current_chart_version,
-            cd_release_name: cd_deployment_name,
+            ac_release_name,
+            cd_release_name,
         }
     }
 
@@ -209,7 +212,6 @@ impl K8sACUpdater {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
     use crate::k8s::Error as K8sError;
     use crate::k8s::client::MockSyncK8sClient;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
@@ -223,6 +225,7 @@ mod tests {
     const CURRENT_CD_VERSION: &str = "2.0.0";
     const NEW_CD_VERSION: &str = "2.1.0";
     const CD_RELEASE_NAME_TEST: &str = "flux-cd";
+    const AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME: &str = "agent-control-deployment";
 
     /// Creates a dynamic configuration for tests.
     fn test_config(
@@ -304,6 +307,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 
@@ -360,6 +364,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 
@@ -411,6 +416,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 
@@ -428,6 +434,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 
@@ -461,6 +468,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 
@@ -486,6 +494,7 @@ mod tests {
             Arc::new(mock_client),
             TEST_NAMESPACE.to_string(),
             CURRENT_AC_VERSION.to_string(),
+            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
             CD_RELEASE_NAME_TEST.to_string(),
         );
 

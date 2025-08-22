@@ -37,7 +37,13 @@ fn k8s_cli_install_agent_control_installation_with_invalid_chart_version() {
     );
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&ac_namespace, MISSING_VERSION, "test-secret=values.yaml");
+    let release_name = "install-ac-installation-with-invalid-chart-version";
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        MISSING_VERSION,
+        release_name,
+        "test-secret=values.yaml",
+    );
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -65,16 +71,21 @@ fn k8s_cli_install_agent_control_installation_with_invalid_image_tag() {
         "values.yaml",
     );
 
+    let release_name = "install-ac-installation-with-invalid-image-tag";
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_LATEST_RELEASE,
+        release_name,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
         &assert,
-        "Deployment `agent-control`: has 1 unavailable replicas",
+        &format!(
+            "Deployment `{}-agent-control`: has 1 unavailable replicas",
+            release_name
+        ),
     );
     assert.failure(); // The installation check should detect that AC workloads cannot be created due to invalid image
 }
@@ -96,9 +107,11 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
         "values.yaml",
     );
 
+    let release_name = "install-ac-installation-failed-upgrade";
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_LATEST_RELEASE,
+        release_name,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -106,7 +119,12 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
     assert.success(); // Install successfully
 
     // The chart version does not exist
-    let mut cmd = ac_install_cmd(&ac_namespace, MISSING_VERSION, "test-secret=values.yaml");
+    let mut cmd = ac_install_cmd(
+        &ac_namespace,
+        MISSING_VERSION,
+        release_name,
+        "test-secret=values.yaml",
+    );
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert_stdout_contains(
@@ -120,13 +138,18 @@ fn k8s_cli_install_agent_control_installation_failed_upgrade() {
 }
 
 /// Builds an installation command for testing purposes with a curated set of defaults and the provided arguments.
-pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Command {
+pub fn ac_install_cmd(
+    namespace: &str,
+    chart_version: &str,
+    release_name: &str,
+    secrets: &str,
+) -> Command {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg(chart_version);
-    cmd.arg("--release-name").arg("agent-control-deployment");
+    cmd.arg("--release-name").arg(release_name);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets").arg(secrets);
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
@@ -150,6 +173,7 @@ pub(crate) fn create_simple_values_secret(
         "nameOverride": "",
         "subAgentsNamespace": subagents_ns,
         "config": {
+            "cdRemoteUpdate": false,
             "fleet_control": {
                 "enabled": false,
             },
