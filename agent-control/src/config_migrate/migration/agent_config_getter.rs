@@ -8,9 +8,9 @@ use thiserror::Error;
 pub enum ConversionError {
     #[error("`{0}`")]
     AgentControlConfigError(#[from] AgentControlConfigError),
-    #[error("Error comparing versions `{0}`")]
+    #[error("error comparing versions `{0}`")]
     SemverError(#[from] semver::Error),
-    #[error("No agents of type found on config")]
+    #[error("no agents of type found on config")]
     NoAgentsFound,
 }
 

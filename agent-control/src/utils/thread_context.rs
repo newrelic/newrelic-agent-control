@@ -58,13 +58,13 @@ where
 
 #[derive(Debug, thiserror::Error, PartialEq)]
 pub enum ThreadContextStopperError {
-    #[error("Error sending stop signal to '{thread}' thread: {error}")]
+    #[error("error sending stop signal to '{thread}' thread: {error}")]
     EventPublisherError { thread: String, error: String },
 
-    #[error("Error joining '{thread}' thread: {error}")]
+    #[error("error joining '{thread}' thread: {error}")]
     JoinError { thread: String, error: String },
 
-    #[error("Timeout waiting for '{thread}' thread to finish")]
+    #[error("timeout waiting for '{thread}' thread to finish")]
     StopTimeout { thread: String },
 }
 

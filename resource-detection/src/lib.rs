@@ -68,7 +68,7 @@ pub enum DetectError {
     #[error("error detecting gcp resources `{0}`")]
     GCPError(#[from] GCPDetectorError),
     /// Unsuccessful cloud detection.
-    #[error("Non of the cloud API responded")]
+    #[error("non of the cloud API responded")]
     CloudIdError(#[from] CloudIdDetectorError),
 }
 

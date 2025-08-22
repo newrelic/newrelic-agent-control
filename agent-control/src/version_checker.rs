@@ -27,7 +27,7 @@ pub struct AgentVersion {
 
 #[derive(thiserror::Error, Debug)]
 pub enum VersionCheckError {
-    #[error("Generic error: {0}")]
+    #[error("generic error: {0}")]
     Generic(String),
 }
 

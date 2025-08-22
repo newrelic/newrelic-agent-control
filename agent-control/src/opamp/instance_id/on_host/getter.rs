@@ -46,7 +46,7 @@ pub enum IdentifiersProviderError {
     MissingHostIDError,
     #[error("detecting resources: `{0}`")]
     DetectError(#[from] DetectError),
-    #[error("Building cloud detector: `{0}`")]
+    #[error("building cloud detector: `{0}`")]
     BuildError(#[from] HttpClientError),
 }
 

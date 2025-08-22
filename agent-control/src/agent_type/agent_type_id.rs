@@ -8,11 +8,11 @@ const NAME_NAMESPACE_MAX_LENGTH: usize = 64;
 
 #[derive(Error, Debug, PartialEq)]
 pub enum AgentTypeIDError {
-    #[error("Invalid AgentType namespace")]
+    #[error("invalid AgentType namespace")]
     InvalidNamespace,
-    #[error("Invalid AgentType name")]
+    #[error("invalid AgentType name")]
     InvalidName,
-    #[error("Invalid AgentType version")]
+    #[error("invalid AgentType version")]
     InvalidVersion,
 }
 

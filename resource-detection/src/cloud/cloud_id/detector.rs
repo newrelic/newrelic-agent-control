@@ -52,7 +52,7 @@ where
 #[derive(Error, Debug)]
 pub enum CloudIdDetectorError {
     /// Unsuccessful cloud detection.
-    #[error("Non of cloud API responded")]
+    #[error("non of cloud API responded")]
     UnsuccessfulCloudIdCheck(),
 }
 

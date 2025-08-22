@@ -9,7 +9,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum RegexValidatorError {
-    #[error("Invalid config: restricted values detected")]
+    #[error("invalid config: restricted values detected")]
     InvalidConfig,
 
     #[error("error compiling regex: `{0}`")]

@@ -20,7 +20,7 @@ pub trait ResourceCleaner {
 
 /// Represents an error that occurred during resource cleaning.
 #[derive(Debug, Error)]
-#[error("Resource cleaner error: {0}")]
+#[error("resource cleaner error: {0}")]
 pub struct ResourceCleanerError(String);
 
 #[cfg(test)]

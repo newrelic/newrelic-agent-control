@@ -4,28 +4,28 @@ use thiserror::Error;
 /// The different error types to be returned by operations involving the [`Agent`] type.
 #[derive(Error, Debug)]
 pub enum AgentTypeError {
-    #[error("Error while parsing: `{0}`")]
+    #[error("error while parsing: `{0}`")]
     SerdeYaml(#[from] serde_yaml::Error),
-    #[error("Missing value for key: `{0}`")]
+    #[error("missing value for key: `{0}`")]
     MissingValue(String),
-    #[error("Unexpected value for key: key({0}) val({1})")]
+    #[error("unexpected value for key: key({0}) val({1})")]
     UnexpectedValueForKey(String, String),
-    #[error("Missing required template key: `{0}`")]
+    #[error("missing required template key: `{0}`")]
     MissingTemplateKey(String),
-    #[error("Parsing AgentType variables: `{0}`")]
+    #[error("parsing AgentType variables: `{0}`")]
     Parse(String),
-    #[error("Not all values for this agent type have been populated: {0:?}")]
+    #[error("not all values for this agent type have been populated: {0:?}")]
     ValuesNotPopulated(Vec<String>),
-    #[error("Template value not parseable from the string `{0}")]
+    #[error("template value not parseable from the string `{0}")]
     ValueNotParseableFromString(String),
-    #[error("Unknown backoff strategy type: `{0}`")]
+    #[error("unknown backoff strategy type: `{0}`")]
     UnknownBackoffStrategyType(String),
-    #[error("Invalid value provided. Variants allowed: {0}")]
+    #[error("invalid value provided. Variants allowed: {0}")]
     InvalidVariant(String),
-    #[error("Rendering template: {0}")]
+    #[error("rendering template: {0}")]
     RenderingTemplate(String),
     #[error("error assembling agents: `{0}`")]
     ConfigurationPersisterError(#[from] PersistError),
-    #[error("Conflicting variable definition: `{0}`")]
+    #[error("conflicting variable definition: `{0}`")]
     ConflictingVariableDefinition(String),
 }
