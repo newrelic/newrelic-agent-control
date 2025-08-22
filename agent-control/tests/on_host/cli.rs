@@ -251,7 +251,7 @@ fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_agent_control\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
     cmd.assert().failure().stdout(
         predicate::str::is_match(format!(
-            ".*Could not read Agent Control config from `{}`.*",
+            ".*could not read Agent Control config from `{}`.*",
             dir.path().to_string_lossy()
         ))
         .unwrap(),

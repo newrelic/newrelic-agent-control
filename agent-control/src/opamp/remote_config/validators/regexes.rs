@@ -246,7 +246,7 @@ pub(super) mod tests {
         let validation_result = validator.validate(&agent_identity, &remote_config);
         assert_eq!(
             validation_result.unwrap_err().to_string(),
-            "Invalid config: restricted values detected"
+            "invalid config: restricted values detected"
         );
     }
 

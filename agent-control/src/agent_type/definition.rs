@@ -547,7 +547,7 @@ restart_policy:
         assert!(filled_variables_result.is_err());
         assert_eq!(
             filled_variables_result.unwrap_err().to_string(),
-            r#"Invalid value provided. Variants allowed: [fixed, linear]"#
+            r#"invalid value provided. Variants allowed: [fixed, linear]"#
         );
 
         // Default invalid variant is allowed

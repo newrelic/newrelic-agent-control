@@ -309,7 +309,7 @@ deployment:
         assert!(result.is_err());
         assert_eq!(
             format!("{}", result.unwrap_err()),
-            "Error while parsing: `invalid type: boolean `true`, expected a string`"
+            "error while parsing: `invalid type: boolean `true`, expected a string`"
         );
     }
 }

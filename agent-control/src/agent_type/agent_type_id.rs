@@ -347,7 +347,7 @@ agent_type_id: namespace/name:invalid_version
         assert!(
             foo.unwrap_err()
                 .to_string()
-                .contains("Invalid AgentType version")
+                .contains("invalid AgentType version")
         );
     }
 }
