@@ -231,7 +231,9 @@ pub struct K8sConfig {
     /// ac_remote_update enables or disables remote update for agent-control-deployment chart
     #[serde(default)]
     pub ac_remote_update: bool,
-    /// cd_remote_update enables or disables remote update for the agent-control-cd chart
+    /// cd_remote_update enables or disables remote update for the agent-control-cd chart, this value
+    /// is going to be false if flux is not managed by us, and this value is get from agent-control-cd
+    /// flux2.enabled -> false update is false too
     #[serde(default)]
     pub cd_remote_update: bool,
     /// agent_control_cd release name

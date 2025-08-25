@@ -54,6 +54,12 @@ test/k8s/integration-flux-self-update:
 	WATCH_ALL_NAMESPACES=false tilt ci --file ./tests/k8s/Tiltfile
 	cargo test k8s::flux_self_update -- --nocapture --ignored  --test-threads=1
 
+.PHONY: test/k8s/integration-flux-health
+test/k8s/integration-flux-health:
+	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
+	WATCH_ALL_NAMESPACES=false tilt ci --file ./tests/k8s/Tiltfile
+	cargo test k8s_health_check_for_flux_when_fails -- --nocapture --ignored  --test-threads=1
+
 .PHONY: test/k8s/integration-part2
 test/k8s/integration-part2:
 	KUBECONFIG='./tests/k8s/.kubeconfig-dev' minikube update-context
