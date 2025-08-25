@@ -1,5 +1,7 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the e2e tests to setup the environment and for local development.
+ci_settings(readiness_timeout = '10m')
+
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
 
@@ -15,51 +17,30 @@ cluster = os.getenv('CLUSTER', "")
 chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
 
 # build_with options:
-# cargo: No crosscompilation, faster than cross
-# cross: Supports crosscompilaton
-build_with = os.getenv('BUILD_WITH','cross')
 arch = os.getenv('ARCH','arm64')
 
 #### Build SA binary
-
-if build_with == 'cargo':
-  local_resource(
-      'build-binary',
-      cmd="""cargo build --package newrelic_agent_control --bin newrelic-agent-control-k8s &&
-        mkdir -p bin &&
-        rm -f bin/newrelic-agent-control-"""+arch+""" &&
-        mv target/debug/newrelic-agent-control-k8s bin/newrelic-agent-control-"""+arch+""" &&
-        cargo build --package newrelic_agent_control --bin newrelic-agent-control-cli &&
-        rm -f bin/newrelic-agent-control-cli-"""+arch+""" &&
-        mv target/debug/newrelic-agent-control-cli bin/newrelic-agent-control-cli-"""+arch,
-      deps=[
-        './agent-control',
-      ]
-  )
-elif build_with == 'cross': 
-  local_resource(
-      'build-binary',
-      cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-cli" % arch +
-           "&& make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch ,
-      deps=[
-        './agent-control',
-      ]
-  )
-
-#### Build the final Docker image with the binary.
-docker_build(
-    'tilt.local/agent-control-dev',
-    context='.',
-    dockerfile='./Dockerfiles/Dockerfile_agent_control',
-    only = ['./bin','./Dockerfile', './Tiltfile']
+local_resource(
+  'build-binary',
+  cmd="make BUILD_MODE=debug ARCH=%s build-agent-control-cli" % arch +
+    "&& make BUILD_MODE=debug ARCH=%s build-agent-control-k8s" % arch,
+  deps= ['./agent-control'],
 )
 
 #### Build the final Docker image with the binary.
 docker_build(
-    'tilt.local/agent-control-cli-dev',
-    context='.',
-    dockerfile='./Dockerfiles/Dockerfile_agent_control_cli',
-    only = ['./bin','./Dockerfile', './Tiltfile']
+  'tilt.local/agent-control-dev',
+  context='.',
+  dockerfile='./Dockerfiles/Dockerfile_agent_control',
+  only = ['./bin','./Dockerfile', './Tiltfile']
+)
+
+#### Build the final Docker image with the binary.
+docker_build(
+  'tilt.local/agent-control-cli-dev',
+  context='.',
+  dockerfile='./Dockerfiles/Dockerfile_agent_control_cli',
+  only = ['./bin','./Dockerfile', './Tiltfile']
 )
 
 ######## Feature Branch ########
