@@ -23,6 +23,17 @@ pub struct Serialize(String);
 pub struct Serialize(String);
 ```
 
+```rust
+// 👍 Good:
+operation.map_err(|err| OperationError::Generic(format!("operation failed: {err}")))?;
+
+// 👎 Bad:
+// It must start with lowercase letter
+operation.map_err(|err| OperationError::Generic(format!("Operation failed: {err}")))?;
+// It should not end with a period
+operation.map_err(|err| OperationError::Generic(format!("operation failed: {err}.")))?;
+```
+
 This format will result in nicer error message:
 
 ```bash
