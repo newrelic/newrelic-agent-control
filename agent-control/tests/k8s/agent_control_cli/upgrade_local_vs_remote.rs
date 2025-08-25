@@ -11,7 +11,6 @@ use crate::k8s::tools::local_chart::agent_control_deploymet::{
 use crate::k8s::tools::logs::print_pod_logs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use newrelic_agent_control::version_checker::VersionCheckError;
@@ -45,10 +44,13 @@ fn k8s_cli_local_and_remote_updates() {
         "values.yaml",
     );
 
+    let release_name = "local-and-remote-updates";
+
     // running installer first time
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_DEV_1,
+        release_name,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -61,7 +63,7 @@ fn k8s_cli_local_and_remote_updates() {
             CHART_VERSION_DEV_1,
             LOCAL_VAL,
             &ac_namespace,
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            release_name,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -70,6 +72,7 @@ fn k8s_cli_local_and_remote_updates() {
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_DEV_2,
+        release_name,
         "test-secret=values.yaml",
     );
     let assert = cmd.assert();
@@ -82,7 +85,7 @@ fn k8s_cli_local_and_remote_updates() {
             CHART_VERSION_DEV_2,
             LOCAL_VAL,
             &ac_namespace,
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            release_name,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -108,7 +111,7 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            release_name,
             AGENT_CONTROL_VERSION_SET_FROM,
         )
     });
@@ -117,6 +120,7 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
     let mut cmd = ac_install_cmd(
         &ac_namespace,
         CHART_VERSION_DEV_1,
+        release_name,
         "test-secret=values.yaml",
     );
     cmd.arg("--extra-labels").arg("env=testing");
@@ -130,18 +134,14 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
             CHART_VERSION_LATEST_RELEASE,
             REMOTE_VAL,
             &ac_namespace,
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+            release_name,
             AGENT_CONTROL_VERSION_SET_FROM,
         )?;
 
         let obj = k8s_client
-            .get_dynamic_object(
-                &helmrelease_v2_type_meta(),
-                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-                &ac_namespace,
-            )?
+            .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, &ac_namespace)?
             .ok_or(VersionCheckError::Generic(format!(
-                "helmRelease object not found: {AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME}",
+                "helmRelease object not found: {release_name}",
             )))?;
 
         // Notice that the extra label is set by the installer despite the fact that the version is not changed.
