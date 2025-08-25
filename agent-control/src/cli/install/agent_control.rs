@@ -29,6 +29,7 @@ impl DynamicObjectListBuilder for InstallAgentControl {
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
+        release_name: &str,
         maybe_existing_helm_release: Option<&DynamicObject>,
         data: &InstallData,
     ) -> Vec<DynamicObject> {
@@ -60,12 +61,8 @@ impl DynamicObjectListBuilder for InstallAgentControl {
         let mut helm_release_labels = labels;
         helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
-        let helm_release_obj_meta_data = obj_meta_data(
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-            namespace,
-            helm_release_labels,
-            annotations,
-        );
+        let helm_release_obj_meta_data =
+            obj_meta_data(release_name, namespace, helm_release_labels, annotations);
 
         vec![
             helm_repository(

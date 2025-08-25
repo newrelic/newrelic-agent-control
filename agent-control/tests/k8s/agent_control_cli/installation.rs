@@ -11,6 +11,7 @@ use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
 use kube::Client;
 use std::time::Duration;
+
 // NOTE: The tests below are using the latest '*' chart version, and they will likely fail
 // if breaking changes need to be introduced in the chart.
 // If this situation occurs, we need to temporarily skip the tests or use
@@ -125,6 +126,7 @@ pub fn ac_install_cmd(namespace: &str, chart_version: &str, secrets: &str) -> Co
     cmd.arg("--log-level").arg("debug");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg(chart_version);
+    cmd.arg("--release-name").arg("agent-control-deployment");
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets").arg(secrets);
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);

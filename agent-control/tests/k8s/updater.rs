@@ -10,7 +10,6 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::agent_control::version_updater::k8s::K8sACUpdater;
 use newrelic_agent_control::agent_control::version_updater::updater::VersionUpdater;
 use newrelic_agent_control::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
-use newrelic_agent_control::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL};
 use std::collections::BTreeMap;
@@ -21,6 +20,7 @@ const CURRENT_AC_VERSION: &str = "1.2.3-beta";
 const NEW_AC_VERSION: &str = "1.2.3";
 const CURRENT_CD_VERSION: &str = "1.2.5-beta";
 const NEW_CD_VERSION: &str = "1.2.5";
+const TEST_RELEASE_NAME: &str = "test-cd-release-name";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -36,7 +36,7 @@ fn k8s_run_updater_for_cd_and_ac() {
         k8s_client.clone(),
         test_ns.clone(),
         CURRENT_AC_VERSION.to_string(),
-        AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+        TEST_RELEASE_NAME.to_string(),
     );
 
     let config_to_update = &AgentControlDynamicConfig {
@@ -57,7 +57,7 @@ fn k8s_run_updater_for_cd_and_ac() {
 
     let cd_dynamic_object = create_helm_release(
         test_ns.clone(),
-        AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+        TEST_RELEASE_NAME.to_string(),
         CURRENT_CD_VERSION.to_string(),
         AGENT_CONTROL_VERSION_SET_FROM.to_string(),
     );
@@ -81,7 +81,7 @@ fn k8s_run_updater_for_cd_and_ac() {
         verify_helm_release_state(
             &k8s_client,
             &test_ns,
-            AGENT_CONTROL_CD_RELEASE_NAME,
+            TEST_RELEASE_NAME,
             NEW_CD_VERSION,
             AGENT_CONTROL_VERSION_SET_FROM,
         )?;

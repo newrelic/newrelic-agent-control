@@ -24,6 +24,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
+    cmd.arg("--release-name").arg("agent-control-deployment");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--extra-labels")
         .arg("chart=podinfo, env=testing, app=ac");
@@ -164,6 +165,7 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
+    cmd.arg("--release-name").arg("agent-control-deployment");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
     cmd.arg("--repository-url").arg(repository_url);
