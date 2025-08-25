@@ -36,7 +36,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tempfile::tempdir;
 
-const TEST_RELEASE_NAME: &str = "agent-control-cd";
+const TEST_RELEASE_NAME: &str = "test-agent-control-cd";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -114,7 +114,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         health_checkers_for_type_meta(
             helmrelease_v2_type_meta(),
             Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
-            HELM_REPOSITORY_NAME.to_string(),
+            TEST_RELEASE_NAME.to_string(),
             namespace.clone(),
             Some(namespace.clone()),
             StartTime::now(),
