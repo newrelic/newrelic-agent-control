@@ -42,7 +42,7 @@ fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
         &opamp_server,
         &namespace,
         CHART_VERSION_LATEST_RELEASE,
-        "self-update-bump-chart-version-from-latest-to-local",
+        "agent-control-deployment",
     );
 
     let ac_config = format!(
