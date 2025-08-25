@@ -131,6 +131,12 @@ For on-host deployment, use the following format:
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
+    health:
+      interval: 5s
+      timeout: 5s
+      http:
+        path: "/v1/status"
+        port: 8003
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"
@@ -139,23 +145,17 @@ deployment:
           backoff_strategy:
             type: fixed
             backoff_delay: ${nr-var:backoff_delay}
-    health:
-      interval: 5s
-      timeout: 5s
-      http:
-        path: "/v1/status"
-        port: 8003
 ```
 
 In this section:
 
 * `enable_file_logging`: This setting turns on logging for the agent supervisor
+* `health`: The measures used to check the health status of the agent.
 * `executables`: This outlines the list of binaries the agent supervisor runs. Developers can define:
   - * `path`: The location of the binary required.
     * `args`: The command-line arguments needed by the binary.
     * `env`: Specifies the required environment variables.
     * `restart_policy`: The guidelines for if or when the process should be restarted.
-* `health`: The measures used to check the health status of the agent.
 
 These diverse options offer extensive customization for your agent's deployment.
 
