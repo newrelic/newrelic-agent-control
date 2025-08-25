@@ -32,7 +32,7 @@ pub enum AgentCallbacksError {
     #[error("deserialization error: `{0}`")]
     DeserializationError(#[from] OpampRemoteConfigError),
 
-    #[error("Invalid UTF-8 sequence: `{0}`")]
+    #[error("invalid UTF-8 sequence: `{0}`")]
     UTF8(#[from] FromUtf8Error),
 
     #[error("unable to publish OpAMP event")]

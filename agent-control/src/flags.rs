@@ -27,16 +27,16 @@ use tracing::info;
 #[derive(Debug, Error)]
 pub enum InitError {
     /// Could not initialize tracer
-    #[error("Could not initialize tracer: `{0}`")]
+    #[error("could not initialize tracer: `{0}`")]
     TracerError(#[from] TracingError),
     /// K8s config is missing
     #[error("k8s config missing while running on k8s ")]
     K8sConfig(),
     /// The config could not be read
-    #[error("Could not read Agent Control config from `{0}`: `{1}`")]
+    #[error("could not read Agent Control config from `{0}`: `{1}`")]
     LoaderError(String, String),
     /// The configuration is invalid
-    #[error("Invalid configuration: `{0}`")]
+    #[error("invalid configuration: `{0}`")]
     InvalidConfig(String),
 }
 

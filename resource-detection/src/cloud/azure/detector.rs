@@ -47,7 +47,7 @@ pub enum AzureDetectorError {
     #[error("error deserializing json: `{0}`")]
     JsonError(#[from] serde_json::Error),
     /// Unsuccessful HTTP response.
-    #[error("Status code: `{0}` Canonical reason: `{1}`")]
+    #[error("status code: `{0}` Canonical reason: `{1}`")]
     UnsuccessfulResponse(u16, String),
 }
 

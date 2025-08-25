@@ -33,11 +33,11 @@ where
 
 #[derive(thiserror::Error, Debug)]
 pub enum StorerError {
-    #[error("Generic error")]
+    #[error("generic error")]
     Generic,
-    #[error("Error (de)serializing from/into an identifiers file: `{0}`")]
+    #[error("error (de)serializing from/into an identifiers file: `{0}`")]
     Serde(#[from] serde_yaml::Error),
-    #[error("Directory management error: `{0}`")]
+    #[error("directory management error: `{0}`")]
     DirectoryManagement(#[from] DirectoryManagementError),
     #[error("error writing file: `{0}`")]
     WriteError(#[from] WriteError),

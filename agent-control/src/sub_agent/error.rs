@@ -25,7 +25,7 @@ pub enum SubAgentError {
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("sub agent yaml config repository error: `{0}`")]
     ConfigRepositoryError(#[from] ConfigRepositoryError),
-    #[error("Error publishing event: `{0}`")]
+    #[error("error publishing event: `{0}`")]
     EventPublisherError(#[from] EventPublisherError),
     #[error("no configuration found")]
     NoConfiguration,
@@ -64,7 +64,7 @@ pub enum SubAgentBuilderError {
 pub enum SubAgentCollectionError {
     #[error("`{0}`")]
     SubAgent(#[from] SubAgentError),
-    #[error("Sub Agent `{0}` not found in the collection")]
+    #[error("sub agent `{0}` not found in the collection")]
     SubAgentNotFound(String),
 }
 

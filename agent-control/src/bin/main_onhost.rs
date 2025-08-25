@@ -59,7 +59,7 @@ fn main() -> ExitCode {
 /// If we just propagate the error to the main function, the error is logged in string format and
 /// in "Rust mode", i.e. like this:
 /// ```sh
-/// Could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
+/// could not read Agent Control config from /invalid/path: error loading the agent control config: \`error retrieving config: \`missing field \`agents\`\`\`
 /// Error: ConfigRead(LoadConfigError(ConfigError(missing field \`agents\`)))
 /// ```
 fn _main(

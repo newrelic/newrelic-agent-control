@@ -81,7 +81,7 @@ pub enum AgentError {
     #[error("sub agent remote config error: `{0}`")]
     SubAgentRemoteConfig(#[from] ConfigRepositoryError),
 
-    #[error("External module error: `{0}`")]
+    #[error("external module error: `{0}`")]
     ExternalError(String),
 
     #[error("error from http client: `{0}`")]
