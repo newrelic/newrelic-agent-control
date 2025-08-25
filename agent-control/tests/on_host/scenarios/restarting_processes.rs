@@ -28,7 +28,12 @@ name: com.newrelic.test-agent
 version: 0.0.1
 variables:
   on_host:
-    duration:
+    duration-1:
+      description: "time to sleep"
+      type: string
+      required: false
+      default: "yes"
+    duration-2:
       description: "time to sleep"
       type: string
       required: false
@@ -36,14 +41,21 @@ variables:
 deployment:
   on_host:
     enable_file_logging: false
-    executable:
-      path: sleep
-      args: "${nr-var:duration}"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          max_retries: 2
-          backoff_delay: 0s
+    executables:
+      - path: sleep
+        args: "${nr-var:duration-1}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            max_retries: 2
+            backoff_delay: 0s
+      - path: sleep
+        args: "${nr-var:duration-2}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            max_retries: 2
+            backoff_delay: 0s
 "#,
     );
 
@@ -56,7 +68,8 @@ deployment:
             .as_path(),
         "values.yaml",
         r#"
-duration: "1000000"
+duration-1: "1000000"
+duration-2: "2000000"
 "#,
     );
 
@@ -90,20 +103,35 @@ agents:
 
     thread::sleep(Duration::from_secs(5));
 
-    // Use `pgrep` to find the process id of the yes command
+    // Use `pgrep` to find the process id of both sleep commands
     // It is expected that only one such process is found!
-    let yes_pid = Command::new("pgrep")
+    let sleep_pid = Command::new("pgrep")
         .arg("-f")
         .arg("sleep 1000000")
         .output()
         .expect("failed to execute process")
         .stdout;
 
-    let yes_pid = String::from_utf8(yes_pid).unwrap();
+    let sleep_pid = String::from_utf8(sleep_pid).unwrap();
 
-    // Send a SIGKILL to the yes command
+    let second_sleep_pid = Command::new("pgrep")
+        .arg("-f")
+        .arg("sleep 2000000")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    thread::sleep(Duration::from_secs(35));
+    let second_sleep_pid = String::from_utf8(second_sleep_pid).unwrap();
+
+    // Send a SIGKILL to both yes commands
     signal::kill(
-        Pid::from_raw(yes_pid.trim().parse::<i32>().unwrap()),
+        Pid::from_raw(sleep_pid.trim().parse::<i32>().unwrap()),
+        Signal::SIGKILL,
+    )
+    .unwrap();
+    signal::kill(
+        Pid::from_raw(second_sleep_pid.trim().parse::<i32>().unwrap()),
         Signal::SIGKILL,
     )
     .unwrap();
@@ -111,20 +139,30 @@ agents:
     // Wait for the agent-control to restart the process
     thread::sleep(Duration::from_secs(2));
 
-    // Get the pid for the new yes command
-    let new_yes_pid = Command::new("pgrep")
+    // Get the pid for both new yes command
+    let new_sleep_pid = Command::new("pgrep")
         .arg("-f")
         .arg("sleep 1000000")
         .output()
         .expect("failed to execute process")
         .stdout;
 
-    let new_yes_pid = String::from_utf8(new_yes_pid).unwrap();
+    let new_sleep_pid = String::from_utf8(new_sleep_pid).unwrap();
+
+    let new_second_sleep_pid = Command::new("pgrep")
+        .arg("-f")
+        .arg("sleep 2000000")
+        .output()
+        .expect("failed to execute process")
+        .stdout;
+
+    let new_second_sleep_pid = String::from_utf8(new_second_sleep_pid).unwrap();
 
     agent_control_join.join().unwrap();
 
-    // Assert the PID is different
-    assert_ne!(yes_pid.trim(), new_yes_pid.trim());
+    // Assert the PIDs are different
+    assert_ne!(sleep_pid.trim(), new_sleep_pid.trim());
+    assert_ne!(second_sleep_pid.trim(), new_second_sleep_pid.trim());
 
     Ok(())
 }

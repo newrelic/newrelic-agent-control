@@ -728,13 +728,13 @@ variables:
       file_path: newrelic-infra.yml
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${config_file}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
     const AGENT_VALUES_SINGLE_FILE: &str = r#"
@@ -773,13 +773,13 @@ variables:
           level: trace
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${config_file1} --config=${config_file2} --config=${config_file3}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file1} --config=${config_file2} --config=${config_file3}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
     const AGENT_VALUES_MULTIPLE_FILES: &str = r#"
@@ -807,13 +807,13 @@ variables:
       file_path: integrations.d
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${integrations}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${integrations}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
     const AGENT_VALUES_SINGLE_MAP_FILE: &str = r#"
@@ -854,13 +854,13 @@ variables:
       required: true
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${integrations} --logging=${logging}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${integrations} --logging=${logging}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
     const AGENT_VALUES_MULTIPLE_MAP_FILE: &str = r#"

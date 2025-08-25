@@ -159,16 +159,20 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 
         let enable_file_logging = on_host.enable_file_logging.get();
 
-        let maybe_exec = on_host.executable.map(|e| {
-            ExecutableData::new(e.path.get())
-                .with_args(e.args.get().into_vector())
-                .with_env(e.env.get())
-                .with_restart_policy(e.restart_policy.into())
-        });
+        let executables = on_host
+            .executables
+            .into_iter()
+            .map(|e| {
+                ExecutableData::new(e.path.get())
+                    .with_args(e.args.get().into_vector())
+                    .with_env(e.env.get())
+                    .with_restart_policy(e.restart_policy.into())
+            })
+            .collect();
 
         let executable_supervisors = NotStartedSupervisorOnHost::new(
             effective_agent.get_agent_identity().clone(),
-            maybe_exec,
+            executables,
             Context::new(),
             on_host.health,
         )

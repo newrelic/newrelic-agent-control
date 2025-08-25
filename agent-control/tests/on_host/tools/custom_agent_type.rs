@@ -23,9 +23,9 @@ variables:
       default: "default"
 deployment:
   on_host:
-    executable:
-      path: {path}
-      args: {args}
+    executables:
+      - path: {path}
+        args: {args}
 "#
     );
     write!(local_file, "{custom_agent_type}").unwrap();

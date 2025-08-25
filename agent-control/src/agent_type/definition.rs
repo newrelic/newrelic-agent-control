@@ -244,15 +244,15 @@ deployment:
       http:
         path: /healthz
         port: 8080
-    executable:
-      path: ${nr-var:bin}/otelcol
-      args: "-c ${nr-var:deployment.k8s.image}"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: 1s
-          max_retries: 3
-          last_retry_interval: 30s
+    executables:
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: 1s
+            max_retries: 3
+            last_retry_interval: 30s
 "#;
 
     const AGENT_GIVEN_BAD_YAML: &str = r#"
@@ -264,9 +264,9 @@ spec:
     name:
 deployment:
   on_host:
-    executable:
-      path: ${nr-var:bin}/otelcol
-      args: "-c ${nr-var:deployment.k8s.image}"
+    executables:
+      - path: ${nr-var:bin}/otelcol
+        args: "-c ${nr-var:deployment.k8s.image}"
 "#;
 
     #[test]
@@ -378,9 +378,9 @@ deployment:
       http:
         path: /v1/status
         port: "${nr-var:status_server_port}"
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
 "#;
 
     const GIVEN_NEWRELIC_INFRA_USER_CONFIG_YAML: &str = r#"
@@ -508,9 +508,9 @@ variables:
         default: exponential
 deployment:
   on_host:
-      executable:
-        path: /bin/echo
-        args: "${nr-var:restart_policy.type}"
+      executables:
+        - path: /bin/echo
+          args: "${nr-var:restart_policy.type}"
 "#;
 
     const VALUES_VALID_VARIANT: &str = r#"

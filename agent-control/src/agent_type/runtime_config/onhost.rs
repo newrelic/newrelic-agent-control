@@ -15,7 +15,8 @@ use super::templateable_value::TemplateableValue;
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
-    pub executable: Option<Executable>,
+    #[serde(default)]
+    pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
@@ -25,10 +26,11 @@ pub struct OnHost {
 impl Templateable for OnHost {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            executable: self
-                .executable
+            executables: self
+                .executables
+                .into_iter()
                 .map(|e| e.template_with(variables))
-                .transpose()?,
+                .collect::<Result<Vec<_>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
             health: self
                 .health
@@ -119,22 +121,47 @@ mod tests {
 
         assert_eq!(
             "${nr-var:bin}/otelcol",
-            on_host.executable.clone().unwrap().path.template
+            on_host.executables.clone().first().unwrap().path.template
+        );
+        assert_eq!(
+            "${nr-var:bin}/otelcol-second",
+            on_host.executables.clone().last().unwrap().path.template
         );
         assert_eq!(
             "-c ${nr-var:deployment.k8s.image}".to_string(),
-            on_host.executable.clone().unwrap().args.template
+            on_host.executables.clone().first().unwrap().args.template
         );
+        assert_eq!(
+            "-c ${nr-var:deployment.k8s.image}".to_string(),
+            on_host.executables.clone().last().unwrap().args.template
+        );
+        let backoff_strategy_config = BackoffStrategyConfig {
+            backoff_type: TemplateableValue::from_template("fixed".to_string()),
+            backoff_delay: TemplateableValue::from_template("1s".to_string()),
+            max_retries: TemplateableValue::from_template("3".to_string()),
+            last_retry_interval: TemplateableValue::from_template("30s".to_string()),
+        };
 
         // Restart policy values
         assert_eq!(
-            BackoffStrategyConfig {
-                backoff_type: TemplateableValue::from_template("fixed".to_string()),
-                backoff_delay: TemplateableValue::from_template("1s".to_string()),
-                max_retries: TemplateableValue::from_template("3".to_string()),
-                last_retry_interval: TemplateableValue::from_template("30s".to_string()),
-            },
-            on_host.executable.unwrap().restart_policy.backoff_strategy
+            backoff_strategy_config,
+            on_host
+                .executables
+                .clone()
+                .first()
+                .unwrap()
+                .restart_policy
+                .backoff_strategy
+        );
+        assert_eq!(
+            backoff_strategy_config,
+            on_host
+                .executables
+                .clone()
+                .last()
+                .unwrap()
+                .restart_policy
+                .backoff_strategy
         );
     }
 
@@ -565,14 +592,22 @@ health:
   http:
     path: /healthz
     port: 8080
-executable:
-  path: ${nr-var:bin}/otelcol
-  args: "-c ${nr-var:deployment.k8s.image}"
-  restart_policy:
-    backoff_strategy:
-      type: fixed
-      backoff_delay: 1s
-      max_retries: 3
-      last_retry_interval: 30s
+executables:
+  - path: ${nr-var:bin}/otelcol
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
+  - path: ${nr-var:bin}/otelcol-second
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
 "#;
 }

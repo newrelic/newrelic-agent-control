@@ -460,9 +460,9 @@ variables:
         required: true
 deployment:
     on_host:
-      executable:
-        path: /some/path
-        args: "${nr-var:config.really_common} ${config.var}"
+      executables:
+        - path: /some/path
+          args: "${nr-var:config.really_common} ${config.var}"
     k8s:
       objects:
         chart:

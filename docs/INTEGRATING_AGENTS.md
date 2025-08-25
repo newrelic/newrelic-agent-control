@@ -194,17 +194,17 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: >-
-        --config=${nr-var:config_agent}
-      env:
-        NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
-        NR_HOST_ID: "${nr-ac:host_id}"
-      restart_policy:
-        backoff_strategy:
-          type: fixed
-          backoff_delay: ${nr-var:backoff_delay}
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: >-
+          --config=${nr-var:config_agent}
+        env:
+          NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
+          NR_HOST_ID: "${nr-ac:host_id}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: ${nr-var:backoff_delay}
   k8s:
     health:
       interval: 30s
@@ -246,7 +246,7 @@ For **k8s**, we have:
 
 The following fields are used for configuring the on-host deployment of a sub-agent.
 
-##### `executable`
+##### `executables`
 
 Instructions to actually run the sub-agent process. It is composed of the following fields:
 
@@ -261,7 +261,7 @@ Instructions to actually run the sub-agent process. It is composed of the follow
     - `max_retries`: Maximum number of restart tries. A number.
     - `last_retry_interval`: Time interval for the back-off number of retries to maintain its number. That is, if the process spends more than this interval after the restart policy was triggered, the restart policy values like the current tries or the back-off delays will be reset.  This is a time string in the form of `10s`, `1h`, etc.
 
-As of now, the `executable` field is actually **optional**. This was intended to cover the APM agents use case for on-host, in which the agents are not processes but libraries or plugins injected to other processes, customer applications, whose lifecycle AC must not manage (see [*Agent-less* supervisors](#agent-less-supervisors) below). However, this is **not yet supported**. An agent without `executable`s is accepted as valid, but AC will just spawn an internal supervisor structure for the sub-agent without actually doing anything besides checking health, if it was configured.
+As of now, the `executables` field is array and is actually **optional**. This was intended to cover the APM agents use case for on-host, in which the agents are not processes but libraries or plugins injected to other processes, customer applications, whose lifecycle AC must not manage (see [*Agent-less* supervisors](#agent-less-supervisors) below). However, this is **not yet supported**. An agent without `executables` is accepted as valid, but AC will just spawn an internal supervisor structure for the sub-agent without actually doing anything besides checking health, if it was configured.
 
 ##### `enable_file_logging` (`bool`)
 

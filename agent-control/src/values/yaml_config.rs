@@ -210,9 +210,9 @@ variables:
       file_path: integrations.d
 deployment:
   on_host:
-    executable:
-      path: ${deployment.on_host.path}/otelcol
-      args: "-c ${deployment.on_host.args}"
+    executables:
+      - path: ${deployment.on_host.path}/otelcol
+        args: "-c ${deployment.on_host.args}"
 "#;
 
     #[test]

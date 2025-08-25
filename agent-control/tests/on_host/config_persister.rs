@@ -75,13 +75,13 @@ variables:
       file_path: newrelic-infra.yml
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config=${config_file}"
-    restart_policy:
-      backoff_strategy:
-        type: fixed
-        backoff_delay_seconds: 5
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config=${config_file}"
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay_seconds: 5
 "#;
 
 const AGENT_VALUES_SINGLE_FILE: &str = r#"
