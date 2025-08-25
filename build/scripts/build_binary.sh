@@ -9,12 +9,10 @@ set -e
 # - `cargo-zigbuild` for building.
 
 if [ "$ARCH" = "arm64" ];then
-  ARCH_NAME="aarch64"
   TARGET_TUPLE="aarch64-unknown-linux-musl"
 fi
 
 if [ "$ARCH" = "amd64" ];then
-  ARCH_NAME="x86_64"
   TARGET_TUPLE="x86_64-unknown-linux-musl"
 fi
 
@@ -26,7 +24,7 @@ fi
 : "${BUILD_MODE:=release}"
 : "${BUILD_OUT_DIR:=release}"
 
-echo "arch: ${ARCH}, arch_name: ${ARCH_NAME}"
+echo "arch: ${ARCH}, target: ${TARGET_TUPLE}"
 
 # Binary metadata
 GIT_COMMIT=$( git rev-parse HEAD )
@@ -35,10 +33,6 @@ export AGENT_CONTROL_VERSION=${AGENT_CONTROL_VERSION}
 
 export RUSTFLAGS="-C target-feature=+crt-static"
 
-# if [[ "$OSTYPE" == "darwin"* ]]; then
-#   echo "macOS detected, increasing ulimit to 4096 for concurrent Zig linking"
-#   ulimit -n 4096
-# fi
 cargo zigbuild --target "${TARGET_TUPLE}" --profile "${BUILD_MODE}" --package "${PKG}" --bin "${BIN}"
 
 mkdir -p "bin"

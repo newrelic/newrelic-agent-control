@@ -100,7 +100,6 @@ jobs:
           USE_LATEST_FLUX: ${{ inputs.use_latest_flux }}
           # Tilt configs
           ARCH: amd64
-          TARGET_TUPLE: x86_64-unknown-linux-musl
         with:
           retry_attempts: 20
           retry_seconds: 15

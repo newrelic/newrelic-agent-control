@@ -26,7 +26,7 @@ ARCH ?= arm64
 BUILD_MODE ?= release
 
 build-%:
-	@echo "Building $* with mode: $(BUILD_MODE), bin $(BIN) and arch: $(ARCH)"
+	@echo "Building $* with mode: $(BUILD_MODE), bin $(*) and arch: $(ARCH)"
 	ARCH=$(ARCH) BUILD_MODE=$(BUILD_MODE) BIN="newrelic-$(*)" PKG="newrelic_agent_control" ./build/scripts/build_binary.sh
 
 .PHONY: tilt-up

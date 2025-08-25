@@ -215,7 +215,6 @@ jobs:
         env:
           # Tilt configs
           ARCH: amd64
-          TARGET_TUPLE: x86_64-unknown-linux-musl
         run: make -C agent-control test/k8s/integration-${{ matrix.group }}
 
   k8s-e2e-tests:
