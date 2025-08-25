@@ -60,11 +60,10 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
 
-        let executable_thread_contexts = self
-            .executables
-            .clone()
-            .into_iter()
-            .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e.clone()));
+        let executable_thread_contexts =
+            self.executables.clone().into_iter().map(|e| {
+                self.start_process_thread(sub_agent_internal_publisher.clone(), e.clone())
+            });
 
         let thread_contexts: Vec<StartedThreadContext> = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -411,6 +410,7 @@ pub mod tests {
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use std::thread;
     use std::time::{Duration, Instant};
+    use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
     #[cfg(unix)]
@@ -547,6 +547,48 @@ pub mod tests {
                 thread::sleep(Duration::from_millis(15));
             }
         }
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_supervisor_one_wrong_command_one_correct_command() {
+        let backoff = Backoff::new()
+            .with_initial_delay(Duration::new(0, 100))
+            .with_max_retries(3)
+            .with_last_retry_interval(Duration::new(30, 0));
+
+        let executables = vec![
+            ExecutableData::new("wrong-command".to_owned())
+                .with_args(vec!["x".to_owned()])
+                .with_restart_policy(RestartPolicy::new(
+                    BackoffStrategy::Fixed(backoff.clone()),
+                    vec![0],
+                )),
+            ExecutableData::new("echo".to_owned())
+                .with_args(vec!["NR-command".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+        ];
+
+        let agent_identity = AgentIdentity::from((
+            "wrong-command".to_owned().try_into().unwrap(),
+            AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
+        ));
+
+        let agent =
+            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
+        let agent = agent.start(sub_agent_internal_publisher).expect("no error");
+
+        for thread_context in agent.thread_contexts {
+            while !thread_context.is_thread_finished() {
+                thread::sleep(Duration::from_millis(15));
+            }
+        }
+        assert!(logs_with_scope_contain(
+            "DEBUG newrelic_agent_control::sub_agent::on_host::command::logging::logger",
+            "NR-command",
+        ));
     }
 
     #[test]
