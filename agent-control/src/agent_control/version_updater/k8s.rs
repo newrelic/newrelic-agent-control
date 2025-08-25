@@ -24,8 +24,8 @@ impl fmt::Display for Component {
     }
 }
 pub struct K8sACUpdater {
-    ac_remote_update: bool,
-    cd_remote_update: bool,
+    ac_remote_update_enabled: bool,
+    cd_remote_update_enabled: bool,
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
     // current_chart_version is the version of the agent control that is currently running.
@@ -37,29 +37,25 @@ pub struct K8sACUpdater {
 
 impl VersionUpdater for K8sACUpdater {
     fn update(&self, config: &AgentControlDynamicConfig) -> Result<(), UpdaterError> {
-        if self.ac_remote_update {
+        if self.ac_remote_update_enabled {
             self.update_helm_release_version(
                 Component::AgentControl,
                 config.chart_version.as_ref(),
-                &self.current_chart_version,
                 AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                || Ok(self.current_chart_version.clone()),
             )?;
-        }
-        if !self.ac_remote_update {
+        } else {
             debug!("Remote updates for Agent Control are disabled. Nothing to do.");
         }
 
-        if self.cd_remote_update {
-            let current_version = self.get_cd_helm_release_version()?;
-
+        if self.cd_remote_update_enabled {
             self.update_helm_release_version(
                 Component::FluxCD,
                 config.cd_chart_version.as_ref(),
-                current_version.as_str(),
                 self.cd_release_name.as_str(),
+                || self.get_cd_helm_release_version(),
             )?;
-        }
-        if !self.cd_remote_update {
+        } else {
             debug!("Remote updates for Agent Control cd are disabled. Nothing to do.");
         }
 
@@ -77,8 +73,8 @@ impl K8sACUpdater {
         cd_deployment_name: String,
     ) -> Self {
         Self {
-            ac_remote_update,
-            cd_remote_update,
+            ac_remote_update_enabled: ac_remote_update,
+            cd_remote_update_enabled: cd_remote_update,
             k8s_client,
             namespace,
             current_chart_version,
@@ -125,28 +121,31 @@ impl K8sACUpdater {
             .unwrap_or_default())
     }
 
-    /// Updates a HelmRelease resource in Kubernetes to a new version.
+    /// Updates a HelmRelease resource to a new version if all requirements are met.
+    /// - `new_version` needs to contain the target version.
+    /// - The target version needs to be different from the current one obtained through `current_version_getter`.
     ///
-    /// If the new version is specified and differs from the current version, this function
-    /// applies a JSON patch to the HelmRelease to update its `spec.chart.spec.version`.
-    fn update_helm_release_version(
+    /// The update is performed by patching the HelmRelease to update its `spec.chart.spec.version`.
+    fn update_helm_release_version<F: Fn() -> Result<String, UpdaterError>>(
         &self,
         component_name: Component,
         new_version: Option<&String>,
-        current_version: &str,
         release_name: &str,
+        current_version_getter: F,
     ) -> Result<(), UpdaterError> {
         let Some(version) = new_version else {
-            debug!("Version for '{component_name}' is not specified in the dynamic config.");
+            debug!(%component_name, "Version is not specified in the dynamic config");
             return Ok(());
         };
 
-        if version == current_version {
-            debug!("Current version of '{component_name}' is already up to date: {version}");
+        let current_version = current_version_getter()?;
+
+        if version == &current_version {
+            debug!(%component_name, %version, "Version is already up to date");
             return Ok(());
         }
 
-        info!("Updating '{component_name}' from version: {current_version} to {version}");
+        info!(%component_name, %version, %current_version, "Performing update");
 
         let labels = self.get_helm_release_labels(release_name)?;
         let patch_to_apply = self.create_helm_release_patch(version, labels);
@@ -160,7 +159,7 @@ impl K8sACUpdater {
             )
             .map_err(|err| {
                 UpdaterError::UpdateFailed(format!(
-                    "Error applying patch to HelmRelease '{release_name}' for '{component_name}': {err}",
+                    "error applying patch to HelmRelease '{release_name}' for '{component_name}': {err}",
                 ))
             })?;
         Ok(())
@@ -421,7 +420,8 @@ mod tests {
 
     #[test]
     fn test_does_nothing_when_both_disabled() {
-        let mock_client = MockSyncK8sClient::new();
+        let mut mock_client = MockSyncK8sClient::new();
+        mock_client.expect_get_dynamic_object().never();
         let updater = K8sACUpdater::new(
             false,
             false,
@@ -432,6 +432,24 @@ mod tests {
         );
 
         let result = updater.update(&test_config(Some(NEW_AC_VERSION), Some(NEW_CD_VERSION)));
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_does_nothing_version_is_not_informed() {
+        let mut mock_client = MockSyncK8sClient::new();
+        mock_client.expect_get_dynamic_object().never();
+        let updater = K8sACUpdater::new(
+            true,
+            true,
+            Arc::new(mock_client),
+            TEST_NAMESPACE.to_string(),
+            CURRENT_AC_VERSION.to_string(),
+            CD_RELEASE_NAME_TEST.to_string(),
+        );
+
+        let result = updater.update(&test_config(None, None));
 
         assert!(result.is_ok());
     }
