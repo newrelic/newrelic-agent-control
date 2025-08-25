@@ -7,13 +7,8 @@ use opamp_client::opamp::proto::{AgentCapabilities, CustomCapabilities};
 use opamp_client::operation::capabilities::Capabilities;
 
 pub const AGENT_CONTROL_ID: &str = "agent-control";
-pub const AGENT_CONTROL_CD_RELEASE_NAME: &str = "agent-control-cd";
 
-pub const RESERVED_AGENT_IDS: [&str; 3] = [
-    AGENT_CONTROL_ID,
-    AGENT_CONTROL_CD_RELEASE_NAME,
-    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-];
+pub const RESERVED_AGENT_IDS: [&str; 2] = [AGENT_CONTROL_ID, AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME];
 
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";
