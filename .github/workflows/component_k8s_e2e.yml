@@ -46,8 +46,6 @@ jobs:
         group: ${{ fromJSON(inputs.scenarios) }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
