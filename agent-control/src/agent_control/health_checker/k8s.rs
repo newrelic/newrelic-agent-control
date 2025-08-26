@@ -1,6 +1,5 @@
 use std::{sync::Arc, time::SystemTime};
 
-use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
@@ -12,13 +11,14 @@ use crate::{
 pub fn agent_control_health_checker_builder(
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
+    ac_release_name: String,
 ) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
     move |start_time: SystemTime| {
         Some(K8sHealthChecker::new(
             health_checkers_for_type_meta(
                 helmrelease_v2_type_meta(),
                 k8s_client.clone(),
-                AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
+                ac_release_name.clone(),
                 namespace.clone(),
                 Some(namespace.clone()),
                 start_time,

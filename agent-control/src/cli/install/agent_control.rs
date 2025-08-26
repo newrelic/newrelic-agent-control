@@ -22,7 +22,6 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallAgentControl;
 
-pub const AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME: &str = "agent-control-deployment";
 pub const REPOSITORY_NAME: &str = AGENT_CONTROL_ID;
 
 impl DynamicObjectListBuilder for InstallAgentControl {

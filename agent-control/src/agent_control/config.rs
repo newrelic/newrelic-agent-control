@@ -231,6 +231,9 @@ pub struct K8sConfig {
     /// ac_remote_update enables or disables remote update for agent-control-deployment chart
     #[serde(default)]
     pub ac_remote_update: bool,
+    /// agent_control_deployment release name
+    #[serde(default)]
+    pub ac_release_name: String,
     /// cd_remote_update enables or disables remote update for the agent-control-cd chart
     #[serde(default)]
     pub cd_remote_update: bool,
@@ -315,6 +318,7 @@ impl Default for K8sConfig {
             current_chart_version: Default::default(),
             cr_type_meta: default_group_version_kinds(),
             ac_remote_update: Default::default(),
+            ac_release_name: Default::default(),
             cd_remote_update: Default::default(),
             cd_release_name: Default::default(),
         }

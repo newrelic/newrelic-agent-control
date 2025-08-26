@@ -42,6 +42,7 @@ fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
         &opamp_server,
         &namespace,
         CHART_VERSION_LATEST_RELEASE,
+        "agent-control-deployment",
     );
 
     let ac_config = format!(
@@ -103,6 +104,7 @@ fn k8s_self_update_bump_chart_version() {
         &opamp_server,
         &namespace,
         CHART_VERSION_DEV_1,
+        "self-update-bump-chart-version",
     );
 
     opamp_server.set_config_response(
@@ -154,6 +156,7 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
         &opamp_server,
         &namespace,
         CHART_VERSION_DEV_1,
+        "self-update-bump-chart-version-with-new-config",
     );
 
     // This agent will not actually be deployed since misses the chart_version config.
@@ -222,6 +225,7 @@ fn k8s_self_update_new_version_fails_to_start_next_receives_correct_version() {
         &opamp_server,
         &namespace,
         CHART_VERSION_DEV_1,
+        "self-update-new-version-fails-then-works",
     );
 
     opamp_server.set_config_response(
@@ -288,6 +292,7 @@ fn k8s_self_update_new_version_failing_image() {
         &opamp_server,
         &namespace,
         CHART_VERSION_DEV_2,
+        "self-update-new-version-failing-image",
     );
 
     opamp_server.set_config_response(
@@ -345,6 +350,7 @@ fn bootstrap_ac(
     opamp_server: &FakeServer,
     namespace: &str,
     chart_version: &str,
+    release_name: &str,
 ) -> InstanceID {
     let opamp_endpoint = get_minikube_opamp_url_from_fake_server(opamp_server.endpoint().as_str());
 
@@ -358,7 +364,7 @@ fn bootstrap_ac(
         ac_chart_values(opamp_endpoint, namespace),
     );
 
-    install_ac_with_cli(namespace, chart_version);
+    install_ac_with_cli(namespace, chart_version, release_name);
 
     // make some OpAMP seq number gap between old and new pod to avoid the fake server to
     // always send full-resend flag for each pod, and finally keep the new pod data once
@@ -368,7 +374,7 @@ fn bootstrap_ac(
     instance_id::get_instance_id(client.clone(), namespace, &AgentID::AgentControl)
 }
 
-fn install_ac_with_cli(namespace: &str, chart_version: &str) {
+fn install_ac_with_cli(namespace: &str, chart_version: &str, release_name: &str) {
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
 
     cmd.arg("install-agent-control");
@@ -376,7 +382,7 @@ fn install_ac_with_cli(namespace: &str, chart_version: &str) {
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg(chart_version);
-    cmd.arg("--release-name").arg("agent-control-deployment");
+    cmd.arg("--release-name").arg(release_name);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets")
         .arg(format!("{SECRET_NAME}={VALUES_KEY}"));

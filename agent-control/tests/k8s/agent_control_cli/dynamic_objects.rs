@@ -5,9 +5,7 @@ use assert_cmd::Command;
 use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use newrelic_agent_control::cli::install::agent_control::{
-    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, REPOSITORY_NAME,
-};
+use newrelic_agent_control::cli::install::agent_control::REPOSITORY_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
 use newrelic_agent_control::sub_agent::identity::AgentIdentity;
@@ -19,12 +17,13 @@ use std::sync::Arc;
 fn k8s_cli_install_agent_control_creates_resources() {
     let mut k8s_env = block_on(K8sEnv::new());
     let namespace = block_on(k8s_env.test_namespace());
+    let release_name = "install-ac-creates-resources";
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
-    cmd.arg("--release-name").arg("agent-control-deployment");
+    cmd.arg("--release-name").arg(release_name);
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--extra-labels")
         .arg("chart=podinfo, env=testing, app=ac");
@@ -65,17 +64,13 @@ fn k8s_cli_install_agent_control_creates_resources() {
 
     // Assert release data
     let release = k8s_client
-        .get_dynamic_object(
-            &helmrelease_v2_type_meta(),
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-            &namespace,
-        )
+        .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, &namespace)
         .unwrap()
         .unwrap();
 
     let expected_release = serde_json::json!({
         "interval": "30s",
-        "releaseName": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+        "releaseName": release_name,
         "chart": {
             "spec": {
                 "chart": "agent-control-deployment",
@@ -165,7 +160,8 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
-    cmd.arg("--release-name").arg("agent-control-deployment");
+    cmd.arg("--release-name")
+        .arg("install-ac-creates-resources-with-repository-url");
     cmd.arg("--namespace").arg(namespace.clone());
     cmd.arg("--skip-installation-check"); // Skipping checks because we are merely checking that the resources are created.
     cmd.arg("--repository-url").arg(repository_url);
