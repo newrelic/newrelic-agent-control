@@ -19,6 +19,7 @@ use crate::k8s::tools::local_chart::LOCAL_CHART_REPOSITORY;
 use crate::k8s::tools::local_chart::agent_control_cd::{
     CHART_VERSION_UPSTREAM_1, CHART_VERSION_UPSTREAM_1_PKG, CHART_VERSION_UPSTREAM_2,
 };
+use crate::k8s::tools::local_chart::agent_control_deploymet::MISSING_VERSION;
 use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
@@ -191,13 +192,12 @@ fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
 
     let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
 
-    let unsupported_version = "9999.99.99";
     opamp_server.set_config_response(
         ac_instance_id.clone(),
         format!(
             r#"
 agents: {{}}
-cd_chart_version: {unsupported_version}
+cd_chart_version: {MISSING_VERSION}
 "#
         ),
     );
@@ -224,14 +224,13 @@ cd_chart_version: {unsupported_version}
             k8s.client.clone(),
             &namespace,
             TEST_RELEASE_NAME,
-            unsupported_version,
+            MISSING_VERSION,
         ))?;
 
         let health = health_checker.check_health()?;
         // Should be unhealthy with a specific message
-        let expected_err_msg = format!(
-            "no 'agent-control-cd' chart with version matching '{unsupported_version}' found"
-        );
+        let expected_err_msg =
+            format!("no 'agent-control-cd' chart with version matching '{MISSING_VERSION}' found");
         match health.as_health() {
             Health::Healthy(_) => Err("HelmRelease should be unhealthy".into()),
             Health::Unhealthy(u) if u.last_error().contains(&expected_err_msg) => Ok(()),
