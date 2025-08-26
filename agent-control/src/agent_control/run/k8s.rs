@@ -209,8 +209,7 @@ impl AgentControlRunner {
             k8s_client.clone(),
             self.k8s_config.namespace.to_string(),
             self.k8s_config.ac_release_name.clone().into(),
-            self.k8s_config
-                .cd_remote_update
+            cd_remote_updates_enabled
                 .then(|| self.k8s_config.cd_release_name.clone()),
         );
 
