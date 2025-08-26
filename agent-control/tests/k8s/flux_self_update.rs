@@ -25,7 +25,7 @@ use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
-use newrelic_agent_control::health::health_checker::HealthChecker;
+use newrelic_agent_control::health::health_checker::{Health, HealthChecker};
 use newrelic_agent_control::health::with_start_time::StartTime;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -150,6 +150,94 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
             Err(format!("HelmRelease unhealthy with: {error}").into())
         } else {
             Ok(())
+        }
+    });
+}
+
+#[test]
+#[ignore = "needs k8s cluster"]
+fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
+    let test_name = "k8s_remote_flux_update";
+    let mut opamp_server = FakeServer::start_new();
+    let mut k8s = block_on(K8sEnv::new());
+    let namespace = block_on(k8s.test_namespace());
+
+    // install flux chart (simulate what the install flux job does)
+    flux_bootstrap_via_helm_command(k8s.client.clone(), &namespace);
+
+    let ns = namespace.to_string();
+    // Flux resources need to be removed before the test ends, otherwise the namespace will fail to be removed
+    // as these resources include finalizers pointing to flux.
+    let _remove_resources = DeferredCommand::new(move || {
+        remove_flux_resources(&ns);
+    });
+
+    // Installs flux resources
+    create_flux_resources(&namespace, CHART_VERSION_UPSTREAM_1);
+
+    let tmp_dir = tempdir().expect("failed to create local temp dir");
+
+    let _sa = start_agent_control_with_testdata_config(
+        test_name,
+        CUSTOM_AGENT_TYPE_SPLIT_NS_PATH,
+        k8s.client.clone(),
+        &namespace,
+        &namespace,
+        Some(opamp_server.cert_file_path()),
+        Some(&opamp_server.endpoint()),
+        vec![],
+        tmp_dir.path(),
+    );
+
+    let ac_instance_id = get_instance_id(k8s.client.clone(), &namespace, &AgentID::AgentControl);
+
+    let unsupported_version = "9999.99.99";
+    opamp_server.set_config_response(
+        ac_instance_id.clone(),
+        format!(
+            r#"
+agents: {{}}
+cd_chart_version: {unsupported_version}
+"#
+        ),
+    );
+
+    // AC internal health-checker will be unhealthy because the test doesn't install the AC HelmRelease
+    // So to verify that Flux is healthy after the upgrade we create this health-checker
+    // for the CD component only using the same constructs as AC does.
+    let health_checker = agent_control_health_checker_builder(
+        Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
+        namespace.clone(),
+        None,
+        TEST_RELEASE_NAME.to_string().into(),
+    )(StartTime::now())
+    .unwrap();
+
+    retry(60, Duration::from_secs(1), || {
+        check_latest_remote_config_status_is_expected(
+            &opamp_server,
+            &ac_instance_id,
+            RemoteConfigStatuses::Applied as i32, // The configuration was Applied even if it led to an unhealthy AC.
+        )?;
+
+        block_on(check_helmrelease_chart_version(
+            k8s.client.clone(),
+            &namespace,
+            TEST_RELEASE_NAME,
+            unsupported_version,
+        ))?;
+
+        let health = health_checker.check_health()?;
+        // Should be unhealthy with a specific message
+        let expected_err_msg = format!(
+            "no 'agent-control-cd' chart with version matching '{unsupported_version}' found"
+        );
+        match health.as_health() {
+            Health::Healthy(_) => Err("HelmRelease should be unhealthy".into()),
+            Health::Unhealthy(u) if u.last_error().contains(&expected_err_msg) => Ok(()),
+            Health::Unhealthy(u) => {
+                Err(format!("Unhealthy for the wrong reason: {}", u.last_error()).into())
+            }
         }
     });
 }
