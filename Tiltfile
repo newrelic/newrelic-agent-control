@@ -11,6 +11,8 @@ license_key = os.getenv('LICENSE_KEY', "")
 namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
+# Branch of the helm-charts repo to use.
+feature_branch = os.getenv('FEATURE_BRANCH', "feat/make-release-names-configurable")
 
 # Enables basic auth in chartmuseum (for testing reasons)
 # 
@@ -42,10 +44,6 @@ docker_build(
   dockerfile='./Dockerfiles/Dockerfile_agent_control_cli',
   only = ['./bin','./Dockerfile', './Tiltfile']
 )
-
-######## Feature Branch ########
-# We are leveraging master branch or the feature branch to install both the agent-control and the agent-control-deployment charts.
-feature_branch = 'feat/make-release-names-configurable'
 
 #### Set-up charts
 
