@@ -23,12 +23,9 @@ use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
+use newrelic_agent_control::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
 use newrelic_agent_control::health::health_checker::HealthChecker;
-use newrelic_agent_control::health::k8s::health_checker::{
-    K8sHealthChecker, health_checkers_for_type_meta,
-};
 use newrelic_agent_control::health::with_start_time::StartTime;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -110,17 +107,13 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
 
     // AC internal health-checker will be unhealthy because the test doesn't install the AC HelmRelease
     // So to verify that Flux is health after the upgrade we create this health-checker
-    let health_checker = K8sHealthChecker::new(
-        health_checkers_for_type_meta(
-            helmrelease_v2_type_meta(),
-            Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
-            TEST_RELEASE_NAME.to_string(),
-            namespace.clone(),
-            Some(namespace.clone()),
-            StartTime::now(),
-        ),
-        StartTime::now(),
-    );
+    let health_checker = agent_control_health_checker_builder(
+        Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
+        namespace.clone(),
+        None,
+        TEST_RELEASE_NAME.to_string().into(),
+    )(StartTime::now())
+    .unwrap();
 
     retry(60, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(

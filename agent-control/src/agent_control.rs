@@ -4,7 +4,7 @@ pub mod config_repository;
 pub mod config_validator;
 pub mod defaults;
 pub mod error;
-mod health_checker;
+pub mod health_checker;
 pub mod http_server;
 pub mod pid_cache;
 pub mod resource_cleaner;
