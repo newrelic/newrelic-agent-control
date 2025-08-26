@@ -1,7 +1,7 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the integration tests to setup the environment.
 
-update_settings( k8s_upsert_timeout_secs = 150)
+update_settings(k8s_upsert_timeout_secs = 150)
 ci_settings(readiness_timeout = '10m')
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
