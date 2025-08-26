@@ -208,7 +208,10 @@ impl AgentControlRunner {
         let health_checker_builder = agent_control_health_checker_builder(
             k8s_client.clone(),
             self.k8s_config.namespace.to_string(),
-            self.k8s_config.ac_release_name.clone(),
+            self.k8s_config.ac_release_name.clone().into(),
+            self.k8s_config
+                .cd_remote_update
+                .then(|| self.k8s_config.cd_release_name.to_string()),
         );
 
         let k8s_ac_updater = K8sACUpdater::new(

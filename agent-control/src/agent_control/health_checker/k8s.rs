@@ -11,29 +11,41 @@ use crate::{
 pub fn agent_control_health_checker_builder(
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
-    ac_release_name: String,
+    ac_release_name: Option<String>,
+    cd_release_name: Option<String>,
 ) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
     move |start_time: SystemTime| {
-        let mut ac_checkers = health_checkers_for_type_meta(
-            helmrelease_v2_type_meta(),
-            k8s_client.clone(),
-            AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
-            namespace.clone(),
-            Some(namespace.clone()),
-            start_time,
-        );
+        // ac_release_name existing means AC is enabled
+        let mut ac_checkers = ac_release_name
+            .as_ref()
+            .map(|release_name| {
+                health_checkers_for_type_meta(
+                    helmrelease_v2_type_meta(),
+                    k8s_client.clone(),
+                    release_name.clone(),
+                    namespace.clone(),
+                    Some(namespace.clone()),
+                    start_time,
+                )
+            })
+            .unwrap_or_default();
 
-        if flux_enabled {
-            let cd_checkers = health_checkers_for_type_meta(
-                helmrelease_v2_type_meta(),
-                k8s_client.clone(),
-                ac_release_name.clone(),
-                namespace.clone(),
-                Some(namespace.clone()),
-                start_time,
-            );
-            ac_checkers.extend(cd_checkers);
-        }
+        // cd_release_name existing means flux is enabled
+        let cd_checkers = cd_release_name
+            .as_ref()
+            .map(|release_name| {
+                health_checkers_for_type_meta(
+                    helmrelease_v2_type_meta(),
+                    k8s_client.clone(),
+                    release_name.clone(),
+                    namespace.clone(),
+                    Some(namespace.clone()),
+                    start_time,
+                )
+            })
+            .unwrap_or_default();
+
+        ac_checkers.extend(cd_checkers);
 
         Some(K8sHealthChecker::new(ac_checkers, start_time))
     }
@@ -50,14 +62,14 @@ mod tests {
     fn test_builder_includes_flux_when_enabled() {
         let mock_k8s_client = Arc::new(MockSyncK8sClient::new());
         let namespace = "test-ns".to_string();
+        let agent_control_release_name = "ac-deployment".to_string();
         let cd_release_name = "flux-cd".to_string();
-        let flux_enabled = true;
 
         let builder_fn = agent_control_health_checker_builder(
             mock_k8s_client,
             namespace,
-            cd_release_name,
-            flux_enabled,
+            Some(agent_control_release_name),
+            Some(cd_release_name),
         );
 
         let health_checker = builder_fn(SystemTime::now()).expect("Builder should not return None");
@@ -73,14 +85,13 @@ mod tests {
     fn test_builder_excludes_flux_when_disabled() {
         let mock_k8s_client = Arc::new(MockSyncK8sClient::new());
         let namespace = "test-ns".to_string();
-        let cd_release_name = "flux-cd".to_string();
-        let flux_enabled = false;
+        let agent_control_release_name = "ac-deployment".to_string();
 
         let builder_fn = agent_control_health_checker_builder(
             mock_k8s_client,
             namespace,
-            cd_release_name,
-            flux_enabled,
+            Some(agent_control_release_name),
+            None,
         );
         let health_checker = builder_fn(SystemTime::now()).expect("Builder should not return None");
 
