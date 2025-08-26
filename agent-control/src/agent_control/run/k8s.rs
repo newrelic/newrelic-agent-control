@@ -203,6 +203,8 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
+        let cd_remote_updates_enabled = self.k8s_config.cd_remote_update;
+
         let health_checker_builder = agent_control_health_checker_builder(
             k8s_client.clone(),
             self.k8s_config.namespace.to_string(),
@@ -220,12 +222,14 @@ impl AgentControlRunner {
         );
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
-        let _cd_version_checker = start_cd_version_checker(
-            k8s_client,
-            self.k8s_config.namespace.clone(),
-            self.k8s_config.cd_release_name.clone(),
-            agent_control_internal_publisher.clone(),
-        );
+        let _cd_version_checker = cd_remote_updates_enabled.then(|| {
+            start_cd_version_checker(
+                k8s_client,
+                self.k8s_config.namespace.clone(),
+                self.k8s_config.cd_release_name.clone(),
+                agent_control_internal_publisher.clone(),
+            )
+        });
 
         AgentControl::new(
             maybe_client,
