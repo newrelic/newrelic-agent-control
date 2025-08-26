@@ -181,7 +181,6 @@ pub(crate) mod tests {
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError;
     use mockall::{mock, predicate};
-    use std::collections::VecDeque;
     use tempfile::TempDir;
 
     mock! {
@@ -253,7 +252,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let mut bin_stack: VecDeque<&str> = VecDeque::from(["/opt/first", "/opt/second"]);
+        let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
         runtime_config
             .deployment
             .on_host
@@ -261,7 +260,7 @@ pub(crate) mod tests {
             .executables
             .iter()
             .for_each(|exec| {
-                assert_eq!(bin_stack.pop_front().unwrap(), exec.path.clone().get());
+                assert_eq!(bin_stack.next().unwrap(), exec.path.clone().get());
                 assert_eq!(
                     Args("--config_path=/some/path/config --foo=bar".into()),
                     exec.args.clone().get()
