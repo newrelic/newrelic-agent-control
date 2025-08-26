@@ -24,7 +24,7 @@ use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config::helmrelease_v2_type_meta;
-use newrelic_agent_control::cli::install::flux::{HELM_RELEASE_NAME, HELM_REPOSITORY_NAME};
+use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
 use newrelic_agent_control::health::health_checker::HealthChecker;
 use newrelic_agent_control::health::k8s::health_checker::{
     K8sHealthChecker, health_checkers_for_type_meta,
@@ -35,6 +35,8 @@ use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::sync::Arc;
 use std::time::Duration;
 use tempfile::tempdir;
+
+const TEST_RELEASE_NAME: &str = "test-agent-control-cd";
 
 #[test]
 #[ignore = "needs k8s cluster"]
@@ -112,7 +114,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         health_checkers_for_type_meta(
             helmrelease_v2_type_meta(),
             Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
-            HELM_REPOSITORY_NAME.to_string(),
+            TEST_RELEASE_NAME.to_string(),
             namespace.clone(),
             Some(namespace.clone()),
             StartTime::now(),
@@ -129,7 +131,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         block_on(check_helmrelease_chart_version(
             k8s.client.clone(),
             &namespace,
-            HELM_RELEASE_NAME,
+            TEST_RELEASE_NAME,
             CHART_VERSION_UPSTREAM_2,
         ))?;
         let health = health_checker.check_health()?;
@@ -146,7 +148,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         block_on(check_helmrelease_chart_version(
             k8s.client.clone(),
             &namespace,
-            HELM_RELEASE_NAME,
+            TEST_RELEASE_NAME,
             CHART_VERSION_UPSTREAM_2,
         ))?;
         let health = health_checker.check_health()?;
@@ -172,6 +174,7 @@ fn create_flux_resources(namespace: &str, chart_version: &str) {
     cmd.arg("--repository-url").arg(LOCAL_CHART_REPOSITORY);
     cmd.arg("--chart-version").arg(chart_version);
     cmd.arg("--chart-name").arg(HELM_REPOSITORY_NAME);
+    cmd.arg("--release-name").arg(TEST_RELEASE_NAME);
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--secrets")
         .arg(format!("{SECRET_NAME}={VALUES_KEY}"));
@@ -185,6 +188,7 @@ fn remove_flux_resources(namespace: &str) {
     cmd.timeout(Duration::from_secs(60));
     cmd.arg("remove-cd-resources");
     cmd.arg("--namespace").arg(namespace);
+    cmd.arg("--release-name").arg(TEST_RELEASE_NAME);
     let assert = cmd.assert();
     print_cli_output(&assert);
     assert.success();
@@ -206,7 +210,7 @@ fn flux_bootstrap_via_helm_command(k8s_client: Client, namespace: &str) {
     let mut cmd = assert_cmd::Command::new("helm");
     cmd.timeout(Duration::from_secs(90)); // to fail fast in case unrecoverable error.
     cmd.arg("install")
-        .arg(HELM_RELEASE_NAME)
+        .arg(TEST_RELEASE_NAME)
         .arg(CHART_VERSION_UPSTREAM_1_PKG)
         .arg("--wait")
         .arg("--namespace")

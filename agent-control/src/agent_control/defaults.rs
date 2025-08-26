@@ -1,6 +1,5 @@
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::cli::install::agent_control::AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME;
-use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
@@ -9,11 +8,7 @@ use opamp_client::operation::capabilities::Capabilities;
 
 pub const AGENT_CONTROL_ID: &str = "agent-control";
 
-pub const RESERVED_AGENT_IDS: [&str; 3] = [
-    AGENT_CONTROL_ID,
-    AGENT_CONTROL_CD_RELEASE_NAME,
-    AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
-];
+pub const RESERVED_AGENT_IDS: [&str; 2] = [AGENT_CONTROL_ID, AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME];
 
 pub const AGENT_CONTROL_TYPE: &str = "com.newrelic.agent_control";
 pub const AGENT_CONTROL_NAMESPACE: &str = "newrelic";

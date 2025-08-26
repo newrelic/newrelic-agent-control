@@ -37,6 +37,10 @@ pub struct InstallData {
     #[arg(long)]
     pub chart_version: String,
 
+    /// Name of the Helm release
+    #[arg(long)]
+    pub release_name: String,
+
     /// Secret values
     ///
     /// List of secret names and values keys to be used in the Helm release.
@@ -95,6 +99,7 @@ pub trait DynamicObjectListBuilder {
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
+        release_name: &str,
         maybe_existing_helm_release: Option<&DynamicObject>,
         data: &InstallData,
     ) -> Vec<DynamicObject>;
@@ -108,10 +113,10 @@ fn parse_duration_arg(arg: &str) -> Result<Duration, String> {
 
 pub fn apply_resources(
     dyn_object_list_builder: impl DynamicObjectListBuilder,
-    install_data: &InstallData,
-    release_name: &str,
     namespace: &str,
+    install_data: &InstallData,
 ) -> Result<(), CliError> {
+    let release_name = &install_data.release_name;
     info!("Installing release {release_name}");
     let k8s_client = try_new_k8s_client()?;
     let maybe_helm_release = k8s_client
@@ -129,6 +134,7 @@ pub fn apply_resources(
     let maybe_existing_helm_release = maybe_helm_release.as_ref().map(|o| o.as_ref());
     let dynamic_objects = dyn_object_list_builder.build_dynamic_object_list(
         namespace,
+        release_name,
         maybe_existing_helm_release,
         install_data,
     );
@@ -373,7 +379,7 @@ fn check_installation(
 mod tests {
     use crate::{
         agent_control::config::helmrepository_type_meta,
-        cli::install::agent_control::{AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME, InstallAgentControl},
+        cli::install::agent_control::InstallAgentControl,
         k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         sub_agent::identity::AgentIdentity,
     };
@@ -382,11 +388,13 @@ mod tests {
 
     const LOCAL_TEST_VERSION: &str = "1.0.0";
     const TEST_NAMESPACE: &str = "test-namespace";
+    const TEST_RELEASE_NAME: &str = "test-release-name";
 
     fn ac_install_data() -> InstallData {
         InstallData {
-            chart_name: AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string(),
+            chart_name: TEST_RELEASE_NAME.to_string(),
             chart_version: LOCAL_TEST_VERSION.to_string(),
+            release_name: TEST_RELEASE_NAME.to_string(),
             secrets: None,
             extra_labels: None,
             skip_installation_check: false,
@@ -440,7 +448,7 @@ mod tests {
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
             metadata: ObjectMeta {
-                name: Some(AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME.to_string()),
+                name: Some(TEST_RELEASE_NAME.to_string()),
                 namespace: Some(TEST_NAMESPACE.to_string()),
                 labels: Some(BTreeMap::from_iter(vec![
                     (
@@ -465,10 +473,10 @@ mod tests {
             data: serde_json::json!({
                 "spec": {
                     "interval": "30s",
-                    "releaseName": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                    "releaseName": TEST_RELEASE_NAME,
                     "chart": {
                         "spec": {
-                            "chart": AGENT_CONTROL_DEPLOYMENT_RELEASE_NAME,
+                            "chart": TEST_RELEASE_NAME,
                             "version": version,
                             "reconcileStrategy": "ChartVersion",
                             "sourceRef": {
@@ -502,6 +510,7 @@ mod tests {
     fn test_existing_object_no_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta::default(),
@@ -532,6 +541,7 @@ mod tests {
 
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
@@ -566,6 +576,7 @@ mod tests {
     fn test_existing_object_local_label() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             Some(&DynamicObject {
                 types: None,
                 metadata: ObjectMeta {
@@ -598,8 +609,12 @@ mod tests {
 
     #[test]
     fn test_to_dynamic_objects_no_values() {
-        let dynamic_objects =
-            InstallAgentControl.build_dynamic_object_list(TEST_NAMESPACE, None, &ac_install_data());
+        let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
+            TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
+            None,
+            &ac_install_data(),
+        );
         assert_eq!(
             dynamic_objects,
             vec![
@@ -619,6 +634,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );
@@ -654,6 +670,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );
@@ -723,6 +740,7 @@ mod tests {
     fn test_secret_ref() {
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             None,
             &InstallData {
                 repository_secret_reference_name: Some("secRef".to_string()),
@@ -750,6 +768,7 @@ mod tests {
         };
         let dynamic_objects = InstallAgentControl.build_dynamic_object_list(
             TEST_NAMESPACE,
+            TEST_RELEASE_NAME,
             None,
             &agent_control_data,
         );

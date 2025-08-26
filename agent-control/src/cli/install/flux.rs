@@ -19,16 +19,14 @@ use crate::{
 /// To be applied via [`install_or_upgrade`](super::install_or_upgrade).
 pub struct InstallFlux;
 
-pub const AGENT_CONTROL_CD_RELEASE_NAME: &str = "agent-control-cd";
-const CHART_NAME: &str = "agent-control-cd";
-pub const HELM_RELEASE_NAME: &str = CHART_NAME;
-pub const HELM_REPOSITORY_NAME: &str = CHART_NAME;
+pub const HELM_REPOSITORY_NAME: &str = "agent-control-cd";
 
 impl DynamicObjectListBuilder for InstallFlux {
     // TODO this mostly duplicates the AgentControl implementation besides a few constants. Extracting to a function might be worth it.
     fn build_dynamic_object_list(
         &self,
         namespace: &str,
+        release_name: &str,
         maybe_existing_helm_release: Option<&DynamicObject>,
         data: &InstallData,
     ) -> Vec<kube::api::DynamicObject> {
@@ -54,7 +52,7 @@ impl DynamicObjectListBuilder for InstallFlux {
         helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
         let helm_release_obj_meta_data = obj_meta_data(
-            HELM_RELEASE_NAME,
+            release_name,
             namespace,
             helm_release_labels,
             BTreeMap::default(),

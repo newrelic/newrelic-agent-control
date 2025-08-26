@@ -17,7 +17,6 @@ use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::VersionCheckerInterval;
-use crate::cli::install::flux::AGENT_CONTROL_CD_RELEASE_NAME;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
@@ -185,6 +184,7 @@ impl AgentControlRunner {
             namespace: self.k8s_config.namespace.clone(),
             namespace_agents: self.k8s_config.namespace_agents.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
+            cd_release_name: self.k8s_config.cd_release_name.clone(),
         };
 
         info!("Initiating cleanup of outdated resources from previous Agent Control executions");
@@ -213,13 +213,14 @@ impl AgentControlRunner {
             k8s_client.clone(),
             self.k8s_config.namespace.clone(),
             self.k8s_config.current_chart_version.clone(),
-            self.k8s_config.cd_release_name,
+            self.k8s_config.cd_release_name.clone(),
         );
         let (agent_control_internal_publisher, agent_control_internal_consumer) = pub_sub();
 
         let _cd_version_checker = start_cd_version_checker(
             k8s_client,
             self.k8s_config.namespace.clone(),
+            self.k8s_config.cd_release_name.clone(),
             agent_control_internal_publisher.clone(),
         );
 
@@ -246,15 +247,16 @@ impl AgentControlRunner {
 fn start_cd_version_checker(
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
+    release_name: String,
     ac_internal_publisher: EventPublisher<AgentControlInternalEvent>,
 ) -> StartedThreadContext {
     spawn_version_checker(
-        AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+        release_name.clone(),
         HelmReleaseVersionChecker::new(
             k8s_client,
             helmrelease_v2_type_meta(),
             namespace,
-            AGENT_CONTROL_CD_RELEASE_NAME.to_string(),
+            release_name,
             OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
         ),
         ac_internal_publisher,
