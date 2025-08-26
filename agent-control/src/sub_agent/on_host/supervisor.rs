@@ -60,10 +60,10 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
     ) -> Result<Self::SupervisorStopper, SupervisorStarterError> {
         let ctx = self.ctx.clone();
 
-        let executable_thread_contexts =
-            self.executables.clone().into_iter().map(|e| {
-                self.start_process_thread(sub_agent_internal_publisher.clone(), e.clone())
-            });
+        let executable_thread_contexts = self
+            .executables
+            .iter()
+            .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e));
 
         let thread_contexts: Vec<StartedThreadContext> = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -184,7 +184,7 @@ impl NotStartedSupervisorOnHost {
     fn start_process_thread(
         &self,
         internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
-        executable_data: ExecutableData,
+        executable_data: &ExecutableData,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
@@ -309,7 +309,7 @@ impl NotStartedSupervisorOnHost {
             });
         };
 
-        NotStartedThreadContext::new(executable_data.bin, callback).start()
+        NotStartedThreadContext::new(executable_data.bin.clone(), callback).start()
     }
 }
 
