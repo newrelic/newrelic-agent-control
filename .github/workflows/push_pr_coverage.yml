@@ -17,8 +17,6 @@ jobs:
     name: ubuntu / stable / coverage
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Obtain Rust version from project
         run: |

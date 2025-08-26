@@ -16,8 +16,6 @@ jobs:
     name: "Build release binaries"
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Obtain Rust version from project
         run: |
@@ -61,8 +59,6 @@ jobs:
     name: Unit, docs and onhost integration tests
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Obtain Rust version from project
         run: |
@@ -121,8 +117,6 @@ jobs:
     name: tests as root
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
 
       - name: Obtain Rust version from project
         run: |
@@ -168,8 +162,7 @@ jobs:
         group: [ part1, part2, flux-self-update ]
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: true
+
       - name: Setup Minikube
         uses: manusa/actions-setup-minikube@v2.14.0
         with:
