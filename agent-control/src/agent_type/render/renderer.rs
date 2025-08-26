@@ -251,18 +251,21 @@ pub(crate) mod tests {
                 HashMap::new(),
             )
             .unwrap();
-        assert_eq!(
-            Args("--config_path=/some/path/config --foo=bar".into()),
-            runtime_config
-                .deployment
-                .on_host
-                .unwrap()
-                .executable
-                .unwrap()
-                .args
-                .clone()
-                .get()
-        );
+
+        let mut bin_stack = vec!["/opt/first", "/opt/second"].into_iter();
+        runtime_config
+            .deployment
+            .on_host
+            .unwrap()
+            .executables
+            .iter()
+            .for_each(|exec| {
+                assert_eq!(bin_stack.next().unwrap(), exec.path.clone().get());
+                assert_eq!(
+                    Args("--config_path=/some/path/config --foo=bar".into()),
+                    exec.args.clone().get()
+                );
+            });
     }
 
     #[test]
@@ -351,7 +354,8 @@ pub(crate) mod tests {
                 .deployment
                 .on_host
                 .unwrap()
-                .executable
+                .executables
+                .first()
                 .unwrap()
                 .args
                 .clone()
@@ -448,11 +452,10 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let backoff_strategy = &runtime_config
-            .deployment
-            .on_host
-            .unwrap()
-            .executable
+        let on_host_deployment = runtime_config.deployment.on_host.unwrap();
+        let backoff_strategy = &on_host_deployment
+            .executables
+            .first()
             .unwrap()
             .restart_policy
             .backoff_strategy;
@@ -494,11 +497,10 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-        let backoff_strategy = &runtime_config
-            .deployment
-            .on_host
-            .unwrap()
-            .executable
+        let on_host_deployment = runtime_config.deployment.on_host.unwrap();
+        let backoff_strategy = &on_host_deployment
+            .executables
+            .first()
             .unwrap()
             .restart_policy
             .backoff_strategy;
@@ -801,9 +803,9 @@ version: 0.1.0
 variables: {}
 deployment:
   on_host:
-    executable:
-      path: /opt/first
-      args: "${nr-ac:sa-fake-var}"
+    executables:
+      - path: /opt/first
+        args: "${nr-ac:sa-fake-var}"
 "#,
             &Environment::OnHost,
         );
@@ -833,7 +835,8 @@ deployment:
                 .deployment
                 .on_host
                 .unwrap()
-                .executable
+                .executables
+                .first()
                 .unwrap()
                 .args
                 .clone()
@@ -860,9 +863,11 @@ variables:
       default: bar
 deployment:
   on_host:
-    executable:
-      path: /opt/first
-      args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+    executables:
+      - path: /opt/first
+        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
+      - path: /opt/second
+        args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
 "#;
 
     const SIMPLE_AGENT_VALUES: &str = r#"
@@ -891,9 +896,9 @@ variables:
       file_path: "config2.d"
 deployment:
   on_host:
-    executable:
-      path: /usr/bin/newrelic-infra
-      args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
+    executables:
+      - path: /usr/bin/newrelic-infra
+        args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
 "#;
 
     const AGENT_VALUES_WITH_FILES: &str = r#"
@@ -935,15 +940,15 @@ variables:
         required: true
 deployment:
   on_host:
-    executable:
-      path: /bin/otelcol
-      args: "-c some-arg"
-      restart_policy:
-        backoff_strategy:
-          type: ${nr-var:backoff.type}
-          backoff_delay: ${nr-var:backoff.delay}
-          max_retries: ${nr-var:backoff.retries}
-          last_retry_interval: ${nr-var:backoff.interval}
+    executables:
+      - path: /bin/otelcol
+        args: "-c some-arg"
+        restart_policy:
+          backoff_strategy:
+            type: ${nr-var:backoff.type}
+            backoff_delay: ${nr-var:backoff.delay}
+            max_retries: ${nr-var:backoff.retries}
+            last_retry_interval: ${nr-var:backoff.interval}
 "#;
 
     const BACKOFF_VALUES_YAML: &str = r#"

@@ -185,12 +185,12 @@ version: 0.0.0
 variables: {}
 deployment:
   on_host:
-    executable:
-      path: "sh"
-      args: >-
-        tests/on_host/data/trap_term_sleep_60.sh
-        --host_id=${nr-ac:host_id}
-        --agent_id=${nr-sub:agent_id}
+    executables:
+      - path: "sh"
+        args: >-
+          tests/on_host/data/trap_term_sleep_60.sh
+          --host_id=${nr-ac:host_id}
+          --agent_id=${nr-sub:agent_id}
     "#
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
