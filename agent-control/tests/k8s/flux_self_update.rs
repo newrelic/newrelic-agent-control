@@ -129,9 +129,10 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ))?;
         let health = health_checker.check_health()?;
         if let Some(error) = health.last_error() {
-            return Err(format!("HelmRelease unhealthy with: {error}").into());
+            Err(format!("HelmRelease unhealthy with: {error}").into())
+        } else {
+            Ok(())
         }
-        Ok(())
     });
 
     // run a local version updated and asserts that the version doesn't change
@@ -146,9 +147,10 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ))?;
         let health = health_checker.check_health()?;
         if let Some(error) = health.last_error() {
-            return Err(format!("HelmRelease unhealthy with: {error}").into());
+            Err(format!("HelmRelease unhealthy with: {error}").into())
+        } else {
+            Ok(())
         }
-        Ok(())
     });
 }
 
