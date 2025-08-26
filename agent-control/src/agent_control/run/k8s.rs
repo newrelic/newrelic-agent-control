@@ -211,7 +211,7 @@ impl AgentControlRunner {
             self.k8s_config.ac_release_name.clone().into(),
             self.k8s_config
                 .cd_remote_update
-                .then(|| self.k8s_config.cd_release_name.to_string()),
+                .then(|| self.k8s_config.cd_release_name.clone()),
         );
 
         let k8s_ac_updater = K8sACUpdater::new(
