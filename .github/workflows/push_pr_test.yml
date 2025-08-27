@@ -54,7 +54,7 @@ jobs:
       - name: Build onhost in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
 
-  required:
+  unit-docs-onhost-integration:
     runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
     steps:
@@ -218,3 +218,23 @@ jobs:
       E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
       E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
+
+  check-all-green:
+    name: All required tests pass
+    if: always()
+
+    needs:
+    - release-build
+    - unit-docs-onhost-integration
+    - test-with-root
+    - embedded
+    - k8s-integration-tests
+    - k8s-e2e-tests
+
+    runs-on: Ubuntu-latest
+
+    steps:
+    - name: Decide whether the needed jobs succeeded or failed
+      uses: re-actors/alls-green@release/v1
+      with:
+        jobs: ${{ toJSON(needs) }}
