@@ -200,7 +200,7 @@ jobs:
     uses: ./.github/workflows/component_security.yml
 
   check-all-green:
-    name: All required checks pass
+    name: 🟢 All required checks pass
     if: always()
 
     needs:

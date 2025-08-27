@@ -220,7 +220,7 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   check-all-green:
-    name: All required tests pass
+    name: 🟢 All required tests pass
     if: always()
 
     needs:
