@@ -87,6 +87,7 @@ helm_resource(
 ## also nri-bundle that is expected by some tests.
 local_resource(
     'local-child-chart-upload',
+    allow_parallel=True,
     cmd="""
      rm -rf local/helm-charts-tmp &&
      git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
@@ -141,6 +142,21 @@ if license_key != '':
   
 if cluster != '':
   ac_flags.append('--set=global.cluster='+cluster)
+
+
+local_resource(
+    'wait-install-job',
+    allow_parallel=True,
+    cmd="kubectl wait --for=create --timeout=200s job/ac-agent-control-install-job",
+    resource_deps=['local-child-chart-upload'],
+)
+
+local_resource(
+    'log-install-job',
+    allow_parallel=True,
+    serve_cmd="while true ; do kubectl logs -f job/ac-agent-control-install-job || sleep 1; continue ; done",
+    resource_deps=['wait-install-job'],
+)
 
 #### Installs charts
 helm_resource(
