@@ -5,7 +5,6 @@ on:
     types: [ opened, synchronize, labeled ] # Also check labels
     paths:
       - "Tiltfile"
-      - "agent-control/tests/k8s/Tiltfile"
       - "test/k8s-e2e/**"
   merge_group:
 # See https://docs.github.com/en/actions/using-jobs/using-concurrency
