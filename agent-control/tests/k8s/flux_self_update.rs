@@ -4,10 +4,11 @@
 /// conflicts with other Flux installations in the same cluster. This requires
 /// special setup that differs from other integration tests and is managed by
 /// the Makefile and Tiltfile for CI environments.
+use crate::common::health::{check_latest_health_status, check_latest_health_status_was_healthy};
 use crate::common::opamp::FakeServer;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::retry::{DeferredCommand, retry};
-use crate::common::runtime::{self, block_on};
+use crate::common::runtime::block_on;
 use crate::k8s::tools::agent_control::{
     CUSTOM_AGENT_TYPE_SPLIT_NS_PATH, start_agent_control_with_testdata_config,
 };
@@ -24,13 +25,8 @@ use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
-use newrelic_agent_control::health::health_checker::{Health, HealthChecker};
-use newrelic_agent_control::health::with_start_time::StartTime;
-use newrelic_agent_control::k8s::client::SyncK8sClient;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
-use std::sync::Arc;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -106,16 +102,6 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ),
     );
 
-    // AC internal health-checker will be unhealthy because the test doesn't install the AC HelmRelease
-    // So to verify that Flux is health after the upgrade we create this health-checker
-    let health_checker = agent_control_health_checker_builder(
-        Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
-        namespace.clone(),
-        None,
-        TEST_RELEASE_NAME.to_string().into(),
-    )(StartTime::now())
-    .unwrap();
-
     retry(60, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
@@ -128,12 +114,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
             TEST_RELEASE_NAME,
             CHART_VERSION_UPSTREAM_2,
         ))?;
-        let health = health_checker.check_health()?;
-        if let Some(error) = health.last_error() {
-            Err(format!("HelmRelease unhealthy with: {error}").into())
-        } else {
-            Ok(())
-        }
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)
     });
 
     // run a local version updated and asserts that the version doesn't change
@@ -146,12 +127,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
             TEST_RELEASE_NAME,
             CHART_VERSION_UPSTREAM_2,
         ))?;
-        let health = health_checker.check_health()?;
-        if let Some(error) = health.last_error() {
-            Err(format!("HelmRelease unhealthy with: {error}").into())
-        } else {
-            Ok(())
-        }
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)
     });
 }
 
@@ -202,17 +178,6 @@ cd_chart_version: {MISSING_VERSION}
         ),
     );
 
-    // AC internal health-checker will be unhealthy because the test doesn't install the AC HelmRelease
-    // So to verify that Flux is healthy after the upgrade we create this health-checker
-    // for the CD component only using the same constructs as AC does.
-    let health_checker = agent_control_health_checker_builder(
-        Arc::new(SyncK8sClient::try_new(runtime::tokio_runtime()).unwrap()),
-        namespace.clone(),
-        None,
-        TEST_RELEASE_NAME.to_string().into(),
-    )(StartTime::now())
-    .unwrap();
-
     retry(60, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
@@ -227,17 +192,12 @@ cd_chart_version: {MISSING_VERSION}
             MISSING_VERSION,
         ))?;
 
-        let health = health_checker.check_health()?;
-        // Should be unhealthy with a specific message
-        let expected_err_msg =
-            format!("no 'agent-control-cd' chart with version matching '{MISSING_VERSION}' found");
-        match health.as_health() {
-            Health::Healthy(_) => Err("HelmRelease should be unhealthy".into()),
-            Health::Unhealthy(u) if u.last_error().contains(&expected_err_msg) => Ok(()),
-            Health::Unhealthy(u) => {
-                Err(format!("Unhealthy for the wrong reason: {}", u.last_error()).into())
-            }
-        }
+        check_latest_health_status(&opamp_server, &ac_instance_id, |status| {
+            !status.healthy
+                && status.last_error.contains(&format!(
+                    "no 'agent-control-cd' chart with version matching '{MISSING_VERSION}' found"
+                ))
+        })
     });
 }
 
