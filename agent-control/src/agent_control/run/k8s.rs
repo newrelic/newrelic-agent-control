@@ -203,7 +203,8 @@ impl AgentControlRunner {
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
 
-        let cd_remote_updates_enabled = self.k8s_config.cd_remote_update;
+        let cd_remote_updates_enabled =
+            self.k8s_config.cd_remote_update && !self.k8s_config.cd_release_name.is_empty();
         let ac_release_name_exists = !self.k8s_config.ac_release_name.is_empty();
 
         let health_checker_builder = agent_control_health_checker_builder(
