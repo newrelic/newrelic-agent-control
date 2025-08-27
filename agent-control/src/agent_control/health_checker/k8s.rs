@@ -15,10 +15,16 @@ pub fn agent_control_health_checker_builder(
     cd_release_name: Option<String>,
 ) -> impl Fn(SystemTime) -> Option<K8sHealthChecker> {
     move |start_time: SystemTime| {
-        // ac_release_name existing means AC is enabled
-        let mut ac_checkers = ac_release_name
-            .as_ref()
-            .map(|release_name| {
+        let releases = [
+            // ac_release_name existing means AC is enable
+            ac_release_name.as_ref(),
+            // cd_release_name existing means flux is enabled
+            cd_release_name.as_ref(),
+        ]
+        .into_iter()
+        .flatten();
+        let checkers = releases
+            .flat_map(|release_name| {
                 health_checkers_for_type_meta(
                     helmrelease_v2_type_meta(),
                     k8s_client.clone(),
@@ -28,26 +34,9 @@ pub fn agent_control_health_checker_builder(
                     start_time,
                 )
             })
-            .unwrap_or_default();
+            .collect();
 
-        // cd_release_name existing means flux is enabled
-        let cd_checkers = cd_release_name
-            .as_ref()
-            .map(|release_name| {
-                health_checkers_for_type_meta(
-                    helmrelease_v2_type_meta(),
-                    k8s_client.clone(),
-                    release_name.clone(),
-                    namespace.clone(),
-                    Some(namespace.clone()),
-                    start_time,
-                )
-            })
-            .unwrap_or_default();
-
-        ac_checkers.extend(cd_checkers);
-
-        Some(K8sHealthChecker::new(ac_checkers, start_time))
+        Some(K8sHealthChecker::new(checkers, start_time))
     }
 }
 
