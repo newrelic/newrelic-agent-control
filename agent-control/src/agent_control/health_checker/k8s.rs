@@ -77,7 +77,7 @@ mod tests {
         assert_eq!(
             health_checker.checkers_count(),
             8,
-            "There should be 2 checkers when Flux is enabled"
+            "There should be 8 checkers (4 for AC, 4 for Flux) when Flux is enabled"
         );
     }
 
@@ -98,7 +98,7 @@ mod tests {
         assert_eq!(
             health_checker.checkers_count(),
             4,
-            "There should only be 1 checker when Flux is disabled"
+            "There should only be 4 checkers (all for AC) when Flux is disabled"
         );
     }
 }
