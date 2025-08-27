@@ -204,11 +204,12 @@ impl AgentControlRunner {
         let _http_server = self.http_server_runner.map(Runner::start);
 
         let cd_remote_updates_enabled = self.k8s_config.cd_remote_update;
+        let ac_release_name_exists = !self.k8s_config.ac_release_name.is_empty();
 
         let health_checker_builder = agent_control_health_checker_builder(
             k8s_client.clone(),
             self.k8s_config.namespace.to_string(),
-            self.k8s_config.ac_release_name.clone().into(),
+            ac_release_name_exists.then(|| self.k8s_config.ac_release_name.clone()),
             cd_remote_updates_enabled.then(|| self.k8s_config.cd_release_name.clone()),
         );
 
