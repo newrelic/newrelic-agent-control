@@ -1,14 +1,21 @@
+use std::error::Error;
+use std::fmt;
 use std::sync::Arc;
-
-use thiserror::Error;
 
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::secrets_provider::SecretsProvider;
 
-#[derive(Debug, Error)]
-#[error("resolving k8s secret: {0}")]
-pub struct K8sSecretProviderError(String);
+#[derive(Debug, Clone)]
+struct K8sSecretError(String, String);
+
+impl fmt::Display for K8sSecretError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "failed to retrieve k8s secret '{}': {}", self.0, self.1)
+    }
+}
+
+impl Error for K8sSecretError {}
 
 /// A secrets provider that retrieves secrets from Kubernetes.
 pub struct K8sSecretProvider {
@@ -22,9 +29,7 @@ impl K8sSecretProvider {
 }
 
 impl SecretsProvider for K8sSecretProvider {
-    type Error = K8sSecretProviderError;
-
-    fn get_secret(&self, secret_path: &str) -> Result<String, Self::Error> {
+    fn get_secret(&self, secret_path: &str) -> Result<String, Box<dyn Error>> {
         let K8sSecretPath {
             namespace,
             name,
@@ -33,8 +38,10 @@ impl SecretsProvider for K8sSecretProvider {
 
         self.k8s_client
             .get_secret_key(&name, &namespace, &key)
-            .map_err(|err| K8sSecretProviderError(format!("getting {secret_path} secret: {err}")))?
-            .ok_or_else(|| K8sSecretProviderError(format!("'{secret_path}' secret not found")))
+            .map_err(|err| K8sSecretError(secret_path.to_string(), err.to_string()))?
+            .ok_or_else(|| {
+                K8sSecretError(secret_path.to_string(), "secret not found".into()).into()
+            })
     }
 }
 
@@ -48,13 +55,12 @@ pub struct K8sSecretPath {
 
 /// Converts a format like <namespace>:<name>:<key> into a [K8sSecretPath].
 impl TryFrom<&str> for K8sSecretPath {
-    type Error = K8sSecretProviderError;
+    type Error = Box<dyn Error>;
+
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let parts: Vec<&str> = value.split(':').collect();
         if parts.len() != 3 || parts.iter().any(|p| p.is_empty()) {
-            return Err(K8sSecretProviderError(format!(
-                "secret path '{value}' does not have a valid format '<namespace>:<name>:<key>'"
-            )));
+            return Err(K8sSecretError(value.to_string(), "invalid format".into()).into());
         }
         Ok(K8sSecretPath {
             namespace: parts[0].to_string(),
