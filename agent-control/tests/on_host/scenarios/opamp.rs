@@ -30,7 +30,6 @@ use tempfile::tempdir;
 #[test]
 fn onhost_opamp_agent_control_local_effective_config() {
     // Given a agent-control without agents and opamp configured.
-
     let opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");

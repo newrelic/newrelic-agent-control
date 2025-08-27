@@ -508,6 +508,7 @@ agents: {}
                     target: true,
                     timestamp: TimestampFormat("%Y".to_string()),
                     ansi_colors: false,
+                    formatter: Default::default(),
                 },
                 ..Default::default()
             }
