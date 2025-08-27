@@ -12,7 +12,7 @@ namespace = os.getenv('NAMESPACE','default')
 sa_chart_values_file = os.getenv('SA_CHART_VALUES_FILE','local/agent-control-tilt.yml')
 cluster = os.getenv('CLUSTER', "")
 # Branch of the helm-charts repo to use.
-feature_branch = os.getenv('FEATURE_BRANCH', "feat/make-release-names-configurable")
+feature_branch = os.getenv('FEATURE_BRANCH', "master")
 
 # Enables basic auth in chartmuseum (for testing reasons)
 # 
