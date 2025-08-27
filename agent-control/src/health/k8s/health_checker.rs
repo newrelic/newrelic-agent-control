@@ -145,10 +145,6 @@ impl K8sHealthChecker<K8sResourceHealthChecker> {
             start_time,
         }
     }
-
-    pub fn checkers_count(&self) -> usize {
-        self.health_checkers.len()
-    }
 }
 
 impl<HC> HealthChecker for K8sHealthChecker<HC>
@@ -183,6 +179,12 @@ pub mod tests {
     use assert_matches::assert_matches;
     use kube::api::{DynamicObject, TypeMeta};
     use std::sync::Arc;
+
+    impl K8sHealthChecker<K8sResourceHealthChecker> {
+        pub fn checkers_count(&self) -> usize {
+            self.health_checkers.len()
+        }
+    }
 
     #[test]
     fn no_resource_set() {
