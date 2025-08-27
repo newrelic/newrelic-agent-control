@@ -50,6 +50,10 @@ pub fn start_agent_control_with_testdata_config(
 
     std::fs::copy(dynamic_agent_type_path, agent_type_file_path).unwrap();
 
+    // Take into account that if no `ac_release_name` config value is provided then
+    // no health checker for AC will be created, so any test that relies on health for
+    // assertions (like receiving a health message through a fake OpAMP server) will fail!
+    // The same happens for `cd_release_name`.
     create_local_agent_control_config(
         client.clone(),
         ac_ns,

@@ -97,4 +97,8 @@ impl HealthWithStartTime {
     pub fn is_same_without_times(&self, other: &Self) -> bool {
         self.health == other.health
     }
+
+    pub fn as_health(&self) -> &Health {
+        &self.health
+    }
 }
