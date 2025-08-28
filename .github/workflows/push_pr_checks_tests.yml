@@ -1,16 +1,204 @@
 permissions:
   contents: read
 on:
-  # TODO: validate when to trigger the pipeline
-  push:
+  pull_request:
   merge_group:
-# See https://docs.github.com/en/actions/using-jobs/using-concurrency
+  push:
+    branches:
+      - main
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
-name: test
 
+name: checks
 jobs:
+  codespell:
+    name: codespell
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Codespell test
+        uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461
+  fmt:
+    runs-on: ubuntu-latest
+    name: cargo fmt
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: rustfmt
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: Check code formatting
+        run: cargo fmt --check
+
+  checks:
+    runs-on: ubuntu-latest
+    name: cargo clippy
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          components: clippy
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+
+      - name: cargo clippy with compiler warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
+
+  doc:
+    runs-on: ubuntu-latest
+    name: cargo doc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
+
+      - name: Create documentation
+        run: cargo doc --no-deps --package newrelic_agent_control
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+
+  third-party-notices-check:
+    runs-on: ubuntu-latest
+    name: ⚖️ Check third party licenses
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Fetch dependencies
+        run: cargo fetch
+
+      - uses: newrelic/rust-licenses-noticer@v1
+        with:
+          template-file: THIRD_PARTY_NOTICES.md.tmpl
+
+  unused-dependencies-check:
+    name: cargo shear (unused dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: taiki-e/install-action@575f713d0233afba556737a7b85080563be14186
+        with:
+          tool: cargo-shear@1.1.11
+
+      - run: cargo shear
+
+  coverage:
+    runs-on: ubuntu-latest
+    name: ubuntu / stable / coverage
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Obtain Rust version from project
+        run: |
+          RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
+          echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
+
+      - name: Install Rust ${{ env.RUST_VERSION }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          components: llvm-tools-preview
+          toolchain: ${{ env.RUST_VERSION }}
+      - name: cargo install cargo-llvm-cov
+        uses: taiki-e/install-action@71765c00dd3e08a5484a5b9e82a4c88b86520e0e
+        # uses: taiki-e/install-action@cargo-llvm-cov
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-test-dev
+      - name: Generate coverage report
+        run: COVERAGE_OUT_FORMAT=json COVERAGE_OUT_FILEPATH=jcov.info make coverage
+      - name: Calculate and print total coverage
+        run: |
+          echo "Total functions coverage: $(jq '.data[].totals.functions.percent' jcov.info)"
+          echo "Total lines coverage: $(jq '.data[].totals.lines.percent' jcov.info)"
+          echo "Total regions coverage: $(jq '.data[].totals.regions.percent' jcov.info)"
+          echo "Total instantiations coverage: $(jq '.data[].totals.instantiations.percent' jcov.info)"
+      - name: Fail if function coverage is below 75%
+        run: |
+          fn_cov=$(jq '.data[].totals.functions.percent' jcov.info)
+          expected=75
+
+          if (( $(echo "$fn_cov < $expected" | bc -l) )); then
+            echo "Function coverage is below ${expected}%"
+            exit 1
+          fi
+      - name: Fail if line coverage is below 85%
+        run: |
+          ln_cov=$(jq '.data[].totals.lines.percent' jcov.info)
+          expected=85
+
+          if (( $(echo "$ln_cov < $expected" | bc -l) )); then
+            echo "Line coverage is below ${expected}%"
+            exit 1
+          fi
+
+  security:
+    uses: ./.github/workflows/component_security.yml
+
   release-build:
     runs-on: ubuntu-latest
     name: "Build release binaries"
@@ -220,10 +408,20 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   check-all-green:
-    name: 🟢 All required tests pass
+    name: 🟢 All required checks and tests pass
     if: always()
 
     needs:
+      # checks
+    - security
+    - coverage
+    - checks
+    - third-party-notices-check
+    - fmt
+    - doc
+    - codespell
+    - unused-dependencies-check
+    # tests
     - release-build
     - unit-docs-onhost-integration
     - test-with-root
@@ -237,4 +435,6 @@ jobs:
     - name: Decide whether the needed jobs succeeded or failed
       uses: re-actors/alls-green@release/v1
       with:
+        # allowed-failures: docs, linters
+        # allowed-skips: non-voting-flaky-job
         jobs: ${{ toJSON(needs) }}
