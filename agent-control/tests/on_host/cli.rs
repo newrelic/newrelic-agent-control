@@ -72,6 +72,9 @@ fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
 agents: {}
 server:
   enabled: false
+logs:
+  format:
+    formatter: pretty
 "#,
     )?;
 
@@ -119,6 +122,7 @@ log:
   format:
     target: true
     timestamp: "%Y"
+    formatter: pretty
 server:
   enabled: false
 "#,
@@ -184,6 +188,8 @@ log:
   level: info
   file:
     enabled: true
+  format:
+    formatter: pretty
 agents: {{}}
 server:
   enabled: false
