@@ -25,6 +25,15 @@ impl Default for EmbeddedRegistry {
     }
 }
 
+impl AgentRegistry for EmbeddedRegistry {
+    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError> {
+        self.0
+            .get(name)
+            .cloned()
+            .ok_or(AgentRepositoryError::NotFound(name.to_string()))
+    }
+}
+
 impl EmbeddedRegistry {
     pub fn new(dynamic_agent_type_path: PathBuf) -> Self {
         // Loading the static agentTypes
@@ -42,18 +51,7 @@ impl EmbeddedRegistry {
             });
         registry
     }
-}
 
-impl AgentRegistry for EmbeddedRegistry {
-    fn get(&self, name: &str) -> Result<AgentTypeDefinition, AgentRepositoryError> {
-        self.0
-            .get(name)
-            .cloned()
-            .ok_or(AgentRepositoryError::NotFound(name.to_string()))
-    }
-}
-
-impl EmbeddedRegistry {
     fn try_new<T: IntoIterator<Item = AgentTypeDefinition>>(
         definitions_iter: T,
     ) -> Result<Self, AgentRepositoryError> {
