@@ -72,7 +72,7 @@ proxy options can also be configured using the proxy configuration field. If bot
 2. `HTTP_PROXY` environment variable
 3. `HTTPS_PROXY` environment variable
 
-⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either, add a firewall exception to https://newrelic.com so requests to that endpoints can skip the proxy (recommended), use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (certificate rotation should need to manually handled) or disable signature validation (highly discouraged).
+⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either, add a firewall exception to https://newrelic.com so requests to that endpoints can skip the proxy (recommended), use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (certificate rotation should need to be manually handled) or disable signature validation (highly discouraged).
 
 ```yaml
 proxy:
@@ -82,7 +82,7 @@ proxy:
   ignore_system_proxy: false # Default to false, if set to true HTTP_PROXY and HTTPS_PROXY environment variables will be ignored.
 ```
 
-#### proxy for Agents
+#### ⚠️ Proxy configuration for Agents
 
 Configuring a proxy in Agent Control does not automatically configure the same proxy settings for the agents it manages. Each agent has its own proxy configuration that must be set separately according to that agent's specific configuration format and requirements.
 
@@ -159,10 +159,14 @@ k8s:
   cluster_name: "some-cluster-name" # Required, used to identify the cluster in Fleet Control.
   namespace: "default" # Required, namespace where all resources managed by Agent Control will be created.
   namespace_agents: "default-agents" # Required, namespace where all sub-agents managed by Agent Control will be created.
-  current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control.
+  current_chart_version: "0.0.50-dev" # Chart version used to deploy agent-control, it will be reported to Fleet Control and used to check if a remote update should be applied.
+  ac_remote_update: true # When disabled remote updates for Agent Control are ignored.
+  ac_release_name: agent-control-deployment # Informs of the 'Agent Control' release name that needs to be updated on remote updates and when checking health. If it is empty, the healthiness of Agent Control will not be checked.
+  cd_remote_update: true # When disabled remote updates for the Agent Control CD are ignored. Besides, the health of this component is not checked.
+  cd_release_name: agent-control-cd  # Informs of the 'Agent Control CD' release name that needs to be updated on remote updates and when checking health. If it is empty, the healthiness of Agent Control CD will not be checked.
 ```
 
-Notice that current_chart_version is passed to the agent control via Environment Variable to avoid race conditions.
+Notice that some of the fields in `k8s` are passed by the corresponding helm chart via Environment Variable to avoid race conditions.
 If set via config, after a failed upgrade we could have the "old" pod loading the new config and reading the new chart version, while the image is still the old one.
 
 ### agent_type_var_constraints
@@ -172,3 +176,21 @@ Allows setting up specific constraints in the agent types variables supporting i
 - `variants`: if any agent-type defines a string variable with the `variants` fields and this configuration field defines the corresponding key. These variants will be used to validate values.
 
 See [variants documentation](/docs/INTEGRATING_AGENTS.md#variants-optional) for concrete example.
+
+### secrets_providers
+
+The `secrets_providers` configuration field sets the configuration for the supported secrets providers. Users can use the values stored in secrets in their remote configurations.
+
+```yaml
+secrets_providers:
+  vault: # Sets vault sources configuration
+    sources: # Each entry identified by the key defines a source with url, token and engine.
+      source1:
+        url: https://vault1.url # Vault url for the source
+        token: secret-token-1 # token for authentication
+        engine: kv1 # engine (kv1 and kv2 are supported)
+      source1:
+        url: https://vault2.url
+        token: secret-token-2
+        engine: kv2
+```
