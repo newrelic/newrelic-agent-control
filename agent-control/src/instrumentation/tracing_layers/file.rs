@@ -1,4 +1,5 @@
 use crate::instrumentation::config::logs::config::{LoggingConfig, LoggingConfigError};
+use crate::instrumentation::config::logs::format::Formatter;
 use crate::instrumentation::tracing::{LayerBox, TracingGuard};
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
@@ -28,13 +29,21 @@ pub fn file(
         .map(|(file_writer, guard)| {
             let layer = tracing_subscriber::fmt::layer()
                 .with_writer(file_writer)
-                .with_ansi(false) // Disable colors for file
                 .with_span_events(config.fmt_span_events())
                 .with_target(target)
-                .with_timer(ChronoLocal::new(timestamp_fmt.clone()))
-                .fmt_fields(PrettyFields::new())
-                .with_filter(config.filter()?)
-                .boxed();
+                .with_timer(ChronoLocal::new(timestamp_fmt.clone()));
+            let layer = match config.format.formatter {
+                Formatter::Pretty => layer
+                    .with_ansi(false) // Disable colors for file
+                    .fmt_fields(PrettyFields::new())
+                    .with_filter(config.filter()?)
+                    .boxed(),
+                Formatter::Json => layer
+                    .json()
+                    .flatten_event(true)
+                    .with_filter(config.filter()?)
+                    .boxed(),
+            };
             Ok((layer, guard))
         })
         .transpose()

@@ -15,6 +15,17 @@ impl Default for TimestampFormat {
     }
 }
 
+/// Represents the supported logging formatters
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Formatter {
+    /// Human-readable single-line logs
+    Pretty,
+    /// Newline delimited JSON logs
+    #[default]
+    Json,
+}
+
 /// Defines the format to be used for logging, including target and timestamp.
 ///
 /// # Fields:
@@ -29,4 +40,60 @@ pub struct LoggingFormat {
     pub(crate) timestamp: TimestampFormat,
     #[serde(default)]
     pub(crate) ansi_colors: bool,
+    #[serde(default)]
+    pub(crate) formatter: Formatter,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rstest::rstest;
+    use serde_yaml;
+
+    #[rstest]
+    #[case::with_defaults(
+        r#"
+        target: false
+        "#,
+        LoggingFormat {
+            target: false,
+            timestamp: TimestampFormat::default(),
+            ansi_colors: false,
+            formatter: Formatter::Json,
+        }
+    )]
+    #[case::with_custom_values(
+        r#"
+        target: true
+        timestamp: "custom_format"
+        ansi_colors: true
+        formatter: pretty
+        "#,
+        LoggingFormat {
+            target: true,
+            timestamp: TimestampFormat("custom_format".to_string()),
+            ansi_colors: true,
+            formatter: Formatter::Pretty,
+        }
+    )]
+    #[case::with_partial_values(
+        r#"
+        target: true
+        "#,
+        LoggingFormat {
+            target: true,
+            timestamp: TimestampFormat::default(),
+            ansi_colors: false,
+            formatter: Formatter::Json,
+        }
+    )]
+    fn test_logging_format_deserialization(
+        #[case] yaml_data: &str,
+        #[case] expected_logging_format: LoggingFormat,
+    ) {
+        let logging_format: LoggingFormat = serde_yaml::from_str(yaml_data).unwrap();
+
+        assert_eq!(logging_format, expected_logging_format);
+    }
 }

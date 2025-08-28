@@ -2338,6 +2338,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## tracing-serde <https://crates.io/crates/tracing-serde>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## tracing-subscriber <https://crates.io/crates/tracing-subscriber>
 
 Distributed under the following license(s):
