@@ -17,7 +17,7 @@ pub fn stdout(config: &LoggingConfig) -> Result<LayerBox, LoggingConfigError> {
         .with_timer(ChronoLocal::new(timestamp_fmt));
 
     let layer = match config.format.formatter {
-        Formatter::Default => layer
+        Formatter::Pretty => layer
             .with_ansi(config.format.ansi_colors)
             .fmt_fields(PrettyFields::new())
             .with_filter(config.filter()?)

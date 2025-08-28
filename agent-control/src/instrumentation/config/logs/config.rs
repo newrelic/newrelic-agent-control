@@ -170,7 +170,10 @@ mod tests {
     use tracing::{debug_span, error, info, info_span, warn};
     use tracing_subscriber::layer::SubscriberExt;
 
-    use crate::instrumentation::{config::logs::file_logging::LogFilePath, tracing_layers};
+    use crate::instrumentation::{
+        config::logs::{file_logging::LogFilePath, format::Formatter},
+        tracing_layers,
+    };
 
     use super::*;
 
@@ -302,6 +305,10 @@ mod tests {
             file: FileLoggingConfig {
                 enabled: true,
                 path: Some(LogFilePath::try_from(logs_path.clone()).unwrap()),
+            },
+            format: LoggingFormat {
+                formatter: Formatter::Pretty,
+                ..Default::default()
             },
             ..Default::default()
         };

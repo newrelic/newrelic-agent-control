@@ -16,19 +16,14 @@ impl Default for TimestampFormat {
 }
 
 /// Represents the supported logging formatters
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, PartialEq, Clone, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Formatter {
     /// Human-readable single-line logs
-    Default,
+    Pretty,
     /// Newline delimited JSON logs
+    #[default]
     Json,
-}
-
-impl Default for Formatter {
-    fn default() -> Self {
-        Self::Default
-    }
 }
 
 /// Defines the format to be used for logging, including target and timestamp.
@@ -65,7 +60,7 @@ mod tests {
             target: false,
             timestamp: TimestampFormat::default(),
             ansi_colors: false,
-            formatter: Formatter::Default,
+            formatter: Formatter::Json,
         }
     )]
     #[case::with_custom_values(
@@ -73,13 +68,13 @@ mod tests {
         target: true
         timestamp: "custom_format"
         ansi_colors: true
-        formatter: json
+        formatter: pretty
         "#,
         LoggingFormat {
             target: true,
             timestamp: TimestampFormat("custom_format".to_string()),
             ansi_colors: true,
-            formatter: Formatter::Json,
+            formatter: Formatter::Pretty,
         }
     )]
     #[case::with_partial_values(
@@ -90,7 +85,7 @@ mod tests {
             target: true,
             timestamp: TimestampFormat::default(),
             ansi_colors: false,
-            formatter: Formatter::Default,
+            formatter: Formatter::Json,
         }
     )]
     fn test_logging_format_deserialization(

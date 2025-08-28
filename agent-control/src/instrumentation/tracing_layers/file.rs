@@ -33,7 +33,7 @@ pub fn file(
                 .with_target(target)
                 .with_timer(ChronoLocal::new(timestamp_fmt.clone()));
             let layer = match config.format.formatter {
-                Formatter::Default => layer
+                Formatter::Pretty => layer
                     .with_ansi(false) // Disable colors for file
                     .fmt_fields(PrettyFields::new())
                     .with_filter(config.filter()?)
