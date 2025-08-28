@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Codespell test
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461
-  fmt:
+  cargo-fmt:
     runs-on: ubuntu-latest
     name: cargo fmt
     steps:
@@ -39,7 +39,7 @@ jobs:
       - name: Check code formatting
         run: cargo fmt --check
 
-  checks:
+  cargo-clippy:
     runs-on: ubuntu-latest
     name: cargo clippy
     permissions:
@@ -72,7 +72,7 @@ jobs:
       - name: cargo clippy with compiler warnings
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
 
-  doc:
+  cargo-doc:
     runs-on: ubuntu-latest
     name: cargo doc
     steps:
@@ -199,7 +199,7 @@ jobs:
   security:
     uses: ./.github/workflows/component_security.yml
 
-  release-build:
+  generate-release-build:
     runs-on: ubuntu-latest
     name: "Build release binaries"
     steps:
@@ -242,7 +242,7 @@ jobs:
       - name: Build onhost in release mode
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
 
-  unit-docs-onhost-integration:
+  unit-docs-onhost-integration-tests:
     runs-on: ubuntu-latest
     name: Unit, docs and onhost integration tests
     steps:
@@ -299,7 +299,7 @@ jobs:
 
   # Test using root can be troublesome to perform as usually the Rust toolchain is installed local to the user.
   # To test for root privileges, we can run from a container (disabling the test that fail if running non-root).
-  test-with-root:
+  on-host-root-tests:
     runs-on: ubuntu-latest
     container: rust:latest
     name: tests as root
@@ -329,7 +329,7 @@ jobs:
       - name: Run onHost root-required integration-tests only
         run: make -C agent-control test/onhost/root/integration
 
-  embedded:
+  embedded-downloader-tests:
     name: Unit test for embedded downloader
     runs-on: ubuntu-latest
     steps:
@@ -413,21 +413,21 @@ jobs:
 
     needs:
       # checks
-    - security
-    - coverage
-    - checks
-    - third-party-notices-check
-    - fmt
-    - doc
-    - codespell
-    - unused-dependencies-check
-    # tests
-    - release-build
-    - unit-docs-onhost-integration
-    - test-with-root
-    - embedded
-    - k8s-integration-tests
-    - k8s-e2e-tests
+      - cargo-clippy
+      - cargo-fmt
+      - cargo-doc
+      - third-party-notices-check
+      - unused-dependencies-check
+      - codespell
+      - security
+      - coverage
+      # tests
+      - generate-release-build
+      - unit-docs-onhost-integration-tests
+      - on-host-root-tests
+      - embedded-downloader-tests
+      - k8s-integration-tests
+      - k8s-e2e-tests
 
     runs-on: Ubuntu-latest
 
