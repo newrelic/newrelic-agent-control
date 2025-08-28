@@ -90,7 +90,6 @@ impl EmbeddedRegistry {
             return vec![];
         };
 
-        // sort_by(|a, b| a.agent_type_id.name().cmp(b.agent_type_id.name()))
         let mut entries: Vec<_> = entries.flatten().collect();
         entries.sort_by_key(|a| a.path());
 
