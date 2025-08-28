@@ -84,13 +84,17 @@ impl EmbeddedRegistry {
 
     /// Read and return the dynamic agent types, if there is an error reading or deserializing it, logs the error.
     fn dynamic_agent_type(path: PathBuf) -> Vec<AgentTypeDefinition> {
-        let Ok(entries) = fs::read_dir(path.clone()).inspect_err(
+        let Ok(dir_entries) = fs::read_dir(path.clone()).inspect_err(
             |err| debug!(error = %err, "Failed reading Dynamic agent types directory {path:?}"),
         ) else {
             return vec![];
         };
 
-        let mut entries: Vec<_> = entries.flatten().collect();
+        let mut entries: Vec<_> = dir_entries.flatten().collect();
+        // The order of entries returned by the `dir_entries` iterator is platform and filesystem
+        // dependent. To ensure a consistent order of processing, we sort the entries by their path.
+        // This is important because the current implementation uses a HashMap, and inserting
+        // already existing keys will overwrite the former values.
         entries.sort_by_key(|a| a.path());
 
         entries.into_iter()
