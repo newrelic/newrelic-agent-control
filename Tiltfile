@@ -143,19 +143,28 @@ if license_key != '':
 if cluster != '':
   ac_flags.append('--set=global.cluster='+cluster)
 
-
-local_resource(
-    'wait-install-job',
-    allow_parallel=True,
-    cmd="kubectl wait --for=create --timeout=200s job/ac-agent-control-install-job",
-    resource_deps=['local-child-chart-upload'],
-)
-
+#### Troubleshooting logs from installation Jobs
 local_resource(
     'log-install-job',
     allow_parallel=True,
-    serve_cmd="while true ; do kubectl logs -f job/ac-agent-control-install-job || sleep 1; continue ; done",
-    resource_deps=['wait-install-job'],
+    cmd="kubectl wait --for=create --timeout=200s job/ac-agent-control-install-job",
+    serve_cmd="while true ; do kubectl logs -f job/ac-agent-control-install-job 2>/dev/null || sleep 1; continue ; done",
+    resource_deps=['local-child-chart-upload'],
+)
+local_resource(
+    'log-flux-check-job',
+    allow_parallel=True,
+    cmd="kubectl wait --for=create --timeout=200s job/agent-control-cd-flux-check",
+    serve_cmd="while true ; do kubectl logs -f job/agent-control-cd-flux-check 2>/dev/null || sleep 5; continue ; done",
+    resource_deps=['log-install-job'],
+)
+local_resource(
+    'log-system-identity-job',
+    allow_parallel=True,
+    # the SI job might not be triggered for some of the test but this resource must always be success for `tilt ci` execs in CI.
+    cmd="kubectl wait --for=create --timeout=200s job/agent-control-generate-system-identity || echo System Identity job not created",
+    serve_cmd="while true ; do kubectl logs -f job/agent-control-generate-system-identity 2>/dev/null || sleep 5; continue ; done",
+    resource_deps=['log-install-job'],
 )
 
 #### Installs charts
