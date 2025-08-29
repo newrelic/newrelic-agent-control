@@ -101,7 +101,7 @@ feature_branch = os.getenv('FEATURE_BRANCH', "master")
 
 local_resource(
     'clone-charts-repo',
-    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp""",
+    cmd="""rm -rf local/helm-charts-tmp && git clone --depth=1 https://github.com/newrelic/helm-charts --branch '""" + feature_branch +"""'  local/helm-charts-tmp""",
 )
 
 local_resource(

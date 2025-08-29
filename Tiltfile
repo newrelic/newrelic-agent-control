@@ -90,7 +90,7 @@ local_resource(
     allow_parallel=True,
     cmd="""
      rm -rf local/helm-charts-tmp &&
-     git clone --depth=1 https://github.com/newrelic/helm-charts --branch """ + feature_branch +"""  local/helm-charts-tmp &&
+     git clone --depth=1 https://github.com/newrelic/helm-charts --branch '""" + feature_branch +"""'  local/helm-charts-tmp &&
      helm package --dependency-update --version 0.0.1 --destination local/helm-charts-tmp local/helm-charts-tmp/charts/agent-control-deployment &&
      curl -u testUser:testPassword -X DELETE http://localhost:8080/api/charts/agent-control-deployment/0.0.1 &&
      curl -u testUser:testPassword --data-binary "@local/helm-charts-tmp/agent-control-deployment-0.0.1.tgz" http://localhost:8080/api/charts &&
