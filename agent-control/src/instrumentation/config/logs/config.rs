@@ -270,7 +270,7 @@ mod tests {
                     insecure_fine_grained_level: Some("newrelic_agent_control=lolwut".into()),
                     ..Default::default()
                 },
-                expected: "invalid directive `newrelic_agent_control=lolwut` in `insecure_fine_grained_level`: invalid filter directive",
+                expected: "invalid directive `newrelic_agent_control=lolwut` in `insecure_fine_grained_level`: error parsing level filter: expected one of \"off\", \"error\", \"warn\", \"info\", \"debug\", \"trace\", or a number 0-5",
             },
             TestCase {
                 name: "invalid insecure fine grained (level as integer)",
@@ -278,7 +278,7 @@ mod tests {
                     insecure_fine_grained_level: Some("newrelic_agent_control=11".into()),
                     ..Default::default()
                 },
-                expected: "invalid directive `newrelic_agent_control=11` in `insecure_fine_grained_level`: invalid filter directive",
+                expected: "invalid directive `newrelic_agent_control=11` in `insecure_fine_grained_level`: error parsing level filter: expected one of \"off\", \"error\", \"warn\", \"info\", \"debug\", \"trace\", or a number 0-5",
             },
         ];
 
