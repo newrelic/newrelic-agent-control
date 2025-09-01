@@ -27,7 +27,11 @@ We could receive a remote config that installs Flux and breaks Agent Control bec
 
 ## How it works
 
-The high level overview of the happy path is simple:
+### Kubernetes
+
+#### High Level Overview
+
+This is the happy path:
 
 1. Fleet Control sends a new remote config with the updated version through OpAMP
 2. Agent Control receives and validates the configuration
@@ -35,7 +39,7 @@ The high level overview of the happy path is simple:
 
 The implementation is, of course, more complex.
 
-### Kubernetes
+#### Implementation details
 
 Let's start with the Agent Control update.
 
