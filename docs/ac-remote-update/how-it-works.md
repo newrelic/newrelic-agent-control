@@ -33,7 +33,42 @@ We have some control over that issue. The flux dependency is wrapped in a chart 
 
 ### Kubernetes
 
-#### High Level Overview
+#### Installation
+
+For Kubernetes, we provide Helm Charts to simplify the installation process. There are three charts:
+
+* `agent-control` - Starts the installation of Agent Control and all the necessary tools.
+* `agent-control-deployment` - This chart is designed to be installed as part of `agent-control` chart, and it installs Agent Control.
+* `agent-control-cd` - This chart is designed to be installed as part of `agent-control` chart, and it installs Flux.
+
+Why do we need three charts?
+
+`agent-control` is there to orchestrate the installation, while the other two charts are there to enable the remote update of their versions.
+Having a chart for each of the components we need to install gives us the opportunity to create a `HelmRelease`. This is important because Flux reconciles them to create the pods with the actual version.
+That's the reason for having three charts.
+
+The following image shows the installation process.
+
+![](./images/ac-k8s-installation.png)
+
+1. The client initiates installation by deploying the `agent-control` chart with Helm
+2. The `agent-control` chart creates necessary Kubernetes resources and launches an installation job
+3. This installation job deploys `agent-control-cd` (which installs Flux) and executes a CLI tool
+4. The CLI tool configures additional resources for `agent-control-cd` and installs the `agent-control-deployment` chart
+5. Finally, `agent-control-deployment` establishes required resources and launches the Agent Control binary
+
+#### Uninstallation
+
+The uninstallation process is a bit different.
+
+![](./images/ac-k8s-uninstallation.png)
+
+1. The client initiates the uninstallation of `agent-control` chart
+2. The `agent-control` chart creates the uninstallation job
+3. The uninstallation job executes a CLI
+4. The CLI uninstalls both the `agent-control-cd` and `agent-control-deployment` making sure that all resources are deleted
+
+#### Agent Control
 
 This is the happy path:
 
@@ -42,8 +77,6 @@ This is the happy path:
 3. Agent Control applies the update on the system
 
 The implementation is, of course, more complex.
-
-#### Implementation details
 
 Let's start with the Agent Control update.
 
