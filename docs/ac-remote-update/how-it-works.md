@@ -78,9 +78,7 @@ This is the happy path:
 
 The implementation is, of course, more complex.
 
-Let's start with the Agent Control update.
-
-![](./images/update-ac.png)
+![](./images/update-diagram.png)
 
 1. **Receive Configuration**: The process begins when a new remote config is received in the `process_events` function, which then passes it to `handle_remote_config` for processing.
 
@@ -93,7 +91,7 @@ Let's start with the Agent Control update.
     ```
 
 2. **Report Initial State**: To provide visibility, Agent Control reports its status as `Applying`.
-3. **Validate and Apply**: The new configuration is validated and stored by the `validate_apply_store_remote_config` function. On success, this function updates Agent Control's own `HelmRelease` with the new version.
+3. **Validate and Apply**: The new configuration is validated and stored by the `validate_apply_store_remote_config` function. On success, this function updates Agent Control's own `HelmRelease` with the new version and/or the Flux `HelmRelease`.
 4. **Report Final State**: Once the configuration has been successfully applied to the HelmRelease object, Agent Control reports its status as `Applied`.
 5. **Reconcile in Cluster**: Flux’s Helm Controller detects the change to the `HelmRelease` and begins a rolling update of the Agent Control pods to finalize the process.
 
@@ -104,7 +102,3 @@ If there's any error, Agent Control will send `Failed` status. If everything wen
 The rolling update is an [strategy](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy) implemented by kubernetes that incrementally replaces old pods with new ones. It's done in such a way, that old pods will be kept alive if new ones can't be started. Kubernetes assures it with [Liveness and Startup probes](https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/).
 
 ![](./images/rolling-update.png)
-
-Flux update works the same way. The only difference is that the `HelmRelease` will be reconciled into itself.
-
-![](./images/update-flux.png)
