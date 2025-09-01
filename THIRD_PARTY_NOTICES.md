@@ -1561,12 +1561,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## overload <https://crates.io/crates/overload>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## parking <https://crates.io/crates/parking>
 
 Distributed under the following license(s):
@@ -2566,27 +2560,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## winapi <https://crates.io/crates/winapi>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## winapi-i686-pc-windows-gnu <https://crates.io/crates/winapi-i686-pc-windows-gnu>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
-## winapi-x86_64-pc-windows-gnu <https://crates.io/crates/winapi-x86_64-pc-windows-gnu>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## windows-core <https://crates.io/crates/windows-core>
 
