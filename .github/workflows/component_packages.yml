@@ -54,7 +54,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-release
 
       - name: Install Zig
-        uses: mlugg/setup-zig@v2
+        uses: mlugg/setup-zig@v2.0.5
 
       - name: Install cargo-zigbuild
         run: |
