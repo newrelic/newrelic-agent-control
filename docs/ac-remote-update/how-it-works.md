@@ -55,7 +55,7 @@ Let's start with the Agent Control update.
 4. **Report Final State**: Once the configuration has been successfully applied to the HelmRelease object, Agent Control reports its status as `Applied`.
 5. **Reconcile in Cluster**: Flux’s Helm Controller detects the change to the `HelmRelease` and begins a rolling update of the Agent Control pods to finalize the process.
 
-If there's any error, Agent Control will send `Failed` status.
+If there's any error, Agent Control will send `Failed` status. If everything went well, codewise, but Flux cannot reconcile the different `HelmRelease`. Then, Agent Control will send the `Applied` status and the `HealthChecker` will report `Unhealthy`. You can think of this in the following way. Agent Control did the job and started the process to apply the configuration. There was no problem there. However, Flux cannot turn the config into reality. Agent Control will detect the error and return `Unhealthy` from `spawn_health_checker`.
 
 ![](./images/update-ac-sequence.png)
 
