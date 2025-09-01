@@ -50,6 +50,15 @@ Let's start with the Agent Control update.
 ![](./images/update-ac.png)
 
 1. **Receive Configuration**: The process begins when a new remote config is received in the `process_events` function, which then passes it to `handle_remote_config` for processing.
+
+    Example:
+
+    ```yaml
+    agents:
+        nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
+    chart_version: "1.0.0"
+    ```
+
 2. **Report Initial State**: To provide visibility, Agent Control reports its status as `Applying`.
 3. **Validate and Apply**: The new configuration is validated and stored by the `validate_apply_store_remote_config` function. On success, this function updates Agent Control's own `HelmRelease` with the new version.
 4. **Report Final State**: Once the configuration has been successfully applied to the HelmRelease object, Agent Control reports its status as `Applied`.
