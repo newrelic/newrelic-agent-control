@@ -19,11 +19,15 @@ In Kubernetes, both the Agent Control version and Flux version can be updated re
 
 We could receive a remote configuration with an older Agent Control version which doesn't support this feature. In that situation, the Agent Control would end up in a "non-recoverable" state. Updating it would require access to the system. Ideally, the backend should prevent that.
 
+Another risk updating the Agent Control version is that the new version might not support an Agent Type. Be it because it's not yet supported or because it's out of support.
+
 ##### Updating Flux version
 
 Flux it's a project of the [CNCF](https://www.cncf.io/) with their own roadmap. Thus, we have to be aware of breaking changes introduced in [flux2](https://github.com/fluxcd/flux2), and potential compatibility issues with the Kubernetes version that we are using. That information is usually in the changelog. For example, [v2.6.0](https://github.com/fluxcd/flux2/releases/tag/v2.6.0). **Migrations** are not automated.
 
 We could receive a remote config that installs Flux and breaks Agent Control because some breaking changes where introduced to the [Custom Resource Definition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions).
+
+We have some control over that issue. The flux dependency is wrapped in a chart called `agent-control-cd` that we internally use. The client doesn't interact with it directly. The version of this chart is what we allow updating. Hence, the user should never encounter this issue, unless they use their own flux.
 
 ## How it works
 
