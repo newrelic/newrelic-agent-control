@@ -1,3 +1,6 @@
+use crate::common::attributes::{
+    check_latest_identifying_attributes_match_expected, convert_to_vec_key_value,
+};
 /// Integration tests for Flux self-update functionality in Kubernetes environments.
 ///
 /// Each test installs its own Flux instance with namespace-scoped RBAC to avoid
@@ -25,8 +28,12 @@ use k8s_openapi::api::rbac::v1::{Role, RoleBinding};
 use kube::api::PostParams;
 use kube::{Api, Client};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_VERSION, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
+};
 use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
-use opamp_client::opamp::proto::RemoteConfigStatuses;
+use opamp_client::opamp::proto::{self, KeyValue, RemoteConfigStatuses};
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -114,7 +121,14 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
             TEST_RELEASE_NAME,
             CHART_VERSION_UPSTREAM_2,
         ))?;
-        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)
+        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
+        let ac_chart_version = "0.0.1000"; // Set as configuration in the corresponding local-data-agent-control.template file
+        check_latest_identifying_attributes_match_expected(
+            &opamp_server,
+            &ac_instance_id,
+            expected_identifying_attributes(ac_chart_version, CHART_VERSION_UPSTREAM_2),
+        )?;
+        Ok(())
     });
 
     // run a local version updated and asserts that the version doesn't change
@@ -205,6 +219,35 @@ cd_chart_version: {MISSING_VERSION}
 
 const SECRET_NAME: &str = "flux-values";
 const VALUES_KEY: &str = "values.yaml";
+
+/// Get expected identifying attributes according to the provided chart versions.
+fn expected_identifying_attributes(
+    ac_chart_version: &str,
+    cd_chart_version: &str,
+) -> Vec<KeyValue> {
+    convert_to_vec_key_value(Vec::from([
+        (
+            OPAMP_SERVICE_NAMESPACE,
+            proto::any_value::Value::StringValue("newrelic".to_string()),
+        ),
+        (
+            OPAMP_SERVICE_NAME,
+            proto::any_value::Value::StringValue("com.newrelic.agent_control".to_string()),
+        ),
+        (
+            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+            proto::any_value::Value::StringValue(AGENT_CONTROL_VERSION.to_string()),
+        ),
+        (
+            OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY,
+            proto::any_value::Value::StringValue(ac_chart_version.to_string()),
+        ),
+        (
+            OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
+            proto::any_value::Value::StringValue(cd_chart_version.to_string()),
+        ),
+    ]))
+}
 
 fn create_flux_resources(namespace: &str, chart_version: &str) {
     let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-cli").unwrap();
