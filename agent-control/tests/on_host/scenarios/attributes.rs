@@ -7,9 +7,7 @@ use crate::common::attributes::{
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
-use crate::on_host::tools::custom_agent_type::{
-    get_agent_type_custom, get_agent_type_without_regex,
-};
+use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
@@ -113,21 +111,15 @@ fn test_attributes_from_non_existing_agent_type() {
 /// identifying and non identifying attributes are what we expect plus
 /// the "agent.version" related with the agent type.
 #[rstest]
-#[case::with_regex(get_agent_type_custom)]
-#[case::without_regex(get_agent_type_without_regex)]
-fn test_attributes_from_an_existing_agent_type(
-    #[case] get_agent_type: impl Fn(PathBuf, &str, &str) -> String,
-) {
+#[case::with_regex(|local_dir| {CustomAgentType::default().build(local_dir)})]
+#[case::without_regex(|local_dir| {CustomAgentType::default().with_version(Some(r#"{"path": "echo", "args": "-n 1.0.0"}"#)).build(local_dir)})]
+fn test_attributes_from_an_existing_agent_type(#[case] get_agent_type: impl Fn(PathBuf) -> String) {
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
     // Add custom agent_type to registry
-    let sleep_agent_type = get_agent_type(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = get_agent_type(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
