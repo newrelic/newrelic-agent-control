@@ -41,8 +41,8 @@ For Kubernetes, we provide Helm Charts to simplify the installation process. The
 
 Why do we need three charts?
 
-`agent-control` is there to orchestrate the installation, while the other two charts are there to enable the remote update of their versions.
-Having a chart for each of the components we need to install gives us the opportunity to create a `HelmRelease`. This is important because Flux reconciles them to create the pods with the actual version.
+`agent-control` is there to orchestrate the installation and uninstallation, while the other two charts allow Agent Control handling the remote update of each component.
+`agent-control-deployment` and `agent-control-cd` charts represent the Agent Control and Flux resources respectively, each chart will be managed by a [HelmRelease](https://fluxcd.io/flux/components/helm/helmreleases/) which represents the desired state of such resources in the cluster.
 That's the reason for having three charts.
 
 The following image shows the installation process.
@@ -52,7 +52,7 @@ The following image shows the installation process.
 1. The client initiates installation by deploying the `agent-control` chart with Helm
 2. The `agent-control` chart creates necessary Kubernetes resources and launches an installation job
 3. This installation job deploys `agent-control-cd` (which installs Flux) and executes a CLI tool
-4. The CLI tool configures additional resources for `agent-control-cd` and installs the `agent-control-deployment` chart
+4. The CLI tool creates the CRs representing the `agent-control-cd` release (which takes ownership of the existing installation) and installs the `agent-control-deployment` by creating the corresponding CRs
 5. Finally, `agent-control-deployment` establishes required resources and launches the Agent Control binary
 
 #### Uninstallation
