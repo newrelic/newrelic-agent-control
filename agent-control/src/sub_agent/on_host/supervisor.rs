@@ -428,22 +428,22 @@ pub mod tests {
     #[rstest]
     #[case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
         vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     #[case::fail_process_shutdown_after_start(
         "wrong-command",
-        ExecutableData::new("wrong-command".to_owned()),
+        ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
         Some(Duration::from_secs(1)),
         vec!["stopped supervisor without process running"])]
     #[case::long_running_process_shutdown_before_start(
         "long-running-before-start",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         None,
         vec!["supervisor stopped before starting the process", "stopped supervisor without process running"])]
     #[case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
         vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     fn test_supervisor_gracefully_shutdown(
@@ -541,7 +541,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -578,13 +578,13 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(
                     BackoffStrategy::Fixed(backoff.clone()),
                     vec![0],
                 )),
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["NR-command".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -627,7 +627,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -665,7 +665,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["hello!".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -719,7 +719,7 @@ pub mod tests {
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];

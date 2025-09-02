@@ -55,6 +55,9 @@ impl Templateable for OnHost {
 */
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
+    /// Executable identifier for the health checker.
+    pub id: TemplateableValue<String>,
+
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
     pub path: TemplateableValue<String>, // make it templatable
 
@@ -74,6 +77,7 @@ pub struct Executable {
 impl Templateable for Executable {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
+            id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
             env: self.env.template_with(variables)?,
@@ -189,6 +193,10 @@ restart_policy:
     #[test]
     fn test_replacer() {
         let exec = Executable {
+            id: TemplateableValue {
+                value: None,
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
                 "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
@@ -310,6 +318,10 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
+            id: TemplateableValue {
+                value: Some("otelcol".to_string()),
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue {
                 value: Some("/etc/otelcol".to_string()),
                 template: "${nr-var:bin}/otelcol".to_string(),
@@ -350,6 +362,7 @@ restart_policy:
     #[test]
     fn test_replacer_two_same() {
         let exec = Executable {
+            id: TemplateableValue::from_template("otelcol".to_string()),
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
             env: Env::default(),
@@ -431,6 +444,10 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
+            id: TemplateableValue {
+                value: Some("otelcol".to_string()),
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
             args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
             env: Env::default(),
@@ -533,6 +550,7 @@ restart_policy:
         ]);
 
         let input = Executable {
+            id: TemplateableValue::from_template("myapp".to_string()),
             path: TemplateableValue::from_template("${nr-var:path}".to_string()),
             args: TemplateableValue::from_template(
                 "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
@@ -560,6 +578,10 @@ restart_policy:
             },
         };
         let expected_output = Executable {
+            id: TemplateableValue {
+                value: Some("myapp".to_string()),
+                template: "myapp".to_string(),
+            },
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${nr-var:path}".to_string()),
             args: TemplateableValue::new(Args(
@@ -600,7 +622,8 @@ health:
     path: /healthz
     port: 8080
 executables:
-  - path: ${nr-var:bin}/otelcol
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
     args: "-c ${nr-var:deployment.k8s.image}"
     restart_policy:
       backoff_strategy:
@@ -608,7 +631,8 @@ executables:
         backoff_delay: 1s
         max_retries: 3
         last_retry_interval: 30s
-  - path: ${nr-var:bin}/otelcol-second
+  - id: otelcol-second
+    path: ${nr-var:bin}/otelcol-second
     args: "-c ${nr-var:deployment.k8s.image}"
     restart_policy:
       backoff_strategy:

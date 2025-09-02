@@ -117,7 +117,8 @@ deployment:
       args: --version
       regex: \d+\.\d+\.\d+
     executables:
-      - path: /usr/bin/newrelic-infra
+      - id: newrelic-infra
+        path: /usr/bin/newrelic-infra
         args: >-
           --config=${nr-var:config_agent}
         env:
