@@ -211,7 +211,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: ${deployment.on_host.path}/otelcol
+      - id: otelcol
+        path: ${deployment.on_host.path}/otelcol
         args: "-c ${deployment.on_host.args}"
 "#;
 

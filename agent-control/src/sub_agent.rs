@@ -881,7 +881,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: ${nr-var:var}
+      - id: exec
+        path: ${nr-var:var}
 "#,
             )
             .unwrap()
@@ -902,7 +903,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: ${nr-var:var}
+      - id: exec
+        path: ${nr-var:var}
 "#,
             )
             .unwrap()

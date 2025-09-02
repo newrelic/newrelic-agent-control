@@ -245,7 +245,8 @@ deployment:
         path: /healthz
         port: 8080
     executables:
-      - path: ${nr-var:bin}/otelcol
+      - id: otelcol
+        path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
         restart_policy:
           backoff_strategy:
@@ -265,7 +266,8 @@ spec:
 deployment:
   on_host:
     executables:
-      - path: ${nr-var:bin}/otelcol
+      - id: otelcol
+        path: ${nr-var:bin}/otelcol
         args: "-c ${nr-var:deployment.k8s.image}"
 "#;
 
@@ -379,7 +381,8 @@ deployment:
         path: /v1/status
         port: "${nr-var:status_server_port}"
     executables:
-      - path: /usr/bin/newrelic-infra
+      - id: newrelic-infra
+        path: /usr/bin/newrelic-infra
         args: "--config ${nr-var:config} --config2 ${nr-var:config2}"
 "#;
 
@@ -509,7 +512,8 @@ variables:
 deployment:
   on_host:
       executables:
-        - path: /bin/echo
+        - id: echo
+          path: /bin/echo
           args: "${nr-var:restart_policy.type}"
 "#;
 

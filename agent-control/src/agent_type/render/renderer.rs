@@ -804,7 +804,8 @@ variables: {}
 deployment:
   on_host:
     executables:
-      - path: /opt/first
+      - id: first
+        path: /opt/first
         args: "${nr-ac:sa-fake-var}"
 "#,
             &Environment::OnHost,
@@ -864,9 +865,11 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /opt/first
+      - id: first
+        path: /opt/first
         args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
-      - path: /opt/second
+      - id: second
+        path: /opt/second
         args: "--config_path=${nr-var:config_path} --foo=${nr-var:config_argument}"
 "#;
 
@@ -897,7 +900,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /usr/bin/newrelic-infra
+      - id: newrelic-infra
+        path: /usr/bin/newrelic-infra
         args: "--config1 ${nr-var:config1} --config2 ${nr-var:config2}"
 "#;
 
@@ -941,7 +945,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /bin/otelcol
+      - id: otelcol
+        path: /bin/otelcol
         args: "-c some-arg"
         restart_policy:
           backoff_strategy:

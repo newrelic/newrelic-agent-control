@@ -461,7 +461,8 @@ variables:
 deployment:
     on_host:
       executables:
-        - path: /some/path
+        - id: my-exec
+          path: /some/path
           args: "${nr-var:config.really_common} ${config.var}"
     k8s:
       objects:
