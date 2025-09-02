@@ -171,7 +171,7 @@ pub(crate) mod tests {
                 config_persister_file::ConfigurationPersisterFile,
             },
             runtime_config::{
-                onhost::Args,
+                on_host::executable::Args,
                 restart_policy::{
                     BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
                 },

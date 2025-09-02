@@ -2,11 +2,10 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer};
 
-use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::agent_type::{definition::Variables, runtime_config::on_host::executable::Args};
 
-use super::onhost::Args;
 use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
 
 #[derive(Debug, PartialEq, Clone, Default)]
