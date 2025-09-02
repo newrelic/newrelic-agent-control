@@ -99,8 +99,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
     // Add custom agent_type to registry
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
 
     let _agent_control =
@@ -250,8 +249,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
 
     let agents = format!(
@@ -326,8 +324,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
 
     let agents = format!(
@@ -399,8 +396,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
 
     let agents = format!(

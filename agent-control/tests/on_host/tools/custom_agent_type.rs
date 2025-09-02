@@ -3,7 +3,10 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 pub const DYNAMIC_AGENT_TYPE_FILENAME: &str = "dynamic-agent-types/type.yaml";
 
-pub fn get_agent_type_custom(local_dir: PathBuf, path: &str, args: &str) -> String {
+/// Creates a custom-agent-type including the configuration in the `executables` parameter as
+/// `deployment.on_host.executables`. Mind the indentation for executables, using json is recommended to avoid
+/// indentation issues.
+pub fn get_agent_type_custom(local_dir: PathBuf, executables: &str) -> String {
     let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
 
     std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
@@ -23,9 +26,7 @@ variables:
       default: "default"
 deployment:
   on_host:
-    executables:
-      - path: {path}
-        args: {args}
+    executables: {executables}
 "#
     );
     write!(local_file, "{custom_agent_type}").unwrap();
