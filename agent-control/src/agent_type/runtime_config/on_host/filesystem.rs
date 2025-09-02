@@ -1,6 +1,6 @@
 use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
+    collections::{HashMap, HashSet},
+    path::{Component, Path, PathBuf},
 };
 
 use serde::{Deserialize, Deserializer};
@@ -35,11 +35,10 @@ impl<'de> Deserialize<'de> for FileSystem {
 
         let map = HashMap::<_, FileEntry>::deserialize(deserializer)?;
         // Perform validations on the provided Paths
-        if map.values().map(|v| v.path.as_ref()).all(Path::is_relative) {
-            // TODO more validations (not exist, etc?)
-            Ok(FileSystem(map))
+        if let Err(errs) = validate_file_entries(map.values()) {
+            Err(Error::custom(errs.join(", ")))
         } else {
-            Err(Error::custom("All paths used as keys must be relative"))
+            Ok(FileSystem(map))
         }
     }
 }
@@ -60,5 +59,75 @@ impl Templateable for FileEntry {
             path: self.path,
             content: self.content.template_with(variables)?,
         })
+    }
+}
+
+fn validate_file_entries<'a>(
+    entries: impl Iterator<Item = &'a FileEntry>,
+) -> Result<(), Vec<String>> {
+    // All elements are unique in the Path
+    let mut seen_paths = HashSet::new();
+    let mut errors = Vec::new();
+
+    entries.map(|entry| &entry.path).for_each(|p| {
+        // Inserting already-inserted items in the hashset evaluates to `false`.
+        if !seen_paths.insert(p) {
+            let p = p.display();
+            errors.push(format!("All paths must be unique. Found duplicate: {p}"));
+        }
+        // Absolute paths are not permitted
+        else if !p.is_relative() {
+            let p = p.display();
+            errors.push(format!("All paths must be relative. Found absolute: {p}"));
+        }
+        // Directories must not escape the base directory
+        if let Err(e) = escapes_basedir(p) {
+            errors.push(e);
+        }
+    });
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+fn escapes_basedir(path: &Path) -> Result<(), String> {
+    path.components()
+        .try_fold(0, |depth, comp| match comp {
+            Component::Normal(_) => Ok(depth + 1),
+            Component::ParentDir if depth > 0 => Ok(depth - 1),
+            Component::ParentDir => Err(format!("{} escapes the base directory", path.display())),
+            Component::CurDir => Ok(depth),
+            // Disallow other non-supported variants like roots or prefixes
+            Component::RootDir | Component::Prefix(_) => {
+                Err(format!("{} has an invalid path component", path.display()))
+            }
+        })
+        .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_basedir_safety() {
+        let valid_paths = vec![Path::new("valid/path"), Path::new("another/valid/path")];
+        let invalid_paths = vec![Path::new("/absolute/path"), Path::new("..//invalid/path")];
+
+        assert!(
+            valid_paths
+                .into_iter()
+                .map(escapes_basedir)
+                .all(|r| r.is_ok())
+        );
+        assert!(
+            invalid_paths
+                .into_iter()
+                .map(escapes_basedir)
+                .all(|r| r.is_err())
+        );
     }
 }
