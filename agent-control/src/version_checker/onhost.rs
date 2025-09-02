@@ -1,14 +1,10 @@
 use crate::agent_control::defaults::{
-    AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    AGENT_TYPE_NAME_EBPF, AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
 use tracing::error;
-
-const NEWRELIC_INFRA_AGENT_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NEWRELIC_INFRA_AGENT_VERSION"), "0.0.0");
-const NR_OTEL_COLLECTOR_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
 
 pub struct OnHostAgentVersionChecker {
     agent_version: AgentVersion,
@@ -33,15 +29,16 @@ impl VersionChecker for OnHostAgentVersionChecker {
 }
 
 fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, VersionCheckError> {
-    match agent_type_id.name() {
-        AGENT_TYPE_NAME_INFRA_AGENT => Ok(AgentVersion {
-            version: NEWRELIC_INFRA_AGENT_VERSION.to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
-        AGENT_TYPE_NAME_NRDOT => Ok(AgentVersion {
-            version: NR_OTEL_COLLECTOR_VERSION.to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
+    let name = agent_type_id.name();
+    let version = agent_type_id.version();
+
+    match name {
+        AGENT_TYPE_NAME_INFRA_AGENT | AGENT_TYPE_NAME_NRDOT | AGENT_TYPE_NAME_EBPF => {
+            Ok(AgentVersion {
+                version: format!("{}.{}.{}", version.major, version.minor, version.patch),
+                opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+            })
+        }
         _ => Err(VersionCheckError::Generic(format!(
             "no match found for agent type: {agent_type_id}"
         ))),
@@ -88,7 +85,7 @@ mod tests {
                     let r = result.unwrap();
                     assert_matches!(
                         r.check_agent_version().unwrap().version.as_str(),
-                        NEWRELIC_INFRA_AGENT_VERSION,
+                        "0.1.0",
                         "{name}",
                     );
                     assert_matches!(
