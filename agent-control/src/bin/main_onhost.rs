@@ -38,7 +38,7 @@ fn _main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
-    #[cfg(unix)]
+    #[cfg(all(unix, not(feature = "disable-asroot")))]
     if !nix::unistd::Uid::effective().is_root() {
         return Err("Program must run as root".into());
     }
