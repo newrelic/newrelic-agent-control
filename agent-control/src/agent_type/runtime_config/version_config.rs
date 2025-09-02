@@ -4,7 +4,7 @@ use serde::{Deserialize, Deserializer};
 use crate::agent_type::{
     definition::Variables,
     error::AgentTypeError,
-    runtime_config::{onhost::Args, templateable_value::TemplateableValue},
+    runtime_config::{on_host::executable::Args, templateable_value::TemplateableValue},
     templates::Templateable,
 };
 

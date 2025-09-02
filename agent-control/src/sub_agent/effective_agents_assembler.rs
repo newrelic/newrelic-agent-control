@@ -7,7 +7,7 @@ use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
 use crate::agent_type::runtime_config::k8s::K8s;
-use crate::agent_type::runtime_config::onhost::OnHost;
+use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::secret_variables::{
