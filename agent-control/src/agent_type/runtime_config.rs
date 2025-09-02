@@ -6,7 +6,7 @@
 //! complete.
 pub mod health_config;
 pub mod k8s;
-pub mod onhost;
+pub mod on_host;
 pub mod restart_policy;
 pub mod templateable_value;
 
@@ -14,7 +14,7 @@ use super::definition::Variables;
 use super::error::AgentTypeError;
 use super::templates::Templateable;
 use k8s::K8s;
-use onhost::OnHost;
+use on_host::OnHost;
 use serde::Deserialize;
 
 /// Strict structure that describes how to start a given agent with all needed binaries, arguments, env, etc.
