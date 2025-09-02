@@ -50,10 +50,10 @@ The following image shows the installation process.
 ![](./images/ac-k8s-installation.png)
 
 1. The client initiates installation by deploying the `agent-control` chart with Helm
-2. The `agent-control` chart creates necessary Kubernetes resources and launches an installation job
-3. This installation job deploys `agent-control-cd` (which installs Flux) and executes a CLI tool
+2. The `agent-control` chart creates Kubernetes resources necessary for the installation job and and launches it
+3. This installation job deploys `agent-control-cd` (which installs Flux through `helm upgrade --install`) and executes a CLI tool
 4. The CLI tool creates the CRs representing the `agent-control-cd` release (which takes ownership of the existing installation) and installs the `agent-control-deployment` by creating the corresponding CRs
-5. Finally, `agent-control-deployment` establishes required resources and launches the Agent Control binary
+5. Finally, `agent-control-deployment` establishes the required resources (rbacs, secrets, config maps, a job to register a system identity, ...) for the pod that will launch the Agent Control binary
 
 #### Uninstallation
 
@@ -64,7 +64,12 @@ The uninstallation process is a bit different.
 1. The client initiates the uninstallation of `agent-control` chart
 2. The `agent-control` chart creates the uninstallation job
 3. The uninstallation job executes a CLI
-4. The CLI uninstalls both the `agent-control-cd` and `agent-control-deployment` making sure that all resources are deleted
+4. The CLI then uninstalls both the `agent-control-cd` and `agent-control-deployment` making sure that all resources are deleted
+   4.1. Deletes Agent Control CRs
+   4.2. Deletes objects owned by Agent Control
+   4.3. Suspends the `agent-control-cd` `HelmRelease`
+   4.4. Deletes the Flux CRs
+5. The `agent-control-cd` is uninstalled through `helm uninstall`
 
 #### Agent Control
 
