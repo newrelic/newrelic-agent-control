@@ -5,7 +5,7 @@ use crate::common::remote_config_status::check_latest_remote_config_status_is_ex
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
-use crate::on_host::tools::custom_agent_type::get_agent_type_custom;
+use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME};
@@ -30,11 +30,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
     let agents = format!(
         r#"
   {sub_agent_id}:
@@ -106,16 +102,16 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the local one (which is valid).
 #[test]
-fn test_invalid_config_executalbe_less_supervisor() {
-    use crate::on_host::tools::custom_agent_type::get_agent_type_without_deployment;
-
+fn test_invalid_config_executable_less_supervisor() {
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
     let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
-    let agent_type = get_agent_type_without_deployment(local_dir.path().to_path_buf());
+    let agent_type = CustomAgentType::default()
+        .without_deployment()
+        .build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
@@ -200,11 +196,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let sub_agent_id = AgentID::try_from("nr-sleep-agent").unwrap();
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
     let agents = format!(
         r#"
   {sub_agent_id}:

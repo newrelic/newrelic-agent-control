@@ -8,9 +8,7 @@ use crate::on_host::tools::config::load_remote_config_content;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_sub_agent_values,
 };
-use crate::on_host::tools::custom_agent_type::{
-    get_agent_type_custom, get_agent_type_without_executables,
-};
+use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
@@ -97,11 +95,7 @@ fn onhost_opamp_agent_control_remote_effective_config() {
     };
 
     // Add custom agent_type to registry
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
@@ -248,11 +242,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
@@ -324,11 +314,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
@@ -397,11 +383,7 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
@@ -469,10 +451,23 @@ fn onhost_executable_less_reports_local_effective_config() {
 
     let health_file_path = local_dir.path().join("health_file.yaml");
     // Add custom agent_type to registry
-    let agent_type_wo_exec = get_agent_type_without_executables(
-        local_dir.path().to_path_buf(),
-        health_file_path.as_path(),
+    let health_agent_type_config = format!(
+        r#"
+interval: 2s
+initial_delay: 0s
+timeout: 1s
+file:
+  path: "{}"
+  should_be_present: true
+  unhealthy_string: ".*(unhealthy|fatal|error).*"
+"#,
+        health_file_path.to_string_lossy()
     );
+    let agent_type_wo_exec = CustomAgentType::default()
+        .with_executables(None)
+        .with_version(None)
+        .with_health(Some(&health_agent_type_config))
+        .build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"

@@ -7,7 +7,7 @@ use crate::{
     },
     on_host::tools::{
         config::{create_agent_control_config, create_sub_agent_values},
-        custom_agent_type::get_agent_type_custom,
+        custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
 };
@@ -29,11 +29,8 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
+
     let agents = format!(
         r#"
   nr-sleep-agent:
@@ -109,11 +106,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
-    let sleep_agent_type = get_agent_type_custom(
-        local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
-    );
+    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
 
     let agents = format!(
         r#"
