@@ -23,11 +23,9 @@ Another risk updating the Agent Control version is that the new version might no
 
 ##### Updating Flux version
 
-Flux it's a project of the [CNCF](https://www.cncf.io/) with their own roadmap. Thus, we have to be aware of breaking changes introduced in [flux2](https://github.com/fluxcd/flux2), and potential compatibility issues with the Kubernetes version that we are using. That information is usually in the changelog. For example, [v2.6.0](https://github.com/fluxcd/flux2/releases/tag/v2.6.0). **Migrations** are not automated.
+Flux it's a project of the [CNCF](https://www.cncf.io/) with their own roadmap. Thus, we have to be aware of breaking changes introduced in [flux2](https://github.com/fluxcd/flux2), and potential compatibility issues with the Kubernetes version that we are using. That information is usually in the changelog. For example, [v2.6.0](https://github.com/fluxcd/flux2/releases/tag/v2.6.0).
 
-We could receive a remote config that installs Flux and breaks Agent Control because some breaking changes where introduced to the [Custom Resource Definition](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions).
-
-We have some control over that issue. The flux dependency is wrapped in a chart called `agent-control-cd` that we internally use. The client doesn't interact with it directly. The version of this chart is what we allow updating. Hence, the user should never encounter this issue, unless they use their own flux. However, if the client is managing Flux itself, it could happen. In that case, they are on their own.
+Flux is wrapped in the `agent-control-cd` chart, which is used internally. The client doesn't interact with it directly. The version of this chart is what we allow updating, instead of the Flux version. Hence, we control the versions of flux that can be installed. For now, we don't support flux version with breaking changes. **Migrations** are not automated.
 
 ## How it works
 
