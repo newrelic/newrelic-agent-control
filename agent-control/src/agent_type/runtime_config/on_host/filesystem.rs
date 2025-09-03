@@ -129,4 +129,44 @@ mod tests {
         let path = Path::new(path);
         assert!(validation(&escapes_basedir(path)));
     }
+
+    const AGENT_TYPE_WITH_FILESYSTEM: &str = r#"
+namespace: newrelic
+name: io.test.filesystem
+version: 0.1.0
+variables:
+  on_host:
+    file_contents:
+      description: "Contents of the files"
+      type: yaml
+      required: true
+deployment:
+  on_host:
+    filesystem:
+      catted-file:
+        path: "randomdir/randomfile.yaml"
+        content: |
+          ${nr-var:file_contents | indent 2}
+    executables:
+      - path: /Users/davidsanchez/.nix-profile/bin/cat
+        args: >-
+          ${nr-fs:catted-file}
+        restart_policy:
+          backoff_strategy:
+            type: fixed
+            backoff_delay: "10s"
+    "#;
+
+    const FILESYSTEM_VARIABLES: &str = r#"
+on_host:
+    file_contents:
+        mykey: myvalue
+        myint: 4
+        myarray:
+            - 1
+            - 2
+            - 3
+        mymap:
+           mysubkey: mysubvalue
+"#;
 }
