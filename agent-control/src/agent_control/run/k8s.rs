@@ -4,9 +4,7 @@ use crate::agent_control::config_repository::repository::AgentControlConfigLoade
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-    OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY,
+    AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, GENERATED_FOLDER_NAME, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
@@ -156,6 +154,7 @@ impl AgentControlRunner {
             template_renderer,
             self.agent_type_var_constraints,
             secrets_providers,
+            self.base_paths.remote_dir.join(GENERATED_FOLDER_NAME),
         ));
 
         let supervisor_builder =

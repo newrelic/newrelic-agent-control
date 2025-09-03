@@ -230,6 +230,7 @@ pub(crate) mod tests {
     pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
         AgentAttributes {
             agent_id: agent_id.to_string(),
+            auto_generated_dir: PathBuf::default(),
         }
     }
 
