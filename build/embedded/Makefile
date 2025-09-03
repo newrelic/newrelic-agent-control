@@ -4,7 +4,6 @@ GOARCH=$(shell $(GOCMD) env GOARCH)
 BINARY_NAME=embedded-downloader-$(GOOS)-$(GOARCH)
 # flags
 ARCH?=amd64
-STAGING?=false
 
 .DEFAULT_GOAL := all
 
@@ -21,7 +20,7 @@ dependencies:
 
 .PHONY: run
 run:
-	@go run ./... -arch $(ARCH) -staging $(STAGING)
+	@go run ./... -arch $(ARCH)
 
 .PHONY: test
 test:
