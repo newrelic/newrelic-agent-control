@@ -18,6 +18,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
@@ -112,6 +113,7 @@ where
     renderer: Y,
     variable_constraints: VariableConstraints,
     secrets_providers: SecretsProviders,
+    auto_generated_dir: PathBuf,
 }
 
 impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
@@ -120,12 +122,14 @@ impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<Configurat
         renderer: TemplateRenderer<ConfigurationPersisterFile>,
         variable_constraints: VariableConstraints,
         secrets_providers: SecretsProviders,
+        auto_generated_dir: PathBuf,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
             variable_constraints,
             secrets_providers,
+            auto_generated_dir,
         }
     }
 }
@@ -155,6 +159,7 @@ where
         // Build the agent attributes
         let attributes = AgentAttributes {
             agent_id: agent_identity.id.to_string(),
+            auto_generated_dir: self.auto_generated_dir.clone(),
         };
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
@@ -225,6 +230,8 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -281,6 +288,7 @@ pub(crate) mod tests {
                 renderer,
                 variable_constraints: VariableConstraints::default(),
                 secrets_providers: SecretsProviders::new(),
+                auto_generated_dir: PathBuf::default(),
             }
         }
     }
@@ -301,9 +309,10 @@ pub(crate) mod tests {
     }
 
     // Returns the expected agent_attributes given an agent_id.
-    fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
+    fn testing_agent_attributes(agent_id: &AgentID, auto_generated_dir: &Path) -> AgentAttributes {
         AgentAttributes {
             agent_id: agent_id.to_string(),
+            auto_generated_dir: auto_generated_dir.to_path_buf(),
         }
     }
 
@@ -329,7 +338,7 @@ pub(crate) mod tests {
         .unwrap();
         let values = YAMLConfig::default();
 
-        let attributes = testing_agent_attributes(&agent_identity.id);
+        let attributes = testing_agent_attributes(&agent_identity.id, &PathBuf::default());
         let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations
