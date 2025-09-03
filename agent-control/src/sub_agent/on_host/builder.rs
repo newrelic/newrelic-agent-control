@@ -10,6 +10,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use crate::sub_agent::on_host::health::repository::InMemoryExecHealthRepository;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
@@ -144,7 +145,7 @@ impl SupervisortBuilderOnHost {
 }
 
 impl SupervisorBuilder for SupervisortBuilderOnHost {
-    type SupervisorStarter = NotStartedSupervisorOnHost;
+    type SupervisorStarter = NotStartedSupervisorOnHost<InMemoryExecHealthRepository>;
 
     fn build_supervisor(
         &self,
@@ -170,12 +171,15 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             })
             .collect();
 
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
         let executable_supervisors = NotStartedSupervisorOnHost::new(
             effective_agent.get_agent_identity().clone(),
             executables,
             Context::new(),
             on_host.health,
             on_host.version,
+            Arc::new(exec_health_repository),
         )
         .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 
