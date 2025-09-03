@@ -1,3 +1,5 @@
+use std::io;
+
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::health::health_checker::HealthCheckerError;
@@ -18,6 +20,9 @@ pub enum SupervisorStarterError {
 
     #[error("supervisor could not be built: `{0}`")]
     BuildError(#[from] SubAgentBuilderError),
+
+    #[error("creation of required files for sub-agent failed: {0}")]
+    RequiredFileCreation(io::Error),
 }
 
 pub trait SupervisorStarter {
