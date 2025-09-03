@@ -1,22 +1,16 @@
+use crate::health::with_start_time::HealthWithStartTime;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
-use crate::health::with_start_time::HealthWithStartTime;
 
 pub trait ExecHealthRepository {
-    type Error;
+    type Error: std::error::Error;
 
-    fn set(
-        &self,
-        executable: &str,
-        health: HealthWithStartTime,
-    ) -> Result<(), Self::Error>;
+    fn set(&self, executable: String, health: HealthWithStartTime) -> Result<(), Self::Error>;
 
-    fn get(&self, executable: String)
-           -> Result<Option<HealthWithStartTime>, Self::Error>;
+    fn get(&self, executable: String) -> Result<Option<HealthWithStartTime>, Self::Error>;
 
-    fn all(&self)
-           -> Result<HashMap<String, HealthWithStartTime>, Self::Error>;
+    fn all(&self) -> Result<HashMap<String, HealthWithStartTime>, Self::Error>;
 }
 
 #[derive(Error, Debug)]
@@ -33,39 +27,88 @@ pub struct InMemoryExecHealthRepository {
 impl ExecHealthRepository for InMemoryExecHealthRepository {
     type Error = InMemoryExecHealthError;
 
-    fn set(&self, executable: String, health: HealthWithStartTime) -> Result<(), Self::Error> {
-        let mut map = self.health_map.lock().map_err(|_| InMemoryExecHealthError::LockError)?;
-        map.insert(executable, health);
+    fn set(&self, exec_id: String, health: HealthWithStartTime) -> Result<(), Self::Error> {
+        let mut map = self
+            .health_map
+            .lock()
+            .map_err(|_| InMemoryExecHealthError::LockError)?;
+        map.insert(exec_id, health);
         Ok(())
     }
 
     fn get(&self, executable: String) -> Result<Option<HealthWithStartTime>, Self::Error> {
-        let map = self.health_map.lock().map_err(|_| InMemoryExecHealthError::LockError)?;
+        let map = self
+            .health_map
+            .lock()
+            .map_err(|_| InMemoryExecHealthError::LockError)?;
         Ok(map.get(&executable).cloned())
     }
 
     fn all(&self) -> Result<HashMap<String, HealthWithStartTime>, Self::Error> {
-        let map = self.health_map.lock().map_err(|_| InMemoryExecHealthError::LockError)?;
+        let map = self
+            .health_map
+            .lock()
+            .map_err(|_| InMemoryExecHealthError::LockError)?;
         Ok(map.clone())
     }
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
+    use crate::health::health_checker::Healthy;
     use crate::health::with_start_time::HealthWithStartTime;
     use std::collections::HashMap;
     use std::time::SystemTime;
-    use crate::health::health_checker::Healthy;
+
+    #[derive(Debug, Default)]
+    pub struct TestingInMemoryExecHealthRepository {
+        health_map: Arc<Mutex<HashMap<String, Vec<HealthWithStartTime>>>>,
+    }
+
+    impl TestingInMemoryExecHealthRepository {
+        pub fn get_events(
+            &self,
+            executable: String,
+        ) -> Result<Option<Vec<HealthWithStartTime>>, InMemoryExecHealthError> {
+            let map = self
+                .health_map
+                .lock()
+                .map_err(|_| InMemoryExecHealthError::LockError)?;
+            Ok(map.get(&executable).cloned())
+        }
+    }
+
+    impl ExecHealthRepository for TestingInMemoryExecHealthRepository {
+        type Error = InMemoryExecHealthError;
+
+        fn set(&self, exec_id: String, health: HealthWithStartTime) -> Result<(), Self::Error> {
+            let mut map = self
+                .health_map
+                .lock()
+                .map_err(|_| InMemoryExecHealthError::LockError)?;
+            map.entry(exec_id)
+                .or_insert_with(Vec::new) // Initialize with an empty Vec if not present
+                .push(health); // Add the new health to the existing Vec
+            Ok(())
+        }
+
+        // Only implemented to match trait
+        fn get(&self, _executable: String) -> Result<Option<HealthWithStartTime>, Self::Error> {
+            Ok(None)
+        }
+
+        // Only implemented to match trait
+        fn all(&self) -> Result<HashMap<String, HealthWithStartTime>, Self::Error> {
+            Ok(HashMap::new())
+        }
+    }
 
     #[test]
     fn test_set_and_get() {
         let repository = InMemoryExecHealthRepository::default();
         let executable = "test_executable".to_string();
-        let health = HealthWithStartTime::new(
-            Healthy::default().into(),
-            SystemTime::now(),
-        );
+        let health = HealthWithStartTime::new(Healthy::default().into(), SystemTime::now());
         assert!(repository.set(executable.clone(), health.clone()).is_ok());
 
         let retrieved_health = repository.get(executable.clone()).unwrap();
@@ -87,14 +130,8 @@ mod tests {
         let repository = InMemoryExecHealthRepository::default();
         let executable1 = "executable1".to_string();
         let executable2 = "executable2".to_string();
-        let health1 = HealthWithStartTime::new(
-            Healthy::default().into(),
-            SystemTime::now(),
-        );
-        let health2 = HealthWithStartTime::new(
-            Healthy::default().into(),
-            SystemTime::now(),
-        );
+        let health1 = HealthWithStartTime::new(Healthy::default().into(), SystemTime::now());
+        let health2 = HealthWithStartTime::new(Healthy::default().into(), SystemTime::now());
 
         // Set health for multiple executables
         assert!(repository.set(executable1.clone(), health1.clone()).is_ok());
