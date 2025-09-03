@@ -1,104 +1,65 @@
-use crate::agent_control::defaults::{
-    AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-};
-use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
-use tracing::error;
+use std::process::Command;
 
-const NEWRELIC_INFRA_AGENT_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NEWRELIC_INFRA_AGENT_VERSION"), "0.0.0");
-const NR_OTEL_COLLECTOR_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
+use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
+use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use regex::Regex;
 
 pub struct OnHostAgentVersionChecker {
-    agent_version: AgentVersion,
-}
-
-impl OnHostAgentVersionChecker {
-    pub fn checked_new(agent_type_id: AgentTypeID) -> Option<Self> {
-        match retrieve_version(&agent_type_id) {
-            Ok(agent_version) => Some(Self { agent_version }),
-            Err(e) => {
-                error!("error checking agent version: {}", e);
-                None
-            }
-        }
-    }
+    pub(crate) command: String,
+    pub(crate) regex: Option<String>,
 }
 
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
-        Ok(self.agent_version.clone())
-    }
-}
+        let command_data = self.command.split_ascii_whitespace().collect::<Vec<&str>>();
+        let program = command_data[0];
+        let args = command_data.get(1..).unwrap_or(&[]);
 
-fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, VersionCheckError> {
-    match agent_type_id.name() {
-        AGENT_TYPE_NAME_INFRA_AGENT => Ok(AgentVersion {
-            version: NEWRELIC_INFRA_AGENT_VERSION.to_string(),
+        let output = Command::new(program).args(args).output().map_err(|e| {
+            VersionCheckError::Generic(format!("error executing version command: {e}"))
+        })?;
+        let output = String::from_utf8_lossy(&output.stdout);
+
+        let version = if let Some(pattern) = &self.regex {
+            let regex = Regex::new(pattern)
+                .map_err(|e| VersionCheckError::Generic(format!("error compiling regex: {e}")))?;
+
+            let version_match = regex.find(&output).ok_or(VersionCheckError::Generic(
+                "error checking agent version: version not found".to_string(),
+            ))?;
+            version_match.as_str().to_string()
+        } else {
+            output.to_string()
+        };
+
+        Ok(AgentVersion {
+            version: version.as_str().to_string(),
             opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
-        AGENT_TYPE_NAME_NRDOT => Ok(AgentVersion {
-            version: NR_OTEL_COLLECTOR_VERSION.to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
-        _ => Err(VersionCheckError::Generic(format!(
-            "no match found for agent type: {agent_type_id}"
-        ))),
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::sub_agent::identity::AgentIdentity;
-
     use super::*;
 
-    use assert_matches::assert_matches;
+    use rstest::rstest;
 
-    #[test]
-    fn test_agent_version_checker_build() {
-        struct TestCase {
-            name: &'static str,
-            agent_type_id: AgentTypeID,
-            check: fn(&'static str, Option<OnHostAgentVersionChecker>),
+    #[rstest]
+    #[case::command_and_regex("echo \"Some data 1.0.0 Some more data\"", Some(r"\d+\.\d+\.\d+"))]
+    #[case::command_and_regex("echo -n 1.0.0", None)]
+    fn test_check_agent_version(#[case] command: &str, #[case] regex: Option<&str>) {
+        let agent_version = OnHostAgentVersionChecker {
+            command: command.to_string(),
+            regex: regex.map(|r| r.to_string()),
         }
+        .check_agent_version()
+        .unwrap();
 
-        impl TestCase {
-            fn run(self) {
-                let result = OnHostAgentVersionChecker::checked_new(self.agent_type_id);
-                let check = self.check;
-                check(self.name, result);
-            }
-        }
-
-        let test_cases = [
-            TestCase {
-                name: "Version cannot be computed for the superAgent",
-                agent_type_id: AgentIdentity::new_agent_control_identity().agent_type_id,
-                check: |name, result| {
-                    assert!(result.is_none(), "{name}",);
-                },
-            },
-            TestCase {
-                name: "infrastructure agent version is computed correctly ",
-                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
-                    .unwrap(),
-                check: |name, result| {
-                    let r = result.unwrap();
-                    assert_matches!(
-                        r.check_agent_version().unwrap().version.as_str(),
-                        NEWRELIC_INFRA_AGENT_VERSION,
-                        "{name}",
-                    );
-                    assert_matches!(
-                        r.check_agent_version().unwrap().opamp_field.as_str(),
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-                        "{name}",
-                    );
-                },
-            },
-        ];
-        test_cases.into_iter().for_each(|tc| tc.run());
+        assert_eq!(agent_version.version.as_str(), "1.0.0");
+        assert_eq!(
+            agent_version.opamp_field.as_str(),
+            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+        );
     }
 }

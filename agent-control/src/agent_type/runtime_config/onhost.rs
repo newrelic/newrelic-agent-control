@@ -9,6 +9,7 @@ use crate::agent_type::templates::Templateable;
 use super::health_config::OnHostHealthConfig;
 use super::restart_policy::RestartPolicyConfig;
 use super::templateable_value::TemplateableValue;
+use super::version_config::OnHostVersionConfig;
 
 /// The definition for an on-host supervisor.
 ///
@@ -21,6 +22,8 @@ pub struct OnHost {
     pub enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
     pub health: Option<OnHostHealthConfig>,
+    /// Enables and define version checks configuration.
+    pub version: Option<OnHostVersionConfig>,
 }
 
 impl Templateable for OnHost {
@@ -35,6 +38,10 @@ impl Templateable for OnHost {
             health: self
                 .health
                 .map(|h| h.template_with(variables))
+                .transpose()?,
+            version: self
+                .version
+                .map(|v| v.template_with(variables))
                 .transpose()?,
         })
     }

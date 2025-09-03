@@ -1,6 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
-use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::agent_type::runtime_config::version_config::OnHostVersionConfig;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
@@ -49,6 +49,7 @@ pub struct NotStartedSupervisorOnHost {
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
+    version_config: Option<OnHostVersionConfig>,
 }
 
 impl SupervisorStarter for NotStartedSupervisorOnHost {
@@ -113,6 +114,7 @@ impl NotStartedSupervisorOnHost {
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
+        version_config: Option<OnHostVersionConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -121,6 +123,7 @@ impl NotStartedSupervisorOnHost {
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
+            version_config,
         }
     }
 
@@ -165,8 +168,15 @@ impl NotStartedSupervisorOnHost {
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Option<StartedThreadContext> {
-        let onhost_version_checker =
-            OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
+        let Some(version_config) = &self.version_config else {
+            debug!("version checks are disabled for this agent");
+            return None;
+        };
+
+        let onhost_version_checker = OnHostAgentVersionChecker {
+            command: version_config.command.clone(),
+            regex: version_config.regex.clone(),
+        };
 
         Some(spawn_version_checker(
             self.agent_identity.id.to_string(),
@@ -177,7 +187,7 @@ impl NotStartedSupervisorOnHost {
             // Using an enum variant that wraps a type is the same as a function taking the type.
             // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentVersionInfo(x)"
             SubAgentInternalEvent::AgentVersionInfo,
-            VersionCheckerInterval::default(),
+            version_config.interval,
         ))
     }
 
@@ -461,7 +471,7 @@ pub mod tests {
             ctx.cancel_all(true).unwrap();
         }
         let supervisor =
-            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None);
+            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None, None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
@@ -505,8 +515,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -536,8 +551,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -574,8 +594,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -612,8 +637,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -645,8 +675,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -694,8 +729,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
