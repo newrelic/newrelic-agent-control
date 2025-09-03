@@ -17,6 +17,18 @@ use crate::agent_type::{
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct FileSystem(HashMap<String, FileEntry>);
 
+impl FileSystem {
+    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`].
+    ///
+    /// **WARNING**: This must be called **after** the rendering process has finished or else AC will crash!
+    pub fn rendered(self) -> HashMap<PathBuf, String> {
+        self.0
+            .into_values()
+            .map(|v| (v.path, v.content.get()))
+            .collect()
+    }
+}
+
 /// A file entry consists on a path and its content. The path must always be relative,
 /// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
 /// auto-generated directory for that sub-agent).
@@ -35,7 +47,7 @@ impl<'de> Deserialize<'de> for FileSystem {
 
         let map = HashMap::<_, FileEntry>::deserialize(deserializer)?;
         // Perform validations on the provided Paths
-        if let Err(errs) = validate_file_entries(map.values()) {
+        if let Err(errs) = validate_file_entries(map.values().map(|e| &e.path)) {
             Err(Error::custom(errs.join(", ")))
         } else {
             Ok(FileSystem(map))
@@ -62,14 +74,12 @@ impl Templateable for FileEntry {
     }
 }
 
-fn validate_file_entries<'a>(
-    entries: impl Iterator<Item = &'a FileEntry>,
-) -> Result<(), Vec<String>> {
+fn validate_file_entries<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> Result<(), Vec<String>> {
     // All elements are unique in the Path
     let mut seen_paths = HashSet::new();
     let mut errors = Vec::new();
 
-    entries.map(|entry| &entry.path).for_each(|p| {
+    paths.for_each(|p| {
         // Inserting already-inserted items in the hashset evaluates to `false`.
         if !seen_paths.insert(p) {
             let p = p.display();
@@ -129,44 +139,4 @@ mod tests {
         let path = Path::new(path);
         assert!(validation(&escapes_basedir(path)));
     }
-
-    const AGENT_TYPE_WITH_FILESYSTEM: &str = r#"
-namespace: newrelic
-name: io.test.filesystem
-version: 0.1.0
-variables:
-  on_host:
-    file_contents:
-      description: "Contents of the files"
-      type: yaml
-      required: true
-deployment:
-  on_host:
-    filesystem:
-      catted-file:
-        path: "randomdir/randomfile.yaml"
-        content: |
-          ${nr-var:file_contents | indent 2}
-    executables:
-      - path: /Users/davidsanchez/.nix-profile/bin/cat
-        args: >-
-          ${nr-fs:catted-file}
-        restart_policy:
-          backoff_strategy:
-            type: fixed
-            backoff_delay: "10s"
-    "#;
-
-    const FILESYSTEM_VARIABLES: &str = r#"
-on_host:
-    file_contents:
-        mykey: myvalue
-        myint: 4
-        myarray:
-            - 1
-            - 2
-            - 3
-        mymap:
-           mysubkey: mysubvalue
-"#;
 }
