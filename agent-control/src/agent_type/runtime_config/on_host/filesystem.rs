@@ -110,24 +110,23 @@ fn escapes_basedir(path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
 
-    #[test]
-    fn validate_basedir_safety() {
-        let valid_paths = vec![Path::new("valid/path"), Path::new("another/valid/path")];
-        let invalid_paths = vec![Path::new("/absolute/path"), Path::new("..//invalid/path")];
-
-        assert!(
-            valid_paths
-                .into_iter()
-                .map(escapes_basedir)
-                .all(|r| r.is_ok())
-        );
-        assert!(
-            invalid_paths
-                .into_iter()
-                .map(escapes_basedir)
-                .all(|r| r.is_err())
-        );
+    #[rstest]
+    #[case::can_basic_path("valid/path", Result::is_ok)]
+    #[case::can_nested_dirs("another/valid/path", Result::is_ok)]
+    #[case::can_back_one_level("basedir/somedir/../valid/path", Result::is_ok)]
+    #[case::can_change_basedir("basedir/dir/../dir/../../newbasedir/path", Result::is_ok)]
+    #[case::no_absolute("/absolute/path", Result::is_err)]
+    #[case::no_escapes_basedir("..//invalid/path", Result::is_err)]
+    #[case::no_complex_escapes_basedir("basedir/dir/../dir/../../../outdir/path", Result::is_err)]
+    fn validate_basedir_safety(
+        #[case] path: &str,
+        #[case] validation: impl Fn(&Result<(), String>) -> bool,
+    ) {
+        let path = Path::new(path);
+        assert!(validation(&escapes_basedir(path)));
     }
 }
