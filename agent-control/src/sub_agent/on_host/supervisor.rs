@@ -65,7 +65,6 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let (health_publisher, health_consumer) = pub_sub();
 
         // Write the files required for this sub-agent to disk.
-
         self.filesystem_entries
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorStarterError::FileSystem)?;
