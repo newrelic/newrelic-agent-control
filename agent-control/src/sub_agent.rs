@@ -728,6 +728,7 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::definition::AgentTypeDefinition;
     use crate::agent_type::embedded_registry::EmbeddedRegistry;
+    use crate::agent_type::render::persister::config_persister::tests::MockConfigurationPersister;
     use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
     use crate::agent_type::render::renderer::TemplateRenderer;
     use crate::agent_type::variable::constraints::VariableConstraints;
@@ -747,7 +748,6 @@ pub mod tests {
     use rstest::*;
     use std::collections::HashMap;
     use std::ops::Deref;
-    use std::path::PathBuf;
     use std::sync::Arc;
 
     type TestSubAgent = SubAgent<
@@ -1001,7 +1001,6 @@ deployment:
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
-            PathBuf::default(),
         ));
 
         SubAgent::new(
@@ -1083,11 +1082,10 @@ deployment:
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
 
         let effective_agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
-            Arc::new(TestAgent::agent_type_definition().into()),
-            TemplateRenderer::default(),
+            Arc::new(EmbeddedRegistry::from(TestAgent::agent_type_definition())),
+            TemplateRenderer::<MockConfigurationPersister>::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
-            PathBuf::default(),
         ));
 
         let sub_agent = SubAgent::new(
@@ -1536,7 +1534,6 @@ deployment:
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
-            PathBuf::default(),
         ));
 
         let supervisor = sub_agent.init_supervisor();
