@@ -64,6 +64,11 @@ artifacts:
         src: usr/bin/nrdot-collector-host
         dest: artifacts/{{.Arch}}/nr-otel-collector
 
+  # The eBPF agent is not embedded in the agent-control package. Instead, it is
+  # installed via its newrelic-cli recipe with services disabled, allowing
+  # agent-control to manage its orchestration.
+  # name: nr-ebpf-agent
+
   - name: newrelic-auth-cli
     # Version now should be added in goreleaser.yaml global envs
     url: https://github.com/newrelic/newrelic-auth-rs/releases/download/{{.Version | trimv}}/newrelic-auth-cli_{{.Arch}}.tar.gz
