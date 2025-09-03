@@ -184,7 +184,7 @@ where
     }
 
     fn on_connect_failed(&self, err: ConnectionError) {
-        log_connection_error(&err, self.agent_id.clone());
+        log_connection_error(&err);
         self.publish_on_connect_failed(&err);
     }
 
@@ -219,9 +219,7 @@ where
     }
 
     fn get_effective_config(&self) -> Result<EffectiveConfig, Self::Error> {
-        debug!(
-            agent_id = %self.agent_id,
-            "OpAMP get effective config");
+        debug!("OpAMP get effective config");
 
         let effective_config = self
             .effective_config_loader
@@ -229,34 +227,30 @@ where
             .map_err(EffectiveConfigError::Loader)?;
 
         // Not printing the effective config in case it contains sensitive info
-        debug!(
-            agent_id = %self.agent_id,
-            "OpAMP effective config loaded"
-        );
+        debug!("OpAMP effective config loaded");
 
         Ok(effective_config.into())
     }
 }
 
-fn log_connection_error(err: &ConnectionError, agent_id: AgentID) {
+fn log_connection_error(err: &ConnectionError) {
     // Check if the error comes from receiving an undesired HTTP status code
     if let HTTPClientError(UnsuccessfulResponse(http_code, http_reason)) = &err {
         let reason = match http_code {
-            400 => "The request was malformed",
-            401 => "Check for missing or invalid license key",
-            403 => "The account provided is not allowed to use this resource",
-            404 => "The requested resource was not found",
+            400 => "the request was malformed",
+            401 => "check for missing or invalid license key",
+            403 => "the account provided is not allowed to use this resource",
+            404 => "the requested resource was not found",
             415 => "Content-Type or Content-Encoding for the HTTP request was wrong",
-            500 => "Server-side problem",
-            _ => "Reasons unknown",
+            500 => "server-side problem",
+            _ => "unknown",
         };
-        error!(%agent_id, http_code, http_reason, reason,"OpAMP HTTP connection error");
-    } else {
         error!(
-            %agent_id,
-            reason = err.to_string(),
-            "OpAMP HTTP connection error"
-        )
+            http_code,
+            http_reason, "OpAMP HTTP connection error: {reason}"
+        );
+    } else {
+        error!("OpAMP HTTP connection error: {err}")
     }
 }
 
