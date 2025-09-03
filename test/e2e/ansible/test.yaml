@@ -7,18 +7,3 @@
 # Migration use cases
 - name: Agent Control migration from Infra Agent
   import_playbook: migration_infra_to_ac.yaml
-
-#- name: Agents registration/unregistration
-#  import_playbook: agents_registration_unregistration.yaml
-
-#- name: Agent Control valid remote config
-#  import_playbook: agent_control_valid_remote_config.yaml
-#
-#- name: Agent Control invalid remote config
-#  import_playbook: agent_control_invalid_remote_config.yaml
-
-#- name: Sub Agents valid remote config
-#  import_playbook: sub_agent_valid_remote_config.yaml
-#
-#- name: Sub Agents invalid remote config
-#  import_playbook: sub_agent_invalid_remote_config.yaml

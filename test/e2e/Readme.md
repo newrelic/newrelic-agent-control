@@ -1,7 +1,7 @@
 # Local execution using vagrant
 
 ## Requirements
-- Vagrant (+Parallels and [parallels plugin](https://kb.parallels.com/122843) for Mac M1/M2).
+- Vagrant (+Virtualbox).
 - Ansible `brew install ansible`.
 - The ansible playbooks for testing use the [New Relic Ansible Role](https://github.com/newrelic/ansible-install) under the hood, make sure you
   have the corresponding requirements installed: `ansible-galaxy collection install ansible.windows ansible.utils`.
@@ -12,13 +12,14 @@ Spin up a vagrant VM. You may use a `Vagrantfile` similar to:
 
 ```ruby
 Vagrant.configure("2") do |config|
-  config.vm.box = "bento/ubuntu-22.04-arm64"
-  config.vm.define "ubuntu22"
-  config.vm.hostname = "ubuntu22"
-  config.vm.network "private_network", ip: "10.0.2.27"
-  config.vm.provider :parallels do |v|
-      v.name = "ubuntu22"
-  end
+  config.vm.box = "bento/ubuntu-22.04"
+  config.vm.provider "virtualbox"
+  require 'time'
+  current_time = Time.now.strftime("%Y%m%d%H%M%S")
+  config.vm.hostname = "vg-#{current_time}"
+  config.vm.provision "shell", privileged: false, inline: <<-SHELL
+    # provisioning script
+  SHELL
 end
 ```
 
