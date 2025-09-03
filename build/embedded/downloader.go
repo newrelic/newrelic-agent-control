@@ -28,6 +28,8 @@ type DefaultDownloader struct {
 
 func (d DefaultDownloader) Download(url string) (string, error) {
 
+    fmt.Println("URLS PEPE: " + url)
+
 	destinationFolder, err := createTemporaryFolder()
 	if err != nil {
 		return "", errors.Join(errDownloadingArtifact, err)

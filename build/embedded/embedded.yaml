@@ -2,13 +2,13 @@
 destination: ./artifacts/{{.Arch}}
 
 # Used as defaults for all Newrelic binaries below, can be overridden. Template.
-url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+url: d
 
 # stagingUrl will be used if the download is invoked with -staging. Template.
-staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
+staging_url: d
 
 # List of integrations to download.
-# Individual entries may override any of the values defined above.
+# Individual entries may override any of the values defined abodve.
 artifacts:
   - name: newrelic-infra
     # Version now should be added in goreleaser.yaml global envs
