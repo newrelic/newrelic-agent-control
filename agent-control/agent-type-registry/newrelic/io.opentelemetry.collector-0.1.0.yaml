@@ -77,6 +77,10 @@ deployment:
       http:
         path: "${nr-var:health_check.path}"
         port: ${nr-var:health_check.port}
+    version:
+      command: /usr/bin/nrdot-collector-host -v
+      regex: \d+\.\d+\.\d+
+      interval: 60s
     executables:
       - # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
         path: /usr/bin/nrdot-collector-host

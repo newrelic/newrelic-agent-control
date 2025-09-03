@@ -175,6 +175,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             executables,
             Context::new(),
             on_host.health,
+            on_host.version,
         )
         .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 

@@ -112,6 +112,10 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
+    version:
+      command: /usr/bin/newrelic-infra --version
+      regex: \d+\.\d+\.\d+
+      interval: 60s
     executables:
       - path: /usr/bin/newrelic-infra
         args: >-

@@ -23,6 +23,10 @@ variables:
       default: "default"
 deployment:
   on_host:
+    version:
+      command: echo "Some data 1.0.0 Some data"
+      regex: \d+\.\d+\.\d+
+      interval: 10s
     executables:
       - path: {path}
         args: {args}
@@ -93,4 +97,37 @@ deployment:
     .unwrap();
 
     "test/test:0.0.1".to_string()
+}
+
+pub fn get_agent_type_without_regex(local_dir: PathBuf, path: &str, args: &str) -> String {
+    let agent_type_file_path = local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME);
+
+    std::fs::create_dir_all(agent_type_file_path.parent().unwrap()).unwrap();
+    let mut local_file =
+        File::create(agent_type_file_path.clone()).expect("failed to create local config file");
+    let custom_agent_type = format!(
+        r#"
+namespace: newrelic
+name: com.newrelic.custom_agent
+version: 0.1.0
+variables:
+  on_host:
+    fake_variable:
+      description: "fake variable to verify remote configs"
+      type: string
+      required: false
+      default: "default"
+deployment:
+  on_host:
+    version:
+      command: echo -n 1.0.0
+      interval: 10s
+    executables:
+      - path: {path}
+        args: {args}
+"#
+    );
+    write!(local_file, "{custom_agent_type}").unwrap();
+
+    "newrelic/com.newrelic.custom_agent:0.1.0".to_string()
 }
