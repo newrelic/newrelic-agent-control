@@ -115,7 +115,7 @@ fn validate_file_entries<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> Result
             errors.push(format!("All paths must be relative. Found absolute: {p}"));
         }
         // Directories must not escape the base directory
-        if let Err(e) = escapes_basedir(p) {
+        if let Err(e) = check_basedir_escape_safety(p) {
             errors.push(e);
         }
     });
@@ -127,7 +127,11 @@ fn validate_file_entries<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> Result
     }
 }
 
-fn escapes_basedir(path: &Path) -> Result<(), String> {
+/// Makes sure the passed directory goes not traverse outside the directory where it's contained.
+/// E.g. via relative path specificers like `./../../some_path`.
+///
+/// Returns an error string if this property does not hold.
+fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     path.components()
         .try_fold(0, |depth, comp| match comp {
             Component::Normal(_) => Ok(depth + 1),
@@ -161,6 +165,6 @@ mod tests {
         #[case] validation: impl Fn(&Result<(), String>) -> bool,
     ) {
         let path = Path::new(path);
-        assert!(validation(&escapes_basedir(path)));
+        assert!(validation(&check_basedir_escape_safety(path)));
     }
 }
