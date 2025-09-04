@@ -21,7 +21,8 @@ pub struct OnHost {
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
-    pub health: Option<OnHostHealthConfig>,
+    #[serde(default)]
+    pub health: OnHostHealthConfig,
     /// Enables and define version checks configuration.
     pub version: Option<OnHostVersionConfig>,
 }
@@ -35,10 +36,7 @@ impl Templateable for OnHost {
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<_>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
-            health: self
-                .health
-                .map(|h| h.template_with(variables))
-                .transpose()?,
+            health: self.health.template_with(variables)?,
             version: self
                 .version
                 .map(|v| v.template_with(variables))
@@ -116,15 +114,16 @@ impl Templateable for Env {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::agent_type::runtime_config::health_config::{HealthCheckTimeout, OnHostHealthCheck};
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
     };
     use crate::agent_type::trivial_value::FilePathWithContent;
     use crate::agent_type::variable::Variable;
+    use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
     use serde_yaml::Number;
     use std::collections::HashMap;
-
-    use super::*;
 
     #[test]
     fn test_basic_parsing() {
@@ -611,6 +610,58 @@ restart_policy:
         };
         let actual_output = input.template_with(&variables).unwrap();
         assert_eq!(actual_output, expected_output);
+    }
+
+    #[test]
+    fn test_default_health_config_when_omitted() {
+        let yaml_without_health = r#"
+executables:
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
+"#;
+
+        let on_host: OnHost = serde_yaml::from_str(yaml_without_health).unwrap();
+
+        // If no health is specified the default should be ExecHealth with default values
+        let default_health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::default(),
+            initial_delay: InitialDelay::default(),
+            timeout: HealthCheckTimeout::default(),
+            check: OnHostHealthCheck::ExecHealth,
+        };
+
+        // Create a default OnHost instance to compare
+        let default_on_host = OnHost {
+            executables: vec![Executable {
+                id: TemplateableValue::from_template("otelcol".to_string()),
+                path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
+                args: TemplateableValue::from_template(
+                    "-c ${nr-var:deployment.k8s.image}".to_string(),
+                ),
+                restart_policy: RestartPolicyConfig {
+                    backoff_strategy: BackoffStrategyConfig {
+                        backoff_type: TemplateableValue::from_template("fixed".to_string()),
+                        backoff_delay: TemplateableValue::from_template("1s".to_string()),
+                        max_retries: TemplateableValue::from_template("3".to_string()),
+                        last_retry_interval: TemplateableValue::from_template("30s".to_string()),
+                    },
+                    restart_exit_codes: vec![],
+                },
+                env: Env::default(),
+            }],
+            enable_file_logging: TemplateableValue::default(),
+            health: default_health_config,
+        };
+
+        // Compare the default OnHost instance with the parsed instance
+        assert_eq!(on_host, default_on_host);
     }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
