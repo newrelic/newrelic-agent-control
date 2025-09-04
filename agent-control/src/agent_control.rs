@@ -122,8 +122,8 @@ where
     }
 
     pub fn run(self) -> Result<(), AgentError> {
-        let span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
-        let _span_guard = span.enter();
+        let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
+        let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
         // the result as read by the `AgentControlConfigLoader`.
@@ -181,7 +181,7 @@ where
             .inspect_err(|err| error!("Error executing Agent Control updater: {err}"));
 
         info!("Agents supervisor runtime successfully started");
-        drop(_span_guard); // The span representing agent start finishes before entering in the `process_events` loop. Otherwise the span would be open while Agent Control runs.
+        drop(_ac_startup_span_guard); // The span representing agent start finishes before entering in the `process_events` loop. Otherwise the span would be open while Agent Control runs.
 
         self.process_events(running_sub_agents);
 
