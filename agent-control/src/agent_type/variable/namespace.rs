@@ -36,8 +36,8 @@ impl Namespace {
     /// Encapsulates the secrets retrieved from K8s Secrets
     const K8S_SECRET: &'static str = "kubesec";
 
-    pub fn namespaced_name(&self, name: &str) -> NamespacedVariableName {
-        format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name)
+    pub fn namespaced_name(&self, name: impl AsRef<str>) -> NamespacedVariableName {
+        format!("{}{}{}", self, Self::PREFIX_NS_SEPARATOR, name.as_ref())
     }
 
     pub fn is_secret_variable(s: &str) -> bool {
