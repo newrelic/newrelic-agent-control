@@ -6,8 +6,13 @@ use std::{
 use serde::{Deserialize, Deserializer};
 
 use crate::agent_type::{
-    definition::Variables, error::AgentTypeError,
-    runtime_config::templateable_value::TemplateableValue, templates::Templateable,
+    agent_attributes::AgentAttributes,
+    definition::Variables,
+    error::AgentTypeError,
+    runtime_config::templateable_value::TemplateableValue,
+    templates::Templateable,
+    trivial_value::TrivialValue,
+    variable::{Variable, namespace::Namespace},
 };
 
 /// Represents the file system configuration for the deployment of an agent.
@@ -66,11 +71,30 @@ impl Templateable for FileSystem {
 }
 
 impl Templateable for FileEntry {
+    /// Performs the templating of the defined file entries for this sub-agent.
+    ///
+    /// The paths present in the FileEntry structures are always assumed to start from the
+    /// sub-agent's dedicated directory.
+    ///
+    /// Besides, we know the paths are relative and don't go above their base dir (e.g. `/../..`)
+    /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
+    /// provided base dir to them, as it must be defined in the variables passed to the sub-agent.
+    /// If the value of the sub-agent's dedicated directory is missing, the templating fails.
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
-            path: self.path,
-            content: self.content.template_with(variables)?,
-        })
+        if let Some(TrivialValue::String(generated_dir)) = variables
+            .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR))
+            .and_then(Variable::get_final_value)
+        {
+            let rendered_file_entry = Self {
+                path: PathBuf::from(generated_dir).join(self.path),
+                content: self.content.template_with(variables)?,
+            };
+            Ok(rendered_file_entry)
+        } else {
+            Err(AgentTypeError::MissingValue(
+                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+            ))
+        }
     }
 }
 

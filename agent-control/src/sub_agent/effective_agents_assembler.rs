@@ -166,10 +166,11 @@ where
         )?;
 
         // Build the agent attributes
-        let attributes = AgentAttributes {
-            agent_id: agent_identity.id.to_string(),
-            auto_generated_dir: self.auto_generated_dir.clone(),
-        };
+        let attributes = AgentAttributes::try_new(
+            agent_identity.id.to_owned(),
+            self.auto_generated_dir.to_path_buf(),
+        )
+        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
@@ -319,15 +320,12 @@ pub(crate) mod tests {
 
     // Returns the expected agent_attributes given an agent_id.
     fn testing_agent_attributes(agent_id: &AgentID, auto_generated_dir: &Path) -> AgentAttributes {
-        AgentAttributes {
-            agent_id: agent_id.to_string(),
-            auto_generated_dir: auto_generated_dir.to_path_buf(),
-        }
+        AgentAttributes::try_new(agent_id.to_owned(), auto_generated_dir.to_path_buf()).unwrap()
     }
 
     #[test]
     fn test_assemble_agents() {
-        //Mocks
+        // Mocks
         let mut registry = MockAgentRegistry::new();
         let mut renderer = MockRenderer::new();
 
