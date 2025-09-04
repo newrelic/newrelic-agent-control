@@ -48,7 +48,7 @@ pub struct NotStartedSupervisorOnHost<E: ExecHealthRepository + Send + Sync + 's
     pub(crate) executables: Vec<ExecutableData>,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
-    pub(super) health_config: Option<OnHostHealthConfig>,
+    pub(super) health_config: OnHostHealthConfig,
     pub(super) exec_health_repository: Arc<E>,
 }
 
@@ -115,7 +115,7 @@ impl<E: ExecHealthRepository + Send + Sync + 'static> NotStartedSupervisorOnHost
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
-        health_config: Option<OnHostHealthConfig>,
+        health_config: OnHostHealthConfig,
         exec_health_repository: Arc<E>,
     ) -> Self {
         NotStartedSupervisorOnHost {
@@ -142,32 +142,27 @@ impl<E: ExecHealthRepository + Send + Sync + 'static> NotStartedSupervisorOnHost
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
-        if let Some(health_config) = &self.health_config {
-            let client_timeout = Duration::from(health_config.clone().timeout);
-            let http_config =
-                HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
-            let http_client = HttpClient::new(http_config).map_err(|err| {
-                HealthCheckerError::Generic(format!("could not build the http client: {err}"))
-            })?;
+        let client_timeout = Duration::from(self.health_config.clone().timeout);
+        let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
+        let http_client = HttpClient::new(http_config).map_err(|err| {
+            HealthCheckerError::Generic(format!("could not build the http client: {err}"))
+        })?;
 
-            let health_checker = OnHostHealthChecker::try_new(
-                self.exec_health_repository.clone(),
-                http_client,
-                health_config.clone(),
-                start_time,
-            )?;
-            let started_thread_context = spawn_health_checker(
-                self.agent_identity.id.clone(),
-                health_checker,
-                sub_agent_internal_publisher,
-                health_config.interval,
-                health_config.initial_delay,
-                start_time,
-            );
-            return Ok(Some(started_thread_context));
-        }
-        debug!("health checks are disabled for this agent");
-        Ok(None)
+        let health_checker = OnHostHealthChecker::try_new(
+            self.exec_health_repository.clone(),
+            http_client,
+            self.health_config.clone(),
+            start_time,
+        )?;
+        let started_thread_context = spawn_health_checker(
+            self.agent_identity.id.clone(),
+            health_checker,
+            sub_agent_internal_publisher,
+            self.health_config.interval,
+            self.health_config.initial_delay,
+            start_time,
+        );
+        Ok(Some(started_thread_context))
     }
 
     pub fn start_version_checker(
@@ -503,7 +498,7 @@ pub mod tests {
             agent_identity,
             executable_data,
             ctx,
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -555,7 +550,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -593,7 +588,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -638,7 +633,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -683,7 +678,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -723,7 +718,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             Arc::new(exec_health_repository),
         );
 
@@ -779,7 +774,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::new(),
-            None,
+            OnHostHealthConfig::default(),
             exec_health_repository.clone(),
         );
 

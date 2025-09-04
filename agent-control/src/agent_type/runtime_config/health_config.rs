@@ -16,7 +16,7 @@ const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 ///
 /// This structure includes parameters to define intervals between health checks,
 /// timeouts for checks, and the specific health check method—either HTTP or execute command.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
     #[serde(default)]
@@ -31,7 +31,7 @@ pub struct OnHostHealthConfig {
     pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
-    #[serde(flatten)]
+    #[serde(flatten, default)]
     pub(crate) check: OnHostHealthCheck,
 }
 
@@ -42,9 +42,10 @@ pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum OnHostHealthCheck {
+    #[default]
     ExecHealth,
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
