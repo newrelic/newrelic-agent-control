@@ -181,7 +181,7 @@ where
             .inspect_err(|err| error!("Error executing Agent Control updater: {err}"));
 
         info!("Agents supervisor runtime successfully started");
-        drop(_span_guard);
+        drop(_span_guard); // The span representing agent start finishes before entering in the `process_events` loop. Otherwise the span would be open while Agent Control runs.
 
         self.process_events(running_sub_agents);
 
