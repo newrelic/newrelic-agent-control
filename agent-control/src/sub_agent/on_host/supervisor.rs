@@ -434,7 +434,7 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::Health;
+    use crate::health::health_checker::{HEALTH_CHECKER_THREAD_NAME, Health};
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use crate::sub_agent::on_host::health::repository::InMemoryExecHealthRepository;
@@ -558,8 +558,12 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
     }
@@ -596,8 +600,12 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
     }
@@ -641,8 +649,12 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
         assert!(logs_with_scope_contain(
@@ -726,8 +738,12 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
 
@@ -782,8 +798,12 @@ pub mod tests {
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
 
