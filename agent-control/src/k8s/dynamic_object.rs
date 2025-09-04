@@ -152,10 +152,10 @@ impl DynamicObjectManager {
 
         let result = api.delete(name, &DeleteParams::default()).await;
 
-        if let Err(Error::Api(api)) = result.as_ref() {
-            if api.clone().code == 404 {
-                return Ok(Either::Right(Status::success()));
-            }
+        if let Err(Error::Api(api)) = result.as_ref()
+            && api.clone().code == 404
+        {
+            return Ok(Either::Right(Status::success()));
         }
 
         let either = result?;

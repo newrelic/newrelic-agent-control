@@ -82,14 +82,13 @@ status_time_unix_nano: 1725444001
     );
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if health_status.healthy
-                && health_status.status == "healthy-message"
-                && health_status.start_time_unix_nano == 1725444000
-                && health_status.status_time_unix_nano == 1725444001
-            {
-                return Ok(());
-            }
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && health_status.healthy
+            && health_status.status == "healthy-message"
+            && health_status.start_time_unix_nano == 1725444000
+            && health_status.status_time_unix_nano == 1725444001
+        {
+            return Ok(());
         }
         Err("Healthy status not found".into())
     });
@@ -107,15 +106,14 @@ status_time_unix_nano: 1725444002
     );
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if !health_status.healthy
-                && health_status.status == "unhealthy-message"
-                && health_status.last_error == "error-message"
-                && health_status.start_time_unix_nano == 1725444000
-                && health_status.status_time_unix_nano == 1725444002
-            {
-                return Ok(());
-            }
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && !health_status.healthy
+            && health_status.status == "unhealthy-message"
+            && health_status.last_error == "error-message"
+            && health_status.start_time_unix_nano == 1725444000
+            && health_status.status_time_unix_nano == 1725444002
+        {
+            return Ok(());
         }
         Err("Unhealthy status not found".into())
     });
@@ -186,10 +184,11 @@ deployment:
         get_instance_id(&AgentID::try_from("test-agent").unwrap(), base_paths);
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if health_status.healthy && health_status.status == "healthy-message" {
-                return Ok(());
-            }
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && health_status.healthy
+            && health_status.status == "healthy-message"
+        {
+            return Ok(());
         }
         Err("Healthy status not found".into())
     });
@@ -202,10 +201,11 @@ deployment:
     });
 
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if !health_status.healthy && health_status.status == "unhealthy-message" {
-                return Ok(());
-            }
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && !health_status.healthy
+            && health_status.status == "unhealthy-message"
+        {
+            return Ok(());
         }
         Err("Unhealthy status not found".into())
     });
