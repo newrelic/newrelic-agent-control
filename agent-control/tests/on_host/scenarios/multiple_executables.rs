@@ -17,7 +17,7 @@ use newrelic_agent_control::agent_control::{
 use tempfile::tempdir;
 
 #[test]
-fn onhost_subagent_multiple_executables_config_one_ok_one_ko() {
+fn onhost_subagent_multiple_executables_some_failed() {
     let mut opamp_server = FakeServer::start_new();
 
     let local_dir = tempdir().expect("failed to create local temp dir");
