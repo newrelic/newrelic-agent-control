@@ -43,7 +43,9 @@ pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
+#[allow(clippy::enum_variant_names)]
 pub(crate) enum OnHostHealthCheck {
+    ExecHealth,
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
     #[serde(rename = "file")]
@@ -180,6 +182,7 @@ impl Templateable for OnHostHealthConfig {
 impl Templateable for OnHostHealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
+            OnHostHealthCheck::ExecHealth => OnHostHealthCheck::ExecHealth,
             OnHostHealthCheck::HttpHealth(conf) => {
                 let health_conf = HttpHealth {
                     host: conf.host.template_with(variables)?,

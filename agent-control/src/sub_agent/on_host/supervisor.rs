@@ -153,8 +153,12 @@ impl<E: ExecHealthRepository + Send + Sync + 'static> NotStartedSupervisorOnHost
                 HealthCheckerError::Generic(format!("could not build the http client: {err}"))
             })?;
 
-            let health_checker =
-                OnHostHealthChecker::try_new(http_client, health_config.clone(), start_time)?;
+            let health_checker = OnHostHealthChecker::try_new(
+                self.exec_health_repository.clone(),
+                http_client,
+                health_config.clone(),
+                start_time,
+            )?;
             let started_thread_context = spawn_health_checker(
                 self.agent_identity.id.clone(),
                 health_checker,
@@ -810,9 +814,9 @@ pub mod tests {
             Health::Healthy(Healthy::default()),
             Health::Healthy(Healthy::default()),
             Health::Healthy(Healthy::default()),
-            Health::Unhealthy(
-                Unhealthy::new("supervisor exceeded its defined restart policy".to_string()).into(),
-            ),
+            Health::Unhealthy(Unhealthy::new(
+                "supervisor exceeded its defined restart policy".to_string(),
+            )),
         ]
         .into_iter();
 
