@@ -127,7 +127,7 @@ pub fn load_env_vars() -> HashMap<String, Variable> {
     std::env::vars_os()
         .map(|(k, v)| {
             (
-                Namespace::EnvironmentVariable.namespaced_name(&k.to_string_lossy()),
+                Namespace::EnvironmentVariable.namespaced_name(k.to_string_lossy()),
                 Variable::new_final_string_variable(v.to_string_lossy().to_string()),
             )
         })

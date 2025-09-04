@@ -1,26 +1,54 @@
 use std::{collections::HashMap, path::PathBuf};
 
+use thiserror::Error;
+use tracing::debug;
+
+use crate::agent_control::agent_id::AgentID;
+
 use super::variable::{Variable, namespace::Namespace};
 
 /// contains any attribute from the sub-agent that is used to build or modify variables used to template the AgentType.
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct AgentAttributes {
     /// sub-agent Agent ID
-    pub agent_id: String,
-    pub auto_generated_dir: PathBuf,
+    agent_id: String,
+    auto_generated_dir: PathBuf,
 }
 
+#[derive(Debug, Error)]
+#[error("Failed to create AgentAttributes: {0}")]
+pub struct AgentAttributesCreateError(String);
+
 impl AgentAttributes {
-    const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
-    const GENERATED_DIR: &'static str = "generated_dir";
+    pub const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
+    pub const GENERATED_DIR: &'static str = "generated_dir";
+
+    pub fn try_new(
+        agent_id: AgentID,
+        auto_generated_dir: PathBuf,
+    ) -> Result<Self, AgentAttributesCreateError> {
+        if let AgentID::SubAgent(agent_id) = agent_id {
+            let auto_generated_dir = auto_generated_dir.join(&agent_id);
+            debug!(id = %agent_id, auto_generated_dir_path = %auto_generated_dir.display());
+            Ok(Self {
+                agent_id,
+                auto_generated_dir,
+            })
+        } else {
+            Err(AgentAttributesCreateError("Used reserved Agent ID".into()))
+        }
+    }
+
+    pub fn agent_id_str(&self) -> &String {
+        &self.agent_id
+    }
+
+    pub fn auto_generated_dir(&self) -> &PathBuf {
+        &self.auto_generated_dir
+    }
 
     /// returns the variables from the sub-agent attributes source 'nr-sub'.
     pub fn sub_agent_variables(&self) -> HashMap<String, Variable> {
-        let auto_generated_subagent_dir = self
-            .auto_generated_dir
-            .join(&self.agent_id)
-            .to_string_lossy()
-            .to_string();
         HashMap::from([
             (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
@@ -28,7 +56,9 @@ impl AgentAttributes {
             ),
             (
                 Namespace::SubAgent.namespaced_name(Self::GENERATED_DIR),
-                Variable::new_final_string_variable(auto_generated_subagent_dir),
+                Variable::new_final_string_variable(
+                    self.auto_generated_dir.to_string_lossy().to_string(),
+                ),
             ),
         ])
     }
