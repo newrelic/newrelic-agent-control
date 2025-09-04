@@ -38,7 +38,7 @@ fn main() -> ExitCode {
         }
     };
 
-    match _main(agent_control_config, tracer) {
+    match _main(*agent_control_config, tracer) {
         Err(e) => {
             error!("The agent control main process exited with an error: {e}");
             ExitCode::FAILURE

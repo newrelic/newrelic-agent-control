@@ -10,7 +10,7 @@ pub enum K8sError {
     Generic(String),
 
     #[error("the kube client returned an error: `{0}`")]
-    KubeRs(#[from] kube::Error),
+    KubeRs(Box<kube::Error>),
 
     #[error("it is not possible to read kubeconfig: `{0}`")]
     UnableToSetupClientKubeconfig(#[from] KubeconfigError),
@@ -20,7 +20,7 @@ pub enum K8sError {
 
     // We need to add the debug info since the string representation of CommitError hide the source of the error
     #[error("cannot post object `{0:?}`")]
-    CommitError(#[from] api::entry::CommitError),
+    CommitError(Box<api::entry::CommitError>),
 
     #[error("cannot patch object {0} with `{1}`")]
     PatchError(String, String),
@@ -57,6 +57,18 @@ pub enum K8sError {
 
     #[error("api resource kind not present in the cluster: {0}")]
     MissingAPIResource(String),
+}
+
+impl From<kube::Error> for K8sError {
+    fn from(err: kube::Error) -> Self {
+        K8sError::KubeRs(Box::new(err))
+    }
+}
+
+impl From<api::entry::CommitError> for K8sError {
+    fn from(err: api::entry::CommitError) -> Self {
+        K8sError::CommitError(Box::new(err))
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
