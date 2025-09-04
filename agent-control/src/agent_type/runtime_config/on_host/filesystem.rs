@@ -34,28 +34,53 @@ impl FileSystem {
     }
 }
 
-/// A file entry consists on a path and its content. The path must always be relative,
-/// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
-/// auto-generated directory for that sub-agent).
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
-struct FileEntry {
-    path: PathBuf,
-    content: TemplateableValue<String>,
-}
-
 impl<'de> Deserialize<'de> for FileSystem {
     fn deserialize<D>(deserializer: D) -> Result<FileSystem, D::Error>
     where
         D: Deserializer<'de>,
     {
+        let entries = HashMap::<String, FileEntry>::deserialize(deserializer)?;
+        if let Err(e) = validate_unique_paths(entries.values().map(|e| &e.path)) {
+            return Err(serde::de::Error::custom(format!(
+                "Duplicate file paths are not allowed: {}",
+                e.display()
+            )));
+        }
+        Ok(Self(entries))
+    }
+}
+
+/// A file entry consists on a path and its content. The path must always be relative,
+/// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
+/// auto-generated directory for that sub-agent).
+#[derive(Debug, Default, Clone, PartialEq)]
+struct FileEntry {
+    path: PathBuf,
+    content: TemplateableValue<String>,
+}
+
+impl<'de> Deserialize<'de> for FileEntry {
+    fn deserialize<D>(deserializer: D) -> Result<FileEntry, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         use serde::de::Error;
 
-        let map = HashMap::<_, FileEntry>::deserialize(deserializer)?;
+        #[derive(Deserialize)]
+        struct PreValidationFileEntry {
+            path: PathBuf,
+            content: TemplateableValue<String>,
+        }
+
+        let entry = PreValidationFileEntry::deserialize(deserializer)?;
         // Perform validations on the provided Paths
-        if let Err(errs) = validate_file_entries(map.values().map(|e| &e.path)) {
+        if let Err(errs) = validate_file_entry_path(&entry.path) {
             Err(Error::custom(errs.join(", ")))
         } else {
-            Ok(FileSystem(map))
+            Ok(Self {
+                path: entry.path,
+                content: entry.content,
+            })
         }
     }
 }
@@ -98,27 +123,27 @@ impl Templateable for FileEntry {
     }
 }
 
-fn validate_file_entries<'a>(paths: impl Iterator<Item = &'a PathBuf>) -> Result<(), Vec<String>> {
-    // All elements are unique in the Path
+fn validate_unique_paths<'a>(
+    mut paths: impl Iterator<Item = &'a PathBuf>,
+) -> Result<(), &'a PathBuf> {
     let mut seen_paths = HashSet::new();
+    // Inserting already-inserted items in the hashset evaluates to `false`.
+    paths.try_for_each(|p| if seen_paths.insert(p) { Ok(()) } else { Err(p) })
+}
+
+fn validate_file_entry_path(path: &Path) -> Result<(), Vec<String>> {
     let mut errors = Vec::new();
 
-    paths.for_each(|p| {
-        // Inserting already-inserted items in the hashset evaluates to `false`.
-        if !seen_paths.insert(p) {
-            let p = p.display();
-            errors.push(format!("All paths must be unique. Found duplicate: {p}"));
-        }
-        // Absolute paths are not permitted
-        else if !p.is_relative() {
-            let p = p.display();
-            errors.push(format!("All paths must be relative. Found absolute: {p}"));
-        }
-        // Directories must not escape the base directory
-        if let Err(e) = check_basedir_escape_safety(p) {
-            errors.push(e);
-        }
-    });
+    if !path.is_relative() {
+        let p = path.display();
+        errors.push(format!(
+            "Only relative paths are allowed. Found absolute: {p}"
+        ));
+    }
+    // Paths must not escape the base directory
+    if let Err(e) = check_basedir_escape_safety(path) {
+        errors.push(e);
+    }
 
     if errors.is_empty() {
         Ok(())
@@ -166,5 +191,60 @@ mod tests {
     ) {
         let path = Path::new(path);
         assert!(validation(&check_basedir_escape_safety(path)));
+    }
+
+    #[test]
+    fn valid_filepath_rendering() {
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+            Variable::new_final_string_variable("/base/dir"),
+        )]);
+
+        let file_entry = FileEntry {
+            path: PathBuf::from("my/file/path"),
+            content: TemplateableValue::new("some content".to_string()),
+        };
+
+        let rendered = file_entry.template_with(&variables);
+        assert!(rendered.is_ok());
+        assert_eq!(
+            rendered.unwrap().path,
+            PathBuf::from("/base/dir/my/file/path")
+        );
+    }
+
+    #[test]
+    fn invalid_filepath_rendering_nonexisting_subagent_basepath() {
+        let variables = Variables::default();
+
+        let file_entry = FileEntry {
+            path: PathBuf::from("my/file/path"),
+            content: TemplateableValue::new("some content".to_string()),
+        };
+
+        let rendered = file_entry.template_with(&variables);
+        assert!(rendered.is_err());
+        let rendered_err = rendered.unwrap_err();
+        assert!(matches!(rendered_err, AgentTypeError::MissingValue(_)));
+        assert_eq!(
+            rendered_err.to_string(),
+            format!(
+                "missing value for key: `{}`",
+                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR)
+            )
+        );
+    }
+
+    #[rstest]
+    #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
+    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("absolute: /absolute/path")))]
+    fn file_entry_parsing(
+        #[case] path: &str,
+        #[case] validation: impl Fn(Result<FileEntry, serde_yaml::Error>) -> bool,
+    ) {
+        let yaml = format!("path: \"{}\"\ncontent: \"some random content\"", path);
+        let parsed = serde_yaml::from_str::<FileEntry>(&yaml);
+        let parsed_display = format!("{parsed:?}");
+        assert!(validation(parsed), "{}", parsed_display);
     }
 }

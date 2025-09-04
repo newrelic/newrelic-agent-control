@@ -56,14 +56,14 @@ impl VariableDefinition {
 }
 
 impl Variable {
-    pub fn new_final_string_variable(final_value: String) -> Self {
+    pub fn new_final_string_variable(final_value: impl ToString) -> Self {
         Self {
             description: String::new(),
             variable_type: VariableType::String(StringFields {
                 inner: Fields {
                     required: false,
                     default: None,
-                    final_value: Some(final_value),
+                    final_value: Some(final_value.to_string()),
                 },
                 variants: Default::default(),
             }),
