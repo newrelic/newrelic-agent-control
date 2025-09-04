@@ -101,8 +101,8 @@ impl CommandOSStarted {
 
         if let Some(l) = self.loggers.take() {
             let (out, err) = l.into_loggers();
-            stdout_loggers.push(Logger::File(out, self.agent_id.clone()));
-            stderr_loggers.push(Logger::File(err, self.agent_id.clone()));
+            stdout_loggers.push(Logger::File(Box::new(out), self.agent_id.clone()));
+            stderr_loggers.push(Logger::File(Box::new(err), self.agent_id.clone()));
         };
 
         // Read stdout and send to the channel

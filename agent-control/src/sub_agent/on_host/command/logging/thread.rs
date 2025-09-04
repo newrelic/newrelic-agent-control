@@ -175,7 +175,7 @@ mod tests {
         let agent_id = AgentID::try_from("test-agent").unwrap();
         let mut temp_file = tempfile().unwrap();
         let file_logger = Logger::File(
-            FileLogger::from(temp_file.try_clone().unwrap()),
+            Box::new(FileLogger::from(temp_file.try_clone().unwrap())),
             agent_id.clone(),
         );
 

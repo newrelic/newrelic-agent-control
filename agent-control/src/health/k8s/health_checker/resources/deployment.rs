@@ -56,13 +56,13 @@ impl K8sHealthDeployment {
             .ok_or_else(|| missing_field_error(deployment, name.as_str(), ".status"))?;
 
         // The deployment is unhealthy if any of the pods are unavailable, i.e. not running or not ready.
-        if let Some(unavailable_replicas) = status.unavailable_replicas {
-            if unavailable_replicas > 0 {
-                return Ok(Unhealthy::new(format!(
-                    "Deployment `{name}`: has {unavailable_replicas} unavailable replicas"
-                ))
-                .into());
-            }
+        if let Some(unavailable_replicas) = status.unavailable_replicas
+            && unavailable_replicas > 0
+        {
+            return Ok(Unhealthy::new(format!(
+                "Deployment `{name}`: has {unavailable_replicas} unavailable replicas"
+            ))
+            .into());
         };
 
         let desired_replicas = deployment

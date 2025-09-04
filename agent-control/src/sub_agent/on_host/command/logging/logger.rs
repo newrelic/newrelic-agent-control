@@ -6,7 +6,7 @@ use std::thread::JoinHandle;
 use tracing::{debug, info};
 
 pub(crate) enum Logger {
-    File(FileLogger, AgentID),
+    File(Box<FileLogger>, AgentID),
     Stdout(AgentID),
     Stderr(AgentID),
 }

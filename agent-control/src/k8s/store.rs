@@ -228,7 +228,7 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .once()
-            .returning(move |_, _, _| Err(K8sError::KubeRs(kube::Error::TlsRequired)));
+            .returning(move |_, _, _| Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired))));
 
         let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
@@ -291,7 +291,9 @@ pub mod tests {
         k8s_client
             .expect_set_configmap_key()
             .once()
-            .returning(move |_, _, _, _, _| Err(K8sError::KubeRs(kube::Error::TlsRequired)));
+            .returning(move |_, _, _, _, _| {
+                Err(K8sError::KubeRs(Box::new(kube::Error::TlsRequired)))
+            });
         let k8s_store = K8sStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
         let id = k8s_store.set_opamp_data(

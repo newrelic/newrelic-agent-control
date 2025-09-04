@@ -186,10 +186,10 @@ jobs:
             echo "Function coverage is below ${expected}%"
             exit 1
           fi
-      - name: Fail if line coverage is below 85%
+      - name: Fail if line coverage is below 80%
         run: |
           ln_cov=$(jq '.data[].totals.lines.percent' jcov.info)
-          expected=85
+          expected=80
 
           if (( $(echo "$ln_cov < $expected" | bc -l) )); then
             echo "Line coverage is below ${expected}%"

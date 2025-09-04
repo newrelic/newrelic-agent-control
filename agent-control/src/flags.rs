@@ -43,7 +43,7 @@ pub enum InitError {
 /// What action was requested from the initialization?
 pub enum Command {
     /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(AgentControlRunConfig, Vec<TracingGuardBox>),
+    InitAgentControl(Box<AgentControlRunConfig>, Vec<TracingGuardBox>),
     /// Do a "one-shot" operation and exit successfully.
     /// In the future, many different operations could be added here.
     OneShot(OneShotCommand),
@@ -149,7 +149,7 @@ impl Flags {
             agent_type_var_constraints,
         };
 
-        Ok(Command::InitAgentControl(run_config, tracer))
+        Ok(Command::InitAgentControl(Box::new(run_config), tracer))
     }
 
     fn print_version(&self) -> bool {

@@ -223,26 +223,26 @@ where
 
         // After all operations, set the hash to a final state
         // only if it was in the `applying` state.
-        if let Config::RemoteConfig(remote_config) = config {
-            if remote_config.is_applying() {
-                let state = match &started_supervisor {
-                    Ok(_) => ConfigState::Applied,
-                    Err(e) => ConfigState::Failed {
-                        error_message: e.to_string(),
-                    },
-                };
-                let remote_config = remote_config.with_state(state);
+        if let Config::RemoteConfig(remote_config) = config
+            && remote_config.is_applying()
+        {
+            let state = match &started_supervisor {
+                Ok(_) => ConfigState::Applied,
+                Err(e) => ConfigState::Failed {
+                    error_message: e.to_string(),
+                },
+            };
+            let remote_config = remote_config.with_state(state);
 
-                if let Some(opamp_client) = &self.maybe_opamp_client {
-                    let _ = report_state(
-                        remote_config.state.clone(),
-                        remote_config.hash,
-                        opamp_client,
-                    );
-                }
-                // As the hash might have changed state from the above operations, we store it
-                self.update_remote_config_state(remote_config.state);
+            if let Some(opamp_client) = &self.maybe_opamp_client {
+                let _ = report_state(
+                    remote_config.state.clone(),
+                    remote_config.hash,
+                    opamp_client,
+                );
             }
+            // As the hash might have changed state from the above operations, we store it
+            self.update_remote_config_state(remote_config.state);
         }
 
         started_supervisor
@@ -395,11 +395,12 @@ where
     ) -> Option<BuilderSupervisorStopper<B>> {
         // If hash is same as the stored and is not on status applying (processing was incomplete),
         // the previous working supervisor will keep running but the status will be reported again.
-        if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id) {
-            if config.hash == rc.hash && !rc.state.is_applying() {
-                let _ = report_state(rc.state, rc.hash, opamp_client);
-                return old_supervisor;
-            }
+        if let Ok(Some(rc)) = self.config_repository.get_remote_config(&self.identity.id)
+            && config.hash == rc.hash
+            && !rc.state.is_applying()
+        {
+            let _ = report_state(rc.state, rc.hash, opamp_client);
+            return old_supervisor;
         }
 
         // If the remote hash comes failed from the pre-processing steps (performed in the OpAMP

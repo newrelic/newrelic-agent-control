@@ -96,10 +96,10 @@ impl RegexValidator {
 
         // gathers all the endpoints in the config
         for capture in self.otel_repository.captures_iter(raw_config) {
-            if let Some(repository) = capture.get(1) {
-                if VALID_OTEL_REPOSITORY != repository.as_str() {
-                    return Err(RegexValidatorError::InvalidConfig);
-                }
+            if let Some(repository) = capture.get(1)
+                && VALID_OTEL_REPOSITORY != repository.as_str()
+            {
+                return Err(RegexValidatorError::InvalidConfig);
             }
         }
 
