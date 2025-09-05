@@ -5,10 +5,9 @@ variables:
   on_host:
     config:
       description: "Newrelic otel collector configuration"
-      type: file
+      type: yaml
       required: false
-      default: ""
-      file_path: "config.yaml"
+      default: {}
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
@@ -81,12 +80,17 @@ deployment:
       path: /usr/bin/nrdot-collector-host
       args: -v
       regex: \d+\.\d+\.\d+
+    filesystem:
+      otel-config:
+        path: config.yaml
+        content: |
+          ${nr-var:config}
     executables:
       - # Important to note the binary name is nrdot-collector-host matching the new nrdot binary
         id: nrdot-collector-host
         path: /usr/bin/nrdot-collector-host
         args: >-
-          --config=${nr-var:config}
+          --config=${nr-sub:agent_dir}/config.yaml
           --feature-gates=-pkg.translator.prometheus.NormalizeName
         env:
           # sets the otel-collector "env" source resource detector
