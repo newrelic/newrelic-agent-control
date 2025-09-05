@@ -9,12 +9,6 @@ use crate::agent_type::{
     templates::Templateable,
 };
 
-/* FIXME: This is not TEMPLATEABLE for the moment, we need to think what would be the strategy here and clarify:
-
-1. If we perform replacement with the template but the values are not of the expected type, what happens?
-2. Should we use an intermediate type with all the end nodes as `String` so we can perform the replacement?
-- Add a sanitize or a fallible conversion from the raw intermediate type into into the end type?
-*/
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
