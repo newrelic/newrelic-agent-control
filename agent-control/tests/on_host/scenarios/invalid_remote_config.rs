@@ -32,8 +32,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
     let agents = format!(
         r#"
@@ -202,8 +201,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     let sleep_agent_type = get_agent_type_custom(
         local_dir.path().to_path_buf(),
-        "sh",
-        "tests/on_host/data/trap_term_sleep_60.sh",
+        r#"[{"path": "sh", "args": "tests/on_host/data/trap_term_sleep_60.sh"}]"#,
     );
     let agents = format!(
         r#"
