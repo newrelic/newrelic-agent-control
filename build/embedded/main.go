@@ -16,7 +16,6 @@ var errParsingUrlTemplate = errors.New("error parsing url template")
 
 func main() {
 	// Flags
-	staging := flag.Bool("staging", false, "use stagingUrl")
 	arch := flag.String("arch", "amd64", "architecture")
 	flag.Parse()
 
@@ -28,7 +27,6 @@ func main() {
 
 	// Config
 	cnf, err := configFromFile(
-		*staging,
 		*arch,
 		versionMap,
 	)

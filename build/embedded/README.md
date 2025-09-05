@@ -44,7 +44,7 @@ make clean
 make run
 
 #flags
-STAGING=true ARCH=amd64 make run
+ARCH=amd64 make run
 ```
 
 ## Test
