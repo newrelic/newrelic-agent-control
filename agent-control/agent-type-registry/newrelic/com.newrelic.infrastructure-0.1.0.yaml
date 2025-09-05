@@ -5,22 +5,19 @@ variables:
   on_host:
     config_agent:
       description: "Newrelic infra configuration"
-      type: file
+      type: yaml
       required: false
-      default: ""
-      file_path: "newrelic-infra.yml"
+      default: {}
     config_integrations:
-      description: "map of YAML configs for the OHIs"
-      type: map[string]file
+      description: "YAML configs for the OHIs"
+      type: yaml
       required: false
-      default: { }
-      file_path: "integrations.d"
+      default: {}
     config_logging:
-      description: "map of YAML config for logging"
-      type: map[string]file
+      description: "YAML config for logging"
+      type: yaml
       required: false
-      default: { }
-      file_path: "logging.d"
+      default: {}
     backoff_delay:
       description: "seconds until next retry if agent fails to start"
       type: string
@@ -48,28 +45,28 @@ variables:
         description: "newrelic-infrastructure chart values"
         type: yaml
         required: false
-        default: { }
+        default: {}
       nri-metadata-injection:
         description: "nri-metadata-injection chart values"
         type: yaml
         required: false
-        default: { }
+        default: {}
       kube-state-metrics:
         description: "kube-state-metrics chart values"
         type: yaml
         required: false
-        default: { }
+        default: {}
       nri-kube-events:
         description: "nri-kube-events chart values"
         type: yaml
         required: false
-        default: { }
+        default: {}
       # Global values must have their own key, even if there is only one sub-chart.
       global:
         description: "Global chart values"
         type: yaml
         required: false
-        default: { }
+        default: {}
     # HelmChart based sub agents should always have `chart_version`.
     chart_version:
       description: "nri-bundle chart version"
@@ -101,7 +98,6 @@ variables:
         type: yaml
         required: false
         default: null
-    
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
@@ -116,14 +112,27 @@ deployment:
       path: /usr/bin/newrelic-infra
       args: --version
       regex: \d+\.\d+\.\d+
+    filesystem:
+      config:
+        path: newrelic-infra.yaml
+        content: |
+          ${nr-var:config_agent}
+      integrations:
+        path: integrations.d/integrations.yaml
+        content: |
+          ${nr-var:config_integrations}
+      logging:
+        path: logging/logging.yaml
+        content: |
+          ${nr-var:config_logging}
     executables:
       - id: newrelic-infra
         path: /usr/bin/newrelic-infra
         args: >-
-          --config=${nr-var:config_agent}
+          --config=${nr-sub:agent_dir}/newrelic-infra.yaml
         env:
-          NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
-          NRIA_LOGGING_CONFIGS_DIR: "${nr-var:config_logging}"
+          NRIA_PLUGIN_DIR: "${nr-sub:agent_dir}/integrations.d"
+          NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:agent_dir}/logging"
           NRIA_STATUS_SERVER_ENABLED: true
           NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
           NR_HOST_ID: "${nr-ac:host_id}"
@@ -216,7 +225,7 @@ deployment:
             newrelic-prometheus-agent:
               enabled: false
             newrelic-k8s-metrics-adapter:
-              enabled: false 
+              enabled: false
       # Flux [HelmRelease](https://fluxcd.io/flux/components/helmreleases/) that installs the nri-bundle chart.
       release:
         apiVersion: helm.toolkit.fluxcd.io/v2
@@ -240,7 +249,7 @@ deployment:
               chart: ${nr-var:chart_name}
               # This is where the chart version to be installed is defined. Whenever AC updates this Flux triggers a reconciliation.
               version: ${nr-var:chart_version}
-              # This value gets rendered even if not specified so, even 'ChartVersion' is the default, it is required to specify 
+              # This value gets rendered even if not specified so, even 'ChartVersion' is the default, it is required to specify
               # it to avoid the drift detection on AC supervisor, and trigger re-apply on each interval.
               reconcileStrategy: ChartVersion
               sourceRef:
