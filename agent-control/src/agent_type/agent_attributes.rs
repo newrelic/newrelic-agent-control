@@ -21,7 +21,7 @@ pub struct AgentAttributesCreateError(String);
 
 impl AgentAttributes {
     pub const VARIABLE_SUB_AGENT_ID: &'static str = "agent_id";
-    pub const GENERATED_DIR: &'static str = "generated_dir";
+    pub const GENERATED_DIR: &'static str = "agent_dir";
 
     pub fn try_new(
         agent_id: AgentID,
