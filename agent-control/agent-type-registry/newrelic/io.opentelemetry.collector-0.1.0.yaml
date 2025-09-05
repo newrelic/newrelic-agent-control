@@ -78,7 +78,8 @@ deployment:
         path: "${nr-var:health_check.path}"
         port: ${nr-var:health_check.port}
     version:
-      command: /usr/bin/nrdot-collector-host -v
+      path: /usr/bin/nrdot-collector-host
+      args: -v
       regex: \d+\.\d+\.\d+
       interval: 60s
     executables:
