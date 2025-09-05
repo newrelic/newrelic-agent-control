@@ -52,7 +52,7 @@ impl HelmReleaseVersionChecker {
                 version: v,
                 opamp_field: self.opamp_field.to_string(),
             })
-            .ok_or(VersionCheckError::Generic(
+            .ok_or(VersionCheckError(
                 "No valid version found in HelmRelease".to_string(),
             ))
     }
@@ -65,18 +65,17 @@ impl VersionChecker for HelmReleaseVersionChecker {
             .k8s_client
             .get_dynamic_object(&self.type_meta, self.name.as_str(), self.namespace.as_str())
             .map_err(|e| {
-                VersionCheckError::Generic(format!(
+                VersionCheckError(format!(
                     "Error fetching HelmRelease '{}': {}",
                     &self.name, e
                 ))
             })?
-            .ok_or_else(|| {
-                VersionCheckError::Generic(format!("HelmRelease '{}' not found", &self.name))
-            })?;
+            .ok_or_else(|| VersionCheckError(format!("HelmRelease '{}' not found", &self.name)))?;
 
-        let helm_release_data = helm_release.data.as_object().ok_or_else(|| {
-            VersionCheckError::Generic("HelmRelease data is not an object".to_string())
-        })?;
+        let helm_release_data = helm_release
+            .data
+            .as_object()
+            .ok_or_else(|| VersionCheckError("HelmRelease data is not an object".to_string()))?;
 
         self.extract_version(helm_release_data)
     }
@@ -221,7 +220,7 @@ pub mod tests {
             },
             TestCase {
                 name: "Helm version couldn't be obtained from the helm data",
-                expected: Err(VersionCheckError::Generic(
+                expected: Err(VersionCheckError(
                     "No valid version found in HelmRelease".to_string(),
                 )),
                 mock_return: "{}".to_string(),

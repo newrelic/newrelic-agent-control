@@ -1,104 +1,150 @@
-use crate::agent_control::defaults::{
-    AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-};
-use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
-use tracing::error;
+use std::process::Command;
 
-const NEWRELIC_INFRA_AGENT_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NEWRELIC_INFRA_AGENT_VERSION"), "0.0.0");
-const NR_OTEL_COLLECTOR_VERSION: &str =
-    konst::option::unwrap_or!(option_env!("NR_OTEL_COLLECTOR_VERSION"), "0.0.0");
+use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
+use crate::agent_type::runtime_config::onhost::Args;
+use crate::version_checker::{
+    AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
+};
+use regex::Regex;
+
+use crate::event::channel::EventPublisher;
+use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
+use std::fmt::Debug;
+use tracing::{debug, info, info_span, warn};
 
 pub struct OnHostAgentVersionChecker {
-    agent_version: AgentVersion,
-}
-
-impl OnHostAgentVersionChecker {
-    pub fn checked_new(agent_type_id: AgentTypeID) -> Option<Self> {
-        match retrieve_version(&agent_type_id) {
-            Ok(agent_version) => Some(Self { agent_version }),
-            Err(e) => {
-                error!("error checking agent version: {}", e);
-                None
-            }
-        }
-    }
+    pub(crate) path: String,
+    pub(crate) args: Args,
+    pub(crate) regex: Option<Regex>,
 }
 
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
-        Ok(self.agent_version.clone())
+        let output = Command::new(&self.path)
+            .args(self.args.clone().into_vector())
+            .output()
+            .map_err(|e| VersionCheckError(format!("error executing version command: {e}")))?;
+        let output = String::from_utf8_lossy(&output.stdout);
+
+        let version = if let Some(regex) = &self.regex {
+            let version_match = regex.find(&output).ok_or(VersionCheckError(
+                "error checking agent version: version not found".to_string(),
+            ))?;
+            version_match.as_str().to_string()
+        } else {
+            output.to_string()
+        };
+
+        Ok(AgentVersion {
+            version: version.as_str().to_string(),
+            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
+        })
     }
 }
 
-fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, VersionCheckError> {
-    match agent_type_id.name() {
-        AGENT_TYPE_NAME_INFRA_AGENT => Ok(AgentVersion {
-            version: NEWRELIC_INFRA_AGENT_VERSION.to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
-        AGENT_TYPE_NAME_NRDOT => Ok(AgentVersion {
-            version: NR_OTEL_COLLECTOR_VERSION.to_string(),
-            opamp_field: OPAMP_AGENT_VERSION_ATTRIBUTE_KEY.to_string(),
-        }),
-        _ => Err(VersionCheckError::Generic(format!(
-            "no match found for agent type: {agent_type_id}"
-        ))),
+pub(crate) fn check_version<V, T, F>(
+    version_checker_id: String,
+    version_checker: V,
+    version_event_publisher: EventPublisher<T>,
+    version_event_generator: F,
+) where
+    V: VersionChecker + Send + Sync + 'static,
+    T: Debug + Send + Sync + 'static,
+    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
+{
+    let span = info_span!(
+        "version_check",
+        { ID_ATTRIBUTE_NAME } = %version_checker_id
+    );
+    let _guard = span.enter();
+
+    debug!("starting to check version with the configured checker");
+
+    match version_checker.check_agent_version() {
+        Ok(agent_data) => {
+            info!("agent version successfully checked");
+
+            publish_version_event(
+                &version_event_publisher,
+                version_event_generator(agent_data),
+            );
+        }
+        Err(error) => {
+            warn!("failed to check agent version: {error}");
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::agent_control::agent_id::AgentID;
+    use crate::event::SubAgentInternalEvent;
+    use crate::version_checker::onhost::tests::SubAgentInternalEvent::AgentVersionInfo;
+    use crate::version_checker::tests::MockVersionChecker;
+    use crate::{
+        agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+        event::channel::pub_sub,
+    };
 
     use super::*;
 
-    use assert_matches::assert_matches;
+    use rstest::rstest;
+
+    #[rstest]
+    #[case::command_and_regex("echo", "Some data 1.0.0 Some more data", Some(r"\d+\.\d+\.\d+"))]
+    #[case::command("echo", "-n 1.0.0", None)]
+    fn test_check_agent_version(
+        #[case] path: &str,
+        #[case] args: String,
+        #[case] regex: Option<&str>,
+    ) {
+        let agent_version = OnHostAgentVersionChecker {
+            path: path.to_string(),
+            args: Args(args),
+            regex: regex.map(|r| Regex::new(r).unwrap()),
+        }
+        .check_agent_version()
+        .unwrap();
+
+        assert_eq!(agent_version.version.as_str(), "1.0.0");
+        assert_eq!(
+            agent_version.opamp_field.as_str(),
+            OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+        );
+    }
 
     #[test]
-    fn test_agent_version_checker_build() {
-        struct TestCase {
-            name: &'static str,
-            agent_type_id: AgentTypeID,
-            check: fn(&'static str, Option<OnHostAgentVersionChecker>),
-        }
+    fn test_check_version() {
+        let (version_publisher, version_consumer) = pub_sub();
 
-        impl TestCase {
-            fn run(self) {
-                let result = OnHostAgentVersionChecker::checked_new(self.agent_type_id);
-                let check = self.check;
-                check(self.name, result);
-            }
-        }
+        let mut version_checker = MockVersionChecker::new();
+        version_checker
+            .expect_check_agent_version()
+            .once()
+            .returning(move || {
+                Ok(AgentVersion {
+                    version: "1.0.0".to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                })
+            });
 
-        let test_cases = [
-            TestCase {
-                name: "Version cannot be computed for the superAgent",
-                agent_type_id: AgentIdentity::new_agent_control_identity().agent_type_id,
-                check: |name, result| {
-                    assert!(result.is_none(), "{name}",);
-                },
-            },
-            TestCase {
-                name: "infrastructure agent version is computed correctly ",
-                agent_type_id: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.1.0")
-                    .unwrap(),
-                check: |name, result| {
-                    let r = result.unwrap();
-                    assert_matches!(
-                        r.check_agent_version().unwrap().version.as_str(),
-                        NEWRELIC_INFRA_AGENT_VERSION,
-                        "{name}",
-                    );
-                    assert_matches!(
-                        r.check_agent_version().unwrap().opamp_field.as_str(),
-                        OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-                        "{name}",
-                    );
-                },
-            },
-        ];
-        test_cases.into_iter().for_each(|tc| tc.run());
+        check_version(
+            AgentID::default().to_string(),
+            version_checker,
+            version_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
+        );
+
+        // Check that we received the expected version event
+        assert_eq!(
+            AgentVersionInfo(AgentVersion {
+                version: "1.0.0".to_string(),
+                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+            }),
+            version_consumer.as_ref().recv().unwrap()
+        );
+
+        // Check there are no more events
+        assert!(version_consumer.as_ref().recv().is_err());
     }
 }

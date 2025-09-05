@@ -7,17 +7,22 @@ use crate::common::attributes::{
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
 use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
+use crate::on_host::tools::custom_agent_type::{
+    get_agent_type_custom, get_agent_type_without_regex,
+};
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_NAMESPACE, AGENT_TYPE_NAME_INFRA_AGENT, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-    OPAMP_SERVICE_VERSION, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
+    OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
+use rstest::rstest;
+use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -107,16 +112,28 @@ fn test_attributes_from_non_existing_agent_type() {
 /// Given an agent type that we know we are going to check if the default
 /// identifying and non identifying attributes are what we expect plus
 /// the "agent.version" related with the agent type.
-#[test]
-fn test_attributes_from_an_existing_agent_type() {
+#[rstest]
+#[case::with_regex(get_agent_type_custom)]
+#[case::without_regex(get_agent_type_without_regex)]
+fn test_attributes_from_an_existing_agent_type(
+    #[case] get_agent_type: impl Fn(PathBuf, &str, &str) -> String,
+) {
     let opamp_server = FakeServer::start_new();
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
 
+    // Add custom agent_type to registry
+    let sleep_agent_type = get_agent_type(
+        local_dir.path().to_path_buf(),
+        "sh",
+        "tests/on_host/data/trap_term_sleep_60.sh",
+    );
+
     let agents = format!(
         r#"
-  test-agent:
-    agent_type: "{AGENT_CONTROL_NAMESPACE}/{AGENT_TYPE_NAME_INFRA_AGENT}:0.1.0"
+agents:
+  nr-sleep-agent:
+    agent_type: "{sleep_agent_type}"
 "#
     );
 
@@ -126,7 +143,14 @@ fn test_attributes_from_an_existing_agent_type() {
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
-    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
+
+    // And the custom-agent has empty config values
+    let agent_id = "nr-sleep-agent";
+    create_sub_agent_values(
+        agent_id.to_string(),
+        "".to_string(), // local empty config
+        local_dir.path().into(),
+    );
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -137,10 +161,8 @@ fn test_attributes_from_an_existing_agent_type() {
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
     let agent_control_instance_id_ac = get_instance_id(&AgentID::AgentControl, base_paths.clone());
-    let agent_control_instance_id = get_instance_id(
-        &AgentID::try_from("test-agent").unwrap(),
-        base_paths.clone(),
-    );
+    let agent_control_instance_id =
+        get_instance_id(&AgentID::try_from(agent_id).unwrap(), base_paths.clone());
 
     let expected_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
@@ -149,7 +171,7 @@ fn test_attributes_from_an_existing_agent_type() {
         ),
         (
             OPAMP_SERVICE_NAME,
-            Value::StringValue(AGENT_TYPE_NAME_INFRA_AGENT.to_string()),
+            Value::StringValue("com.newrelic.custom_agent".to_string()),
         ),
         (
             OPAMP_SERVICE_VERSION,
@@ -157,7 +179,7 @@ fn test_attributes_from_an_existing_agent_type() {
         ),
         (
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
-            Value::StringValue("0.0.0".to_string()),
+            Value::StringValue("1.0.0".to_string()),
         ),
     ]));
 

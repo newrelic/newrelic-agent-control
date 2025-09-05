@@ -9,6 +9,7 @@ pub mod k8s;
 pub mod onhost;
 pub mod restart_policy;
 pub mod templateable_value;
+pub mod version_config;
 
 use super::definition::Variables;
 use super::error::AgentTypeError;

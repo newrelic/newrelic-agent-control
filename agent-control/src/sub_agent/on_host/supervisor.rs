@@ -1,6 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
-use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::agent_type::runtime_config::version_config::OnHostVersionConfig;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
@@ -25,8 +25,7 @@ use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use crate::utils::threads::spawn_named_thread;
-use crate::version_checker::onhost::OnHostAgentVersionChecker;
-use crate::version_checker::spawn_version_checker;
+use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
@@ -49,6 +48,7 @@ pub struct NotStartedSupervisorOnHost {
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
     pub(super) health_config: Option<OnHostHealthConfig>,
+    version_config: Option<OnHostVersionConfig>,
 }
 
 impl SupervisorStarter for NotStartedSupervisorOnHost {
@@ -65,13 +65,13 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .iter()
             .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e));
 
-        let thread_contexts: Vec<StartedThreadContext> = vec![
-            self.start_health_check(sub_agent_internal_publisher.clone())?,
-            self.start_version_checker(sub_agent_internal_publisher.clone()),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        self.start_version_checker(sub_agent_internal_publisher.clone());
+
+        let thread_contexts: Vec<StartedThreadContext> =
+            vec![self.start_health_check(sub_agent_internal_publisher.clone())?]
+                .into_iter()
+                .flatten()
+                .collect();
 
         let thread_contexts = executable_thread_contexts
             .into_iter()
@@ -113,6 +113,7 @@ impl NotStartedSupervisorOnHost {
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
+        version_config: Option<OnHostVersionConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -121,6 +122,7 @@ impl NotStartedSupervisorOnHost {
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
+            version_config,
         }
     }
 
@@ -157,18 +159,26 @@ impl NotStartedSupervisorOnHost {
             );
             return Ok(Some(started_thread_context));
         }
-        debug!("health checks are disabled for this agent");
+        info!(%self.agent_identity.agent_type_id, "health checks are disabled for this agent");
         Ok(None)
     }
 
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<StartedThreadContext> {
-        let onhost_version_checker =
-            OnHostAgentVersionChecker::checked_new(self.agent_identity.agent_type_id.clone())?;
+    ) {
+        let Some(version_config) = &self.version_config else {
+            info!(%self.agent_identity.agent_type_id, "version checks are disabled for this agent");
+            return;
+        };
 
-        Some(spawn_version_checker(
+        let onhost_version_checker = OnHostAgentVersionChecker {
+            path: version_config.path.clone(),
+            args: version_config.args.clone().get(),
+            regex: version_config.regex.clone(),
+        };
+
+        check_version(
             self.agent_identity.id.to_string(),
             onhost_version_checker,
             sub_agent_internal_publisher,
@@ -177,8 +187,7 @@ impl NotStartedSupervisorOnHost {
             // Using an enum variant that wraps a type is the same as a function taking the type.
             // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentVersionInfo(x)"
             SubAgentInternalEvent::AgentVersionInfo,
-            VersionCheckerInterval::default(),
-        ))
+        )
     }
 
     fn start_process_thread(
@@ -461,7 +470,7 @@ pub mod tests {
             ctx.cancel_all(true).unwrap();
         }
         let supervisor =
-            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None);
+            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None, None);
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
@@ -505,8 +514,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -536,8 +550,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -574,8 +593,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -612,8 +636,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -645,8 +674,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
@@ -694,8 +728,13 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            None,
+            None,
+        );
 
         let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
