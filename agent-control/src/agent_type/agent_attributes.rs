@@ -29,7 +29,7 @@ impl AgentAttributes {
     ) -> Result<Self, AgentAttributesCreateError> {
         if let AgentID::SubAgent(agent_id) = agent_id {
             let auto_generated_dir = auto_generated_dir.join(&agent_id);
-            debug!(id = %agent_id, auto_generated_dir_path = %auto_generated_dir.display());
+            debug!(id = %agent_id, "auto-generated directory path set to {}", auto_generated_dir.display());
             Ok(Self {
                 agent_id,
                 auto_generated_dir,
