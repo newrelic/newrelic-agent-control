@@ -25,8 +25,7 @@ use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use crate::utils::threads::spawn_named_thread;
-use crate::version_checker::onhost::OnHostAgentVersionChecker;
-use crate::version_checker::spawn_version_checker;
+use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
 #[cfg(target_family = "unix")]
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
@@ -67,13 +66,13 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .iter()
             .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e));
 
-        let thread_contexts: Vec<StartedThreadContext> = vec![
-            self.start_health_check(sub_agent_internal_publisher.clone())?,
-            self.start_version_checker(sub_agent_internal_publisher.clone()),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        self.start_version_checker(sub_agent_internal_publisher.clone());
+
+        let thread_contexts: Vec<StartedThreadContext> =
+            vec![self.start_health_check(sub_agent_internal_publisher.clone())?]
+                .into_iter()
+                .flatten()
+                .collect();
 
         let thread_contexts = executable_thread_contexts
             .into_iter()
@@ -168,10 +167,10 @@ impl NotStartedSupervisorOnHost {
     pub fn start_version_checker(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
-    ) -> Option<StartedThreadContext> {
+    ) {
         let Some(version_config) = &self.version_config else {
             debug!("version checks are disabled for this agent");
-            return None;
+            return;
         };
 
         let onhost_version_checker = OnHostAgentVersionChecker {
@@ -179,7 +178,7 @@ impl NotStartedSupervisorOnHost {
             regex: version_config.regex.clone(),
         };
 
-        Some(spawn_version_checker(
+        check_version(
             self.agent_identity.id.to_string(),
             onhost_version_checker,
             sub_agent_internal_publisher,
@@ -188,8 +187,7 @@ impl NotStartedSupervisorOnHost {
             // Using an enum variant that wraps a type is the same as a function taking the type.
             // Basically, it's the same as passing "|x| SubAgentInternalEvent::AgentVersionInfo(x)"
             SubAgentInternalEvent::AgentVersionInfo,
-            version_config.interval,
-        ))
+        )
     }
 
     fn start_process_thread(

@@ -33,8 +33,8 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
+use crate::version_checker::k8s::checkers::spawn_version_checker;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::version_checker::spawn_version_checker;
 use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
