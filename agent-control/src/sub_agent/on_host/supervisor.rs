@@ -4,7 +4,6 @@ use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
-use crate::health::events::HealthEventPublisher;
 use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthChecker;
@@ -19,6 +18,7 @@ use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
     ProcessTerminator, wait_exit_timeout, wait_exit_timeout_default,
 };
+use crate::sub_agent::on_host::health::repository::ExecHealthRepository;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
@@ -42,16 +42,19 @@ pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
 }
 
-pub struct NotStartedSupervisorOnHost {
+pub struct NotStartedSupervisorOnHost<E: ExecHealthRepository + Send + Sync + 'static> {
     pub(super) agent_identity: AgentIdentity,
     pub(super) ctx: Context<bool>,
     pub(crate) executables: Vec<ExecutableData>,
     pub(super) log_to_file: bool,
     pub(super) logging_path: PathBuf,
-    pub(super) health_config: Option<OnHostHealthConfig>,
+    pub(super) health_config: OnHostHealthConfig,
+    pub(super) exec_health_repository: Arc<E>,
 }
 
-impl SupervisorStarter for NotStartedSupervisorOnHost {
+impl<E: ExecHealthRepository + Send + Sync + 'static> SupervisorStarter
+    for NotStartedSupervisorOnHost<E>
+{
     type SupervisorStopper = StartedSupervisorOnHost;
 
     fn start(
@@ -63,7 +66,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let executable_thread_contexts = self
             .executables
             .iter()
-            .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e));
+            .map(|e| self.start_process_thread(e));
 
         let thread_contexts: Vec<StartedThreadContext> = vec![
             self.start_health_check(sub_agent_internal_publisher.clone())?,
@@ -107,12 +110,13 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     }
 }
 
-impl NotStartedSupervisorOnHost {
+impl<E: ExecHealthRepository + Send + Sync + 'static> NotStartedSupervisorOnHost<E> {
     pub fn new(
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
-        health_config: Option<OnHostHealthConfig>,
+        health_config: OnHostHealthConfig,
+        exec_health_repository: Arc<E>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -121,6 +125,7 @@ impl NotStartedSupervisorOnHost {
             log_to_file: false,
             logging_path: PathBuf::default(),
             health_config,
+            exec_health_repository,
         }
     }
 
@@ -137,28 +142,27 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) -> Result<Option<StartedThreadContext>, SupervisorStarterError> {
         let start_time = StartTime::now();
-        if let Some(health_config) = &self.health_config {
-            let client_timeout = Duration::from(health_config.clone().timeout);
-            let http_config =
-                HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
-            let http_client = HttpClient::new(http_config).map_err(|err| {
-                HealthCheckerError::Generic(format!("could not build the http client: {err}"))
-            })?;
+        let client_timeout = Duration::from(self.health_config.clone().timeout);
+        let http_config = HttpConfig::new(client_timeout, client_timeout, ProxyConfig::default());
+        let http_client = HttpClient::new(http_config).map_err(|err| {
+            HealthCheckerError::Generic(format!("could not build the http client: {err}"))
+        })?;
 
-            let health_checker =
-                OnHostHealthChecker::try_new(http_client, health_config.clone(), start_time)?;
-            let started_thread_context = spawn_health_checker(
-                self.agent_identity.id.clone(),
-                health_checker,
-                sub_agent_internal_publisher,
-                health_config.interval,
-                health_config.initial_delay,
-                start_time,
-            );
-            return Ok(Some(started_thread_context));
-        }
-        debug!("health checks are disabled for this agent");
-        Ok(None)
+        let health_checker = OnHostHealthChecker::try_new(
+            self.exec_health_repository.clone(),
+            http_client,
+            self.health_config.clone(),
+            start_time,
+        )?;
+        let started_thread_context = spawn_health_checker(
+            self.agent_identity.id.clone(),
+            health_checker,
+            sub_agent_internal_publisher,
+            self.health_config.interval,
+            self.health_config.initial_delay,
+            start_time,
+        );
+        Ok(Some(started_thread_context))
     }
 
     pub fn start_version_checker(
@@ -181,11 +185,7 @@ impl NotStartedSupervisorOnHost {
         ))
     }
 
-    fn start_process_thread(
-        &self,
-        internal_event_publisher: EventPublisher<SubAgentInternalEvent>,
-        executable_data: &ExecutableData,
-    ) -> StartedThreadContext {
+    fn start_process_thread(&self, executable_data: &ExecutableData) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
         let shutdown_ctx = Context::new();
@@ -200,6 +200,7 @@ impl NotStartedSupervisorOnHost {
         let agent_id = self.agent_identity.id.clone();
         let log_to_file = self.log_to_file;
         let logging_path = self.logging_path.clone();
+        let exec_health_repository = self.exec_health_repository.clone();
         let callback = move |_| loop {
             let span = info_span!(
                 "start_executable",
@@ -235,10 +236,17 @@ impl NotStartedSupervisorOnHost {
 
             let init_health = Healthy::new();
 
-            internal_event_publisher.publish_health_event(HealthWithStartTime::new(
-                init_health.into(),
-                supervisor_start_time,
-            ));
+            let _ = exec_health_repository
+                .set(
+                    executable_data_clone.id.to_string(),
+                    HealthWithStartTime::new(init_health.into(), supervisor_start_time),
+                )
+                .map_err(|err| {
+                    error!(
+                        "Error saving health status for {}: {}",
+                        executable_data_clone.id, err
+                    );
+                });
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
@@ -256,10 +264,11 @@ impl NotStartedSupervisorOnHost {
                 })
                 .map(|exit_status| {
                     handle_termination(
+                        &executable_data_clone.id,
                         exit_status,
-                        &internal_event_publisher,
+                        exec_health_repository.clone(),
                         &agent_id,
-                        executable_data_clone.bin.to_string(),
+                        &executable_data_clone.bin,
                         supervisor_start_time,
                     )
                 });
@@ -293,10 +302,17 @@ impl NotStartedSupervisorOnHost {
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
-                    internal_event_publisher.publish_health_event(HealthWithStartTime::new(
-                        unhealthy.into(),
-                        supervisor_start_time,
-                    ));
+                    let _ = exec_health_repository
+                        .set(
+                            executable_data_clone.id.to_string(),
+                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                        )
+                        .map_err(|err| {
+                            error!(
+                                "Error saving health status for {}: {}",
+                                executable_data_clone.id, err
+                            );
+                        });
                 }
                 break;
             }
@@ -318,11 +334,12 @@ impl NotStartedSupervisorOnHost {
 ////////////////////////////////////////////////////////////////////////////////////
 
 /// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
-fn handle_termination(
+fn handle_termination<E: ExecHealthRepository + Send + Sync + 'static>(
+    exec_id: &str,
     exit_status: ExitStatus,
-    internal_event_publisher: &EventPublisher<SubAgentInternalEvent>,
+    exec_health_repository: Arc<E>,
     agent_id: &AgentID,
-    bin: String,
+    bin: &str,
     start_time: SystemTime,
 ) -> i32 {
     if !exit_status.success() {
@@ -330,8 +347,16 @@ fn handle_termination(
             "process exited with code: {:?}",
             exit_status.code().unwrap_or_default()
         ));
-        internal_event_publisher
-            .publish_health_event(HealthWithStartTime::new(unhealthy.into(), start_time));
+
+        let _ = exec_health_repository
+            .set(
+                exec_id.to_string(),
+                HealthWithStartTime::new(unhealthy.into(), start_time),
+            )
+            .map_err(|err| {
+                error!("Error saving health status for {exec_id}: {err}");
+            });
+
         error!(
             %agent_id,
             supervisor = bin,
@@ -350,6 +375,10 @@ fn handle_termination(
     // and have `RestartPolicy::should_retry` handle it.
     exit_code.or(exit_signal).unwrap_or_default()
 }
+
+////////////////////////////////////////////////////////////////////////////////////
+// Helpers (TODO: Review and move?)
+////////////////////////////////////////////////////////////////////////////////////
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
 /// into the provided variable. It waits until the process exits.
@@ -405,9 +434,11 @@ pub mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
-    use crate::health::health_checker::Healthy;
+    use crate::health::health_checker::{HEALTH_CHECKER_THREAD_NAME, Health};
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use crate::sub_agent::on_host::health::repository::InMemoryExecHealthRepository;
+    use crate::sub_agent::on_host::health::repository::tests::TestingInMemoryExecHealthRepository;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::internal::logs_with_scope_contain;
@@ -418,22 +449,22 @@ pub mod tests {
     #[rstest]
     #[case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
         vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     #[case::fail_process_shutdown_after_start(
         "wrong-command",
-        ExecutableData::new("wrong-command".to_owned()),
+        ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
         Some(Duration::from_secs(1)),
         vec!["stopped supervisor without process running"])]
     #[case::long_running_process_shutdown_before_start(
         "long-running-before-start",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         None,
         vec!["supervisor stopped before starting the process", "stopped supervisor without process running"])]
     #[case::long_running_process_shutdown_after_start(
         "long-running",
-        ExecutableData::new("sleep".to_owned()).with_args(vec!["10".to_owned()]),
+        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
         vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     fn test_supervisor_gracefully_shutdown(
@@ -460,8 +491,16 @@ pub mod tests {
         if agent_id == "long-running-before-start" {
             ctx.cancel_all(true).unwrap();
         }
-        let supervisor =
-            NotStartedSupervisorOnHost::new(agent_identity, executable_data, ctx, None);
+
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let supervisor = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executable_data,
+            ctx,
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
 
@@ -505,15 +544,26 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
     }
@@ -526,7 +576,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -536,15 +586,26 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
     }
@@ -558,13 +619,13 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(
                     BackoffStrategy::Fixed(backoff.clone()),
                     vec![0],
                 )),
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["NR-command".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -574,15 +635,26 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
         assert!(logs_with_scope_contain(
@@ -602,7 +674,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("wrong-command".to_owned())
+            ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -612,8 +684,15 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         // run the agent with wrong command so it enters in restart policy
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
@@ -635,7 +714,7 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["hello!".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -645,15 +724,26 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = InMemoryExecHealthRepository::default();
+
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            Arc::new(exec_health_repository),
+        );
 
         let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
 
@@ -684,7 +774,7 @@ pub mod tests {
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
-            ExecutableData::new("echo".to_owned())
+            ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
@@ -694,52 +784,47 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let agent =
-            NotStartedSupervisorOnHost::new(agent_identity, executables, Context::new(), None);
+        let exec_health_repository = Arc::new(TestingInMemoryExecHealthRepository::default());
 
-        let (sub_agent_internal_publisher, sub_agent_internal_consumer) = pub_sub();
+        let agent = NotStartedSupervisorOnHost::new(
+            agent_identity,
+            executables,
+            Context::new(),
+            OnHostHealthConfig::default(),
+            exec_health_repository.clone(),
+        );
+
+        let (sub_agent_internal_publisher, _sub_agent_internal_consumer) = pub_sub();
         let agent = agent.start(sub_agent_internal_publisher).expect("no error");
 
         for thread_context in agent.thread_contexts {
-            while !thread_context.is_thread_finished() {
-                thread::sleep(Duration::from_millis(15));
+            if thread_context.thread_name() == HEALTH_CHECKER_THREAD_NAME {
+                let _ = thread_context.stop();
+            } else {
+                while !thread_context.is_thread_finished() {
+                    thread::sleep(Duration::from_millis(15));
+                }
             }
         }
 
-        // Fix the start times to allow comparison
-        let start_time = SystemTime::now();
-
-        // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
-        let expected_ordered_events: Vec<SubAgentInternalEvent> = [
-            HealthWithStartTime::new(Healthy::new().into(), start_time),
-            HealthWithStartTime::new(Healthy::new().into(), start_time),
-            HealthWithStartTime::new(Healthy::new().into(), start_time),
-            HealthWithStartTime::new(Healthy::new().into(), start_time),
-            HealthWithStartTime::new(
-                Unhealthy::new("supervisor exceeded its defined restart policy".to_string()).into(),
-                start_time,
-            ),
+        let mut expected_events = vec![
+            Health::Healthy(Healthy::default()),
+            Health::Healthy(Healthy::default()),
+            Health::Healthy(Healthy::default()),
+            Health::Healthy(Healthy::default()),
+            Health::Unhealthy(Unhealthy::new(
+                "supervisor exceeded its defined restart policy".to_string(),
+            )),
         ]
-        .into_iter()
-        .map(SubAgentInternalEvent::AgentHealthInfo)
-        .collect();
+        .into_iter();
 
-        let actual_ordered_events = sub_agent_internal_consumer
-            .as_ref()
-            .iter()
-            .map(|event| {
-                // Patch start_time for health events to allow comparison
-                if let SubAgentInternalEvent::AgentHealthInfo(health) = event {
-                    SubAgentInternalEvent::AgentHealthInfo(HealthWithStartTime::new(
-                        health.into(),
-                        start_time,
-                    ))
-                } else {
-                    event
-                }
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(actual_ordered_events, expected_ordered_events);
+        let health_events = exec_health_repository
+            .get_events("echo".to_owned())
+            .unwrap();
+        if let Some(health) = health_events {
+            health.iter().for_each(|event| {
+                assert_eq!(&expected_events.next().unwrap(), event.as_health());
+            });
+        }
     }
 }

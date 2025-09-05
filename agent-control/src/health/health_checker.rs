@@ -13,7 +13,7 @@ use std::time::{Duration, SystemTime, SystemTimeError};
 use tracing::{debug, error, info_span};
 use wrapper_with_default::WrapperWithDefault;
 
-const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
+pub const HEALTH_CHECKER_THREAD_NAME: &str = "health_checker";
 
 const DEFAULT_HEALTH_CHECK_INTERVAL: Duration = Duration::from_secs(60);
 const DEFAULT_INITIAL_DELAY: Duration = Duration::ZERO;

@@ -24,7 +24,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: {path}
+      - id: my-exec
+        path: {path}
         args: {args}
 "#
     );

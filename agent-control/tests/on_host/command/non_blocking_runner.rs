@@ -16,6 +16,7 @@ fn non_blocking_runner() {
     let cmd = CommandOSNotStarted::new(
         agent_id,
         &ExecutableData {
+            id: "sleep".to_string(),
             bin: "sleep".to_string(),
             args: vec!["5".to_string()],
             env: HashMap::from([("TEST".to_string(), "TEST".to_string())]),

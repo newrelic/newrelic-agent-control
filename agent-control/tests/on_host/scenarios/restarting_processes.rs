@@ -42,14 +42,16 @@ deployment:
   on_host:
     enable_file_logging: false
     executables:
-      - path: sleep
+      - id: sleep1
+        path: sleep
         args: "${nr-var:duration-1}"
         restart_policy:
           backoff_strategy:
             type: fixed
             max_retries: 2
             backoff_delay: 0s
-      - path: sleep
+      - id: sleep2
+        path: sleep
         args: "${nr-var:duration-2}"
         restart_policy:
           backoff_strategy:

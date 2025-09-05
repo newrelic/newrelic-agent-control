@@ -20,7 +20,8 @@ pub struct OnHost {
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
-    pub health: Option<OnHostHealthConfig>,
+    #[serde(default)]
+    pub health: OnHostHealthConfig,
 }
 
 impl Templateable for OnHost {
@@ -32,10 +33,7 @@ impl Templateable for OnHost {
                 .map(|e| e.template_with(variables))
                 .collect::<Result<Vec<_>, _>>()?,
             enable_file_logging: self.enable_file_logging.template_with(variables)?,
-            health: self
-                .health
-                .map(|h| h.template_with(variables))
-                .transpose()?,
+            health: self.health.template_with(variables)?,
         })
     }
 }
@@ -48,6 +46,9 @@ impl Templateable for OnHost {
 */
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
+    /// Executable identifier for the health checker.
+    pub id: TemplateableValue<String>,
+
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
     pub path: TemplateableValue<String>, // make it templatable
 
@@ -67,6 +68,7 @@ pub struct Executable {
 impl Templateable for Executable {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
+            id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
             env: self.env.template_with(variables)?,
@@ -105,15 +107,16 @@ impl Templateable for Env {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::agent_type::runtime_config::health_config::{HealthCheckTimeout, OnHostHealthCheck};
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
     };
     use crate::agent_type::trivial_value::FilePathWithContent;
     use crate::agent_type::variable::Variable;
+    use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
     use serde_yaml::Number;
     use std::collections::HashMap;
-
-    use super::*;
 
     #[test]
     fn test_basic_parsing() {
@@ -182,6 +185,10 @@ restart_policy:
     #[test]
     fn test_replacer() {
         let exec = Executable {
+            id: TemplateableValue {
+                value: None,
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
                 "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
@@ -303,6 +310,10 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
+            id: TemplateableValue {
+                value: Some("otelcol".to_string()),
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue {
                 value: Some("/etc/otelcol".to_string()),
                 template: "${nr-var:bin}/otelcol".to_string(),
@@ -343,6 +354,7 @@ restart_policy:
     #[test]
     fn test_replacer_two_same() {
         let exec = Executable {
+            id: TemplateableValue::from_template("otelcol".to_string()),
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
             env: Env::default(),
@@ -424,6 +436,10 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
+            id: TemplateableValue {
+                value: Some("otelcol".to_string()),
+                template: "otelcol".to_string(),
+            },
             path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
             args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
             env: Env::default(),
@@ -526,6 +542,7 @@ restart_policy:
         ]);
 
         let input = Executable {
+            id: TemplateableValue::from_template("myapp".to_string()),
             path: TemplateableValue::from_template("${nr-var:path}".to_string()),
             args: TemplateableValue::from_template(
                 "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
@@ -553,6 +570,10 @@ restart_policy:
             },
         };
         let expected_output = Executable {
+            id: TemplateableValue {
+                value: Some("myapp".to_string()),
+                template: "myapp".to_string(),
+            },
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${nr-var:path}".to_string()),
             args: TemplateableValue::new(Args(
@@ -584,6 +605,58 @@ restart_policy:
         assert_eq!(actual_output, expected_output);
     }
 
+    #[test]
+    fn test_default_health_config_when_omitted() {
+        let yaml_without_health = r#"
+executables:
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
+"#;
+
+        let on_host: OnHost = serde_yaml::from_str(yaml_without_health).unwrap();
+
+        // If no health is specified the default should be ExecHealth with default values
+        let default_health_config = OnHostHealthConfig {
+            interval: HealthCheckInterval::default(),
+            initial_delay: InitialDelay::default(),
+            timeout: HealthCheckTimeout::default(),
+            check: OnHostHealthCheck::ExecHealth,
+        };
+
+        // Create a default OnHost instance to compare
+        let default_on_host = OnHost {
+            executables: vec![Executable {
+                id: TemplateableValue::from_template("otelcol".to_string()),
+                path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
+                args: TemplateableValue::from_template(
+                    "-c ${nr-var:deployment.k8s.image}".to_string(),
+                ),
+                restart_policy: RestartPolicyConfig {
+                    backoff_strategy: BackoffStrategyConfig {
+                        backoff_type: TemplateableValue::from_template("fixed".to_string()),
+                        backoff_delay: TemplateableValue::from_template("1s".to_string()),
+                        max_retries: TemplateableValue::from_template("3".to_string()),
+                        last_retry_interval: TemplateableValue::from_template("30s".to_string()),
+                    },
+                    restart_exit_codes: vec![],
+                },
+                env: Env::default(),
+            }],
+            enable_file_logging: TemplateableValue::default(),
+            health: default_health_config,
+        };
+
+        // Compare the default OnHost instance with the parsed instance
+        assert_eq!(on_host, default_on_host);
+    }
+
     pub const AGENT_GIVEN_YAML: &str = r#"
 health:
   interval: 3s
@@ -593,7 +666,8 @@ health:
     path: /healthz
     port: 8080
 executables:
-  - path: ${nr-var:bin}/otelcol
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
     args: "-c ${nr-var:deployment.k8s.image}"
     restart_policy:
       backoff_strategy:
@@ -601,7 +675,8 @@ executables:
         backoff_delay: 1s
         max_retries: 3
         last_retry_interval: 30s
-  - path: ${nr-var:bin}/otelcol-second
+  - id: otelcol-second
+    path: ${nr-var:bin}/otelcol-second
     args: "-c ${nr-var:deployment.k8s.image}"
     restart_policy:
       backoff_strategy:

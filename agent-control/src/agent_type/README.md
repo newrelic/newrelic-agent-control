@@ -138,7 +138,8 @@ deployment:
         path: "/v1/status"
         port: 8003
     executables:
-      - path: /usr/bin/newrelic-infra
+      - id: newrelic-infra
+        path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"
         env: "NRIA_PLUGIN_DIR=${nr-var:config_integrations} NRIA_STATUS_SERVER_ENABLED=true"
         restart_policy:
@@ -152,7 +153,8 @@ In this section:
 * `enable_file_logging`: This setting turns on logging for the agent supervisor
 * `health`: The measures used to check the health status of the agent.
 * `executables`: This outlines the list of binaries the agent supervisor runs. Developers can define:
-  - * `path`: The location of the binary required.
+  - * `id`: Unique identifier for the exec used by the health checker.
+    * `path`: The location of the binary required.
     * `args`: The command-line arguments needed by the binary.
     * `env`: Specifies the required environment variables.
     * `restart_policy`: The guidelines for if or when the process should be restarted.
@@ -379,7 +381,8 @@ variables:
 deployment:
   on_host:
     executables:
-      - path: /usr/bin/telegraf
+      - id: telegraf
+        path: /usr/bin/telegraf
         args: "--config ${nr-var:config_file}"
         env: ""
         restart_policy:
