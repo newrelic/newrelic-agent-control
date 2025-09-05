@@ -160,7 +160,7 @@ impl NotStartedSupervisorOnHost {
             );
             return Ok(Some(started_thread_context));
         }
-        debug!("health checks are disabled for this agent");
+        info!(%self.agent_identity.agent_type_id, "health checks are disabled for this agent");
         Ok(None)
     }
 
@@ -169,7 +169,7 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
         let Some(version_config) = &self.version_config else {
-            debug!("version checks are disabled for this agent");
+            info!(%self.agent_identity.agent_type_id, "version checks are disabled for this agent");
             return;
         };
 
