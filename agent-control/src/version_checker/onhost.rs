@@ -15,7 +15,7 @@ use tracing::{debug, info, info_span, warn};
 pub struct OnHostAgentVersionChecker {
     pub(crate) path: String,
     pub(crate) args: Args,
-    pub(crate) regex: Option<String>,
+    pub(crate) regex: Option<Regex>,
 }
 
 impl VersionChecker for OnHostAgentVersionChecker {
@@ -28,10 +28,7 @@ impl VersionChecker for OnHostAgentVersionChecker {
             })?;
         let output = String::from_utf8_lossy(&output.stdout);
 
-        let version = if let Some(pattern) = &self.regex {
-            let regex = Regex::new(pattern)
-                .map_err(|e| VersionCheckError::Generic(format!("error compiling regex: {e}")))?;
-
+        let version = if let Some(regex) = &self.regex {
             let version_match = regex.find(&output).ok_or(VersionCheckError::Generic(
                 "error checking agent version: version not found".to_string(),
             ))?;
@@ -106,7 +103,7 @@ mod tests {
         let agent_version = OnHostAgentVersionChecker {
             path: path.to_string(),
             args: Args(args),
-            regex: regex.map(|r| r.to_string()),
+            regex: regex.map(|r| Regex::new(r).unwrap()),
         }
         .check_agent_version()
         .unwrap();
