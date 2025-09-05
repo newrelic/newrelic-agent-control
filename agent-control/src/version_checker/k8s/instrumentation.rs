@@ -36,13 +36,13 @@ impl NewrelicInstrumentationVersionChecker {
                 self.namespace.as_str(),
             )
             .map_err(|err| {
-                VersionCheckError::Generic(format!(
+                VersionCheckError(format!(
                     "Error fetching Instrumentation for agent_id '{}': {}",
                     &self.agent_id, err
                 ))
             })?
             .ok_or_else(|| {
-                VersionCheckError::Generic(format!(
+                VersionCheckError(format!(
                     "Instrumentation for agent_id '{}' not found",
                     &self.agent_id
                 ))
@@ -55,7 +55,7 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
         let instrumentation = self.get_instrumentation()?;
 
         let instrumentation_data = instrumentation.data.as_object().ok_or_else(|| {
-            VersionCheckError::Generic(format!(
+            VersionCheckError(format!(
                 "Invalid Instrumentation for agent_id '{}'",
                 &self.agent_id
             ))
@@ -63,7 +63,7 @@ impl VersionChecker for NewrelicInstrumentationVersionChecker {
 
         let version = version_from_newrelic_instrumentation_image(instrumentation_data)
             .ok_or_else(|| {
-                VersionCheckError::Generic(format!(
+                VersionCheckError(format!(
                     "Could not extract version from 'spec.agent.image' in the Instrumentation object for '{}'",
                     &self.agent_id
                 ))
