@@ -1,6 +1,7 @@
 ---
 - name: Install Agent Control on a system where Infra Agent is already installed.
-  hosts: testing_hosts_linux
+  hosts: 127.0.0.1
+  connection: local
   become: true
   gather_facts: yes
 

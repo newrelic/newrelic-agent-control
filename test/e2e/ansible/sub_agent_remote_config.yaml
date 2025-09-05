@@ -11,7 +11,8 @@
 # This would make that the infra agent reported metrics contain a `config_origin: remote` attribute.
 
 - name: Install AC and assert a remote config is applied.
-  hosts: testing_hosts_linux
+  hosts: 127.0.0.1
+  connection: local
   become: true
   gather_facts: yes
 
