@@ -23,7 +23,7 @@ endif
 ANSIBLE_FOLDER := $(CURDIR)/ansible
 ANSIBLE_FORKS ?= 5
 ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
-ANSIBLE_PLAYBOOK ?= sub_agent_remote_config.yaml
+ANSIBLE_PLAYBOOK ?= remote_config.yaml
 LIMIT ?= "testing_hosts_linux"
 
 define check_env_var

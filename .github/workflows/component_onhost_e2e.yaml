@@ -3,43 +3,60 @@ name: 📞 OnHost E2E tests
 on:
   workflow_call:
     secrets:
-      AWS_ROLE_ARN:
+      NR_SYSTEM_IDENTITY_CLIENT_ID:
+        required: false
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY:
+        required: false
+      E2E_ACCOUNT_ID:
         required: true
-      AWS_VPC_SUBNET:
+      E2E_API_KEY:
+        required: true
+      E2E_LICENSE_KEY:
         required: true
 
     inputs:
-      UNIQUE_NAME:
+      scenarios:
+        description: 'JSON array of test scenarios to run'
         required: true
         type: string
-      PACKAGE_VERSION:
+      package_version:
         required: false
         type: string
         default: ""
-      REPOSITORY_ENDPOINT:
+      repository_endpoint:
         required: false
         type: string
         description: 'Repository endpoint to fetch packages from'
         default: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
-env:
-  UNIQUE_NAME: ${{ inputs.UNIQUE_NAME }}
-
 permissions:
-  id-token: write
   contents: read
 
 jobs:
-  infra:
-    name: Provision infra and run OnHost E2E tests
-
-    runs-on: ubuntu-latest
+  on-host-e2e:
+    name: OnHost E2E tests
+    # using ubuntu 24 prevents from adding the testing repo from http .
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(inputs.scenarios) }}
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set branch name
+      - name: Install deps
+        run: |
+          python3 -m pip install ansible==10.7.0 jmespath==1.0.1 pywinrm==0.5.0
+      - name: Test ${{ matrix.group }}
+        env:
+          NR_PROD_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NEW_RELIC_PROD_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          NEW_RELIC_PROD_API_KEY: ${{ secrets.E2E_API_KEY }}
+          NR_PROD_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
         run: |
           make test/e2e \
+            ANSIBLE_PLAYBOOK=${{ matrix.group }} \
             ENVIRONMENT=production \
-            REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} \
-            PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}
+            REPOSITORY_ENDPOINT=${{ inputs.repository_endpoint }} \
+            PACKAGE_VERSION=${{ inputs.package_version }}
