@@ -25,13 +25,6 @@ impl AgentID {
             Self::SubAgent(id) => id.as_str(),
         }
     }
-
-    /// Checks if a string reference has valid format to build an [AgentID].
-    /// It follows [RFC 1035 Label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names),
-    /// and sets a shorter maximum length to avoid issues when the agent-id is used to compose names.
-    pub fn is_valid_format(s: &str) -> Result<(), AgentIDError> {
-        agent_id_not_reserved_and_valid(s)
-    }
 }
 
 impl TryFrom<String> for AgentID {
