@@ -255,13 +255,12 @@ fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     //   - (\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}) matches the timestamp format.
     // Any character match ".*" is used as the raw logging output contains the raw colors unicode
     // values: \u{1b}[2m2024\u{1b}[0m \u{1b}[32m INFO\u{1b}[0m \u{1b}[2mnewrelic_agent_control\u{1b}[0m\u{1b}[2m:\u{1b}[0m Creating the global context
-    cmd.assert().failure().stdout(
-        predicate::str::is_match(format!(
-            ".*could not read Agent Control config from `{}`.*",
+    cmd.assert()
+        .failure()
+        .stdout(predicate::str::contains(format!(
+            "could not read Agent Control config from {}",
             dir.path().to_string_lossy()
-        ))
-        .unwrap(),
-    );
+        )));
 
     // Env cleanup
     unsafe { env::remove_var(env_var_name) };

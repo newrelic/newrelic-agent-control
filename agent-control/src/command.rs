@@ -19,40 +19,32 @@ use crate::{
     utils::binary_metadata::binary_metadata,
 };
 use clap::Parser;
+use std::error::Error;
+use std::process::ExitCode;
 use std::sync::Arc;
-use thiserror::Error;
-use tracing::info;
+use tracing::{error, info};
 
 /// All possible errors that can happen while running the initialization.
-#[derive(Debug, Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum InitError {
     /// Could not initialize tracer
-    #[error("could not initialize tracer: `{0}`")]
+    #[error("could not initialize tracer: {0}")]
     TracerError(#[from] TracingError),
     /// K8s config is missing
-    #[error("k8s config missing while running on k8s ")]
+    #[error("k8s config missing while running on k8s")]
     K8sConfig(),
     /// The config could not be read
-    #[error("could not read Agent Control config from `{0}`: `{1}`")]
+    #[error("could not read Agent Control config from {0}: {1}")]
     LoaderError(String, String),
     /// The configuration is invalid
-    #[error("invalid configuration: `{0}`")]
+    #[error("invalid configuration: {0}")]
     InvalidConfig(String),
-}
-
-/// What action was requested from the initialization?
-pub enum Command {
-    /// Normal operation requested. Get the required config and continue.
-    InitAgentControl(Box<AgentControlRunConfig>, Vec<TracingGuardBox>),
-    /// Do a "one-shot" operation and exit successfully.
-    /// In the future, many different operations could be added here.
-    OneShot(OneShotCommand),
 }
 
 /// Command line arguments for Agent Control, as parsed by [`clap`].
 #[derive(Parser, Debug)]
 #[command(author, about, long_about = None)] // Read from `Cargo.toml`
-pub struct Flags {
+pub struct Command {
     #[arg(long)]
     print_debug_info: bool,
 
@@ -75,9 +67,22 @@ pub struct Flags {
     pub logs_dir: Option<std::path::PathBuf>,
 }
 
-impl Flags {
-    /// Parses command line arguments and decides how the application runs.
-    pub fn init(mode: Environment) -> Result<Command, InitError> {
+impl Command {
+    /// Checks if the flag to show the version was set
+    fn print_version(&self) -> bool {
+        self.version
+    }
+
+    /// Checks if the flag to show debug information was set
+    fn print_debug_info(&self) -> bool {
+        self.print_debug_info
+    }
+
+    /// Runs the provided main function or shows the binary information according to flags
+    pub fn run<F: Fn(AgentControlRunConfig, Vec<TracingGuardBox>) -> Result<(), Box<dyn Error>>>(
+        mode: Environment,
+        main_fn: F,
+    ) -> ExitCode {
         // Get command line args
         let flags = Self::parse();
 
@@ -87,14 +92,44 @@ impl Flags {
         #[cfg(debug_assertions)]
         let base_paths = set_debug_dirs(base_paths, &flags);
 
-        // If the version flag is set, print the version and exit
+        // Handle flags requiring different execution mode
         if flags.print_version() {
-            return Ok(Command::OneShot(OneShotCommand::PrintVersion));
+            println!("{}", binary_metadata(mode));
+            return ExitCode::SUCCESS;
         }
         if flags.print_debug_info() {
-            return Ok(Command::OneShot(OneShotCommand::PrintDebugInfo(flags)));
+            println!("Printing debug info");
+            println!("Agent Control Mode: {mode:?}");
+            println!("FLAGS: {flags:#?}");
+            return ExitCode::SUCCESS;
         }
 
+        let Ok((run_config, tracer)) =
+            Self::init_agent_control(mode, base_paths).inspect_err(|err| {
+                // Using print because the tracer might have failed to start
+                println!("Error on Agent Control initialization: {err}");
+            })
+        else {
+            return ExitCode::FAILURE;
+        };
+
+        match main_fn(run_config, tracer) {
+            Ok(_) => {
+                info!("The agent control main process exited successfully");
+                ExitCode::SUCCESS
+            }
+            Err(err) => {
+                error!("The agent control main process exited with an error: {err}");
+                ExitCode::FAILURE
+            }
+        }
+    }
+
+    /// Builds the Agent Control configuration required to execute the application.
+    fn init_agent_control(
+        mode: Environment,
+        base_paths: BasePaths,
+    ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
         let agent_control_repository =
             ConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone());
 
@@ -148,39 +183,6 @@ impl Flags {
             },
             agent_type_var_constraints,
         };
-
-        Ok(Command::InitAgentControl(Box::new(run_config), tracer))
-    }
-
-    fn print_version(&self) -> bool {
-        self.version
-    }
-
-    fn print_debug_info(&self) -> bool {
-        self.print_debug_info
-    }
-}
-
-/// One-shot operations that can be performed by the agent-control
-pub enum OneShotCommand {
-    /// Print the version of the agent-control and exits
-    PrintVersion,
-    /// Print debug information and exits
-    PrintDebugInfo(Flags),
-}
-
-impl OneShotCommand {
-    /// Runs the one-shot operation
-    pub fn run_one_shot(&self, env: Environment) {
-        match self {
-            OneShotCommand::PrintVersion => {
-                println!("{}", binary_metadata(env));
-            }
-            OneShotCommand::PrintDebugInfo(flags) => {
-                println!("Printing debug info");
-                println!("Agent Control Mode: {env:?}");
-                println!("FLAGS: {flags:#?}");
-            }
-        }
+        Ok((run_config, tracer))
     }
 }

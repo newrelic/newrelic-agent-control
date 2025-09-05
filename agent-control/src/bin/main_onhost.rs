@@ -9,9 +9,9 @@ use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, Environment,
 };
+use newrelic_agent_control::command::Command;
 use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
-use newrelic_agent_control::flags::{Command, Flags};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::instrumentation::tracing::TracingGuardBox;
 use std::error::Error;
@@ -21,35 +21,7 @@ use tracing::{error, info, trace};
 const AGENT_CONTROL_MODE: Environment = Environment::OnHost;
 
 fn main() -> ExitCode {
-    let Ok(command) = Flags::init(AGENT_CONTROL_MODE)
-        .inspect_err(|init_err| println!("Error parsing Flags: {init_err}"))
-    else {
-        return ExitCode::FAILURE;
-    };
-
-    let (agent_control_config, tracer) = match command {
-        // Agent Control command call instructs normal operation. Continue with required data.
-        Command::InitAgentControl(agent_control_init_config, tracer) => {
-            (agent_control_init_config, tracer)
-        }
-
-        // Agent Control command call was a "one-shot" operation. Exit successfully after performing.
-        Command::OneShot(op) => {
-            op.run_one_shot(AGENT_CONTROL_MODE);
-            return ExitCode::SUCCESS;
-        }
-    };
-
-    match _main(*agent_control_config, tracer) {
-        Err(e) => {
-            error!("The agent control main process exited with an error: {e}");
-            ExitCode::FAILURE
-        }
-        Ok(()) => {
-            info!("The agent control main process exited successfully");
-            ExitCode::SUCCESS
-        }
-    }
+    Command::run(AGENT_CONTROL_MODE, _main)
 }
 
 /// This is the actual main function.
