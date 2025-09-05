@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-/// An on-host agent definition that includes filesystem entries should result in those entries being
+/// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory.
 #[test]
 fn writes_filesystem_entries() {
@@ -87,6 +87,9 @@ deployment:
     });
 }
 
+/// An on-host agent definition that includes filesystem entries should result in the entries being
+/// created in the appropriate location under the remote directory and with their contents properly
+/// rendered from the defined variables.
 #[test]
 fn complete_render_and_and_write_files() {
     let opamp_server = FakeServer::start_new();
