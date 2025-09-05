@@ -1,14 +1,24 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
+use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::event::cancellation::CancellationMessage;
+use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::utils::{get_namespace, get_type_meta};
+use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
+use crate::utils::thread_context::{NotStartedThreadContext, StartedThreadContext};
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::version_checker::k8s::instrumentation::NewrelicInstrumentationVersionChecker;
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::{
+    AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
+};
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
-use tracing::warn;
+use tracing::{debug, info, info_span, warn};
+
+use crate::version_checker::VERSION_CHECKER_THREAD_NAME;
+use std::fmt::Debug;
 
 /// Represents the k8s resource types supporting version check.
 enum SupportedResourceType {
@@ -97,21 +107,73 @@ impl K8sAgentVersionChecker {
     }
 }
 
+pub(crate) fn spawn_version_checker<V, T, F>(
+    version_checker_id: String,
+    version_checker: V,
+    version_event_publisher: EventPublisher<T>,
+    version_event_generator: F,
+    interval: VersionCheckerInterval,
+) -> StartedThreadContext
+where
+    V: VersionChecker + Send + Sync + 'static,
+    T: Debug + Send + Sync + 'static,
+    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
+{
+    let thread_name = format!("{version_checker_id}_{VERSION_CHECKER_THREAD_NAME}");
+    // Stores if the version was retrieved in last iteration for logging purposes.
+    let mut version_retrieved = false;
+    let callback = move |stop_consumer: EventConsumer<CancellationMessage>| loop {
+        let span = info_span!(
+            "version_check",
+            { ID_ATTRIBUTE_NAME } = %version_checker_id
+        );
+        let _guard = span.enter();
+
+        debug!("starting to check version with the configured checker");
+
+        match version_checker.check_agent_version() {
+            Ok(agent_data) => {
+                if !version_retrieved {
+                    info!("agent version successfully checked");
+                    version_retrieved = true;
+                }
+
+                publish_version_event(
+                    &version_event_publisher,
+                    version_event_generator(agent_data),
+                );
+            }
+            Err(error) => {
+                warn!("failed to check agent version: {error}");
+                version_retrieved = false;
+            }
+        }
+
+        if stop_consumer.is_cancelled(interval.into()) {
+            break;
+        }
+    };
+
+    NotStartedThreadContext::new(thread_name, callback).start()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::version_checker::k8s::checkers::tests::SubAgentInternalEvent::AgentVersionInfo;
     use crate::{
         agent_control::{
             config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta},
             defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
         },
+        event::{SubAgentInternalEvent, channel::pub_sub},
         k8s::client::MockSyncK8sClient,
     };
     use assert_matches::assert_matches;
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
     use kube::api::{DynamicObject, TypeMeta};
-    use mockall::mock;
-    use std::sync::Arc;
+    use mockall::{Sequence, mock};
+    use std::{sync::Arc, time::Duration};
 
     mock! {
         pub VersionChecker {}
@@ -247,5 +309,55 @@ mod tests {
             api_version: "v1".into(),
             kind: "Secret".into(),
         })
+    }
+
+    #[test]
+    fn test_spawn_version_checker() {
+        let (version_publisher, version_consumer) = pub_sub();
+
+        let mut version_checker = MockVersionChecker::new();
+        let mut seq = Sequence::new();
+        version_checker
+            .expect_check_agent_version()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(move || {
+                Err(VersionCheckError::Generic(
+                    "mocked version check error!".to_string(),
+                ))
+            });
+        version_checker
+            .expect_check_agent_version()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(move || {
+                Ok(AgentVersion {
+                    version: "1.0.0".to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                })
+            });
+
+        let started_thread_context = spawn_version_checker(
+            AgentID::default().to_string(),
+            version_checker,
+            version_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
+            Duration::from_millis(10).into(),
+        );
+
+        // Check that we received the expected version event
+        assert_eq!(
+            AgentVersionInfo(AgentVersion {
+                version: "1.0.0".to_string(),
+                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+            }),
+            version_consumer.as_ref().recv().unwrap()
+        );
+
+        // Check that the thread is finished
+        started_thread_context.stop_blocking().unwrap();
+
+        // Check there are no more events
+        assert!(version_consumer.as_ref().recv().is_err());
     }
 }

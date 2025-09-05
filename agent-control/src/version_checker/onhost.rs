@@ -1,8 +1,15 @@
 use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
-use crate::version_checker::{AgentVersion, VersionCheckError, VersionChecker};
+use crate::version_checker::{
+    AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
+};
 use regex::Regex;
+
+use crate::event::channel::EventPublisher;
+use crate::sub_agent::identity::ID_ATTRIBUTE_NAME;
+use std::fmt::Debug;
+use tracing::{debug, info, info_span, warn};
 
 pub struct OnHostAgentVersionChecker {
     pub(crate) command: String,
@@ -39,8 +46,50 @@ impl VersionChecker for OnHostAgentVersionChecker {
     }
 }
 
+pub(crate) fn check_version<V, T, F>(
+    version_checker_id: String,
+    version_checker: V,
+    version_event_publisher: EventPublisher<T>,
+    version_event_generator: F,
+) where
+    V: VersionChecker + Send + Sync + 'static,
+    T: Debug + Send + Sync + 'static,
+    F: Fn(AgentVersion) -> T + Send + Sync + 'static,
+{
+    let span = info_span!(
+        "version_check",
+        { ID_ATTRIBUTE_NAME } = %version_checker_id
+    );
+    let _guard = span.enter();
+
+    debug!("starting to check version with the configured checker");
+
+    match version_checker.check_agent_version() {
+        Ok(agent_data) => {
+            info!("agent version successfully checked");
+
+            publish_version_event(
+                &version_event_publisher,
+                version_event_generator(agent_data),
+            );
+        }
+        Err(error) => {
+            warn!("failed to check agent version: {error}");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::agent_control::agent_id::AgentID;
+    use crate::event::SubAgentInternalEvent;
+    use crate::version_checker::onhost::tests::SubAgentInternalEvent::AgentVersionInfo;
+    use crate::version_checker::tests::MockVersionChecker;
+    use crate::{
+        agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
+        event::channel::pub_sub,
+    };
+
     use super::*;
 
     use rstest::rstest;
@@ -61,5 +110,40 @@ mod tests {
             agent_version.opamp_field.as_str(),
             OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
         );
+    }
+
+    #[test]
+    fn test_check_version() {
+        let (version_publisher, version_consumer) = pub_sub();
+
+        let mut version_checker = MockVersionChecker::new();
+        version_checker
+            .expect_check_agent_version()
+            .once()
+            .returning(move || {
+                Ok(AgentVersion {
+                    version: "1.0.0".to_string(),
+                    opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+                })
+            });
+
+        check_version(
+            AgentID::default().to_string(),
+            version_checker,
+            version_publisher,
+            SubAgentInternalEvent::AgentVersionInfo,
+        );
+
+        // Check that we received the expected version event
+        assert_eq!(
+            AgentVersionInfo(AgentVersion {
+                version: "1.0.0".to_string(),
+                opamp_field: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+            }),
+            version_consumer.as_ref().recv().unwrap()
+        );
+
+        // Check there are no more events
+        assert!(version_consumer.as_ref().recv().is_err());
     }
 }
