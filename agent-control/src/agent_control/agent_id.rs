@@ -38,7 +38,7 @@ impl TryFrom<String> for AgentID {
     type Error = AgentIDError;
     fn try_from(input: String) -> Result<Self, Self::Error> {
         agent_id_not_reserved_and_valid(&input)?;
-        Ok(Self::SubAgent(SubAgentID::new_unchecked(input)))
+        Ok(Self::SubAgent(SubAgentID(input)))
     }
 }
 
@@ -78,11 +78,6 @@ pub struct SubAgentID(String);
 impl SubAgentID {
     pub fn as_str(&self) -> &str {
         &self.0
-    }
-
-    /// Useful when creating this from an [`AgentID`] input, as the validations were already made.
-    fn new_unchecked(s: String) -> Self {
-        Self(s)
     }
 }
 
