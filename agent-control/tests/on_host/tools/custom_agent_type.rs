@@ -24,7 +24,8 @@ variables:
 deployment:
   on_host:
     version:
-      command: echo "Some data 1.0.0 Some data"
+      path: echo
+      args: "Some data 1.0.0 Some data"
       regex: \d+\.\d+\.\d+
       interval: 10s
     executables:
@@ -120,7 +121,8 @@ variables:
 deployment:
   on_host:
     version:
-      command: echo -n 1.0.0
+      path: echo
+      args: -n 1.0.0
       interval: 10s
     executables:
       - path: {path}

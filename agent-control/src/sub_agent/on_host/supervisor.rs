@@ -174,7 +174,8 @@ impl NotStartedSupervisorOnHost {
         };
 
         let onhost_version_checker = OnHostAgentVersionChecker {
-            command: version_config.command.clone(),
+            path: version_config.path.clone(),
+            args: version_config.args.clone().get(),
             regex: version_config.regex.clone(),
         };
 

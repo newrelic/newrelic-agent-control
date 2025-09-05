@@ -1,6 +1,7 @@
 use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
+use crate::agent_type::runtime_config::onhost::Args;
 use crate::version_checker::{
     AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
 };
@@ -12,19 +13,19 @@ use std::fmt::Debug;
 use tracing::{debug, info, info_span, warn};
 
 pub struct OnHostAgentVersionChecker {
-    pub(crate) command: String,
+    pub(crate) path: String,
+    pub(crate) args: Args,
     pub(crate) regex: Option<String>,
 }
 
 impl VersionChecker for OnHostAgentVersionChecker {
     fn check_agent_version(&self) -> Result<AgentVersion, VersionCheckError> {
-        let command_data = self.command.split_ascii_whitespace().collect::<Vec<&str>>();
-        let program = command_data[0];
-        let args = command_data.get(1..).unwrap_or(&[]);
-
-        let output = Command::new(program).args(args).output().map_err(|e| {
-            VersionCheckError::Generic(format!("error executing version command: {e}"))
-        })?;
+        let output = Command::new(&self.path)
+            .args(self.args.clone().into_vector())
+            .output()
+            .map_err(|e| {
+                VersionCheckError::Generic(format!("error executing version command: {e}"))
+            })?;
         let output = String::from_utf8_lossy(&output.stdout);
 
         let version = if let Some(pattern) = &self.regex {
@@ -95,11 +96,16 @@ mod tests {
     use rstest::rstest;
 
     #[rstest]
-    #[case::command_and_regex("echo \"Some data 1.0.0 Some more data\"", Some(r"\d+\.\d+\.\d+"))]
-    #[case::command_and_regex("echo -n 1.0.0", None)]
-    fn test_check_agent_version(#[case] command: &str, #[case] regex: Option<&str>) {
+    #[case::command_and_regex("echo", "Some data 1.0.0 Some more data", Some(r"\d+\.\d+\.\d+"))]
+    #[case::command("echo", "-n 1.0.0", None)]
+    fn test_check_agent_version(
+        #[case] path: &str,
+        #[case] args: String,
+        #[case] regex: Option<&str>,
+    ) {
         let agent_version = OnHostAgentVersionChecker {
-            command: command.to_string(),
+            path: path.to_string(),
+            args: Args(args),
             regex: regex.map(|r| r.to_string()),
         }
         .check_agent_version()
