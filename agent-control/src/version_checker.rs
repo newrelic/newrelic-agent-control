@@ -22,10 +22,8 @@ pub struct AgentVersion {
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum VersionCheckError {
-    #[error("generic error: {0}")]
-    Generic(String),
-}
+#[error("checking version: {0}")]
+pub struct VersionCheckError(pub String);
 
 pub(crate) fn publish_version_event<T>(version_event_publisher: &EventPublisher<T>, event: T)
 where

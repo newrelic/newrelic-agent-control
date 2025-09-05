@@ -321,11 +321,7 @@ mod tests {
             .expect_check_agent_version()
             .once()
             .in_sequence(&mut seq)
-            .returning(move || {
-                Err(VersionCheckError::Generic(
-                    "mocked version check error!".to_string(),
-                ))
-            });
+            .returning(move || Err(VersionCheckError("mocked version check error!".to_string())));
         version_checker
             .expect_check_agent_version()
             .once()

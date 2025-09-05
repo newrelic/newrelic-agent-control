@@ -23,13 +23,11 @@ impl VersionChecker for OnHostAgentVersionChecker {
         let output = Command::new(&self.path)
             .args(self.args.clone().into_vector())
             .output()
-            .map_err(|e| {
-                VersionCheckError::Generic(format!("error executing version command: {e}"))
-            })?;
+            .map_err(|e| VersionCheckError(format!("error executing version command: {e}")))?;
         let output = String::from_utf8_lossy(&output.stdout);
 
         let version = if let Some(regex) = &self.regex {
-            let version_match = regex.find(&output).ok_or(VersionCheckError::Generic(
+            let version_match = regex.find(&output).ok_or(VersionCheckError(
                 "error checking agent version: version not found".to_string(),
             ))?;
             version_match.as_str().to_string()
