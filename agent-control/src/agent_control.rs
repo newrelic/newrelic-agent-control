@@ -12,6 +12,7 @@ pub mod run;
 pub mod uptime_report;
 pub mod version_updater;
 
+use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::event::{
@@ -39,7 +40,7 @@ use opamp_client::StartedClient;
 use resource_cleaner::ResourceCleaner;
 use std::sync::Arc;
 use std::time::SystemTime;
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, info_span, instrument, trace, warn};
 use uptime_report::UptimeReporter;
 use version_updater::updater::VersionUpdater;
 
@@ -121,6 +122,8 @@ where
     }
 
     pub fn run(self) -> Result<(), AgentError> {
+        let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
+        let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
         // This is a first-time run and we already read the config earlier, the `initial_config` contains
         // the result as read by the `AgentControlConfigLoader`.
@@ -178,6 +181,8 @@ where
             .inspect_err(|err| error!("Error executing Agent Control updater: {err}"));
 
         info!("Agents supervisor runtime successfully started");
+        drop(_ac_startup_span_guard); // The span representing agent start finishes before entering in the `process_events` loop. Otherwise the span would be open while Agent Control runs.
+
         self.process_events(running_sub_agents);
 
         if let Some(opamp_client) = self.opamp_client {
@@ -287,6 +292,8 @@ where
         loop {
             select! {
                 recv(&opamp_receiver.as_ref()) -> opamp_event_res => {
+                    let span = info_span!("process_fleet_event", id=AGENT_CONTROL_ID);
+                    let _span_guard = span.enter();
                     match opamp_event_res {
                         Err(_) => {
                             debug!("channel closed");
@@ -316,6 +323,8 @@ where
                     }
                 },
                 recv(&self.agent_control_internal_consumer.as_ref()) -> internal_event_res => {
+                    let span = info_span!("process_event", id=AGENT_CONTROL_ID);
+                    let _span_guard = span.enter();
                     match internal_event_res {
                         Err(err) => {
                             debug!("Error receiving Agent Control internal event {err}");
@@ -337,6 +346,8 @@ where
                     }
                 }
                 recv(self.application_event_consumer.as_ref()) -> _agent_control_event => {
+                    let span = info_span!("process_application_event", id=AGENT_CONTROL_ID);
+                    let _span_guard = span.enter();
                     debug!("stopping Agent Control event processor");
                     self.agent_control_publisher.broadcast(AgentControlEvent::AgentControlStopped);
                     break sub_agents.stop();
@@ -402,7 +413,6 @@ where
         }
     }
 
-    #[instrument(skip_all)]
     pub(super) fn validate_apply_store_remote_config(
         &self,
         opamp_remote_config: &OpampRemoteConfig,
@@ -488,7 +498,7 @@ where
 
             let apply_result = match current_dynamic_config.agents.get(agent_id) {
                 Some(old_sub_agent_config) if old_sub_agent_config == agent_config => {
-                    debug!(%agent_id, "Retaining the existing running SubAgent as its configuration remains unchanged");
+                    debug!(%agent_id, "Retaining the existing running SubAgent as its type remains unchanged");
                     Ok(())
                 }
                 Some(old_sub_agent_config) => {

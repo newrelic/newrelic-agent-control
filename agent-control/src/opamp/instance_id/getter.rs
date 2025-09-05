@@ -63,7 +63,7 @@ where
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
         let storer = self.storer.lock().expect("failed to acquire the lock");
-        debug!("retrieving instance id");
+        debug!(target_agent_id = %agent_id, "retrieving instance id");
         let data = storer.get(agent_id)?;
 
         match data {
@@ -72,8 +72,8 @@ where
             }
             Some(d) if d.identifiers == self.identifiers => return Ok(d.instance_id),
             Some(d) => debug!(
-                "stored data had different identifiers {:?}!={:?}",
-                d.identifiers, self.identifiers
+                target_agent_id = %agent_id,
+                "stored data had different identifiers {:?}!={:?}", d.identifiers, self.identifiers
             ),
         }
 
@@ -82,7 +82,7 @@ where
             identifiers: self.identifiers.clone(),
         };
 
-        debug!("persisting instance id {}", new_data.instance_id);
+        debug!(target_agent_id = %agent_id, "persisting instance id {}", new_data.instance_id);
         storer.set(agent_id, &new_data)?;
 
         Ok(new_data.instance_id)
