@@ -31,7 +31,7 @@ impl AgentAttributes {
             let auto_generated_dir = auto_generated_dir.join(&agent_id);
             debug!(id = %agent_id, "auto-generated directory path set to {}", auto_generated_dir.display());
             Ok(Self {
-                agent_id,
+                agent_id: agent_id.to_string(),
                 auto_generated_dir,
             })
         } else {
