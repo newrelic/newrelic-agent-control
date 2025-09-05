@@ -16,8 +16,8 @@ use crate::{
     },
 };
 
-/// Given a agent-control with a sub-agent without supervised executables, it should be able to
-/// read the health status from the file and send it to the opamp server.
+/// An on-host agent definition that includes filesystem entries should result in those entries being
+/// created in the appropriate location under the remote directory.
 #[test]
 fn writes_filesystem_entries() {
     let opamp_server = FakeServer::start_new();
