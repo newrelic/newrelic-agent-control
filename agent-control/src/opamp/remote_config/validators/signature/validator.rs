@@ -5,7 +5,7 @@ use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use nix::NixPath;
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -142,7 +142,7 @@ impl RemoteConfigValidator for SignatureValidator {
 
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
@@ -168,7 +168,7 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), SignatureValidatorError> {
         // custom capabilities are got from the agent-type (currently hard-coded)
@@ -216,7 +216,7 @@ mod tests {
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
     };
     use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
     use assert_matches::assert_matches;
 
     #[test]
@@ -326,7 +326,7 @@ certificate_pem_file_path: /path/to/file
     #[test]
     fn test_noop_signature_validator() {
         let rc = OpampRemoteConfig::new(
-            AgentID::try_from("test").unwrap(),
+            SubAgentID::try_from("test").unwrap(),
             Hash::from("test_payload"),
             ConfigState::Applying,
             None,
@@ -336,7 +336,7 @@ certificate_pem_file_path: /path/to/file
 
         assert!(
             noop_validator
-                .validate(&AgentIdentity::default(), &rc)
+                .validate(&SubAgentIdentity::default(), &rc)
                 .is_ok(),
             "The config should be valid even if the signature is missing when no-op validator is used",
         )
@@ -361,7 +361,7 @@ certificate_pem_file_path: /path/to/file
                 );
 
                 let result =
-                    signature_validator.validate(&AgentIdentity::default(), &self.remote_config);
+                    signature_validator.validate(&SubAgentIdentity::default(), &self.remote_config);
                 assert_matches!(
                     result,
                     Err(SignatureValidatorError::VerifySignature(_)),
@@ -375,7 +375,7 @@ certificate_pem_file_path: /path/to/file
             TestCase {
                 name: "Signature is missing",
                 remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
+                    SubAgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
@@ -384,7 +384,7 @@ certificate_pem_file_path: /path/to/file
             TestCase {
                 name: "Signature cannot be retrieved because multiple signatures are defined",
                 remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
+                    SubAgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
@@ -397,7 +397,7 @@ certificate_pem_file_path: /path/to/file
             TestCase {
                 name: "Config is empty",
                 remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
+                    SubAgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
                     None,
@@ -407,7 +407,7 @@ certificate_pem_file_path: /path/to/file
             TestCase {
                 name: "Invalid signature",
                 remote_config: OpampRemoteConfig::new(
-                    AgentID::try_from("test").unwrap(),
+                    SubAgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
                     Some(ConfigurationMap::new(HashMap::from([(
@@ -442,7 +442,7 @@ certificate_pem_file_path: /path/to/file
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
         assert!(
             signature_validator
-                .validate(&AgentIdentity::new_agent_control_identity(), &rc)
+                .validate(&SubAgentIdentity::new_agent_control_identity(), &rc)
                 .is_ok()
         );
     }
@@ -476,7 +476,7 @@ certificate_pem_file_path: /path/to/file
 
         assert!(
             signature_validator
-                .validate(&AgentIdentity::default(), &remote_config)
+                .validate(&SubAgentIdentity::default(), &remote_config)
                 .is_ok()
         )
     }

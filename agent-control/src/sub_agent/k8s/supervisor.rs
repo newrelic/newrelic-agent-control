@@ -13,7 +13,7 @@ use crate::k8s::annotations::Annotations;
 use crate::k8s::client::SyncK8sClient;
 use crate::k8s::labels::Labels;
 use crate::k8s::utils::retain_not_null;
-use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
+use crate::sub_agent::identity::{ID_ATTRIBUTE_NAME, SubAgentIdentity};
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
@@ -32,7 +32,7 @@ const OBJECTS_SUPERVISOR_INTERVAL_SECONDS: u64 = 30;
 const SUPERVISOR_THREAD_NAME: &str = "supervisor";
 
 pub struct NotStartedSupervisorK8s {
-    agent_identity: AgentIdentity,
+    agent_identity: SubAgentIdentity,
     k8s_client: Arc<SyncK8sClient>,
     k8s_config: K8s,
     interval: Duration,
@@ -67,7 +67,7 @@ impl SupervisorStarter for NotStartedSupervisorK8s {
 
 impl NotStartedSupervisorK8s {
     pub fn new(
-        agent_identity: AgentIdentity,
+        agent_identity: SubAgentIdentity,
         k8s_client: Arc<SyncK8sClient>,
         k8s_config: K8s,
     ) -> Self {
@@ -299,8 +299,8 @@ pub mod tests {
 
     #[test]
     fn test_build_dynamic_objects() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("test").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -344,8 +344,8 @@ pub mod tests {
     #[test]
     fn test_k8s_objects_supervisor() {
         let interval = Duration::from_millis(250);
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("test").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("test").unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
         let apply_issue = "some issue";
@@ -477,8 +477,8 @@ pub mod tests {
         config: K8s,
         additional_expectations_fn: Option<fn(&mut MockSyncK8sClient)>,
     ) -> NotStartedSupervisorK8s {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 
@@ -500,8 +500,8 @@ pub mod tests {
         let mut sub_agent_publisher = UnboundedBroadcast::default();
         let sub_agent_consumer = sub_agent_publisher.subscribe();
 
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from(TEST_GENT_FQN).unwrap(),
         ));
 

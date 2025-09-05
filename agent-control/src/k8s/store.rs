@@ -144,7 +144,7 @@ pub mod tests {
         // In this test we are checking that the parameters are passed as expected and that cm names are built in the proper way
         // The output of the commands are checked in following tests.
         let mut k8s_client = MockSyncK8sClient::default();
-        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
+        let agent_id = SubAgentID::try_from(AGENT_NAME).unwrap();
 
         k8s_client
             .expect_set_configmap_key()
@@ -322,7 +322,7 @@ pub mod tests {
 
     #[test]
     fn test_build_cm_name() {
-        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
+        let agent_id = SubAgentID::try_from(AGENT_NAME).unwrap();
         assert_eq!(
             "prefix-agent1",
             K8sStore::build_cm_name(&agent_id, PREFIX_TEST)

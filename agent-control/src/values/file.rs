@@ -416,7 +416,7 @@ pub mod tests {
 
     #[fixture]
     fn agent_id() -> AgentID {
-        AgentID::try_from("some-agent-id").unwrap()
+        SubAgentID::try_from("some-agent-id").unwrap()
     }
 
     #[rstest]

@@ -1,6 +1,6 @@
-use super::agent_id::AgentID;
 use super::http_server::config::ServerConfig;
 use super::uptime_report::UptimeReportConfig;
+use crate::agent_control::agent_id::SubAgentID;
 use crate::agent_control::health_checker::AgentControlHealthCheckerConfig;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::http::config::ProxyConfig;
@@ -98,13 +98,13 @@ pub struct AgentControlDynamicConfig {
     pub cd_chart_version: Option<String>,
 }
 
-pub type SubAgentsMap = HashMap<AgentID, SubAgentConfig>;
+pub type SubAgentsMap = HashMap<SubAgentID, SubAgentConfig>;
 
 /// Return elements of the first map not existing in the second map.
 pub fn sub_agents_difference<'a>(
     old_sub_agents: &'a SubAgentsMap,
     new_sub_agents: &'a SubAgentsMap,
-) -> impl Iterator<Item = (&'a AgentID, &'a SubAgentConfig)> {
+) -> impl Iterator<Item = (&'a SubAgentID, &'a SubAgentConfig)> {
     old_sub_agents
         .iter()
         .filter(|(agent_id, _)| !new_sub_agents.contains_key(agent_id))
@@ -329,11 +329,12 @@ impl Default for K8sConfig {
 pub(crate) mod tests {
     use super::*;
     use crate::{
+        agent_control::agent_id::SubAgentID,
         instrumentation::config::logs::{
             file_logging::{FileLoggingConfig, LogFilePath},
             format::{LoggingFormat, TimestampFormat},
         },
-        sub_agent::identity::AgentIdentity,
+        sub_agent::identity::SubAgentIdentity,
     };
     use std::path::PathBuf;
 
@@ -653,7 +654,7 @@ k8s:
     #[test]
     fn test_sub_agent_removal_diff_with_removal() {
         let old_sub_agents = helper_get_agent_list();
-        let agent_id_to_remove = AgentID::try_from("infra-agent").unwrap();
+        let agent_id_to_remove = SubAgentID::try_from("infra-agent").unwrap();
         let mut new_sub_agents = old_sub_agents.clone();
         new_sub_agents.remove(&agent_id_to_remove);
 
@@ -673,14 +674,14 @@ k8s:
 
         assert_eq!(diff.len(), 2);
         assert!(diff.contains(&(
-            &AgentID::try_from("infra-agent").unwrap(),
+            &SubAgentID::try_from("infra-agent").unwrap(),
             &SubAgentConfig {
                 agent_type:
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
             },
         )));
         assert!(diff.contains(&(
-            &AgentID::try_from("nrdot").unwrap(),
+            &SubAgentID::try_from("nrdot").unwrap(),
             &SubAgentConfig {
                 agent_type:
                     AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap(),
@@ -703,14 +704,14 @@ k8s:
     // Test helpers
     ////////////////////////////////////////////////////////////////////////////////////
 
-    pub fn infra_identity() -> AgentIdentity {
-        let id = AgentID::try_from("infra-agent").unwrap();
+    pub fn infra_identity() -> SubAgentIdentity {
+        let id = SubAgentID::try_from("infra-agent").unwrap();
         let agent_type_id =
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap();
-        AgentIdentity { id, agent_type_id }
+        SubAgentIdentity { id, agent_type_id }
     }
 
-    fn infra() -> HashMap<AgentID, SubAgentConfig> {
+    fn infra() -> HashMap<SubAgentID, SubAgentConfig> {
         let identity = infra_identity();
         HashMap::from([(
             identity.id,
@@ -720,14 +721,14 @@ k8s:
         )])
     }
 
-    pub fn nrdot_identity() -> AgentIdentity {
-        let id = AgentID::try_from("nrdot").unwrap();
+    pub fn nrdot_identity() -> SubAgentIdentity {
+        let id = SubAgentID::try_from("nrdot").unwrap();
         let agent_type_id =
             AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap();
-        AgentIdentity { id, agent_type_id }
+        SubAgentIdentity { id, agent_type_id }
     }
 
-    fn nrdot() -> HashMap<AgentID, SubAgentConfig> {
+    fn nrdot() -> HashMap<SubAgentID, SubAgentConfig> {
         let identity = nrdot_identity();
         HashMap::from([(
             identity.id,
@@ -737,7 +738,7 @@ k8s:
         )])
     }
 
-    pub fn helper_get_agent_list() -> HashMap<AgentID, SubAgentConfig> {
+    pub fn helper_get_agent_list() -> HashMap<SubAgentID, SubAgentConfig> {
         let mut agents = HashMap::new();
         agents.extend(infra());
         agents.extend(nrdot());

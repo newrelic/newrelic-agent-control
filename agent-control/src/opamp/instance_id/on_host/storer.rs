@@ -178,7 +178,7 @@ mod tests {
             sa_dir.clone(),
             sub_agent_dir.clone(),
         );
-        let agent_id = AgentID::try_from("test").unwrap();
+        let agent_id = SubAgentID::try_from("test").unwrap();
         let path = storer.get_instance_id_path(&agent_id);
         assert_eq!(path, sub_agent_dir.join("test").join("identifiers.yaml"));
 
@@ -300,7 +300,7 @@ mod tests {
     const FLEET_ID: &str = "test-fleet-id";
 
     fn test_data() -> (AgentID, PathBuf, PathBuf, PathBuf) {
-        let agent_id = AgentID::try_from("test").unwrap();
+        let agent_id = SubAgentID::try_from("test").unwrap();
         let sa_path = PathBuf::from("/super");
         let sub_agent_path = PathBuf::from("/sub");
         let instance_id_path = PathBuf::from("/sub/test/identifiers.yaml");

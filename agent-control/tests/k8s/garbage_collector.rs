@@ -34,7 +34,7 @@ use newrelic_agent_control::{
     k8s::labels::Labels,
 };
 use newrelic_agent_control::{
-    agent_type::runtime_config::k8s::K8s, sub_agent::identity::AgentIdentity,
+    agent_type::runtime_config::k8s::K8s, sub_agent::identity::SubAgentIdentity,
 };
 use newrelic_agent_control::{
     agent_type::runtime_config::k8s::K8sObject, k8s::annotations::Annotations,
@@ -76,8 +76,8 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
 
-    let agent_identity = AgentIdentity::from((
-        AgentID::try_from("sub-agent").unwrap(),
+    let agent_identity = SubAgentIdentity::from((
+        SubAgentID::try_from("sub-agent").unwrap(),
         AgentTypeID::try_from("ns/test:1.2.3").unwrap(),
     ));
 

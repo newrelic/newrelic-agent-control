@@ -1,6 +1,6 @@
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use crate::values::config::RemoteConfig;
 use crate::values::yaml_config::YAMLConfig;
 use thiserror::Error;
@@ -23,7 +23,7 @@ pub enum RemoteConfigParserError {
 pub trait RemoteConfigParser {
     fn parse(
         &self,
-        agent_identity: AgentIdentity,
+        agent_identity: SubAgentIdentity,
         config: &OpampRemoteConfig,
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError>;
 }
@@ -51,7 +51,7 @@ where
     /// or an error if the configuration is invalid according to the configured validators.
     fn parse(
         &self,
-        agent_identity: AgentIdentity,
+        agent_identity: SubAgentIdentity,
         config: &OpampRemoteConfig,
     ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
         // Errors here will cause the sub-agent to continue running with the previous configuration.
@@ -104,7 +104,7 @@ pub mod tests {
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
     use crate::values::config::RemoteConfig;
     use assert_matches::assert_matches;
     use mockall::mock;
@@ -117,7 +117,7 @@ pub mod tests {
         impl RemoteConfigParser for RemoteConfigParser{
             fn parse(
                 &self,
-                agent_identity: AgentIdentity,
+                agent_identity: SubAgentIdentity,
                 config: &OpampRemoteConfig,
             ) -> Result<Option<RemoteConfig>, RemoteConfigParserError>;
         }
@@ -126,7 +126,7 @@ pub mod tests {
     impl MockRemoteConfigParser {
         pub fn should_parse(
             &mut self,
-            agent_identity: AgentIdentity,
+            agent_identity: SubAgentIdentity,
             config: OpampRemoteConfig,
             remote_config: Option<RemoteConfig>,
         ) {
@@ -139,7 +139,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_config_with_previous_errors() {
-        let agent_identity = AgentIdentity::default();
+        let agent_identity = SubAgentIdentity::default();
         // The hash had some previous errors
         let hash = Hash::from("some-hash");
         let state = ConfigState::Failed {
@@ -161,7 +161,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_config_validation_error() {
-        let agent_identity = AgentIdentity::default();
+        let agent_identity = SubAgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
@@ -199,7 +199,7 @@ pub mod tests {
     #[case::invalid_yaml_config_single_value(r#"{"config": "single-value"}"#)]
     #[case::invalid_yaml_config_array(r#"{"config": "[1, 2, 3]"}"#)]
     fn test_agent_remote_config_parser_config_invalid_values(#[case] config: &str) {
-        let agent_identity = AgentIdentity::default();
+        let agent_identity = SubAgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
@@ -216,7 +216,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_some_config() {
-        let agent_identity = AgentIdentity::default();
+        let agent_identity = SubAgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
@@ -252,7 +252,7 @@ pub mod tests {
 
     #[test]
     fn test_agent_remote_config_parser_empty_config() {
-        let agent_identity = AgentIdentity::default();
+        let agent_identity = SubAgentIdentity::default();
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;

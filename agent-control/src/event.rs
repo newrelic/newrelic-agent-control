@@ -8,11 +8,12 @@ pub mod broadcaster;
 pub mod cancellation;
 pub mod channel;
 
+use crate::agent_control::agent_id::SubAgentID;
 use crate::health::with_start_time::HealthWithStartTime;
+use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use crate::version_checker::AgentVersion;
-use crate::{agent_control::agent_id::AgentID, opamp::remote_config::OpampRemoteConfig};
 use std::time::SystemTime;
 
 /// Defines the events sent by the OpAMP client.
@@ -33,7 +34,7 @@ pub enum ApplicationEvent {
 #[derive(Clone, Debug, PartialEq)]
 pub enum AgentControlEvent {
     HealthUpdated(HealthWithStartTime),
-    SubAgentRemoved(AgentID),
+    SubAgentRemoved(SubAgentID),
     AgentControlStopped,
     OpAMPConnected,
     OpAMPConnectFailed(Option<LastErrorCode>, LastErrorMessage),
@@ -42,12 +43,12 @@ pub enum AgentControlEvent {
 /// Defines the events produced by the SubAgent component.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SubAgentEvent {
-    HealthUpdated(AgentIdentity, HealthWithStartTime),
-    SubAgentStarted(AgentIdentity, SystemTime),
+    HealthUpdated(SubAgentIdentity, HealthWithStartTime),
+    SubAgentStarted(SubAgentIdentity, SystemTime),
 }
 
 impl SubAgentEvent {
-    pub fn new_health(agent_identity: AgentIdentity, health: HealthWithStartTime) -> Self {
+    pub fn new_health(agent_identity: SubAgentIdentity, health: HealthWithStartTime) -> Self {
         Self::HealthUpdated(agent_identity, health)
     }
 }

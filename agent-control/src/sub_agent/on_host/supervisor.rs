@@ -11,7 +11,7 @@ use crate::health::on_host::health_checker::OnHostHealthChecker;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
-use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
+use crate::sub_agent::identity::{ID_ATTRIBUTE_NAME, SubAgentIdentity};
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -44,7 +44,7 @@ pub struct StartedSupervisorOnHost {
 }
 
 pub struct NotStartedSupervisorOnHost {
-    pub(super) agent_identity: AgentIdentity,
+    pub(super) agent_identity: SubAgentIdentity,
     pub(super) ctx: Context<bool>,
     pub(crate) executables: Vec<ExecutableData>,
     pub(super) log_to_file: bool,
@@ -116,7 +116,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
 
 impl NotStartedSupervisorOnHost {
     pub fn new(
-        agent_identity: AgentIdentity,
+        agent_identity: SubAgentIdentity,
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
         health_config: Option<OnHostHealthConfig>,
@@ -473,7 +473,7 @@ pub mod tests {
             any_exit_code,
         ))];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             agent_id.to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -522,7 +522,7 @@ pub mod tests {
     fn test_supervisor_without_executables_expect_no_errors() {
         let executables = vec![];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -553,7 +553,7 @@ pub mod tests {
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -591,7 +591,7 @@ pub mod tests {
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -629,7 +629,7 @@ pub mod tests {
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "wrong-command".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -662,7 +662,7 @@ pub mod tests {
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
@@ -711,7 +711,7 @@ pub mod tests {
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
         ];
 
-        let agent_identity = AgentIdentity::from((
+        let agent_identity = SubAgentIdentity::from((
             "echo".to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));

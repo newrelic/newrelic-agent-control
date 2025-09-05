@@ -2,7 +2,7 @@ pub mod regexes;
 pub mod signature;
 
 use super::OpampRemoteConfig;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use regexes::RegexValidator;
 use signature::validator::SignatureValidator;
 use std::fmt::Display;
@@ -14,7 +14,7 @@ pub trait RemoteConfigValidator {
 
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err>;
 }
@@ -33,7 +33,7 @@ impl RemoteConfigValidator for SupportedRemoteConfigValidator {
     type Err = SupportedRemoteConfigValidatorError;
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), SupportedRemoteConfigValidatorError> {
         match self {
@@ -60,7 +60,7 @@ pub mod tests {
 
             fn validate(
                 &self,
-                agent_identity: &AgentIdentity,
+                agent_identity: &SubAgentIdentity,
                 remote_config: &OpampRemoteConfig,
             ) -> Result<(), <Self as RemoteConfigValidator>::Err>;
         }
@@ -69,7 +69,7 @@ pub mod tests {
     impl MockRemoteConfigValidator {
         pub fn should_validate(
             &mut self,
-            agent_identity: &AgentIdentity,
+            agent_identity: &SubAgentIdentity,
             opamp_remote_config: &OpampRemoteConfig,
             result: Result<(), <Self as RemoteConfigValidator>::Err>,
         ) {

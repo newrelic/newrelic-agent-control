@@ -8,7 +8,7 @@ use newrelic_agent_control::agent_control::config::{
 use newrelic_agent_control::cli::install::agent_control::REPOSITORY_NAME;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL};
-use newrelic_agent_control::sub_agent::identity::AgentIdentity;
+use newrelic_agent_control::sub_agent::identity::SubAgentIdentity;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -35,7 +35,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     assert.success();
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let agent_identity = AgentIdentity::new_agent_control_identity();
+    let agent_identity = SubAgentIdentity::new_agent_control_identity();
 
     // Assert repository data
     let repository = k8s_client

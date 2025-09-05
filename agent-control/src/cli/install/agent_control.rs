@@ -14,7 +14,7 @@ use crate::{
         annotations::Annotations,
         labels::{AGENT_CONTROL_VERSION_SET_FROM, Labels},
     },
-    sub_agent::identity::AgentIdentity,
+    sub_agent::identity::SubAgentIdentity,
 };
 
 /// Implementation of [`DynamicObjectListBuilder`] for generating the dynamic object lists corresponding to the Agent Control resources.
@@ -35,7 +35,7 @@ impl DynamicObjectListBuilder for InstallAgentControl {
         let (version, source) =
             get_local_or_remote_version(maybe_existing_helm_release, data.chart_version.clone());
 
-        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_identity = SubAgentIdentity::new_agent_control_identity();
 
         let mut labels = Labels::new(&agent_identity.id);
         let extra_labels = data

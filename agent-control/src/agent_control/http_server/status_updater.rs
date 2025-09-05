@@ -123,7 +123,7 @@ mod tests {
 
     use url::Url;
 
-    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::SubAgentID;
     use crate::agent_control::http_server::status::{
         AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
     };
@@ -139,7 +139,7 @@ mod tests {
     use crate::event::SubAgentEvent::HealthUpdated;
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::health::with_start_time::HealthWithStartTime;
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_events() {
@@ -225,8 +225,8 @@ mod tests {
                 _name: "Sub Agent first healthy event should add it to the list",
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentIdentity::from((
+                        SubAgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(Healthy::default().into(), SystemTime::UNIX_EPOCH),
@@ -240,9 +240,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-agent-id").unwrap(),
+                        SubAgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::try_from("some-agent-id").unwrap(),
+                            SubAgentID::try_from("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(String::default(), true, None, 0, 0),
@@ -254,8 +254,8 @@ mod tests {
                 _name: "Sub Agent first unhealthy event should add it to the list",
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentIdentity::from((
+                        SubAgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(
@@ -274,9 +274,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-agent-id").unwrap(),
+                        SubAgentID::try_from("some-agent-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::try_from("some-agent-id").unwrap(),
+                            SubAgentID::try_from("some-agent-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(
@@ -294,8 +294,8 @@ mod tests {
                 _name: "Sub Agent second unhealthy event should change existing one",
                 agent_control_event: None,
                 sub_agent_event: Some(HealthUpdated(
-                    AgentIdentity::from((
-                        AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentIdentity::from((
+                        SubAgentID::try_from("some-agent-id").unwrap(),
                         AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                     )),
                     HealthWithStartTime::new(
@@ -310,9 +310,9 @@ mod tests {
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from([
                         (
-                            AgentID::try_from("some-agent-id").unwrap(),
+                            SubAgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
+                                SubAgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -325,9 +325,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::try_from("some-other-id").unwrap(),
+                            SubAgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
+                                SubAgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -346,9 +346,9 @@ mod tests {
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from([
                         (
-                            AgentID::try_from("some-agent-id").unwrap(),
+                            SubAgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
+                                SubAgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -361,9 +361,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::try_from("some-other-id").unwrap(),
+                            SubAgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
+                                SubAgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -381,7 +381,7 @@ mod tests {
             Test {
                 _name: "Sub Agent gets removed",
                 agent_control_event: Some(SubAgentRemoved(
-                    AgentID::try_from("some-agent-id").unwrap(),
+                    SubAgentID::try_from("some-agent-id").unwrap(),
                 )),
                 sub_agent_event: None,
                 current_status: Arc::new(RwLock::new(Status {
@@ -389,9 +389,9 @@ mod tests {
                     fleet: opamp_status_random.clone(),
                     sub_agents: SubAgentsStatus::from([
                         (
-                            AgentID::try_from("some-agent-id").unwrap(),
+                            SubAgentID::try_from("some-agent-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-agent-id").unwrap(),
+                                SubAgentID::try_from("some-agent-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -404,9 +404,9 @@ mod tests {
                             ),
                         ),
                         (
-                            AgentID::try_from("some-other-id").unwrap(),
+                            SubAgentID::try_from("some-other-id").unwrap(),
                             SubAgentStatus::new(
-                                AgentID::try_from("some-other-id").unwrap(),
+                                SubAgentID::try_from("some-other-id").unwrap(),
                                 AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                                 0,
                                 HealthInfo::new(
@@ -424,9 +424,9 @@ mod tests {
                     agent_control: agent_control_status_random.clone(),
                     fleet: opamp_status_random,
                     sub_agents: SubAgentsStatus::from([(
-                        AgentID::try_from("some-other-id").unwrap(),
+                        SubAgentID::try_from("some-other-id").unwrap(),
                         SubAgentStatus::new(
-                            AgentID::try_from("some-other-id").unwrap(),
+                            SubAgentID::try_from("some-other-id").unwrap(),
                             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
                             0,
                             HealthInfo::new(String::default(), true, Some(String::default()), 0, 0),
@@ -503,7 +503,7 @@ mod tests {
         let last_error = healthy
             .then_some(Words(3..5).fake::<Vec<String>>().join(" "))
             .or(Some(String::default()));
-        let agent_id = AgentID::try_from(Word().fake::<&str>()).unwrap();
+        let agent_id = SubAgentID::try_from(Word().fake::<&str>()).unwrap();
         let agent_type_fqn = format!(
             "{}/{}:{}",
             Word().fake::<&str>(),
@@ -525,10 +525,10 @@ mod tests {
     // create N (0..5) random Sub Agent status
     fn sub_agents_status_random() -> SubAgentsStatus {
         let sub_agents_amount = (0..5).fake::<u32>();
-        let mut sub_agents: HashMap<AgentID, SubAgentStatus> = HashMap::new();
+        let mut sub_agents: HashMap<SubAgentID, SubAgentStatus> = HashMap::new();
         for _ in 0..sub_agents_amount {
             let sub_agent = sub_agent_status_random();
-            sub_agents.insert(sub_agent.agent_id(), sub_agent);
+            sub_agents.insert(sub_agent.sub_agent_id().clone(), sub_agent);
         }
         SubAgentsStatus::from(sub_agents)
     }

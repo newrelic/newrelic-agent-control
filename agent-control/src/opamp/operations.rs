@@ -8,7 +8,7 @@ use crate::agent_control::defaults::{
     default_capabilities, get_custom_capabilities,
 };
 use crate::agent_type::agent_type_id::AgentTypeID;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::{AgentIdentity, SubAgentIdentity};
 use crate::{
     agent_control::agent_id::AgentID,
     event::{
@@ -27,7 +27,7 @@ use tracing::info;
 pub fn build_sub_agent_opamp<OB, IG>(
     opamp_builder: &OB,
     instance_id_getter: &IG,
-    agent_identity: &AgentIdentity,
+    agent_identity: &SubAgentIdentity,
     additional_identifying_attributes: HashMap<String, DescriptionValueType>,
     mut non_identifying_attributes: HashMap<String, DescriptionValueType>,
 ) -> Result<(OB::Client, EventConsumer<OpAMPEvent>), OpAMPClientBuilderError>
@@ -46,7 +46,7 @@ where
     build_opamp_with_channel(
         opamp_builder,
         instance_id_getter,
-        agent_identity,
+        &agent_identity.clone().into(),
         additional_identifying_attributes,
         non_identifying_attributes,
     )

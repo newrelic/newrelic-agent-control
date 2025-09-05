@@ -162,7 +162,7 @@ impl From<ConfigRepositoryError> for AgentControlConfigError {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::{AgentID, SubAgentID};
     use crate::agent_control::config::{
         AgentControlConfig, AgentControlDynamicConfig, SubAgentConfig,
     };
@@ -237,7 +237,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::try_from("rolldice").unwrap(),
+                    SubAgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
@@ -278,7 +278,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::try_from("rolldice").unwrap(),
+                    SubAgentID::try_from("rolldice").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/name:0.0.2").unwrap(),
                     },
@@ -323,7 +323,7 @@ pub(crate) mod tests {
         let expected = AgentControlConfig {
             dynamic: AgentControlDynamicConfig {
                 agents: HashMap::from([(
-                    AgentID::try_from("overrideme").unwrap(),
+                    SubAgentID::try_from("overrideme").unwrap(),
                     SubAgentConfig {
                         agent_type: AgentTypeID::try_from("namespace/from.env:0.0.2").unwrap(),
                     },

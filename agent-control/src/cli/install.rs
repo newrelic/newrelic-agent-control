@@ -381,7 +381,7 @@ mod tests {
         agent_control::config::helmrepository_type_meta,
         cli::install::agent_control::InstallAgentControl,
         k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
-        sub_agent::identity::AgentIdentity,
+        sub_agent::identity::SubAgentIdentity,
     };
 
     use super::*;
@@ -407,7 +407,7 @@ mod tests {
     }
 
     fn repository_object() -> DynamicObject {
-        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_identity = SubAgentIdentity::new_agent_control_identity();
 
         DynamicObject {
             types: Some(helmrepository_type_meta()),
@@ -443,7 +443,7 @@ mod tests {
     }
 
     fn release_object(version: &str, source: &str) -> DynamicObject {
-        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_identity = SubAgentIdentity::new_agent_control_identity();
 
         DynamicObject {
             types: Some(helmrelease_v2_type_meta()),
@@ -675,7 +675,7 @@ mod tests {
             &agent_control_data,
         );
 
-        let agent_identity = AgentIdentity::new_agent_control_identity();
+        let agent_identity = SubAgentIdentity::new_agent_control_identity();
         let mut labels: BTreeMap<String, String> = vec![
             (
                 "app.kubernetes.io/managed-by".to_string(),

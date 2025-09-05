@@ -1,8 +1,42 @@
-use crate::agent_control::defaults::{AGENT_CONTROL_ID, RESERVED_AGENT_IDS};
+use crate::agent_control::defaults::{
+    AGENT_CONTROL_ID, AGENT_CONTROL_NAMESPACE, AGENT_CONTROL_TYPE, AGENT_CONTROL_VERSION,
+    RESERVED_AGENT_IDS,
+};
+use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::sub_agent::identity::SubAgentIdentity;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::Path;
 use thiserror::Error;
+
+pub struct AgentIdentity {
+    pub id: AgentID,
+    pub agent_type_id: AgentTypeID,
+}
+
+impl From<SubAgentIdentity> for AgentIdentity {
+    fn from(value: SubAgentIdentity) -> Self {
+        AgentIdentity {
+            id: AgentID::from(value.id),
+            agent_type_id: value.agent_type_id,
+        }
+    }
+}
+
+impl AgentIdentity {
+    pub fn agent_control() -> Self {
+        let ac_agent_type_id =
+            format!("{AGENT_CONTROL_NAMESPACE}/{AGENT_CONTROL_TYPE}:{AGENT_CONTROL_VERSION}");
+        Self {
+            id: AgentID::AgentControl,
+            // This is a safe unwrap because we are creating the AgentTypeID from a string that we know is valid.
+            // Unit tests will catch any issues with the string format, before it gets to be released.
+            agent_type_id: AgentTypeID::try_from(ac_agent_type_id.as_str()).unwrap_or_else(|_| {
+                panic!("Fail to create AC Agent Type ID from: {ac_agent_type_id}")
+            }),
+        }
+    }
+}
 
 const AGENT_ID_MAX_LENGTH: usize = 32;
 
@@ -24,6 +58,12 @@ impl AgentID {
             Self::AgentControl => AGENT_CONTROL_ID,
             Self::SubAgent(id) => id.as_str(),
         }
+    }
+}
+
+impl From<SubAgentID> for AgentID {
+    fn from(val: SubAgentID) -> Self {
+        Self::SubAgent(val)
     }
 }
 
@@ -151,7 +191,7 @@ pub(crate) mod tests {
 
     impl Default for AgentID {
         fn default() -> Self {
-            AgentID::try_from("default").unwrap()
+            SubAgentID::try_from("default").unwrap()
         }
     }
 

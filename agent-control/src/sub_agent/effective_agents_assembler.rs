@@ -1,6 +1,6 @@
 use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, GENERATED_FOLDER_NAME};
 use crate::agent_control::run::Environment;
-use crate::agent_type::agent_attributes::AgentAttributes;
+use crate::agent_type::agent_attributes::SubAgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
@@ -13,7 +13,7 @@ use crate::agent_type::variable::secret_variables::{
     SecretVariables, SecretVariablesError, load_env_vars,
 };
 use crate::secrets_provider::SecretsProviders;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
 use std::fmt::Display;
@@ -46,7 +46,7 @@ pub enum AgentTypeDefinitionError {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
-    agent_identity: AgentIdentity,
+    agent_identity: SubAgentIdentity,
     runtime_config: Runtime,
 }
 
@@ -57,7 +57,7 @@ impl Display for EffectiveAgent {
 }
 
 impl EffectiveAgent {
-    pub(crate) fn new(agent_identity: AgentIdentity, runtime_config: Runtime) -> Self {
+    pub(crate) fn new(agent_identity: SubAgentIdentity, runtime_config: Runtime) -> Self {
         Self {
             agent_identity,
             runtime_config,
@@ -80,7 +80,7 @@ impl EffectiveAgent {
         )
     }
 
-    pub(crate) fn get_agent_identity(&self) -> &AgentIdentity {
+    pub(crate) fn get_agent_identity(&self) -> &SubAgentIdentity {
         &self.agent_identity
     }
 }
@@ -90,7 +90,7 @@ pub trait EffectiveAgentsAssembler {
     /// getting the AgentType and all needed values to render the Runtime config.
     fn assemble_agent(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         yaml_config: YAMLConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
@@ -150,7 +150,7 @@ where
 {
     fn assemble_agent(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         values: YAMLConfig,
         environment: &Environment,
     ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError> {
@@ -166,11 +166,10 @@ where
         )?;
 
         // Build the agent attributes
-        let attributes = AgentAttributes::try_new(
+        let attributes = SubAgentAttributes::new(
             agent_identity.id.to_owned(),
             self.auto_generated_dir.to_path_buf(),
-        )
-        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
+        );
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
@@ -259,7 +258,7 @@ pub(crate) mod tests {
         impl EffectiveAgentsAssembler for EffectiveAgentAssembler {
             fn assemble_agent(
                 &self,
-                agent_identity:&AgentIdentity,
+                agent_identity:&SubAgentIdentity,
                 yaml_config: YAMLConfig,
                 environment: &Environment,
             ) -> Result<EffectiveAgent, EffectiveAgentsAssemblerError>;
@@ -270,7 +269,7 @@ pub(crate) mod tests {
     impl MockEffectiveAgentAssembler {
         pub fn should_assemble_agent(
             &mut self,
-            agent_identity: &AgentIdentity,
+            agent_identity: &SubAgentIdentity,
             yaml_config: &YAMLConfig,
             environment: &Environment,
             effective_agent: EffectiveAgent,
@@ -319,8 +318,11 @@ pub(crate) mod tests {
     }
 
     // Returns the expected agent_attributes given an agent_id.
-    fn testing_agent_attributes(agent_id: &AgentID, auto_generated_dir: &Path) -> AgentAttributes {
-        AgentAttributes::try_new(agent_id.to_owned(), auto_generated_dir.to_path_buf()).unwrap()
+    fn testing_agent_attributes(
+        agent_id: &AgentID,
+        auto_generated_dir: &Path,
+    ) -> SubAgentAttributes {
+        SubAgentAttributes::try_new(agent_id.to_owned(), auto_generated_dir.to_path_buf()).unwrap()
     }
 
     #[test]
@@ -330,8 +332,8 @@ pub(crate) mod tests {
         let mut renderer = MockRenderer::new();
 
         // Objects
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("some-agent-id").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("ns/name:0.0.1").unwrap(),
         ));
         let environment = Environment::OnHost;
@@ -376,8 +378,8 @@ pub(crate) mod tests {
         let renderer = MockRenderer::new();
 
         // Objects
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("some-agent-id").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/name:0.0.1").unwrap(),
         ));
 

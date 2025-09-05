@@ -50,7 +50,7 @@ fn retrieve_version(agent_type_id: &AgentTypeID) -> Result<AgentVersion, Version
 
 #[cfg(test)]
 mod tests {
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
 
     use super::*;
 
@@ -75,7 +75,7 @@ mod tests {
         let test_cases = [
             TestCase {
                 name: "Version cannot be computed for the superAgent",
-                agent_type_id: AgentIdentity::new_agent_control_identity().agent_type_id,
+                agent_type_id: SubAgentIdentity::new_agent_control_identity().agent_type_id,
                 check: |name, result| {
                     assert!(result.is_none(), "{name}",);
                 },

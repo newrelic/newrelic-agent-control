@@ -8,11 +8,12 @@
 
 use std::{collections::HashMap, iter, ops::Deref, sync::LazyLock};
 
+use crate::agent_control::agent_id::SubAgentID;
 use crate::agent_control::run::k8s::{NAMESPACE_AGENTS_VARIABLE_NAME, NAMESPACE_VARIABLE_NAME};
 use crate::agent_control::run::on_host::HOST_ID_VARIABLE_NAME;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::{
-    agent_control::{agent_id::AgentID, run::Environment},
+    agent_control::run::Environment,
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
@@ -576,7 +577,7 @@ fn iterate_test_cases(environment: &Environment) {
             continue;
         };
 
-        let agent_id = AgentID::try_from("random-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("random-agent-id").unwrap();
 
         // Create the renderer with specifics for the environment
         let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {

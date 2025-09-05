@@ -35,7 +35,7 @@ use effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use error::SubAgentStopError;
 use error::{SubAgentBuilderError, SubAgentError, SupervisorCreationError};
 use event_handler::on_health::on_health;
-use identity::AgentIdentity;
+use identity::SubAgentIdentity;
 use opamp_client::StartedClient;
 use remote_config_parser::{RemoteConfigParser, RemoteConfigParserError};
 use std::fmt::Display;
@@ -68,7 +68,7 @@ pub trait SubAgentBuilder {
     type NotStartedSubAgent: NotStartedSubAgent;
     fn build(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError>;
 }
 
@@ -100,7 +100,7 @@ where
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
-    pub(super) identity: AgentIdentity,
+    pub(super) identity: SubAgentIdentity,
     pub(super) maybe_opamp_client: Option<C>,
     pub(super) sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
     pub(super) sub_agent_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
@@ -123,7 +123,7 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        identity: AgentIdentity,
+        identity: SubAgentIdentity,
         maybe_opamp_client: Option<C>,
         supervisor_builder: Arc<B>,
         sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
@@ -801,7 +801,7 @@ pub mod tests {
 
             fn build(
                 &self,
-                agent_identity: &AgentIdentity,
+                agent_identity: &SubAgentIdentity,
             ) -> Result<<Self as SubAgentBuilder>::NotStartedSubAgent,  SubAgentBuilderError>;
         }
     }
@@ -859,12 +859,12 @@ pub mod tests {
     /// Helpers for testing the config scenarios which some of the data their produce are related to each other.
     struct TestAgent;
     impl TestAgent {
-        fn identity() -> AgentIdentity {
-            AgentIdentity::default()
+        fn identity() -> SubAgentIdentity {
+            SubAgentIdentity::default()
         }
 
         fn id() -> AgentID {
-            AgentIdentity::default().id
+            SubAgentIdentity::default().id
         }
 
         fn agent_type_definition() -> AgentTypeDefinition {

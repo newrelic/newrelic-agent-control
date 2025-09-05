@@ -6,6 +6,7 @@ pub mod defaults;
 pub mod error;
 mod health_checker;
 pub mod http_server;
+mod identity;
 pub mod pid_cache;
 pub mod resource_cleaner;
 pub mod run;
@@ -24,7 +25,7 @@ use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::report::report_state;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
 use crate::sub_agent::{
-    NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::AgentIdentity,
+    NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::SubAgentIdentity,
 };
 use crate::values::config::RemoteConfig as RemoteConfigValues;
 use crate::values::yaml_config::YAMLConfig;
@@ -202,7 +203,7 @@ where
     #[instrument(skip_all)]
     pub(super) fn recreate_sub_agent(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         running_sub_agents: &mut StartedSubAgents<BuilderStartedSubAgent<S>>,
     ) -> Result<(), AgentError> {
         running_sub_agents.stop_and_remove(&agent_identity.id)?;
@@ -223,7 +224,7 @@ where
         let mut errors = BuildingSubagentErrors::default();
 
         for (agent_id, agent_config) in sub_agents {
-            let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
+            let agent_identity = SubAgentIdentity::from((agent_id, &agent_config.agent_type));
 
             match self.sub_agent_builder.build(&agent_identity) {
                 Ok(not_started_sub_agent) => {
@@ -249,7 +250,7 @@ where
     // runs and adds into the sub_agents collection the given agent
     fn build_and_run_sub_agent(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
@@ -494,7 +495,7 @@ where
         let mut errors = BuildingSubagentErrors::default();
 
         for (agent_id, agent_config) in &new_dynamic_config.agents {
-            let agent_identity = AgentIdentity::from((agent_id, &agent_config.agent_type));
+            let agent_identity = SubAgentIdentity::from((agent_id, &agent_config.agent_type));
 
             let apply_result = match current_dynamic_config.agents.get(agent_id) {
                 Some(old_sub_agent_config) if old_sub_agent_config == agent_config => {
@@ -586,7 +587,7 @@ mod tests {
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::error::SubAgentBuilderError;
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
     use crate::sub_agent::tests::MockSubAgentBuilder;
     use crate::sub_agent::tests::{MockNotStartedSubAgent, MockStartedSubAgent};
     use crate::values::config::RemoteConfig;
@@ -642,11 +643,11 @@ agents:
     agent_type: "newrelic/example.b:3.2.1"
         "#;
 
-        fn two_agents_first_agent_identity(&self) -> AgentIdentity {
+        fn two_agents_first_agent_identity(&self) -> SubAgentIdentity {
             self.identities(vec![("id1", "newrelic/example.a:1.2.3")])[0].clone()
         }
 
-        fn two_agents_second_agent_identity(&self) -> AgentIdentity {
+        fn two_agents_second_agent_identity(&self) -> SubAgentIdentity {
             self.identities(vec![("id2", "newrelic/example.b:3.2.1")])[0].clone()
         }
 
@@ -750,12 +751,12 @@ agents:
         }
 
         /// Gets the corresponding entities from the provided config
-        fn identities_from_agents_config(&self, s: &str) -> Vec<AgentIdentity> {
+        fn identities_from_agents_config(&self, s: &str) -> Vec<SubAgentIdentity> {
             let dyn_config = AgentControlDynamicConfig::try_from(s).unwrap();
             dyn_config
                 .agents
                 .into_iter()
-                .map(|(id, cfg)| AgentIdentity {
+                .map(|(id, cfg)| SubAgentIdentity {
                     id,
                     agent_type_id: cfg.agent_type,
                 })
@@ -763,13 +764,13 @@ agents:
         }
 
         /// Helper to easily build identities
-        fn identities(&self, values: Vec<(&str, &str)>) -> Vec<AgentIdentity> {
+        fn identities(&self, values: Vec<(&str, &str)>) -> Vec<SubAgentIdentity> {
             values
                 .into_iter()
                 .map(|(id, at)| {
-                    let agent_id = AgentID::try_from(id).unwrap();
+                    let agent_id = SubAgentID::try_from(id).unwrap();
                     let agent_type_id = AgentTypeID::try_from(at).unwrap();
-                    AgentIdentity {
+                    SubAgentIdentity {
                         id: agent_id,
                         agent_type_id,
                     }
@@ -898,7 +899,7 @@ agents:
         }
 
         /// Set expectations in sequence for each provided [AgentIdentity] to be _cleaned_ by the resource cleaner.
-        fn expect_resource_clean_in_sequence(&mut self, identities: Vec<AgentIdentity>) {
+        fn expect_resource_clean_in_sequence(&mut self, identities: Vec<SubAgentIdentity>) {
             let mut seq = Sequence::new();
             for identity in identities {
                 self.resource_cleaner
@@ -915,14 +916,14 @@ agents:
 
         /// Set expectations for each provided [AgentIdentity] to be built by the sub-agent builder.
         /// Each sub-agent build will expect to run and stop.
-        fn set_sub_agent_build_success(&mut self, identities: Vec<AgentIdentity>) {
+        fn set_sub_agent_build_success(&mut self, identities: Vec<SubAgentIdentity>) {
             self.set_sub_agent_build_success_with_expectations(identities, |started| {
                 started.expect_stop().once().returning(|| Ok(()));
             });
         }
 
         /// Same as [Self::set_sub_agent_build_success] but sub-agents don't stop.
-        fn set_sub_agent_build_success_no_stop(&mut self, identities: Vec<AgentIdentity>) {
+        fn set_sub_agent_build_success_no_stop(&mut self, identities: Vec<SubAgentIdentity>) {
             self.set_sub_agent_build_success_with_expectations(identities, |_| {});
         }
 
@@ -931,7 +932,7 @@ agents:
         /// are expected for started agents.
         fn set_sub_agent_build_success_with_expectations(
             &mut self,
-            identities: Vec<AgentIdentity>,
+            identities: Vec<SubAgentIdentity>,
             f: fn(&mut MockStartedSubAgent),
         ) {
             for identity in identities {
@@ -955,7 +956,7 @@ agents:
 
         /// Set expectations for each provided [AgentIdentity] to be built by the sub-agent builder.
         /// Each sub-agent build will fail.
-        fn set_sub_agent_build_fail(&mut self, identities: Vec<AgentIdentity>) {
+        fn set_sub_agent_build_fail(&mut self, identities: Vec<SubAgentIdentity>) {
             for identity in identities {
                 self.sub_agent_builder
                     .expect_build()
@@ -1284,7 +1285,7 @@ agents:
                 }
             });
 
-        let identities: Vec<AgentIdentity> = t
+        let identities: Vec<SubAgentIdentity> = t
             .identities_from_agents_config(remote_config)
             .into_iter()
             .filter(|identity| &identity.id.to_string() != "id1") // We should keep old "id1"

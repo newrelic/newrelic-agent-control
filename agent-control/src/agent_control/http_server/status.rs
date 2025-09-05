@@ -1,10 +1,10 @@
-use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::agent_id::SubAgentID;
 
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::health::health_checker::Health;
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::{LastErrorCode, LastErrorMessage};
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::time::SystemTime;
@@ -135,7 +135,7 @@ impl OpAMPStatus {
 /// - `health_info`: A `HealthInfo` struct containing the health-related information of the Sub Agent.
 #[derive(Debug, Serialize, PartialEq, Clone)]
 pub(super) struct SubAgentStatus {
-    agent_id: AgentID,
+    sub_agent_id: SubAgentID,
     #[serde(serialize_with = "AgentTypeID::serialize_fqn")]
     agent_type: AgentTypeID,
     agent_start_time_unix_nano: u64,
@@ -176,9 +176,9 @@ pub(super) struct HealthInfo {
 }
 
 impl SubAgentStatus {
-    pub fn with_identity(agent_identity: AgentIdentity) -> Self {
+    pub fn with_identity(agent_identity: SubAgentIdentity) -> Self {
         Self {
-            agent_id: agent_identity.id,
+            sub_agent_id: agent_identity.id,
             agent_type: agent_identity.agent_type_id,
             agent_start_time_unix_nano: 0,
             health_info: None,
@@ -205,7 +205,7 @@ impl SubAgentStatus {
     }
 }
 
-pub(super) type SubAgentsStatus = HashMap<AgentID, SubAgentStatus>;
+pub(super) type SubAgentsStatus = HashMap<SubAgentID, SubAgentStatus>;
 
 /// Agent Control, Sub Agents and OpAMP status and health.
 /// This information will be shown when the status endpoint is called.
@@ -236,7 +236,7 @@ fn time_to_unix_timestamp(time: SystemTime) -> u64 {
 pub mod tests {
     use url::Url;
 
-    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::SubAgentID;
 
     use crate::agent_control::http_server::status::{
         AgentControlStatus, HealthInfo, OpAMPStatus, Status, SubAgentStatus, SubAgentsStatus,
@@ -269,21 +269,21 @@ pub mod tests {
 
     impl SubAgentStatus {
         pub fn new(
-            agent_id: AgentID,
+            sub_agent_id: SubAgentID,
             agent_type: AgentTypeID,
             agent_start_time_unix_nano: u64,
             health_info: HealthInfo,
         ) -> Self {
             SubAgentStatus {
-                agent_id,
+                sub_agent_id,
                 agent_type,
                 agent_start_time_unix_nano,
                 health_info: Some(health_info),
             }
         }
 
-        pub fn agent_id(&self) -> AgentID {
-            self.agent_id.clone()
+        pub fn sub_agent_id(&self) -> &SubAgentID {
+            &self.sub_agent_id
         }
     }
 
@@ -363,18 +363,18 @@ pub mod tests {
             },
             sub_agents: SubAgentsStatus::from([
                 (
-                    AgentID::try_from("agent-id-1").unwrap(),
+                    SubAgentID::try_from("agent-id-1").unwrap(),
                     SubAgentStatus {
-                        agent_id: AgentID::try_from("agent-id-1").unwrap(),
+                        sub_agent_id: SubAgentID::try_from("agent-id-1").unwrap(),
                         agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                         agent_start_time_unix_nano: 0,
                         health_info: None,
                     },
                 ),
                 (
-                    AgentID::try_from("agent-id-2").unwrap(),
+                    SubAgentID::try_from("agent-id-2").unwrap(),
                     SubAgentStatus {
-                        agent_id: AgentID::try_from("agent-id-2").unwrap(),
+                        sub_agent_id: SubAgentID::try_from("agent-id-2").unwrap(),
                         agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                         agent_start_time_unix_nano: 0,
                         health_info: Some(HealthInfo {
@@ -387,9 +387,9 @@ pub mod tests {
                     },
                 ),
                 (
-                    AgentID::try_from("agent-id-3").unwrap(),
+                    SubAgentID::try_from("agent-id-3").unwrap(),
                     SubAgentStatus {
-                        agent_id: AgentID::try_from("agent-id-3").unwrap(),
+                        sub_agent_id: SubAgentID::try_from("agent-id-3").unwrap(),
                         agent_type: AgentTypeID::try_from("ns/some.type:1.2.3").unwrap(),
                         agent_start_time_unix_nano: 0,
                         health_info: Some(HealthInfo {

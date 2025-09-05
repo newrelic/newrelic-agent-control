@@ -17,13 +17,13 @@ pub(super) async fn status_handler(status: Data<Arc<RwLock<Status>>>) -> impl Re
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::agent_id::SubAgentID;
     use crate::agent_control::http_server::status::{Status, SubAgentStatus};
     use crate::agent_control::http_server::status_handler::status_handler;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::health::health_checker::{Healthy, Unhealthy};
     use crate::health::with_start_time::HealthWithStartTime;
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
     use actix_web::Responder;
     use actix_web::body::MessageBody;
     use actix_web::test::TestRequest;
@@ -37,8 +37,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_handler_without_optional_fields() {
         // Given there is a healthy Sub Agent registered
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("some-agent-id").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());
@@ -85,8 +85,8 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_handler() {
         // Given there is a healthy Sub Agent registered
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("some-agent-id").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("some-agent-id").unwrap(),
             AgentTypeID::try_from("namespace/some-agent-type:0.0.1").unwrap(),
         ));
         let mut sub_agent_status = SubAgentStatus::with_identity(agent_identity.clone());

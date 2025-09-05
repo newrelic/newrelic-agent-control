@@ -8,7 +8,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
 use crate::sub_agent::on_host::command::filesystem_entries::RenderedFileSystemEntries;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
@@ -88,7 +88,7 @@ where
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -225,8 +225,8 @@ mod tests {
     fn build_start_stop() {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("infra-agent").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -349,8 +349,8 @@ mod tests {
 
         // Structures
         let hostname = gethostname().unwrap_or_default().into_string().unwrap();
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from("infra-agent").unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
         let sub_agent_instance_id = InstanceID::create();

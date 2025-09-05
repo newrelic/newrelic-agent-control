@@ -1,4 +1,5 @@
 use crate::agent_control::AgentControl;
+use crate::agent_control::agent_id::AgentIdentity;
 use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
@@ -30,7 +31,6 @@ use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
-use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
@@ -114,7 +114,7 @@ impl AgentControlRunner {
                 build_opamp_with_channel(
                     builder,
                     &instance_id_getter,
-                    &AgentIdentity::new_agent_control_identity(),
+                    &AgentIdentity::agent_control(),
                     additional_identifying_attributes,
                     non_identifying_attributes,
                 )

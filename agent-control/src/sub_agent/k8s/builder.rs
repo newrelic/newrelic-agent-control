@@ -10,7 +10,7 @@ use crate::opamp::instance_id::getter::InstanceIDGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
 use crate::values::config_repository::ConfigRepository;
@@ -91,7 +91,7 @@ where
     #[instrument(skip_all, fields(id = %agent_identity.id),name = "build_agent")]
     fn build(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
@@ -218,8 +218,8 @@ pub mod tests {
 
     #[test]
     fn k8s_agent_build_success() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -253,8 +253,8 @@ pub mod tests {
 
     #[test]
     fn k8s_agent_error_building_opamp() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -292,8 +292,8 @@ pub mod tests {
 
     #[test]
     fn supervisor_build_ok() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -316,8 +316,8 @@ pub mod tests {
 
     #[test]
     fn supervisor_build_fails_for_invalid_k8s_object_kind() {
-        let agent_identity = AgentIdentity::from((
-            AgentID::try_from(TEST_AGENT_ID).unwrap(),
+        let agent_identity = SubAgentIdentity::from((
+            SubAgentID::try_from(TEST_AGENT_ID).unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
         ));
 
@@ -362,7 +362,7 @@ pub mod tests {
     }
 
     fn k8s_agent_get_common_mocks(
-        agent_identity: AgentIdentity,
+        agent_identity: SubAgentIdentity,
         opamp_builder_fails: bool,
     ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
         let instance_id: InstanceID =

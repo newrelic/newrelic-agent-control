@@ -1,8 +1,8 @@
-use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::agent_id::SubAgentID;
 use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, GENERATED_FOLDER_NAME};
 use crate::agent_type::render::persister::config_persister::ConfigurationPersister;
 use crate::agent_type::{
-    agent_attributes::AgentAttributes,
+    agent_attributes::SubAgentAttributes,
     definition::AgentType,
     error::AgentTypeError,
     runtime_config::Runtime,
@@ -20,10 +20,10 @@ pub trait Renderer {
     /// Renders the runtime configuration in an [AgentType] using the provided values and attributes.
     fn render(
         &self,
-        agent_id: &AgentID,
+        agent_id: &SubAgentID,
         agent_type: AgentType,
         values: YAMLConfig,
-        attributes: AgentAttributes,
+        attributes: SubAgentAttributes,
         env_vars: HashMap<String, Variable>,
         secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError>;
@@ -39,10 +39,10 @@ pub struct TemplateRenderer<C: ConfigurationPersister> {
 impl<C: ConfigurationPersister> Renderer for TemplateRenderer<C> {
     fn render(
         &self,
-        agent_id: &AgentID,
+        agent_id: &SubAgentID,
         agent_type: AgentType,
         values: YAMLConfig,
-        attributes: AgentAttributes,
+        attributes: SubAgentAttributes,
         env_vars: HashMap<String, Variable>,
         secrets: HashMap<String, Variable>,
     ) -> Result<Runtime, AgentTypeError> {
@@ -141,7 +141,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
         &self,
         variables: HashMap<String, Variable>,
         env_vars: HashMap<String, Variable>,
-        attributes: &AgentAttributes,
+        attributes: &SubAgentAttributes,
     ) -> HashMap<NamespacedVariableName, Variable> {
         // Set the namespaced name to variables
         let vars_iter = variables
@@ -163,7 +163,7 @@ impl<C: ConfigurationPersister> TemplateRenderer<C> {
 pub(crate) mod tests {
     use super::*;
     use crate::{
-        agent_control::run::Environment,
+        agent_control::{agent_id::SubAgentID, run::Environment},
         agent_type::{
             definition::AgentType,
             render::persister::{
@@ -189,10 +189,10 @@ pub(crate) mod tests {
          impl Renderer for Renderer {
              fn render(
                 &self,
-                agent_id: &AgentID,
+                agent_id: &SubAgentID,
                 agent_type: AgentType,
                 values: YAMLConfig,
-                attributes: AgentAttributes,
+                attributes: SubAgentAttributes,
                 env_vars: HashMap<String, Variable>,
                 secrets: HashMap<String, Variable>,
             ) -> Result<Runtime, AgentTypeError>;
@@ -202,10 +202,10 @@ pub(crate) mod tests {
     impl MockRenderer {
         pub fn should_render(
             &mut self,
-            agent_id: &AgentID,
+            agent_id: &SubAgentID,
             agent_type: &AgentType,
             values: &YAMLConfig,
-            attributes: &AgentAttributes,
+            attributes: &SubAgentAttributes,
             runtime: Runtime,
         ) {
             self.expect_render()
@@ -227,13 +227,13 @@ pub(crate) mod tests {
         serde_yaml::from_str(yaml_values).unwrap()
     }
 
-    pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
-        AgentAttributes::try_new(agent_id.clone(), PathBuf::default()).unwrap()
+    pub fn testing_agent_attributes(agent_id: &SubAgentID) -> SubAgentAttributes {
+        SubAgentAttributes::new(agent_id.clone(), PathBuf::default())
     }
 
     #[test]
     fn test_render() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
@@ -268,7 +268,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_with_empty_but_required_values() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = YAMLConfig::default();
         let attributes = testing_agent_attributes(&agent_id);
@@ -289,7 +289,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_with_missing_values() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = testing_values(SIMPLE_AGENT_VALUES_REQUIRED_MISSING);
         let attributes = testing_agent_attributes(&agent_id);
@@ -310,7 +310,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_with_persister() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(AGENT_TYPE_WITH_FILES, &Environment::OnHost);
         let values = AGENT_VALUES_WITH_FILES;
         let attributes = testing_agent_attributes(&agent_id);
@@ -363,7 +363,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_with_persister_delete_error() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = testing_values(SIMPLE_AGENT_VALUES);
         let attributes = testing_agent_attributes(&agent_id);
@@ -396,7 +396,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_with_persister_persists_error() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(SIMPLE_AGENT_TYPE, &Environment::OnHost);
         let values = SIMPLE_AGENT_VALUES;
         let attributes = testing_agent_attributes(&agent_id);
@@ -432,7 +432,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_agent_type_with_backoff_config() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &Environment::OnHost);
         let values = testing_values(BACKOFF_VALUES_YAML);
@@ -477,7 +477,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_agent_type_with_backoff_config_and_string_durations() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(AGENT_TYPE_WITH_BACKOFF, &Environment::OnHost);
         let values = testing_values(BACKOFF_VALUES_STRING_DURATION);
@@ -548,7 +548,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_render_k8s_config_with_yaml_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
         let values = testing_values(K8S_CONFIG_YAML_VALUES);
@@ -594,7 +594,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
     #[test]
     fn test_render_with_env_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
             K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
             &Environment::K8s,
@@ -653,7 +653,7 @@ substituted_2: my-value-2
 
     #[test]
     fn test_render_double_expansion_with_env_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type =
             AgentType::build_for_testing(K8S_AGENT_TYPE_YAML_VARIABLES, &Environment::K8s);
         let values = testing_values(
@@ -709,7 +709,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
     #[test]
     fn test_render_with_env_variables_not_found() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
             K8S_AGENT_TYPE_YAML_ENVIRONMENT_VARIABLES,
             &Environment::K8s,
@@ -735,7 +735,7 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
     #[test]
     fn test_render_with_env_variables_are_case_sensitive() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
         let agent_type = AgentType::build_for_testing(
             r#"
 name: k8s-agent-type
@@ -791,7 +791,7 @@ deployment:
 
     #[test]
     fn test_render_expand_agent_control_variables() {
-        let agent_id = AgentID::try_from("some-agent-id").unwrap();
+        let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
 
         let agent_type = AgentType::build_for_testing(
             r#"

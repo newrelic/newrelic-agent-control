@@ -275,7 +275,7 @@ pub(crate) mod tests {
         let effective_config_loader = MockEffectiveConfigLoader::new();
 
         let callbacks = AgentCallbacks::new(
-            AgentID::try_from("agent").unwrap(),
+            SubAgentID::try_from("agent").unwrap(),
             event_publisher,
             effective_config_loader,
         );
@@ -297,7 +297,7 @@ pub(crate) mod tests {
         let effective_config_loader = MockEffectiveConfigLoader::new();
 
         let callbacks = AgentCallbacks::new(
-            AgentID::try_from("agent").unwrap(),
+            SubAgentID::try_from("agent").unwrap(),
             event_publisher,
             effective_config_loader,
         );
@@ -361,7 +361,7 @@ pub(crate) mod tests {
         }
         impl TestCase {
             fn run(mut self) {
-                let agent_id = AgentID::try_from("an-agent-id").unwrap();
+                let agent_id = SubAgentID::try_from("an-agent-id").unwrap();
 
                 let (event_publisher, event_consumer) = pub_sub();
                 let effective_config_loader = MockEffectiveConfigLoader::new();
@@ -604,7 +604,7 @@ pub(crate) mod tests {
             .returning(|| Ok(ConfigurationMap::default()));
 
         let callbacks = AgentCallbacks::new(
-            AgentID::try_from("agent").unwrap(),
+            SubAgentID::try_from("agent").unwrap(),
             event_publisher,
             effective_config_loader,
         );
@@ -629,7 +629,7 @@ pub(crate) mod tests {
             .returning(|| Err("loader error".to_string().into()));
 
         let callbacks = AgentCallbacks::new(
-            AgentID::try_from("agent").unwrap(),
+            SubAgentID::try_from("agent").unwrap(),
             event_publisher,
             effective_config_loader,
         );

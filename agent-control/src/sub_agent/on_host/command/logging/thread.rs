@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn spawn_logger_with_file_logging() {
         // Create a writer and from it build a Logger::File(FileLogger)
-        let agent_id = AgentID::try_from("test-agent").unwrap();
+        let agent_id = SubAgentID::try_from("test-agent").unwrap();
         let mut temp_file = tempfile().unwrap();
         let file_logger = Logger::File(
             Box::new(FileLogger::from(temp_file.try_clone().unwrap())),

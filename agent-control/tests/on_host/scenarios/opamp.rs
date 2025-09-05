@@ -489,7 +489,7 @@ agents:
         opamp_server.cert_file_path(),
     );
 
-    let sub_agent_id = AgentID::try_from("no-executables").unwrap();
+    let sub_agent_id = SubAgentID::try_from("no-executables").unwrap();
     let local_values_config = "fake_variable: valid local config\n";
     create_sub_agent_values(
         sub_agent_id.to_string(),

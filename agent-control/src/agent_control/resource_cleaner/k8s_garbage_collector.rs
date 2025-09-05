@@ -1,5 +1,5 @@
 use super::{ResourceCleaner, ResourceCleanerError};
-use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::agent_id::{AgentID, SubAgentID};
 use crate::agent_control::config::SubAgentsMap;
 use crate::agent_control::defaults::AGENT_CONTROL_ID;
 use crate::agent_type::agent_type_id::AgentTypeID;
@@ -42,7 +42,7 @@ impl K8sGarbageCollector {
     #[instrument(skip_all, name = "k8s_garbage_collector_retain")]
     pub fn retain(
         &self,
-        active_agents: HashMap<AgentID, AgentTypeID>,
+        active_agents: HashMap<SubAgentID, AgentTypeID>,
     ) -> Result<(), K8sGarbageCollectorError> {
         let mode = K8sGarbageCollectorMode::RetainConfig(&active_agents);
         self.garbage_collection_config_maps(&mode)?;
@@ -69,7 +69,7 @@ impl K8sGarbageCollector {
         self.garbage_collection_dynamic_object(&mode, &self.namespace)
     }
 
-    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<AgentID, AgentTypeID> {
+    pub fn active_config_ids(active_config: &SubAgentsMap) -> HashMap<SubAgentID, AgentTypeID> {
         active_config
             .iter()
             .map(|(id, config)| (id.clone(), config.agent_type.clone()))
@@ -172,9 +172,9 @@ impl ResourceCleaner for K8sGarbageCollector {
 enum K8sGarbageCollectorMode<'a> {
     /// Retain all resources that are in the config map passed as parameter.
     /// Remove all others.
-    RetainConfig(&'a HashMap<AgentID, AgentTypeID>),
+    RetainConfig(&'a HashMap<SubAgentID, AgentTypeID>),
     /// Remove all resources associated with the Agent ID and sub-agent config passed as parameter.
-    Collect(&'a AgentID, &'a AgentTypeID),
+    Collect(&'a SubAgentID, &'a AgentTypeID),
 }
 
 impl K8sGarbageCollectorMode<'_> {

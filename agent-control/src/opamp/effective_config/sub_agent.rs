@@ -76,7 +76,7 @@ mod tests {
     use std::sync::Arc;
 
     fn test_agent() -> AgentID {
-        AgentID::try_from("test-agent").unwrap()
+        SubAgentID::try_from("test-agent").unwrap()
     }
     #[test]
     fn test_effective_config_success_cases() {

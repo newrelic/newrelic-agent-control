@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Deserializer};
 
 use crate::agent_type::{
-    agent_attributes::AgentAttributes,
+    agent_attributes::SubAgentAttributes,
     definition::Variables,
     error::AgentTypeError,
     runtime_config::templateable_value::TemplateableValue,
@@ -107,7 +107,7 @@ impl Templateable for FileEntry {
     /// If the value of the sub-agent's dedicated directory is missing, the templating fails.
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         if let Some(TrivialValue::String(generated_dir)) = variables
-            .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR))
+            .get(&Namespace::SubAgent.namespaced_name(SubAgentAttributes::GENERATED_DIR))
             .and_then(Variable::get_final_value)
         {
             let rendered_file_entry = Self {
@@ -117,7 +117,7 @@ impl Templateable for FileEntry {
             Ok(rendered_file_entry)
         } else {
             Err(AgentTypeError::MissingValue(
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Namespace::SubAgent.namespaced_name(SubAgentAttributes::GENERATED_DIR),
             ))
         }
     }
@@ -196,7 +196,7 @@ mod tests {
     #[test]
     fn valid_filepath_rendering() {
         let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+            Namespace::SubAgent.namespaced_name(SubAgentAttributes::GENERATED_DIR),
             Variable::new_final_string_variable("/base/dir"),
         )]);
 
@@ -230,7 +230,7 @@ mod tests {
             rendered_err.to_string(),
             format!(
                 "missing value for key: `{}`",
-                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR)
+                Namespace::SubAgent.namespaced_name(SubAgentAttributes::GENERATED_DIR)
             )
         );
     }

@@ -25,7 +25,7 @@ fn test_configuration_persister_single_file() {
 
     assert!(res.is_ok());
     let persister = ConfigurationPersisterFile::new(temp_path.as_path());
-    let agent_id = AgentID::try_from("some-agent-id").unwrap();
+    let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
 
     let agent_type_definition: AgentTypeDefinition =
         serde_yaml::from_reader(AGENT_TYPE_SINGLE_FILE.as_bytes()).unwrap();

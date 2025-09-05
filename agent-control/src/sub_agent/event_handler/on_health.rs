@@ -2,14 +2,14 @@ use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::sub_agent::error::SubAgentError;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use opamp_client::StartedClient;
 
 pub fn on_health<C>(
     health: HealthWithStartTime,
     maybe_opamp_client: Option<&C>,
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
-    agent_identity: AgentIdentity,
+    agent_identity: SubAgentIdentity,
 ) -> Result<(), SubAgentError>
 where
     C: StartedClient,

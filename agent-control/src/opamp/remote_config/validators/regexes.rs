@@ -2,7 +2,7 @@ use super::RemoteConfigValidator;
 use crate::agent_control::defaults::{AGENT_TYPE_NAME_INFRA_AGENT, AGENT_TYPE_NAME_NRDOT};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::opamp::remote_config::OpampRemoteConfig;
-use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::identity::SubAgentIdentity;
 use regex::Regex;
 use std::collections::HashMap;
 use thiserror::Error;
@@ -35,7 +35,7 @@ impl RemoteConfigValidator for RegexValidator {
     type Err = RegexValidatorError;
     fn validate(
         &self,
-        agent_identity: &AgentIdentity,
+        agent_identity: &SubAgentIdentity,
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
@@ -185,7 +185,7 @@ pub(super) mod tests {
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
     use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
-    use crate::sub_agent::identity::AgentIdentity;
+    use crate::sub_agent::identity::SubAgentIdentity;
     use assert_matches::assert_matches;
     use std::collections::HashMap;
 
@@ -235,7 +235,7 @@ pub(super) mod tests {
             )]))),
         );
         let validator = RegexValidator::default();
-        let agent_identity = AgentIdentity {
+        let agent_identity = SubAgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
                 format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
@@ -269,7 +269,7 @@ pub(super) mod tests {
                     )]))),
                 );
 
-                let agent_identity = AgentIdentity {
+                let agent_identity = SubAgentIdentity {
                     id: test_id(),
                     agent_type_id: AgentTypeID::try_from(
                         "newrelic/io.opentelemetry.collector:9.9.9",
@@ -589,7 +589,7 @@ config: |
     fn test_invalid_configs_are_blocked() {
         struct TestCase {
             _name: &'static str,
-            agent_identity: AgentIdentity,
+            agent_identity: SubAgentIdentity,
             config: &'static str,
         }
         impl TestCase {
@@ -645,11 +645,11 @@ config: |
     // Helpers
     ///////////////////////////////////////////////////////
     fn test_id() -> AgentID {
-        AgentID::try_from("test").unwrap()
+        SubAgentID::try_from("test").unwrap()
     }
 
-    fn infra_agent() -> AgentIdentity {
-        AgentIdentity {
+    fn infra_agent() -> SubAgentIdentity {
+        SubAgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
                 format!("newrelic/{AGENT_TYPE_NAME_INFRA_AGENT}:0.0.1").as_str(),
@@ -658,8 +658,8 @@ config: |
         }
     }
 
-    fn nrdot() -> AgentIdentity {
-        AgentIdentity {
+    fn nrdot() -> SubAgentIdentity {
+        SubAgentIdentity {
             id: test_id(),
             agent_type_id: AgentTypeID::try_from(
                 format!("newrelic/{AGENT_TYPE_NAME_NRDOT}:0.0.1").as_str(),

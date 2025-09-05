@@ -29,7 +29,7 @@ fn test_store_remote_no_mocks() {
 
     let values_repo = ConfigRepositoryFile::new(local_dir.clone(), remote_dir.clone());
 
-    let agent_id = AgentID::try_from("some-agent-id").unwrap();
+    let agent_id = SubAgentID::try_from("some-agent-id").unwrap();
 
     let agent_values = RemoteConfig {
         config: serde_yaml::from_reader(AGENT_VALUES_SINGLE_FILE.as_bytes()).unwrap(),
