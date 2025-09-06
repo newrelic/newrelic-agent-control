@@ -44,13 +44,11 @@ impl AgentAttributes {
         HashMap::from([
             (
                 Namespace::SubAgent.namespaced_name(Self::VARIABLE_SUB_AGENT_ID),
-                Variable::new_final_string_variable(self.agent_id.clone()),
+                Variable::new_final_string_variable(&self.agent_id),
             ),
             (
                 Namespace::SubAgent.namespaced_name(Self::GENERATED_DIR),
-                Variable::new_final_string_variable(
-                    self.auto_generated_dir.to_string_lossy().to_string(),
-                ),
+                Variable::new_final_string_variable(self.auto_generated_dir.to_string_lossy()),
             ),
         ])
     }
