@@ -237,8 +237,12 @@ mod tests {
 
     #[rstest]
     #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
+    #[case::windows_style_path(r"some\\windows\\style\\path", |r: Result<_, _>| r.is_ok())]
     #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("absolute: /absolute/path")))]
     #[case::invalid_escapes_basedir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("escapes the base directory")))]
+    // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
+    // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
+    // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // TODO add windows paths to check that this handles the `Component::Prefix(_)` case correctly
     fn file_entry_parsing(
         #[case] path: &str,
