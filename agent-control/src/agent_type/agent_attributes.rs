@@ -39,14 +39,6 @@ impl AgentAttributes {
         }
     }
 
-    pub fn agent_id_str(&self) -> &String {
-        &self.agent_id
-    }
-
-    pub fn auto_generated_dir(&self) -> &PathBuf {
-        &self.auto_generated_dir
-    }
-
     /// returns the variables from the sub-agent attributes source 'nr-sub'.
     pub fn sub_agent_variables(&self) -> HashMap<String, Variable> {
         HashMap::from([
