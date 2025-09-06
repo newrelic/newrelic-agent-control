@@ -10,6 +10,7 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use crate::sub_agent::on_host::command::filesystem_entries::RenderedFileSystemEntries;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;
@@ -176,7 +177,8 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             Context::new(),
             on_host.health,
         )
-        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
+        .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
+        .with_filesystem_entries(RenderedFileSystemEntries::from(on_host.filesystem));
 
         Ok(executable_supervisors)
     }
