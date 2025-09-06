@@ -42,7 +42,7 @@ impl<'de> Deserialize<'de> for FileSystem {
         let entries = HashMap::<String, FileEntry>::deserialize(deserializer)?;
         if let Err(e) = validate_unique_paths(entries.values().map(|e| &e.path)) {
             return Err(serde::de::Error::custom(format!(
-                "Duplicate file paths are not allowed: {}",
+                "duplicate file paths are not allowed. Found duplicate path: '{}'",
                 e.display()
             )));
         }
