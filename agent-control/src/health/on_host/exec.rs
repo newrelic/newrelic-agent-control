@@ -43,9 +43,9 @@ impl HealthChecker for ExecHealthChecker {
             .collect();
 
         let errors_str = errors.join(", ");
-        let healthiness = errors.is_empty();
+        let is_healthy = errors.is_empty();
 
-        if !healthiness {
+        if !is_healthy {
             return Ok(HealthWithStartTime::new(
                 Unhealthy::new(errors_str).into(),
                 start_time,
