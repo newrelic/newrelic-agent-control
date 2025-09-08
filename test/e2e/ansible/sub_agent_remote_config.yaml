@@ -16,8 +16,8 @@
   gather_facts: yes
 
   vars:
-    # ac-e2e-onhost-1 fleet on canaries account
-    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTVmZmIzLTdlODItN2U2Zi05MThlLTcwMjc4YjEzMjU4Zg
+    # ac-e2e-onhost-2 fleet on canaries account
+    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg
 
   tasks:
     - name: Install AC and assert a remote config is applied.
