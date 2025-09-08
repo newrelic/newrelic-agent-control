@@ -12,7 +12,7 @@ use crate::agent_type::{
 #[derive(Debug, Clone)]
 pub struct OnHostVersionConfig {
     /// Path to the binary from which we want to check the version.
-    pub path: String,
+    pub path: TemplateableValue<String>,
 
     // Command arguments.
     pub args: TemplateableValue<Args>,
@@ -31,7 +31,7 @@ impl<'de> Deserialize<'de> for OnHostVersionConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         pub struct IntermediateOnHostVersionConfig {
-            pub path: String,
+            pub path: TemplateableValue<String>,
             pub args: TemplateableValue<Args>,
             pub(crate) regex: Option<String>,
         }
