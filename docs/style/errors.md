@@ -48,7 +48,7 @@ as opposed to
 
 ## Tips for building new errors
 
-We use `thiserror` to build new error types. It's a powerful tool. However, it can introduce some complexity to the codebase if taken lightly.
+We use `thiserror` to build new error types. It's a powerful tool. However, it can introduce some complexity to the codebase if not used carefully.
 The main issue we found with it is that we might end up with an error type enum that contains dozens of variants that we don't leverage. It might also happen that one of the variants is `Generic`. Which is odd. Either we are missing errors or we don't need that variant.
 
 There are use cases for using enums with different variants:
@@ -57,7 +57,7 @@ There are use cases for using enums with different variants:
 * avoid duplication of error messages
 * controlling the flow of the program
 
-We have a rule to help us avoiding the issues previously mentioned. Create a simple error type as struct. Then, if we need to match a specific error or avoid error message duplication, we can think of "promoting" the struct to an enum.
+To avoid unnecessary complexity, we follow this guideline: start by creating a simple error type as a struct. Later, if you need to match specific errors or avoid error message duplication, consider "promoting" the struct to an enum.
 
 ```rust
 #[derive(Debug, Error)]
