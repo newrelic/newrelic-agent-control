@@ -2,10 +2,8 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{VALUES_DIR, VALUES_FILENAME};
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
+use fs::utils::{get_directory_permissions, get_pid_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::debug;
@@ -18,11 +16,6 @@ pub enum PersistError {
     #[error("file error: `{0}`")]
     FileError(#[from] WriteError),
 }
-
-#[cfg(target_family = "unix")]
-pub(crate) const FILE_PERMISSIONS: u32 = 0o600;
-#[cfg(target_family = "unix")]
-const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 pub struct ValuesPersisterFile<C = DirectoryManagerFs, F = LocalFile>
 where
@@ -71,29 +64,14 @@ where
     }
 
     // Wrapper for linux with unix specific permissions
-    #[cfg(target_family = "unix")]
     fn write(&self, path: &Path, content: &str) -> Result<(), WriteError> {
-        self.file_writer.write(
-            path,
-            content.to_string(),
-            Permissions::from_mode(FILE_PERMISSIONS),
-        )
+        self.file_writer
+            .write(path, content.to_string(), get_pid_file_permissions())
     }
 
     // Wrapper for linux with unix specific permissions
-    #[cfg(target_family = "unix")]
     fn create_directory(&self, path: &Path) -> Result<(), DirectoryManagementError> {
         self.directory_manager
-            .create(path, Permissions::from_mode(DIRECTORY_PERMISSIONS))
-    }
-
-    #[cfg(target_family = "windows")]
-    fn write(&self, path: &Path, content: &str) -> Result<(), WriteError> {
-        todo!()
-    }
-
-    #[cfg(target_family = "windows")]
-    fn create_directory(&self, path: &Path) -> Result<(), WriteError> {
-        todo!()
+            .create(path, get_directory_permissions())
     }
 }

@@ -1,13 +1,11 @@
-use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::utils::get_directory_permissions;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::file::{ConfigRepositoryFile, concatenate_sub_agent_dir_path};
-use std::fs;
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
+use std::fs::read_to_string;
 use std::path::PathBuf;
 
 // This test is the only one that writes to an actual file in the FS
@@ -24,7 +22,7 @@ fn test_store_remote_no_mocks() {
     let dir_manager = DirectoryManagerFs;
 
     // Ensure dir exists
-    let res = dir_manager.create(remote_dir.as_path(), Permissions::from_mode(0o700));
+    let res = dir_manager.create(remote_dir.as_path(), get_directory_permissions());
     assert!(res.is_ok());
 
     let values_repo = ConfigRepositoryFile::new(local_dir.clone(), remote_dir.clone());
@@ -43,7 +41,7 @@ fn test_store_remote_no_mocks() {
 
     assert_eq!(
         AGENT_VALUES_SINGLE_FILE_STORED,
-        fs::read_to_string(concatenate_sub_agent_dir_path(&remote_dir, &agent_id)).unwrap()
+        read_to_string(concatenate_sub_agent_dir_path(&remote_dir, &agent_id)).unwrap()
     );
 }
 

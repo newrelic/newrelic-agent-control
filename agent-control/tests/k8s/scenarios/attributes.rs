@@ -1,3 +1,4 @@
+#![cfg(target_family = "unix")]
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,

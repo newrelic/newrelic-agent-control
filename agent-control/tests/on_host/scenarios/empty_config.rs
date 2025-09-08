@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config,

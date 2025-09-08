@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use newrelic_agent_control::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use newrelic_agent_control::sub_agent::on_host::command::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::command::restart_policy::RestartPolicy;

@@ -9,7 +9,6 @@ pub enum CommandError {
     #[error("`{0}`")]
     IOError(#[from] std::io::Error),
 
-    #[cfg(target_family = "unix")]
-    #[error("`{0}`")]
-    NixError(#[from] nix::Error),
+    #[error("Nix Error: `{0}`")]
+    NixError(String),
 }

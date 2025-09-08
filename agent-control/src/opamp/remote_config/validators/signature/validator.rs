@@ -6,7 +6,6 @@ use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::sub_agent::identity::AgentIdentity;
-use nix::NixPath;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -47,7 +46,7 @@ pub fn build_signature_validator(
     }
 
     // Certificate from file takes precedence over fetching from the server when it is set
-    let certificate_fetcher = if !config.certificate_pem_file_path.is_empty() {
+    let certificate_fetcher = if !config.certificate_pem_file_path.as_os_str().is_empty() {
         warn!(
             "Remote config signature validation is enabled, using certificate from file: {}. Certificate rotation is not supported",
             config.certificate_pem_file_path.display()

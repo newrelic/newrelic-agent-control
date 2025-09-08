@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::{opamp::FakeServer, retry::retry};

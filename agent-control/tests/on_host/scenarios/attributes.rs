@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,

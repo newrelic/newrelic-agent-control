@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;

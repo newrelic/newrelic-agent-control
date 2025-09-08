@@ -1,3 +1,4 @@
+use super::getter::Identifiers;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::IDENTIFIERS_FILENAME;
 use crate::opamp::instance_id::getter::DataStored;
@@ -5,21 +6,11 @@ use crate::opamp::instance_id::storer::InstanceIDStorer;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
-use fs::utils::FsError;
+use fs::utils::{FsError, get_directory_permissions, get_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
-use std::fs::Permissions;
 use std::io;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tracing::debug;
-
-use super::getter::Identifiers;
-
-#[cfg(target_family = "unix")]
-const FILE_PERMISSIONS: u32 = 0o600;
-#[cfg(target_family = "unix")]
-const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 pub struct Storer<F = LocalFile, D = DirectoryManagerFs>
 where
@@ -111,14 +102,12 @@ where
             ))))?;
 
         self.dir_manager
-            .create(dest_dir, Permissions::from_mode(DIRECTORY_PERMISSIONS))?;
+            .create(dest_dir, get_directory_permissions())?;
         let contents = serde_yaml::to_string(ds)?;
 
-        Ok(self.file_rw.write(
-            &dest_file,
-            contents,
-            Permissions::from_mode(FILE_PERMISSIONS),
-        )?)
+        Ok(self
+            .file_rw
+            .write(&dest_file, contents, get_file_permissions())?)
     }
 
     fn read_contents(
@@ -163,11 +152,9 @@ mod tests {
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
+    use fs::utils::{get_directory_permissions, get_file_permissions};
     use mockall::predicate;
-    use std::fs::Permissions;
     use std::io;
-    #[cfg(target_family = "unix")]
-    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
     #[test]
@@ -204,12 +191,12 @@ mod tests {
         // Expectations
         dir_manager.should_create(
             instance_id_path.parent().unwrap(),
-            Permissions::from_mode(0o700),
+            get_directory_permissions(),
         );
         file_rw.should_write(
             &instance_id_path,
             expected_file(instance_id),
-            Permissions::from_mode(0o600),
+            get_file_permissions(),
         );
 
         let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
@@ -232,11 +219,11 @@ mod tests {
         file_rw.should_not_write(
             &instance_id_path,
             expected_file(instance_id),
-            Permissions::from_mode(0o600),
+            get_file_permissions(),
         );
         dir_manager.should_create(
             instance_id_path.parent().unwrap(),
-            Permissions::from_mode(0o700),
+            get_directory_permissions(),
         );
 
         let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);

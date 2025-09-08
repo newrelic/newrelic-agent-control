@@ -1,7 +1,5 @@
 use super::error::CommandError;
 use crate::context::Context;
-#[cfg(target_family = "unix")]
-use nix::{sys::signal, unistd::Pid};
 use std::time::Duration;
 use tracing::error;
 
@@ -27,15 +25,19 @@ impl ProcessTerminator {
     where
         F: FnOnce() -> bool,
     {
-        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM)?;
+        use nix::{sys::signal, unistd::Pid};
+        signal::kill(Pid::from_raw(self.pid as i32), signal::SIGTERM)
+            .map_err(|err| CommandError::NixError(err.to_string()))?;
+
         if !func() {
-            signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)?;
+            signal::kill(Pid::from_raw(self.pid as i32), signal::SIGKILL)
+                .map_err(|err| CommandError::NixError(err.to_string()))?;
         }
         Ok(())
     }
 
-    #[cfg(not(target_family = "unix"))]
-    fn shutdown<F>(self, func: F) -> Result<(), Self::Error>
+    #[cfg(target_family = "windows")]
+    pub fn shutdown<F>(self, _func: F) -> Result<(), CommandError>
     where
         F: FnOnce() -> bool,
     {
@@ -81,7 +83,6 @@ pub fn wait_exit_timeout_default(context: Context<bool>) -> bool {
     wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
 }
 
-#[cfg(target_family = "unix")]
 #[cfg(test)]
 mod tests {
     use super::*;

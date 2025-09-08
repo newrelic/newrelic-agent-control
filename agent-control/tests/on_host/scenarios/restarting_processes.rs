@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_DIR,
