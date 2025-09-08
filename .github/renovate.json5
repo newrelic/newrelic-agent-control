@@ -93,6 +93,17 @@
         '/serde_yaml/',
       ],
     },
+    { // Group kubernetes crates together
+        matchPackagePrefixes: [
+            "kube",
+            "k8s",
+            "schemars",
+        ],
+        groupName: "kubernetes crates",
+        matchManagers: [
+            "cargo"
+        ],
+    },
     {
       matchManagers: [
         'gomod',

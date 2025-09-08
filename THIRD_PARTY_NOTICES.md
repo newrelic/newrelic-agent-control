@@ -136,13 +136,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## android-tzdata <https://crates.io/crates/android-tzdata>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## android_system_properties <https://crates.io/crates/android_system_properties>
 
 Distributed under the following license(s):
@@ -1240,12 +1233,6 @@ Distributed under the following license(s):
 
 * Zlib
 
-## konst_kernel <https://crates.io/crates/konst_kernel>
-
-Distributed under the following license(s):
-
-* Zlib
-
 ## konst_proc_macros <https://crates.io/crates/konst_proc_macros>
 
 Distributed under the following license(s):
@@ -1812,6 +1799,20 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
+
+## ref-cast <https://crates.io/crates/ref-cast>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
+## ref-cast-impl <https://crates.io/crates/ref-cast-impl>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
 
 ## regex <https://crates.io/crates/regex>
 
@@ -2385,12 +2386,6 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## typewit <https://crates.io/crates/typewit>
-
-Distributed under the following license(s):
-
-* Zlib
-
-## typewit_proc_macros <https://crates.io/crates/typewit_proc_macros>
 
 Distributed under the following license(s):
 
