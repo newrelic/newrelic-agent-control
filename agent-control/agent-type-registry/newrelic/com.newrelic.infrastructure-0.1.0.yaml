@@ -116,7 +116,6 @@ deployment:
       path: /usr/bin/newrelic-infra
       args: --version
       regex: \d+\.\d+\.\d+
-      interval: 60s
     executables:
       - path: /usr/bin/newrelic-infra
         args: >-
