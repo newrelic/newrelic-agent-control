@@ -663,6 +663,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## dispatch <https://crates.io/crates/dispatch>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## displaydoc <https://crates.io/crates/displaydoc>
 
 Distributed under the following license(s):
