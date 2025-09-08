@@ -27,6 +27,7 @@ use crate::utils::thread_context::{
 use crate::utils::threads::spawn_named_thread;
 use crate::version_checker::onhost::OnHostAgentVersionChecker;
 use crate::version_checker::spawn_version_checker;
+#[cfg(target_family = "unix")]
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;

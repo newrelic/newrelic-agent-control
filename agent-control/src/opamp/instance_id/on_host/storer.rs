@@ -9,6 +9,7 @@ use fs::utils::FsError;
 use fs::writer_file::{FileWriter, WriteError};
 use std::fs::Permissions;
 use std::io;
+#[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use tracing::debug;
@@ -165,6 +166,7 @@ mod tests {
     use mockall::predicate;
     use std::fs::Permissions;
     use std::io;
+    #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
