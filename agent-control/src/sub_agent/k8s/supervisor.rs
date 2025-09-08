@@ -19,8 +19,7 @@ use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
-use crate::version_checker::k8s::checkers::K8sAgentVersionChecker;
-use crate::version_checker::spawn_version_checker;
+use crate::version_checker::k8s::checkers::{K8sAgentVersionChecker, spawn_version_checker};
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::serde_json;
 use kube::{api::DynamicObject, core::TypeMeta};

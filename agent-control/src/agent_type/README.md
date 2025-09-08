@@ -137,6 +137,10 @@ deployment:
       http:
         path: "/v1/status"
         port: 8003
+    version:
+      path: /usr/bin/newrelic-infra
+      args: --version
+      regex: \d+\.\d+\.\d+
     executables:
       - path: /usr/bin/newrelic-infra
         args: "--config=${nr-var:config_agent}"
@@ -151,6 +155,7 @@ In this section:
 
 * `enable_file_logging`: This setting turns on logging for the agent supervisor
 * `health`: The measures used to check the health status of the agent.
+* `version`: The command used to check the version of the binary.
 * `executables`: This outlines the list of binaries the agent supervisor runs. Developers can define:
   - * `path`: The location of the binary required.
     * `args`: The command-line arguments needed by the binary.
@@ -221,6 +226,24 @@ health:
     should_be_present: true
     unhealthy_string: ".*(unhealthy|fatal|error).*"
 ```
+
+#### OnHost Version
+
+The `version` section in the deployment configuration is where you can specify how to obtain the version of the binary running. Here's how you can define it block:
+
+```yaml
+version:
+  path: /usr/bin/newrelic-infra
+  args: --version
+  regex: \d+\.\d+\.\d+
+```
+
+In this configuration:
+
+* `path`: Specifies the binary to run. 
+* `args`: Specifies the arguments passed to the binary to get the version. 
+* `regex`: Optional field that specifies the regular expression to get the version from the output. When not used, the whole output will be used as the version.
+
 
 ### Kubernetes Deployment
 

@@ -140,7 +140,7 @@ chart_version: "{CHART_VERSION_LATEST_RELEASE}"
 
         let obj = k8s_client
             .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, &ac_namespace)?
-            .ok_or(VersionCheckError::Generic(format!(
+            .ok_or(VersionCheckError(format!(
                 "helmRelease object not found: {release_name}",
             )))?;
 
@@ -170,7 +170,7 @@ pub fn check_version_and_source(
 ) -> Result<(), Box<dyn Error>> {
     let obj = k8s_client
         .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, namespace)?
-        .ok_or(VersionCheckError::Generic(format!(
+        .ok_or(VersionCheckError(format!(
             "helmRelease object not found: {release_name}",
         )))?;
 
