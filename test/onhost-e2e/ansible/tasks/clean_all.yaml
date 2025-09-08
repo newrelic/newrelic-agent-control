@@ -14,9 +14,11 @@
       - /var/run/newrelic-infra
       - /var/log/newrelic-infra
       - /etc/systemd/system/newrelic-infra.service
+      - /etc/newrelic-ebpf-agent
     packages_to_cleanup:
       - newrelic-agent-control
       - newrelic-infra
+      - newrelic-ebpf-agent
     services_to_stop:
       - newrelic-agent-control
       - newrelic-infra

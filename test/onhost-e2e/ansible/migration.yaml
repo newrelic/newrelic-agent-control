@@ -16,17 +16,18 @@
           test_id: "migration_infra_to_ac_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
 
       - name: Install Infra Agent
-        include_role:
-          name: newrelic.newrelic_install
-          apply:
-            environment:
-              NEW_RELIC_API_KEY: "{{ nr_api_key }}"
-              NEW_RELIC_ACCOUNT_ID: "{{ nr_account_id | int }}"
-              NEW_RELIC_REGION: "US"
-        vars:
-          targets:
-            - infrastructure
-            - logs
+        shell: |
+          curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | \
+            bash && sudo \
+            NEW_RELIC_CLI_SKIP_CORE=1 \
+            NEW_RELIC_LICENSE_KEY={{ nr_license_key }} \
+            NEW_RELIC_API_KEY={{ nr_api_key }} \
+            NEW_RELIC_ACCOUNT_ID={{ nr_account_id }} \
+            NEW_RELIC_REGION=US \
+            /usr/local/bin/newrelic install -n infrastructure-agent-installer
+        register: out
+      - debug:
+          var: out.stdout_lines
 
       - name: Change Infra Agent config
         copy:
