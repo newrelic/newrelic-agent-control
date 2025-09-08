@@ -3,108 +3,63 @@ name: 📞 OnHost E2E tests
 on:
   workflow_call:
     secrets:
-      AWS_ROLE_ARN:
+      NR_SYSTEM_IDENTITY_CLIENT_ID:
+        required: false
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY:
+        required: false
+      E2E_ACCOUNT_ID:
         required: true
-      AWS_VPC_SUBNET:
+      E2E_API_KEY:
+        required: true
+      E2E_LICENSE_KEY:
         required: true
 
     inputs:
-      UNIQUE_NAME:
+      scenarios:
+        description: 'JSON array of test scenarios to run'
         required: true
         type: string
-      EC2_FILTERS:
-        required: false
-        type: string
-      PACKAGE_VERSION:
+      package_version:
         required: false
         type: string
         default: ""
-      REPOSITORY_ENDPOINT:
+      repository_endpoint:
         required: false
         type: string
         description: 'Repository endpoint to fetch packages from'
         default: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
-env:
-  UNIQUE_NAME: ${{ inputs.UNIQUE_NAME }}
-  EC2_FILTERS: ${{ inputs.EC2_FILTERS }}
-
 permissions:
-  id-token: write
   contents: read
 
 jobs:
-  infra:
-    name: Provision infra and run OnHost E2E tests
-
-    runs-on: ubuntu-latest
+  on-host-e2e:
+    name: OnHost E2E tests
+    # using ubuntu 24 prevents from adding the testing repo from http .
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(inputs.scenarios) }}
 
     steps:
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-2
-
-      - name: Set branch name
-        run: |
-          # Short name for current branch. For PRs, use target branch (base ref)
-          GIT_BRANCH=${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}
-          # Is the ref a tag? If so, remove refs/tags/ prefix
-          GIT_BRANCH=${GIT_BRANCH#refs/tags/}
-          echo "GIT_BRANCH=$GIT_BRANCH" >> $GITHUB_ENV
-
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          fetch-depth: 0
-
-      - name: Provision infra
-        uses: newrelic/fargate-runner-action@main
-        with:
-          aws_region: us-east-2
-          container_make_target: "test/provision TF_VAR_inventory_output=/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2 TAG_OR_UNIQUE_NAME=${{ env.UNIQUE_NAME }} EC2_FILTERS=${{ env.EC2_FILTERS }}"
-          ecs_cluster_name: agent_control
-          task_definition_name: agent_control
-          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
-          cloud_watch_logs_stream_name: ecs/test-agent_control
-          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: ${{ github.repository }}
-          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
-          ref: "${{ env.GIT_BRANCH }}"
-          log_filters: |
-            \[ALLOW_MSG\].+
-            TASK\s\[.*\]\s
-            PLAY\s\[.*\]\s
-            PLAY\sRECAP\s
-            Apply\scomplete!
-            ok=\d+\s+changed=\d+\s+unreachable=\d+\s+failed=\d+\s+skipped=\d+\s+rescued=\d+\s+ignored=\d+
-
-      - name: Run E2E tests
-        uses: newrelic/fargate-runner-action@main
-        with:
-          aws_region: us-east-2
-          container_make_target: "ENVIRONMENT=production test/e2e REPOSITORY_ENDPOINT=${{ inputs.REPOSITORY_ENDPOINT }} ANSIBLE_INVENTORY='/srv/runner/inventory/${{ env.UNIQUE_NAME }}-inventory.ec2' PACKAGE_VERSION=${{ inputs.PACKAGE_VERSION }}"
-          ecs_cluster_name: agent_control
-          task_definition_name: agent_control
-          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
-          cloud_watch_logs_stream_name: ecs/test-agent_control
-          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: ${{ github.repository }}
-          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
-          ref: "${{ env.GIT_BRANCH }}"
-
-      - name: Destroy the infra
-        uses: newrelic/fargate-runner-action@main
-        if: always()
-        with:
-          aws_region: us-east-2
-          container_make_target: "-C test/provision clean TAG_OR_UNIQUE_NAME=${{ env.UNIQUE_NAME }}"
-          ecs_cluster_name: agent_control
-          task_definition_name: agent_control
-          cloud_watch_logs_group_name: /ecs/test-prerelease-agent_control
-          cloud_watch_logs_stream_name: ecs/test-agent_control
-          aws_vpc_subnet: ${{ secrets.AWS_VPC_SUBNET }}
-          repo_name: ${{ github.repository }}
-          git_clone_url: "ssh://git@github.com/${{ github.repository }}.git"
-          ref: "${{ env.GIT_BRANCH }}"
-
+          python-version: '3.12'
+      - name: Install deps
+        run: |
+          python3 -m pip install ansible==10.7.0 jmespath==1.0.1 pywinrm==0.5.0
+      - name: Test ${{ matrix.group }}
+        env:
+          NR_PROD_LICENSE_KEY: ${{ secrets.E2E_LICENSE_KEY }}
+          NEW_RELIC_PROD_ACCOUNT_ID: ${{ secrets.E2E_ACCOUNT_ID }}
+          NEW_RELIC_PROD_API_KEY: ${{ secrets.E2E_API_KEY }}
+          NR_PROD_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.NR_SYSTEM_IDENTITY_CLIENT_ID }}
+          NR_PROD_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+        run: |
+          make test/onhost-e2e \
+            ANSIBLE_PLAYBOOK=${{ matrix.group }} \
+            ENVIRONMENT=production \
+            REPOSITORY_ENDPOINT=${{ inputs.repository_endpoint }} \
+            PACKAGE_VERSION=${{ inputs.package_version }}

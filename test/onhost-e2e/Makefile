@@ -23,7 +23,7 @@ endif
 ANSIBLE_FOLDER := $(CURDIR)/ansible
 ANSIBLE_FORKS ?= 5
 ANSIBLE_INVENTORY ?= $(ANSIBLE_FOLDER)/inventory.ec2
-ANSIBLE_PLAYBOOK ?= test.yaml
+ANSIBLE_PLAYBOOK ?= remote_config.yaml
 LIMIT ?= "testing_hosts_linux"
 
 define check_env_var
@@ -59,9 +59,7 @@ e2e:
 	@$(call check_env_vars)
 # if you want to hide OK, add ANSIBLE_DISPLAY_OK_HOSTS=NO
 	$(MAKE) ansible/dependencies ANSIBLE_FOLDER=$(ANSIBLE_FOLDER)
-	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ansible-playbook -f $(ANSIBLE_FORKS) \
-		-i $(ANSIBLE_INVENTORY) \
-		--limit=$(LIMIT) \
+	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ansible-playbook \
 		-e nr_license_key=$(NR_LICENSE_KEY) \
 		-e nr_api_key=$(NEW_RELIC_API_KEY) \
 		-e nr_api_host=$(NEW_RELIC_API_HOST) \

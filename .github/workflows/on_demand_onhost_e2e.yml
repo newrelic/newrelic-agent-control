@@ -3,30 +3,34 @@ name: ⏯️🚀💾 OnHost E2E test on demand
 on:
   workflow_dispatch:
     inputs:
-      UNIQUE_NAME:
-        description: "name of the provisioned machines. default: ci-on-demand"
+      scenarios:
+        description: 'JSON array of test scenarios from test/onhost_e2e/ansible to run (e.g., ["migration.yaml"] )'
+        required: true
+        type: string
+      package_version:
+        description: 'Package version to test (e.g., 0.48.0). Leave empty to use latest.'
         required: false
         type: string
-      EC2_FILTERS:
+        default: ""
+      repository_endpoint:
+        description: 'Repository endpoint to fetch packages from'
         required: false
-        description: "OS Flavors to test. default: ubuntu22.04"
         type: string
-      REPOSITORY_ENDPOINT:
-        required: false
-        description: 'Repository endpoint to fetch packages from. default: staging'
-        type: string
+        default: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
 
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     with:
-      UNIQUE_NAME: ${{ inputs.UNIQUE_NAME || 'ci-on-demand' }}
-      EC2_FILTERS: ${{ inputs.EC2_FILTERS || '[\"ubuntu22.04\"]' }}
-      REPOSITORY_ENDPOINT: ${{ inputs.REPOSITORY_ENDPOINT || 'http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview'}}
+      scenarios: ${{ inputs.scenarios }}
+      repository_endpoint: ${{ inputs.repository_endpoint }}
+      package_version: ${{ inputs.package_version }}
     secrets:
-      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
-      AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
