@@ -3,6 +3,7 @@ use fs::directory_manager::{DirectoryManagementError, DirectoryManager, Director
 use fs::file_reader::FileReader;
 use fs::writer_file::{FileWriter, WriteError};
 use std::fs::Permissions;
+#[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use thiserror::Error;

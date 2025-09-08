@@ -5,6 +5,7 @@ use std::fs::Permissions;
 use std::io::Write;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::OpenOptionsExt;
+#[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::{fs, io};
@@ -123,13 +124,12 @@ pub mod mock {
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod tests {
+    use super::*;
     use std::fs;
     use std::fs::Permissions;
     #[cfg(target_family = "unix")]
     use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
-
-    use super::*;
 
     #[cfg(target_family = "unix")]
     #[test]
