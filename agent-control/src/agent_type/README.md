@@ -242,7 +242,7 @@ In this configuration:
 
 * `path`: Specifies the binary to run. 
 * `args`: Specifies the arguments passed to the binary to get the version. 
-* `regex`: Optional field that specifies the regular expression to get the version from the ouput.
+* `regex`: Optional field that specifies the regular expression to get the version from the output.
 
 
 ### Kubernetes Deployment
