@@ -66,7 +66,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .iter()
             .map(|e| self.start_process_thread(sub_agent_internal_publisher.clone(), e));
 
-        self.start_version_checker(sub_agent_internal_publisher.clone());
+        self.check_subagent_version(sub_agent_internal_publisher.clone());
 
         let thread_contexts: Vec<StartedThreadContext> =
             vec![self.start_health_check(sub_agent_internal_publisher.clone())?]
@@ -160,16 +160,16 @@ impl NotStartedSupervisorOnHost {
             );
             return Ok(Some(started_thread_context));
         }
-        info!(%self.agent_identity.agent_type_id, "health checks are disabled for this agent");
+        info!(agent_type=%self.agent_identity.agent_type_id, "health checks are disabled for this agent");
         Ok(None)
     }
 
-    pub fn start_version_checker(
+    pub fn check_subagent_version(
         &self,
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
         let Some(version_config) = &self.version_config else {
-            info!(%self.agent_identity.agent_type_id, "version checks are disabled for this agent");
+            info!(agent_type=%self.agent_identity.agent_type_id, "version checks are disabled for this agent");
             return;
         };
 
