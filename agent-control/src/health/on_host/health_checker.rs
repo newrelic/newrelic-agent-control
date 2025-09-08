@@ -2,22 +2,21 @@ use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
 use crate::agent_type::runtime_config::health_config::{OnHostHealthCheck, OnHostHealthConfig};
+use crate::event::channel::EventConsumer;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
-use crate::sub_agent::on_host::health::repository::ExecHealthRepository;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-pub enum OnHostHealthChecker<E: ExecHealthRepository + Send + Sync + 'static> {
-    Exec(ExecHealthChecker<E>),
+pub enum OnHostHealthChecker {
+    Exec(ExecHealthChecker),
     Http(HttpHealthChecker),
     File(FileHealthChecker),
 }
 
-impl<E: ExecHealthRepository + Send + Sync + 'static> OnHostHealthChecker<E> {
+impl OnHostHealthChecker {
     pub fn try_new(
-        exec_health_repository: Arc<E>,
+        exec_health_repository: EventConsumer<(String, HealthWithStartTime)>,
         http_client: HttpClient,
         health_config: OnHostHealthConfig,
         start_time: StartTime,
@@ -36,7 +35,7 @@ impl<E: ExecHealthRepository + Send + Sync + 'static> OnHostHealthChecker<E> {
     }
 }
 
-impl<E: ExecHealthRepository + Send + Sync + 'static> HealthChecker for OnHostHealthChecker<E> {
+impl HealthChecker for OnHostHealthChecker {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
         match self {
             OnHostHealthChecker::Exec(exec_checker) => exec_checker.check_health(),
