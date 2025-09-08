@@ -1,12 +1,3 @@
-# default destination for downloaded artifacts. Template.
-destination: ./artifacts/{{.Arch}}
-
-# Used as defaults for all Newrelic binaries below, can be overridden. Template.
-url: https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
-
-# stagingUrl will be used if the download is invoked with -staging. Template.
-staging_url: https://nr-downloads-ohai-staging.s3.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz
-
 # List of integrations to download.
 # Individual entries may override any of the values defined above.
 artifacts:
@@ -25,12 +16,16 @@ artifacts:
       # integrations
       - name: nri-docker binary
         src: opt/newrelic-infra/newrelic-integrations/bin/nri-docker
+        dest: artifacts/{{.Arch}}
       - name: nri-docker config
         src: etc/newrelic-infra/integrations.d/docker-config.yml
+        dest: artifacts/{{.Arch}}
       - name: nri-prometheus binary
         src: opt/newrelic-infra/newrelic-integrations/bin/nri-prometheus
+        dest: artifacts/{{.Arch}}
       - name: nri-flex binary
         src: opt/newrelic-infra/newrelic-integrations/bin/nri-flex
+        dest: artifacts/{{.Arch}}
       # fluent-bit conf
       - name: fb parsers.conf
         src: var/db/newrelic-infra/newrelic-integrations/logging/parsers.conf

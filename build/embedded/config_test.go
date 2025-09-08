@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -9,34 +10,32 @@ func Test_ConfigExpand(t *testing.T) {
 	testCases := []struct {
 		name         string
 		content      string
-		staging      bool
 		arch         string
 		expectedConf Config
 		expectedErr  error
 	}{
 		{
-			name:    "fallback to default",
-			staging: false,
-			arch:    "amd64",
+			name: "fallback to default",
+			arch: "amd64",
 			content: `
-# defaults
-url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-staging_url: "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-destination: "./artifacts/{{.Arch}}"
-
 # artifacts
 artifacts:
   - name: newrelic-infra
+    url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
     files:
       - name: newrelic-infra binary
         src: newrelic-infra/usr/bin/newrelic-infra
+        dest: "./artifacts/{{.Arch}}"
 
   - name: nr-otel-collector
+    url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
     files:
       - name: nr-otel-collector-binary
         src: nr-otel-collector/usr/bin/nr-otel-collector
+        dest: "./artifacts/{{.Arch}}"
       - name: another file
         src: nr-otel-collector/usr/bin/another-file
+        dest: "./artifacts/{{.Arch}}"
 `,
 			expectedConf: Config{
 				Artifacts: []Artifact{
@@ -72,187 +71,66 @@ artifacts:
 						Arch: "amd64",
 					},
 				},
-				defaults: Defaults{
-					URL:         "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					StagingURL:  "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					Destination: "./artifacts/{{.Arch}}",
-				},
 			},
 		},
 		{
-			name:    "fallback to default staging url",
-			staging: true,
-			arch:    "amd64",
+			name: "error when artifact name is missing",
+			arch: "amd64",
 			content: `
-# defaults
-url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-staging_url: "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-destination: "./artifacts/{{.Arch}}"
-
-# artifacts
-artifacts:
-  - name: newrelic-infra
-    files:
-      - name: newrelic-infra binary
-        src: newrelic-infra/usr/bin/newrelic-infra
-
-  - name: nr-otel-collector
-    files:
-      - name: nr-otel-collector-binary
-        src: nr-otel-collector/usr/bin/nr-otel-collector
-      - name: another file
-        src: nr-otel-collector/usr/bin/another-file
-`,
-			expectedConf: Config{
-				Artifacts: []Artifact{
-					{
-						Name:    "newrelic-infra",
-						URL:     "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-						Version: "1.42.2",
-						Files: []File{
-							{
-								Name: "newrelic-infra binary",
-								Src:  "newrelic-infra/usr/bin/newrelic-infra",
-								Dest: "./artifacts/{{.Arch}}",
-							},
-						},
-						Arch: "amd64",
-					},
-					{
-						Name:    "nr-otel-collector",
-						URL:     "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-						Version: "0.1.0",
-						Files: []File{
-							{
-								Name: "nr-otel-collector-binary",
-								Src:  "nr-otel-collector/usr/bin/nr-otel-collector",
-								Dest: "./artifacts/{{.Arch}}",
-							},
-							{
-								Name: "another file",
-								Src:  "nr-otel-collector/usr/bin/another-file",
-								Dest: "./artifacts/{{.Arch}}",
-							},
-						},
-						Arch: "amd64",
-					},
-				},
-				defaults: Defaults{
-					URL:         "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					StagingURL:  "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					Destination: "./artifacts/{{.Arch}}",
-				},
-			},
+    artifacts:
+      - url: "some-url" # 'name' field is missing
+        files:
+          - name: a-file
+            src: a-src
+            dest: a-dest
+    `,
+			expectedErr: fmt.Errorf("artifact at index 0 is missing a required 'name'"),
 		},
 		{
-			name:    "fallback to default + hardcoded ones mixed",
-			staging: false,
-			arch:    "amd64",
+			name: "error when version is missing from map",
+			arch: "amd64",
 			content: `
-# defaults
-url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-staging_url: "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-destination: "./artifacts/{{.Arch}}"
-
-# artifacts
-artifacts:
-  - name: newrelic-infra
-    files:
-      - name: newrelic-infra binary
-        src: newrelic-infra/usr/bin/newrelic-infra
-
-  - name: nr-otel-collector
-    url: "http://www.some.url/and/path"
-    files:
-      - name: nr-otel-collector-binary
-        src: nr-otel-collector/usr/bin/nr-otel-collector
-        dest: "./hardcoded/dest"
-      - name: another file
-        src: nr-otel-collector/usr/bin/another-file
-`,
-			expectedConf: Config{
-				Artifacts: []Artifact{
-					{
-						Name:    "newrelic-infra",
-						URL:     "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-						Version: "1.42.2",
-						Files: []File{
-							{
-								Name: "newrelic-infra binary",
-								Src:  "newrelic-infra/usr/bin/newrelic-infra",
-								Dest: "./artifacts/{{.Arch}}",
-							},
-						},
-						Arch: "amd64",
-					},
-					{
-						Name:    "nr-otel-collector",
-						URL:     "http://www.some.url/and/path",
-						Version: "0.1.0",
-						Files: []File{
-							{
-								Name: "nr-otel-collector-binary",
-								Src:  "nr-otel-collector/usr/bin/nr-otel-collector",
-								Dest: "./hardcoded/dest",
-							},
-							{
-								Name: "another file",
-								Src:  "nr-otel-collector/usr/bin/another-file",
-								Dest: "./artifacts/{{.Arch}}",
-							},
-						},
-						Arch: "amd64",
-					},
-				},
-				defaults: Defaults{
-					URL:         "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					StagingURL:  "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz",
-					Destination: "./artifacts/{{.Arch}}",
-				},
-			},
+    artifacts:
+      - name: unknown-artifact # This name is not in the versions map
+        url: "some-url"
+        files:
+          - name: a-file
+            src: a-src
+            dest: a-dest
+    `,
+			expectedErr: fmt.Errorf("version not found for artifact: 'unknown-artifact'"),
 		},
 		{
-			name:    "validate required url",
-			staging: false,
-			arch:    "amd64",
+			name: "error when artifact url is missing",
+			arch: "amd64",
 			content: `
-# defaults
-url: ""
-staging_url: "https://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-destination: "./artifacts/{{.Arch}}"
-`,
-			expectedErr: errRequiredValue,
+    artifacts:
+      - name: newrelic-infra # Has a name, but the URL is missing
+        files:
+          - name: a-file
+            src: a-src
+            dest: a-dest
+    `,
+			expectedErr: fmt.Errorf("artifact 'newrelic-infra' is missing required field 'url'"),
 		},
 		{
-			name:    "validate required staging url",
-			staging: false,
-			arch:    "amd64",
+			name: "error when file src is missing",
+			arch: "amd64",
 			content: `
-# defaults
-url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-staging_url: ""
-destination: "./artifacts/{{.Arch}}"
-`,
-			expectedErr: errRequiredValue,
-		},
-		{
-			name:    "validate required destination",
-			staging: false,
-			arch:    "amd64",
-			content: `
-# defaults
-url: "https://download.newrelic.com/infrastructure_agent/binaries/linux/{{.Arch}}/{{.Name}}_linux_{{.Version | trimv}}_{{.Arch}}.tar.gz"
-staging_url: "some url"
-destination: ""
-`,
-			expectedErr: errRequiredValue,
+    artifacts:
+      - name: newrelic-infra
+        url: "some-url"
+        files:
+          - name: a-file
+            dest: a-dest # 'src' field is missing
+    `,
+			expectedErr: fmt.Errorf("file 'a-file' in artifact 'newrelic-infra' is missing a required 'src' field"),
 		},
 	}
 	for i := range testCases {
 		testCase := testCases[i]
 		t.Run(testCase.name, func(t *testing.T) {
 			conf, err := config(
-				testCase.staging,
 				testCase.arch,
 				map[string]string{"newrelic-infra": "1.42.2", "nr-otel-collector": "0.1.0"},
 				[]byte(testCase.content),
@@ -261,7 +139,8 @@ destination: ""
 				assert.NoError(t, err)
 				assert.Equal(t, testCase.expectedConf, conf)
 			} else {
-				assert.ErrorIs(t, err, testCase.expectedErr)
+				assert.Error(t, err)
+				assert.EqualError(t, err, testCase.expectedErr.Error())
 			}
 		})
 	}

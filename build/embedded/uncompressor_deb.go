@@ -1,8 +1,8 @@
 package main
 
 import (
-	"os"
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 )
@@ -54,7 +54,7 @@ func (u UncompressorDeb) Uncompress(compressedFilePath string, fileType FileType
 			}
 			errs = errors.Join(errs, err)
 		} else {
-			errs = errors.Join(errs, errors.New("Could not find file path: " + tarFilePath))
+			errs = errors.Join(errs, errors.New("Could not find file path: "+tarFilePath))
 		}
 	}
 	return errs
