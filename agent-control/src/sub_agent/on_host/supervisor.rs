@@ -69,12 +69,11 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
-        let thread_contexts: Vec<StartedThreadContext> = vec![
-            self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?,
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        let thread_contexts: Vec<StartedThreadContext> =
+            vec![self.start_health_check(sub_agent_internal_publisher.clone(), health_consumer)?]
+                .into_iter()
+                .flatten()
+                .collect();
 
         let thread_contexts = executable_thread_contexts
             .into_iter()
