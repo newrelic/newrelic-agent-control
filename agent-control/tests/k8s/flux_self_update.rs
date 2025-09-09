@@ -109,7 +109,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ),
     );
 
-    retry(60, Duration::from_secs(1), || {
+    retry(120, Duration::from_secs(1), || {
         check_latest_remote_config_status_is_expected(
             &opamp_server,
             &ac_instance_id,
@@ -123,6 +123,7 @@ cd_chart_version: {CHART_VERSION_UPSTREAM_2}
         ))?;
         check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
         let ac_chart_version = "0.0.1000"; // Set as configuration in the corresponding local-data-agent-control.template file
+        // Version checker runs every 60s, we need to adjust retry's attempts to avoid false positives
         check_latest_identifying_attributes_match_expected(
             &opamp_server,
             &ac_instance_id,
