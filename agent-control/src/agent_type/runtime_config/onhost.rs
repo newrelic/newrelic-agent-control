@@ -35,7 +35,7 @@ where
     let mut ids = HashSet::new();
 
     for executable in &executables {
-        let id = executable.clone().id.get_template();
+        let id = executable.id.clone();
         if !ids.insert(id.clone()) {
             return Err(serde::de::Error::custom(format!(
                 "Duplicate executable ID found: {}",
@@ -74,7 +74,7 @@ impl Templateable for OnHost {
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct Executable {
     /// Executable identifier for the health checker.
-    pub id: TemplateableValue<String>,
+    pub id: String,
 
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
     pub path: TemplateableValue<String>, // make it templatable
@@ -212,10 +212,7 @@ restart_policy:
     #[test]
     fn test_replacer() {
         let exec = Executable {
-            id: TemplateableValue {
-                value: None,
-                template: "otelcol".to_string(),
-            },
+            id: "otelcol".to_string(),
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
                 "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
@@ -337,10 +334,7 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            id: TemplateableValue {
-                value: Some("otelcol".to_string()),
-                template: "otelcol".to_string(),
-            },
+            id: "otelcol".to_string(),
             path: TemplateableValue {
                 value: Some("/etc/otelcol".to_string()),
                 template: "${nr-var:bin}/otelcol".to_string(),
@@ -381,7 +375,7 @@ restart_policy:
     #[test]
     fn test_replacer_two_same() {
         let exec = Executable {
-            id: TemplateableValue::from_template("otelcol".to_string()),
+            id: "otelcol".to_string(),
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template("--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string()),
             env: Env::default(),
@@ -463,10 +457,7 @@ restart_policy:
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
         let exec_expected = Executable {
-            id: TemplateableValue {
-                value: Some("otelcol".to_string()),
-                template: "otelcol".to_string(),
-            },
+            id: "otelcol".to_string(),
             path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
             args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
             env: Env::default(),
@@ -569,7 +560,7 @@ restart_policy:
         ]);
 
         let input = Executable {
-            id: TemplateableValue::from_template("myapp".to_string()),
+            id: "myapp".to_string(),
             path: TemplateableValue::from_template("${nr-var:path}".to_string()),
             args: TemplateableValue::from_template(
                 "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
@@ -597,10 +588,7 @@ restart_policy:
             },
         };
         let expected_output = Executable {
-            id: TemplateableValue {
-                value: Some("myapp".to_string()),
-                template: "myapp".to_string(),
-            },
+            id: "myapp".to_string(),
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${nr-var:path}".to_string()),
             args: TemplateableValue::new(Args(
@@ -660,7 +648,7 @@ executables:
         // Create a default OnHost instance to compare
         let default_on_host = OnHost {
             executables: vec![Executable {
-                id: TemplateableValue::from_template("otelcol".to_string()),
+                id: "otelcol".to_string(),
                 path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
                 args: TemplateableValue::from_template(
                     "-c ${nr-var:deployment.k8s.image}".to_string(),

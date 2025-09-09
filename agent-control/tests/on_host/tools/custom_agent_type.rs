@@ -126,7 +126,8 @@ deployment:
       args: -n 1.0.0
       interval: 10s
     executables:
-      - path: {path}
+      - id: custom
+        path: {path}
         args: {args}
 "#
     );

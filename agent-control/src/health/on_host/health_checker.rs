@@ -52,6 +52,7 @@ impl OnHostHealthCheckers {
 
 impl HealthChecker for OnHostHealthCheckers {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
+        let mut status = "".to_string();
         for checker in &self.health_checkers {
             let health = match checker {
                 OnHostHealthChecker::Exec(exec_checker) => exec_checker.check_health()?,
@@ -59,13 +60,20 @@ impl HealthChecker for OnHostHealthCheckers {
                 OnHostHealthChecker::File(file_checker) => file_checker.check_health()?,
             };
 
+            // We are overriding the status with any status from the health checks that is not empty.
+            // At the moment this status is not used (only in tests) but this part should be revisited
+            // doing a concatenation on the format decided whenever this status starts to get parsed.
+            if !health.status().is_empty() {
+                status = health.status().to_string();
+            }
+
             if !health.is_healthy() {
                 return Ok(health);
             }
         }
 
         Ok(HealthWithStartTime::from_healthy(
-            Healthy::new(),
+            Healthy::new().with_status(status),
             self.start_time,
         ))
     }
@@ -194,5 +202,58 @@ status_time_unix_nano: 1725444001
         let result = on_host_health_checkers.check_health();
         assert!(result.is_ok());
         assert!(!result.unwrap().is_healthy());
+    }
+
+    #[test]
+    fn test_check_health_with_multiple_non_empty_statuses() {
+        let start_time = StartTime::now();
+        let (exec_health_publisher, exec_health_consumer) = pub_sub();
+
+        // First health check with a non-empty status
+        let _ = exec_health_publisher.publish((
+            "exec1".to_string(),
+            HealthWithStartTime::new(
+                Healthy::new()
+                    .with_status("first non-empty status message".to_string())
+                    .into(),
+                start_time,
+            ),
+        ));
+
+        let tmp_dir = TempDir::new().unwrap();
+        let mut file = File::create_new(tmp_dir.path().join("test")).unwrap();
+
+        // Second health check with a different non-empty status
+        file.write_all(
+            r#"
+healthy: true
+status: "second non-empty status message"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let file_health_checker = FileHealthChecker::new(tmp_dir.path().join("test"));
+
+        let health_checkers = vec![
+            OnHostHealthChecker::Exec(ExecHealthChecker::new(exec_health_consumer)),
+            OnHostHealthChecker::File(file_health_checker),
+        ];
+
+        let on_host_health_checkers = OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        };
+
+        let result = on_host_health_checkers.check_health();
+        assert!(result.is_ok());
+        let health_with_start_time = result.unwrap();
+        assert!(health_with_start_time.is_healthy());
+        assert_eq!(
+            health_with_start_time.status(),
+            "second non-empty status message"
+        );
     }
 }
