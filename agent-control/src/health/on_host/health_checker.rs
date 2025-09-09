@@ -1,9 +1,9 @@
 use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
-use crate::agent_type::runtime_config::health_config::{OnHostHealthCheck, OnHostHealthConfig};
+use crate::agent_type::runtime_config::health_config::OnHostHealthCheck;
 use crate::event::channel::EventConsumer;
-use crate::health::health_checker::{HealthChecker, HealthCheckerError};
+use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use std::path::PathBuf;
@@ -13,34 +13,186 @@ pub enum OnHostHealthChecker {
     Http(HttpHealthChecker),
     File(FileHealthChecker),
 }
+pub struct OnHostHealthCheckers {
+    health_checkers: Vec<OnHostHealthChecker>,
+    start_time: StartTime,
+}
 
-impl OnHostHealthChecker {
-    pub fn try_new(
-        exec_health_repository: EventConsumer<(String, HealthWithStartTime)>,
+impl OnHostHealthCheckers {
+    pub(crate) fn try_new(
+        exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
         http_client: HttpClient,
-        health_config: OnHostHealthConfig,
+        health_check_type: Option<OnHostHealthCheck>,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
-        match health_config.check {
-            OnHostHealthCheck::HttpHealth(http_config) => Ok(OnHostHealthChecker::Http(
-                HttpHealthChecker::new(http_client, http_config, start_time)?,
-            )),
-            OnHostHealthCheck::FileHealth(file_config) => Ok(OnHostHealthChecker::File(
-                FileHealthChecker::new(PathBuf::from(file_config.path)),
-            )),
-            _ => Ok(OnHostHealthChecker::Exec(ExecHealthChecker::new(
-                exec_health_repository,
-            ))),
+        let mut health_checkers = vec![OnHostHealthChecker::Exec(ExecHealthChecker::new(
+            exec_health_consumer,
+        ))];
+        match health_check_type {
+            Some(OnHostHealthCheck::HttpHealth(http_config)) => {
+                health_checkers.extend(vec![OnHostHealthChecker::Http(HttpHealthChecker::new(
+                    http_client,
+                    http_config,
+                    start_time,
+                )?)])
+            }
+            Some(OnHostHealthCheck::FileHealth(file_config)) => {
+                health_checkers.extend(vec![OnHostHealthChecker::File(FileHealthChecker::new(
+                    PathBuf::from(file_config.path),
+                ))])
+            }
+            _ => {}
         }
+        Ok(OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        })
     }
 }
 
-impl HealthChecker for OnHostHealthChecker {
+impl HealthChecker for OnHostHealthCheckers {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
-        match self {
-            OnHostHealthChecker::Exec(exec_checker) => exec_checker.check_health(),
-            OnHostHealthChecker::Http(http_checker) => http_checker.check_health(),
-            OnHostHealthChecker::File(file_checker) => file_checker.check_health(),
+        for checker in &self.health_checkers {
+            let health = match checker {
+                OnHostHealthChecker::Exec(exec_checker) => exec_checker.check_health()?,
+                OnHostHealthChecker::Http(http_checker) => http_checker.check_health()?,
+                OnHostHealthChecker::File(file_checker) => file_checker.check_health()?,
+            };
+
+            if !health.is_healthy() {
+                return Ok(health);
+            }
         }
+
+        Ok(HealthWithStartTime::from_healthy(
+            Healthy::new(),
+            self.start_time,
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::event::channel::pub_sub;
+    use crate::health::health_checker::Unhealthy;
+    use crate::health::with_start_time::StartTime;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_check_health_all_healthy() {
+        let start_time = StartTime::now();
+        let (exec_health_publisher, exec_health_consumer) = pub_sub();
+        let _ = exec_health_publisher.publish((
+            "exec1".to_string(),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+        ));
+        let tmp_dir = TempDir::new().unwrap();
+        let mut file = File::create_new(tmp_dir.path().join("test")).unwrap();
+        file.write_all(
+            r#"
+healthy: true
+status: "some agent-specific message"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let file_health_checker = FileHealthChecker::new(tmp_dir.path().join("test"));
+
+        let health_checkers = vec![
+            OnHostHealthChecker::Exec(ExecHealthChecker::new(exec_health_consumer)),
+            OnHostHealthChecker::File(file_health_checker),
+        ];
+
+        let on_host_health_checkers = OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        };
+
+        let result = on_host_health_checkers.check_health();
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_healthy());
+    }
+
+    #[test]
+    fn test_check_health_exec_unhealthy() {
+        let start_time = StartTime::now();
+        let (exec_health_publisher, exec_health_consumer) = pub_sub();
+        let unhealthy = Unhealthy::new("Error1".to_string());
+        let _ = exec_health_publisher.publish((
+            "exec1".to_string(),
+            HealthWithStartTime::new(unhealthy.into(), start_time),
+        ));
+        let tmp_dir = TempDir::new().unwrap();
+        let mut file = File::create_new(tmp_dir.path().join("test")).unwrap();
+        file.write_all(
+            r#"
+healthy: true
+status: "some agent-specific message"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let file_health_checker = FileHealthChecker::new(tmp_dir.path().join("test"));
+
+        let health_checkers = vec![
+            OnHostHealthChecker::Exec(ExecHealthChecker::new(exec_health_consumer)),
+            OnHostHealthChecker::File(file_health_checker),
+        ];
+
+        let on_host_health_checkers = OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        };
+
+        let result = on_host_health_checkers.check_health();
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_healthy());
+    }
+
+    #[test]
+    fn test_check_health_file_unhealthy() {
+        let start_time = StartTime::now();
+        let (exec_health_publisher, exec_health_consumer) = pub_sub();
+        let _ = exec_health_publisher.publish((
+            "exec1".to_string(),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+        ));
+        let tmp_dir = TempDir::new().unwrap();
+        let mut file = File::create_new(tmp_dir.path().join("test")).unwrap();
+        file.write_all(
+            r#"
+healthy: false
+status: "some agent-specific message"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let file_health_checker = FileHealthChecker::new(tmp_dir.path().join("test"));
+
+        let health_checkers = vec![
+            OnHostHealthChecker::Exec(ExecHealthChecker::new(exec_health_consumer)),
+            OnHostHealthChecker::File(file_health_checker),
+        ];
+
+        let on_host_health_checkers = OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        };
+
+        let result = on_host_health_checkers.check_health();
+        assert!(result.is_ok());
+        assert!(!result.unwrap().is_healthy());
     }
 }

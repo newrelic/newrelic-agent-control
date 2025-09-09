@@ -31,8 +31,8 @@ pub struct OnHostHealthConfig {
     pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
-    #[serde(flatten, default)]
-    pub(crate) check: OnHostHealthCheck,
+    #[serde(default, flatten)]
+    pub(crate) check: Option<OnHostHealthCheck>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
@@ -42,11 +42,9 @@ pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")
 /// Enumeration representing the possible types of health checks.
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
-#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, PartialEq)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum OnHostHealthCheck {
-    #[default]
-    ExecHealth,
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),
     #[serde(rename = "file")]
@@ -174,7 +172,10 @@ impl Templateable for HttpPath {
 impl Templateable for OnHostHealthConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            check: self.check.template_with(variables)?,
+            check: self
+                .check
+                .map(|check| check.template_with(variables))
+                .transpose()?,
             ..self
         })
     }
@@ -183,7 +184,6 @@ impl Templateable for OnHostHealthConfig {
 impl Templateable for OnHostHealthCheck {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
-            OnHostHealthCheck::ExecHealth => OnHostHealthCheck::ExecHealth,
             OnHostHealthCheck::HttpHealth(conf) => {
                 let health_conf = HttpHealth {
                     host: conf.host.template_with(variables)?,

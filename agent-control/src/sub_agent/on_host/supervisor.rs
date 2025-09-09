@@ -6,7 +6,7 @@ use crate::event::SubAgentInternalEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
 use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
-use crate::health::on_host::health_checker::OnHostHealthChecker;
+use crate::health::on_host::health_checker::OnHostHealthCheckers;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
@@ -149,12 +149,13 @@ impl NotStartedSupervisorOnHost {
             HealthCheckerError::Generic(format!("could not build the http client: {err}"))
         })?;
 
-        let health_checker = OnHostHealthChecker::try_new(
+        let health_checker = OnHostHealthCheckers::try_new(
             health_consumer,
             http_client,
-            self.health_config.clone(),
+            self.health_config.check.clone(),
             start_time,
         )?;
+
         let started_thread_context = spawn_health_checker(
             self.agent_identity.id.clone(),
             health_checker,
@@ -340,10 +341,6 @@ impl NotStartedSupervisorOnHost {
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////////
-// Helpers (TODO: Review and move?)
-////////////////////////////////////////////////////////////////////////////////////
-
 /// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
 fn handle_termination(
     exec_id: &str,
@@ -386,10 +383,6 @@ fn handle_termination(
     // and have `RestartPolicy::should_retry` handle it.
     exit_code.or(exit_signal).unwrap_or_default()
 }
-
-////////////////////////////////////////////////////////////////////////////////////
-// Helpers (TODO: Review and move?)
-////////////////////////////////////////////////////////////////////////////////////
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
 /// into the provided variable. It waits until the process exits.

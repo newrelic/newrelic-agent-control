@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
@@ -16,7 +16,7 @@ use super::version_config::OnHostVersionConfig;
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
-    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_executables")]
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
@@ -25,6 +25,26 @@ pub struct OnHost {
     pub health: OnHostHealthConfig,
     /// Enables and define version checks configuration.
     pub version: Option<OnHostVersionConfig>,
+}
+
+fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let executables: Vec<Executable> = Deserialize::deserialize(deserializer)?;
+    let mut ids = HashSet::new();
+
+    for executable in &executables {
+        let id = executable.clone().id.get_template();
+        if !ids.insert(id.clone()) {
+            return Err(serde::de::Error::custom(format!(
+                "Duplicate executable ID found: {}",
+                id
+            )));
+        }
+    }
+
+    Ok(executables)
 }
 
 impl Templateable for OnHost {
@@ -115,7 +135,7 @@ impl Templateable for Env {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_type::runtime_config::health_config::{HealthCheckTimeout, OnHostHealthCheck};
+    use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::restart_policy::{
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
     };
@@ -634,7 +654,7 @@ executables:
             interval: HealthCheckInterval::default(),
             initial_delay: InitialDelay::default(),
             timeout: HealthCheckTimeout::default(),
-            check: OnHostHealthCheck::ExecHealth,
+            check: None,
         };
 
         // Create a default OnHost instance to compare
@@ -662,6 +682,41 @@ executables:
 
         // Compare the default OnHost instance with the parsed instance
         assert_eq!(on_host, default_on_host);
+    }
+
+    #[test]
+    fn test_default_fail_if_two_exec_same_id() {
+        let yaml_without_health = r#"
+executables:
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
+  - id: otelcol
+    path: ${nr-var:bin}/otelcol
+    args: "-c ${nr-var:deployment.k8s.image}"
+    restart_policy:
+      backoff_strategy:
+        type: fixed
+        backoff_delay: 1s
+        max_retries: 3
+        last_retry_interval: 30s
+"#;
+
+        let on_host = serde_yaml::from_str::<OnHost>(yaml_without_health);
+
+        assert!(on_host.is_err());
+        assert!(
+            on_host
+                .unwrap_err()
+                .to_string()
+                .contains("Duplicate executable ID found: otelcol")
+        );
     }
 
     pub const AGENT_GIVEN_YAML: &str = r#"
