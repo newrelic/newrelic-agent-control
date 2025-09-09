@@ -82,11 +82,11 @@ status_time_unix_nano: 1725444001
     );
 
     retry(30, Duration::from_secs(1), || {
+        // health_status.start_time_unix_nano and health_status.status_time_unix_nano are not going
+        // to match the ones from the file because they will be the ones from the aggregated checker
         if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
             && health_status.healthy
             && health_status.status == "healthy-message"
-            && health_status.start_time_unix_nano == 1725444000
-            && health_status.status_time_unix_nano == 1725444001
         {
             return Ok(());
         }
