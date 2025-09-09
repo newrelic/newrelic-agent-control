@@ -18,8 +18,7 @@ pub enum DirectoryManagementError {
 
 pub trait DirectoryManager {
     /// create will create a folder
-    fn create(&self, path: &Path, permissions: Permissions)
-    -> Result<(), DirectoryManagementError>;
+    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError>;
 
     /// Delete the folder and its contents. If the folder does not exist it
     /// will not return an error.
@@ -30,17 +29,13 @@ pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
     #[cfg(target_family = "unix")]
-    fn create(
-        &self,
-        path: &Path,
-        permissions: Permissions,
-    ) -> Result<(), DirectoryManagementError> {
+    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
         use std::os::unix::fs::DirBuilderExt;
         use std::os::unix::fs::PermissionsExt;
 
         validate_path(path)?;
         let directory_creation = DirBuilder::new()
-            .mode(permissions.mode())
+            .mode(DirectoryManagerFs::get_directory_permissions().mode())
             .recursive(true)
             .create(path);
         match directory_creation {
@@ -53,11 +48,7 @@ impl DirectoryManager for DirectoryManagerFs {
     }
 
     #[cfg(target_family = "windows")]
-    fn create(
-        &self,
-        path: &Path,
-        permissions: Permissions,
-    ) -> Result<(), DirectoryManagementError> {
+    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
         unimplemented!()
     }
 
@@ -74,6 +65,14 @@ impl DirectoryManager for DirectoryManagerFs {
             )),
             _ => Ok(()),
         }
+    }
+}
+
+impl DirectoryManagerFs {
+    #[cfg(target_family = "unix")]
+    fn get_directory_permissions() -> Permissions {
+        use std::os::unix::fs::PermissionsExt;
+        Permissions::from_mode(0o700)
     }
 }
 
@@ -113,31 +112,26 @@ pub mod mock {
         pub DirectoryManager {}
 
         impl DirectoryManager for DirectoryManager {
-            fn create(&self, path: &Path, permissions: Permissions) -> Result<(), DirectoryManagementError>;
+            fn create(&self, path: &Path) -> Result<(), DirectoryManagementError>;
             fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;
         }
     }
 
     impl MockDirectoryManager {
-        pub fn should_create(&mut self, path: &Path, permissions: Permissions) {
+        pub fn should_create(&mut self, path: &Path) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()
-                .with(predicate::eq(path_clone), predicate::eq(permissions))
+                .with(predicate::eq(path_clone))
                 .once()
-                .returning(|_, _| Ok(()));
+                .returning(|_| Ok(()));
         }
 
-        pub fn should_not_create(
-            &mut self,
-            path: &Path,
-            permissions: Permissions,
-            err: DirectoryManagementError,
-        ) {
+        pub fn should_not_create(&mut self, path: &Path, err: DirectoryManagementError) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_create()
-                .with(predicate::eq(path_clone), predicate::eq(permissions))
+                .with(predicate::eq(path_clone))
                 .once()
-                .returning(move |_, _| Err(err.clone()));
+                .returning(move |_| Err(err.clone()));
         }
 
         pub fn should_delete(&mut self, path: &Path) {
@@ -163,13 +157,9 @@ pub mod mock {
 ////////////////////////////////////////////////////////////////////////////////////
 #[cfg(test)]
 pub mod tests {
-    use std::fs;
-    use std::fs::Permissions;
-    use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
-
     use super::DirectoryManagerFs;
     use crate::directory_manager::DirectoryManager;
+    use std::path::PathBuf;
 
     #[test]
     fn test_path_to_create_cannot_contain_dots() {
@@ -178,7 +168,7 @@ pub mod tests {
         let path = PathBuf::from(folder_name);
         let directory_manager = DirectoryManagerFs;
 
-        let result = directory_manager.create(&path, Permissions::from_mode(0o645));
+        let result = directory_manager.create(&path);
 
         assert!(result.is_err());
         assert_eq!(
@@ -204,7 +194,10 @@ pub mod tests {
     }
 
     #[test]
-    fn test_folder_creation_and_permissions() {
+    #[cfg(target_family = "unix")]
+    fn test_folder_creation() {
+        use std::fs;
+
         // Prepare temp path and folder name
         let folder_name = "some_file";
         // tempdir gets automatically removed on drop
@@ -213,32 +206,16 @@ pub mod tests {
         path.push(folder_name);
 
         // Create directory manager and create directory with some permissions
-        let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs;
-        let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
+        let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
 
         // read created folder permissions and assert od expected ones
         let meta = fs::metadata(path).unwrap();
-        // user_has_write_access
+
         assert_eq!(
-            some_permissions.mode() & 0o200,
-            meta.permissions().mode() & 0o200
-        );
-        // user_has_read_write_access
-        assert_eq!(
-            some_permissions.mode() & 0o600,
-            meta.permissions().mode() & 0o600
-        );
-        //group_has_read_access
-        assert_eq!(
-            some_permissions.mode() & 0o040,
-            meta.permissions().mode() & 0o040
-        );
-        // others_have_exec_access
-        assert_eq!(
-            some_permissions.mode() & 0o001,
-            meta.permissions().mode() & 0o001
+            DirectoryManagerFs::get_directory_permissions(),
+            meta.permissions()
         );
     }
 
@@ -252,11 +229,10 @@ pub mod tests {
         path.push(folder_name);
 
         // Create directory manager and create directory with some permissions
-        let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs;
-        let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
+        let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
-        let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
+        let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
     }
 
@@ -270,13 +246,12 @@ pub mod tests {
         path.push(folder_name);
 
         // Create directory manager and create directory with some permissions
-        let some_permissions = Permissions::from_mode(0o645);
         let directory_manager = DirectoryManagerFs;
-        let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
+        let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
         let delete_result = directory_manager.delete(path.as_path());
         assert!(delete_result.is_ok());
-        let create_result = directory_manager.create(path.as_path(), some_permissions.clone());
+        let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
     }
 }

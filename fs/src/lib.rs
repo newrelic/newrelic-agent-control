@@ -9,8 +9,8 @@ pub struct LocalFile;
 
 #[cfg(feature = "mocks")]
 pub mod mock {
+    use std::path::Path;
     use std::path::PathBuf;
-    use std::{fs::Permissions, path::Path};
 
     use super::file_reader::{FileReader, FileReaderError};
     use super::file_renamer::{FileRenamer, FileRenamerError};
@@ -34,7 +34,6 @@ pub mod mock {
                 &self,
                 path: &Path,
                 buf: String,
-                permissions: Permissions,
             ) -> Result<(), WriteError>;
         }
     }
