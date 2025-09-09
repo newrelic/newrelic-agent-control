@@ -176,7 +176,6 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             Context::new(),
             on_host.health,
             on_host.version,
-            Arc::new(exec_health_repository),
         )
         .with_file_logging(enable_file_logging, self.logging_path.to_path_buf());
 

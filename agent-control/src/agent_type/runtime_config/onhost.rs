@@ -678,6 +678,7 @@ executables:
             }],
             enable_file_logging: TemplateableValue::default(),
             health: default_health_config,
+            version: None,
         };
 
         // Compare the default OnHost instance with the parsed instance
