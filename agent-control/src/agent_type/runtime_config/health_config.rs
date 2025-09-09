@@ -43,7 +43,6 @@ pub struct HealthCheckTimeout(#[serde(deserialize_with = "deserialize_duration")
 ///
 /// Variants include `HttpHealth` and `ExecHealth`, corresponding to health checks via HTTP and execute command, respectively.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
-#[allow(clippy::enum_variant_names)]
 pub(crate) enum OnHostHealthCheck {
     #[serde(rename = "http")]
     HttpHealth(HttpHealth),

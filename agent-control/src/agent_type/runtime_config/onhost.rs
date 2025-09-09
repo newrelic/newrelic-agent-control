@@ -16,7 +16,7 @@ use super::version_config::OnHostVersionConfig;
 /// It contains the instructions of what are the agent binaries, command-line arguments, the environment variables passed to it and the restart policy of the supervisor.
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
-    #[serde(deserialize_with = "deserialize_executables")]
+    #[serde(deserialize_with = "deserialize_executables", default)]
     pub executables: Vec<Executable>,
     #[serde(default)]
     pub enable_file_logging: TemplateableValue<bool>,
