@@ -16,7 +16,7 @@ const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 ///
 /// This structure includes parameters to define intervals between health checks,
 /// timeouts for checks, and the specific health check method—either HTTP or execute command.
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct OnHostHealthConfig {
     /// The duration to wait between health checks.
     #[serde(default)]
@@ -31,8 +31,8 @@ pub struct OnHostHealthConfig {
     pub(crate) timeout: HealthCheckTimeout,
 
     /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
-    #[serde(flatten)]
-    pub(crate) check: OnHostHealthCheck,
+    #[serde(default, flatten)]
+    pub(crate) check: Option<OnHostHealthCheck>,
 }
 
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, WrapperWithDefault)]
@@ -171,7 +171,10 @@ impl Templateable for HttpPath {
 impl Templateable for OnHostHealthConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
-            check: self.check.template_with(variables)?,
+            check: self
+                .check
+                .map(|check| check.template_with(variables))
+                .transpose()?,
             ..self
         })
     }

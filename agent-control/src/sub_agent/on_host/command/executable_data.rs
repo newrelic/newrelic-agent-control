@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct ExecutableData {
+    pub id: String,
     pub bin: String,
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
@@ -10,8 +11,9 @@ pub struct ExecutableData {
 }
 
 impl ExecutableData {
-    pub fn new(bin: String) -> Self {
+    pub fn new(id: String, bin: String) -> Self {
         ExecutableData {
+            id,
             bin,
             args: Vec::default(),
             env: HashMap::default(),

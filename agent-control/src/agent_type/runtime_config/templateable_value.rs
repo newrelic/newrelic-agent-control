@@ -55,6 +55,7 @@ impl<T> TemplateableValue<T> {
             template: "".to_string(),
         }
     }
+
     pub fn is_template_empty(&self) -> bool {
         self.template.is_empty()
     }

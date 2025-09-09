@@ -163,7 +163,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             .executables
             .into_iter()
             .map(|e| {
-                ExecutableData::new(e.path.get())
+                ExecutableData::new(e.id, e.path.get())
                     .with_args(e.args.get().into_vector())
                     .with_env(e.env.get())
                     .with_restart_policy(e.restart_policy.into())

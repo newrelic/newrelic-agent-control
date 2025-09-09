@@ -29,7 +29,8 @@ deployment:
       regex: \d+\.\d+\.\d+
       interval: 10s
     executables:
-      - path: {path}
+      - id: my-exec
+        path: {path}
         args: {args}
 "#
     );
@@ -125,7 +126,8 @@ deployment:
       args: -n 1.0.0
       interval: 10s
     executables:
-      - path: {path}
+      - id: custom
+        path: {path}
         args: {args}
 "#
     );

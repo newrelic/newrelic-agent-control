@@ -186,7 +186,8 @@ variables: {}
 deployment:
   on_host:
     executables:
-      - path: "sh"
+      - id: sh
+        path: "sh"
         args: >-
           tests/on_host/data/trap_term_sleep_60.sh
           --host_id=${nr-ac:host_id}
