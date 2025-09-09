@@ -248,17 +248,15 @@ impl NotStartedSupervisorOnHost {
 
             let init_health = Healthy::new();
 
-            let _ = health_publisher
-                .publish((
-                    executable_data_clone.id.to_string(),
-                    HealthWithStartTime::new(init_health.into(), supervisor_start_time),
-                ))
-                .map_err(|err| {
-                    error!(
-                        "Error publishing health status for {}: {}",
-                        executable_data_clone.id, err
-                    );
-                });
+            if let Err(err) = health_publisher.publish((
+                executable_data_clone.id.to_string(),
+                HealthWithStartTime::new(init_health.into(), supervisor_start_time),
+            )) {
+                error!(
+                    "Error publishing health status for {}: {}",
+                    executable_data_clone.id, err
+                );
+            }
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
             let span = info_span!(
@@ -314,17 +312,15 @@ impl NotStartedSupervisorOnHost {
                         "supervisor exceeded its defined restart policy".to_string(),
                     );
 
-                    let _ = health_publisher
-                        .publish((
-                            executable_data_clone.id.to_string(),
-                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                        ))
-                        .map_err(|err| {
-                            error!(
-                                "Error publishing health status for {}: {}",
-                                executable_data_clone.id, err
-                            );
-                        });
+                    if let Err(err) = health_publisher.publish((
+                        executable_data_clone.id.to_string(),
+                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                    )) {
+                        error!(
+                            "Error publishing health status for {}: {}",
+                            executable_data_clone.id, err
+                        );
+                    }
                 }
                 break;
             }
@@ -356,14 +352,12 @@ fn handle_termination(
             exit_status.code().unwrap_or_default()
         ));
 
-        let _ = health_publisher
-            .publish((
-                exec_id.to_string(),
-                HealthWithStartTime::new(unhealthy.into(), start_time),
-            ))
-            .map_err(|err| {
-                error!("Error saving health status for {exec_id}: {err}");
-            });
+        if let Err(err) = health_publisher.publish((
+            exec_id.to_string(),
+            HealthWithStartTime::new(unhealthy.into(), start_time),
+        )) {
+            error!("Error publishing health status for {exec_id}: {err}");
+        }
 
         error!(
             %agent_id,
