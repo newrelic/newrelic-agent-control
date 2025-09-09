@@ -58,17 +58,7 @@ impl DirectoryManager for DirectoryManagerFs {
         path: &Path,
         permissions: Permissions,
     ) -> Result<(), DirectoryManagementError> {
-        // TODO review.
-        validate_path(path)?;
-
-        let directory_creation = DirBuilder::new().recursive(true).create(path);
-        match directory_creation {
-            Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
-                path.to_str().unwrap().to_string(),
-                e.to_string(),
-            )),
-            _ => Ok(()),
-        }
+        unimplemented!()
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]

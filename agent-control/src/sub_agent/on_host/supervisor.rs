@@ -367,8 +367,7 @@ fn compute_exit_code(exit_status: ExitStatus) -> i32 {
 
 #[cfg(target_family = "windows")]
 fn compute_exit_code(exit_status: ExitStatus) -> i32 {
-    // TODO review.
-    exit_status.code().unwrap_or_default()
+    unimplemented!()
 }
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
