@@ -105,7 +105,7 @@ jobs:
     uses: ./.github/workflows/component_onhost_e2e.yaml
     needs: [ upload ]
     with:
-      scenarios: '["migration.yaml", "remote_config.yaml"]'
+      scenarios: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
       repository_endpoint: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
       package_version: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
