@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::Permissions, io, os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{collections::HashMap, io, path::PathBuf};
 
 use ::fs::{
     directory_manager::{DirectoryManagementError, DirectoryManager},
@@ -26,10 +26,6 @@ impl From<FileSystem> for RenderedFileSystemEntries {
 }
 
 impl RenderedFileSystemEntries {
-    #[cfg(target_family = "unix")]
-    const FILE_PERMISSIONS: u32 = 0o600;
-    #[cfg(target_family = "unix")]
-    const DIRECTORY_PERMISSIONS: u32 = 0o700;
     pub fn write(
         &self,
         file_writer: &impl FileWriter,
@@ -46,18 +42,11 @@ impl RenderedFileSystemEntries {
                 })
                 .map_err(FileSystemEntriesError::Io)?;
             dir_manager
-                .create(
-                    parent_dir,
-                    Permissions::from_mode(Self::DIRECTORY_PERMISSIONS),
-                )
+                .create(parent_dir)
                 .map_err(FileSystemEntriesError::DirManagement)?;
             // Will overwrite files if they already exist!
             file_writer
-                .write(
-                    path,
-                    content.to_owned(),
-                    Permissions::from_mode(Self::FILE_PERMISSIONS),
-                )
+                .write(path, content.to_owned())
                 .map_err(FileSystemEntriesError::FileWrite)
         })
     }
