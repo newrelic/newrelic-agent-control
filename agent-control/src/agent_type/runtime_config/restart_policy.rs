@@ -4,7 +4,6 @@ use crate::agent_type::templates::Templateable;
 use duration_str::deserialize_duration;
 use serde::Deserialize;
 use std::{str::FromStr, time::Duration};
-use tracing::warn;
 use wrapper_with_default::WrapperWithDefault;
 
 use super::templateable_value::TemplateableValue;
@@ -72,19 +71,6 @@ pub struct BackoffStrategyConfig {
     pub last_retry_interval: TemplateableValue<BackoffLastRetryInterval>,
 }
 
-impl BackoffStrategyConfig {
-    pub(crate) fn are_values_in_sync_with_type(&self) -> bool {
-        match self.backoff_type.clone().get() {
-            BackoffStrategyType::None => {
-                self.backoff_delay.is_template_empty()
-                    && self.max_retries.is_template_empty()
-                    && self.last_retry_interval.is_template_empty()
-            }
-            _ => true,
-        }
-    }
-}
-
 impl Templateable for BackoffStrategyConfig {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
@@ -98,13 +84,6 @@ impl Templateable for BackoffStrategyConfig {
             max_retries,
             last_retry_interval,
         };
-
-        if !result.are_values_in_sync_with_type() {
-            warn!(
-                "Backoff strategy type is set to `none`, but some of the backoff strategy fields are set. They will be ignored"
-            );
-        }
-
         Ok(result)
     }
 }
@@ -113,7 +92,6 @@ impl Templateable for BackoffStrategyConfig {
 #[serde(rename_all = "lowercase", tag = "type")]
 pub enum BackoffStrategyType {
     #[default]
-    None,
     Fixed,
     Linear,
     Exponential,
@@ -124,7 +102,6 @@ impl FromStr for BackoffStrategyType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "none" => Ok(Self::None),
             "fixed" => Ok(Self::Fixed),
             "linear" => Ok(Self::Linear),
             "exponential" => Ok(Self::Exponential),
@@ -141,42 +118,5 @@ impl Default for BackoffStrategyConfig {
             max_retries: TemplateableValue::new(DEFAULT_BACKOFF_MAX_RETRIES.into()),
             last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::agent_type::runtime_config::templateable_value::TemplateableValue;
-
-    use super::{BackoffStrategyConfig, BackoffStrategyType};
-
-    #[test]
-    fn values_in_sync_with_type() {
-        let strategy = BackoffStrategyConfig {
-            backoff_type: TemplateableValue::new(BackoffStrategyType::None),
-            backoff_delay: TemplateableValue::from_template("".to_string()),
-            max_retries: TemplateableValue::from_template("".to_string()),
-            last_retry_interval: TemplateableValue::from_template("".to_string()),
-        };
-
-        assert!(strategy.are_values_in_sync_with_type());
-
-        let strategy = BackoffStrategyConfig {
-            backoff_type: TemplateableValue::new(BackoffStrategyType::None),
-            backoff_delay: TemplateableValue::from_template("".to_string()),
-            max_retries: TemplateableValue::from_template("".to_string()),
-            last_retry_interval: TemplateableValue::from_template("${something}".to_string()),
-        };
-
-        assert!(!strategy.are_values_in_sync_with_type());
-
-        let strategy = BackoffStrategyConfig {
-            backoff_type: TemplateableValue::new(BackoffStrategyType::Fixed),
-            backoff_delay: TemplateableValue::from_template("".to_string()),
-            max_retries: TemplateableValue::from_template("".to_string()),
-            last_retry_interval: TemplateableValue::from_template("${something}".to_string()),
-        };
-
-        assert!(strategy.are_values_in_sync_with_type());
     }
 }

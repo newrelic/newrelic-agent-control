@@ -41,7 +41,7 @@ impl RestartPolicy {
 
 impl Default for RestartPolicy {
     fn default() -> Self {
-        RestartPolicy::new(BackoffStrategy::None, Vec::new())
+        RestartPolicy::new(BackoffStrategy::Fixed(Backoff::default()), Vec::new())
     }
 }
 
@@ -56,7 +56,6 @@ pub enum BackoffStrategy {
     Fixed(Backoff),
     Linear(Backoff),
     Exponential(Backoff),
-    None,
 }
 
 /// Time Duration interval since last retry to consider a service malfunctioning.
@@ -71,7 +70,6 @@ impl BackoffStrategy {
             BackoffStrategy::Fixed(b)
             | BackoffStrategy::Linear(b)
             | BackoffStrategy::Exponential(b) => b.should_backoff(),
-            BackoffStrategy::None => true,
         }
     }
 
@@ -83,7 +81,6 @@ impl BackoffStrategy {
             BackoffStrategy::Fixed(b) => b.backoff(fixed, sleep_func),
             BackoffStrategy::Linear(b) => b.backoff(linear, sleep_func),
             BackoffStrategy::Exponential(b) => b.backoff(exponential, sleep_func),
-            BackoffStrategy::None => {}
         }
     }
 }
@@ -157,7 +154,6 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
             BackoffStrategyType::Exponential => {
                 BackoffStrategy::Exponential(realize_backoff_config(value))
             }
-            BackoffStrategyType::None => BackoffStrategy::None,
         }
     }
 }
@@ -203,7 +199,7 @@ mod tests {
 
     #[test]
     fn test_restart_policy_should_retry() {
-        let mut rb = RestartPolicy::new(BackoffStrategy::None, vec![1, 3]);
+        let mut rb = RestartPolicy::new(BackoffStrategy::Fixed(Backoff::default()), vec![1, 3]);
         let results = vec![false, true, false, true];
 
         results

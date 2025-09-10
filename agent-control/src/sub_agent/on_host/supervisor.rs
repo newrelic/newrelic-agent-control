@@ -14,7 +14,6 @@ use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
 use crate::sub_agent::on_host::command::shutdown::{
     ProcessTerminator, wait_exit_timeout, wait_exit_timeout_default,
 };
@@ -300,24 +299,19 @@ impl NotStartedSupervisorOnHost {
             // we just unwrap or take the default value (0)
             if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
                 // Log if we are not restarting anymore due to the restart policy being broken
-                if restart_policy.backoff != BackoffStrategy::None {
-                    warn!(
-                        "supervisor won't restart anymore due to having exceeded its restart policy"
-                    );
+                warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
-                    let unhealthy = Unhealthy::new(
-                        "supervisor exceeded its defined restart policy".to_string(),
-                    );
+                let unhealthy =
+                    Unhealthy::new("supervisor exceeded its defined restart policy".to_string());
 
-                    if let Err(err) = health_publisher.publish((
-                        executable_data_clone.id.to_string(),
-                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                    )) {
-                        error!(
-                            "Error publishing health status for {}: {}",
-                            executable_data_clone.id, err
-                        );
-                    }
+                if let Err(err) = health_publisher.publish((
+                    executable_data_clone.id.to_string(),
+                    HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                )) {
+                    error!(
+                        "Error publishing health status for {}: {}",
+                        executable_data_clone.id, err
+                    );
                 }
                 break;
             }
@@ -439,6 +433,7 @@ pub mod tests {
     use crate::event::channel::pub_sub;
     use crate::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+    use crate::sub_agent::on_host::command::restart_policy::BackoffStrategy;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
     use rstest::*;
     use std::thread;
