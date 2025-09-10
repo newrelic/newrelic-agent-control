@@ -157,18 +157,15 @@ fn validate_file_entry_path(path: &Path) -> Result<(), Vec<String>> {
 ///
 /// Returns an error string if this property does not hold.
 fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
-    path.components()
-        .try_fold(0, |depth, comp| match comp {
-            Component::Normal(_) => Ok(depth + 1),
-            Component::ParentDir if depth > 0 => Ok(depth - 1),
-            Component::ParentDir => Err(format!("{} escapes the base directory", path.display())),
-            Component::CurDir => Ok(depth),
-            // Disallow other non-supported variants like roots or prefixes
-            Component::RootDir | Component::Prefix(_) => {
-                Err(format!("{} has an invalid path component", path.display()))
-            }
-        })
-        .map(|_| ())
+    path.components().try_for_each(|comp| match comp {
+        Component::Normal(_) | Component::CurDir => Ok(()),
+        // Disallow other non-supported variants like roots or prefixes
+        Component::ParentDir | Component::RootDir | Component::Prefix(_) => Err(format!(
+            "path '{}' has an invalid component: '{}'",
+            path.display(),
+            comp.as_os_str().to_string_lossy()
+        )),
+    })
 }
 
 #[cfg(test)]
@@ -180,8 +177,9 @@ mod tests {
     #[rstest]
     #[case::can_basic_path("valid/path", Result::is_ok)]
     #[case::can_nested_dirs("another/valid/path", Result::is_ok)]
-    #[case::can_back_one_level("basedir/somedir/../valid/path", Result::is_ok)]
-    #[case::can_change_basedir("basedir/dir/../dir/../../newbasedir/path", Result::is_ok)]
+    #[case::can_use_curdir("basedir/somedir/./valid/path", Result::is_ok)]
+    #[case::no_use_parentdir("basedir/somedir/../valid/path", Result::is_err)]
+    #[case::no_change_basedir("basedir/dir/../dir/../../newbasedir/path", Result::is_err)]
     #[case::no_absolute("/absolute/path", Result::is_err)]
     #[case::no_escapes_basedir("..//invalid/path", Result::is_err)]
     #[case::no_complex_escapes_basedir("basedir/dir/../dir/../../../outdir/path", Result::is_err)]
@@ -239,7 +237,7 @@ mod tests {
     #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
     #[case::windows_style_path(r"some\\windows\\style\\path", |r: Result<_, _>| r.is_ok())]
     #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("absolute: /absolute/path")))]
-    #[case::invalid_escapes_basedir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("escapes the base directory")))]
+    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid component: '..'")))]
     // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
