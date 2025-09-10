@@ -106,7 +106,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 /// - The failed remote config should not be persisted.
 /// - That latest effective configuration reported is the local one (which is valid).
 #[test]
-fn test_invalid_config_executalbe_less_supervisor() {
+fn test_invalid_config_executable_less_supervisor() {
     use crate::on_host::tools::custom_agent_type::get_agent_type_without_deployment;
 
     let mut opamp_server = FakeServer::start_new();
