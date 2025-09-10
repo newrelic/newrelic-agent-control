@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use super::tools::config::{create_file, create_sub_agent_values};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;

@@ -1,9 +1,5 @@
 use super::utils::{FsError, validate_path};
 use std::fs::{DirBuilder, Permissions, remove_dir_all};
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::DirBuilderExt;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use thiserror::Error;
 use tracing::instrument;
@@ -21,7 +17,6 @@ pub enum DirectoryManagementError {
 }
 
 pub trait DirectoryManager {
-    #[cfg(target_family = "unix")]
     /// create will create a folder
     fn create(&self, path: &Path, permissions: Permissions)
     -> Result<(), DirectoryManagementError>;
@@ -40,8 +35,10 @@ impl DirectoryManager for DirectoryManagerFs {
         path: &Path,
         permissions: Permissions,
     ) -> Result<(), DirectoryManagementError> {
-        validate_path(path)?;
+        use std::os::unix::fs::DirBuilderExt;
+        use std::os::unix::fs::PermissionsExt;
 
+        validate_path(path)?;
         let directory_creation = DirBuilder::new()
             .mode(permissions.mode())
             .recursive(true)
@@ -53,6 +50,15 @@ impl DirectoryManager for DirectoryManagerFs {
             )),
             _ => Ok(()),
         }
+    }
+
+    #[cfg(target_family = "windows")]
+    fn create(
+        &self,
+        path: &Path,
+        permissions: Permissions,
+    ) -> Result<(), DirectoryManagementError> {
+        unimplemented!()
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
@@ -106,7 +112,6 @@ pub mod mock {
     mock! {
         pub DirectoryManager {}
 
-        #[cfg(target_family = "unix")]
         impl DirectoryManager for DirectoryManager {
             fn create(&self, path: &Path, permissions: Permissions) -> Result<(), DirectoryManagementError>;
             fn delete(&self, path: &Path) -> Result<(), DirectoryManagementError>;

@@ -25,8 +25,6 @@ use crate::utils::thread_context::{
 };
 use crate::utils::threads::spawn_named_thread;
 use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
-#[cfg(target_family = "unix")]
-use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, SystemTime};
@@ -365,6 +363,12 @@ fn handle_termination(
             "supervisor process exited unsuccessfully"
         )
     }
+    compute_exit_code(exit_status)
+}
+
+#[cfg(target_family = "unix")]
+fn compute_exit_code(exit_status: ExitStatus) -> i32 {
+    use std::os::unix::process::ExitStatusExt;
     // From the docs on `ExitStatus::code()`: "On Unix, this will return `None` if the process was terminated by a signal."
     // Since we need to act on this exit code irrespective of it coming from a signal or not, we try to get the code,
     // falling back to getting the signal if not, and finally to 0 if both fail.
@@ -375,6 +379,11 @@ fn handle_termination(
     // can contain either an exit code or a signal, has a sensible default for our use case,
     // and have `RestartPolicy::should_retry` handle it.
     exit_code.or(exit_signal).unwrap_or_default()
+}
+
+#[cfg(target_family = "windows")]
+fn compute_exit_code(exit_status: ExitStatus) -> i32 {
+    unimplemented!()
 }
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
@@ -424,22 +433,19 @@ fn wait_for_termination(
 
 #[cfg(test)]
 pub mod tests {
-    use rstest::*;
-
     use super::*;
-
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
     use crate::sub_agent::on_host::command::executable_data::ExecutableData;
     use crate::sub_agent::on_host::command::restart_policy::{Backoff, RestartPolicy};
+    use rstest::*;
     use std::thread;
     use std::time::{Duration, Instant};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
-    #[cfg(unix)]
     #[traced_test]
     #[rstest]
     #[case::long_running_process_shutdown_after_start(
@@ -690,7 +696,7 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    #[cfg(target_family = "unix")]
     #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let backoff = Backoff::new()
@@ -747,7 +753,7 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(unix)]
+    #[cfg(target_family = "unix")]
     fn test_supervisor_health_events_on_breaking_backoff() {
         let backoff = Backoff::new()
             .with_initial_delay(Duration::new(0, 100))

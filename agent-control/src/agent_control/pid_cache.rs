@@ -1,17 +1,13 @@
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
+use fs::utils::{get_pid_directory_permissions, get_pid_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use thiserror::Error;
 
 const PROC_PATH: &str = "/proc";
 const PID_FILE_PATH: &str = "/var/run/newrelic-agent-control/newrelic-agent-control.pid";
-const PID_FOLDER_PERMISSIONS: u32 = 0o755;
-const PID_FILE_PERMISSIONS: u32 = 0o644;
 
 #[derive(Error, Debug)]
 pub enum PIDCacheError {
@@ -87,7 +83,7 @@ where
 
         if !pid_folder.exists() {
             self.directory_manager
-                .create(pid_folder, Permissions::from_mode(PID_FOLDER_PERMISSIONS))?;
+                .create(pid_folder, get_pid_directory_permissions())?;
         }
 
         let pid_string = self
@@ -109,7 +105,7 @@ where
         Ok(self.file_rw.write(
             self.file_path.as_path(),
             pid_string,
-            Permissions::from_mode(PID_FILE_PERMISSIONS),
+            get_pid_file_permissions(),
         )?)
     }
 }
@@ -134,7 +130,7 @@ pub mod tests {
         _ = writer.write(
             host_proc_path.as_path(),
             "".to_string(),
-            Permissions::from_mode(PID_FILE_PERMISSIONS),
+            get_pid_file_permissions(),
         );
 
         let pid_path = PathBuf::from("/an/invented/path/not-existing");
@@ -142,10 +138,7 @@ pub mod tests {
         let mut dir_manager = MockDirectoryManager::default();
 
         file_rw.should_read(pid_path.clone().as_path(), already_running_pid.to_string());
-        dir_manager.should_create(
-            pid_path.parent().unwrap(),
-            Permissions::from_mode(PID_FOLDER_PERMISSIONS),
-        );
+        dir_manager.should_create(pid_path.parent().unwrap(), get_pid_directory_permissions());
 
         let pid_cache = PIDCache::new(
             file_rw,
@@ -183,12 +176,9 @@ pub mod tests {
         file_rw.should_write(
             pid_path.clone().as_path(),
             new_pid.to_string(),
-            Permissions::from_mode(PID_FILE_PERMISSIONS),
+            get_pid_file_permissions(),
         );
-        dir_manager.should_create(
-            pid_path.parent().unwrap(),
-            Permissions::from_mode(PID_FOLDER_PERMISSIONS),
-        );
+        dir_manager.should_create(pid_path.parent().unwrap(), get_pid_directory_permissions());
 
         let pid_cache = PIDCache::new(
             file_rw,

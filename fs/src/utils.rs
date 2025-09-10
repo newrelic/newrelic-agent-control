@@ -1,4 +1,7 @@
 use regex::Regex;
+use std::fs::Permissions;
+#[cfg(target_family = "unix")]
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use thiserror::Error;
 
@@ -28,4 +31,49 @@ pub fn validate_path(path: &Path) -> Result<(), FsError> {
             }
         }
     }
+}
+
+#[cfg(target_family = "windows")]
+pub fn validate_path(_path: &Path) -> Result<(), FsError> {
+    unimplemented!()
+}
+
+#[cfg(target_family = "unix")]
+pub fn get_file_permissions() -> Permissions {
+    Permissions::from_mode(0o600)
+}
+
+#[cfg(target_family = "unix")]
+pub fn get_directory_permissions() -> Permissions {
+    Permissions::from_mode(0o700)
+}
+
+#[cfg(target_family = "windows")]
+pub fn get_file_permissions() -> Permissions {
+    unimplemented!()
+}
+
+#[cfg(target_family = "windows")]
+pub fn get_directory_permissions() -> Permissions {
+    unimplemented!()
+}
+
+#[cfg(target_family = "unix")]
+pub fn get_pid_file_permissions() -> Permissions {
+    Permissions::from_mode(0o644)
+}
+
+#[cfg(target_family = "unix")]
+pub fn get_pid_directory_permissions() -> Permissions {
+    Permissions::from_mode(0o755)
+}
+
+#[cfg(target_family = "windows")]
+pub fn get_pid_file_permissions() -> Permissions {
+    unimplemented!()
+}
+
+#[cfg(target_family = "windows")]
+pub fn get_pid_directory_permissions() -> Permissions {
+    unimplemented!()
 }

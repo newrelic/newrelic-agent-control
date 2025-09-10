@@ -5,7 +5,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use http::Response as HttpResponse;
 use http::{Request, Response};
-use nix::NixPath;
 use nr_auth::http_client::HttpClient as OauthHttpClient;
 use nr_auth::http_client::HttpClientError as OauthHttpClientError;
 use opamp_client::http::HttpClientError as OpampHttpClientError;
@@ -211,7 +210,7 @@ fn certs_from_paths(
 
 /// Returns all certs bundled in the file corresponding to the provided path.
 fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, HttpBuildError> {
-    if path.is_empty() {
+    if path.as_os_str().is_empty() {
         return Ok(Vec::new());
     }
     let mut buf = Vec::new();
@@ -225,7 +224,7 @@ fn certs_from_file(path: &Path) -> Result<Vec<Certificate>, HttpBuildError> {
 
 /// Returns all paths to be considered to load certificates under the provided directory path.
 fn cert_paths_from_dir(dir_path: &Path) -> Result<Vec<PathBuf>, HttpBuildError> {
-    if dir_path.is_empty() {
+    if dir_path.as_os_str().is_empty() {
         return Ok(Vec::new());
     }
     let dir_entries =

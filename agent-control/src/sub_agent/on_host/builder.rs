@@ -18,8 +18,6 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
-#[cfg(unix)]
-use nix::unistd::gethostname;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -125,12 +123,14 @@ where
     }
 }
 
+#[cfg(target_family = "unix")]
 fn get_hostname() -> String {
-    #[cfg(unix)]
-    return gethostname().unwrap_or_default().into_string().unwrap();
-
-    #[cfg(not(unix))]
-    return unimplemented!();
+    use nix::unistd::gethostname;
+    gethostname().unwrap_or_default().into_string().unwrap()
+}
+#[cfg(target_family = "windows")]
+fn get_hostname() -> String {
+    unimplemented!()
 }
 
 pub struct SupervisortBuilderOnHost {
@@ -209,7 +209,6 @@ mod tests {
     use crate::values::config_repository::tests::MockConfigRepository;
     use crate::values::yaml_config::YAMLConfig;
     use mockall::predicate;
-    use nix::unistd::gethostname;
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::operation::settings::{
         AgentDescription, DescriptionValueType, StartSettings,
@@ -223,7 +222,7 @@ mod tests {
     #[test]
     fn build_start_stop() {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
+        let hostname = get_hostname();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -347,7 +346,7 @@ mod tests {
         let mut instance_id_getter = MockInstanceIDGetter::new();
 
         // Structures
-        let hostname = gethostname().unwrap_or_default().into_string().unwrap();
+        let hostname = get_hostname();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),

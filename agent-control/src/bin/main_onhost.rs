@@ -3,8 +3,6 @@
 //! It implements the basic functionality of parsing the command line arguments and either
 //! performing one-shot actions or starting the main agent control process.
 #![warn(missing_docs)]
-
-#[cfg(all(unix, not(feature = "multiple-instances")))]
 use newrelic_agent_control::agent_control::pid_cache::PIDCache;
 use newrelic_agent_control::agent_control::run::{
     AgentControlRunConfig, AgentControlRunner, Environment,
@@ -38,12 +36,12 @@ fn _main(
     agent_control_run_config: AgentControlRunConfig,
     _tracer: Vec<TracingGuardBox>, // Needs to take ownership of the tracer as it can be shutdown on drop
 ) -> Result<(), Box<dyn Error>> {
-    #[cfg(unix)]
+    #[cfg(target_family = "unix")]
     if !nix::unistd::Uid::effective().is_root() {
         return Err("Program must run as root".into());
     }
 
-    #[cfg(all(unix, not(feature = "multiple-instances")))]
+    #[cfg(not(feature = "multiple-instances"))]
     if let Err(err) = PIDCache::default().store(std::process::id()) {
         return Err(format!("Error saving main process id: {err}").into());
     }

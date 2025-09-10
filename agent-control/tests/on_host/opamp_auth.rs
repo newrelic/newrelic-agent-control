@@ -1,4 +1,4 @@
-#![cfg(unix)]
+#![cfg(target_family = "unix")]
 use assert_cmd::Command;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;

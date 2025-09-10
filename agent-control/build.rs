@@ -29,7 +29,7 @@ fn generate_agent_type_registry() {
         .map(|entry| {
             let path = entry.expect("Could not read matching registry file");
             let full_path = Path::new(&current_dir).join(path).display().to_string();
-            format!("include_bytes!(\"{full_path}\")")
+            format!("include_bytes!(r\"{full_path}\")")
         })
         .collect::<Vec<_>>()
         .join(", ");

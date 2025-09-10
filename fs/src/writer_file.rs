@@ -29,15 +29,9 @@ pub trait FileWriter {
 }
 
 impl FileWriter for LocalFile {
-    fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError> {
-        self.write(path, buf, permissions)
-    }
-}
-
-impl LocalFile {
     #[cfg(target_family = "unix")]
     #[instrument(skip_all, fields(path = %path.display()))]
-    pub fn write(
+    fn write(
         &self,
         path: &Path,
         content: String,
@@ -59,11 +53,13 @@ impl LocalFile {
 
     // TODO : Code below is not tested yet as Windows is not supported at this time
     #[cfg(target_family = "windows")]
-    fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
-        let mut file = File::create(path)?;
-        file.write_all(content.as_bytes())?;
-
-        Ok(())
+    fn write(
+        &self,
+        _path: &Path,
+        _content: String,
+        _permissions: Permissions,
+    ) -> Result<(), WriteError> {
+        unimplemented!()
     }
 }
 

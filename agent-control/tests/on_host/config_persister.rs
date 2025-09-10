@@ -1,4 +1,5 @@
-use ::fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
+use fs::utils::get_pid_directory_permissions;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::run::Environment;
 use newrelic_agent_control::agent_type::definition::AgentTypeDefinition;
@@ -7,10 +8,7 @@ use newrelic_agent_control::agent_type::render::persister::config_persister_file
 use newrelic_agent_control::agent_type::variable::constraints::VariableConstraints;
 use newrelic_agent_control::sub_agent::effective_agents_assembler::build_agent_type;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
-use std::fs;
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
+use std::fs::read_to_string;
 use std::path::PathBuf;
 
 #[test]
@@ -21,7 +19,7 @@ fn test_configuration_persister_single_file() {
     temp_path.push("test_configuration_persister_single_file");
 
     let dir_manager = DirectoryManagerFs;
-    let res = dir_manager.create(temp_path.as_path(), Permissions::from_mode(0o700));
+    let res = dir_manager.create(temp_path.as_path(), get_pid_directory_permissions());
 
     assert!(res.is_ok());
     let persister = ConfigurationPersisterFile::new(temp_path.as_path());
@@ -54,7 +52,7 @@ fn test_configuration_persister_single_file() {
     temp_path.push("newrelic-infra.yml");
     assert_eq!(
         EXPECTED_CONTENT_SINGLE_FILE,
-        fs::read_to_string(temp_path.as_path()).unwrap()
+        read_to_string(temp_path.as_path()).unwrap()
     );
 }
 

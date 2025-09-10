@@ -9,21 +9,14 @@ use crate::values::yaml_config::has_remote_management;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
+use fs::utils::{get_directory_permissions, get_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
 use opamp_client::operation::capabilities::Capabilities;
-use std::fs::Permissions;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 use thiserror::Error;
 use tracing::log::trace;
 use tracing::{debug, error};
-
-#[cfg(target_family = "unix")]
-pub const FILE_PERMISSIONS: u32 = 0o600;
-#[cfg(target_family = "unix")]
-const DIRECTORY_PERMISSIONS: u32 = 0o700;
 
 #[derive(Error, Debug)]
 pub enum OnHostConfigRepositoryError {
@@ -125,10 +118,8 @@ where
         values_dir_path.pop();
 
         if !values_dir_path.exists() {
-            self.directory_manager.create(
-                values_dir_path.as_path(),
-                Permissions::from_mode(DIRECTORY_PERMISSIONS),
-            )?;
+            self.directory_manager
+                .create(values_dir_path.as_path(), get_directory_permissions())?;
         }
         Ok(())
     }
@@ -214,7 +205,7 @@ where
             .write(
                 values_file_path.clone().as_path(),
                 content,
-                Permissions::from_mode(FILE_PERMISSIONS),
+                get_file_permissions(),
             )
             .map_err(|err| {
                 ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
@@ -294,7 +285,7 @@ where
                 .write(
                     remote_values_path.as_path(),
                     content,
-                    Permissions::from_mode(FILE_PERMISSIONS),
+                    get_file_permissions(),
                 )
                 .map_err(|err| {
                     ConfigRepositoryError::StoreError(format!(
@@ -354,12 +345,10 @@ pub mod tests {
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
+    use fs::utils::{get_directory_permissions, get_file_permissions};
     use fs::writer_file::FileWriter;
     use serde_yaml::Value;
     use std::collections::HashMap;
-    use std::fs::Permissions;
-    #[cfg(target_family = "unix")]
-    use std::os::unix::fs::PermissionsExt;
     use std::path::Path;
     use std::sync::RwLock;
     use values::yaml_config::YAMLConfig;
@@ -522,13 +511,13 @@ state: applied
 
         repo.directory_manager.should_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            Permissions::from_mode(0o700),
+            get_directory_permissions(),
         );
 
         repo.file_rw.should_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
-            Permissions::from_mode(0o600),
+            get_file_permissions(),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
@@ -546,7 +535,7 @@ state: applied
 
         repo.directory_manager.should_not_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            Permissions::from_mode(0o700),
+            get_directory_permissions(),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
@@ -569,13 +558,13 @@ state: applied
 
         repo.directory_manager.should_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            Permissions::from_mode(0o700),
+            get_directory_permissions(),
         );
 
         repo.file_rw.should_not_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
-            Permissions::from_mode(0o600),
+            get_file_permissions(),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
