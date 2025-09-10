@@ -6,7 +6,7 @@ use crate::opamp::instance_id::storer::InstanceIDStorer;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
-use fs::utils::{FsError, get_directory_permissions, get_file_permissions};
+use fs::utils::FsError;
 use fs::writer_file::{FileWriter, WriteError};
 use std::io;
 use std::path::PathBuf;
@@ -101,13 +101,10 @@ where
                 dest_file.display()
             ))))?;
 
-        self.dir_manager
-            .create(dest_dir, get_directory_permissions())?;
+        self.dir_manager.create(dest_dir)?;
         let contents = serde_yaml::to_string(ds)?;
 
-        Ok(self
-            .file_rw
-            .write(&dest_file, contents, get_file_permissions())?)
+        Ok(self.file_rw.write(&dest_file, contents)?)
     }
 
     fn read_contents(
@@ -152,7 +149,6 @@ mod tests {
     use crate::opamp::instance_id::storer::InstanceIDStorer;
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::mock::MockLocalFile;
-    use fs::utils::{get_directory_permissions, get_file_permissions};
     use mockall::predicate;
     use std::io;
     use std::path::PathBuf;
@@ -189,15 +185,8 @@ mod tests {
         };
 
         // Expectations
-        dir_manager.should_create(
-            instance_id_path.parent().unwrap(),
-            get_directory_permissions(),
-        );
-        file_rw.should_write(
-            &instance_id_path,
-            expected_file(instance_id),
-            get_file_permissions(),
-        );
+        dir_manager.should_create(instance_id_path.parent().unwrap());
+        file_rw.should_write(&instance_id_path, expected_file(instance_id));
 
         let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
         assert!(storer.set(&agent_id, &ds).is_ok());
@@ -216,15 +205,8 @@ mod tests {
         };
 
         // Expectations
-        file_rw.should_not_write(
-            &instance_id_path,
-            expected_file(instance_id),
-            get_file_permissions(),
-        );
-        dir_manager.should_create(
-            instance_id_path.parent().unwrap(),
-            get_directory_permissions(),
-        );
+        file_rw.should_not_write(&instance_id_path, expected_file(instance_id));
+        dir_manager.should_create(instance_id_path.parent().unwrap());
 
         let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
         assert!(storer.set(&agent_id, &ds).is_err());
@@ -283,7 +265,7 @@ mod tests {
     // HELPERS
 
     const HOSTNAME: &str = "test-hostname";
-    const MICHINE_ID: &str = "test-machine-id";
+    const MACHINE_ID: &str = "test-machine-id";
     const CLOUD_INSTANCE_ID: &str = "test-instance-id";
     const HOST_ID: &str = "test-host-id";
     const FLEET_ID: &str = "test-fleet-id";
@@ -298,14 +280,14 @@ mod tests {
 
     fn expected_file(instance_id: InstanceID) -> String {
         format!(
-            "instance_id: {instance_id}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MICHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n",
+            "instance_id: {instance_id}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MACHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n",
         )
     }
 
     fn test_identifiers() -> Identifiers {
         Identifiers {
             hostname: HOSTNAME.into(),
-            machine_id: MICHINE_ID.into(),
+            machine_id: MACHINE_ID.into(),
             cloud_instance_id: CLOUD_INSTANCE_ID.into(),
             host_id: HOST_ID.into(),
             fleet_id: FLEET_ID.into(),

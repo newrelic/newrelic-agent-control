@@ -1,5 +1,4 @@
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
-use fs::utils::get_directory_permissions;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -22,7 +21,7 @@ fn test_store_remote_no_mocks() {
     let dir_manager = DirectoryManagerFs;
 
     // Ensure dir exists
-    let res = dir_manager.create(remote_dir.as_path(), get_directory_permissions());
+    let res = dir_manager.create(remote_dir.as_path());
     assert!(res.is_ok());
 
     let values_repo = ConfigRepositoryFile::new(local_dir.clone(), remote_dir.clone());

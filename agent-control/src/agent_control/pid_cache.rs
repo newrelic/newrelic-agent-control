@@ -1,7 +1,6 @@
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
-use fs::utils::{get_pid_directory_permissions, get_pid_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
 use std::path::PathBuf;
 use thiserror::Error;
@@ -82,8 +81,7 @@ where
             .ok_or(PIDCacheError::InvalidFilePath)?;
 
         if !pid_folder.exists() {
-            self.directory_manager
-                .create(pid_folder, get_pid_directory_permissions())?;
+            self.directory_manager.create(pid_folder)?;
         }
 
         let pid_string = self
@@ -102,11 +100,7 @@ where
         }
 
         let pid_string = format!("{pid}");
-        Ok(self.file_rw.write(
-            self.file_path.as_path(),
-            pid_string,
-            get_pid_file_permissions(),
-        )?)
+        Ok(self.file_rw.write(self.file_path.as_path(), pid_string)?)
     }
 }
 
@@ -127,18 +121,14 @@ pub mod tests {
 
         // Create fake HOST_PROC file
         let writer = LocalFile;
-        _ = writer.write(
-            host_proc_path.as_path(),
-            "".to_string(),
-            get_pid_file_permissions(),
-        );
+        _ = writer.write(host_proc_path.as_path(), "".to_string());
 
         let pid_path = PathBuf::from("/an/invented/path/not-existing");
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManager::default();
 
         file_rw.should_read(pid_path.clone().as_path(), already_running_pid.to_string());
-        dir_manager.should_create(pid_path.parent().unwrap(), get_pid_directory_permissions());
+        dir_manager.should_create(pid_path.parent().unwrap());
 
         let pid_cache = PIDCache::new(
             file_rw,
@@ -173,12 +163,8 @@ pub mod tests {
             pid_path.clone().as_path(),
             pid_not_running_anymore.to_string(),
         );
-        file_rw.should_write(
-            pid_path.clone().as_path(),
-            new_pid.to_string(),
-            get_pid_file_permissions(),
-        );
-        dir_manager.should_create(pid_path.parent().unwrap(), get_pid_directory_permissions());
+        file_rw.should_write(pid_path.clone().as_path(), new_pid.to_string());
+        dir_manager.should_create(pid_path.parent().unwrap());
 
         let pid_cache = PIDCache::new(
             file_rw,

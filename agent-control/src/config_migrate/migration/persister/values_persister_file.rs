@@ -2,7 +2,6 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{VALUES_DIR, VALUES_FILENAME};
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
-use fs::utils::{get_directory_permissions, get_pid_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
 use std::path::{Path, PathBuf};
 use thiserror::Error;
@@ -65,13 +64,11 @@ where
 
     // Wrapper for linux with unix specific permissions
     fn write(&self, path: &Path, content: &str) -> Result<(), WriteError> {
-        self.file_writer
-            .write(path, content.to_string(), get_pid_file_permissions())
+        self.file_writer.write(path, content.to_string())
     }
 
     // Wrapper for linux with unix specific permissions
     fn create_directory(&self, path: &Path) -> Result<(), DirectoryManagementError> {
-        self.directory_manager
-            .create(path, get_directory_permissions())
+        self.directory_manager.create(path)
     }
 }

@@ -9,7 +9,6 @@ use crate::values::yaml_config::has_remote_management;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
-use fs::utils::{get_directory_permissions, get_file_permissions};
 use fs::writer_file::{FileWriter, WriteError};
 use opamp_client::operation::capabilities::Capabilities;
 use std::path::{Path, PathBuf};
@@ -118,8 +117,7 @@ where
         values_dir_path.pop();
 
         if !values_dir_path.exists() {
-            self.directory_manager
-                .create(values_dir_path.as_path(), get_directory_permissions())?;
+            self.directory_manager.create(values_dir_path.as_path())?;
         }
         Ok(())
     }
@@ -202,11 +200,7 @@ where
         })?;
 
         self.file_rw
-            .write(
-                values_file_path.clone().as_path(),
-                content,
-                get_file_permissions(),
-            )
+            .write(values_file_path.clone().as_path(), content)
             .map_err(|err| {
                 ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
             })?;
@@ -282,11 +276,7 @@ where
                 })?;
 
             self.file_rw
-                .write(
-                    remote_values_path.as_path(),
-                    content,
-                    get_file_permissions(),
-                )
+                .write(remote_values_path.as_path(), content)
                 .map_err(|err| {
                     ConfigRepositoryError::StoreError(format!(
                         "updating remote config state: {err}"
@@ -345,7 +335,6 @@ pub mod tests {
     use fs::directory_manager::mock::MockDirectoryManager;
     use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
-    use fs::utils::{get_directory_permissions, get_file_permissions};
     use fs::writer_file::FileWriter;
     use serde_yaml::Value;
     use std::collections::HashMap;
@@ -509,15 +498,13 @@ state: applied
     fn test_store_remote(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
 
-        repo.directory_manager.should_create(
-            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            get_directory_permissions(),
-        );
+        repo.directory_manager.should_create(Path::new(
+            "some/remote/path/fleet/agents.d/some-agent-id/values",
+        ));
 
         repo.file_rw.should_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
-            get_file_permissions(),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
@@ -535,7 +522,6 @@ state: applied
 
         repo.directory_manager.should_not_create(
             Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            get_directory_permissions(),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
@@ -556,15 +542,13 @@ state: applied
     fn test_store_remote_error_writing_file(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
 
-        repo.directory_manager.should_create(
-            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
-            get_directory_permissions(),
-        );
+        repo.directory_manager.should_create(Path::new(
+            "some/remote/path/fleet/agents.d/some-agent-id/values",
+        ));
 
         repo.file_rw.should_not_write(
             concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
-            get_file_permissions(),
         );
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));

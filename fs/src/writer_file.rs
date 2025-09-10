@@ -25,25 +25,20 @@ pub enum WriteError {
 }
 
 pub trait FileWriter {
-    fn write(&self, path: &Path, buf: String, permissions: Permissions) -> Result<(), WriteError>;
+    fn write(&self, path: &Path, buf: String) -> Result<(), WriteError>;
 }
 
 impl FileWriter for LocalFile {
     #[cfg(target_family = "unix")]
     #[instrument(skip_all, fields(path = %path.display()))]
-    fn write(
-        &self,
-        path: &Path,
-        content: String,
-        permissions: Permissions,
-    ) -> Result<(), WriteError> {
+    fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
         validate_path(path)?;
 
         let mut file = fs::OpenOptions::new()
             .create(true)
             .write(true)
             .truncate(true)
-            .mode(permissions.mode())
+            .mode(LocalFile::get_file_permissions().mode())
             .open(path)?;
 
         file.write_all(content.as_bytes())?;
@@ -53,13 +48,15 @@ impl FileWriter for LocalFile {
 
     // TODO : Code below is not tested yet as Windows is not supported at this time
     #[cfg(target_family = "windows")]
-    fn write(
-        &self,
-        _path: &Path,
-        _content: String,
-        _permissions: Permissions,
-    ) -> Result<(), WriteError> {
+    fn write(&self, _path: &Path, _content: String) -> Result<(), WriteError> {
         unimplemented!()
+    }
+}
+
+impl LocalFile {
+    #[cfg(target_family = "unix")]
+    fn get_file_permissions() -> Permissions {
+        Permissions::from_mode(0o600)
     }
 }
 
@@ -75,28 +72,20 @@ pub mod mock {
     use std::path::PathBuf;
 
     impl MockLocalFile {
-        pub fn should_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+        pub fn should_write(&mut self, path: &Path, content: String) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()
-                .with(
-                    predicate::eq(path_clone),
-                    predicate::eq(content),
-                    predicate::eq(permissions),
-                )
+                .with(predicate::eq(path_clone), predicate::eq(content))
                 .once()
-                .returning(|_, _, _| Ok(()));
+                .returning(|_, _| Ok(()));
         }
 
-        pub fn should_not_write(&mut self, path: &Path, content: String, permissions: Permissions) {
+        pub fn should_not_write(&mut self, path: &Path, content: String) {
             let path_clone = PathBuf::from(path.to_str().unwrap().to_string().as_str());
             self.expect_write()
-                .with(
-                    predicate::eq(path_clone),
-                    predicate::eq(content),
-                    predicate::eq(permissions),
-                )
+                .with(predicate::eq(path_clone), predicate::eq(content))
                 .once()
-                .returning(|_, _, _| {
+                .returning(|_, _| {
                     Err(WriteError::ErrorCreatingFile(io::Error::from(
                         ErrorKind::PermissionDenied,
                     )))
@@ -104,11 +93,11 @@ pub mod mock {
         }
 
         pub fn should_write_any(&mut self, times: usize) {
-            self.expect_write().times(times).returning(|_, _, _| Ok(()));
+            self.expect_write().times(times).returning(|_, _| Ok(()));
         }
 
         pub fn should_not_write_any(&mut self, times: usize, io_err_kind: ErrorKind) {
-            self.expect_write().times(times).returning(move |_, _, _| {
+            self.expect_write().times(times).returning(move |_, _| {
                 Err(WriteError::ErrorCreatingFile(Error::from(io_err_kind)))
             });
         }
@@ -122,14 +111,14 @@ pub mod mock {
 pub mod tests {
     use super::*;
     use std::fs;
-    use std::fs::Permissions;
-    #[cfg(target_family = "unix")]
-    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
     #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_content_and_permissions() {
+        use std::fs::metadata;
+        use std::os::unix::fs::PermissionsExt;
+
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -139,43 +128,20 @@ pub mod tests {
         path.push(file_name);
 
         // Create writer and write to path with some permissions
-        let some_permissions = Permissions::from_mode(0o645);
         let writer = LocalFile;
-        let write_result = writer.write(
-            path.as_path(),
-            content.to_string(),
-            some_permissions.clone(),
-        );
+        let write_result = writer.write(path.as_path(), content.to_string());
         assert!(write_result.is_ok());
 
         //assert on content
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), "some content");
 
         // read created file permissions and assert od expected ones
-        let meta = fs::metadata(path).unwrap();
-        // user_has_write_access
         assert_eq!(
-            some_permissions.mode() & 0o200,
-            meta.permissions().mode() & 0o200
-        );
-        // user_has_read_write_access
-        assert_eq!(
-            some_permissions.mode() & 0o600,
-            meta.permissions().mode() & 0o600
-        );
-        //group_has_read_access
-        assert_eq!(
-            some_permissions.mode() & 0o040,
-            meta.permissions().mode() & 0o040
-        );
-        // others_have_exec_access
-        assert_eq!(
-            some_permissions.mode() & 0o001,
-            meta.permissions().mode() & 0o001
+            LocalFile::get_file_permissions().mode() & 0o777,
+            metadata(path).unwrap().permissions().mode() & 0o777
         );
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_should_not_return_error_if_file_already_exists() {
         // Prepare temp path and content for the file
@@ -188,21 +154,12 @@ pub mod tests {
 
         // Create writer and write to path
         let writer = LocalFile;
-        let write_result = writer.write(
-            path.as_path(),
-            content.to_string(),
-            Permissions::from_mode(0o645),
-        );
+        let write_result = writer.write(path.as_path(), content.to_string());
         assert!(write_result.is_ok());
-        let write_result = writer.write(
-            path.as_path(),
-            content.to_string(),
-            Permissions::from_mode(0o645),
-        );
+        let write_result = writer.write(path.as_path(), content.to_string());
         assert!(write_result.is_ok());
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_truncate_exiting_file() {
         // Prepare temp path and content for the file
@@ -218,11 +175,7 @@ pub mod tests {
         // Create writer and write to path
         let writer = LocalFile;
         writer
-            .write(
-                path.as_path(),
-                new_content.to_string(),
-                Permissions::from_mode(0o645),
-            )
+            .write(path.as_path(), new_content.to_string())
             .expect("write failed");
 
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), new_content);
@@ -236,7 +189,7 @@ pub mod tests {
         let path = PathBuf::from(file_name);
         let writer = LocalFile;
 
-        let result = writer.write(&path, "".to_string(), Permissions::from_mode(0o645));
+        let result = writer.write(&path, "".to_string());
 
         assert!(result.is_err());
         assert_eq!(
