@@ -272,23 +272,21 @@ deployment:
     // The binary and the http endpoint errors.
     // Besides, the order doesn't matter.
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if !health_status.healthy
-                && health_status.last_error.contains(
-                    "error sending request for url (http://127.0.0.1:18003/v1/status/health)",
-                )
-            {
-                return Ok(());
-            }
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && !health_status.healthy
+            && health_status
+                .last_error
+                .contains("error sending request for url (http://127.0.0.1:18003/v1/status/health)")
+        {
+            return Ok(());
         }
         Err("Expected HTTP client error not found".into())
     });
     retry(30, Duration::from_secs(1), || {
-        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id) {
-            if !health_status.healthy && health_status.last_error.contains("exit status: 1") {
+        if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
+            && !health_status.healthy && health_status.last_error.contains("executable test-exec failed: path /bin/ls with args /unknown/path failed with exit status: 1") {
                 return Ok(());
             }
-        }
-        Err("Expected HTTP client error not found".into())
+        Err("Expected exec error not found".into())
     });
 }

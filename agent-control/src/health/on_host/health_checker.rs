@@ -301,7 +301,7 @@ status_time_unix_nano: 1725444001
         assert!(!health_with_start_time.is_healthy());
         assert_eq!(
             health_with_start_time.last_error(),
-            Some("exec1: exec error".to_string())
+            Some("executable exec1 failed: exec error".to_string())
         );
     }
 }
