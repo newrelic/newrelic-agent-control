@@ -1,13 +1,11 @@
 //! System resource detector implementation
+use super::{
+    HOSTNAME_KEY, MACHINE_ID_KEY, identifier_machine_id_unix::IdentifierProviderMachineId,
+};
+use crate::system::hostname::get_hostname;
+use crate::{DetectError, Detector, Key, Resource, Value};
 use fs::LocalFile;
 use tracing::{error, instrument};
-
-use crate::{DetectError, Detector, Key, Resource, Value};
-
-use super::{
-    HOSTNAME_KEY, MACHINE_ID_KEY, hostname::HostnameGetter,
-    identifier_machine_id_unix::IdentifierProviderMachineId,
-};
 
 /// An enumeration of potential errors related to the system detector.
 #[derive(thiserror::Error, Debug)]
@@ -26,7 +24,6 @@ pub enum SystemDetectorError {
 /// - `hostname_getter`: An instance of the `HostnameGetter` struct for retrieving system hostname.
 /// - `machine_id_provider`: An instance of the `IdentifierProviderMachineId` struct for retrieving machine ID.
 pub struct SystemDetector {
-    hostname_getter: HostnameGetter,
     machine_id_provider: IdentifierProviderMachineId<LocalFile>,
 }
 
@@ -34,7 +31,6 @@ pub struct SystemDetector {
 impl Default for SystemDetector {
     fn default() -> Self {
         Self {
-            hostname_getter: HostnameGetter {},
             machine_id_provider: IdentifierProviderMachineId::default(),
         }
     }
@@ -46,11 +42,10 @@ impl Detector for SystemDetector {
     fn detect(&self) -> Result<Resource, DetectError> {
         let mut collected_resources: Vec<(Key, Value)> = vec![];
 
-        match self.hostname_getter.get() {
-            Ok(hostname) => collected_resources.push((
-                Key::from(HOSTNAME_KEY),
-                Value::from(hostname.into_string().unwrap_or_default()),
-            )),
+        match get_hostname() {
+            Ok(hostname) => {
+                collected_resources.push((Key::from(HOSTNAME_KEY), Value::from(hostname)))
+            }
             Err(err) => error!(err_msg = %err, "getting hostname"),
         }
 
