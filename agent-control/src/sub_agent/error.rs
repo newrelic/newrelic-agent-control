@@ -55,7 +55,7 @@ pub enum SubAgentBuilderError {
     #[error("config assembler error: `{0}`")]
     ConfigAssemblerError(#[from] EffectiveAgentsAssemblerError),
     #[error("OpAMP client error: `{0}`")]
-    OpampClientBuilderError(#[from] OpAMPClientBuilderError),
+    OpampClientBuilderError(String),
     #[error("unsupported K8s object: `{0}`")]
     UnsupportedK8sObject(String),
 }

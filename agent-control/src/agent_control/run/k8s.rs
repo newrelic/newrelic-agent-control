@@ -41,7 +41,7 @@ use crate::{
     values::k8s::ConfigRepositoryConfigMap,
 };
 use opamp_client::operation::settings::DescriptionValueType;
-use resource_detection::system::hostname::HostnameGetter;
+use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -282,14 +282,10 @@ fn start_cd_version_checker(
 pub fn agent_control_opamp_non_identifying_attributes(
     identifiers: &Identifiers,
 ) -> HashMap<String, DescriptionValueType> {
-    let hostname = HostnameGetter::default()
-        .get()
-        .unwrap_or_else(|e| {
-            error!("cannot retrieve hostname: {}", e.to_string());
-            std::ffi::OsString::from("unknown_hostname")
-        })
-        .to_string_lossy()
-        .to_string();
+    let hostname = get_hostname().unwrap_or_else(|e| {
+        error!("cannot retrieve hostname: {}", e.to_string());
+        "unknown_hostname".to_string()
+    });
 
     HashMap::from([
         (

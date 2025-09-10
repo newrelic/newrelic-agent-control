@@ -18,6 +18,7 @@ use crate::{
     opamp::client_builder::OpAMPClientBuilder,
     sub_agent::{SubAgentBuilder, error::SubAgentBuilderError},
 };
+use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -89,6 +90,10 @@ where
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
 
+        let hostname = get_hostname()
+            .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))?
+            .into();
+
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
             .map(|builder| {
@@ -100,8 +105,9 @@ where
                         OPAMP_SERVICE_VERSION.to_string(),
                         agent_identity.agent_type_id.version().to_string().into(),
                     )]),
-                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), get_hostname().into())]),
+                    HashMap::from([(HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname)]),
                 )
+                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
@@ -121,16 +127,6 @@ where
             Environment::OnHost,
         ))
     }
-}
-
-#[cfg(target_family = "unix")]
-fn get_hostname() -> String {
-    use nix::unistd::gethostname;
-    gethostname().unwrap_or_default().into_string().unwrap()
-}
-#[cfg(target_family = "windows")]
-fn get_hostname() -> String {
-    unimplemented!()
 }
 
 pub struct SupervisortBuilderOnHost {
@@ -222,7 +218,7 @@ mod tests {
     #[test]
     fn build_start_stop() {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
-        let hostname = get_hostname();
+        let hostname = get_hostname().unwrap();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),
@@ -346,7 +342,7 @@ mod tests {
         let mut instance_id_getter = MockInstanceIDGetter::new();
 
         // Structures
-        let hostname = get_hostname();
+        let hostname = get_hostname().unwrap();
         let agent_identity = AgentIdentity::from((
             AgentID::try_from("infra-agent").unwrap(),
             AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2").unwrap(),

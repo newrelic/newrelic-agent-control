@@ -1,22 +1,16 @@
 use super::detector::SystemDetectorError;
-#[cfg(unix)]
-use nix::unistd::gethostname;
-use std::ffi::OsString;
 
-/// wrapper for an hostname getter
-#[derive(Default)]
-pub struct HostnameGetter {}
+#[cfg(target_family = "unix")]
+/// hostname getter
+pub fn get_hostname() -> Result<String, SystemDetectorError> {
+    use nix::unistd::gethostname;
+    gethostname()
+        .map_err(|e| SystemDetectorError::HostnameError(e.to_string()))
+        .map(|h| h.into_string().unwrap_or_default())
+}
 
-impl HostnameGetter {
-    #[cfg(target_family = "unix")]
-    /// hostname getter
-    pub fn get(&self) -> Result<OsString, SystemDetectorError> {
-        gethostname().map_err(|e| SystemDetectorError::HostnameError(e.to_string()))
-    }
-
-    #[cfg(target_family = "windows")]
-    /// hostname getter
-    pub fn get(&self) -> Result<OsString, SystemDetectorError> {
-        unimplemented!("")
-    }
+#[cfg(target_family = "windows")]
+/// hostname getter
+pub fn get_hostname() -> Result<String, SystemDetectorError> {
+    unimplemented!("")
 }

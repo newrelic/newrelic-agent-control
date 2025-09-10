@@ -111,6 +111,7 @@ where
                         DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
                     )]),
                 )
+                .map_err(|e| SubAgentBuilderError::OpampClientBuilderError(e.to_string()))
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
             .transpose()?
