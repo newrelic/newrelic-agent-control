@@ -30,16 +30,16 @@ impl OnHostHealthCheckers {
         ))];
         match health_check_type {
             Some(OnHostHealthCheck::HttpHealth(http_config)) => {
-                health_checkers.extend(vec![OnHostHealthChecker::Http(HttpHealthChecker::new(
+                health_checkers.push(OnHostHealthChecker::Http(HttpHealthChecker::new(
                     http_client,
                     http_config,
                     start_time,
-                )?)])
+                )?));
             }
             Some(OnHostHealthCheck::FileHealth(file_config)) => {
-                health_checkers.extend(vec![OnHostHealthChecker::File(FileHealthChecker::new(
+                health_checkers.push(OnHostHealthChecker::File(FileHealthChecker::new(
                     PathBuf::from(file_config.path),
-                ))])
+                )));
             }
             _ => {}
         }
@@ -254,6 +254,54 @@ status_time_unix_nano: 1725444001
         assert_eq!(
             health_with_start_time.status(),
             "second non-empty status message"
+        );
+    }
+
+    #[test]
+    fn test_check_health_returns_first_unhealthy() {
+        let start_time = StartTime::now();
+        let (exec_health_publisher, exec_health_consumer) = pub_sub();
+
+        // First health check with a non-empty status
+        let _ = exec_health_publisher.publish((
+            "exec1".to_string(),
+            HealthWithStartTime::new(Unhealthy::new("exec error".to_string()).into(), start_time),
+        ));
+
+        let tmp_dir = TempDir::new().unwrap();
+        let mut file = File::create_new(tmp_dir.path().join("test")).unwrap();
+
+        // Second health check with a different non-empty status
+        file.write_all(
+            r#"
+healthy: false
+status: "file status"
+start_time_unix_nano: 1725444000
+status_time_unix_nano: 1725444001
+"#
+            .as_bytes(),
+        )
+        .unwrap();
+
+        let file_health_checker = FileHealthChecker::new(tmp_dir.path().join("test"));
+
+        let health_checkers = vec![
+            OnHostHealthChecker::Exec(ExecHealthChecker::new(exec_health_consumer)),
+            OnHostHealthChecker::File(file_health_checker),
+        ];
+
+        let on_host_health_checkers = OnHostHealthCheckers {
+            health_checkers,
+            start_time,
+        };
+
+        let result = on_host_health_checkers.check_health();
+        assert!(result.is_ok());
+        let health_with_start_time = result.unwrap();
+        assert!(!health_with_start_time.is_healthy());
+        assert_eq!(
+            health_with_start_time.last_error(),
+            Some("exec1: exec error".to_string())
         );
     }
 }
