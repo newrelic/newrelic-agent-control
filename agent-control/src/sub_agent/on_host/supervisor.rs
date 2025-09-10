@@ -304,7 +304,7 @@ impl NotStartedSupervisorOnHost {
                 })
                 .map(|exit_status| {
                     handle_termination(
-                        &executable_data_clone.id,
+                        &executable_data_clone,
                         exit_status,
                         health_publisher.clone(),
                         &agent_id,
@@ -366,7 +366,7 @@ impl NotStartedSupervisorOnHost {
 
 /// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
 fn handle_termination(
-    exec_id: &str,
+    exec_data: &ExecutableData,
     exit_status: ExitStatus,
     health_publisher: EventPublisher<(String, HealthWithStartTime)>,
     agent_id: &AgentID,
@@ -375,16 +375,22 @@ fn handle_termination(
 ) -> i32 {
     if !exit_status.success() {
         debug!(%exit_status, "Informing of executable as unhealthy");
-        let unhealthy: Unhealthy = Unhealthy::new(exit_status.to_string()).with_status(format!(
+        let last_error = format!(
+            "path {} with args {} failed with {}",
+            exec_data.bin,
+            exec_data.args.join(" "),
+            exit_status
+        );
+        let unhealthy: Unhealthy = Unhealthy::new(last_error).with_status(format!(
             "process exited with code: {:?}",
             exit_status.code().unwrap_or_default()
         ));
 
         if let Err(err) = health_publisher.publish((
-            exec_id.to_string(),
+            exec_data.id.to_string(),
             HealthWithStartTime::new(unhealthy.into(), start_time),
         )) {
-            error!("Error publishing health status for {exec_id}: {err}");
+            error!("Error publishing health status for {}: {err}", exec_data.id);
         }
 
         error!(
