@@ -116,6 +116,9 @@ pub mod tests {
     #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_content_and_permissions() {
+        use std::fs::metadata;
+        use std::os::unix::fs::PermissionsExt;
+
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -133,9 +136,10 @@ pub mod tests {
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), "some content");
 
         // read created file permissions and assert od expected ones
-        let meta = fs::metadata(path).unwrap();
-        // user_has_write_access
-        assert_eq!(LocalFile::get_file_permissions(), meta.permissions());
+        assert_eq!(
+            LocalFile::get_file_permissions().mode() & 0o777,
+            metadata(path).unwrap().permissions().mode() & 0o777
+        );
     }
 
     #[test]

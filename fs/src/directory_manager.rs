@@ -196,7 +196,8 @@ pub mod tests {
     #[test]
     #[cfg(target_family = "unix")]
     fn test_folder_creation() {
-        use std::fs;
+        use std::fs::metadata;
+        use std::os::unix::fs::PermissionsExt;
 
         // Prepare temp path and folder name
         let folder_name = "some_file";
@@ -211,11 +212,9 @@ pub mod tests {
         assert!(create_result.is_ok());
 
         // read created folder permissions and assert od expected ones
-        let meta = fs::metadata(path).unwrap();
-
         assert_eq!(
-            DirectoryManagerFs::get_directory_permissions(),
-            meta.permissions()
+            DirectoryManagerFs::get_directory_permissions().mode() & 0o777,
+            metadata(path).unwrap().permissions().mode() & 0o777
         );
     }
 
