@@ -25,6 +25,8 @@ use crate::utils::thread_context::{
 };
 use crate::utils::threads::spawn_named_thread;
 use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
+use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, SystemTime};
@@ -62,9 +64,10 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let (health_publisher, health_consumer) = pub_sub();
 
         // Write the files required for this sub-agent to disk.
+
         self.filesystem_entries
-            .write()
-            .map_err(SupervisorStarterError::RequiredFileCreation)?;
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(SupervisorStarterError::FileSystem)?;
 
         let executable_thread_contexts = self
             .executables

@@ -1,9 +1,8 @@
-use std::io;
-
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::health::health_checker::HealthCheckerError;
 use crate::sub_agent::error::SubAgentBuilderError;
+use crate::sub_agent::on_host::command::filesystem_entries::FileSystemEntriesError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use thiserror::Error;
 
@@ -22,7 +21,7 @@ pub enum SupervisorStarterError {
     BuildError(#[from] SubAgentBuilderError),
 
     #[error("creation of required files for sub-agent failed: {0}")]
-    RequiredFileCreation(io::Error),
+    FileSystem(FileSystemEntriesError),
 }
 
 pub trait SupervisorStarter {
