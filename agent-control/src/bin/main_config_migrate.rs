@@ -1,38 +1,32 @@
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR, SUB_AGENT_DIR,
-};
 use newrelic_agent_control::config_migrate::cli::Cli;
 use newrelic_agent_control::config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use newrelic_agent_control::config_migrate::migration::config::MigrationConfig;
 use newrelic_agent_control::config_migrate::migration::converter::ConfigConverter;
-use newrelic_agent_control::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
 use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
 use newrelic_agent_control::values::file::ConfigRepositoryFile;
 use std::error::Error;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR));
+    let cli = Cli::load();
+    let tracing_config = TracingConfig::from_logging_path(cli.log_dir());
     let _tracer = try_init_tracing(tracing_config);
 
     info!("Starting config conversion tool...");
 
-    let config: MigrationConfig = MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING)?;
+    let config = MigrationConfig::parse(&cli.get_migration_config_str()?)?;
 
-    let cli = Cli::init_config_migrate_cli();
-    let remote_dir = PathBuf::from(AGENT_CONTROL_DATA_DIR);
-    let vr = ConfigRepositoryFile::new(cli.local_data_dir(), remote_dir);
+    let vr = ConfigRepositoryFile::new(cli.local_data_dir(), cli.remote_data_dir());
     let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),
-        ValuesPersisterFile::new(PathBuf::from(AGENT_CONTROL_LOCAL_DATA_DIR).join(SUB_AGENT_DIR)),
+        ValuesPersisterFile::new(cli.local_sub_agent_data_dir()),
     );
 
     let legacy_config_renamer = LegacyConfigRenamer::default();

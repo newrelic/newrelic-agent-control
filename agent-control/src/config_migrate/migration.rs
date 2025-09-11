@@ -5,3 +5,4 @@ pub mod converter;
 pub mod defaults;
 pub mod migrator;
 pub mod persister;
+pub mod supported_config_value;
