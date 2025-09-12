@@ -1,13 +1,12 @@
+use crate::agent_control::defaults::GENERATED_FOLDER_NAME;
 use crate::agent_control::run::Environment;
 use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
-use crate::agent_type::render::renderer::{Renderer, TemplateRenderer};
+use crate::agent_type::render::renderer::Renderer;
 use crate::agent_type::runtime_config::k8s::K8s;
-use crate::agent_type::runtime_config::onhost::OnHost;
+use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::secret_variables::{
@@ -18,6 +17,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::values::yaml_config::YAMLConfig;
 
 use std::fmt::Display;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use thiserror::Error;
 use tracing::error;
@@ -112,20 +112,27 @@ where
     renderer: Y,
     variable_constraints: VariableConstraints,
     secrets_providers: SecretsProviders,
+    auto_generated_dir: PathBuf,
 }
 
-impl LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer<ConfigurationPersisterFile>> {
+impl<R, Y> LocalEffectiveAgentsAssembler<R, Y>
+where
+    R: AgentRegistry,
+    Y: Renderer,
+{
     pub fn new(
-        registry: Arc<EmbeddedRegistry>,
-        renderer: TemplateRenderer<ConfigurationPersisterFile>,
+        registry: Arc<R>,
+        renderer: Y,
         variable_constraints: VariableConstraints,
         secrets_providers: SecretsProviders,
+        remote_dir: &Path,
     ) -> Self {
         LocalEffectiveAgentsAssembler {
             registry,
             renderer,
             variable_constraints,
             secrets_providers,
+            auto_generated_dir: remote_dir.join(GENERATED_FOLDER_NAME),
         }
     }
 }
@@ -153,9 +160,11 @@ where
         )?;
 
         // Build the agent attributes
-        let attributes = AgentAttributes {
-            agent_id: agent_identity.id.to_string(),
-        };
+        let attributes = AgentAttributes::try_new(
+            agent_identity.id.to_owned(),
+            self.auto_generated_dir.to_path_buf(),
+        )
+        .map_err(|e| EffectiveAgentsAssemblerError::EffectiveAgentsAssemblerError(e.to_string()))?;
 
         // Values are expanded substituting all ${nr-env...} with environment variables.
         // Notice that only environment variables are taken into consideration (no other vars for example)
@@ -225,6 +234,8 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::path::Path;
+
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
@@ -281,6 +292,7 @@ pub(crate) mod tests {
                 renderer,
                 variable_constraints: VariableConstraints::default(),
                 secrets_providers: SecretsProviders::new(),
+                auto_generated_dir: PathBuf::default(),
             }
         }
     }
@@ -301,15 +313,13 @@ pub(crate) mod tests {
     }
 
     // Returns the expected agent_attributes given an agent_id.
-    fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
-        AgentAttributes {
-            agent_id: agent_id.to_string(),
-        }
+    fn testing_agent_attributes(agent_id: &AgentID, auto_generated_dir: &Path) -> AgentAttributes {
+        AgentAttributes::try_new(agent_id.to_owned(), auto_generated_dir.to_path_buf()).unwrap()
     }
 
     #[test]
     fn test_assemble_agents() {
-        //Mocks
+        // Mocks
         let mut registry = MockAgentRegistry::new();
         let mut renderer = MockRenderer::new();
 
@@ -329,7 +339,7 @@ pub(crate) mod tests {
         .unwrap();
         let values = YAMLConfig::default();
 
-        let attributes = testing_agent_attributes(&agent_identity.id);
+        let attributes = testing_agent_attributes(&agent_identity.id, &PathBuf::default());
         let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations

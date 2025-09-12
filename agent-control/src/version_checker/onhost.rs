@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use crate::agent_control::defaults::OPAMP_AGENT_VERSION_ATTRIBUTE_KEY;
-use crate::agent_type::runtime_config::onhost::Args;
+use crate::agent_type::runtime_config::on_host::executable::Args;
 use crate::version_checker::{
     AgentVersion, VersionCheckError, VersionChecker, publish_version_event,
 };

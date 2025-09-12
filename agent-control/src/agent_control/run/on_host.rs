@@ -156,6 +156,7 @@ impl AgentControlRunner {
             template_renderer,
             self.agent_type_var_constraints,
             secrets_providers,
+            &self.base_paths.remote_dir,
         ));
 
         let supervisor_builder =

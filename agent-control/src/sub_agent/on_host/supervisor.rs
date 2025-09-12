@@ -14,6 +14,7 @@ use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use crate::sub_agent::on_host::command::filesystem_entries::RenderedFileSystemEntries;
 use crate::sub_agent::on_host::command::shutdown::{
     ProcessTerminator, wait_exit_timeout, wait_exit_timeout_default,
 };
@@ -24,6 +25,8 @@ use crate::utils::thread_context::{
 };
 use crate::utils::threads::spawn_named_thread;
 use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
+use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, SystemTime};
@@ -39,13 +42,14 @@ pub struct StartedSupervisorOnHost {
 }
 
 pub struct NotStartedSupervisorOnHost {
-    pub(super) agent_identity: AgentIdentity,
-    pub(super) ctx: Context<bool>,
-    pub(crate) executables: Vec<ExecutableData>,
-    pub(super) log_to_file: bool,
-    pub(super) logging_path: PathBuf,
-    pub(super) health_config: OnHostHealthConfig,
+    agent_identity: AgentIdentity,
+    ctx: Context<bool>,
+    executables: Vec<ExecutableData>,
+    log_to_file: bool,
+    logging_path: PathBuf,
+    health_config: OnHostHealthConfig,
     version_config: Option<OnHostVersionConfig>,
+    filesystem_entries: RenderedFileSystemEntries,
 }
 
 impl SupervisorStarter for NotStartedSupervisorOnHost {
@@ -58,6 +62,12 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let ctx = self.ctx.clone();
 
         let (health_publisher, health_consumer) = pub_sub();
+
+        // Write the files required for this sub-agent to disk.
+
+        self.filesystem_entries
+            .write(&LocalFile, &DirectoryManagerFs)
+            .map_err(SupervisorStarterError::FileSystem)?;
 
         let executable_thread_contexts = self
             .executables
@@ -122,6 +132,14 @@ impl NotStartedSupervisorOnHost {
             logging_path: PathBuf::default(),
             health_config,
             version_config,
+            filesystem_entries: RenderedFileSystemEntries::default(),
+        }
+    }
+
+    pub fn with_filesystem_entries(self, filesystem_entries: RenderedFileSystemEntries) -> Self {
+        Self {
+            filesystem_entries,
+            ..self
         }
     }
 

@@ -171,7 +171,7 @@ pub(crate) mod tests {
                 config_persister_file::ConfigurationPersisterFile,
             },
             runtime_config::{
-                onhost::Args,
+                on_host::executable::Args,
                 restart_policy::{
                     BackoffDelay, BackoffLastRetryInterval, BackoffStrategyType, MaxRetries,
                 },
@@ -228,9 +228,7 @@ pub(crate) mod tests {
     }
 
     pub fn testing_agent_attributes(agent_id: &AgentID) -> AgentAttributes {
-        AgentAttributes {
-            agent_id: agent_id.to_string(),
-        }
+        AgentAttributes::try_new(agent_id.clone(), PathBuf::default()).unwrap()
     }
 
     #[test]
