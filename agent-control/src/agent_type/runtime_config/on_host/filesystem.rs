@@ -29,7 +29,7 @@ impl FileSystem {
     pub fn rendered(self) -> HashMap<PathBuf, String> {
         self.0
             .into_values()
-            .map(|v| (v.path, v.content.get()))
+            .map(|v| (v.relative_path, v.content.get()))
             .collect()
     }
 }
@@ -40,7 +40,7 @@ impl<'de> Deserialize<'de> for FileSystem {
         D: Deserializer<'de>,
     {
         let entries = HashMap::<String, FileEntry>::deserialize(deserializer)?;
-        if let Err(e) = validate_unique_paths(entries.values().map(|e| &e.path)) {
+        if let Err(e) = validate_unique_paths(entries.values().map(|e| &e.relative_path)) {
             return Err(serde::de::Error::custom(format!(
                 "duplicate file paths are not allowed. Found duplicate path: '{}'",
                 e.display()
@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for FileSystem {
 /// auto-generated directory for that sub-agent).
 #[derive(Debug, Default, Clone, PartialEq)]
 struct FileEntry {
-    path: PathBuf,
+    relative_path: PathBuf,
     content: TemplateableValue<String>,
 }
 
@@ -78,7 +78,7 @@ impl<'de> Deserialize<'de> for FileEntry {
             Err(Error::custom(errs.join(", ")))
         } else {
             Ok(Self {
-                path: entry.path,
+                relative_path: entry.path,
                 content: entry.content,
             })
         }
@@ -111,7 +111,7 @@ impl Templateable for FileEntry {
             .and_then(Variable::get_final_value)
         {
             let rendered_file_entry = Self {
-                path: PathBuf::from(generated_dir).join(self.path),
+                relative_path: PathBuf::from(generated_dir).join(self.relative_path),
                 content: self.content.template_with(variables)?,
             };
             Ok(rendered_file_entry)
@@ -199,14 +199,14 @@ mod tests {
         )]);
 
         let file_entry = FileEntry {
-            path: PathBuf::from("my/file/path"),
+            relative_path: PathBuf::from("my/file/path"),
             content: TemplateableValue::new("some content".to_string()),
         };
 
         let rendered = file_entry.template_with(&variables);
         assert!(rendered.is_ok());
         assert_eq!(
-            rendered.unwrap().path,
+            rendered.unwrap().relative_path,
             PathBuf::from("/base/dir/my/file/path")
         );
     }
@@ -216,7 +216,7 @@ mod tests {
         let variables = Variables::default();
 
         let file_entry = FileEntry {
-            path: PathBuf::from("my/file/path"),
+            relative_path: PathBuf::from("my/file/path"),
             content: TemplateableValue::new("some content".to_string()),
         };
 
