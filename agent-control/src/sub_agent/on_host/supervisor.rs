@@ -42,12 +42,12 @@ pub struct StartedSupervisorOnHost {
 }
 
 pub struct NotStartedSupervisorOnHost {
-    pub(super) agent_identity: AgentIdentity,
-    pub(super) ctx: Context<bool>,
-    pub(crate) executables: Vec<ExecutableData>,
-    pub(super) log_to_file: bool,
-    pub(super) logging_path: PathBuf,
-    pub(super) health_config: OnHostHealthConfig,
+    agent_identity: AgentIdentity,
+    ctx: Context<bool>,
+    executables: Vec<ExecutableData>,
+    log_to_file: bool,
+    logging_path: PathBuf,
+    health_config: OnHostHealthConfig,
     version_config: Option<OnHostVersionConfig>,
     filesystem_entries: RenderedFileSystemEntries,
 }
