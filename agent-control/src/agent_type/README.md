@@ -172,8 +172,7 @@ These diverse options offer extensive customization for your agent's deployment.
 
 In the `backoff_strategy` we have:
 
-* `type`: This field can take several forms - _none_, _fixed_, _linear_, or _exponential_. It determines the delay timing strategy between retries.
-  * _none_: Means no delay between retries.
+* `type`: This field can take several forms - _fixed_, _linear_, or _exponential_. It determines the delay timing strategy between retries.
   * _fixed_: Constant delay interval between retries. This is the default type.
   * _linear_: Delay interval increases linearly after each retry.
   * _exponential_: Delay interval doubles after each retry.
@@ -400,7 +399,7 @@ variables:
       type: string
       required: false
       default: 20s
-    
+
 deployment:
   on_host:
     executables:
