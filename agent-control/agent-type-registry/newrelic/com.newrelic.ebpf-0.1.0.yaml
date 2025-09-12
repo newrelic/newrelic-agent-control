@@ -246,6 +246,10 @@ variables:
 deployment:
   on_host:
     enable_file_logging: ${nr-var:enable_file_logging}
+    version:
+      path: /usr/bin/nr-ebpf-agent-client
+      args: --version
+      regex: \d+\.\d+\.\d+
     executables:
       - id: nr-ebpf-agent-client
         path: /usr/bin/nr-ebpf-agent-client
