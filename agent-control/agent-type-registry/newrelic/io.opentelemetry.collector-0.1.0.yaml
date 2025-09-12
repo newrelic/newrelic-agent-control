@@ -82,7 +82,7 @@ deployment:
       regex: \d+\.\d+\.\d+
     filesystem:
       otel-config:
-        path: config.yaml
+        relative_path: config.yaml
         content: |
           ${nr-var:config}
     executables:
