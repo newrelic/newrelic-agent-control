@@ -748,6 +748,7 @@ pub mod tests {
     use rstest::*;
     use std::collections::HashMap;
     use std::ops::Deref;
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     type TestSubAgent = SubAgent<
@@ -1001,6 +1002,7 @@ deployment:
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
+            PathBuf::default().as_path(),
         ));
 
         SubAgent::new(
@@ -1086,6 +1088,7 @@ deployment:
             TemplateRenderer::<MockConfigurationPersister>::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
+            PathBuf::default().as_path(),
         ));
 
         let sub_agent = SubAgent::new(
@@ -1534,6 +1537,7 @@ deployment:
             TemplateRenderer::default(),
             VariableConstraints::default(),
             SecretsProviders::new(),
+            PathBuf::default().as_path(),
         ));
 
         let supervisor = sub_agent.init_supervisor();
