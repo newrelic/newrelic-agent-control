@@ -114,15 +114,15 @@ deployment:
       regex: \d+\.\d+\.\d+
     filesystem:
       config:
-        path: newrelic-infra.yaml
+        relative_path: newrelic-infra.yaml
         content: |
           ${nr-var:config_agent}
       integrations:
-        path: integrations.d/integrations.yaml
+        relative_path: integrations.d/integrations.yaml
         content: |
           ${nr-var:config_integrations}
       logging:
-        path: logging/logging.yaml
+        relative_path: logging/logging.yaml
         content: |
           ${nr-var:config_logging}
     executables:
