@@ -8,16 +8,16 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SupervisorStarterError {
-    #[error("the kube client returned an error: `{0}`")]
+    #[error("the kube client returned an error: {0}")]
     Generic(#[from] crate::k8s::error::K8sError),
 
-    #[error("building k8s resources: `{0}`")]
+    #[error("building k8s resources: {0}")]
     ConfigError(String),
 
-    #[error("building health checkers: `{0}`")]
+    #[error("building health checkers: {0}")]
     HealthError(#[from] HealthCheckerError),
 
-    #[error("supervisor could not be built: `{0}`")]
+    #[error("supervisor could not be built: {0}")]
     BuildError(#[from] SubAgentBuilderError),
 
     #[error("creation of required files for sub-agent failed: {0}")]

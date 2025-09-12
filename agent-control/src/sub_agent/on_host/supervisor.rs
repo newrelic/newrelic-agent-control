@@ -136,13 +136,6 @@ impl NotStartedSupervisorOnHost {
         }
     }
 
-    pub fn with_health_config(self, health_config: OnHostHealthConfig) -> Self {
-        Self {
-            health_config,
-            ..self
-        }
-    }
-
     pub fn with_filesystem_entries(self, filesystem_entries: RenderedFileSystemEntries) -> Self {
         Self {
             filesystem_entries,
