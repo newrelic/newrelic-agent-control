@@ -34,7 +34,7 @@ impl HealthChecker for ExecHealthChecker {
                 let error = health
                     .as_health()
                     .last_error()
-                    .map(|e| format!("{name}: {e}"));
+                    .map(|e| format!("executable {name} failed: {e}"));
                 if health.start_time() < start_time {
                     start_time = health.start_time();
                 }
@@ -105,7 +105,10 @@ mod tests {
 
         let result = checker.check_health().unwrap();
         assert!(!result.as_health().is_healthy());
-        assert_eq!(result.as_health().last_error().unwrap(), "exec1: Error1");
+        assert_eq!(
+            result.as_health().last_error().unwrap(),
+            "executable exec1 failed: Error1"
+        );
     }
 
     #[test]
@@ -140,7 +143,7 @@ mod tests {
                 .as_health()
                 .last_error()
                 .unwrap()
-                .contains("exec1: Error1")
+                .contains("executable exec1 failed: Error1")
         );
         assert!(result.as_health().last_error().unwrap().contains(", "));
         assert!(
@@ -148,7 +151,7 @@ mod tests {
                 .as_health()
                 .last_error()
                 .unwrap()
-                .contains("exec2: Error2")
+                .contains("executable exec2 failed: Error2")
         );
     }
 
