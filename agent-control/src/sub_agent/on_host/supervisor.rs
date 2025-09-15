@@ -262,6 +262,9 @@ impl NotStartedSupervisorOnHost {
 
             let init_health = Healthy::new();
 
+            // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
+            // can lead to false positives (reporting healthy when the executable is actually not working)
+            debug!("Informing executable as healthy");
             if let Err(err) = health_publisher.publish((
                 executable_data_clone.id.to_string(),
                 HealthWithStartTime::new(init_health.into(), supervisor_start_time),
@@ -285,6 +288,19 @@ impl NotStartedSupervisorOnHost {
                         supervisor = executable_data_clone.bin,
                         "error while launching supervisor process: {}", err
                     );
+                    debug!(
+                        "Informing of executable as unhealthy as there was an error launching it"
+                    );
+                    let unhealthy = Unhealthy::new(format!("Error launching process: {err}"));
+                    if let Err(err) = health_publisher.publish((
+                        executable_data_clone.id.to_string(),
+                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                    )) {
+                        error!(
+                            "Error publishing health status for {}: {}",
+                            executable_data_clone.id, err
+                        );
+                    }
                 })
                 .map(|exit_status| {
                     handle_termination(
@@ -319,9 +335,11 @@ impl NotStartedSupervisorOnHost {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
+                debug!(
+                    "Informing of executable as unhealthy because the restart policy was exceeded"
+                );
                 let unhealthy =
-                    Unhealthy::new("supervisor exceeded its defined restart policy".to_string());
-
+                    Unhealthy::new("executable exceeded its defined restart policy".to_string());
                 if let Err(err) = health_publisher.publish((
                     executable_data_clone.id.to_string(),
                     HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
@@ -356,6 +374,7 @@ fn handle_termination(
     start_time: SystemTime,
 ) -> i32 {
     if !exit_status.success() {
+        debug!(%exit_status, "Informing of executable as unhealthy");
         let unhealthy: Unhealthy = Unhealthy::new(exit_status.to_string()).with_status(format!(
             "process exited with code: {:?}",
             exit_status.code().unwrap_or_default()
@@ -831,7 +850,7 @@ pub mod tests {
             (
                 "echo".to_owned(),
                 HealthWithStartTime::new(
-                    Unhealthy::new("supervisor exceeded its defined restart policy".to_string())
+                    Unhealthy::new("executable exceeded its defined restart policy".to_string())
                         .into(),
                     start_time,
                 ),

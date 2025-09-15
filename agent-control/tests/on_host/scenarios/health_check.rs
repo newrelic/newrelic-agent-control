@@ -5,7 +5,7 @@ use crate::common::retry::retry;
 use crate::on_host::tools::config::{
     create_agent_control_config, create_file, create_sub_agent_values,
 };
-use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
+use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
@@ -22,42 +22,38 @@ fn test_file_health_without_supervisor() {
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
     let health_file_path = local_dir.path().join("health_file.yaml");
-
-    create_file(
-        format!(
-            r#"
-namespace: test
-name: test
-version: 0.0.0
-variables: {{}}
-deployment:
-  on_host:
-    health:
-      interval: 1s
-      initial_delay: 0s
-      timeout: 1s
-      file:
-        path: {}
+    let health_config = format!(
+        r#"
+interval: 1s
+initial_delay: 0s
+timeout: 1s
+file:
+  path: {}
 "#,
-            health_file_path.to_str().unwrap()
-        ),
-        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+        health_file_path.to_str().unwrap()
     );
 
-    let agents = r#"
-  test-agent:
-    agent_type: "test/test:0.0.0"
-"#;
+    let agent_type = CustomAgentType::empty()
+        .with_health(Some(&health_config))
+        .build(local_dir.path().to_path_buf());
 
+    let agents = format!(
+        r#"
+  {sub_agent_id}:
+    agent_type: "{agent_type}"
+"#
+    );
+
+    create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
     create_agent_control_config(
         opamp_server.endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
-    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -67,8 +63,7 @@ deployment:
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id =
-        get_instance_id(&AgentID::try_from("test-agent").unwrap(), base_paths);
+    let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
 
     create_file(
         r#"
@@ -134,33 +129,30 @@ fn test_http_health_without_supervisor() {
 
     let local_dir = tempdir().expect("failed to create local temp dir");
     let remote_dir = tempdir().expect("failed to create remote temp dir");
+    let sub_agent_id = AgentID::try_from("test-agent").unwrap();
 
-    create_file(
-        format!(
-            r#"
-namespace: test
-name: test
-version: 0.0.0
-variables: {{}}
-deployment:
-  on_host:
-    health:
-      interval: 1s
-      initial_delay: 0s
-      timeout: 1s
-      http:
-        path: /health
-        port: {}
+    let health_config = format!(
+        r#"
+interval: 1s
+initial_delay: 0s
+timeout: 1s
+http:
+  path: /health
+  port: {}
 "#,
-            health_server.port()
-        ),
-        local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
+        health_server.port(),
     );
 
-    let agents = r#"
-  test-agent:
-    agent_type: "test/test:0.0.0"
-"#;
+    let agent_type = CustomAgentType::empty()
+        .with_health(Some(&health_config))
+        .build(local_dir.path().to_path_buf());
+
+    let agents = format!(
+        r#"
+  {sub_agent_id}:
+    agent_type: "{agent_type}"
+"#
+    );
 
     create_agent_control_config(
         opamp_server.endpoint(),
@@ -168,7 +160,7 @@ deployment:
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
     );
-    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
+    create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),
@@ -180,8 +172,7 @@ deployment:
     let _agent_control =
         start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
 
-    let agent_control_instance_id =
-        get_instance_id(&AgentID::try_from("test-agent").unwrap(), base_paths);
+    let agent_control_instance_id = get_instance_id(&sub_agent_id, base_paths);
 
     retry(30, Duration::from_secs(1), || {
         if let Some(health_status) = opamp_server.get_health_status(&agent_control_instance_id)
