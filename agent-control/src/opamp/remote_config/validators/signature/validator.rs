@@ -18,6 +18,8 @@ use super::certificate_fetcher::CertificateFetcher;
 use super::certificate_store::CertificateStore;
 
 const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
+const DEFAULT_PUBLIC_KEY_SERVER_URL: &str =
+    "https://publickeys.newrelic.com/signing/blob-management/GLOBAL/AgentConfiguration";
 const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 
@@ -81,8 +83,10 @@ pub fn build_signature_validator(
 
 #[derive(Debug, Deserialize, PartialEq, Clone)]
 pub struct SignatureValidatorConfig {
-    #[serde(default = "default_signature_validator_url")]
+    #[serde(default = "default_certificate_server_url")]
     pub certificate_server_url: Url,
+    #[serde(default = "default_public_key_url")]
+    pub public_key_server_url: Url,
     /// Path to the PEM file containing the certificate to validate the signature.
     /// Takes precedence over fetching from the server when it is set
     #[serde(default)]
@@ -95,32 +99,22 @@ impl Default for SignatureValidatorConfig {
     fn default() -> Self {
         Self {
             enabled: default_signature_validator_config_enabled(),
-            certificate_server_url: default_signature_validator_url(),
+            certificate_server_url: default_certificate_server_url(),
+            public_key_server_url: default_public_key_server_url(),
             certificate_pem_file_path: PathBuf::new(),
         }
     }
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-pub struct SignatureCertificateServerUrl(Url);
-
-impl From<SignatureCertificateServerUrl> for Url {
-    fn from(value: SignatureCertificateServerUrl) -> Self {
-        value.0
-    }
-}
-
-impl Default for SignatureCertificateServerUrl {
-    fn default() -> Self {
-        let certificate_server_url =  Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap_or_else(
-            |err| panic!("Invalid DEFAULT_CERTIFICATE_SERVER_URL: '{DEFAULT_CERTIFICATE_SERVER_URL}': {err}"));
-        Self(certificate_server_url)
-    }
-}
-
-fn default_signature_validator_url() -> Url {
+fn default_certificate_server_url() -> Url {
     Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap_or_else(|err| {
         panic!("Invalid DEFAULT_CERTIFICATE_SERVER_URL: '{DEFAULT_CERTIFICATE_SERVER_URL}': {err}")
+    })
+}
+
+fn default_public_key_server_url() -> Url {
+    Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap_or_else(|err| {
+        panic!("Invalid DEFAULT_PUBLIC_KEY_SERVER_URL: '{DEFAULT_PUBLIC_KEY_SERVER_URL}': {err}")
     })
 }
 
@@ -255,6 +249,7 @@ enabled: false
                 expected: SignatureValidatorConfig {
                     enabled: false,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
@@ -266,6 +261,7 @@ enabled: true
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
@@ -277,6 +273,7 @@ certificate_server_url: https://example.com
                 expected: SignatureValidatorConfig {
                     enabled: DEFAULT_SIGNATURE_VALIDATOR_ENABLED,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
@@ -289,6 +286,7 @@ certificate_server_url: https://example.com
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
@@ -301,6 +299,7 @@ certificate_pem_file_path: /path/to/file
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
+                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
                     certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
                 },
             },
@@ -309,11 +308,13 @@ certificate_pem_file_path: /path/to/file
                 cfg: r#"
 enabled: true
 certificate_server_url: https://example.com
+public_key_server_url: https://test.io
 certificate_pem_file_path: /path/to/file
 "#,
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
+                    public_key_server_url: Url::parse("https://test.io").unwrap(),
                     certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
                 },
             },
