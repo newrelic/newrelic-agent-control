@@ -35,7 +35,7 @@ struct ServerState {
 #[derive(Default)]
 struct AgentState {
     sequence_number: u64,
-    health_status: ComponentHealth,
+    health_status: Option<ComponentHealth>,
     attributes: AgentDescription,
     remote_config: Option<RemoteConfig>,
     effective_config: EffectiveConfig,
@@ -148,7 +148,7 @@ impl FakeServer {
         state
             .agent_state
             .get(identifier)
-            .map(|s| s.health_status.clone())
+            .and_then(|s| s.health_status.clone())
     }
     pub fn get_attributes(&self, identifier: &InstanceID) -> Option<AgentDescription> {
         let state = self.state.lock().unwrap();
@@ -166,7 +166,6 @@ impl FakeServer {
             .map(|s| s.effective_config.clone())
     }
 
-    #[allow(dead_code)] // used only for onhost
     pub fn get_remote_config_status(&self, identifier: InstanceID) -> Option<RemoteConfigStatus> {
         let state = self.state.lock().unwrap();
         state
@@ -213,7 +212,7 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
     }
 
     if let Some(health) = message.health {
-        state.health_status = health;
+        state.health_status = Some(health);
     }
 
     if let Some(attributes) = message.agent_description {
