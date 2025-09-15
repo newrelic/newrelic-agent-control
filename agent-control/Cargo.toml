@@ -103,7 +103,7 @@ rstest = "0.26.1"
 tokio-stream = { version = "0.1.17", features = ["net"] }
 
 [build-dependencies]
-glob = "0.3.2"
+glob = "0.3.3"
 
 [[bin]]
 name = "newrelic-agent-control-k8s"
