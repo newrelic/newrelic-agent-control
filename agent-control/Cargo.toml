@@ -28,7 +28,7 @@ duration-str = "0.17.0"
 konst = { workspace = true }
 http = { workspace = true }
 reqwest = { workspace = true }
-url = { version = "2.5.4", features = ["serde"] }
+url = { version = "2.5.7", features = ["serde"] }
 actix-web = "4.11.0"
 serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
