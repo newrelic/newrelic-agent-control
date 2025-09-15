@@ -59,6 +59,7 @@ fleet_control:
   fleet_id: "some-id" # Fleet identifier.
   signature_validation:
     certificate_server_url: "https://newrelic.com/" # Server to obtain the certificate for signature validation.
+    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/GLOBAL/AgentConfiguration" # Server to obtain the public key for signature validation.
     certificate_pem_file_path: "/some/certificate/" # Optional, if set it uses a local certificated instead of fetching it from 'certicate_server_url'.
     enabled: true # Defaults to true, allows disabling the signature validation.
 ```
