@@ -18,7 +18,7 @@ thiserror = { workspace = true }
 nix = { workspace = true, features = ["signal", "user", "hostname"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
 tracing = { workspace = true, features = ["attributes"] }
-ctrlc = { version = "3.4.7", features = ["termination"] }
+ctrlc = { version = "3.5.0", features = ["termination"] }
 serde_yaml = { workspace = true }
 regex = { workspace = true }
 futures = { version = "0.3.31" }
