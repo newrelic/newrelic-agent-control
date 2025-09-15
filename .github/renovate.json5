@@ -82,7 +82,7 @@
       packageNameTemplate: 'newrelic/newrelic-opamp-rs',
     },
   ],
-  rangeStrategy: 'auto',
+  rangeStrategy: 'bump',
   prConcurrentLimit: 0,
   printConfig: true,
   prHourlyLimit: 0,
