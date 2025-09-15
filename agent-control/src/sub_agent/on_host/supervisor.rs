@@ -850,7 +850,7 @@ pub mod tests {
             (
                 "echo".to_owned(),
                 HealthWithStartTime::new(
-                    Unhealthy::new("supervisor exceeded its defined restart policy".to_string())
+                    Unhealthy::new("executable exceeded its defined restart policy".to_string())
                         .into(),
                     start_time,
                 ),
