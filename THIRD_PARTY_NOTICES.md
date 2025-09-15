@@ -2021,6 +2021,13 @@ Distributed under the following license(s):
 
 * MIT
 
+## serde_core <https://crates.io/crates/serde_core>
+
+Distributed under the following license(s):
+
+* MIT
+* Apache-2.0
+
 ## serde_derive <https://crates.io/crates/serde_derive>
 
 Distributed under the following license(s):
