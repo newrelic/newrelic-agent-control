@@ -10,7 +10,7 @@ scenarios:
       - timeout 600s bash -c "until kubectl wait --for=jsonpath='{.status.readyReplicas}'=1 deploy/operator-k8s-agents-operator -n newrelic-agents; do sleep 5; echo waiting on operator ; done"
       - sleep 60
       - kubectl run ${SCENARIO_TAG}-python --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-python:main -o yaml | kubectl label app=pythonapp -f - --local -o yaml | kubectl create -f -
-      - kubectl run ${SCENARIO_TAG}-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
+      - kubectl run test-ebpf-java --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-java:main -o yaml | kubectl label app=javaapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-dotnet --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-dotnet:main -o yaml | kubectl label app=dotneteapp -f - --local -o yaml | kubectl create -f -
       - kubectl run ${SCENARIO_TAG}-node --dry-run=client --image=ghcr.io/open-telemetry/opentelemetry-operator/e2e-test-app-nodejs:main -o yaml | kubectl label app=nodeapp -f - --local -o yaml | kubectl create -f -
       - kubectl create -f ./rubyapp.yaml --dry-run=client -o yaml | sed s/placeholder/${SCENARIO_TAG}-ruby/ | kubectl create -f -

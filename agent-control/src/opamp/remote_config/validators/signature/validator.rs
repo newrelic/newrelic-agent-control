@@ -85,7 +85,7 @@ pub fn build_signature_validator(
 pub struct SignatureValidatorConfig {
     #[serde(default = "default_certificate_server_url")]
     pub certificate_server_url: Url,
-    #[serde(default = "default_public_key_url")]
+    #[serde(default = "default_public_key_server_url")]
     pub public_key_server_url: Url,
     /// Path to the PEM file containing the certificate to validate the signature.
     /// Takes precedence over fetching from the server when it is set
