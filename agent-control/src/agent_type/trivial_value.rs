@@ -20,6 +20,8 @@ pub enum TrivialValue {
     #[serde(skip)]
     MapStringString(Map<String, String>),
     #[serde(skip)]
+    MapStringYaml(Map<String, serde_yaml::Value>),
+    #[serde(skip)]
     MapStringFile(Map<String, FilePathWithContent>),
 }
 
@@ -64,6 +66,18 @@ impl Display for TrivialValue {
                 let flatten: Vec<String> = n
                     .iter()
                     .map(|(key, value)| format!("{key}={value}"))
+                    .collect();
+                write!(f, "{}", flatten.join(" "))
+            }
+            TrivialValue::MapStringYaml(n) => {
+                let flatten: Vec<String> = n
+                    .iter()
+                    .map(|(key, value)| {
+                        let value = serde_yaml::to_string(value).expect(
+                            "A value of type serde_yaml::Value should always be serializable",
+                        );
+                        format!("{key}={value}")
+                    })
                     .collect();
                 write!(f, "{}", flatten.join(" "))
             }
