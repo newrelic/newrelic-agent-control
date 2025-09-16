@@ -108,7 +108,7 @@ endif
 	@$(call check_env_var,FLEET_ID)
 	@kubectl create namespace newrelic --dry-run=client -o yaml | kubectl apply -f -
 	@helm repo add newrelic https://helm-charts.newrelic.com
-	@helm upgrade --install ac newrelic/agent-control --devel -f $(K8S_HELM_DIR)/agent-control.yml \
+	@helm upgrade --install ac newrelic/agent-control-bootstrap --devel -f $(K8S_HELM_DIR)/agent-control.yml \
     --namespace newrelic \
     --set global.licenseKey=$(NR_LICENSE_KEY) \
     --set global.cluster=$(CLUSTER_NAME) \
