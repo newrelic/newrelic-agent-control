@@ -1,6 +1,6 @@
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use openssl::pkey::{Id, PKey, Public};
+use ring::signature;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use thiserror::Error;
@@ -15,6 +15,9 @@ pub struct PubKeyPayload {
 pub enum PubKeyError {
     #[error("parsing PubKey: `{0}`")]
     ParsePubKey(String),
+
+    #[error("validating signature: `{0}`")]
+    ValidatingSignature(String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -32,7 +35,7 @@ struct KeyData {
 }
 
 impl KeyData {
-    pub fn to_verification_key(&self) -> Result<PKey<Public>, PubKeyError> {
+    pub fn verify_signature(&self, msg: &[u8], s: &[u8]) -> Result<(), PubKeyError> {
         if self.use_ != "sig" {
             return Err(PubKeyError::ParsePubKey("Key use is not 'sig'".to_string()));
         }
@@ -47,18 +50,13 @@ impl KeyData {
                 "The only supported crv is Ed25519".to_string(),
             ));
         }
-
         // JWKs make use of the base64url encoding as defined in RFC 4648 [RFC4648]. As allowed by Section 3.2 of the RFC,
         // this specification mandates that base64url encoding when used with JWKs MUST NOT use padding.
-        let x = URL_SAFE_NO_PAD.decode(self.x.clone()).unwrap();
-        PKey::public_key_from_raw_bytes(x.as_bytes(), Id::ED25519)
-            .map_err(|e| PubKeyError::ParsePubKey(e.to_string()))
-    }
+        let decoded_key = URL_SAFE_NO_PAD.decode(self.x.clone()).unwrap();
 
-    pub fn verify_signature(&self, msg: &[u8], signature: &[u8]) -> bool {
-        let key = self.to_verification_key().unwrap();
-        let mut verifier = openssl::sign::Verifier::new_without_digest(&key).unwrap();
-        verifier.verify_oneshot(signature, msg).unwrap()
+        signature::UnparsedPublicKey::new(&signature::ED25519, decoded_key.as_bytes())
+            .verify(msg, s)
+            .map_err(|e| PubKeyError::ValidatingSignature(e.to_string()))
     }
 }
 
@@ -127,9 +125,9 @@ mod tests {
         let sign = BASE64_STANDARD.decode("6l3Jv23SUClwCRzWuFHkZn21laEJiNUu7GXwWK+kDaVCMenLJt9Us+r7LyIqEnfRq/Z5PPJoWaalta6mn/wrDw==").unwrap();
 
         let res = first_key.verify_signature(
-            "2_my-message-to-be-signed this can be anything".as_bytes(),
+            "my-message-to-be-signed this can be anything".as_bytes(),
             sign.as_bytes(),
         );
-        assert_eq!(res, true)
+        res.unwrap()
     }
 }
