@@ -1,0 +1,272 @@
+use base64::{Engine, prelude::BASE64_STANDARD};
+use std::{fmt::Display, sync::Mutex};
+use thiserror::Error;
+
+pub trait Verifier {
+    type Error: Display;
+
+    fn verify_signature(
+        &self,
+        algorithm: &webpki::SignatureAlgorithm,
+        msg: &[u8],
+        signature: &[u8],
+    ) -> Result<(), Self::Error>;
+}
+
+pub trait KeyIdentified {
+    fn key_id(&self) -> &str;
+}
+
+pub trait VerifierFetcher {
+    type Error: Display;
+    type Verifier: Verifier;
+
+    fn fetch(&self) -> Result<Self::Verifier, Self::Error>;
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum VerifierStoreError {
+    #[error("fetching verifying key: {0}")]
+    Fetch(String),
+    #[error(
+        "signature keyId({signature_key_id}) does not match certificate keyId({certificate_key_id})"
+    )]
+    KeyMismatch {
+        signature_key_id: String,
+        certificate_key_id: String,
+    },
+    #[error("validating signature: {0}")]
+    VerifySignature(String),
+    #[error("decoding signature: {0}")]
+    DecodingSignature(String),
+}
+
+pub struct VerifierStore<V, F>
+where
+    V: Verifier,
+    F: VerifierFetcher<Verifier = V>,
+{
+    verifier: Mutex<V>,
+    fetcher: F,
+}
+
+impl<V, F> VerifierStore<V, F>
+where
+    V: Verifier + KeyIdentified,
+    F: VerifierFetcher<Verifier = V>,
+{
+    pub fn try_new(fetcher: F) -> Result<Self, VerifierStoreError> {
+        fetcher
+            .fetch()
+            .map(|verifier| Self {
+                verifier: Mutex::new(verifier),
+                fetcher,
+            })
+            .map_err(|err| VerifierStoreError::Fetch(err.to_string()))
+    }
+
+    pub fn verify_signature(
+        &self,
+        algorithm: &webpki::SignatureAlgorithm,
+        key_id: &str,
+        msg: &[u8],
+        signature: &[u8],
+    ) -> Result<(), VerifierStoreError> {
+        let decoded_signature = BASE64_STANDARD
+            .decode(signature)
+            .map_err(|e| VerifierStoreError::DecodingSignature(e.to_string()))?;
+
+        self.with_verifier(key_id, |verifier| {
+            verifier
+                .verify_signature(algorithm, msg, &decoded_signature)
+                .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))
+        })
+    }
+
+    /// Obtains or fetches (depending on the provided `signature_key_id`) the verifier executes the provided callback.
+    fn with_verifier<T: Fn(&V) -> Result<(), VerifierStoreError>>(
+        &self,
+        signature_key_id: &str,
+        f: T,
+    ) -> Result<(), VerifierStoreError> {
+        let mut verifier = self
+            .verifier
+            .lock()
+            .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))?;
+
+        if verifier.key_id().eq_ignore_ascii_case(signature_key_id) {
+            return f(&verifier);
+        }
+
+        *verifier = self
+            .fetcher
+            .fetch()
+            .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
+
+        if !verifier.key_id().eq(signature_key_id) {
+            return Err(VerifierStoreError::KeyMismatch {
+                signature_key_id: signature_key_id.to_string(),
+                certificate_key_id: verifier.key_id().to_string(),
+            });
+        }
+
+        f(&verifier)
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use assert_matches::assert_matches;
+    use mockall::{Sequence, mock};
+    use webpki::ED25519;
+
+    mock! {
+        pub Verifier {}
+
+        impl Verifier for Verifier {
+            type Error = String;
+            fn verify_signature(
+                &self,
+                algorithm: &webpki::SignatureAlgorithm,
+                msg: &[u8],
+                signature: &[u8],
+            ) -> Result<(), <Self as Verifier>::Error>;
+        }
+
+        impl KeyIdentified for Verifier {
+            fn key_id(&self) -> &str;
+        }
+    }
+
+    mock! {
+        pub VerifierFetcher {}
+
+        impl VerifierFetcher for VerifierFetcher {
+            type Error = String;
+            type Verifier = MockVerifier;
+
+            fn fetch(&self) -> Result<<Self as VerifierFetcher>::Verifier, <Self as VerifierFetcher>::Error>;
+        }
+    }
+
+    #[test]
+    fn test_verify_sucess_cache_hit() {
+        const KEY_ID: &str = "key-id";
+        let mut fetcher = MockVerifierFetcher::new();
+        fetcher.expect_fetch().once().returning(|| {
+            let mut verifier = MockVerifier::new();
+            verifier
+                .expect_key_id()
+                .once()
+                .return_const(KEY_ID.to_string());
+            verifier
+                .expect_verify_signature()
+                .once()
+                .returning(|_, _, _| Ok(()));
+            Ok(verifier)
+        });
+
+        let store = VerifierStore::try_new(fetcher).unwrap();
+        store
+            .verify_signature(
+                &ED25519,
+                KEY_ID,
+                b"some-message",
+                encode_signature(b"signature").as_bytes(),
+            )
+            .expect("Signature verification should success");
+    }
+
+    #[test]
+    fn test_verify_sucess_cache_miss() {
+        const KEY_ID1: &str = "key-id-1";
+        const KEY_ID2: &str = "key-id-2";
+        let mut fetcher = MockVerifierFetcher::new();
+        let mut seq = Sequence::new();
+        fetcher
+            .expect_fetch()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|| {
+                let mut verifier = MockVerifier::new();
+                verifier
+                    .expect_key_id()
+                    .once()
+                    .return_const(KEY_ID1.to_string());
+
+                Ok(verifier)
+            });
+        fetcher
+            .expect_fetch()
+            .once()
+            .in_sequence(&mut seq)
+            .returning(|| {
+                let mut verifier = MockVerifier::new();
+                verifier
+                    .expect_key_id()
+                    .once()
+                    .return_const(KEY_ID2.to_string());
+                verifier
+                    .expect_verify_signature()
+                    .once()
+                    .returning(|_, _, _| Ok(()));
+                Ok(verifier)
+            });
+
+        let store = VerifierStore::try_new(fetcher).unwrap();
+        store
+            .verify_signature(
+                &ED25519,
+                KEY_ID2,
+                b"some-message",
+                encode_signature(b"signature").as_bytes(),
+            )
+            .expect("Signature verification should success");
+    }
+
+    #[test]
+    fn test_signature_decode_fail() {
+        const KEY_ID: &str = "key-id";
+        let mut fetcher = MockVerifierFetcher::new();
+        fetcher
+            .expect_fetch()
+            .once()
+            .returning(|| Ok(MockVerifier::new()));
+
+        let store = VerifierStore::try_new(fetcher).unwrap();
+        let result = store.verify_signature(&ED25519, KEY_ID, b"some-message", b"not-base-64");
+        assert_matches!(result, Err(VerifierStoreError::DecodingSignature(_)));
+    }
+
+    #[test]
+    fn test_signature_check_mismatch() {
+        const KEY_ID: &str = "key-id";
+        let mut fetcher = MockVerifierFetcher::new();
+        fetcher.expect_fetch().once().returning(|| {
+            let mut verifier = MockVerifier::new();
+            verifier
+                .expect_key_id()
+                .once()
+                .return_const(KEY_ID.to_string());
+            verifier
+                .expect_verify_signature()
+                .once()
+                .returning(|_, _, _| Err("invalid signature".to_string()));
+            Ok(verifier)
+        });
+
+        let store = VerifierStore::try_new(fetcher).unwrap();
+        let result = store.verify_signature(
+            &ED25519,
+            KEY_ID,
+            b"some-message",
+            encode_signature(b"signature").as_bytes(),
+        );
+        assert_matches!(result, Err(VerifierStoreError::VerifySignature(_)));
+    }
+
+    fn encode_signature(s: &[u8]) -> String {
+        BASE64_STANDARD.encode(s)
+    }
+}
