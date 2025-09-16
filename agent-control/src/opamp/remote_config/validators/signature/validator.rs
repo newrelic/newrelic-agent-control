@@ -127,7 +127,7 @@ fn default_signature_validator_config_enabled() -> bool {
 /// The SignatureValidator enum wraps [CertificateSignatureValidator] and adds support for No-op validator.
 pub enum SignatureValidator {
     Certificate(CertificateSignatureValidator),
-    PublicKey,
+    PublicKey, // TODO: build this variant from configuration
     Noop,
 }
 
@@ -216,7 +216,7 @@ pub mod tests {
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
     };
     use crate::opamp::remote_config::validators::signature::verifier::{
-        KeyIdentified, VerifierStoreError,
+        Verifier, VerifierStoreError,
     };
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;

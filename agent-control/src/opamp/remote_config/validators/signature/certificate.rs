@@ -4,7 +4,7 @@ use thiserror::Error;
 use webpki::EndEntityCert;
 use x509_parser::prelude::{FromDer, X509Certificate};
 
-use crate::opamp::remote_config::validators::signature::verifier::{KeyIdentified, Verifier};
+use crate::opamp::remote_config::validators::signature::verifier::Verifier;
 
 #[derive(Error, Debug)]
 pub enum CertificateError {
@@ -35,9 +35,7 @@ impl Verifier for Certificate {
             .verify_signature(algorithm, msg, signature)
             .map_err(|e| CertificateError::VerifySignature(e.to_string()))
     }
-}
 
-impl KeyIdentified for Certificate {
     fn key_id(&self) -> &str {
         &self.public_key_id
     }

@@ -1,22 +1,23 @@
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::{fmt::Display, sync::Mutex};
 use thiserror::Error;
+use tracing::debug;
 
+/// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
     type Error: Display;
 
     fn verify_signature(
         &self,
-        algorithm: &webpki::SignatureAlgorithm,
+        algorithm: &webpki::SignatureAlgorithm, // TODO: check if this is this type is compatible with both implementations or we need something else for public-keys
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), Self::Error>;
-}
 
-pub trait KeyIdentified {
     fn key_id(&self) -> &str;
 }
 
+/// Defines how to fetch a new [Verifier].
 pub trait VerifierFetcher {
     type Error: Display;
     type Verifier: Verifier;
@@ -41,6 +42,8 @@ pub enum VerifierStoreError {
     DecodingSignature(String),
 }
 
+/// VerifierStore provides a way to verify signatures given a key-id.
+/// It holds a Verifier and implements the mechanism to refresh it when the key-id changes.
 pub struct VerifierStore<V, F>
 where
     V: Verifier,
@@ -52,7 +55,7 @@ where
 
 impl<V, F> VerifierStore<V, F>
 where
-    V: Verifier + KeyIdentified,
+    V: Verifier,
     F: VerifierFetcher<Verifier = V>,
 {
     pub fn try_new(fetcher: F) -> Result<Self, VerifierStoreError> {
@@ -65,6 +68,8 @@ where
             .map_err(|err| VerifierStoreError::Fetch(err.to_string()))
     }
 
+    /// Verifies the signature using the underlying verifier. Such verifier is fetched again if the provided
+    /// key_id doesn't match the Verifier's key id.
     pub fn verify_signature(
         &self,
         algorithm: &webpki::SignatureAlgorithm,
@@ -98,6 +103,7 @@ where
             return f(&verifier);
         }
 
+        debug!("Signature's keyId doesn't match the current verifier keyId, fetching new verifier");
         *verifier = self
             .fetcher
             .fetch()
@@ -132,9 +138,7 @@ pub mod tests {
                 msg: &[u8],
                 signature: &[u8],
             ) -> Result<(), <Self as Verifier>::Error>;
-        }
 
-        impl KeyIdentified for Verifier {
             fn key_id(&self) -> &str;
         }
     }
