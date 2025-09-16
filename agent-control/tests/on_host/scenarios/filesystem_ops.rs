@@ -41,7 +41,7 @@ deployment:
   on_host:
     filesystem:
       somefile:
-        path: {file_path}
+        relative_path: {file_path}
         content: "{expected_file_contents}"
 "#,
         ),
@@ -130,11 +130,11 @@ deployment:
   on_host:
     filesystem:
       somefile:
-        path: {yaml_file_path}
+        relative_path: {yaml_file_path}
         content: |-
           ${{nr-var:yaml_file_contents}}
       otherfile:
-        path: {string_file_path}
+        relative_path: {string_file_path}
         content: "Some string contents with a rendered variable: ${{nr-var:some_string}}"
 "#,
         ),

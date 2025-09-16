@@ -68,17 +68,17 @@ impl<'de> Deserialize<'de> for FileEntry {
 
         #[derive(Deserialize)]
         struct PreValidationFileEntry {
-            path: PathBuf,
+            relative_path: PathBuf,
             content: TemplateableValue<String>,
         }
 
         let entry = PreValidationFileEntry::deserialize(deserializer)?;
         // Perform validations on the provided Paths
-        if let Err(errs) = validate_file_entry_path(&entry.path) {
+        if let Err(errs) = validate_file_entry_path(&entry.relative_path) {
             Err(Error::custom(errs.join(", ")))
         } else {
             Ok(Self {
-                relative_path: entry.path,
+                relative_path: entry.relative_path,
                 content: entry.content,
             })
         }
