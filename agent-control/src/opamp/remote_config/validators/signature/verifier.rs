@@ -1,11 +1,11 @@
 use base64::{Engine, prelude::BASE64_STANDARD};
-use std::{fmt::Display, sync::Mutex};
+use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
 
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
-    type Error: Display;
+    type Error: std::error::Error;
 
     fn verify_signature(
         &self,
@@ -19,7 +19,7 @@ pub trait Verifier {
 
 /// Defines how to fetch a new [Verifier].
 pub trait VerifierFetcher {
-    type Error: Display;
+    type Error: std::error::Error;
     type Verifier: Verifier;
 
     fn fetch(&self) -> Result<Self::Verifier, Self::Error>;
@@ -127,11 +127,15 @@ pub mod tests {
     use mockall::{Sequence, mock};
     use webpki::ED25519;
 
+    #[derive(Debug, Error)]
+    #[error("some error: {0}")]
+    pub struct MockVerifierError(String);
+
     mock! {
         pub Verifier {}
 
         impl Verifier for Verifier {
-            type Error = String;
+            type Error = MockVerifierError;
             fn verify_signature(
                 &self,
                 algorithm: &webpki::SignatureAlgorithm,
@@ -147,7 +151,7 @@ pub mod tests {
         pub VerifierFetcher {}
 
         impl VerifierFetcher for VerifierFetcher {
-            type Error = String;
+            type Error = MockVerifierError;
             type Verifier = MockVerifier;
 
             fn fetch(&self) -> Result<<Self as VerifierFetcher>::Verifier, <Self as VerifierFetcher>::Error>;
@@ -256,7 +260,7 @@ pub mod tests {
             verifier
                 .expect_verify_signature()
                 .once()
-                .returning(|_, _, _| Err("invalid signature".to_string()));
+                .returning(|_, _, _| Err(MockVerifierError("invalid signature".to_string())));
             Ok(verifier)
         });
 
