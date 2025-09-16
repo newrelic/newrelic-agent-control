@@ -1,5 +1,6 @@
 use super::certificate::Certificate;
 use crate::http::client::HttpClient;
+use crate::opamp::remote_config::validators::signature::verifier::VerifierFetcher;
 use reqwest::tls::TlsInfo;
 use rustls::pki_types::CertificateDer;
 use rustls::pki_types::pem::PemObject;
@@ -12,9 +13,7 @@ pub type DerCertificateBytes = Vec<u8>;
 
 #[derive(Error, Debug)]
 pub enum CertificateFetcherError {
-    #[error("building client to fetch certificate: `{0}`")]
-    FetchClientBuild(String),
-    #[error("fetching certificate: `{0}`")]
+    #[error("fetching certificate: {0}")]
     CertificateFetch(String),
 }
 pub enum CertificateFetcher {
@@ -22,8 +21,11 @@ pub enum CertificateFetcher {
     PemFile(PathBuf),
 }
 
-impl CertificateFetcher {
-    pub fn fetch(&self) -> Result<Certificate, CertificateFetcherError> {
+impl VerifierFetcher for CertificateFetcher {
+    type Verifier = Certificate;
+    type Error = CertificateFetcherError;
+
+    fn fetch(&self) -> Result<Self::Verifier, Self::Error> {
         let cert = match self {
             CertificateFetcher::Https(url, client) => CertificateFetcher::fetch_https(url, client)?,
             CertificateFetcher::PemFile(pem_file_path) => {
@@ -33,7 +35,9 @@ impl CertificateFetcher {
         Certificate::try_new(cert)
             .map_err(|e| CertificateFetcherError::CertificateFetch(e.to_string()))
     }
+}
 
+impl CertificateFetcher {
     fn fetch_https(
         url: &Url,
         client: &HttpClient,
@@ -78,7 +82,7 @@ mod tests {
     use crate::http::config::HttpConfig;
     use crate::http::config::ProxyConfig;
     use crate::http::tls::install_rustls_default_crypto_provider;
-    use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
+    use crate::opamp::remote_config::validators::signature::validator::tests::TestCertificateSigner;
     use crate::utils::retry::retry;
     use assert_matches::assert_matches;
 
@@ -189,7 +193,7 @@ mod tests {
 
     #[test]
     fn test_file_fetcher() {
-        let test_signer = TestSigner::new();
+        let test_signer = TestCertificateSigner::new();
         CertificateFetcher::PemFile(test_signer.cert_pem_path())
             .fetch()
             .expect("to fetch certificate");

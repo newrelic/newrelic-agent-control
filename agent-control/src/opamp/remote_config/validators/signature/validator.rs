@@ -1,3 +1,4 @@
+use super::certificate_fetcher::CertificateFetcher;
 use crate::agent_control::defaults::get_custom_capabilities;
 use crate::http::client::HttpClient;
 use crate::http::config::HttpConfig;
@@ -5,6 +6,8 @@ use crate::http::config::ProxyConfig;
 use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
+use crate::opamp::remote_config::validators::signature::certificate::Certificate;
+use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -13,9 +16,6 @@ use thiserror::Error;
 use tracing::log::error;
 use tracing::{info, warn};
 use url::Url;
-
-use super::certificate_fetcher::CertificateFetcher;
-use super::certificate_store::CertificateStore;
 
 const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
 const DEFAULT_PUBLIC_KEY_SERVER_URL: &str =
@@ -73,11 +73,11 @@ pub fn build_signature_validator(
         CertificateFetcher::Https(config.certificate_server_url, client)
     };
 
-    let certificate_store = CertificateStore::try_new(certificate_fetcher)
-        .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
+    let verifier_store = VerifierStore::try_new(certificate_fetcher)
+        .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
 
-    Ok(SignatureValidator::Validator(
-        CertificateSignatureValidator::new(certificate_store),
+    Ok(SignatureValidator::Certificate(
+        CertificateSignatureValidator::new(verifier_store),
     ))
 }
 
@@ -126,7 +126,8 @@ fn default_signature_validator_config_enabled() -> bool {
 // the no-op validator wouldn't be necessary.
 /// The SignatureValidator enum wraps [CertificateSignatureValidator] and adds support for No-op validator.
 pub enum SignatureValidator {
-    Validator(CertificateSignatureValidator),
+    Certificate(CertificateSignatureValidator),
+    PublicKey,
     Noop,
 }
 
@@ -139,7 +140,12 @@ impl RemoteConfigValidator for SignatureValidator {
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
-            SignatureValidator::Validator(v) => v.validate(agent_identity, opamp_remote_config),
+            SignatureValidator::Certificate(v) => v.validate(agent_identity, opamp_remote_config),
+            SignatureValidator::PublicKey => {
+                // TODO: currently it is equivalent to Noop, a future iteration will implement its validation that could have a
+                // fallback to Certificate
+                Ok(())
+            }
             SignatureValidator::Noop => Ok(()),
         }
     }
@@ -147,11 +153,11 @@ impl RemoteConfigValidator for SignatureValidator {
 
 /// The CertificateSignatureValidator is responsible for checking the validity of the signature.
 pub struct CertificateSignatureValidator {
-    certificate_store: CertificateStore,
+    certificate_store: VerifierStore<Certificate, CertificateFetcher>,
 }
 
 impl CertificateSignatureValidator {
-    pub fn new(certificate_store: CertificateStore) -> Self {
+    pub fn new(certificate_store: VerifierStore<Certificate, CertificateFetcher>) -> Self {
         Self { certificate_store }
     }
 }
@@ -197,20 +203,154 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
 
     use super::*;
     use crate::agent_control::agent_id::AgentID;
+    use crate::http::tls::install_rustls_default_crypto_provider;
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::signature::{
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
     };
-    use crate::opamp::remote_config::validators::signature::certificate_store::tests::TestSigner;
+    use crate::opamp::remote_config::validators::signature::verifier::{
+        KeyIdentified, VerifierStoreError,
+    };
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
+    use base64::Engine;
+    use base64::prelude::BASE64_STANDARD;
+    use rcgen::{CertificateParams, PKCS_ED25519};
+    use tempfile::TempDir;
+
+    // A test signer util that generates a key pair and a self-signed certificate, and can be used to sign messages,
+    // as the OpAmp server would do.
+    // The certificate is written to a temporary file which is cleaned up when the signer is dropped.
+    pub struct TestCertificateSigner {
+        key_pair: rcgen::KeyPair,
+        cert_temp_dir: TempDir,
+        cert: rcgen::Certificate,
+        key_id: String,
+    }
+    impl TestCertificateSigner {
+        const CERT_FILE_NAME: &'static str = "test.pem";
+        pub fn new() -> Self {
+            let key_pair = rcgen::KeyPair::generate_for(&PKCS_ED25519).unwrap();
+            let cert = CertificateParams::new(vec!["localhost".to_string()])
+                .unwrap()
+                .self_signed(&key_pair)
+                .unwrap();
+
+            let key_id = Certificate::try_new(cert.der().as_ref().to_vec())
+                .unwrap()
+                .key_id()
+                .to_string();
+
+            let cert_temp_dir = tempfile::tempdir().unwrap();
+            std::fs::write(cert_temp_dir.path().join(Self::CERT_FILE_NAME), cert.pem()).unwrap();
+
+            Self {
+                key_pair,
+                key_id,
+                cert,
+                cert_temp_dir,
+            }
+        }
+
+        pub fn cert_pem_path(&self) -> PathBuf {
+            self.cert_temp_dir.path().join(Self::CERT_FILE_NAME)
+        }
+
+        pub fn key_id(&self) -> &str {
+            &self.key_id
+        }
+
+        pub fn cert_pem(&self) -> String {
+            self.cert.pem()
+        }
+
+        /// Sign a message and encode the signature in standard base64 encoding.
+        pub fn encoded_signature(&self, msg: &str) -> String {
+            let key_pair_ring =
+                ring::signature::Ed25519KeyPair::from_pkcs8(&self.key_pair.serialize_der())
+                    .unwrap();
+            let signature = key_pair_ring.sign(msg.as_bytes());
+            BASE64_STANDARD.encode(signature.as_ref())
+        }
+    }
+
+    impl Default for TestCertificateSigner {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    #[test]
+    fn test_certificate_verify_sucess() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestCertificateSigner::new();
+        let config = "fake_config";
+
+        let cert_store =
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        cert_store
+            .verify_signature(
+                &webpki::ED25519,
+                test_signer.key_id(),
+                config.as_bytes(),
+                test_signer.encoded_signature(config).as_bytes(),
+            )
+            .unwrap();
+    }
+    #[test]
+
+    fn test_certificate_signature_content_missmatch() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestCertificateSigner::new();
+
+        let cert_store =
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &webpki::ED25519,
+                test_signer.key_id(),
+                b"some config",
+                test_signer
+                    .encoded_signature("some other config")
+                    .as_bytes(),
+            )
+            .unwrap_err();
+
+        assert_matches!(err, VerifierStoreError::VerifySignature(_));
+    }
+
+    #[test]
+    fn test_certificate_signature_algorithm_missmatch() {
+        install_rustls_default_crypto_provider();
+        let test_signer = TestCertificateSigner::new();
+        let config = "fake_config";
+
+        let cert_store =
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap();
+
+        let err = cert_store
+            .verify_signature(
+                &webpki::RSA_PKCS1_2048_8192_SHA512,
+                test_signer.key_id(),
+                config.as_bytes(),
+                test_signer.encoded_signature(config).as_bytes(),
+            )
+            .unwrap_err();
+
+        assert_matches!(err, VerifierStoreError::VerifySignature(_));
+    }
 
     #[test]
     fn test_default_signature_validator_config() {
@@ -351,10 +491,10 @@ certificate_pem_file_path: /path/to/file
 
         impl TestCase {
             fn run(self) {
-                let test_signer = TestSigner::new();
+                let test_signer = TestCertificateSigner::new();
 
                 let signature_validator = CertificateSignatureValidator::new(
-                    CertificateStore::try_new(CertificateFetcher::PemFile(
+                    VerifierStore::try_new(CertificateFetcher::PemFile(
                         test_signer.cert_pem_path(),
                     ))
                     .unwrap(),
@@ -428,9 +568,9 @@ certificate_pem_file_path: /path/to/file
 
     #[test]
     pub fn test_certificate_signature_validator_signature_is_missing_for_agent_control_agent() {
-        let test_signer = TestSigner::new();
+        let test_signer = TestCertificateSigner::new();
         let signature_validator = CertificateSignatureValidator::new(
-            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
         );
         let rc = OpampRemoteConfig::new(
@@ -449,10 +589,10 @@ certificate_pem_file_path: /path/to/file
 
     #[test]
     pub fn test_certificate_signature_validator_signature_is_valid() {
-        let test_signer = TestSigner::new();
+        let test_signer = TestCertificateSigner::new();
 
         let signature_validator = CertificateSignatureValidator::new(
-            CertificateStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
         );
 

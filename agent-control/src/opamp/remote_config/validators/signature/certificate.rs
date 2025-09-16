@@ -4,6 +4,8 @@ use thiserror::Error;
 use webpki::EndEntityCert;
 use x509_parser::prelude::{FromDer, X509Certificate};
 
+use crate::opamp::remote_config::validators::signature::verifier::{KeyIdentified, Verifier};
+
 #[derive(Error, Debug)]
 pub enum CertificateError {
     #[error("parsing certificate from bytes: `{0}`")]
@@ -18,6 +20,29 @@ pub struct Certificate {
     public_key_id: String,
 }
 
+impl Verifier for Certificate {
+    type Error = CertificateError;
+    fn verify_signature(
+        &self,
+        algorithm: &webpki::SignatureAlgorithm,
+        msg: &[u8],
+        signature: &[u8],
+    ) -> Result<(), CertificateError> {
+        let certificate = EndEntityCert::try_from(self.cert_der.as_slice())
+            .map_err(|e| CertificateError::VerifySignature(e.to_string()))?;
+
+        certificate
+            .verify_signature(algorithm, msg, signature)
+            .map_err(|e| CertificateError::VerifySignature(e.to_string()))
+    }
+}
+
+impl KeyIdentified for Certificate {
+    fn key_id(&self) -> &str {
+        &self.public_key_id
+    }
+}
+
 impl Certificate {
     pub fn try_new(cert_der: Vec<u8>) -> Result<Self, CertificateError> {
         let _ = EndEntityCert::try_from(cert_der.as_slice())
@@ -30,22 +55,6 @@ impl Certificate {
             public_key_id: public_key_fingerprint(cer.public_key().raw),
             cert_der,
         })
-    }
-    pub fn public_key_id(&self) -> &str {
-        &self.public_key_id
-    }
-    pub fn verify_signature(
-        &self,
-        algorithm: &webpki::SignatureAlgorithm,
-        msg: &[u8],
-        signature: &[u8],
-    ) -> Result<(), CertificateError> {
-        let certificate = EndEntityCert::try_from(self.cert_der.as_slice())
-            .map_err(|e| CertificateError::VerifySignature(e.to_string()))?;
-
-        certificate
-            .verify_signature(algorithm, msg, signature)
-            .map_err(|e| CertificateError::VerifySignature(e.to_string()))
     }
 }
 
@@ -77,7 +86,7 @@ mod tests {
 
         let key_id = Certificate::try_new(cert.as_ref().to_vec())
             .unwrap()
-            .public_key_id()
+            .key_id()
             .to_string();
 
         assert_eq!(key_id, CERT_PUBLIC_KEY_ID);
