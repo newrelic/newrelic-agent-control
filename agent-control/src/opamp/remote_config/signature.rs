@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 use std::{collections::HashMap, fmt::Debug};
 use thiserror::Error;
-use webpki::SignatureAlgorithm;
 
 /// signature custom message capability
 pub const SIGNATURE_CUSTOM_CAPABILITY: &str = "com.newrelic.security.configSignature";
@@ -27,6 +26,8 @@ fn rsa_regex() -> &'static Regex {
     RE_ONCE.get_or_init(|| Regex::new(RSA_REGEX).unwrap())
 }
 
+// TODO: simplify supported algorithms when removing support for certificate verification
+/// Defines the supported algorithms for signing
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(try_from = "&str")]
 #[allow(non_camel_case_types)]
@@ -76,9 +77,10 @@ impl AsRef<str> for SigningAlgorithm {
     }
 }
 
-impl From<&SigningAlgorithm> for &SignatureAlgorithm {
-    fn from(value: &SigningAlgorithm) -> Self {
-        match value {
+impl TryFrom<&SigningAlgorithm> for &webpki::SignatureAlgorithm {
+    type Error = SignatureError;
+    fn try_from(value: &SigningAlgorithm) -> Result<Self, Self::Error> {
+        let algorithm = match value {
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA256 => &webpki::RSA_PKCS1_2048_8192_SHA256,
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA384 => &webpki::RSA_PKCS1_2048_8192_SHA384,
             SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512 => &webpki::RSA_PKCS1_2048_8192_SHA512,
@@ -87,6 +89,22 @@ impl From<&SigningAlgorithm> for &SignatureAlgorithm {
             SigningAlgorithm::ECDSA_P384_SHA256 => &webpki::ECDSA_P384_SHA256,
             SigningAlgorithm::ECDSA_P384_SHA384 => &webpki::ECDSA_P384_SHA384,
             SigningAlgorithm::ED25519 => &webpki::ED25519,
+        };
+        Ok(algorithm)
+    }
+}
+
+// TODO: when removing support for certificate signature validation we can move this to a `From` implementation
+// and keep only the variant(s) supported here in the `SigningAlgorithm` definition. We would fail earlier if an
+// unsupported algorithm was set in signatures.
+impl TryFrom<&SigningAlgorithm> for &'static dyn ring::signature::VerificationAlgorithm {
+    type Error = SignatureError;
+    fn try_from(value: &SigningAlgorithm) -> Result<Self, Self::Error> {
+        match value {
+            SigningAlgorithm::ED25519 => Ok(&ring::signature::ED25519),
+            _ => Err(SignatureError::UnsupportedAlgorithm(
+                value.as_ref().to_string(),
+            )),
         }
     }
 }
@@ -278,8 +296,8 @@ impl SignatureData {
         self.signature.as_bytes()
     }
 
-    pub fn signature_algorithm(&self) -> &SignatureAlgorithm {
-        (&self.signing_algorithm).into()
+    pub fn signature_algorithm(&self) -> &SigningAlgorithm {
+        &self.signing_algorithm
     }
 
     pub fn key_id(&self) -> &str {
@@ -297,9 +315,9 @@ pub enum SignatureError {
     InvalidCapability,
     #[error("invalid config signature type")]
     InvalidType,
-    #[error("invalid config signature data `{0}`")]
+    #[error("invalid config signature data: {0}")]
     InvalidData(String),
-    #[error("unsupported signature algorithm `{0}`")]
+    #[error("unsupported signature algorithm: {0}")]
     UnsupportedAlgorithm(String),
 }
 

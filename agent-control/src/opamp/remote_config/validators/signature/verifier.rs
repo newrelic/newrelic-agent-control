@@ -3,13 +3,15 @@ use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
 
+use crate::opamp::remote_config::signature::SigningAlgorithm;
+
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
     type Error: std::error::Error;
 
     fn verify_signature(
         &self,
-        algorithm: &webpki::SignatureAlgorithm, // TODO: check if this is this type is compatible with both implementations or we need something else for public-keys
+        algorithm: &SigningAlgorithm,
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), Self::Error>;
@@ -72,7 +74,7 @@ where
     /// key_id doesn't match the Verifier's key id.
     pub fn verify_signature(
         &self,
-        algorithm: &webpki::SignatureAlgorithm,
+        algorithm: &SigningAlgorithm,
         key_id: &str,
         msg: &[u8],
         signature: &[u8],
@@ -125,7 +127,6 @@ pub mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use mockall::{Sequence, mock};
-    use webpki::ED25519;
 
     #[derive(Debug, Error)]
     #[error("some error: {0}")]
@@ -138,7 +139,7 @@ pub mod tests {
             type Error = MockVerifierError;
             fn verify_signature(
                 &self,
-                algorithm: &webpki::SignatureAlgorithm,
+                algorithm: &SigningAlgorithm,
                 msg: &[u8],
                 signature: &[u8],
             ) -> Result<(), <Self as Verifier>::Error>;
@@ -178,7 +179,7 @@ pub mod tests {
         let store = VerifierStore::try_new(fetcher).unwrap();
         store
             .verify_signature(
-                &ED25519,
+                &SigningAlgorithm::ED25519,
                 KEY_ID,
                 b"some-message",
                 encode_signature(b"signature").as_bytes(),
@@ -225,7 +226,7 @@ pub mod tests {
         let store = VerifierStore::try_new(fetcher).unwrap();
         store
             .verify_signature(
-                &ED25519,
+                &SigningAlgorithm::ED25519,
                 KEY_ID2,
                 b"some-message",
                 encode_signature(b"signature").as_bytes(),
@@ -243,7 +244,12 @@ pub mod tests {
             .returning(|| Ok(MockVerifier::new()));
 
         let store = VerifierStore::try_new(fetcher).unwrap();
-        let result = store.verify_signature(&ED25519, KEY_ID, b"some-message", b"not-base-64");
+        let result = store.verify_signature(
+            &SigningAlgorithm::ED25519,
+            KEY_ID,
+            b"some-message",
+            b"not-base-64",
+        );
         assert_matches!(result, Err(VerifierStoreError::DecodingSignature(_)));
     }
 
@@ -266,7 +272,7 @@ pub mod tests {
 
         let store = VerifierStore::try_new(fetcher).unwrap();
         let result = store.verify_signature(
-            &ED25519,
+            &SigningAlgorithm::ED25519,
             KEY_ID,
             b"some-message",
             encode_signature(b"signature").as_bytes(),
