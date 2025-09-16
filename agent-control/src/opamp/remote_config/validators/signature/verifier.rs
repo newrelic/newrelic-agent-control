@@ -1,9 +1,8 @@
+use crate::opamp::remote_config::signature::SigningAlgorithm;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::sync::Mutex;
 use thiserror::Error;
 use tracing::debug;
-
-use crate::opamp::remote_config::signature::SigningAlgorithm;
 
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
