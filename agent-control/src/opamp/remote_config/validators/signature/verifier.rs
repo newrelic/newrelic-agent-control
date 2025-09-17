@@ -2,7 +2,7 @@ use crate::opamp::remote_config::signature::SigningAlgorithm;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
@@ -82,42 +82,30 @@ where
             .decode(signature)
             .map_err(|e| VerifierStoreError::DecodingSignature(e.to_string()))?;
 
-        self.with_verifier(key_id, |verifier| {
-            verifier
-                .verify_signature(algorithm, msg, &decoded_signature)
-                .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))
-        })
-    }
-
-    /// Obtains or fetches (depending on the provided `signature_key_id`) the verifier executes the provided callback.
-    fn with_verifier<T: Fn(&V) -> Result<(), VerifierStoreError>>(
-        &self,
-        signature_key_id: &str,
-        f: T,
-    ) -> Result<(), VerifierStoreError> {
         let mut verifier = self
             .verifier
             .lock()
             .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))?;
 
-        if verifier.key_id().eq_ignore_ascii_case(signature_key_id) {
-            return f(&verifier);
+        if !verifier.key_id().eq_ignore_ascii_case(key_id) {
+            debug!("keyId doesn't match, fetching new verifier",);
+            *verifier = self
+                .fetcher
+                .fetch()
+                .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
+
+            if !verifier.key_id().eq(key_id) {
+                error!("keyId '{key_id}' doesn't match with newest key available");
+                return Err(VerifierStoreError::KeyMismatch {
+                    signature_key_id: key_id.to_string(),
+                    certificate_key_id: verifier.key_id().to_string(),
+                });
+            }
         }
 
-        debug!("Signature's keyId doesn't match the current verifier keyId, fetching new verifier");
-        *verifier = self
-            .fetcher
-            .fetch()
-            .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
-
-        if !verifier.key_id().eq(signature_key_id) {
-            return Err(VerifierStoreError::KeyMismatch {
-                signature_key_id: signature_key_id.to_string(),
-                certificate_key_id: verifier.key_id().to_string(),
-            });
-        }
-
-        f(&verifier)
+        verifier
+            .verify_signature(algorithm, msg, &decoded_signature)
+            .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))
     }
 }
 
