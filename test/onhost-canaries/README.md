@@ -47,9 +47,10 @@ That has a little inconvenient, `terraform init` will fail because the state cha
 4. Create canaries
 
     To select to which "environment" should the canaries send the information to, use the `ENVIRONMENT` environment variable with "staging" or "production".
+    To set the agent-control "package version" to install, use the `PACKAGE_VERSION` environment variable, if not set it will use latest.
 
     ```bash
-    ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx NEW_RELIC_ACCOUNT_ID=xxx NEW_RELIC_API_KEY=xxx SLACK_WEBHOOK_URL=xxx make test/onhost-canaries/terraform-apply
+    ENVIRONMENT=staging NR_LICENSE_KEY=xxx NR_SYSTEM_IDENTITY_CLIENT_ID=xxx NR_SYSTEM_IDENTITY_PRIVATE_KEY=xxx NEW_RELIC_ACCOUNT_ID=xxx NEW_RELIC_API_KEY=xxx SLACK_WEBHOOK_URL=xxx PACKAGE_VERSION=x.x.x make test/onhost-canaries/terraform-apply
     ```
 
 That's it. If you want to create another set of canaries, just create a new folder under `environments` and populate the config files.

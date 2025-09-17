@@ -29,7 +29,7 @@
   - name: Install Agent Control
     vars:
       repo_endpoint: "{{ repo_endpoint }}"
-      package_version: ""
+      package_version: "{{ package_version }}"
     include_role:
       name: newrelic-agent-control
 

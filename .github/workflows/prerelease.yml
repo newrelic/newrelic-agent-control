@@ -155,6 +155,7 @@ jobs:
     with:
       environment: production
       operation: apply
+      package_version: ${{ github.event.inputs.tag || github.event.release.tag_name }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
