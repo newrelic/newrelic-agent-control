@@ -19,7 +19,7 @@ use url::Url;
 
 const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
 const DEFAULT_PUBLIC_KEY_SERVER_URL: &str =
-    "https://publickeys.newrelic.com/signing/blob-management/GLOBAL/AgentConfiguration";
+    "https://publickeys.newrelic.com/r/blob-management/GLOBAL/AgentConfiguration";
 const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 
@@ -204,9 +204,6 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::HashMap;
-    use std::str::FromStr;
-
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::http::tls::install_rustls_default_crypto_provider;
@@ -223,6 +220,8 @@ pub mod tests {
     use base64::Engine;
     use base64::prelude::BASE64_STANDARD;
     use rcgen::{CertificateParams, PKCS_ED25519};
+    use std::collections::HashMap;
+    use std::str::FromStr;
     use tempfile::TempDir;
 
     // A test signer util that generates a key pair and a self-signed certificate, and can be used to sign messages,
@@ -307,7 +306,6 @@ pub mod tests {
             .unwrap();
     }
     #[test]
-
     fn test_certificate_signature_content_missmatch() {
         install_rustls_default_crypto_provider();
         let test_signer = TestCertificateSigner::new();

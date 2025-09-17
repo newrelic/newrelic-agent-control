@@ -44,8 +44,7 @@ where
         let id = executable.id.clone();
         if !ids.insert(id.clone()) {
             return Err(serde::de::Error::custom(format!(
-                "Duplicate executable ID found: {}",
-                id
+                "Duplicate executable ID found: {id}",
             )));
         }
     }
