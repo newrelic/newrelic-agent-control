@@ -17,8 +17,21 @@ use crate::agent_type::{
 
 /// Represents the file system configuration for the deployment of an agent.
 ///
-/// It is a key-value structure in which every key is an identifier and the value is a file entry.
-/// See [FileEntry] for details.
+/// It would be equivalent to a YAML mapping of this format:
+/// ```yaml
+/// filesystem:
+///   files:
+///     my-file:
+///       relative_path: path/to/my-file
+///       content: "something" # String content
+///   directories:
+///     my-dir:
+///       relative_path: path/to/my-dir
+///       items: # YAML content, expected to be a mapping string -> yaml
+///         filepath1: "file1 content"
+///         filepath2:
+///           key: value
+/// ```
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct FileSystem(HashMap<String, FileEntry>);
 
