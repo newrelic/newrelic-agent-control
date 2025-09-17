@@ -6,7 +6,9 @@
     'dependencies',
   ],
   automerge: false,
-  lockFileMaintenance: { enabled: true }, // Update transitive dependencies by keeping lockfile updated
+  lockFileMaintenance: {
+    enabled: true,
+  },
   enabledManagers: [
     'cargo',
     'custom.regex',
@@ -93,16 +95,16 @@
         '/serde_yaml/',
       ],
     },
-    { // Group kubernetes crates together
-        matchPackagePrefixes: [
-            "kube",
-            "k8s",
-            "schemars",
-        ],
-        groupName: "kubernetes crates",
-        matchManagers: [
-            "cargo"
-        ],
+    {
+      groupName: 'kubernetes crates',
+      matchManagers: [
+        'cargo',
+      ],
+      matchPackageNames: [
+        'kube{/,}**',
+        'k8s{/,}**',
+        'schemars{/,}**',
+      ],
     },
     {
       matchManagers: [
