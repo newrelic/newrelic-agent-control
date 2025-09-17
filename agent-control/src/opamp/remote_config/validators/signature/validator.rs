@@ -213,7 +213,7 @@ pub mod tests {
     use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::signature::{
-        ECDSA_P256_SHA256, ED25519, SignatureData, Signatures,
+        ECDSA_P256_SHA256, ED25519, SignatureData, Signatures, SigningAlgorithm,
     };
     use crate::opamp::remote_config::validators::signature::verifier::{
         Verifier, VerifierStoreError,
@@ -299,7 +299,7 @@ pub mod tests {
 
         cert_store
             .verify_signature(
-                &webpki::ED25519,
+                &SigningAlgorithm::ED25519,
                 test_signer.key_id(),
                 config.as_bytes(),
                 test_signer.encoded_signature(config).as_bytes(),
@@ -318,7 +318,7 @@ pub mod tests {
 
         let err = cert_store
             .verify_signature(
-                &webpki::ED25519,
+                &SigningAlgorithm::ED25519,
                 test_signer.key_id(),
                 b"some config",
                 test_signer
@@ -342,7 +342,7 @@ pub mod tests {
 
         let err = cert_store
             .verify_signature(
-                &webpki::RSA_PKCS1_2048_8192_SHA512,
+                &SigningAlgorithm::RSA_PKCS1_2048_8192_SHA512,
                 test_signer.key_id(),
                 config.as_bytes(),
                 test_signer.encoded_signature(config).as_bytes(),

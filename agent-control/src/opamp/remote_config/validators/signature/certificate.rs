@@ -4,7 +4,10 @@ use thiserror::Error;
 use webpki::EndEntityCert;
 use x509_parser::prelude::{FromDer, X509Certificate};
 
-use crate::opamp::remote_config::validators::signature::verifier::Verifier;
+use crate::opamp::remote_config::{
+    signature::{SignatureError, SigningAlgorithm},
+    validators::signature::verifier::Verifier,
+};
 
 #[derive(Error, Debug)]
 pub enum CertificateError {
@@ -24,15 +27,19 @@ impl Verifier for Certificate {
     type Error = CertificateError;
     fn verify_signature(
         &self,
-        algorithm: &webpki::SignatureAlgorithm,
+        algorithm: &SigningAlgorithm,
         msg: &[u8],
         signature: &[u8],
     ) -> Result<(), CertificateError> {
         let certificate = EndEntityCert::try_from(self.cert_der.as_slice())
             .map_err(|e| CertificateError::VerifySignature(e.to_string()))?;
 
+        let signature_algorithm: &webpki::SignatureAlgorithm = algorithm
+            .try_into()
+            .map_err(|err: SignatureError| CertificateError::VerifySignature(err.to_string()))?;
+
         certificate
-            .verify_signature(algorithm, msg, signature)
+            .verify_signature(signature_algorithm, msg, signature)
             .map_err(|e| CertificateError::VerifySignature(e.to_string()))
     }
 
