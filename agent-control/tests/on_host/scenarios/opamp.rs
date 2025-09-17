@@ -547,3 +547,15 @@ status_time_unix_nano: 1725444001
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
     });
 }
+
+#[test]
+fn test_opamp_with_legacy_signatures() {
+    // TODO: actual implementation setting up the endpoint but using `FakeServer::start_new_with_legacy_signatures(true)`
+    //let mut opamp_server = FakeServer::start_new();
+    //println!("{}", opamp_server.jwks_endpoint());
+    //let mut x = String::new();
+    //std::io::stdin().read_line(&mut x).unwrap();
+    //
+    // cargo test -- on_host::scenarios::opamp::test_jwks_endpoint --exact --no-capture
+    // and curl the shown endpoint
+}
