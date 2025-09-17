@@ -2,7 +2,7 @@ use crate::opamp::remote_config::signature::SigningAlgorithm;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use std::sync::Mutex;
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Represents any struct that is able to verify signatures and it is identified by a key.
 pub trait Verifier {
@@ -87,23 +87,20 @@ where
             .lock()
             .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()))?;
 
-        if verifier.key_id().eq_ignore_ascii_case(key_id) {
-            return verifier
-                .verify_signature(algorithm, msg, &decoded_signature)
-                .map_err(|err| VerifierStoreError::VerifySignature(err.to_string()));
-        }
+        if !verifier.key_id().eq_ignore_ascii_case(key_id) {
+            debug!("keyId doesn't match, fetching new verifier",);
+            *verifier = self
+                .fetcher
+                .fetch()
+                .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
 
-        debug!("Signature's keyId doesn't match the current verifier keyId, fetching new verifier");
-        *verifier = self
-            .fetcher
-            .fetch()
-            .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
-
-        if !verifier.key_id().eq(key_id) {
-            return Err(VerifierStoreError::KeyMismatch {
-                signature_key_id: key_id.to_string(),
-                certificate_key_id: verifier.key_id().to_string(),
-            });
+            if !verifier.key_id().eq(key_id) {
+                error!("keyId '{key_id}' doesn't match with newest key available");
+                return Err(VerifierStoreError::KeyMismatch {
+                    signature_key_id: key_id.to_string(),
+                    certificate_key_id: verifier.key_id().to_string(),
+                });
+            }
         }
 
         verifier
