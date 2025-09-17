@@ -19,7 +19,7 @@ use url::Url;
 
 const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
 const DEFAULT_PUBLIC_KEY_SERVER_URL: &str =
-    "https://staging-publickeys.newrelic.com/r/blob-management/GLOBAL/AgentConfiguration";
+    "https://publickeys.newrelic.com/r/blob-management/GLOBAL/AgentConfiguration";
 const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 

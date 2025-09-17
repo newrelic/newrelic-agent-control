@@ -94,21 +94,6 @@ impl TryFrom<&SigningAlgorithm> for &webpki::SignatureAlgorithm {
     }
 }
 
-// TODO: when removing support for certificate signature validation we can move this to a `From` implementation
-// and keep only the variant(s) supported here in the `SigningAlgorithm` definition. We would fail earlier if an
-// unsupported algorithm was set in signatures.
-impl TryFrom<&SigningAlgorithm> for &'static dyn ring::signature::VerificationAlgorithm {
-    type Error = SignatureError;
-    fn try_from(value: &SigningAlgorithm) -> Result<Self, Self::Error> {
-        match value {
-            SigningAlgorithm::ED25519 => Ok(&ring::signature::ED25519),
-            _ => Err(SignatureError::UnsupportedAlgorithm(
-                value.as_ref().to_string(),
-            )),
-        }
-    }
-}
-
 // parses the RSA algorithm string coming from the server into a supported signature algorithm
 // example: "RSA_PKCS1_2048_SHA256" -> RSA_PKCS1_2048_8192_SHA256
 // example: "RSA_PKCS1_4444_SHA256" -> RSA_PKCS1_2048_8192_SHA256

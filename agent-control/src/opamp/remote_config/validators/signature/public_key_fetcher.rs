@@ -8,10 +8,10 @@ pub struct PubKeyPayload {
 
 #[derive(Error, Debug)]
 pub enum PubKeyError {
-    #[error("parsing PubKey: `{0}`")]
+    #[error("parsing PubKey: {0}")]
     ParsePubKey(String),
 
-    #[error("validating signature: `{0}`")]
+    #[error("validating signature: {0}")]
     ValidatingSignature(String),
 }
 
