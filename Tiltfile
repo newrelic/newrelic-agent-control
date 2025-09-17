@@ -147,8 +147,8 @@ if cluster != '':
 local_resource(
     'log-install-job',
     allow_parallel=True,
-    cmd="kubectl wait --for=create --timeout=200s job/ac-agent-control-install-job",
-    serve_cmd="while true ; do kubectl logs -f job/ac-agent-control-install-job 2>/dev/null || sleep 1; continue ; done",
+    cmd="kubectl wait --for=create --timeout=200s job/ac-agent-control-bootstrap-install-job",
+    serve_cmd="while true ; do kubectl logs -f job/ac-agent-control-bootstrap-install-job 2>/dev/null || sleep 1; continue ; done",
     resource_deps=['local-child-chart-upload'],
 )
 local_resource(
@@ -169,8 +169,8 @@ local_resource(
 
 #### Installs charts
 helm_resource(
-  'agent-control',
-  'local/helm-charts-tmp/charts/agent-control',
+  'agent-control-bootstrap',
+  'local/helm-charts-tmp/charts/agent-control-bootstrap',
   namespace=namespace,
   release_name='ac',
   update_dependencies=True,
