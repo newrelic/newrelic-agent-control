@@ -376,7 +376,7 @@ fn handle_termination(
     if !exit_status.success() {
         debug!(%exit_status, "Informing of executable as unhealthy");
         let last_error = format!(
-            "path {} with args {} failed with {}",
+            "path '{}' with args '{}' failed with '{}'",
             exec_data.bin,
             exec_data.args.join(" "),
             exit_status
