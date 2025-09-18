@@ -464,7 +464,7 @@ my-dir:
 another-dir:
     relative_path: another/path/to/my-dir
     items:
-      ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
+      ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 "#;
 
     #[test]
@@ -537,7 +537,7 @@ directories:
   another-dir:
       relative_path: another/path/to/my-dir
       items:
-        ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
+        ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 "#;
 
     #[test]
@@ -567,7 +567,7 @@ directories:
             (
                 Namespace::Variable.namespaced_name("some_var_that_renders_to_a_yaml_mapping"),
                 // a map[string]yaml
-                dbg!(Variable::new(
+                Variable::new(
                     String::default(),
                     false,
                     None,
@@ -578,7 +578,7 @@ directories:
                             Value::String("multi-line\ncontentB".to_string()),
                         ),
                     ])),
-                ),),
+                ),
             ),
         ]);
 
