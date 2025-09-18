@@ -34,6 +34,7 @@ fn k8s_signature_disabled() {
         &namespace,
         None,
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),

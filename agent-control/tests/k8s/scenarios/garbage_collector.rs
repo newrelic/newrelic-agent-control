@@ -45,6 +45,7 @@ fn k8s_garbage_collector_triggers_on_ac_startup() {
         &test_ns,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         // This config is intended to be empty
         vec![],
         tmp_dir.path(),

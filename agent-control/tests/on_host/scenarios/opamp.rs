@@ -555,6 +555,8 @@ status_time_unix_nano: 1725444001
     });
 }
 
+/// Test that if AC signature validation fails using the public key obtained from the JWKS endpoint, it falls back
+/// to the previous certificate validation (useful while transitioning).
 #[test]
 fn test_opamp_with_legacy_signatures() {
     let mut opamp_server = FakeServer::start_new_with_legacy_signatures(true);

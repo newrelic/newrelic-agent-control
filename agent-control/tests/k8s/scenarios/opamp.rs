@@ -44,6 +44,7 @@ fn k8s_opamp_remove_subagent() {
         &agents_ns,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
@@ -149,6 +150,7 @@ fn k8s_opamp_add_subagent() {
         &agents_ns,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );
@@ -210,6 +212,7 @@ fn k8s_opamp_modify_subagent_config() {
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );

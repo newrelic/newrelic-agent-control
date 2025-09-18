@@ -42,6 +42,7 @@ fn k8s_opamp_foo_cr_subagent() {
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         Vec::new(),
         tmp_dir.path(),
     );
@@ -123,6 +124,7 @@ fn k8s_opamp_cr_subagent_installed_before_crd() {
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         Vec::new(),
         tmp_dir.path(),
     );

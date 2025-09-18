@@ -42,6 +42,7 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),
@@ -99,6 +100,7 @@ valid: true
         &namespace,
         Some(server.cert_file_path()),
         Some(&server.endpoint()),
+        Some(&server.jwks_endpoint()),
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),
