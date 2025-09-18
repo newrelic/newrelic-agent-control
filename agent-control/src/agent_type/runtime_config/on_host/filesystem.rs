@@ -78,8 +78,8 @@ enum DirEntriesType {
     /// is provided that renders to a valid YAML mapping of `PathBuf` to `String`.
     /// E.g.
     /// ```yaml
-    /// items: |
-    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+    /// items:
+    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
     /// ```
     FullyTemplated(TemplateableValue<DirEntriesMap>),
 }
@@ -357,6 +357,7 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
+    use serde_yaml::Value;
 
     use super::*;
 
@@ -393,7 +394,7 @@ mod tests {
         assert!(rendered.is_ok());
         assert_eq!(
             rendered.unwrap().relative_path,
-            PathBuf::from("/base/dir/my/file/path")
+            PathBuf::from("/base/dir/files/my/file/path")
         );
     }
 
@@ -462,8 +463,8 @@ my-dir:
             key: ${nr-var:some_var}
 another-dir:
     relative_path: another/path/to/my-dir
-    items: |
-      ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+    items:
+      ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
 "#;
 
     #[test]
@@ -519,7 +520,7 @@ another-dir:
 files:
   my-file:
       relative_path: path/to/my-file
-      content: "something"
+      content: "something ${nr-var:some_file_var}"
   another-file:
       relative_path: another/path/to/my-file
       content: |
@@ -532,11 +533,11 @@ directories:
       items:
           filepath1: "file1 content"
           filepath2: |
-              key: ${nr-var:some_var}
+              key: ${nr-var:some_dir_var}
   another-dir:
       relative_path: another/path/to/my-dir
-      items: |
-        ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+      items:
+        ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
 "#;
 
     #[test]
@@ -550,10 +551,36 @@ directories:
         );
 
         let parsed = parsed.unwrap();
-        let variables = Variables::from_iter(vec![(
-            Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
-            Variable::new_final_string_variable("/test/base/dir"),
-        )]);
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Variable::new_final_string_variable("/test/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_file_var"),
+                Variable::new_final_string_variable("file_var_value"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_dir_var"),
+                Variable::new_final_string_variable("dir_var_value"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_var_that_renders_to_a_yaml_mapping"),
+                // a map[string]yaml
+                dbg!(Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([
+                        ("fileA".to_string(), Value::String("contentA".to_string())),
+                        (
+                            "fileB".to_string(),
+                            Value::String("multi-line\ncontentB".to_string()),
+                        ),
+                    ])),
+                ),),
+            ),
+        ]);
 
         let templated = parsed.template_with(&variables);
         assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
