@@ -131,7 +131,7 @@ where
     }
 }
 
-/// Removes an configuration from local values that is only supported on remote configs.
+/// Removes a configuration from local values that is only supported on remote configs.
 fn sanitize_local_dynamic_config(
     dynamic_config: AgentControlDynamicConfig,
 ) -> AgentControlDynamicConfig {
