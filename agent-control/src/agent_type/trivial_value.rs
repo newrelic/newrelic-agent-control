@@ -11,12 +11,12 @@ use serde::{Deserialize, Serialize};
 #[serde(untagged)]
 pub enum TrivialValue {
     String(String),
+    Bool(bool),
+    Number(serde_yaml::Number),
     #[serde(skip)]
     File(FilePathWithContent),
     #[serde(skip)]
     Yaml(serde_yaml::Value),
-    Bool(bool),
-    Number(serde_yaml::Number),
     #[serde(skip)]
     MapStringString(Map<String, String>),
     #[serde(skip)]
@@ -65,22 +65,17 @@ impl Display for TrivialValue {
             TrivialValue::MapStringString(n) => {
                 let flatten: Vec<String> = n
                     .iter()
-                    .map(|(key, value)| format!("{key}={value}"))
+                    // FIXME is this what we really want? key=value?
+                    .map(|(key, value)| format!("{key}={value}")) 
                     .collect();
                 write!(f, "{}", flatten.join(" "))
             }
-            TrivialValue::MapStringYaml(n) => {
-                let flatten: Vec<String> = n
-                    .iter()
-                    .map(|(key, value)| {
-                        let value = serde_yaml::to_string(value).expect(
-                            "A value of type serde_yaml::Value should always be serializable",
-                        );
-                        format!("{key}={value}")
-                    })
-                    .collect();
-                write!(f, "{}", flatten.join(" "))
-            }
+            TrivialValue::MapStringYaml(n) => write!(
+                f,
+                "{}",
+                serde_yaml::to_string(n)
+                    .expect("A value of type HashMap<String, serde_yaml::Value> should always be serializable")
+            ),
             TrivialValue::MapStringFile(n) => {
                 let flatten: Vec<String> = n
                     .iter()
