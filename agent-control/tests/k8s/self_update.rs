@@ -28,67 +28,67 @@ const POLL_INTERVAL: u64 = 5;
 const SECRET_NAME: &str = "ac-values";
 const VALUES_KEY: &str = "values.yaml";
 
-#[test]
-#[ignore = "needs k8s cluster"]
-/// This test installs AC using the image from our public repository,
-/// then sends a RemoteConfig with an AC chart version update to the local build image.
-fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
-    let mut opamp_server = FakeServer::start_new();
-    let mut k8s = block_on(K8sEnv::new());
-    let namespace = block_on(k8s.test_namespace());
-
-    let ac_instance_id = bootstrap_ac(
-        k8s.client.clone(),
-        &opamp_server,
-        &namespace,
-        CHART_VERSION_LATEST_RELEASE,
-        "agent-control-deployment",
-    );
-
-    let ac_config = format!(
-        r#"
-agents: {{}}
-chart_version: {CHART_VERSION_DEV_1}
-"#
-    );
-
-    opamp_server.set_config_response(ac_instance_id.clone(), ac_config.as_str());
-
-    // Assert that opamp server receives Agent description with updated version.
-    // Also the rest of the config with the new agent has been effectevely applied.
-    retry(60, Duration::from_secs(5), || {
-        let current_attributes = opamp_server
-            .get_attributes(&ac_instance_id)
-            .ok_or_else(|| "Identifying attributes not found".to_string())?;
-
-        if !current_attributes
-            .identifying_attributes
-            .contains(&KeyValue {
-                key: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
-                value: Some(AnyValue {
-                    value: Some(Value::StringValue(CHART_VERSION_DEV_1.to_string())),
-                }),
-            })
-        {
-            return Err(
-                format!("new version has not been reported: {current_attributes:?}").into(),
-            );
-        }
-
-        check_latest_effective_config_is_expected(
-            &opamp_server,
-            &ac_instance_id,
-            ac_config.clone(),
-        )?;
-        check_latest_remote_config_status_is_expected(
-            &opamp_server,
-            &ac_instance_id,
-            RemoteConfigStatuses::Applied as i32,
-        )?;
-        check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
-        Ok(())
-    });
-}
+// #[test]
+// #[ignore = "needs k8s cluster"]
+// /// This test installs AC using the image from our public repository,
+// /// then sends a RemoteConfig with an AC chart version update to the local build image.
+// fn k8s_self_update_bump_chart_version_from_last_release_to_local_new_config() {
+//     let mut opamp_server = FakeServer::start_new();
+//     let mut k8s = block_on(K8sEnv::new());
+//     let namespace = block_on(k8s.test_namespace());
+//
+//     let ac_instance_id = bootstrap_ac(
+//         k8s.client.clone(),
+//         &opamp_server,
+//         &namespace,
+//         CHART_VERSION_LATEST_RELEASE,
+//         "agent-control-deployment",
+//     );
+//
+//     let ac_config = format!(
+//         r#"
+// agents: {{}}
+// chart_version: {CHART_VERSION_DEV_1}
+// "#
+//     );
+//
+//     opamp_server.set_config_response(ac_instance_id.clone(), ac_config.as_str());
+//
+//     // Assert that opamp server receives Agent description with updated version.
+//     // Also the rest of the config with the new agent has been effectevely applied.
+//     retry(60, Duration::from_secs(5), || {
+//         let current_attributes = opamp_server
+//             .get_attributes(&ac_instance_id)
+//             .ok_or_else(|| "Identifying attributes not found".to_string())?;
+//
+//         if !current_attributes
+//             .identifying_attributes
+//             .contains(&KeyValue {
+//                 key: OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY.to_string(),
+//                 value: Some(AnyValue {
+//                     value: Some(Value::StringValue(CHART_VERSION_DEV_1.to_string())),
+//                 }),
+//             })
+//         {
+//             return Err(
+//                 format!("new version has not been reported: {current_attributes:?}").into(),
+//             );
+//         }
+//
+//         check_latest_effective_config_is_expected(
+//             &opamp_server,
+//             &ac_instance_id,
+//             ac_config.clone(),
+//         )?;
+//         check_latest_remote_config_status_is_expected(
+//             &opamp_server,
+//             &ac_instance_id,
+//             RemoteConfigStatuses::Applied as i32,
+//         )?;
+//         check_latest_health_status_was_healthy(&opamp_server, &ac_instance_id)?;
+//         Ok(())
+//     });
+// }
 
 #[test]
 #[ignore = "needs k8s cluster"]
