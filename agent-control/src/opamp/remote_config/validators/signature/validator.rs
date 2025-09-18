@@ -232,6 +232,8 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
             }
         }
 
+        debug!("Falling back to signature verification using the Configurations Certificate");
+
         self.certificate_store
             .verify_signature(
                 signature.signature_algorithm(),
