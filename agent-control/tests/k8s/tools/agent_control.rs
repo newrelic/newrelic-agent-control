@@ -42,6 +42,7 @@ pub fn start_agent_control_with_testdata_config(
     agents_ns: &str,
     remote_config_sign_cert: Option<PathBuf>,
     opamp_endpoint: Option<&str>,
+    jwks_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
     local_dir: &Path,
 ) -> StartedAgentControl {
@@ -59,6 +60,7 @@ pub fn start_agent_control_with_testdata_config(
         ac_ns,
         agents_ns,
         opamp_endpoint,
+        jwks_endpoint,
         remote_config_sign_cert,
         folder_name,
         local_dir,
@@ -129,11 +131,13 @@ pub async fn create_config_map(client: Client, ns: &str, name: &str, content: St
 
 /// Templates the namespace and the endpoint in `local-data-agent-control.template` file in the corresponding `folder_name`
 /// and returns the resulting file path.
+#[allow(clippy::too_many_arguments)]
 pub fn create_local_agent_control_config(
     client: Client,
     ac_ns: &str,
     agents_ns: &str,
     opamp_endpoint: Option<&str>,
+    jwk_endpoint: Option<&str>,
     remote_config_sign_cert: Option<PathBuf>,
     folder_name: &str,
     tmp_dir: &Path,
@@ -153,6 +157,9 @@ pub fn create_local_agent_control_config(
 
     if let Some(endpoint) = opamp_endpoint {
         content = content.replace("<opamp-endpoint>", endpoint);
+    }
+    if let Some(endpoint) = jwk_endpoint {
+        content = content.replace("<jwks-endpoint>", endpoint);
     }
     if let Some(cert_path) = remote_config_sign_cert {
         content = content.replace("<cert-path>", cert_path.to_str().unwrap());

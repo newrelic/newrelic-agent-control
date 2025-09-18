@@ -57,6 +57,7 @@ deployment:
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.to_path_buf(),
         opamp_server.cert_file_path(),
@@ -149,6 +150,7 @@ deployment:
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.to_path_buf(),
         opamp_server.cert_file_path(),

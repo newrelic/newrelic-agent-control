@@ -26,6 +26,7 @@ fn k8s_sub_agent_started_with_no_opamp() {
         &namespace,
         None,
         None,
+        None,
         vec!["local-data-hello-world"],
         tmp_dir.path(),
     );

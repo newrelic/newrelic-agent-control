@@ -45,10 +45,15 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
         .endpoint()
         .replace("localhost", host_gateway.as_str());
 
+    let jwks_endpoint = opamp_server
+        .jwks_endpoint()
+        .replace("localhost", host_gateway.as_str());
+
     let agents = "{}";
 
     create_agent_control_config_with_proxy(
         opamp_server_endpoint,
+        jwks_endpoint,
         agents.to_string(),
         local_dir.path().to_path_buf(),
         Some(format!(

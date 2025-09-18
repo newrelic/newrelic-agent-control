@@ -14,12 +14,14 @@ use newrelic_agent_control::values::file::ConfigRepositoryFile;
 /// and a list of agents on the specified local_dir.
 pub fn create_agent_control_config(
     opamp_server_endpoint: String,
+    jwks_endpoint: String,
     agents: String,
     local_dir: PathBuf,
     remote_config_sign_cert: PathBuf,
 ) {
     create_agent_control_config_with_proxy(
         opamp_server_endpoint,
+        jwks_endpoint,
         agents,
         local_dir,
         None,
@@ -30,6 +32,7 @@ pub fn create_agent_control_config(
 /// Extends [create_agent_control_config] with a proxy configuration parameter.
 pub fn create_agent_control_config_with_proxy(
     opamp_server_endpoint: String,
+    jwks_endpoint: String,
     agents: String,
     local_dir: PathBuf,
     proxy: Option<String>,
@@ -45,12 +48,14 @@ host_id: integration-test
 fleet_control:
   endpoint: {}
   poll_interval: 5s
-  signature_validation: 
+  signature_validation:
+    public_key_server_url: {}
     certificate_pem_file_path: {}
 agents: {}
 {}
 "#,
         opamp_server_endpoint,
+        jwks_endpoint,
         remote_config_sign_cert.to_str().unwrap(),
         agents,
         proxy_config,

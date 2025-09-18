@@ -93,6 +93,7 @@ fn k8s_remote_flux_update() {
         &namespace,
         Some(opamp_server.cert_file_path()),
         Some(&opamp_server.endpoint()),
+        Some(&opamp_server.jwks_endpoint()),
         vec![],
         tmp_dir.path(),
     );
@@ -177,6 +178,7 @@ fn k8s_remote_flux_update_with_wrong_version_causes_unhealthy() {
         &namespace,
         Some(opamp_server.cert_file_path()),
         Some(&opamp_server.endpoint()),
+        Some(&opamp_server.jwks_endpoint()),
         vec![],
         tmp_dir.path(),
     );
