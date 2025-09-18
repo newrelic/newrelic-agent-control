@@ -1,11 +1,19 @@
 use crate::opamp::remote_config::signature::SigningAlgorithm;
-use crate::opamp::remote_config::validators::signature::public_key_fetcher::{
-    KeyData, PubKeyError,
-};
+use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::signature::{ED25519, UnparsedPublicKey};
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum PubKeyError {
+    #[error("parsing PubKey: {0}")]
+    ParsePubKey(String),
+
+    #[error("validating signature: {0}")]
+    ValidatingSignature(String),
+}
 
 pub struct PublicKey {
     pub public_key: UnparsedPublicKey<Vec<u8>>,
@@ -18,7 +26,7 @@ const SUPPORTED_CRV: &str = "Ed25519";
 
 impl PublicKey {
     pub fn try_new(data: &KeyData) -> Result<Self, PubKeyError> {
-        if data.use_ != SUPPORTED_USE {
+        if data.r#use != SUPPORTED_USE {
             return Err(PubKeyError::ParsePubKey("Key use is not 'sig'".to_string()));
         }
         if data.kty != SUPPORTED_KTY {
