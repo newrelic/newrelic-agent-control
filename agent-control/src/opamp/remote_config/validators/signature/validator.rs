@@ -7,19 +7,20 @@ use crate::opamp::remote_config::OpampRemoteConfig;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::validators::signature::certificate::Certificate;
+use crate::opamp::remote_config::validators::signature::public_key::PublicKey;
+use crate::opamp::remote_config::validators::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
 use crate::sub_agent::identity::AgentIdentity;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::Duration;
 use thiserror::Error;
+use tracing::debug;
 use tracing::log::error;
 use tracing::{info, warn};
 use url::Url;
 
 const DEFAULT_CERTIFICATE_SERVER_URL: &str = "https://newrelic.com/";
-const DEFAULT_PUBLIC_KEY_SERVER_URL: &str =
-    "https://publickeys.newrelic.com/r/blob-management/GLOBAL/AgentConfiguration";
 const DEFAULT_HTTPS_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
 const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 
@@ -63,7 +64,7 @@ pub fn build_signature_validator(
         let http_config = HttpConfig::new(
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
             DEFAULT_HTTPS_CLIENT_TIMEOUT,
-            proxy_config,
+            proxy_config.clone(),
         )
         .with_tls_info();
 
@@ -73,11 +74,31 @@ pub fn build_signature_validator(
         CertificateFetcher::Https(config.certificate_server_url, client)
     };
 
-    let verifier_store = VerifierStore::try_new(certificate_fetcher)
+    let cert_verifier_store = VerifierStore::try_new(certificate_fetcher)
         .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
 
-    Ok(SignatureValidator::Certificate(
-        CertificateSignatureValidator::new(verifier_store),
+    let maybe_pubkey_verifier_store =
+        if let Some(public_key_server_url) = config.public_key_server_url {
+            let http_config = HttpConfig::new(
+                DEFAULT_HTTPS_CLIENT_TIMEOUT,
+                DEFAULT_HTTPS_CLIENT_TIMEOUT,
+                proxy_config,
+            );
+            let http_client = HttpClient::new(http_config)
+                .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
+
+            let public_key_fetcher = PublicKeyFetcher::new(http_client, public_key_server_url);
+
+            let pubkey_verifier_store = VerifierStore::try_new(public_key_fetcher)
+                .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
+
+            Some(pubkey_verifier_store)
+        } else {
+            None
+        };
+
+    Ok(SignatureValidator::Composite(
+        CompositeSignatureValidator::new(cert_verifier_store, maybe_pubkey_verifier_store),
     ))
 }
 
@@ -85,8 +106,8 @@ pub fn build_signature_validator(
 pub struct SignatureValidatorConfig {
     #[serde(default = "default_certificate_server_url")]
     pub certificate_server_url: Url,
-    #[serde(default = "default_public_key_server_url")]
-    pub public_key_server_url: Url,
+    #[serde(default)]
+    pub public_key_server_url: Option<Url>,
     /// Path to the PEM file containing the certificate to validate the signature.
     /// Takes precedence over fetching from the server when it is set
     #[serde(default)]
@@ -100,7 +121,7 @@ impl Default for SignatureValidatorConfig {
         Self {
             enabled: default_signature_validator_config_enabled(),
             certificate_server_url: default_certificate_server_url(),
-            public_key_server_url: default_public_key_server_url(),
+            public_key_server_url: None,
             certificate_pem_file_path: PathBuf::new(),
         }
     }
@@ -112,12 +133,6 @@ fn default_certificate_server_url() -> Url {
     })
 }
 
-fn default_public_key_server_url() -> Url {
-    Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap_or_else(|err| {
-        panic!("Invalid DEFAULT_PUBLIC_KEY_SERVER_URL: '{DEFAULT_PUBLIC_KEY_SERVER_URL}': {err}")
-    })
-}
-
 fn default_signature_validator_config_enabled() -> bool {
     DEFAULT_SIGNATURE_VALIDATOR_ENABLED
 }
@@ -125,9 +140,9 @@ fn default_signature_validator_config_enabled() -> bool {
 // NOTE: if we updated the components using the validator to use a composite-like implementation to handle validation,
 // the no-op validator wouldn't be necessary.
 /// The SignatureValidator enum wraps [CertificateSignatureValidator] and adds support for No-op validator.
+#[allow(clippy::large_enum_variant)]
 pub enum SignatureValidator {
-    Certificate(CertificateSignatureValidator),
-    PublicKey, // TODO: build this variant from configuration
+    Composite(CompositeSignatureValidator),
     Noop,
 }
 
@@ -140,29 +155,34 @@ impl RemoteConfigValidator for SignatureValidator {
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), Self::Err> {
         match self {
-            SignatureValidator::Certificate(v) => v.validate(agent_identity, opamp_remote_config),
-            SignatureValidator::PublicKey => {
-                // TODO: currently it is equivalent to Noop, a future iteration will implement its validation that could have a
-                // fallback to Certificate
-                Ok(())
-            }
+            SignatureValidator::Composite(v) => v.validate(agent_identity, opamp_remote_config),
             SignatureValidator::Noop => Ok(()),
         }
     }
 }
 
-/// The CertificateSignatureValidator is responsible for checking the validity of the signature.
-pub struct CertificateSignatureValidator {
+/// Temporal signature validator that uses both certificate and public key validation in order
+/// to support backward compatibility with existing signatures.
+/// Once the migration to the new signature platform is complete, the certificate validation
+/// can be removed.
+pub struct CompositeSignatureValidator {
     certificate_store: VerifierStore<Certificate, CertificateFetcher>,
+    public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
 }
 
-impl CertificateSignatureValidator {
-    pub fn new(certificate_store: VerifierStore<Certificate, CertificateFetcher>) -> Self {
-        Self { certificate_store }
+impl CompositeSignatureValidator {
+    pub fn new(
+        certificate_store: VerifierStore<Certificate, CertificateFetcher>,
+        public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
+    ) -> Self {
+        Self {
+            certificate_store,
+            public_key_store,
+        }
     }
 }
 
-impl RemoteConfigValidator for CertificateSignatureValidator {
+impl RemoteConfigValidator for CompositeSignatureValidator {
     type Err = SignatureValidatorError;
 
     fn validate(
@@ -191,6 +211,29 @@ impl RemoteConfigValidator for CertificateSignatureValidator {
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .as_bytes();
 
+        // Until backend migrates to new signature platform, the validation starts with the public key based,
+        // and falls back to cert based in case of failure.
+        // This fallback mechanism makes errors misleading in case the platform is migrated and the validation fails
+        // since the showed error is from the cert validation.
+        if let Some(public_key_store) = &self.public_key_store {
+            match public_key_store.verify_signature(
+                signature.signature_algorithm(),
+                signature.key_id(),
+                config_content,
+                signature.signature(),
+            ) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    debug!(
+                        "Failed to verify signature using the Configurations Public Key: {}",
+                        err
+                    );
+                }
+            }
+        }
+
+        debug!("Falling back to signature verification using the Configurations Certificate");
+
         self.certificate_store
             .verify_signature(
                 signature.signature_algorithm(),
@@ -212,6 +255,7 @@ pub mod tests {
     use crate::opamp::remote_config::signature::{
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures, SigningAlgorithm,
     };
+    use crate::opamp::remote_config::validators::signature::public_key_fetcher::tests::FakePubKeyServer;
     use crate::opamp::remote_config::validators::signature::verifier::{
         Verifier, VerifierStoreError,
     };
@@ -382,77 +426,77 @@ pub mod tests {
             TestCase {
                 name: "Setup enabled only (false)",
                 cfg: r#"
-enabled: false
-"#,
+    enabled: false
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: false,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
-                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
+                    public_key_server_url: None,
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
                 name: "Setup enabled only (true)",
                 cfg: r#"
-enabled: true
-"#,
+    enabled: true
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
-                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
+                    public_key_server_url: None,
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
                 name: "Setup url only",
                 cfg: r#"
-certificate_server_url: https://example.com
-"#,
+    certificate_server_url: https://example.com
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: DEFAULT_SIGNATURE_VALIDATOR_ENABLED,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
-                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
+                    public_key_server_url: None,
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
                 name: "Setup url and enabled",
                 cfg: r#"
-enabled: true
-certificate_server_url: https://example.com
-"#,
+    enabled: true
+    certificate_server_url: https://example.com
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
-                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
+                    public_key_server_url: None,
                     certificate_pem_file_path: PathBuf::new(),
                 },
             },
             TestCase {
                 name: "Setup file and enabled",
                 cfg: r#"
-enabled: true
-certificate_pem_file_path: /path/to/file
-"#,
+    enabled: true
+    certificate_pem_file_path: /path/to/file
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse(DEFAULT_CERTIFICATE_SERVER_URL).unwrap(),
-                    public_key_server_url: Url::parse(DEFAULT_PUBLIC_KEY_SERVER_URL).unwrap(),
+                    public_key_server_url: None,
                     certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
                 },
             },
             TestCase {
                 name: "Setup file and url and enabled",
                 cfg: r#"
-enabled: true
-certificate_server_url: https://example.com
-public_key_server_url: https://test.io
-certificate_pem_file_path: /path/to/file
-"#,
+    enabled: true
+    certificate_server_url: https://example.com
+    public_key_server_url: https://test.io
+    certificate_pem_file_path: /path/to/file
+    "#,
                 expected: SignatureValidatorConfig {
                     enabled: true,
                     certificate_server_url: Url::parse("https://example.com").unwrap(),
-                    public_key_server_url: Url::parse("https://test.io").unwrap(),
+                    public_key_server_url: Some(Url::parse("https://test.io").unwrap()),
                     certificate_pem_file_path: PathBuf::from_str("/path/to/file").unwrap(),
                 },
             },
@@ -490,12 +534,20 @@ certificate_pem_file_path: /path/to/file
         impl TestCase {
             fn run(self) {
                 let test_signer = TestCertificateSigner::new();
+                let pub_key_server = FakePubKeyServer::new();
 
-                let signature_validator = CertificateSignatureValidator::new(
+                let signature_validator = CompositeSignatureValidator::new(
                     VerifierStore::try_new(CertificateFetcher::PemFile(
                         test_signer.cert_pem_path(),
                     ))
                     .unwrap(),
+                    Some(
+                        VerifierStore::try_new(PublicKeyFetcher::new(
+                            HttpClient::new(HttpConfig::default()).unwrap(),
+                            pub_key_server.url,
+                        ))
+                        .unwrap(),
+                    ),
                 );
 
                 let result =
@@ -567,9 +619,18 @@ certificate_pem_file_path: /path/to/file
     #[test]
     pub fn test_certificate_signature_validator_signature_is_missing_for_agent_control_agent() {
         let test_signer = TestCertificateSigner::new();
-        let signature_validator = CertificateSignatureValidator::new(
+        let pub_key_server = FakePubKeyServer::new();
+
+        let signature_validator = CompositeSignatureValidator::new(
             VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
+            Some(
+                VerifierStore::try_new(PublicKeyFetcher::new(
+                    HttpClient::new(HttpConfig::default()).unwrap(),
+                    pub_key_server.url,
+                ))
+                .unwrap(),
+            ),
         );
         let rc = OpampRemoteConfig::new(
             AgentID::AgentControl,
@@ -586,12 +647,20 @@ certificate_pem_file_path: /path/to/file
     }
 
     #[test]
-    pub fn test_certificate_signature_validator_signature_is_valid() {
+    pub fn test_certificate_signature_validator_fallback() {
         let test_signer = TestCertificateSigner::new();
+        let pub_key_server = FakePubKeyServer::new();
 
-        let signature_validator = CertificateSignatureValidator::new(
+        let signature_validator = CompositeSignatureValidator::new(
             VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
+            Some(
+                VerifierStore::try_new(PublicKeyFetcher::new(
+                    HttpClient::new(HttpConfig::default()).unwrap(),
+                    pub_key_server.url,
+                ))
+                .unwrap(),
+            ),
         );
 
         let config = "value";
@@ -612,10 +681,47 @@ certificate_pem_file_path: /path/to/file
             test_signer.key_id(),
         ));
 
-        assert!(
-            signature_validator
-                .validate(&AgentIdentity::default(), &remote_config)
-                .is_ok()
+        signature_validator
+            .validate(&AgentIdentity::default(), &remote_config)
+            .unwrap()
+    }
+    #[test]
+    pub fn test_publickey_signature_validator_signature_is_valid() {
+        let test_signer = TestCertificateSigner::new();
+        let pub_key_server = FakePubKeyServer::new();
+
+        let signature_validator = CompositeSignatureValidator::new(
+            VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
+                .unwrap(),
+            Some(
+                VerifierStore::try_new(PublicKeyFetcher::new(
+                    HttpClient::new(HttpConfig::default()).unwrap(),
+                    pub_key_server.url.clone(),
+                ))
+                .unwrap(),
+            ),
+        );
+
+        let config = "value";
+
+        let encoded_signature = pub_key_server.sign(config.as_bytes());
+        let remote_config = OpampRemoteConfig::new(
+            AgentID::AgentControl,
+            Hash::from("test"),
+            ConfigState::Applying,
+            Some(ConfigurationMap::new(HashMap::from([(
+                "key".into(),
+                config.to_string(),
+            )]))),
         )
+        .with_signature(Signatures::new_unique(
+            encoded_signature.as_str(),
+            ED25519,
+            pub_key_server.key_id.as_str(),
+        ));
+
+        signature_validator
+            .validate(&AgentIdentity::default(), &remote_config)
+            .unwrap()
     }
 }

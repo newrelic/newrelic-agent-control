@@ -5,12 +5,24 @@ use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-#[derive(Default, Clone)]
+const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[derive(Clone)]
 pub struct HttpConfig {
     pub(crate) timeout: Duration,
     pub(crate) conn_timeout: Duration,
     pub(crate) proxy: ProxyConfig,
     pub(crate) tls_info: bool,
+}
+impl Default for HttpConfig {
+    fn default() -> Self {
+        HttpConfig {
+            timeout: DEFAULT_CLIENT_TIMEOUT,
+            conn_timeout: DEFAULT_CLIENT_TIMEOUT,
+            proxy: ProxyConfig::default(),
+            tls_info: false,
+        }
+    }
 }
 
 impl HttpConfig {

@@ -24,6 +24,7 @@ pub trait RemoteConfigValidator {
 /// Represents an error for RemoteConfigValidatorImpl
 pub struct SupportedRemoteConfigValidatorError(String);
 /// Variants of Implementations of [RemoteConfigValidator] to facilitate Static Dispatch.
+#[allow(clippy::large_enum_variant)]
 pub enum SupportedRemoteConfigValidator {
     Signature(SignatureValidator),
     Regex(RegexValidator),

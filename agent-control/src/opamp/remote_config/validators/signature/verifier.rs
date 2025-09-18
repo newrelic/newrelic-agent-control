@@ -31,7 +31,7 @@ pub enum VerifierStoreError {
     #[error("fetching verifying key: {0}")]
     Fetch(String),
     #[error(
-        "signature keyId({signature_key_id}) does not match certificate keyId({certificate_key_id})"
+        "signature key ID ({signature_key_id}) does not match the latest available key ID ({certificate_key_id})"
     )]
     KeyMismatch {
         signature_key_id: String,
