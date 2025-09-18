@@ -77,7 +77,6 @@ pub fn build_signature_validator(
     let cert_verifier_store = VerifierStore::try_new(certificate_fetcher)
         .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
 
-<<<<<<< HEAD
     let maybe_pubkey_verifier_store =
         if let Some(public_key_server_url) = config.public_key_server_url {
             let http_config = HttpConfig::new(
@@ -100,23 +99,6 @@ pub fn build_signature_validator(
 
     Ok(SignatureValidator::Composite(
         CompositeSignatureValidator::new(cert_verifier_store, maybe_pubkey_verifier_store),
-=======
-    let http_config = HttpConfig::new(
-        DEFAULT_HTTPS_CLIENT_TIMEOUT,
-        DEFAULT_HTTPS_CLIENT_TIMEOUT,
-        proxy_config,
-    );
-    let http_client = HttpClient::new(http_config)
-        .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
-
-    let public_key_fetcher = PublicKeyFetcher::new(http_client, config.public_key_server_url);
-
-    let pubkey_verifier_store = VerifierStore::try_new(public_key_fetcher)
-        .map_err(|err| SignatureValidatorError::BuildingValidator(err.to_string()))?;
-
-    Ok(SignatureValidator::Composite(
-        CompositeSignatureValidator::new(cert_verifier_store, pubkey_verifier_store),
->>>>>>> 29d00c38 (feat: add public key signature validation)
     ))
 }
 
@@ -185,21 +167,13 @@ impl RemoteConfigValidator for SignatureValidator {
 /// can be removed.
 pub struct CompositeSignatureValidator {
     certificate_store: VerifierStore<Certificate, CertificateFetcher>,
-<<<<<<< HEAD
     public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
-=======
-    public_key_store: VerifierStore<PublicKey, PublicKeyFetcher>,
->>>>>>> 29d00c38 (feat: add public key signature validation)
 }
 
 impl CompositeSignatureValidator {
     pub fn new(
         certificate_store: VerifierStore<Certificate, CertificateFetcher>,
-<<<<<<< HEAD
         public_key_store: Option<VerifierStore<PublicKey, PublicKeyFetcher>>,
-=======
-        public_key_store: VerifierStore<PublicKey, PublicKeyFetcher>,
->>>>>>> 29d00c38 (feat: add public key signature validation)
     ) -> Self {
         Self {
             certificate_store,
@@ -241,7 +215,6 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
         // and falls back to cert based in case of failure.
         // This fallback mechanism makes errors misleading in case the platform is migrated and the validation fails
         // since the showed error is from the cert validation.
-<<<<<<< HEAD
         if let Some(public_key_store) = &self.public_key_store {
             match public_key_store.verify_signature(
                 signature.signature_algorithm(),
@@ -269,30 +242,6 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
                 signature.signature(),
             )
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))
-=======
-        if let Err(err) = self.public_key_store.verify_signature(
-            signature.signature_algorithm(),
-            signature.key_id(),
-            config_content,
-            signature.signature(),
-        ) {
-            debug!(
-                "Failed to verify signature using the Configurations Public Key: {}",
-                err
-            );
-
-            return self
-                .certificate_store
-                .verify_signature(
-                    signature.signature_algorithm(),
-                    signature.key_id(),
-                    config_content,
-                    signature.signature(),
-                )
-                .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()));
-        }
-        Ok(())
->>>>>>> 29d00c38 (feat: add public key signature validation)
     }
 }
 
@@ -592,7 +541,6 @@ pub mod tests {
                         test_signer.cert_pem_path(),
                     ))
                     .unwrap(),
-<<<<<<< HEAD
                     Some(
                         VerifierStore::try_new(PublicKeyFetcher::new(
                             HttpClient::new(HttpConfig::default()).unwrap(),
@@ -600,13 +548,6 @@ pub mod tests {
                         ))
                         .unwrap(),
                     ),
-=======
-                    VerifierStore::try_new(PublicKeyFetcher::new(
-                        HttpClient::new(HttpConfig::default()).unwrap(),
-                        pub_key_server.url,
-                    ))
-                    .unwrap(),
->>>>>>> 29d00c38 (feat: add public key signature validation)
                 );
 
                 let result =
@@ -683,7 +624,6 @@ pub mod tests {
         let signature_validator = CompositeSignatureValidator::new(
             VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
-<<<<<<< HEAD
             Some(
                 VerifierStore::try_new(PublicKeyFetcher::new(
                     HttpClient::new(HttpConfig::default()).unwrap(),
@@ -691,13 +631,6 @@ pub mod tests {
                 ))
                 .unwrap(),
             ),
-=======
-            VerifierStore::try_new(PublicKeyFetcher::new(
-                HttpClient::new(HttpConfig::default()).unwrap(),
-                pub_key_server.url,
-            ))
-            .unwrap(),
->>>>>>> 29d00c38 (feat: add public key signature validation)
         );
         let rc = OpampRemoteConfig::new(
             AgentID::AgentControl,
@@ -721,7 +654,6 @@ pub mod tests {
         let signature_validator = CompositeSignatureValidator::new(
             VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
-<<<<<<< HEAD
             Some(
                 VerifierStore::try_new(PublicKeyFetcher::new(
                     HttpClient::new(HttpConfig::default()).unwrap(),
@@ -729,13 +661,6 @@ pub mod tests {
                 ))
                 .unwrap(),
             ),
-=======
-            VerifierStore::try_new(PublicKeyFetcher::new(
-                HttpClient::new(HttpConfig::default()).unwrap(),
-                pub_key_server.url,
-            ))
-            .unwrap(),
->>>>>>> 29d00c38 (feat: add public key signature validation)
         );
 
         let config = "value";
@@ -768,7 +693,6 @@ pub mod tests {
         let signature_validator = CompositeSignatureValidator::new(
             VerifierStore::try_new(CertificateFetcher::PemFile(test_signer.cert_pem_path()))
                 .unwrap(),
-<<<<<<< HEAD
             Some(
                 VerifierStore::try_new(PublicKeyFetcher::new(
                     HttpClient::new(HttpConfig::default()).unwrap(),
@@ -776,13 +700,6 @@ pub mod tests {
                 ))
                 .unwrap(),
             ),
-=======
-            VerifierStore::try_new(PublicKeyFetcher::new(
-                HttpClient::new(HttpConfig::default()).unwrap(),
-                pub_key_server.url.clone(),
-            ))
-            .unwrap(),
->>>>>>> 29d00c38 (feat: add public key signature validation)
         );
 
         let config = "value";
