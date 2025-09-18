@@ -14,6 +14,9 @@ use crate::agent_type::{
 };
 use serde::{Deserialize, Deserializer, de::Error};
 
+pub const FILES_SUBDIR: &str = "files";
+pub const DIRECTORIES_SUBDIR: &str = "directories";
+
 /// Represents the file system configuration for the deployment of an agent.
 ///
 /// It would be equivalent to a YAML mapping of this format:
@@ -210,7 +213,8 @@ impl Templateable for AgentFileEntry {
     /// Performs the templating of the defined file entries for this sub-agent.
     ///
     /// The paths present in the FileEntry structures are always assumed to start from the
-    /// sub-agent's dedicated directory.
+    /// sub-agent's dedicated directory **and** a dedicated directory for stand-alone files
+    /// ([`FILES_SUBDIR`]).
     ///
     /// Besides, we know the paths are relative and don't go above their base dir (e.g. `/../..`)
     /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
@@ -222,7 +226,9 @@ impl Templateable for AgentFileEntry {
             .and_then(Variable::get_final_value)
         {
             let rendered_file_entry = Self {
-                relative_path: PathBuf::from(generated_dir).join(self.relative_path),
+                relative_path: PathBuf::from(generated_dir)
+                    .join(FILES_SUBDIR)
+                    .join(self.relative_path),
                 content: self.content.template_with(variables)?,
             };
             Ok(rendered_file_entry)
@@ -255,7 +261,8 @@ impl Templateable for AgentDirectoryEntry {
     /// Performs the templating of the defined directory entries for this sub-agent.
     ///
     /// The paths present in the DirectoryEntry structures are always assumed to start from the
-    /// sub-agent's dedicated directory.
+    /// sub-agent's dedicated directory **and** a dedicated directory for stand-alone directories
+    /// ([`DIRECTORIES_SUBDIR`]).
     ///
     /// Besides, we know the paths are relative and don't go above their base dir (e.g. `/../..`)
     /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
@@ -267,7 +274,9 @@ impl Templateable for AgentDirectoryEntry {
             .and_then(Variable::get_final_value)
         {
             let rendered_directory_entry = Self {
-                relative_path: PathBuf::from(generated_dir).join(self.relative_path),
+                relative_path: PathBuf::from(generated_dir)
+                    .join(DIRECTORIES_SUBDIR)
+                    .join(self.relative_path),
                 items: self.items.template_with(variables)?,
             };
             Ok(rendered_directory_entry)
@@ -330,7 +339,7 @@ fn validate_file_entry_path(path: &Path) -> Result<(), Vec<String>> {
 }
 
 /// Makes sure the passed directory goes not traverse outside the directory where it's contained.
-/// E.g. via relative path specificers like `./../../some_path`.
+/// E.g. via relative path specifiers like `./../../some_path`.
 ///
 /// Returns an error string if this property does not hold.
 fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
