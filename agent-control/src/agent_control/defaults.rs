@@ -85,6 +85,7 @@ pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<Cus
 }
 
 pub const AGENT_TYPE_NAME_INFRA_AGENT: &str = "com.newrelic.infrastructure";
+pub const AGENT_TYPE_NAME_NRDOT: &str = "io.opentelemetry.collector";
 
 #[cfg(test)]
 pub(crate) mod tests {

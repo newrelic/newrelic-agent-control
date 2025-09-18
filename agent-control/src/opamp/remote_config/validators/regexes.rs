@@ -141,6 +141,7 @@ pub static REGEX_NRI_FLEX: &str = "nri-flex";
 pub(super) mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
+    use crate::agent_control::defaults::AGENT_TYPE_NAME_NRDOT;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
@@ -806,11 +807,5 @@ config_agent:
   win_process_priority_class: Normal
   win_removable_drives: true
   disable_zero_mem_process_filter: false
-"#;
-
-    const CONFIG_WITH_IMAGE_REPOSITORY: &str = r#"
-chart_values:
-  image:
-    repository: some/repository
 "#;
 }
