@@ -34,9 +34,9 @@ struct ServerState {
     agent_state: HashMap<InstanceID, AgentState>,
     // Key pair to sign remote configuration
     key_pair: Ed25519KeyPair,
-    // Use legacy system to sign remote configuration
+    // Use the legacy system (instead of key_pair) to sign remote configuration
     use_legacy_signatures: bool,
-    cert_key_pair: KeyPair, // TODO: cleanup when no longer used
+    legacy_key_pair: KeyPair, // TODO: cleanup when no longer used
 }
 
 #[derive(Default)]
@@ -55,7 +55,7 @@ impl ServerState {
             agent_state: HashMap::new(),
             key_pair: generate_key_pair(),
             use_legacy_signatures,
-            cert_key_pair,
+            legacy_key_pair: cert_key_pair,
         }
     }
 }
@@ -103,23 +103,25 @@ impl FakeServer {
         Self::start_new_with_legacy_signatures(false)
     }
 
+    /// If `use_legacy_signatures` is set to true, the jwks endpoint is still available but
+    /// configs are signed using the legacy system.
     pub fn start_new_with_legacy_signatures(use_legacy_signatures: bool) -> Self {
         // While binding to port 0, the kernel gives you a free ephemeral port.
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
         // Legacy certificate-based key pair
-        let key_pair = KeyPair::generate_for(&PKCS_ED25519).unwrap();
+        let legacy_key_pair = KeyPair::generate_for(&PKCS_ED25519).unwrap();
         let cert = CertificateParams::new(vec!["localhost".to_string()])
             .unwrap()
-            .self_signed(&key_pair)
+            .self_signed(&legacy_key_pair)
             .unwrap();
 
         let tmp_dir = tempfile::tempdir().unwrap();
         std::fs::write(tmp_dir.path().join(CERT_FILE), cert.pem()).unwrap();
 
         let state = Arc::new(Mutex::new(ServerState::new(
-            key_pair,
+            legacy_key_pair,
             use_legacy_signatures,
         )));
 
@@ -267,8 +269,8 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
 
     let (key_pair, key_id) = if server_state.use_legacy_signatures {
         (
-            &Ed25519KeyPair::from_pkcs8(&server_state.cert_key_pair.serialize_der()).unwrap(),
-            public_key_fingerprint(&server_state.cert_key_pair.subject_public_key_info()),
+            &Ed25519KeyPair::from_pkcs8(&server_state.legacy_key_pair.serialize_der()).unwrap(),
+            public_key_fingerprint(&server_state.legacy_key_pair.subject_public_key_info()),
         )
     } else {
         let public_key = server_state.key_pair.public_key().as_ref().to_vec();
