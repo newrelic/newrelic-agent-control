@@ -40,6 +40,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
@@ -118,6 +119,7 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
     let agent_id = "nr-sleep-agent";
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),

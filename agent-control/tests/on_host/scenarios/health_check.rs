@@ -50,6 +50,7 @@ file:
     create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
@@ -156,6 +157,7 @@ http:
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),

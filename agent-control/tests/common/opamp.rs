@@ -275,7 +275,6 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
         (&server_state.key_pair, public_key_fingerprint(&public_key))
     };
 
-    // TODO: use the sing_with_cert bool and switch to sing with public-key when false
     let server_to_agent = build_response(identifier, remote_config, key_pair, key_id, flags);
     HttpResponse::Ok().body(server_to_agent)
 }

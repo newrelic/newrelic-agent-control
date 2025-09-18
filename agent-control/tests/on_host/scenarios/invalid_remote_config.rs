@@ -40,6 +40,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
@@ -129,6 +130,7 @@ fn test_invalid_config_executable_less_supervisor() {
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
@@ -206,6 +208,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),

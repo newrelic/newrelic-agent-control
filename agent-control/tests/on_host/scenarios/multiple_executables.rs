@@ -44,6 +44,7 @@ agents:
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents,
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
@@ -102,6 +103,7 @@ agents:
 
     create_agent_control_config(
         opamp_server.endpoint(),
+        opamp_server.jwks_endpoint(),
         agents,
         local_dir.path().to_path_buf(),
         opamp_server.cert_file_path(),
