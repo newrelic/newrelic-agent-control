@@ -514,4 +514,49 @@ another-dir:
             DirEntriesType::FullyTemplated(_)
         ));
     }
+
+    const FILESYSTEM_EXAMPLE: &str = r#"
+files:
+  my-file:
+      relative_path: path/to/my-file
+      content: "something"
+  another-file:
+      relative_path: another/path/to/my-file
+      content: |
+          some
+          multi-line
+          content
+directories:
+  my-dir:
+      relative_path: path/to/my-dir
+      items:
+          filepath1: "file1 content"
+          filepath2: |
+              key: ${nr-var:some_var}
+  another-dir:
+      relative_path: another/path/to/my-dir
+      items: |
+        ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+"#;
+
+    #[test]
+    fn parse_and_template_filesystem() {
+        let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
+        assert!(
+            parsed
+                .as_ref()
+                .is_ok_and(|fs| fs.files.len() == 2 && fs.directories.len() == 2),
+            "Parsed filesystem: {parsed:?}"
+        );
+
+        let parsed = parsed.unwrap();
+        let variables = Variables::from_iter(vec![(
+            Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+            Variable::new_final_string_variable("/test/base/dir"),
+        )]);
+
+        let templated = parsed.template_with(&variables);
+        assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
+        // let templated = templated.unwrap();
+    }
 }
