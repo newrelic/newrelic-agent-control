@@ -6,6 +6,8 @@ CURR_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 ONHOST_TF_DIR := $(CURR_DIR)terraform
 ONHOST_ANSIBLE_FOLDER := $(CURR_DIR)ansible
 
+PACKAGE_VERSION ?=
+
 # Include Ansible dependencies common installation strategy
 include $(CURR_DIR)../Ansible.common
 
@@ -65,6 +67,7 @@ test/onhost-canaries/terraform-plan:
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
 	terraform -chdir=$(ONHOST_TF_DIR) plan -var-file "environments/$(ENVIRONMENT)/inputs.tfvars" 
 
@@ -77,6 +80,7 @@ test/onhost-canaries/terraform-apply:
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
 	terraform -chdir=$(ONHOST_TF_DIR) apply -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"
 
@@ -88,5 +92,6 @@ test/onhost-canaries/terraform-destroy:
 	TF_VAR_license_key=${NR_LICENSE_KEY} \
 	TF_VAR_api_key=${NEW_RELIC_API_KEY} \
 	TF_VAR_account_id=${NEW_RELIC_ACCOUNT_ID} \
+	TF_VAR_package_version=${PACKAGE_VERSION} \
 	TF_VAR_slack_webhook_url=${SLACK_WEBHOOK_URL} \
     terraform -chdir=$(ONHOST_TF_DIR) destroy -auto-approve -var-file "environments/$(ENVIRONMENT)/inputs.tfvars"

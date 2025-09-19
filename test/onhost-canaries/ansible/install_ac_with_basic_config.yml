@@ -29,7 +29,7 @@
   - name: Install Agent Control
     vars:
       repo_endpoint: "{{ repo_endpoint }}"
-      package_version: ""
+      package_version: "{{ package_version }}"
     include_role:
       name: newrelic-agent-control
 
@@ -74,6 +74,7 @@
       content: |
         config_agent: |+
           staging: {{ infra_staging }}
+          enable_process_metrics: true
           status_server_enabled: true
           status_server_port: 18003
           license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}

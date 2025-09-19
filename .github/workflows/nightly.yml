@@ -120,10 +120,11 @@ jobs:
 
   onhost_canaries:
     uses: ./.github/workflows/component_onhost_canaries.yml
-    needs: [ build-packages ]
+    needs: [ upload-packages-s3 ]
     with:
       environment: staging
       operation: apply
+      package_version: 0.100.${{ github.run_id }}
     secrets:
       AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
       AWS_VPC_SUBNET: ${{ secrets.AWS_VPC_SUBNET }}
