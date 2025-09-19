@@ -68,10 +68,12 @@ impl Verifier for PublicKey {
                 "The only supported algorithm is Ed25519".to_string(),
             ));
         }
-
-        self.public_key.verify(msg, signature).map_err(|_| {
-            PubKeyError::ValidatingSignature("signature verification failed".to_string())
-        })
+        let msg = ring::digest::digest(&ring::digest::SHA256, msg);
+        self.public_key
+            .verify(msg.as_ref(), signature)
+            .map_err(|_| {
+                PubKeyError::ValidatingSignature("signature verification failed".to_string())
+            })
     }
 
     fn key_id(&self) -> &str {
