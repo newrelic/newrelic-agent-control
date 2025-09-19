@@ -34,17 +34,17 @@ pub const DIRECTORIES_SUBDIR: &str = "directories";
 /// filesystem:
 ///   files:
 ///     my-file: # an ID of sorts for the file, might be used in the future for var references
-///       relative_path: path/to/my-file
+///       path: path/to/my-file
 ///       content: "something" # String content
 ///   directories:
 ///     my-dir: # an ID of sorts for the directory, might be used in the future for var references
-///       relative_path: path/to/my-dir
+///       path: path/to/my-dir
 ///       items: # YAML content, expected to be a mapping string -> yaml
 ///         filepath1: "file1 content"
 ///         filepath2: | # multi-line string content
 ///           key: value
 ///     another-dir:
-///       relative_path: another/path/to/my-dir
+///       path: another/path/to/my-dir
 ///       items: | # fully templated content, expected to render to a valid YAML mapping string -> string
 ///         ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 /// ```
@@ -55,8 +55,8 @@ pub const DIRECTORIES_SUBDIR: &str = "directories";
 /// from variables or other parts of the configuration, in which case duplicates might stop being
 /// allowed.
 ///
-/// The `relative_path` fields, on the other hand, are allowed to be equal between files and
-/// directories, but not within each section (i.e. two files cannot have the same `relative_path`,
+/// The `path` fields, on the other hand, are allowed to be equal between files and
+/// directories, but not within each section (i.e. two files cannot have the same `path`,
 /// and neither can two directories). This is validated at parse time and after templating.
 ///
 /// Templating is only supported for file contents, not for IDs, nor file/directory names,
@@ -535,8 +535,8 @@ mod tests {
     #[rstest]
     #[case::valid_filesystem_parse("basic/path", |r: Result<_, _>| r.is_ok())]
     #[case::windows_style_path(r"some\\windows\\style\\path", |r: Result<_, _>| r.is_ok())]
-    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("absolute: /absolute/path")))]
-    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid component: '..'")))]
+    #[case::invalid_absolute_path("/absolute/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("`/absolute/path` is not relative")))]
+    #[case::invalid_reaches_parentdir("basedir/dir/../dir/../../../outdir/path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid component: `..`")))]
     // #[case::invalid_windows_path_prefix(r"C:\\absolute\\windows\\path", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // #[case::invalid_windows_root_device("C:", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
     // #[case::invalid_windows_server_path(r"\\\\server\\share", |r: Result<_, serde_yaml::Error>| r.is_err_and(|e| e.to_string().contains("invalid path component")))]
@@ -545,21 +545,18 @@ mod tests {
         #[case] path: &str,
         #[case] validation: impl Fn(Result<AgentFileEntry, serde_yaml::Error>) -> bool,
     ) {
-        let yaml = format!(
-            "relative_path: \"{}\"\ncontent: \"some random content\"",
-            path
-        );
+        let yaml = format!("path: \"{path}\"\ncontent: \"some random content\"");
         let parsed = serde_yaml::from_str::<AgentFileEntry>(&yaml);
         let parsed_display = format!("{parsed:?}");
-        assert!(validation(parsed), "{}", parsed_display);
+        assert!(validation(parsed), "{parsed_display}");
     }
 
     const EXAMPLE_FILES: &str = r#"
 my-file:
-    relative_path: path/to/my-file
+    path: path/to/my-file
     content: "something"
 another-file:
-    relative_path: another/path/to/my-file
+    path: another/path/to/my-file
     content: |
         some
         multi-line
@@ -568,13 +565,13 @@ another-file:
 
     const EXAMPLE_DIRS: &str = r#"
 my-dir:
-    relative_path: path/to/my-dir
+    path: path/to/my-dir
     items:
         filepath1: "file1 content"
         filepath2: |
             key: ${nr-var:some_var}
 another-dir:
-    relative_path: another/path/to/my-dir
+    path: another/path/to/my-dir
     items:
       ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 "#;
@@ -631,23 +628,23 @@ another-dir:
     const FILESYSTEM_EXAMPLE: &str = r#"
 files:
   my-file:
-      relative_path: path/to/my-file
+      path: path/to/my-file
       content: "something ${nr-var:some_file_var}"
   another-file:
-      relative_path: another/path/to/my-file
+      path: another/path/to/my-file
       content: |
           some
           multi-line
           content
 directories:
   my-dir:
-      relative_path: path/to/my-dir
+      path: path/to/my-dir
       items:
           filepath1: "file1 content"
           filepath2: |
               key: ${nr-var:some_dir_var}
   another-dir:
-      relative_path: another/path/to/my-dir
+      path: another/path/to/my-dir
       items:
         ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 "#;
