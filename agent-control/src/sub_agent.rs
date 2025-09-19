@@ -424,11 +424,7 @@ where
                 // If parsing was successful, call the function with Some(remote_config)
                 self.create_supervisor_from_remote_config(&remote_config)
             }
-            Err(error) => {
-                warn!("Failed to parse remote configuration: {}", error);
-
-                Err(error.into())
-            }
+            Err(error) => Err(error.into()),
         };
 
         // Now, we should have either a Supervisor or an error to handle later,
