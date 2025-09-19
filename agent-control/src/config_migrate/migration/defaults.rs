@@ -9,10 +9,12 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yml"
+          - "yaml"
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yml"
+          - "yaml"
 "#;
