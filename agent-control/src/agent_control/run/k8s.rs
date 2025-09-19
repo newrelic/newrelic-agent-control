@@ -17,7 +17,9 @@ use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
 use crate::agent_type::render::renderer::TemplateRenderer;
 use crate::agent_type::variable::Variable;
-use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::agent_type::version_config::{
+    AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
+};
 use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
@@ -279,6 +281,7 @@ fn start_cd_version_checker(
         // Same as passing "|x| AgentControlInternalEvent::AgentControlCdVersionUpdated(x)"
         AgentControlInternalEvent::AgentControlCdVersionUpdated,
         VersionCheckerInterval::default(),
+        AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY,
     )
 }
 

@@ -359,6 +359,7 @@ pub mod tests {
         K8s {
             objects,
             health: None,
+            version: Default::default(),
         }
     }
 

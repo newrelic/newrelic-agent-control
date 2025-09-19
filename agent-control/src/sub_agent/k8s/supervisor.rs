@@ -1,7 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY;
 use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
-use crate::agent_type::version_config::VersionCheckerInterval;
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
@@ -204,7 +203,8 @@ impl NotStartedSupervisorK8s {
             k8s_version_checker,
             sub_agent_internal_publisher,
             SubAgentInternalEvent::AgentVersionInfo,
-            VersionCheckerInterval::default(),
+            self.k8s_config.version.interval,
+            self.k8s_config.version.initial_delay,
         ))
     }
 
@@ -333,6 +333,7 @@ pub mod tests {
                     ("mock_cr2".to_string(), k8s_object()),
                 ]),
                 health: None,
+                version: Default::default(),
             },
         );
 
@@ -381,9 +382,8 @@ pub mod tests {
         let (sub_agent_internal_publisher, _) = pub_sub();
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
-            health: Some(K8sHealthConfig {
-                ..Default::default()
-            }),
+            health: Some(Default::default()),
+            version: Default::default(),
         };
 
         let supervisor = not_started_supervisor(config, None);
@@ -408,6 +408,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: Some(Default::default()),
+            version: Default::default(),
         };
 
         let not_started = not_started_supervisor(config, None);
@@ -424,6 +425,7 @@ pub mod tests {
         let config = K8s {
             objects: HashMap::from([("obj".to_string(), k8s_object())]),
             health: None,
+            version: Default::default(),
         };
 
         let not_started = not_started_supervisor(config, None);

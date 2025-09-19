@@ -1,6 +1,7 @@
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::templates::Templateable;
+use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
@@ -12,6 +13,8 @@ use std::collections::{BTreeMap, HashMap};
 pub struct K8s {
     pub objects: HashMap<String, K8sObject>,
     pub health: Option<K8sHealthConfig>,
+    #[serde(default)]
+    pub version: K8sVersionConfig,
 }
 
 /// A K8s object, usually a CR, to be managed by the agent-control.
@@ -44,6 +47,7 @@ impl Templateable for K8s {
                 .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                 .collect::<Result<HashMap<String, K8sObject>, AgentTypeError>>()?,
             health: self.health,
+            version: self.version,
         })
     }
 }
@@ -83,12 +87,25 @@ pub struct K8sHealthConfig {
     pub(crate) initial_delay: InitialDelay,
 }
 
+#[derive(Debug, Deserialize, Default, Clone, PartialEq)]
+pub struct K8sVersionConfig {
+    /// The duration to wait between health checks.
+    #[serde(default)]
+    pub(crate) interval: VersionCheckerInterval,
+    /// The initial delay before the first health check is performed.
+    #[serde(default)]
+    pub(crate) initial_delay: VersionCheckerInitialDelay,
+}
+
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use crate::agent_type::definition::Variables;
     use crate::agent_type::runtime_config::k8s::K8s;
     use crate::agent_type::templates::Templateable;
     use crate::agent_type::variable::Variable;
+    use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 
     const RUNTIME_WITH_K8S_DEPLOYMENT: &str = r#"
 objects:
@@ -219,5 +236,20 @@ objects:
         let labels = cr1.metadata.labels;
         assert_eq!(labels.get("foo").unwrap(), value);
         assert_eq!(labels.get(value).unwrap(), "bar");
+    }
+
+    #[test]
+    fn test_k8s_runtime_config_defaults() {
+        let k8s: K8s = serde_yaml::from_str("objects: {}").unwrap();
+        assert!(k8s.objects.is_empty());
+        assert!(k8s.health.is_none());
+        assert_eq!(
+            k8s.version.interval,
+            VersionCheckerInterval::from(Duration::from_secs(60))
+        );
+        assert_eq!(
+            k8s.version.initial_delay,
+            VersionCheckerInitialDelay::from(Duration::from_secs(30))
+        );
     }
 }
