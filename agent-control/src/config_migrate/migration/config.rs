@@ -1,10 +1,10 @@
-use regex::Regex;
 use serde::Deserialize;
 use serde_yaml::Error;
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::error;
 
@@ -101,19 +101,15 @@ pub struct DirMap {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct DirInfo {
     pub path: FilePath,
-    pub filename_patterns: Vec<String>,
+    pub extensions: Vec<String>,
 }
 
 impl DirInfo {
-    pub fn valid_filename(&self, filename: &str) -> bool {
-        for filename_pattern in &self.filename_patterns {
-            let re = Regex::new(filename_pattern)
-                .unwrap_or_else(|_| panic!("invalid filename_pattern: {filename_pattern}"));
-            if re.is_match(filename) {
-                return true;
-            }
-        }
-        false
+    pub fn valid_filename(&self, filename: impl AsRef<Path>) -> bool {
+        self.extensions
+            .iter()
+            .map(OsString::from)
+            .any(|ext| filename.as_ref().extension().is_some_and(|e| e == ext))
     }
 }
 
@@ -164,12 +160,6 @@ pub struct MigrationAgentConfig {
 }
 
 impl MigrationAgentConfig {
-    pub(crate) fn get_agent_type_fqn(&self) -> AgentTypeID {
-        self.agent_type_fqn.clone()
-    }
-}
-
-impl MigrationAgentConfig {
     pub fn get_file(&self, fqn_to_check: AgentTypeFieldFQN) -> Option<FilePath> {
         for (fqn, path) in self.files_map.iter() {
             if *fqn == fqn_to_check {
@@ -207,12 +197,14 @@ configs:
     dirs_map:
       config_ohis:
         path: /etc/newrelic-infra/integrations.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yaml"
+          - "yml"
       logging:
         path: /etc/newrelic-infra/logging.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yaml"
+          - "yml"
   -
     agent_type_fqn: newrelic/com.newrelic.another:1.0.0
     files_map:
@@ -225,13 +217,15 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yaml"
+          - "yml"
 
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yaml"
+          - "yml"
 
   -
     agent_type_fqn: francisco-partners/com.newrelic.another:0.0.2
@@ -245,13 +239,15 @@ configs:
     dirs_map:
       config_integrations:
         path: /etc/newrelic-infra/integrations.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
-        
+        extensions:
+          - "yaml"
+          - "yml"
+
       config_logging:
         path: /etc/newrelic-infra/logging.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        extensions:
+          - "yaml"
+          - "yml"
         
   -
     agent_type_fqn: newrelic/com.newrelic.another:0.0.1
@@ -311,7 +307,11 @@ configs: []
     #[test]
     fn test_dir_info() {
         let dir_info = DirInfo {
-            filename_patterns: vec![String::from(".*\\.ya?ml$"), String::from(".*\\.otro$")],
+            extensions: vec![
+                String::from("yaml"),
+                String::from("yml"),
+                String::from("otro"),
+            ],
             path: FilePath::from("some/path"),
         };
 
