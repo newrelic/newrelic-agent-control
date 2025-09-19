@@ -5,6 +5,7 @@ use ::fs::{
     writer_file::{FileWriter, WriteError},
 };
 use thiserror::Error;
+use tracing::trace;
 
 use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
 
@@ -32,6 +33,7 @@ impl RenderedFileSystemEntries {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         self.0.iter().try_for_each(|(path, content)| {
+            trace!("writing filesystem entry to {}", path.display());
             let parent_dir = path
                 .parent()
                 .ok_or_else(|| {
