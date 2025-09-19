@@ -76,6 +76,13 @@ impl FileSystem {
     /// **WARNING**: This must be called **after** the rendering process has finished
     /// or else AC will crash!
     pub fn rendered(self) -> HashMap<PathBuf, String> {
+        // Retrieve files
+        let files = self.files.into_values().map(|v| (v.path, v.content.get()));
+        // Retrieve directories
+        // A more elaborate operation, since each directory contains a collection of files inside
+        // and we need to retrieve all of them, flattening into a single iterator to append to the
+        // files above.
+        let directories = self.directories.into_values();
         todo!();
         // self.0
         //     .into_values()
