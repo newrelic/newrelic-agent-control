@@ -1,6 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::config::{helmrelease_v2_type_meta, instrumentation_v1beta1_type_meta};
-use crate::agent_type::version_config::VersionCheckerInterval;
+use crate::agent_type::version_config::{VersionCheckerInitialDelay, VersionCheckerInterval};
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher};
 #[cfg_attr(test, mockall_double::double)]
@@ -15,6 +15,7 @@ use crate::version_checker::{
 };
 use kube::api::{DynamicObject, TypeMeta};
 use std::sync::Arc;
+use std::thread::sleep;
 use tracing::{debug, info, info_span, warn};
 
 use crate::version_checker::VERSION_CHECKER_THREAD_NAME;
@@ -113,6 +114,7 @@ pub(crate) fn spawn_version_checker<V, T, F>(
     version_event_publisher: EventPublisher<T>,
     version_event_generator: F,
     interval: VersionCheckerInterval,
+    initial_delay: VersionCheckerInitialDelay,
 ) -> StartedThreadContext
 where
     V: VersionChecker + Send + Sync + 'static,
@@ -130,6 +132,8 @@ where
         let _guard = span.enter();
 
         debug!("starting to check version with the configured checker");
+
+        sleep(initial_delay.into());
 
         match version_checker.check_agent_version() {
             Ok(agent_data) => {
@@ -339,7 +343,12 @@ mod tests {
             version_publisher,
             SubAgentInternalEvent::AgentVersionInfo,
             Duration::from_millis(10).into(),
+            Duration::from_millis(500).into(),
         );
+
+        // Check we didn't receive anything too early
+        sleep(Duration::from_millis(300));
+        assert!(version_consumer.as_ref().is_empty());
 
         // Check that we received the expected version event
         assert_eq!(

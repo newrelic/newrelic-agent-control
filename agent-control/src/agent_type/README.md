@@ -351,7 +351,7 @@ Any agent deployed in Kubernetes can be composed of several components and those
 
 That's why the Agent Control leverages the Kubernetes Rust SDK to retrieve the health of standard replication controllers (Deployment, DaemonSet, StatefulSet) of the Agent at a configurable interval.
 
-That's why the health section for a Kubernetes deployment is as simple as this:
+As a result, the health section for a Kubernetes deployment is as simple as this:
 
 ```yaml
 deployment:
@@ -363,6 +363,19 @@ deployment:
 ```
 
 Users can currently only configure the interval of those periodic health check, within the Agent Type. However, in the future, we could offer the end users the possibility of selecting what information should be retrieved.
+
+#### Kubernetes Version
+
+Version is checked periodically by querying the corresponding k8s object in the cluster. The Agent Type allows setting up the version
+check interval and initial delay:
+
+```yaml
+deployment:
+  k8s:
+    version:
+      interval: 120s # Defaults to 60s..
+      initial_delay: 10s # Defaults to 30s.
+```
 
 ## Development
 
