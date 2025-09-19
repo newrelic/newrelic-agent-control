@@ -95,7 +95,6 @@ where
                 .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
 
             if !verifier.key_id().eq(key_id) {
-                error!("keyId '{key_id}' doesn't match with newest key available");
                 return Err(VerifierStoreError::KeyMismatch {
                     signature_key_id: key_id.to_string(),
                     certificate_key_id: verifier.key_id().to_string(),
