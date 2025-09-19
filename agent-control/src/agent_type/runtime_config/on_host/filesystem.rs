@@ -154,6 +154,12 @@ impl TryFrom<PathBuf> for SafePath {
     }
 }
 
+impl From<SafePath> for PathBuf {
+    fn from(value: SafePath) -> Self {
+        value.0
+    }
+}
+
 /// A file entry consists on a path and its content. The path must always be relative,
 /// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
 /// auto-generated directory for that sub-agent).
