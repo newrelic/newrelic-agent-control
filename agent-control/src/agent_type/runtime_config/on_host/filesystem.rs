@@ -74,20 +74,19 @@ impl FileSystem {
     /// be written into the actual host filesystem.
     ///
     /// **WARNING**: This must be called **after** the rendering process has finished
-    /// or else AC will crash!
+    /// or else AC might crash!
     pub fn rendered(self) -> HashMap<PathBuf, String> {
         // Retrieve files
-        let files = self.files.into_values().map(|v| (v.path, v.content.get()));
+        let files = self
+            .files
+            .into_values()
+            .map(|v| (v.path.into(), v.content.get()));
         // Retrieve directories
         // A more elaborate operation, since each directory contains a collection of files inside
         // and we need to retrieve all of them, flattening into a single iterator to append to the
         // files above.
-        let directories = self.directories.into_values();
-        todo!();
-        // self.0
-        //     .into_values()
-        //     .map(|v| (v.relative_path, v.content.get()))
-        //     .collect()
+        let dirs = self.directories.into_values().flat_map(|d| d.rendered());
+        files.chain(dirs).collect()
     }
 }
 
@@ -185,6 +184,17 @@ struct AgentDirectoryEntry {
     items: DirEntriesType,
 }
 
+impl AgentDirectoryEntry {
+    /// Returns the internal directory entries as a [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem.
+    ///
+    /// **WARNING**: This must be called **after** the rendering process has finished
+    /// or else AC might crash!
+    fn rendered(self) -> HashMap<PathBuf, String> {
+        self.items.rendered_with(self.path)
+    }
+}
+
 /// The type of items present in a directory entry.
 ///
 /// There are two supported modes:
@@ -220,10 +230,38 @@ impl Default for DirEntriesType {
     }
 }
 
+impl DirEntriesType {
+    /// Renders the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem.
+    ///
+    /// **WARNING**: This must be called **after** the rendering process has finished
+    /// or else AC might crash!
+    fn rendered_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
+        match self {
+            DirEntriesType::FixedWithTemplatedContent(map) => map
+                .into_iter()
+                .map(|(k, v)| (path.as_ref().join(k), v.get()))
+                .collect(),
+            DirEntriesType::FullyTemplated(tv) => {
+                let map = HashMap::from(tv.get());
+                map.into_iter()
+                    .map(|(k, v)| (path.as_ref().join(k), v))
+                    .collect()
+            }
+        }
+    }
+}
+
 /// A helper newtype to allow implementing `Templateable` for `TemplateableValue<HashMap<PathBuf, String>>`
 /// without running into orphan rule issues.
 #[derive(Debug, Default, PartialEq, Clone)]
 struct DirEntriesMap(HashMap<SafePath, String>);
+
+impl From<DirEntriesMap> for HashMap<SafePath, String> {
+    fn from(value: DirEntriesMap) -> Self {
+        value.0
+    }
+}
 
 impl Templateable for FileSystem {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
