@@ -148,7 +148,7 @@ agents:
     retry(120, Duration::from_secs(1), || {
         block_on(check_config_map_exist(
             k8s.client.clone(),
-            "fleet-data-bar-agent",
+            "remote-data-bar-agent",
             &namespace,
         ))?;
         Ok(())
