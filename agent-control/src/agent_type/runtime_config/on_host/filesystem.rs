@@ -1,5 +1,15 @@
+//! Module defining the file system configuration for sub-agents.
+//!
+//! This includes files and directories that should be created for the sub-agent at runtime,
+//! based on templated content and paths. The paths are always relative to the sub-agent's
+//! dedicated directory created by agent-control
+//! (usually something like `/var/lib/newrelic-agent-control/auto-generated/<SUB_AGENT_ID>`).
+//! The files are created in a dedicated `files/` subdirectory, while directories are created in
+//! a dedicated `directories/` subdirectory, to avoid name clashes.
+
 use std::{
     collections::{HashMap, HashSet},
+    io::{Error as IOError, ErrorKind},
     path::{Component, Path, PathBuf},
 };
 
@@ -38,67 +48,33 @@ pub const DIRECTORIES_SUBDIR: &str = "directories";
 ///       items: | # fully templated content, expected to render to a valid YAML mapping string -> string
 ///         ${nr-var:some_var_that_renders_to_a_yaml_mapping}
 /// ```
+///
+/// For now, the identifiers for files and directories (e.g. `my-file` and `my-dir` in the example
+/// above) are not used for anything, so the same identifiers can be used on either side (files,
+/// directories), but they might be used in the future to reference these entries
+/// from variables or other parts of the configuration, in which case duplicates might stop being
+/// allowed.
+///
+/// The `relative_path` fields, on the other hand, are allowed to be equal between files and
+/// directories, but not within each section (i.e. two files cannot have the same `relative_path`,
+/// and neither can two directories). This is validated at parse time and after templating.
+///
+/// Templating is only supported for file contents, not for IDs, nor file/directory names,
+/// with the exception of directory items which might accept an arbitrary number of files
+/// to place in a directory via templates (a place to use a `map[string]yaml` variable type).
+/// See [`AgentDirectoryEntry`] and [`DirEntriesType`] for more details.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct FileSystem {
     files: HashMap<String, AgentFileEntry>,
     directories: HashMap<String, AgentDirectoryEntry>,
 }
 
-/// A file entry consists on a path and its content. The path must always be relative,
-/// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
-/// auto-generated directory for that sub-agent).
-#[derive(Debug, Default, Clone, PartialEq)]
-struct AgentFileEntry {
-    relative_path: PathBuf,
-    content: TemplateableValue<String>,
-}
-
-/// A directory entry consists on a path and its items. The path must always be relative,
-/// as these represent directories that will be created for a sub-agent's scope (i.e. in AC's
-/// auto-generated directory for that sub-agent).
-#[derive(Debug, Default, Clone, PartialEq)]
-struct AgentDirectoryEntry {
-    relative_path: PathBuf,
-    items: DirEntriesType,
-}
-
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-#[serde(untagged)]
-enum DirEntriesType {
-    /// A directory with a fixed set of entries, but each entry's content can be templated.
-    /// E.g.
-    /// ```yaml
-    /// items:
-    ///  filepath1: "file1 content with ${nr-var:some_var}"
-    ///  filepath2: "file2 content"
-    /// ```
-    FixedWithTemplatedContent(HashMap<PathBuf, TemplateableValue<String>>),
-
-    /// A directory with a fully templated set of entries, where it's expected that a full template
-    /// is provided that renders to a valid YAML mapping of `PathBuf` to `String`.
-    /// E.g.
-    /// ```yaml
-    /// items:
-    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping | indent 2}
-    /// ```
-    FullyTemplated(TemplateableValue<DirEntriesMap>),
-}
-
-impl Default for DirEntriesType {
-    fn default() -> Self {
-        DirEntriesType::FixedWithTemplatedContent(HashMap::default())
-    }
-}
-
-/// A helper newtype to allow implementing `Templateable` for `TemplateableValue<HashMap<PathBuf, String>>`
-/// without running into orphan rule issues.
-#[derive(Debug, Default, PartialEq, Clone)]
-struct DirEntriesMap(HashMap<PathBuf, String>);
-
 impl FileSystem {
-    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`].
+    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem.
     ///
-    /// **WARNING**: This must be called **after** the rendering process has finished or else AC will crash!
+    /// **WARNING**: This must be called **after** the rendering process has finished
+    /// or else AC will crash!
     pub fn rendered(self) -> HashMap<PathBuf, String> {
         todo!();
         // self.0
@@ -108,6 +84,8 @@ impl FileSystem {
     }
 }
 
+/// Custom deserialization that validates all paths are unique inside both
+/// files and directories definitions. Duplicates across files and directories are allowed.
 impl<'de> Deserialize<'de> for FileSystem {
     fn deserialize<D>(deserializer: D) -> Result<FileSystem, D::Error>
     where
@@ -124,73 +102,115 @@ impl<'de> Deserialize<'de> for FileSystem {
             PreValidationFileSystem::deserialize(deserializer)?;
 
         // Validate that all paths are unique across files and directories
-        let file_paths = files.values().map(|e| &e.relative_path);
-        let dir_paths = directories.values().map(|e| &e.relative_path);
-        if let Err(e) = validate_unique_paths(file_paths.chain(dir_paths)) {
-            return Err(Error::custom(format!(
+        let file_paths = files.values().map(|e| &e.path);
+        let dir_paths = directories.values().map(|e| &e.path);
+
+        let mut errs = Vec::default();
+        if let Err(e) = validate_unique_paths(file_paths) {
+            errs.push(format!(
                 "duplicate file paths are not allowed. Found duplicate path: '{}'",
-                e.display()
-            )));
+                e.as_ref().display()
+            ));
+        }
+        if let Err(e) = validate_unique_paths(dir_paths) {
+            errs.push(format!(
+                "duplicate directory paths are not allowed. Found duplicate path: '{}'",
+                e.as_ref().display()
+            ));
         }
 
-        Ok(Self { files, directories })
-    }
-}
-
-impl<'de> Deserialize<'de> for AgentFileEntry {
-    fn deserialize<D>(deserializer: D) -> Result<AgentFileEntry, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct PreValidationFileEntry {
-            relative_path: PathBuf,
-            content: TemplateableValue<String>,
-        }
-
-        let PreValidationFileEntry {
-            relative_path,
-            content,
-        } = PreValidationFileEntry::deserialize(deserializer)?;
-
-        // Perform validations on the provided Paths
-        if let Err(errs) = validate_file_entry_path(&relative_path) {
-            Err(Error::custom(errs.join(", ")))
+        // Error out if there were any errors
+        if errs.is_empty() {
+            Ok(Self { files, directories })
         } else {
-            Ok(Self {
-                relative_path,
-                content,
-            })
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for AgentDirectoryEntry {
-    fn deserialize<D>(deserializer: D) -> Result<AgentDirectoryEntry, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct PreValidationDirectoryEntry {
-            relative_path: PathBuf,
-            items: DirEntriesType,
-        }
-
-        let PreValidationDirectoryEntry {
-            relative_path,
-            items,
-        } = PreValidationDirectoryEntry::deserialize(deserializer)?;
-        // Perform validations on the provided Paths
-        if let Err(errs) = validate_file_entry_path(&relative_path) {
             Err(Error::custom(errs.join(", ")))
-        } else {
-            Ok(Self {
-                relative_path,
-                items,
-            })
         }
     }
 }
+
+/// A path to a file or directory that has been validated to be "safe",
+/// i.e. relative and not escaping its base directory (e.g. with parent dir specifiers like `..`).
+#[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[serde(try_from = "PathBuf")]
+struct SafePath(PathBuf);
+
+/// Allow borrowing the inner [`Path`] from a [`SafePath`].
+impl AsRef<Path> for SafePath {
+    fn as_ref(&self) -> &Path {
+        &self.0
+    }
+}
+
+/// Try to create a [`SafePath`] from a [`PathBuf`], validating that the path is relative
+/// and does not escape its base directory. If the path is invalid, an error string is returned
+/// containing
+impl TryFrom<PathBuf> for SafePath {
+    type Error = IOError;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        validate_file_entry_path(&value)
+            .map_err(|e| IOError::new(ErrorKind::InvalidFilename, e))?;
+        Ok(SafePath(value))
+    }
+}
+
+/// A file entry consists on a path and its content. The path must always be relative,
+/// as these represent files that will be created for a sub-agent's scope (i.e. in AC's
+/// auto-generated directory for that sub-agent).
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+struct AgentFileEntry {
+    path: SafePath,
+    content: TemplateableValue<String>,
+}
+
+/// A directory entry consists on a path and its items. The path must always be relative,
+/// as these represent directories that will be created for a sub-agent's scope (i.e. in AC's
+/// auto-generated directory for that sub-agent).
+#[derive(Debug, Default, Deserialize, Clone, PartialEq)]
+struct AgentDirectoryEntry {
+    path: SafePath,
+    items: DirEntriesType,
+}
+
+/// The type of items present in a directory entry.
+///
+/// There are two supported modes:
+///   1. A fixed set of entries, where each entry's content can be templated. This implies the number
+///      and names of the entries are known at parse time.
+///   2. A fully templated set of entries, where it's expected that a full template is provided as
+///      a placeholder for the full [`AgentDirectoryEntry.items`] field.
+#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[serde(untagged)]
+enum DirEntriesType {
+    /// A directory with a fixed set of entries, but each entry's content can be templated.
+    /// E.g.
+    /// ```yaml
+    /// items:
+    ///  filepath1: "file1 content with ${nr-var:some_var}"
+    ///  filepath2: "file2 content"
+    /// ```
+    FixedWithTemplatedContent(HashMap<SafePath, TemplateableValue<String>>),
+
+    /// A directory with a fully templated set of entries, where it's expected that a full template
+    /// is provided that renders to a valid YAML mapping of a safe [`PathBuf`] to [`String`].
+    /// E.g.
+    /// ```yaml
+    /// items:
+    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+    /// ```
+    FullyTemplated(TemplateableValue<DirEntriesMap>),
+}
+
+impl Default for DirEntriesType {
+    fn default() -> Self {
+        DirEntriesType::FixedWithTemplatedContent(HashMap::default())
+    }
+}
+
+/// A helper newtype to allow implementing `Templateable` for `TemplateableValue<HashMap<PathBuf, String>>`
+/// without running into orphan rule issues.
+#[derive(Debug, Default, PartialEq, Clone)]
+struct DirEntriesMap(HashMap<SafePath, String>);
 
 impl Templateable for FileSystem {
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
@@ -226,9 +246,16 @@ impl Templateable for AgentFileEntry {
             .and_then(Variable::get_final_value)
         {
             let rendered_file_entry = Self {
-                relative_path: PathBuf::from(generated_dir)
-                    .join(FILES_SUBDIR)
-                    .join(self.relative_path),
+                path: SafePath(
+                    // The only place where we construct a `SafePath` directly, prepending the
+                    // sub-agent's auto-generated directory and the `files/` subdir to the
+                    // user-provided relative path.
+                    // FIXME: when we fix the templating and make the agent type definitions
+                    // type-safe, we will make sure to always construct a proper "final path" here.
+                    PathBuf::from(generated_dir)
+                        .join(FILES_SUBDIR)
+                        .join(self.path),
+                ),
                 content: self.content.template_with(variables)?,
             };
             Ok(rendered_file_entry)
@@ -236,23 +263,6 @@ impl Templateable for AgentFileEntry {
             Err(AgentTypeError::MissingValue(
                 Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
             ))
-        }
-    }
-}
-
-impl Templateable for DirEntriesType {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        match self {
-            DirEntriesType::FixedWithTemplatedContent(map) => {
-                let rendered_map = map
-                    .into_iter()
-                    .map(|(k, v)| Ok((k, v.template_with(variables)?)))
-                    .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-                Ok(DirEntriesType::FixedWithTemplatedContent(rendered_map))
-            }
-            DirEntriesType::FullyTemplated(tv) => {
-                Ok(DirEntriesType::FullyTemplated(tv.template_with(variables)?))
-            }
         }
     }
 }
@@ -274,9 +284,16 @@ impl Templateable for AgentDirectoryEntry {
             .and_then(Variable::get_final_value)
         {
             let rendered_directory_entry = Self {
-                relative_path: PathBuf::from(generated_dir)
-                    .join(DIRECTORIES_SUBDIR)
-                    .join(self.relative_path),
+                path: SafePath(
+                    // The only place where we construct a `SafePath` directly, prepending the
+                    // sub-agent's auto-generated directory and the `directories/` subdir to the
+                    // user-provided relative path.
+                    // FIXME: when we fix the templating and make the agent type definitions
+                    // type-safe, we will make sure to always construct a proper "final path" here.
+                    PathBuf::from(generated_dir)
+                        .join(DIRECTORIES_SUBDIR)
+                        .join(self.path),
+                ),
                 items: self.items.template_with(variables)?,
             };
             Ok(rendered_directory_entry)
@@ -288,12 +305,48 @@ impl Templateable for AgentDirectoryEntry {
     }
 }
 
+impl Templateable for DirEntriesType {
+    /// Replaces placeholders in the content with values from the `Variables` map.
+    ///
+    /// Behaves differently depending on the variant:
+    /// - For `FixedWithTemplatedContent`, it templates each entry's content individually.
+    /// - For `FullyTemplated`, it templates the entire content as a single unit, expecting it to
+    ///   be a valid (YAML) mapping of safe `PathBuf` to `String`.
+    ///
+    /// See [`TemplateableValue<DirEntriesMap>::template_with`] for details.
+    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+        match self {
+            DirEntriesType::FixedWithTemplatedContent(map) => {
+                let rendered_map = map
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, v.template_with(variables)?)))
+                    .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
+                Ok(DirEntriesType::FixedWithTemplatedContent(rendered_map))
+            }
+            DirEntriesType::FullyTemplated(tv) => {
+                Ok(DirEntriesType::FullyTemplated(tv.template_with(variables)?))
+            }
+        }
+    }
+}
+
 impl Templateable for TemplateableValue<DirEntriesMap> {
+    /// Performs the templating of the defined directory entries for this sub-agent in the case where
+    /// they were fully templated (see [`DirEntriesType::FullyTemplated`]).
+    ///
+    /// The paths present in the DirectoryEntry structures are always assumed to start from the
+    /// sub-agent's dedicated directory **and** a dedicated directory for stand-alone directories
+    /// ([`DIRECTORIES_SUBDIR`]).
+    ///
+    /// Besides, we know the paths are relative and don't go above their base dir (e.g. `/../..`)
+    /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
+    /// provided base dir to them, as it must be defined in the variables passed to the sub-agent.
+    /// If the value of the sub-agent's dedicated directory is missing, the templating fails.
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         // Template content as a string first. Then parse as a YAML and attempt to convert to the
         // expected HashMap<PathBuf, String> type.
         let templated_string = self.template.clone().template_with(variables)?;
-        let value: HashMap<PathBuf, String> = if templated_string.is_empty() {
+        let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
         } else {
             serde_yaml::from_str(&templated_string).map_err(|e| {
@@ -302,6 +355,7 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
                 ))
             })?
         };
+
         Ok(Self {
             template: self.template,
             value: Some(DirEntriesMap(value)),
@@ -309,22 +363,24 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
     }
 }
 
+/// Validates that all paths in the provided iterator are unique.
+/// If a duplicate is found, returns an error with the first duplicate found.
 fn validate_unique_paths<'a>(
-    mut paths: impl Iterator<Item = &'a PathBuf>,
-) -> Result<(), &'a PathBuf> {
+    mut paths: impl Iterator<Item = &'a SafePath>,
+) -> Result<(), &'a SafePath> {
     let mut seen_paths = HashSet::new();
     // Inserting already-inserted items in the hashset evaluates to `false`.
     paths.try_for_each(|p| if seen_paths.insert(p) { Ok(()) } else { Err(p) })
 }
 
-fn validate_file_entry_path(path: &Path) -> Result<(), Vec<String>> {
+/// Validates that a file entry path is relative and does not escape its base directory.
+/// Returns a comma-separated list of error messages, if any.
+fn validate_file_entry_path(path: &Path) -> Result<(), String> {
     let mut errors = Vec::new();
 
     if !path.is_relative() {
         let p = path.display();
-        errors.push(format!(
-            "Only relative paths are allowed. Found absolute: {p}"
-        ));
+        errors.push(format!("path `{p}` is not relative"));
     }
     // Paths must not escape the base directory
     if let Err(e) = check_basedir_escape_safety(path) {
@@ -334,20 +390,23 @@ fn validate_file_entry_path(path: &Path) -> Result<(), Vec<String>> {
     if errors.is_empty() {
         Ok(())
     } else {
-        Err(errors)
+        Err(errors.join(", "))
     }
 }
 
 /// Makes sure the passed directory goes not traverse outside the directory where it's contained.
 /// E.g. via relative path specifiers like `./../../some_path`.
 ///
+/// This would make files and directories "safe" to be created inside a sub-agent's dedicated
+/// directory, as they would not be able to write outside of it
+/// (tampering with other sub-agents or worse).
 /// Returns an error string if this property does not hold.
 fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     path.components().try_for_each(|comp| match comp {
         Component::Normal(_) | Component::CurDir => Ok(()),
         // Disallow other non-supported variants like roots or prefixes
         Component::ParentDir | Component::RootDir | Component::Prefix(_) => Err(format!(
-            "path '{}' has an invalid component: '{}'",
+            "path `{}` has an invalid component: `{}`",
             path.display(),
             comp.as_os_str().to_string_lossy()
         )),
@@ -386,24 +445,26 @@ mod tests {
         )]);
 
         let file_entry = AgentFileEntry {
-            relative_path: PathBuf::from("my/file/path"),
+            path: PathBuf::from("my/file/path").try_into().unwrap(),
             content: TemplateableValue::new("some content".to_string()),
         };
 
         let rendered = file_entry.template_with(&variables);
         assert!(rendered.is_ok());
         assert_eq!(
-            rendered.unwrap().relative_path,
-            PathBuf::from("/base/dir/files/my/file/path")
+            rendered.unwrap().path.as_ref(),
+            Path::new("/base/dir/files/my/file/path")
         );
     }
 
     #[test]
     fn invalid_filepath_rendering_nonexisting_subagent_basepath() {
+        // If the sub-agent variable (nr-sub) containing the agent's auto-generated dir is missing,
+        // templating must fail.
         let variables = Variables::default();
 
         let file_entry = AgentFileEntry {
-            relative_path: PathBuf::from("my/file/path"),
+            path: PathBuf::from("my/file/path").try_into().unwrap(),
             content: TemplateableValue::new("some content".to_string()),
         };
 
@@ -479,12 +540,12 @@ another-dir:
         let parsed = parsed.unwrap();
 
         let my_file = parsed.get("my-file").unwrap();
-        assert_eq!(my_file.relative_path, PathBuf::from("path/to/my-file"));
+        assert_eq!(my_file.path.as_ref(), Path::new("path/to/my-file"));
 
         let another_file = parsed.get("another-file").unwrap();
         assert_eq!(
-            another_file.relative_path,
-            PathBuf::from("another/path/to/my-file")
+            another_file.path.as_ref(),
+            Path::new("another/path/to/my-file")
         );
     }
 
@@ -499,7 +560,7 @@ another-dir:
 
         let parsed = parsed.unwrap();
         let my_dir = parsed.get("my-dir").unwrap();
-        assert_eq!(my_dir.relative_path, PathBuf::from("path/to/my-dir"));
+        assert_eq!(my_dir.path.as_ref(), Path::new("path/to/my-dir"));
         assert!(matches!(
             my_dir.items,
             DirEntriesType::FixedWithTemplatedContent(_)
@@ -507,8 +568,8 @@ another-dir:
 
         let another_dir = parsed.get("another-dir").unwrap();
         assert_eq!(
-            another_dir.relative_path,
-            PathBuf::from("another/path/to/my-dir")
+            another_dir.path.as_ref(),
+            Path::new("another/path/to/my-dir")
         );
         assert!(matches!(
             another_dir.items,
