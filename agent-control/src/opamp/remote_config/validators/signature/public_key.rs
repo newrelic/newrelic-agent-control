@@ -69,9 +69,9 @@ impl Verifier for PublicKey {
             ));
         }
 
-        self.public_key
-            .verify(msg, signature)
-            .map_err(|e| PubKeyError::ValidatingSignature(e.to_string()))
+        self.public_key.verify(msg, signature).map_err(|_| {
+            PubKeyError::ValidatingSignature("signature verification failed".to_string())
+        })
     }
 
     fn key_id(&self) -> &str {

@@ -57,7 +57,7 @@ pub fn build_signature_validator(
         CertificateFetcher::PemFile(config.certificate_pem_file_path)
     } else {
         info!(
-            "Remote config signature validation is enabled, fetching certificate from: {}",
+            "Remote config signature validation is enabled (certificate), fetching certificate from: {}",
             config.certificate_server_url
         );
 
@@ -87,6 +87,10 @@ pub fn build_signature_validator(
             let http_client = HttpClient::new(http_config)
                 .map_err(|e| SignatureValidatorError::BuildingValidator(e.to_string()))?;
 
+            info!(
+                "Remote config signature validation is (public key), fetching jwks from: {}",
+                public_key_server_url
+            );
             let public_key_fetcher = PublicKeyFetcher::new(http_client, public_key_server_url);
 
             let pubkey_verifier_store = VerifierStore::try_new(public_key_fetcher)
@@ -225,14 +229,14 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
                 Ok(()) => return Ok(()),
                 Err(err) => {
                     debug!(
-                        "Failed to verify signature using the Configurations Public Key: {}",
+                        "Failed to verify signature using the public key in the configured JWKS: {}",
                         err
                     );
                 }
             }
         }
 
-        debug!("Falling back to signature verification using the Configurations Certificate");
+        debug!("Falling back to signature verification using the configured Certificate");
 
         self.certificate_store
             .verify_signature(
