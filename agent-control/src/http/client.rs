@@ -3,8 +3,8 @@
 use crate::http::config::HttpConfig;
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::Response as HttpResponse;
 use http::{Request, Response};
+use http::{Response as HttpResponse, StatusCode};
 use nr_auth::http_client::HttpClient as OauthHttpClient;
 use nr_auth::http_client::HttpClientError as OauthHttpClientError;
 use opamp_client::http::HttpClientError as OpampHttpClientError;
@@ -76,7 +76,16 @@ impl HttpClient {
             .send()
             .map_err(|err| HttpResponseError::TransportError(err.to_string()))?;
 
-        try_build_response(res)
+        if res.status().is_success() {
+            try_build_response(res)
+        } else {
+            let status_code = res.status();
+            let body = res
+                .bytes()
+                .map_err(|err| HttpResponseError::ReadingResponse(err.to_string()))?
+                .to_vec();
+            Err(HttpResponseError::UnsuccessfulResponse { status_code, body })
+        }
     }
 }
 
@@ -90,6 +99,14 @@ pub enum HttpResponseError {
     BuildingRequest(String),
     #[error("`{0}`")]
     TransportError(String),
+    #[error(
+        "Unsuccessful response: {status_code} - Body: {}",
+        String::from_utf8_lossy(body)
+    )]
+    UnsuccessfulResponse {
+        status_code: StatusCode,
+        body: Vec<u8>,
+    },
 }
 
 impl From<HttpResponseError> for OpampHttpClientError {
@@ -99,6 +116,14 @@ impl From<HttpResponseError> for OpampHttpClientError {
             HttpResponseError::BuildingRequest(msg)
             | HttpResponseError::BuildingResponse(msg)
             | HttpResponseError::ReadingResponse(msg) => OpampHttpClientError::HTTPBodyError(msg),
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                let formatted_error = format!(
+                    "HTTP Error {}: {}",
+                    status_code,
+                    String::from_utf8_lossy(&body)
+                );
+                OpampHttpClientError::HTTPBodyError(formatted_error)
+            }
         }
     }
 }
@@ -130,6 +155,14 @@ impl From<HttpResponseError> for OauthHttpClientError {
             HttpResponseError::BuildingRequest(msg)
             | HttpResponseError::BuildingResponse(msg)
             | HttpResponseError::ReadingResponse(msg) => OauthHttpClientError::InvalidResponse(msg),
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                let formatted_error = format!(
+                    "HTTP Error {}: {}",
+                    status_code,
+                    String::from_utf8_lossy(&body)
+                );
+                OauthHttpClientError::InvalidResponse(formatted_error)
+            }
         }
     }
 }
@@ -426,6 +459,7 @@ pub(crate) mod tests {
         struct TestCase {
             name: &'static str,
             status_code: u16,
+            expects_success: bool,
         }
 
         impl TestCase {
@@ -461,35 +495,48 @@ pub(crate) mod tests {
                     .body(Vec::new())
                     .unwrap();
 
-                let res = http_client.send(request).unwrap();
+                let result = http_client.send(request);
 
-                req_mock.assert_calls(1);
-                assert_eq!(
-                    res.status(),
-                    self.status_code,
-                    "not expected status code in {}",
-                    self.name
-                );
-                assert_eq!(
-                    *res.body(),
-                    self.name.to_string().as_bytes().to_vec(),
-                    "not expected body code in {}",
-                    self.name
-                );
+                if self.expects_success {
+                    let res = result.unwrap();
+                    req_mock.assert_calls(1);
+                    assert_eq!(
+                        res.status(),
+                        self.status_code,
+                        "not expected status code in {}",
+                        self.name
+                    );
+                    assert_eq!(
+                        *res.body(),
+                        self.name.to_string().as_bytes().to_vec(),
+                        "not expected body code in {}",
+                        self.name
+                    );
+                } else {
+                    let err = result.unwrap_err();
+                    req_mock.assert_calls(1);
+                    assert_matches!(err, HttpResponseError::UnsuccessfulResponse { .. });
+                    if let HttpResponseError::UnsuccessfulResponse { status_code, .. } = err {
+                        assert_eq!(status_code.as_u16(), self.status_code);
+                    }
+                }
             }
         }
         let test_cases = [
             TestCase {
                 name: "OK",
                 status_code: 200,
+                expects_success: true,
             },
             TestCase {
                 name: "Not found",
                 status_code: 404,
+                expects_success: false,
             },
             TestCase {
                 name: "Server error",
                 status_code: 500,
+                expects_success: false,
             },
         ];
         test_cases.into_iter().for_each(|tc| tc.run());
