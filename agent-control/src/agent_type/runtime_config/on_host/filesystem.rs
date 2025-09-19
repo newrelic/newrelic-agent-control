@@ -695,4 +695,95 @@ directories:
         assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
         // let templated = templated.unwrap();
     }
+
+    #[test]
+    fn rendered_files() {
+        let parsed = serde_yaml::from_str::<FileSystem>(FILESYSTEM_EXAMPLE);
+        assert!(
+            parsed
+                .as_ref()
+                .is_ok_and(|fs| fs.files.len() == 2 && fs.directories.len() == 2),
+            "Parsed filesystem: {parsed:?}"
+        );
+
+        let parsed = parsed.unwrap();
+        let variables = Variables::from_iter(vec![
+            (
+                Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
+                Variable::new_final_string_variable("/test/base/dir"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_file_var"),
+                Variable::new_final_string_variable("file_var_value"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_dir_var"),
+                Variable::new_final_string_variable("dir_var_value"),
+            ),
+            (
+                Namespace::Variable.namespaced_name("some_var_that_renders_to_a_yaml_mapping"),
+                // a map[string]yaml
+                Variable::new(
+                    String::default(),
+                    false,
+                    None,
+                    Some(HashMap::from([
+                        ("fileA".to_string(), Value::String("contentA".to_string())),
+                        (
+                            "fileB".to_string(),
+                            Value::String("multi-line\ncontentB".to_string()),
+                        ),
+                    ])),
+                ),
+            ),
+        ]);
+
+        let templated = parsed.template_with(&variables);
+        assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
+        let templated = templated.unwrap();
+
+        // Expected rendered paths with contents.
+        // All paths must be prepended by the sub-agent's generated dir and the
+        // corresponding `files/` or `directories/` subdir, depending on where they came from.
+        // They also must have all variables rendered and have the correct content.
+        let expected_rendered = [
+            (
+                PathBuf::from("/test/base/dir/directories/another/path/to/my-dir/fileA"),
+                String::from("contentA"),
+            ),
+            (
+                PathBuf::from("/test/base/dir/directories/path/to/my-dir/filepath1"),
+                String::from("file1 content"),
+            ),
+            (
+                PathBuf::from("/test/base/dir/directories/path/to/my-dir/filepath2"),
+                String::from("key: dir_var_value\n"),
+            ),
+            (
+                PathBuf::from("/test/base/dir/files/path/to/my-file"),
+                String::from("something file_var_value"),
+            ),
+            (
+                PathBuf::from("/test/base/dir/files/another/path/to/my-file"),
+                String::from("some\nmulti-line\ncontent\n"),
+            ),
+            (
+                PathBuf::from("/test/base/dir/directories/another/path/to/my-dir/fileB"),
+                String::from("multi-line\ncontentB"),
+            ),
+        ];
+        let rendered = templated.rendered();
+        assert_eq!(
+            rendered.len(),
+            expected_rendered.len(),
+            "Rendered filesystem not same size as expected: {rendered:?}, expected: {expected_rendered:?}"
+        );
+
+        assert!(
+            rendered.iter().any(|(r_p, r_s)| expected_rendered
+                .iter()
+                .any(|(e_p, e_s)| e_p == r_p && e_s == r_s)),
+            "Rendered filesystem not matching expected: {rendered:?}, expected: {expected_rendered:?}"
+        );
+    }
 }
