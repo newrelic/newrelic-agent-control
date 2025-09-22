@@ -707,10 +707,10 @@ agents:
                 AgentID::AgentControl,
                 hash,
                 ConfigState::Applying,
-                Some(ConfigurationMap::new(HashMap::from([(
+                ConfigurationMap::new(HashMap::from([(
                     DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     s.to_string(),
-                )]))),
+                )])),
             )
         }
 

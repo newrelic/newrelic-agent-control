@@ -952,10 +952,10 @@ deployment:
                 Self::id(),
                 Self::hash(),
                 ConfigState::Applying,
-                Some(ConfigurationMap::new(HashMap::from([(
+                ConfigurationMap::new(HashMap::from([(
                     DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     Self::valid_config_yaml().try_into().unwrap(),
-                )]))),
+                )])),
             )
         }
 
@@ -964,11 +964,11 @@ deployment:
                 Self::id(),
                 Self::hash(),
                 ConfigState::Applying,
-                Some(ConfigurationMap::new(HashMap::from([(
+                ConfigurationMap::new(HashMap::from([(
                     DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     // Reset signal
                     "".to_string(),
-                )]))),
+                )])),
             )
         }
 
@@ -979,10 +979,10 @@ deployment:
                 ConfigState::Failed {
                     error_message: "error_message".to_string(),
                 },
-                Some(ConfigurationMap::new(HashMap::from([(
+                ConfigurationMap::new(HashMap::from([(
                     DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     "broken config:".to_string(),
-                )]))),
+                )])),
             )
         }
     }

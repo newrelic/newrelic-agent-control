@@ -23,7 +23,7 @@ pub struct OpampRemoteConfig {
     pub hash: Hash,
     pub state: ConfigState,
     signatures: Option<Signatures>,
-    config_map: Option<ConfigurationMap>,
+    config_map: ConfigurationMap,
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -44,7 +44,7 @@ impl OpampRemoteConfig {
         agent_id: AgentID,
         hash: Hash,
         state: ConfigState,
-        config_map: Option<ConfigurationMap>,
+        config_map: ConfigurationMap,
     ) -> Self {
         Self {
             agent_id,
@@ -63,15 +63,7 @@ impl OpampRemoteConfig {
 
     /// Get configuration value at the
     pub fn get_default(&self) -> Result<&str, OpampRemoteConfigError> {
-        let config_map = self
-            .config_map
-            .as_ref()
-            .ok_or(OpampRemoteConfigError::InvalidConfig(
-                self.hash.to_string(),
-                "missing config".to_string(),
-            ))?;
-
-        config_map
+        self.config_map
             .0
             .get(DEFAULT_AGENT_CONFIG_IDENTIFIER)
             .map(|s| s.as_str())

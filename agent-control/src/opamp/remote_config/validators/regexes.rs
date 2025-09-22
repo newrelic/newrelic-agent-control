@@ -192,10 +192,10 @@ pub(super) mod tests {
             test_id(),
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
-            Some(ConfigurationMap::new(HashMap::from([(
+            ConfigurationMap::new(HashMap::from([(
                 DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 content.to_string(),
-            )]))),
+            )])),
         );
         let validator = RegexValidator::default();
         let agent_identity = AgentIdentity {
@@ -504,10 +504,10 @@ config: |
             test_id(),
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
-            Some(ConfigurationMap::new(HashMap::from([(
+            ConfigurationMap::new(HashMap::from([(
                 DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
-            )]))),
+            )])),
         )
     }
 

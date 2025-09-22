@@ -515,7 +515,7 @@ pub mod tests {
             AgentID::try_from("test").unwrap(),
             Hash::from("test_payload"),
             ConfigState::Applying,
-            None,
+            ConfigurationMap::default(),
         );
 
         let noop_validator = SignatureValidator::Noop;
@@ -572,7 +572,7 @@ pub mod tests {
                     AgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
-                    None,
+                    ConfigurationMap::default(),
                 ),
             },
             TestCase {
@@ -581,7 +581,7 @@ pub mod tests {
                     AgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
-                    None,
+                    ConfigurationMap::default(),
                 )
                 .with_signature(Signatures::new_multiple([
                     SignatureData::new("first", ED25519, "fake_key_id"),
@@ -594,7 +594,7 @@ pub mod tests {
                     AgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
-                    None,
+                    ConfigurationMap::default(),
                 )
                 .with_signature(Signatures::new_default(
                     "",
@@ -608,10 +608,10 @@ pub mod tests {
                     AgentID::try_from("test").unwrap(),
                     Hash::from("test_payload"),
                     ConfigState::Applying,
-                    Some(ConfigurationMap::new(HashMap::from([(
+                    ConfigurationMap::new(HashMap::from([(
                         "key".to_string(),
                         "value".to_string(),
-                    )]))),
+                    )])),
                 )
                 .with_signature(Signatures::new_default(
                     "invalid signature",
@@ -644,7 +644,7 @@ pub mod tests {
             AgentID::AgentControl,
             Hash::from("test"),
             ConfigState::Applying,
-            None,
+            ConfigurationMap::default(),
         );
         // Signature custom capability is not set for agent-control agent, therefore signature is not checked
         assert!(
@@ -678,10 +678,10 @@ pub mod tests {
             AgentID::AgentControl,
             Hash::from("test"),
             ConfigState::Applying,
-            Some(ConfigurationMap::new(HashMap::from([(
+            ConfigurationMap::new(HashMap::from([(
                 DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
-            )]))),
+            )])),
         )
         .with_signature(Signatures::new_default(
             encoded_signature.as_str(),
@@ -717,10 +717,10 @@ pub mod tests {
             AgentID::AgentControl,
             Hash::from("test"),
             ConfigState::Applying,
-            Some(ConfigurationMap::new(HashMap::from([(
+            ConfigurationMap::new(HashMap::from([(
                 DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
-            )]))),
+            )])),
         )
         .with_signature(Signatures::new_default(
             encoded_signature.as_str(),
