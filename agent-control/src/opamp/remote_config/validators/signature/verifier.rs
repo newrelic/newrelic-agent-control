@@ -94,7 +94,7 @@ where
                 .fetch()
                 .map_err(|err| VerifierStoreError::Fetch(err.to_string()))?;
 
-            if !verifier.key_id().eq(key_id) {
+            if !verifier.key_id().eq_ignore_ascii_case(key_id) {
                 return Err(VerifierStoreError::KeyMismatch {
                     signature_key_id: key_id.to_string(),
                     certificate_key_id: verifier.key_id().to_string(),

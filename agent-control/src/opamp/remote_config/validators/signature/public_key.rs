@@ -1,8 +1,7 @@
 use crate::opamp::remote_config::signature::SigningAlgorithm;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ring::signature::{ED25519, UnparsedPublicKey};
 use thiserror::Error;
 
