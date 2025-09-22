@@ -204,14 +204,14 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
         }
 
         let signature = opamp_remote_config
-            .get_unique_signature()
+            .get_default_signature()
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .ok_or(SignatureValidatorError::VerifySignature(
                 "Signature is missing".to_string(),
             ))?;
 
         let config_content = opamp_remote_config
-            .get_unique()
+            .get_default()
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
             .as_bytes();
 
@@ -254,7 +254,6 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::http::tls::install_rustls_default_crypto_provider;
-    use crate::opamp::remote_config::ConfigurationMap;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::signature::{
         ECDSA_P256_SHA256, ED25519, SignatureData, Signatures, SigningAlgorithm,
@@ -263,6 +262,7 @@ pub mod tests {
     use crate::opamp::remote_config::validators::signature::verifier::{
         Verifier, VerifierStoreError,
     };
+    use crate::opamp::remote_config::{ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER};
     use crate::sub_agent::identity::AgentIdentity;
     use assert_matches::assert_matches;
     use base64::Engine;
@@ -596,7 +596,11 @@ pub mod tests {
                     ConfigState::Applying,
                     None,
                 )
-                .with_signature(Signatures::new_unique("", ED25519, "fake_key_id")),
+                .with_signature(Signatures::new_default(
+                    "",
+                    ED25519,
+                    "fake_key_id",
+                )),
             },
             TestCase {
                 name: "Invalid signature",
@@ -609,7 +613,7 @@ pub mod tests {
                         "value".to_string(),
                     )]))),
                 )
-                .with_signature(Signatures::new_unique(
+                .with_signature(Signatures::new_default(
                     "invalid signature",
                     ECDSA_P256_SHA256,
                     "fake_key_id",
@@ -675,11 +679,11 @@ pub mod tests {
             Hash::from("test"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
-                "key".into(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
             )]))),
         )
-        .with_signature(Signatures::new_unique(
+        .with_signature(Signatures::new_default(
             encoded_signature.as_str(),
             ED25519, // Test signer uses this algorithm
             test_signer.key_id(),
@@ -714,11 +718,11 @@ pub mod tests {
             Hash::from("test"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
-                "key".into(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
             )]))),
         )
-        .with_signature(Signatures::new_unique(
+        .with_signature(Signatures::new_default(
             encoded_signature.as_str(),
             ED25519,
             pub_key_server.key_id.as_str(),

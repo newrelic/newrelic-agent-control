@@ -264,7 +264,9 @@ pub(crate) mod tests {
     use crate::opamp::remote_config::signature::{
         ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
     };
-    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+    use crate::opamp::remote_config::{
+        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
+    };
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;
@@ -338,7 +340,7 @@ pub(crate) mod tests {
         let (valid_remote_config_map, expected_remote_config_map) = (
             AgentConfigMap {
                 config_map: HashMap::from([(
-                    "my-config".to_string(),
+                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     AgentConfigFile {
                         body: "enable_proces_metrics: true".as_bytes().to_vec(),
                         content_type: "".to_string(),
@@ -346,7 +348,7 @@ pub(crate) mod tests {
                 )]),
             },
             ConfigurationMap::new(HashMap::from([(
-                "my-config".to_string(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 "enable_proces_metrics: true".to_string(),
             )])),
         );
@@ -490,13 +492,14 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: r#"{
-                            "unique": [{
+                        data: serde_json::json!({
+                            DEFAULT_AGENT_CONFIG_IDENTIFIER: [{
                                 "signature": "fake config",
                                 "signingAlgorithm": "ED25519",
                                 "keyId": "fake keyid"
                             }]
-                        }"#
+                        })
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                     }),
@@ -505,7 +508,7 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
-                expected_signature: Some(Signatures::new_unique(
+                expected_signature: Some(Signatures::new_default(
                     "fake config",
                     ED25519,
                     "fake keyid",

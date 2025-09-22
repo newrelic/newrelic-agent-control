@@ -431,7 +431,7 @@ where
             .into());
         }
 
-        let remote_config_value = opamp_remote_config.get_unique()?;
+        let remote_config_value = opamp_remote_config.get_default()?;
 
         let new_dynamic_config = if remote_config_value.is_empty() {
             // Use the local configuration if the content of the remote config is empty.
@@ -583,7 +583,9 @@ mod tests {
     use crate::health::with_start_time::HealthWithStartTime;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
-    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+    use crate::opamp::remote_config::{
+        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
+    };
     use crate::sub_agent::collection::StartedSubAgents;
     use crate::sub_agent::error::SubAgentBuilderError;
     use crate::sub_agent::identity::AgentIdentity;
@@ -706,7 +708,7 @@ agents:
                 hash,
                 ConfigState::Applying,
                 Some(ConfigurationMap::new(HashMap::from([(
-                    "".to_string(),
+                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     s.to_string(),
                 )]))),
             )

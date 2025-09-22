@@ -143,7 +143,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 ///     capability: "com.newrelic.security.configSignature"
 ///     type: "newrelicRemoteConfigSignature"
 ///     data: {
-///           "3936250589": [{
+///           "agentConfig": [{
 ///                 "checksum":  "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
 ///                 "checksumAlgorithm":  "SHA256",
 ///                 "signature":  "nppw2CuZg+YO5MsEoNOsHlgHxF7qAwWPli37NGXAr5isfP1jUTSJcLi0l7k9lNlpbq31GF9DZ0JQBZhoGS0j+sDjvirKSb7yXdqj6JcZ8sxax7KWAnk5QPiwLHFA1kGmszVJ/ccbwtVozG46FvKedcc3X5RME/HGdJupKBe3UzmJawL0xs9jNY+9519CL+CpbkBl/WgCvrIUhTNZv5TUHK23hMD+kz1Brf60pW7MQVtsyClOllsb6WhAsSXdhkpSCJ+96ZGyYywUlvx3/vkBM5a7q4IWqiPM4U0LPZDMQJQCCpxWV3T7cnIR1Ye2yYUqJHs9vfKmTWeBKH2Tb5FgpQ==",
@@ -167,7 +167,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 /// use crate::newrelic_agent_control::opamp::remote_config::signature::Signatures;
 ///
 /// let data= r#"{
-///      "3936250589": [
+///      "agentConfig": [
 ///         {
 ///            "signature":  "some signature",
 ///            "signingAlgorithm": "UNSUPPORTED",
@@ -187,7 +187,7 @@ fn parse_rsa_algorithm(algo: &str) -> Option<SigningAlgorithm> {
 /// }"#.as_bytes().to_vec();
 ///
 /// let signatures: Signatures = serde_json::from_slice(&data).unwrap();
-/// let (_, signature) = signatures.iter().next().unwrap();
+/// let (_, signature) = signatures.signatures.iter().next().unwrap();
 /// assert_eq!(signature.signing_algorithm.as_ref(), "ED25519");
 /// ```
 #[derive(Debug, Serialize, PartialEq, Clone)]
@@ -290,8 +290,8 @@ impl SignatureData {
     }
 }
 
-/// CRC32 checksum of the config data. Currently this field is ignored since the current implementation of RemoteConfig
-/// doesn't support multiple config items.
+/// Configuration identifier that corresponds to a specific remote configuration.
+/// This key links signature data to its associated configuration in the remote config map.
 pub type ConfigID = String;
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -304,18 +304,6 @@ pub enum SignatureError {
     InvalidData(String),
     #[error("unsupported signature algorithm: {0}")]
     UnsupportedAlgorithm(String),
-}
-
-impl Signatures {
-    pub fn is_empty(&self) -> bool {
-        self.signatures.is_empty()
-    }
-    pub fn len(&self) -> usize {
-        self.signatures.len()
-    }
-    pub fn iter(&self) -> impl Iterator<Item = (&ConfigID, &SignatureData)> {
-        self.signatures.iter()
-    }
 }
 
 impl TryFrom<&CustomMessage> for Signatures {
@@ -340,6 +328,7 @@ impl TryFrom<&CustomMessage> for Signatures {
 mod tests {
     use super::SignatureData;
     use super::Signatures;
+    use crate::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIER;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA256;
     use crate::opamp::remote_config::signature::ECDSA_P256_SHA384;
     use crate::opamp::remote_config::signature::ED25519;
@@ -348,10 +337,10 @@ mod tests {
     use std::collections::HashMap;
 
     impl Signatures {
-        pub fn new_unique(signature: &str, signing_algorithm: &str, key_id: &str) -> Self {
+        pub fn new_default(signature: &str, signing_algorithm: &str, key_id: &str) -> Self {
             Self {
                 signatures: HashMap::from([(
-                    "unique".to_string(),
+                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     SignatureData::new(signature, signing_algorithm, key_id),
                 )]),
             }
@@ -388,7 +377,7 @@ mod tests {
             fn run(self) {
                 let signatures = Signatures::try_from(&self.custom_message)
                     .unwrap_or_else(|err| panic!("case: {} - {}", self.name, err));
-                let (_, signature) = signatures.iter().next().unwrap();
+                let (_, signature) = signatures.signatures.iter().next().unwrap();
                 assert_eq!(signature.signing_algorithm, self.algorithm);
             }
         }

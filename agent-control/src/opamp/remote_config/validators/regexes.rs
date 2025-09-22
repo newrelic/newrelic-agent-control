@@ -21,7 +21,7 @@ pub(super) struct AgentTypeFQNName(String);
 
 /// The Config validator is responsible for matching a series of regexes on the content
 /// of the retrieved remote config and returning an error if a match is found.
-/// If getting the unique remote config fails, the validator will return as valid
+/// If getting the default remote config fails, the validator will return as valid
 /// because we leave that kind of error handling to the store_remote_config_hash_and_values
 /// on the event_processor.
 pub struct RegexValidator {
@@ -36,7 +36,7 @@ impl RemoteConfigValidator for RegexValidator {
         opamp_remote_config: &OpampRemoteConfig,
     ) -> Result<(), RegexValidatorError> {
         // This config will fail further on the event processor.
-        if let Ok(raw_config) = opamp_remote_config.get_unique() {
+        if let Ok(raw_config) = opamp_remote_config.get_default() {
             self.validate_regex_rules(&agent_identity.agent_type_id, raw_config)?;
         }
 
@@ -143,6 +143,7 @@ pub(super) mod tests {
     use crate::agent_control::defaults::AGENT_TYPE_NAME_INFRA_AGENT;
     use crate::agent_control::defaults::AGENT_TYPE_NAME_NRDOT;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIER;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::RemoteConfigValidator;
     use crate::opamp::remote_config::validators::regexes::{RegexValidator, RegexValidatorError};
@@ -192,7 +193,7 @@ pub(super) mod tests {
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
-                "".to_string(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 content.to_string(),
             )]))),
         );
@@ -504,7 +505,7 @@ config: |
             Hash::from("this-is-a-hash"),
             ConfigState::Applying,
             Some(ConfigurationMap::new(HashMap::from([(
-                "".to_string(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 config.to_string(),
             )]))),
         )
