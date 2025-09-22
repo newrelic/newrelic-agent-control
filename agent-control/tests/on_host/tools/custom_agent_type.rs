@@ -124,7 +124,7 @@ impl CustomAgentType {
 
     pub fn with_version(self, version: Option<&str>) -> Self {
         Self {
-            version: version.map(|v| (serde_yaml::from_str(v).unwrap())),
+            version: version.map(|v| serde_yaml::from_str(v).unwrap()),
             ..self
         }
     }
