@@ -326,7 +326,14 @@ fn build_response(
             }),
         });
 
-        let signature = key_pair.sign(config.raw_body.as_bytes());
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let digest = ring::digest::digest(&ring::digest::SHA256, config.raw_body.as_bytes());
+        let msg = BASE64_STANDARD.encode(digest);
+
+        let signature = key_pair.sign(msg.as_bytes());
 
         let custom_message_data = HashMap::from([(
             "fakeCRC".to_string(), //AC is not using the CRC.

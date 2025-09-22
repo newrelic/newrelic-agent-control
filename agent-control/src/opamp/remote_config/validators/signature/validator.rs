@@ -677,8 +677,14 @@ pub mod tests {
         );
 
         let config = "value";
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let digest = ring::digest::digest(&ring::digest::SHA256, config.as_bytes());
+        let msg = BASE64_STANDARD.encode(digest);
 
-        let encoded_signature = test_signer.encoded_signature(config);
+        let encoded_signature = test_signer.encoded_signature(&msg);
         let remote_config = OpampRemoteConfig::new(
             AgentID::AgentControl,
             Hash::from("test"),

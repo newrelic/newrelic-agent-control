@@ -131,7 +131,13 @@ pub mod tests {
             }
         }
         pub fn sign(&self, msg: &[u8]) -> String {
-            BASE64_STANDARD.encode(self.key_pair.sign(msg).as_ref())
+            // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+            // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+            // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+            // the signature against that.
+            let digest = ring::digest::digest(&ring::digest::SHA256, msg);
+            let msg = BASE64_STANDARD.encode(digest);
+            BASE64_STANDARD.encode(self.key_pair.sign(msg.as_bytes()).as_ref())
         }
     }
 
