@@ -117,7 +117,7 @@ impl CustomAgentType {
 
     pub fn with_health(self, health: Option<&str>) -> Self {
         Self {
-            health: health.map(|h| (serde_yaml::from_str(h).unwrap())),
+            health: health.map(|h| serde_yaml::from_str(h).unwrap()),
             ..self
         }
     }

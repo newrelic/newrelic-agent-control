@@ -1,8 +1,7 @@
 use crate::opamp::remote_config::signature::SigningAlgorithm;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::{Engine, prelude::BASE64_STANDARD};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use ring::signature::{ED25519, UnparsedPublicKey};
 use thiserror::Error;
 
@@ -69,18 +68,9 @@ impl Verifier for PublicKey {
             ));
         }
 
-        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-        // the signature against that.
-        let msg = ring::digest::digest(&ring::digest::SHA256, msg);
-        let msg = BASE64_STANDARD.encode(msg);
-
-        self.public_key
-            .verify(msg.as_ref(), signature)
-            .map_err(|_| {
-                PubKeyError::ValidatingSignature("signature verification failed".to_string())
-            })
+        self.public_key.verify(msg, signature).map_err(|_| {
+            PubKeyError::ValidatingSignature("signature verification failed".to_string())
+        })
     }
 
     fn key_id(&self) -> &str {
