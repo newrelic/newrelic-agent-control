@@ -73,6 +73,7 @@ pub mod tests {
     use base64::Engine;
     use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
     use httpmock::prelude::*;
+    use ring::digest;
     use ring::rand::SystemRandom;
     use ring::signature::{Ed25519KeyPair, KeyPair};
     use serde_json::json;
@@ -135,7 +136,7 @@ pub mod tests {
             // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
             // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
             // the signature against that.
-            let digest = ring::digest::digest(&ring::digest::SHA256, msg);
+            let digest = digest::digest(&digest::SHA256, msg);
             let msg = BASE64_STANDARD.encode(digest);
             BASE64_STANDARD.encode(self.key_pair.sign(msg.as_bytes()).as_ref())
         }

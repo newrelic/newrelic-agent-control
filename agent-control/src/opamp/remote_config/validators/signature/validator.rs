@@ -11,8 +11,6 @@ use crate::opamp::remote_config::validators::signature::public_key::PublicKey;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::PublicKeyFetcher;
 use crate::opamp::remote_config::validators::signature::verifier::VerifierStore;
 use crate::sub_agent::identity::AgentIdentity;
-use base64::Engine as _;
-use base64::prelude::BASE64_STANDARD;
 use serde::Deserialize;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -214,15 +212,8 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
 
         let config_content = opamp_remote_config
             .get_unique()
-            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?;
-
-        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-        // the signature against that.
-        let digest = ring::digest::digest(&ring::digest::SHA256, config_content.as_ref());
-        let digest_b64 = BASE64_STANDARD.encode(digest);
-        let msg = digest_b64.as_bytes();
+            .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))?
+            .as_bytes();
 
         // Until backend migrates to new signature platform, the validation starts with the public key based,
         // and falls back to cert based in case of failure.
@@ -232,7 +223,7 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
             match public_key_store.verify_signature(
                 signature.signature_algorithm(),
                 signature.key_id(),
-                msg,
+                config_content,
                 signature.signature(),
             ) {
                 Ok(()) => return Ok(()),
@@ -251,7 +242,7 @@ impl RemoteConfigValidator for CompositeSignatureValidator {
             .verify_signature(
                 signature.signature_algorithm(),
                 signature.key_id(),
-                msg,
+                config_content,
                 signature.signature(),
             )
             .map_err(|e| SignatureValidatorError::VerifySignature(e.to_string()))
@@ -677,14 +668,8 @@ pub mod tests {
         );
 
         let config = "value";
-        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-        // the signature against that.
-        let digest = ring::digest::digest(&ring::digest::SHA256, config.as_bytes());
-        let msg = BASE64_STANDARD.encode(digest);
 
-        let encoded_signature = test_signer.encoded_signature(&msg);
+        let encoded_signature = test_signer.encoded_signature(config);
         let remote_config = OpampRemoteConfig::new(
             AgentID::AgentControl,
             Hash::from("test"),

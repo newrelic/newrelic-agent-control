@@ -1,7 +1,9 @@
 use crate::opamp::remote_config::signature::SigningAlgorithm;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::{Engine, prelude::BASE64_STANDARD};
+use ring::digest;
 use ring::signature::{ED25519, UnparsedPublicKey};
 use thiserror::Error;
 
@@ -68,9 +70,18 @@ impl Verifier for PublicKey {
             ));
         }
 
-        self.public_key.verify(msg, signature).map_err(|_| {
-            PubKeyError::ValidatingSignature("signature verification failed".to_string())
-        })
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let msg = digest::digest(&digest::SHA256, msg);
+        let msg = BASE64_STANDARD.encode(msg);
+
+        self.public_key
+            .verify(msg.as_bytes(), signature)
+            .map_err(|_| {
+                PubKeyError::ValidatingSignature("signature verification failed".to_string())
+            })
     }
 
     fn key_id(&self) -> &str {
@@ -86,6 +97,7 @@ mod tests {
     use crate::opamp::remote_config::validators::signature::verifier::Verifier;
     use base64::Engine;
     use base64::prelude::BASE64_STANDARD;
+    use ring::digest;
     use ring::rand::SystemRandom;
     use ring::signature::{Ed25519KeyPair, KeyPair, UnparsedPublicKey};
     use serde_json::json;
@@ -103,8 +115,11 @@ mod tests {
         let first_key = payload.keys.first().unwrap();
 
         let pub_key = PublicKey::try_new(first_key).unwrap();
+        // This is a direct call to the verify function. It isn't concerned with the digest
+        // and base64 transformation
         pub_key
-            .verify_signature(&ED25519, message.as_bytes(), signature.as_bytes())
+            .public_key
+            .verify(message.as_bytes(), signature.as_bytes())
             .unwrap();
     }
 
@@ -114,7 +129,14 @@ mod tests {
         let key_pair = Ed25519KeyPair::from_pkcs8(pkcs8_bytes.as_ref()).unwrap();
 
         const MESSAGE: &[u8] = b"hello, world";
-        let signature = key_pair.sign(MESSAGE);
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let digest = digest::digest(&digest::SHA256, MESSAGE);
+        let msg = BASE64_STANDARD.encode(digest);
+
+        let signature = key_pair.sign(msg.as_bytes());
 
         let pub_key = PublicKey {
             key_id: "my-signing-key-test/0".to_string(),
