@@ -15,6 +15,7 @@ use opamp_client::opamp::proto::{
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
 use rcgen::{CertificateParams, KeyPair, PKCS_ED25519, PublicKeyData};
+use ring::digest;
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::json;
@@ -277,7 +278,16 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
         (&server_state.key_pair, public_key_fingerprint(&public_key))
     };
 
-    let server_to_agent = build_response(identifier, remote_config, key_pair, key_id, flags);
+    let use_legacy_signature = server_state.use_legacy_signatures;
+
+    let server_to_agent = build_response(
+        identifier,
+        remote_config,
+        key_pair,
+        key_id,
+        flags,
+        use_legacy_signature,
+    );
     HttpResponse::Ok().body(server_to_agent)
 }
 
@@ -308,6 +318,7 @@ fn build_response(
     key_pair: &Ed25519KeyPair,
     key_id: String,
     flags: u64,
+    use_legacy_signature: bool,
 ) -> Vec<u8> {
     let mut remote_config = None;
     let mut custom_message = None;
@@ -326,19 +337,23 @@ fn build_response(
             }),
         });
 
-        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-        // the signature against that.
-        let digest = ring::digest::digest(&ring::digest::SHA256, config.raw_body.as_bytes());
-        let msg = BASE64_STANDARD.encode(digest);
+        let msg = if use_legacy_signature {
+            config.raw_body
+        } else {
+            // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+            // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+            // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+            // the signature against that.
+            let digest = digest::digest(&digest::SHA256, config.raw_body.as_bytes());
+            BASE64_STANDARD.encode(digest)
+        };
 
         let signature = key_pair.sign(msg.as_bytes());
 
         let custom_message_data = HashMap::from([(
             "fakeCRC".to_string(), //AC is not using the CRC.
             vec![SignatureFields {
-                signature: BASE64_STANDARD.encode(signature.as_ref()),
+                signature: BASE64_STANDARD.encode(signature),
                 signing_algorithm: ED25519,
                 key_id,
             }],
