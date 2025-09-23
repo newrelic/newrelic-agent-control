@@ -13,21 +13,21 @@ use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
-    #[error("`{0}`")]
+    #[error("{0}")]
     RepositoryError(#[from] AgentRepositoryError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     ConvertFileError(#[from] FileReaderError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentValueError(#[from] AgentValueError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map: {0}")]
     RequiredFileMappingNotFoundError(String),
     #[error("cannot find required dir map: {0}")]
     RequiredDirMappingNotFoundError(String),
-    #[error("deserializing YAML: `{0}`")]
+    #[error("deserializing YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("retrieving supported config value: `{0}`")]
+    #[error("retrieving supported config value: {0}")]
     SupportedConfigValueError(#[from] SupportedConfigValueError),
 }
 
