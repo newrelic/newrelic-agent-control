@@ -25,9 +25,9 @@ pub enum ConversionError {
     RequiredFileMappingNotFoundError(String),
     #[error("cannot find required dir map: {0}")]
     RequiredDirMappingNotFoundError(String),
-    #[error("deserializing YAML: `{0}`")]
+    #[error("deserializing YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("retrieving supported config value: `{0}`")]
+    #[error("retrieving supported config value: {0}")]
     SupportedConfigValueError(#[from] SupportedConfigValueError),
 }
 
