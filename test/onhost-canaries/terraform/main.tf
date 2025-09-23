@@ -130,7 +130,7 @@ module "alerts" {
       name = "Memory usage (bytes)"
       metric = "memoryResidentSizeBytes"
       sample = "ProcessSample"
-      threshold = 14000000
+      threshold = 15000000
       duration = 600
       operator = "above"
       template_name = "./alert_nrql_templates/generic_metric_threshold.tftpl"
