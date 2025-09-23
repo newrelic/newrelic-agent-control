@@ -72,18 +72,7 @@ where
     C: HttpClient,
 {
     fn send(&self, request: Request<Vec<u8>>) -> Result<Response<Vec<u8>>, HttpClientError> {
-        let response = self.http_client.send(request)?;
-        if !response.status().is_success() {
-            return Err(HttpClientError::ResponseError(
-                response.status().into(),
-                response
-                    .status()
-                    .canonical_reason()
-                    .unwrap_or_default()
-                    .to_string(),
-            ));
-        }
-        Ok(response)
+        self.http_client.send(request)
     }
 }
 #[cfg(test)]
@@ -163,15 +152,15 @@ mod tests {
     fn test_authenticated_request_token_error() {
         let mut mock_http_client = MockHttpClient::new();
 
-        let token_response = Response::builder()
-            .status(StatusCode::BAD_REQUEST)
-            .body(b"invalid".to_vec())
-            .unwrap();
-
         mock_http_client
             .expect_send()
             .times(1)
-            .return_once(move |_| Ok(token_response));
+            .return_once(move |_| {
+                Err(HttpClientError::ResponseError(
+                    StatusCode::BAD_REQUEST.as_u16(),
+                    "Bad Request".to_string(),
+                ))
+            });
 
         let client = AWSHttpClient::new(
             mock_http_client,

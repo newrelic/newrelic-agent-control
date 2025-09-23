@@ -2,7 +2,7 @@ use crate::agent_type::runtime_config::health_config::HttpHealth;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
-use http::{HeaderName, HeaderValue, Request, Response};
+use http::{HeaderName, HeaderValue, Request, Response, StatusCode};
 use std::collections::HashMap;
 use thiserror::Error;
 use tracing::error;
@@ -13,6 +13,11 @@ const DEFAULT_PROTOCOL: &str = "http://";
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
+    #[error("unsuccessful response: {status_code}")]
+    UnsuccessfulResponse {
+        status_code: StatusCode,
+        body: Vec<u8>,
+    },
     #[error("internal HTTP client error: {0}")]
     HttpClientError(String),
 }
@@ -55,7 +60,12 @@ impl HttpClient for InnerClient {
 }
 impl From<HttpResponseError> for HttpClientError {
     fn from(err: HttpResponseError) -> Self {
-        HttpClientError::HttpClientError(err.to_string())
+        match err {
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                HttpClientError::UnsuccessfulResponse { status_code, body }
+            }
+            other_error => HttpClientError::HttpClientError(other_error.to_string()),
+        }
     }
 }
 
@@ -105,30 +115,38 @@ impl HttpHealthChecker<InnerClient> {
 
 impl<C: HttpClient> HealthChecker for HttpHealthChecker<C> {
     fn check_health(&self) -> Result<HealthWithStartTime, HealthCheckerError> {
-        let response = self
-            .client
-            .get(self.url.as_str(), &self.headers)
-            .map_err(|e| HealthCheckerError::Generic(e.to_string()))?;
-        let status_code = response.status();
+        match self.client.get(self.url.as_str(), &self.headers) {
+            Ok(response) => {
+                let status = String::from_utf8_lossy(response.body()).into();
 
-        let status = String::from_utf8_lossy(response.body()).into();
+                Ok(HealthWithStartTime::from_healthy(
+                    Healthy::new().with_status(status),
+                    self.start_time,
+                ))
+            }
 
-        if (self.healthy_status_codes.is_empty() && status_code.is_success())
-            || self.healthy_status_codes.contains(&status_code.as_u16())
-        {
-            return Ok(HealthWithStartTime::from_healthy(
-                Healthy::new().with_status(status),
-                self.start_time,
-            ));
+            Err(error) => match error {
+                HttpClientError::UnsuccessfulResponse { status_code, body } => {
+                    let status = String::from_utf8_lossy(&body).into();
+                    if self.healthy_status_codes.contains(&status_code.as_u16()) {
+                        return Ok(HealthWithStartTime::from_healthy(
+                            Healthy::new().with_status(status),
+                            self.start_time,
+                        ));
+                    }
+
+                    let last_error = format!(
+                        "Health check failed with HTTP response status code {status_code} : {status}"
+                    );
+
+                    Ok(HealthWithStartTime::from_unhealthy(
+                        Unhealthy::new(last_error).with_status(status),
+                        self.start_time,
+                    ))
+                }
+                other_error => Err(HealthCheckerError::Generic(other_error.to_string())),
+            },
         }
-
-        let last_error =
-            format!("Health check failed with HTTP response status code {status_code}");
-
-        Ok(HealthWithStartTime::from_unhealthy(
-            Unhealthy::new(last_error).with_status(status),
-            self.start_time,
-        ))
     }
 }
 
@@ -228,6 +246,58 @@ pub(crate) mod tests {
             health_response.unwrap().status(),
             http::StatusCode::BAD_REQUEST.as_str()
         );
+    }
+
+    #[test]
+    fn unsuccessful_response_is_unhealthy() {
+        let mut client_mock = MockHttpClient::new();
+        let error_body = "Service Unavailable".to_string();
+        client_mock.should_not_get(HttpClientError::UnsuccessfulResponse {
+            status_code: StatusCode::SERVICE_UNAVAILABLE,
+            body: error_body.as_bytes().to_vec(),
+        });
+
+        let url = DEFAULT_PROTOCOL.to_owned() + "a-path";
+        let checker = HttpHealthChecker {
+            client: client_mock,
+            url: Url::parse(url.as_str()).unwrap(),
+            headers: Default::default(),
+            healthy_status_codes: vec![200],
+            start_time: StartTime::now(),
+        };
+
+        let health_response = checker.check_health().unwrap();
+
+        assert!(!health_response.is_healthy());
+        let expected_last_error = format!(
+            "Health check failed with HTTP response status code 503 Service Unavailable : {error_body}"
+        );
+        assert_eq!(health_response.last_error(), Some(expected_last_error));
+        assert_eq!(health_response.status(), error_body);
+    }
+
+    #[test]
+    fn unsuccessful_response_can_be_healthy_if_configured() {
+        let mut client_mock = MockHttpClient::new();
+        let body = "Redirecting".to_string();
+        client_mock.should_not_get(HttpClientError::UnsuccessfulResponse {
+            status_code: StatusCode::FOUND,
+            body: body.as_bytes().to_vec(),
+        });
+
+        let url = DEFAULT_PROTOCOL.to_owned() + "a-path";
+        let checker = HttpHealthChecker {
+            client: client_mock,
+            url: Url::parse(url.as_str()).unwrap(),
+            headers: Default::default(),
+            healthy_status_codes: vec![200, 302],
+            start_time: StartTime::now(),
+        };
+
+        let health_response = checker.check_health().unwrap();
+
+        assert!(health_response.is_healthy());
+        assert_eq!(health_response.status(), body);
     }
 
     #[test]

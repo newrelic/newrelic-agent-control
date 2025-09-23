@@ -154,4 +154,51 @@ pub mod tests {
         let public_key = fetcher.fetch().unwrap();
         assert_eq!(public_key.key_id, server.key_id)
     }
+
+    #[test]
+    fn fetch_handles_http_error_codes() {
+        let server = MockServer::start();
+        let http_client = HttpClient::new(HttpConfig::default()).unwrap();
+
+        let test_cases = [
+            (400, "Bad Request", "Client Error Body"),
+            (500, "Internal Server Error", "Server Error Body"),
+            (403, "Forbidden", "Auth Failed"),
+        ];
+
+        for &(status_code, reason, body) in &test_cases {
+            let path = format!("/error-{}", status_code);
+            let mock = server.mock(|when, then| {
+                when.method(GET).path(&path);
+                then.status(status_code).body(body);
+            });
+
+            let fetcher = PublicKeyFetcher {
+                http_client: http_client.clone(),
+                url: server.url(&path).parse().unwrap(),
+            };
+
+            let result = fetcher.fetch();
+
+            let err = result.expect_err(&format!("Expected an error for status {}", status_code));
+            let err_msg = err.0;
+
+            assert!(
+                err_msg.contains("sending request"),
+                "Error message should indicate it came from the send step"
+            );
+            assert!(
+                err_msg.contains(&status_code.to_string()),
+                "Error message should contain the status code {}",
+                status_code
+            );
+            assert!(
+                err_msg.contains(reason),
+                "Error message should contain the reason phrase '{}'",
+                reason
+            );
+
+            mock.assert();
+        }
+    }
 }

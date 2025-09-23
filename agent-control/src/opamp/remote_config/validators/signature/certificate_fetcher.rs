@@ -22,8 +22,8 @@ pub enum CertificateFetcher {
 }
 
 impl VerifierFetcher for CertificateFetcher {
-    type Verifier = Certificate;
     type Error = CertificateFetcherError;
+    type Verifier = Certificate;
 
     fn fetch(&self) -> Result<Self::Verifier, Self::Error> {
         let cert = match self {

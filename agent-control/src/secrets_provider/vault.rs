@@ -267,6 +267,7 @@ impl SecretsProvider for Vault {
 pub mod tests {
     use super::*;
     use crate::secrets_provider::vault::VaultConfig;
+    use assert_matches::assert_matches;
     use httpmock::Method::GET;
     use httpmock::MockServer;
     use mockall::mock;
@@ -407,5 +408,60 @@ client_timeout: 3s
         for test_case in test_cases {
             test_case.run(&vault_client);
         }
+    }
+
+    #[test]
+    fn test_get_secret_error_handling() {
+        let target_server = MockServer::start();
+
+        target_server.mock(|when, then| {
+            when.method(GET).path("/v1/kv/forbidden");
+            then.status(403).body("permission denied");
+        });
+
+        target_server.mock(|when, then| {
+            when.method(GET).path("/v1/kv/server-error");
+            then.status(500).body("internal server error");
+        });
+
+        target_server.mock(|when, then| {
+            when.method(GET).path("/v1/kv/bad-json");
+            then.status(200).body("this is not json");
+        });
+
+        let vault_config = format!(
+            r#"
+sources:
+  errorsource:
+    url: {}/v1/
+    token: root
+    engine: kv1
+"#,
+            target_server.base_url()
+        );
+        let parsed_vault_config =
+            serde_yaml::from_str::<VaultConfig>(vault_config.as_str()).unwrap();
+        let vault_client = Vault::try_build(parsed_vault_config).unwrap();
+
+        let result_403 = vault_client.get_secret("errorsource:kv:forbidden:any");
+        assert_matches!(result_403, Err(VaultError::HttpTransportError(_)));
+        assert!(
+            result_403
+                .unwrap_err()
+                .to_string()
+                .contains("403 Forbidden")
+        );
+
+        let result_500 = vault_client.get_secret("errorsource:kv:server-error:any");
+        assert_matches!(result_500, Err(VaultError::HttpTransportError(_)));
+        assert!(
+            result_500
+                .unwrap_err()
+                .to_string()
+                .contains("500 Internal Server Error")
+        );
+
+        let result_bad_json = vault_client.get_secret("errorsource:kv:bad-json:any");
+        assert_matches!(result_bad_json, Err(VaultError::SerdeError(_)));
     }
 }
