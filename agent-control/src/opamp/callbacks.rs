@@ -91,7 +91,7 @@ where
             }
         };
 
-        let config_map: Option<ConfigurationMap> = match msg_remote_config.config {
+        let config_map: ConfigurationMap = match msg_remote_config.config {
             Some(msg_config_map) => msg_config_map
                 .try_into()
                 .inspect_err(|err: &OpampRemoteConfigError| {
@@ -99,12 +99,12 @@ where
                         error_message: format!("Invalid remote config format: {err}"),
                     };
                 })
-                .ok(),
+                .unwrap_or_default(),
             None => {
                 state = ConfigState::Failed {
                     error_message: "Config missing".into(),
                 };
-                None
+                ConfigurationMap::default()
             }
         };
 
@@ -264,7 +264,9 @@ pub(crate) mod tests {
     use crate::opamp::remote_config::signature::{
         ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE,
     };
-    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+    use crate::opamp::remote_config::{
+        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
+    };
     use opamp_client::opamp::proto::{AgentConfigFile, AgentConfigMap, AgentRemoteConfig};
     use std::collections::HashMap;
     use std::time::Duration;
@@ -338,7 +340,7 @@ pub(crate) mod tests {
         let (valid_remote_config_map, expected_remote_config_map) = (
             AgentConfigMap {
                 config_map: HashMap::from([(
-                    "my-config".to_string(),
+                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     AgentConfigFile {
                         body: "enable_proces_metrics: true".as_bytes().to_vec(),
                         content_type: "".to_string(),
@@ -346,7 +348,7 @@ pub(crate) mod tests {
                 )]),
             },
             ConfigurationMap::new(HashMap::from([(
-                "my-config".to_string(),
+                DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                 "enable_proces_metrics: true".to_string(),
             )])),
         );
@@ -356,7 +358,7 @@ pub(crate) mod tests {
             opamp_msg: Option<MessageData>, // using option here to allow taking the ownership of the MessageData which cannot be cloned.
             expected_remote_config_hash: Hash,
             expected_remote_config_state: ConfigState,
-            expected_remote_config_config_map: Option<ConfigurationMap>,
+            expected_remote_config_config_map: ConfigurationMap,
             expected_signature: Option<Signatures>,
         }
         impl TestCase {
@@ -403,7 +405,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
@@ -425,7 +427,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: None,
+                expected_remote_config_config_map: ConfigurationMap::default(),
                 expected_remote_config_hash:  Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
@@ -441,7 +443,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: None,
+                expected_remote_config_config_map: ConfigurationMap::default(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Config missing".into(),
@@ -457,7 +459,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: None,
+                expected_remote_config_config_map: ConfigurationMap::default(),
                 expected_remote_config_hash: Hash::default(),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Config missing".into(),
@@ -473,7 +475,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::default(),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Invalid hash: invalid utf-8 sequence of 1 bytes from index 0".into(),
@@ -490,22 +492,23 @@ pub(crate) mod tests {
                     custom_message: Some(CustomMessage {
                         capability: SIGNATURE_CUSTOM_CAPABILITY.to_string(),
                         r#type: SIGNATURE_CUSTOM_MESSAGE_TYPE.to_string(),
-                        data: r#"{
-                            "unique": [{
+                        data: serde_json::json!({
+                            DEFAULT_AGENT_CONFIG_IDENTIFIER: [{
                                 "signature": "fake config",
                                 "signingAlgorithm": "ED25519",
                                 "keyId": "fake keyid"
                             }]
-                        }"#
+                        })
+                        .to_string()
                         .as_bytes()
                         .to_vec(),
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
-                expected_signature: Some(Signatures::new_unique(
+                expected_signature: Some(Signatures::new_default(
                     "fake config",
                     ED25519,
                     "fake keyid",
@@ -533,7 +536,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
@@ -560,7 +563,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Applying,
                 expected_signature: None,
@@ -579,7 +582,7 @@ pub(crate) mod tests {
                     }),
                     ..Default::default()
                 }),
-                expected_remote_config_config_map: Some(expected_remote_config_map.clone()),
+                expected_remote_config_config_map: expected_remote_config_map.clone(),
                 expected_remote_config_hash: Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
                     error_message: "Invalid remote config signature format: expected value at line 1 column 1".into(),

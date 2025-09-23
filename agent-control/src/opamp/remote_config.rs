@@ -12,6 +12,9 @@ pub mod report;
 pub mod signature;
 pub mod validators;
 
+/// Identifier key for the primary agent configuration within the OpAMP [opamp_client::opamp::proto::AgentConfigMap].
+pub const DEFAULT_AGENT_CONFIG_IDENTIFIER: &str = "configAgent";
+
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
 #[derive(Debug, PartialEq, Clone)]
@@ -20,7 +23,7 @@ pub struct OpampRemoteConfig {
     pub hash: Hash,
     pub state: ConfigState,
     signatures: Option<Signatures>,
-    config_map: Option<ConfigurationMap>,
+    config_map: ConfigurationMap,
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
@@ -41,7 +44,7 @@ impl OpampRemoteConfig {
         agent_id: AgentID,
         hash: Hash,
         state: ConfigState,
-        config_map: Option<ConfigurationMap>,
+        config_map: ConfigurationMap,
     ) -> Self {
         Self {
             agent_id,
@@ -57,57 +60,32 @@ impl OpampRemoteConfig {
             ..self
         }
     }
-    //TODO : This is temporal as when there is only one conf item we should receive an empty string as key
-    pub fn get_unique(&self) -> Result<&str, OpampRemoteConfigError> {
-        let config_map = self
-            .config_map
-            .as_ref()
+
+    /// Get configuration value at the
+    pub fn get_default(&self) -> Result<&str, OpampRemoteConfigError> {
+        self.config_map
+            .0
+            .get(DEFAULT_AGENT_CONFIG_IDENTIFIER)
+            .map(|s| s.as_str())
             .ok_or(OpampRemoteConfigError::InvalidConfig(
                 self.hash.to_string(),
-                "missing config".to_string(),
-            ))?;
-
-        match config_map.0.len() {
-            0 => Err(OpampRemoteConfigError::InvalidConfig(
-                self.hash.to_string(),
-                "empty config map".to_string(),
-            )),
-            1 => Ok(config_map
-                .0
-                .values()
-                .next()
-                .expect("at least one config has been provided")),
-            _ => Err(OpampRemoteConfigError::InvalidConfig(
-                self.hash.to_string(),
-                "too many config items".to_string(),
-            )),
-        }
+                "missing default config".to_string(),
+            ))
     }
 
-    // gets the config signature if it exists. It fails if there are multiple signatures.
-    pub fn get_unique_signature(&self) -> Result<Option<SignatureData>, OpampRemoteConfigError> {
+    /// Get the signature data for the default config
+    pub fn get_default_signature(&self) -> Result<Option<SignatureData>, OpampRemoteConfigError> {
         if let Some(signatures) = &self.signatures {
-            match signatures.len() {
-                0 => Err(OpampRemoteConfigError::InvalidConfig(
-                    self.hash.to_string(),
-                    "empty signature".to_string(),
-                )),
-                1 => Ok(Some(
-                    signatures
-                        .iter()
-                        .next()
-                        // assumes that the sigunature corresponds to the unique config item
-                        .map(|(_, signature)| signature.clone())
-                        .ok_or(OpampRemoteConfigError::InvalidConfig(
-                            self.hash.to_string(),
-                            "getting unique signature".to_string(),
-                        ))?,
-                )),
-                _ => Err(OpampRemoteConfigError::InvalidConfig(
-                    self.hash.to_string(),
-                    "too many signature items".to_string(),
-                )),
-            }
+            Ok(Some(
+                signatures
+                    .signatures
+                    .get(DEFAULT_AGENT_CONFIG_IDENTIFIER)
+                    .cloned()
+                    .ok_or(OpampRemoteConfigError::InvalidConfig(
+                        self.hash.to_string(),
+                        "missing signature for default config".to_string(),
+                    ))?,
+            ))
         } else {
             // Agent control config is not signed
             Ok(None)

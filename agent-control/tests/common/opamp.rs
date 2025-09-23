@@ -3,6 +3,7 @@ use actix_web::{App, HttpResponse, HttpServer, web};
 use base64::Engine;
 use base64::prelude::{BASE64_STANDARD, BASE64_URL_SAFE_NO_PAD};
 use newrelic_agent_control::opamp::instance_id::InstanceID;
+use newrelic_agent_control::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIER;
 use newrelic_agent_control::opamp::remote_config::signature::{
     ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
 };
@@ -328,7 +329,7 @@ fn build_response(
             config_hash: config.hash.encode_to_vec(),
             config: Some(AgentConfigMap {
                 config_map: HashMap::from([(
-                    "".to_string(),
+                    DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
                     AgentConfigFile {
                         body: config.raw_body.clone().into_bytes(),
                         content_type: " text/yaml".to_string(),
@@ -351,7 +352,7 @@ fn build_response(
         let signature = key_pair.sign(msg.as_bytes());
 
         let custom_message_data = HashMap::from([(
-            "fakeCRC".to_string(), //AC is not using the CRC.
+            DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
             vec![SignatureFields {
                 signature: BASE64_STANDARD.encode(signature),
                 signing_algorithm: ED25519,

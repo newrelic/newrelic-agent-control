@@ -76,7 +76,7 @@ where
 fn extract_remote_config_values(
     opamp_remote_config: &OpampRemoteConfig,
 ) -> Result<Option<RemoteConfig>, RemoteConfigParserError> {
-    let remote_config_value = opamp_remote_config.get_unique().map_err(|err| {
+    let remote_config_value = opamp_remote_config.get_default().map_err(|err| {
         RemoteConfigParserError::InvalidValues(format!(
             "could not load remote configuration values: {err}"
         ))
@@ -103,7 +103,9 @@ pub mod tests {
     use super::{AgentRemoteConfigParser, RemoteConfigParser, RemoteConfigParserError};
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::opamp::remote_config::validators::tests::MockRemoteConfigValidator;
-    use crate::opamp::remote_config::{ConfigurationMap, OpampRemoteConfig};
+    use crate::opamp::remote_config::{
+        ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
+    };
     use crate::sub_agent::identity::AgentIdentity;
     use crate::values::config::RemoteConfig;
     use assert_matches::assert_matches;
@@ -149,7 +151,7 @@ pub mod tests {
             agent_identity.id.clone(),
             hash,
             state,
-            Some(ConfigurationMap::default()),
+            ConfigurationMap::default(),
         );
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
@@ -169,7 +171,7 @@ pub mod tests {
             agent_identity.id.clone(),
             hash,
             state,
-            Some(ConfigurationMap::default()),
+            ConfigurationMap::default(),
         );
 
         let mut validator1 = MockRemoteConfigValidator::new();
@@ -206,7 +208,7 @@ pub mod tests {
         let config_map =
             ConfigurationMap::new(serde_json::from_str::<HashMap<String, String>>(config).unwrap());
         let remote_config =
-            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, Some(config_map));
+            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
 
         let handler = AgentRemoteConfigParser::<MockRemoteConfigValidator>::new(Vec::new());
 
@@ -220,17 +222,15 @@ pub mod tests {
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let config_map = ConfigurationMap::new(
-            serde_json::from_str::<HashMap<String, String>>(
-                r#"{"config": "{\"key\": \"value\"}"}"#,
-            )
-            .unwrap(),
-        );
+        let config_map = ConfigurationMap::new(HashMap::from([(
+            DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+            "key: value".to_string(),
+        )]));
         let opamp_remote_config = OpampRemoteConfig::new(
             agent_identity.id.clone(),
             hash.clone(),
             state.clone(),
-            Some(config_map),
+            config_map,
         );
 
         let mut validator = MockRemoteConfigValidator::new();
@@ -256,11 +256,12 @@ pub mod tests {
 
         let hash = Hash::from("some-hash");
         let state = ConfigState::Applying;
-        let config_map = ConfigurationMap::new(
-            serde_json::from_str::<HashMap<String, String>>(r#"{"config": ""}"#).unwrap(),
-        );
+        let config_map = ConfigurationMap::new(HashMap::from([(
+            DEFAULT_AGENT_CONFIG_IDENTIFIER.to_string(),
+            String::new(),
+        )]));
         let opamp_remote_config =
-            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, Some(config_map));
+            OpampRemoteConfig::new(agent_identity.id.clone(), hash, state, config_map);
 
         let mut validator = MockRemoteConfigValidator::new();
         validator.should_validate(&agent_identity, &opamp_remote_config, Ok(()));
