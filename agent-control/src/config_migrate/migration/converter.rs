@@ -1,13 +1,13 @@
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
-use crate::config_migrate::migration::agent_configs::SupportedConfigValue;
-use crate::config_migrate::migration::agent_configs::SupportedConfigValueError;
-use crate::config_migrate::migration::agent_value_spec::AgentValueError;
-use crate::config_migrate::migration::config::MigrationAgentConfig;
-use crate::config_migrate::migration::converter::ConversionError::*;
+use crate::config_migrate::migration::{
+    agent_value_spec::AgentValueError,
+    config::{AgentTypeFieldFQN, DirInfo, MigrationAgentConfig},
+};
 use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::LocalFile;
 use fs::file_reader::{FileReader, FileReaderError};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tracing::error;
 
@@ -27,8 +27,8 @@ pub enum ConversionError {
     RequiredDirMappingNotFoundError(String),
     #[error("deserializing YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("retrieving supported config value: {0}")]
-    SupportedConfigValueError(#[from] SupportedConfigValueError),
+    #[error("duplicate key found in file and dir mappings: {0}")]
+    DuplicateKeyFound(AgentTypeFieldFQN),
 }
 
 pub struct ConfigConverter<F: FileReader> {
@@ -49,57 +49,81 @@ impl<F: FileReader> ConfigConverter<F> {
         &self,
         migration_agent_config: &MigrationAgentConfig,
     ) -> Result<HashMap<String, serde_yaml::Value>, ConversionError> {
-        // Parse first config, then integrations and then logs.
-        // We must know about the different types to be able to populate the variables correctly.
-        // The [`MigrationAgentConfig`] structure can in theory support arbitrary agents and
-        // thus we would first need to know if the sub-agent we are creating the values for is
-        // supported in the first place, but we are not leveraging that currently as we only
-        // (and probably forever) support migrating the on-host infrastructure-agent agent type.
-        // Instead, we assume that certain fields are present and populate explicit structures
-        // only for them. Not finding the expected structures is an error.
+        // Parse first file mappings (supposedly only a single infra-agent config)
+        // then directory mappings (integrations and logs).
+        // Both file and directory mappings are key-value structures. I assume
+        // the keys are the intended variable names for the agent type, and the values
+        // the places where the contents of these variables will be read from, namely
+        // the files and directory paths respectively. They will be parsed to YAML or
+        // key-value mappings (file as string, YAML) as appropriate.
+        // Errors when reading and parsing files are ignored and not included in the
+        // rendered values.
 
         let file_reader = &self.file_reader;
 
-        // Retrieve the configuration for an existing infrastructure-agent installation.
-        let config_agent_key = String::from("config_agent");
-        let (k, v) = migration_agent_config
+        let file_mapping_vars = migration_agent_config
             .files_map
-            .get_key_value(&config_agent_key.as_str().into())
-            .ok_or(RequiredFileMappingNotFoundError(config_agent_key))?;
-        let config_file = file_reader.read(v.as_path())?;
-        let config_yaml = serde_yaml::from_str(&config_file)?;
-        let infra_agent_config_spec = (k.as_string(), config_yaml);
+            .iter()
+            .map(|(k, v)| Ok((k, retrieve_file_mapping_value(file_reader, v)?)))
+            .collect::<Result<HashMap<_, _>, ConversionError>>()?;
 
-        // Retrieve the configuration for existing infrastructure-agent integrations.d files.
-        let config_integrations_key = String::from("config_integrations");
-        let (k, v) = migration_agent_config
+        let directory_mapping_vars = migration_agent_config
             .dirs_map
-            .get_key_value(&config_integrations_key.as_str().into())
-            .ok_or(RequiredDirMappingNotFoundError(config_integrations_key))?;
+            .iter()
+            .map(|(k, v)| Ok((k, retrieve_dir_mapping_values(file_reader, v)?)))
+            .collect::<Result<HashMap<_, _>, ConversionError>>()?;
 
-        let integrations_entries =
-            SupportedConfigValue::from_dir_with_key(file_reader, v, "integrations")
-                .map(serde_yaml::Value::from)?;
-        let integrations_config_spec = (k.as_string(), integrations_entries);
+        // Search for duplicate keys and error out if found,
+        // as duplicates would overwrite previous values silently
+        // When transforming to the final YAML structure.
+        let mut all_keys = file_mapping_vars
+            .keys()
+            .chain(directory_mapping_vars.keys())
+            .copied();
+        let mut visited = HashSet::new();
+        all_keys.try_for_each(|k| {
+            if !visited.insert(k) {
+                Err(ConversionError::DuplicateKeyFound(k.clone()))
+            } else {
+                Ok(())
+            }
+        })?;
 
-        // Retrieve the configuration for existing infrastructure-agent logging.d files.
-        let logging_key = String::from("config_logging");
-        let (k, v) = migration_agent_config
-            .dirs_map
-            .get_key_value(&logging_key.as_str().into())
-            .ok_or(RequiredDirMappingNotFoundError(logging_key))?;
-
-        let logging_entries = SupportedConfigValue::from_dir_with_key(file_reader, v, "logs")
-            .map(serde_yaml::Value::from)?;
-        let logging_config_spec = (k.as_string(), logging_entries);
-
-        Ok([
-            infra_agent_config_spec,
-            integrations_config_spec,
-            logging_config_spec,
-        ]
-        .into())
+        todo!();
+        Ok(HashMap::default())
     }
+}
+
+fn retrieve_file_mapping_value<F: FileReader>(
+    file_reader: &F,
+    file_path: &Path,
+) -> Result<serde_yaml::Value, ConversionError> {
+    let yaml_value = file_reader.read(file_path)?;
+    let parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
+    Ok(parsed_yaml)
+}
+
+fn retrieve_dir_mapping_values<F: FileReader>(
+    file_reader: &F,
+    dir_info: &DirInfo,
+) -> Result<HashMap<PathBuf, serde_yaml::Value>, ConversionError> {
+    let files = file_reader
+        .dir_entries(&dir_info.path)?
+        .into_iter()
+        .filter(|p| dir_info.valid_filename(p));
+
+    let mut read_files = files.map(|filepath| {
+        file_reader
+            .read(&filepath)
+            .map(|content| (filepath, content))
+    });
+
+    read_files.try_fold(HashMap::new(), |mut acc, read_file| {
+        let (filepath, content) = read_file?;
+        let parsed = serde_yaml::from_str::<serde_yaml::Value>(&content)?;
+        acc.insert(filepath, parsed);
+        Ok(acc)
+    })
 }
 
 #[cfg(test)]

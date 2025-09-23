@@ -29,12 +29,6 @@ pub enum MigrationConfigError {
 #[derive(Debug, Clone, Deserialize)]
 pub struct AgentTypeFieldFQN(String);
 
-impl AgentTypeFieldFQN {
-    pub fn as_string(&self) -> String {
-        self.0.clone()
-    }
-}
-
 impl Display for AgentTypeFieldFQN {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0.as_str())

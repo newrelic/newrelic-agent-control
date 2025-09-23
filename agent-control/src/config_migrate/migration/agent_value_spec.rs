@@ -37,7 +37,7 @@ pub fn from_fqn_and_value(
     fqn: AgentTypeFieldFQN,
     value: AgentValueSpec,
 ) -> HashMap<String, AgentValueSpec> {
-    let cloned_fqn = fqn.clone().as_string();
+    let cloned_fqn = fqn.to_string();
     let mut parts: Vec<&str> = cloned_fqn.rsplit(FILE_SEPARATOR).collect();
     let first = parts.last().unwrap().to_string();
     parts.remove(parts.len() - 1);
