@@ -6,6 +6,7 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use ring::digest;
 use ring::signature::{ED25519, UnparsedPublicKey};
 use thiserror::Error;
+use tracing::trace;
 
 #[derive(Error, Debug)]
 pub enum PubKeyError {
@@ -81,7 +82,10 @@ impl Verifier for PublicKey {
             .verify(msg.as_bytes(), signature)
             .map_err(|_| {
                 PubKeyError::ValidatingSignature("signature verification failed".to_string())
-            })
+            })?;
+        trace!(%self.key_id, "signature verification succeeded");
+
+        Ok(())
     }
 
     fn key_id(&self) -> &str {
