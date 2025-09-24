@@ -1,7 +1,7 @@
 use ring::digest;
 use std::fmt::Write;
 use thiserror::Error;
-use tracing::trace;
+use tracing::debug;
 use webpki::EndEntityCert;
 use x509_parser::prelude::{FromDer, X509Certificate};
 
@@ -42,7 +42,7 @@ impl Verifier for Certificate {
         certificate
             .verify_signature(signature_algorithm, msg, signature)
             .map_err(|e| CertificateError::VerifySignature(e.to_string()))?;
-        trace!("signature verification succeeded");
+        debug!("signature verification succeeded");
 
         Ok(())
     }
