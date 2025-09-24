@@ -1,3 +1,4 @@
+use crate::opamp::remote_config::signature;
 use crate::opamp::remote_config::signature::SigningAlgorithm;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
@@ -24,7 +25,6 @@ pub struct PublicKey {
 
 const SUPPORTED_USE: &str = "sig";
 const SUPPORTED_KTY: &str = "OKP";
-const SUPPORTED_CRV: &str = "Ed25519";
 
 impl PublicKey {
     pub fn try_new(data: &KeyData) -> Result<Self, PubKeyError> {
@@ -37,7 +37,7 @@ impl PublicKey {
             ));
         }
 
-        if data.crv != SUPPORTED_CRV {
+        if data.crv.to_uppercase().as_str() != signature::ED25519 {
             return Err(PubKeyError::ParsePubKey(
                 "The only supported crv is Ed25519".to_string(),
             ));

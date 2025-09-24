@@ -12,7 +12,6 @@ scenarios:
       - kubectl logs --tail=-1 -l app.kubernetes.io/name=nr-k8s-otel-collector --all-containers --prefix=true -n newrelic-agents
       - kubectl get all -o wide --all-namespaces --show-labels
       - kubectl get secrets --show-labels
-      - kubectl get all -o wide --all-namespaces --show-labels
       - kubectl get helmrelease
       - kubectl get helmchart
       - helm list -a -A

@@ -49,7 +49,7 @@ impl TryFrom<&str> for SigningAlgorithm {
         if let Some(rsa_algorithm) = parse_rsa_algorithm(s) {
             return Ok(rsa_algorithm);
         }
-        match s {
+        match s.to_uppercase().as_str() {
             ECDSA_P256_SHA256 => Ok(Self::ECDSA_P256_SHA256),
             ECDSA_P256_SHA384 => Ok(Self::ECDSA_P256_SHA384),
             ECDSA_P384_SHA256 => Ok(Self::ECDSA_P384_SHA256),
@@ -577,7 +577,7 @@ mod tests {
                                 },
                                 {
                                     "signature":  "fake",
-                                    "signingAlgorithm": "ED25519",
+                                    "signingAlgorithm": "Ed25519",
                                     "keyId":  "fake"
                                 },
                                 {
