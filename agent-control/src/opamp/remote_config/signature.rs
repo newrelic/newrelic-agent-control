@@ -55,9 +55,7 @@ impl TryFrom<&str> for SigningAlgorithm {
             ECDSA_P384_SHA256 => Ok(Self::ECDSA_P384_SHA256),
             ECDSA_P384_SHA384 => Ok(Self::ECDSA_P384_SHA384),
             ED25519 => Ok(Self::ED25519),
-            unsupported_algorithm => Err(SignatureError::UnsupportedAlgorithm(
-                unsupported_algorithm.to_string(),
-            )),
+            _unsupported_algorithm => Err(SignatureError::UnsupportedAlgorithm(s.to_string())),
         }
     }
 }
