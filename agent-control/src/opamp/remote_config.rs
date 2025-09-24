@@ -13,7 +13,7 @@ pub mod signature;
 pub mod validators;
 
 /// Identifier key for the primary agent configuration within the OpAMP [opamp_client::opamp::proto::AgentConfigMap].
-pub const DEFAULT_AGENT_CONFIG_IDENTIFIER: &str = "configAgent";
+pub const DEFAULT_AGENT_CONFIG_IDENTIFIER: &str = "agentConfig";
 
 /// This structure represents the remote configuration that we would retrieve from a server via OpAMP.
 /// Contains identifying metadata and the actual configuration values
