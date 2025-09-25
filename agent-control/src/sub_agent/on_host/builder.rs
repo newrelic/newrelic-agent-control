@@ -1,5 +1,6 @@
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_control::run::Environment;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedFileSystemEntries;
 use crate::context::Context;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -10,7 +11,6 @@ use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::filesystem_entries::RenderedFileSystemEntries;
 use crate::sub_agent::on_host::supervisor::NotStartedSupervisorOnHost;
 use crate::sub_agent::remote_config_parser::RemoteConfigParser;
 use crate::sub_agent::supervisor::builder::SupervisorBuilder;

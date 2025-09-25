@@ -24,6 +24,8 @@ use crate::agent_type::{
 };
 use serde::Deserialize;
 
+pub mod rendered;
+
 /// Represents the file system configuration for the deployment of a host agent. Consisting of
 /// a set of directories (map keys) which in turn contain a set of files (nested map keys) with
 /// their respective content (map values).
@@ -54,7 +56,7 @@ impl FileSystem {
     ///
     /// **WARNING**: This must be called **after** the rendering process has finished
     /// or else AC might crash!
-    pub fn rendered(self) -> HashMap<PathBuf, String> {
+    fn rendered(self) -> HashMap<PathBuf, String> {
         self.0
             .into_iter()
             .flat_map(|(dir_path, dir_entries)| dir_entries.rendered_with(&dir_path))

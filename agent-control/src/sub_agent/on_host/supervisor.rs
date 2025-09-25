@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedFileSystemEntries;
 use crate::agent_type::runtime_config::version_config::OnHostVersionConfig;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
@@ -14,7 +15,6 @@ use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
 use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::filesystem_entries::RenderedFileSystemEntries;
 use crate::sub_agent::on_host::command::shutdown::{
     ProcessTerminator, wait_exit_timeout, wait_exit_timeout_default,
 };
