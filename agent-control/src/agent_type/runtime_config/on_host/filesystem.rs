@@ -149,7 +149,7 @@ impl AsRef<Path> for SafePath {
 
 /// Try to create a [`SafePath`] from a [`PathBuf`], validating that the path is relative
 /// and does not escape its base directory. If the path is invalid, an error string is returned
-/// containing
+/// containing a comma-separated list of the issues found.
 impl TryFrom<PathBuf> for SafePath {
     type Error = IOError;
 
