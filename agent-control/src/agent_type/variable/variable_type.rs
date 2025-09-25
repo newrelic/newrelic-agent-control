@@ -220,12 +220,6 @@ mod tests {
         }
     }
 
-    impl From<Fields<HashMap<String, String>>> for VariableType {
-        fn from(fields: Fields<HashMap<String, String>>) -> Self {
-            VariableType::MapStringString(fields)
-        }
-    }
-
     impl From<FieldsWithPath<HashMap<String, FilePathWithContent>>> for VariableType {
         fn from(fields: FieldsWithPath<HashMap<String, FilePathWithContent>>) -> Self {
             VariableType::MapStringFile(fields)
