@@ -1,6 +1,10 @@
+toolkitImage:
+  tag: failIfNotReplaced
 agentControlDeployment:
   repositorySecretReferenceName: chartmuseum-auth
   chartValues:
+    image:
+      tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
     verboseLog: true
     config:
