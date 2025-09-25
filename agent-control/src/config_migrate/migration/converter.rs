@@ -138,14 +138,56 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     use fs::mock::MockLocalFile;
-    use mockall::{Sequence, predicate};
+    use mockall::{PredicateBooleanExt, predicate};
 
-    use crate::config_migrate::migration::{
-        agent_configs::tests::{EXAMPLE_INTEGRATION_CONFIG, EXAMPLE_LOGS_CONFIG},
-        config::DirInfo,
-    };
+    use crate::config_migrate::migration::config::DirInfo;
 
     use super::*;
+
+    const INTEGRATION_1_CONFIG: &str = r#"
+integrations:
+  - name: nri-docker
+    when:
+      feature: docker_enabled
+      file_exists: /var/run/docker.sock
+    interval: 15s
+"#;
+
+    const INTEGRATION_2_CONFIG: &str = r#"
+integrations:
+  - name: nri-docker
+    when:
+      feature: docker_enabled
+      env_exists:
+        FARGATE: "true"
+    interval: 15s
+"#;
+
+    const LOGS_1_CONFIG: &str = r#"
+logs:
+  - name: basic-file
+    file: /var/log/logFile.log
+  - name: file-with-spaces-in-path
+    file: /var/log/folder with spaces/logFile.log
+  - name: file-with-attributes
+    file: /var/log/logFile.log
+    attributes:
+      application: tomcat
+      department: sales
+      maintainer: example@mailprovider.com
+"#;
+
+    const LOGS_2_CONFIG: &str = r#"
+logs:
+  - name: log-files-in-folder
+    file: /var/log/logF*.log
+  - name: log-file-with-long-lines
+    file: /var/log/logFile.log
+    max_line_kb: 256
+  - name: only-records-with-warn-and-error
+    file: /var/log/logFile.log
+    pattern: WARN|ERROR
+"#;
 
     #[test]
     fn from_migration_config_to_conversion() {
@@ -179,12 +221,10 @@ mod tests {
         let mut file_reader = MockLocalFile::new();
 
         // Capture in a sequence the three reads. First the config, then the integrations dir, then the logging dir.
-        let mut sequence = Sequence::new();
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("/etc/newrelic-infra.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once({
                 let config_agent = config_agent.to_string();
                 move |_| Ok(config_agent)
@@ -196,7 +236,6 @@ mod tests {
                 "/etc/newrelic-infra/integrations.d",
             )))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once(|_| {
                 Ok(vec![
                     PathBuf::from("integration1.yml"),
@@ -209,43 +248,18 @@ mod tests {
             .expect_read()
             .with(predicate::eq(Path::new("integration1.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-integrations:
-  - name: nri-docker
-    when:
-      feature: docker_enabled
-      file_exists: /var/run/docker.sock
-    interval: 15s
-"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(INTEGRATION_1_CONFIG)));
 
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("integration2.yaml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-integrations:
-  - name: nri-docker
-    when:
-      feature: docker_enabled
-      env_exists:
-        FARGATE: "true"
-    interval: 15s"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(INTEGRATION_2_CONFIG)));
 
         file_reader
             .expect_dir_entries()
             .with(predicate::eq(Path::new("/etc/newrelic-infra/logging.d")))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once(|_| {
                 Ok(vec![
                     PathBuf::from("logging1.yaml"),
@@ -258,45 +272,13 @@ integrations:
             .expect_read()
             .with(predicate::eq(Path::new("logging1.yaml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-logs:
-  - name: basic-file
-    file: /var/log/logFile.log
-  - name: file-with-spaces-in-path
-    file: /var/log/folder with spaces/logFile.log
-  - name: file-with-attributes
-    file: /var/log/logFile.log
-    attributes:
-      application: tomcat
-      department: sales
-      maintainer: example@mailprovider.com
-"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(LOGS_1_CONFIG)));
 
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("logging2.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-logs:
-  - name: log-files-in-folder
-    file: /var/log/logF*.log
-  - name: log-file-with-long-lines
-    file: /var/log/logFile.log
-    max_line_kb: 256
-  - name: only-records-with-warn-and-error
-    file: /var/log/logFile.log
-    pattern: WARN|ERROR
-"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(LOGS_2_CONFIG)));
 
         let config_converter = ConfigConverter { file_reader };
 
@@ -313,14 +295,31 @@ logs:
             serde_yaml::from_str::<serde_yaml::Value>(config_agent).unwrap();
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
-        let expected_integrations =
-            serde_yaml::from_str::<serde_yaml::Value>(EXAMPLE_INTEGRATION_CONFIG).unwrap();
+        let mut expected_integrations_mapping = serde_yaml::Mapping::new();
+        expected_integrations_mapping.insert(
+            serde_yaml::Value::String("integration1.yml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(INTEGRATION_1_CONFIG).unwrap(),
+        );
+        expected_integrations_mapping.insert(
+            serde_yaml::Value::String("integration2.yaml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(INTEGRATION_2_CONFIG).unwrap(),
+        );
+        let expected_integrations = serde_yaml::Value::Mapping(expected_integrations_mapping);
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
 
-        let expected_logs = serde_yaml::from_str::<serde_yaml::Value>(EXAMPLE_LOGS_CONFIG).unwrap();
+        let mut expected_logs_mapping = serde_yaml::Mapping::new();
+        expected_logs_mapping.insert(
+            serde_yaml::Value::String("logging1.yaml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(LOGS_1_CONFIG).unwrap(),
+        );
+        expected_logs_mapping.insert(
+            serde_yaml::Value::String("logging2.yml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(LOGS_2_CONFIG).unwrap(),
+        );
+        let expected_logs = serde_yaml::Value::Mapping(expected_logs_mapping);
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 
@@ -355,13 +354,10 @@ logs:
 
         let mut file_reader = MockLocalFile::new();
 
-        // Capture in a sequence the three reads. First the config, then the integrations dir, then the logging dir.
-        let mut sequence = Sequence::new();
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("/etc/newrelic-infra.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once({
                 let config_agent = config_agent.to_string();
                 move |_| Ok(config_agent)
@@ -370,24 +366,22 @@ logs:
         // Let's suppose the integrations.d directory is empty, so no files
         file_reader
             .expect_dir_entries()
-            .with(predicate::eq(Path::new(
-                "/etc/newrelic-infra/integrations.d",
-            )))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| Ok(vec![]));
-
-        // Continuing with logging.d
-        file_reader
-            .expect_dir_entries()
-            .with(predicate::eq(Path::new("/etc/newrelic-infra/logging.d")))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(vec![
-                    PathBuf::from("logging1.yaml"),
-                    PathBuf::from("logging2.yml"),
-                ])
+            .with(
+                predicate::eq(Path::new("/etc/newrelic-infra/logging.d")).or(predicate::eq(
+                    Path::new("/etc/newrelic-infra/integrations.d"),
+                )),
+            )
+            .times(2)
+            .returning(|dir| {
+                let output = if dir == Path::new("/etc/newrelic-infra/logging.d") {
+                    vec![
+                        PathBuf::from("logging1.yaml"),
+                        PathBuf::from("logging2.yml"),
+                    ]
+                } else {
+                    vec![]
+                };
+                Ok(output)
             });
 
         // Reading the two files "recovered" above for logging.d
@@ -395,45 +389,13 @@ logs:
             .expect_read()
             .with(predicate::eq(Path::new("logging1.yaml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-logs:
-  - name: basic-file
-    file: /var/log/logFile.log
-  - name: file-with-spaces-in-path
-    file: /var/log/folder with spaces/logFile.log
-  - name: file-with-attributes
-    file: /var/log/logFile.log
-    attributes:
-      application: tomcat
-      department: sales
-      maintainer: example@mailprovider.com
-"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(LOGS_1_CONFIG)));
 
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("logging2.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| {
-                Ok(String::from(
-                    r#"
-logs:
-  - name: log-files-in-folder
-    file: /var/log/logF*.log
-  - name: log-file-with-long-lines
-    file: /var/log/logFile.log
-    max_line_kb: 256
-  - name: only-records-with-warn-and-error
-    file: /var/log/logFile.log
-    pattern: WARN|ERROR
-"#,
-                ))
-            });
+            .return_once(|_| Ok(String::from(LOGS_2_CONFIG)));
 
         let config_converter = ConfigConverter { file_reader };
 
@@ -451,14 +413,21 @@ logs:
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
         // Read integrations object should be present but empty array
-        let expected_integrations =
-            serde_yaml::from_str::<serde_yaml::Value>("integrations: []").unwrap();
+        let expected_integrations = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
-
-        let expected_logs = serde_yaml::from_str::<serde_yaml::Value>(EXAMPLE_LOGS_CONFIG).unwrap();
+        let mut expected_logs_mapping = serde_yaml::Mapping::new();
+        expected_logs_mapping.insert(
+            serde_yaml::Value::String("logging1.yaml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(LOGS_1_CONFIG).unwrap(),
+        );
+        expected_logs_mapping.insert(
+            serde_yaml::Value::String("logging2.yml".into()),
+            serde_yaml::from_str::<serde_yaml::Value>(LOGS_2_CONFIG).unwrap(),
+        );
+        let expected_logs = serde_yaml::Value::Mapping(expected_logs_mapping);
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 
@@ -491,13 +460,10 @@ logs:
 
         let mut file_reader = MockLocalFile::new();
 
-        // Capture in a sequence the three reads. First the config, then the integrations dir, then the logging dir.
-        let mut sequence = Sequence::new();
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("/etc/newrelic-infra.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once(move |_| {
                 Err(FileReaderError::FileNotFound(String::from(
                     "file not found: `/etc/newrelic-infra.yml`",
@@ -541,35 +507,25 @@ logs:
 
         let mut file_reader = MockLocalFile::new();
 
-        // Capture in a sequence the three reads. First the config, then the integrations dir, then the logging dir.
-        let mut sequence = Sequence::new();
         file_reader
             .expect_read()
             .with(predicate::eq(Path::new("/etc/newrelic-infra.yml")))
             .times(1)
-            .in_sequence(&mut sequence)
             .return_once({
                 let config_agent = config_agent.to_string();
                 move |_| Ok(config_agent)
             });
 
-        // Let's suppose the integrations.d directory is empty, so no files
+        // Let's suppose both integrations.d and logging.d directories are empty, so no files
         file_reader
             .expect_dir_entries()
-            .with(predicate::eq(Path::new(
-                "/etc/newrelic-infra/integrations.d",
-            )))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| Ok(vec![]));
-
-        // Continuing with logging.d
-        file_reader
-            .expect_dir_entries()
-            .with(predicate::eq(Path::new("/etc/newrelic-infra/logging.d")))
-            .times(1)
-            .in_sequence(&mut sequence)
-            .return_once(|_| Ok(vec![]));
+            .with(
+                predicate::eq(Path::new("/etc/newrelic-infra/logging.d")).or(predicate::eq(
+                    Path::new("/etc/newrelic-infra/integrations.d"),
+                )),
+            )
+            .times(2)
+            .returning(|_| Ok(vec![]));
 
         let config_converter = ConfigConverter { file_reader };
 
@@ -587,14 +543,13 @@ logs:
         assert_eq!(&expected_config_agent, result.get("config_agent").unwrap());
 
         // Read integrations object should be present but empty array
-        let expected_integrations =
-            serde_yaml::from_str::<serde_yaml::Value>("integrations: []").unwrap();
+        let expected_integrations = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(
             &expected_integrations,
             result.get("config_integrations").unwrap()
         );
 
-        let expected_logs = serde_yaml::from_str::<serde_yaml::Value>("logs: []").unwrap();
+        let expected_logs = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
     }
 }
