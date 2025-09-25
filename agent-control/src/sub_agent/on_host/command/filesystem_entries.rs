@@ -33,7 +33,7 @@ impl RenderedFileSystemEntries {
         dir_manager: &impl DirectoryManager,
     ) -> Result<(), FileSystemEntriesError> {
         self.0.iter().try_for_each(|(path, content)| {
-            trace!("writing filesystem entry to {}", path.display());
+            trace!("Writing filesystem entry to {}", path.display());
             let parent_dir = path
                 .parent()
                 .ok_or_else(|| {
