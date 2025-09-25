@@ -545,11 +545,11 @@ mod tests {
                 String::from("key: dir_var_value\n"),
             ),
             (
-                PathBuf::from("/test/base/dir/path/to/my-file"),
+                PathBuf::from("/test/base/dir/some/files/path/to/my-file"),
                 String::from("something file_var_value"),
             ),
             (
-                PathBuf::from("/test/base/dir/another/path/to/my-file"),
+                PathBuf::from("/test/base/dir/some/files/another/path/to/my-file"),
                 String::from("some\nmulti-line\ncontent\n"),
             ),
             (
@@ -565,7 +565,7 @@ mod tests {
         );
 
         assert!(
-            rendered.iter().any(|(r_p, r_s)| expected_rendered
+            rendered.iter().all(|(r_p, r_s)| expected_rendered
                 .iter()
                 .any(|(e_p, e_s)| e_p == r_p && e_s == r_s)),
             "Rendered filesystem not matching expected: {rendered:?}, expected: {expected_rendered:?}"
