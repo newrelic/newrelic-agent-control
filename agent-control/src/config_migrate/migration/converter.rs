@@ -7,7 +7,7 @@ use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::LocalFile;
 use fs::file_reader::{FileReader, FileReaderError};
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use thiserror::Error;
 use tracing::error;
 
@@ -89,8 +89,13 @@ impl<F: FileReader> ConfigConverter<F> {
             }
         })?;
 
-        todo!();
-        Ok(HashMap::default())
+        let final_map = file_mapping_vars
+            .into_iter()
+            .chain(directory_mapping_vars)
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+
+        Ok(final_map)
     }
 }
 
@@ -106,24 +111,26 @@ fn retrieve_file_mapping_value<F: FileReader>(
 fn retrieve_dir_mapping_values<F: FileReader>(
     file_reader: &F,
     dir_info: &DirInfo,
-) -> Result<HashMap<PathBuf, serde_yaml::Value>, ConversionError> {
-    let files = file_reader
+) -> Result<serde_yaml::Value, ConversionError> {
+    let valid_extension_files = file_reader
         .dir_entries(&dir_info.path)?
         .into_iter()
         .filter(|p| dir_info.valid_filename(p));
 
-    let mut read_files = files.map(|filepath| {
+    let mut read_files = valid_extension_files.map(|filepath| {
         file_reader
             .read(&filepath)
             .map(|content| (filepath, content))
     });
 
-    read_files.try_fold(HashMap::new(), |mut acc, read_file| {
+    let read_files = read_files.try_fold(HashMap::new(), |mut acc, read_file| {
         let (filepath, content) = read_file?;
         let parsed = serde_yaml::from_str::<serde_yaml::Value>(&content)?;
         acc.insert(filepath, parsed);
-        Ok(acc)
-    })
+        Ok::<_, ConversionError>(acc)
+    })?;
+
+    Ok(serde_yaml::to_value(read_files)?)
 }
 
 #[cfg(test)]
