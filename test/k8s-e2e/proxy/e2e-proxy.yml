@@ -5,6 +5,7 @@ custom_test_key: cluster_name
 scenarios:
   - description: Deploy all infra agents
     before:
+      - echo The cluster name of the test is ${SCENARIO_TAG}
       # Deploys a Networkpolicy that forces all external req to go through the proxy in the current namespace.
       - kubectl apply -f ./proxy.yaml
       - kubectl wait --for=condition=complete --timeout=60s job/assert-policy-proxy
@@ -22,7 +23,7 @@ scenarios:
       - kubectl logs --tail=-1 -l job-name=agent-control-generate-system-identity --all-containers --prefix=true
       - kubectl get secrets --show-labels
       - kubectl get pods -o yaml
-      - kubectl get all -o wide  --show-labels
+      - kubectl get all -o wide --all-namespaces  --show-labels
       - kubectl get helmrelease
       - kubectl get helmchart
       - helm list -a -A

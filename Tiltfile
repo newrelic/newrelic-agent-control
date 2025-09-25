@@ -178,9 +178,8 @@ helm_resource(
   pod_readiness='ignore',
   flags=ac_flags,
   image_deps=['tilt.local/agent-control-dev', 'tilt.local/agent-control-cli-dev'],
-  image_keys=[('agent-control-deployment.image.registry', 'agent-control-deployment.image.repository', 'agent-control-deployment.image.tag'),
-              [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag'),
-              ('agent-control-cd.installer.image.registry', 'agent-control-cd.installer.image.repository', 'agent-control-cd.installer.image.tag')]],
+  image_keys=[('agentControlDeployment.chartValues.image.registry', 'agentControlDeployment.chartValues.image.repository', 'agentControlDeployment.chartValues.image.tag'),
+              [('toolkitImage.registry', 'toolkitImage.repository', 'toolkitImage.tag')]],
   resource_deps=ac_chart_deps
 )
 

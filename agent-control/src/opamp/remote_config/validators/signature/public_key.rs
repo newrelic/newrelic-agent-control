@@ -1,3 +1,4 @@
+use crate::opamp::remote_config::signature;
 use crate::opamp::remote_config::signature::SigningAlgorithm;
 use crate::opamp::remote_config::validators::signature::public_key_fetcher::KeyData;
 use crate::opamp::remote_config::validators::signature::verifier::Verifier;
@@ -6,6 +7,7 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use ring::digest;
 use ring::signature::{ED25519, UnparsedPublicKey};
 use thiserror::Error;
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum PubKeyError {
@@ -23,7 +25,6 @@ pub struct PublicKey {
 
 const SUPPORTED_USE: &str = "sig";
 const SUPPORTED_KTY: &str = "OKP";
-const SUPPORTED_CRV: &str = "Ed25519";
 
 impl PublicKey {
     pub fn try_new(data: &KeyData) -> Result<Self, PubKeyError> {
@@ -36,7 +37,7 @@ impl PublicKey {
             ));
         }
 
-        if data.crv != SUPPORTED_CRV {
+        if data.crv.to_uppercase().as_str() != signature::ED25519 {
             return Err(PubKeyError::ParsePubKey(
                 "The only supported crv is Ed25519".to_string(),
             ));
@@ -81,7 +82,10 @@ impl Verifier for PublicKey {
             .verify(msg.as_bytes(), signature)
             .map_err(|_| {
                 PubKeyError::ValidatingSignature("signature verification failed".to_string())
-            })
+            })?;
+        debug!(%self.key_id, "signature verification succeeded");
+
+        Ok(())
     }
 
     fn key_id(&self) -> &str {
