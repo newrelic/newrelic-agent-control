@@ -1,11 +1,8 @@
 use std::{fs::read_to_string, path::Path, time::Duration};
 
-use newrelic_agent_control::{
-    agent_control::{
-        defaults::GENERATED_FOLDER_NAME,
-        run::{BasePaths, Environment},
-    },
-    agent_type::runtime_config::on_host::filesystem::{DIRECTORIES_SUBDIR, FILES_SUBDIR},
+use newrelic_agent_control::agent_control::{
+    defaults::GENERATED_FOLDER_NAME,
+    run::{BasePaths, Environment},
 };
 use tempfile::tempdir;
 
@@ -31,6 +28,7 @@ fn writes_filesystem_entries() {
 
     let expected_file_contents = "Hello, world!";
     let agent_id = "test-agent";
+    let dir_entry = "example-filepath";
     let file_path = "randomdir/randomfile.txt";
 
     create_file(
@@ -43,10 +41,8 @@ variables: {{}}
 deployment:
   on_host:
     filesystem:
-      files:
-        somefile:
-          path: {file_path}
-          content: "{expected_file_contents}"
+      {dir_entry}:
+        {file_path}: "{expected_file_contents}"
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -84,7 +80,7 @@ deployment:
         .remote_dir
         .join(GENERATED_FOLDER_NAME)
         .join(agent_id)
-        .join(FILES_SUBDIR)
+        .join(dir_entry)
         .join(file_path);
 
     retry(30, Duration::from_secs(1), || {
@@ -157,25 +153,15 @@ variables:
 deployment:
   on_host:
     filesystem:
-      files:
-        somefile:
-          path: {yaml_file_path}
-          content: |-
-            ${{nr-var:yaml_file_contents}}
-        otherfile:
-          path: {string_file_path}
-          content: "Some string contents with a rendered variable: ${{nr-var:some_string}}"
-      directories:
-        somedir:
-          path: {dir_path}
-          items:
-            file1.txt: "File 1 contents"
-            file2.txt: |
-                File 2 contents with a variable: ${{nr-var:some_string}}
-        anotherdir:
-          path: {fully_templated_dir}
-          items:
-            ${{nr-var:some_mapstringyaml}}
+      randomdir:
+        "{yaml_file_path}": |-
+          ${{nr-var:yaml_file_contents}}
+        "{string_file_path}": "Some string contents with a rendered variable: ${{nr-var:some_string}}"
+      {dir_path}:
+        file1.txt: "File 1 contents"
+        file2.txt: |
+          File 2 contents with a variable: ${{nr-var:some_string}}
+      "{fully_templated_dir}": ${{nr-var:some_mapstringyaml}}
 "#,
         ),
         local_dir.join(DYNAMIC_AGENT_TYPE_FILENAME),
@@ -224,27 +210,23 @@ some_mapstringyaml:
         .remote_dir
         .join(GENERATED_FOLDER_NAME)
         .join(agent_id)
-        .join(FILES_SUBDIR)
+        .join("randomdir")
         .join(yaml_file_path);
     let string_search_path = base_paths
         .remote_dir
         .join(GENERATED_FOLDER_NAME)
         .join(agent_id)
-        .join(FILES_SUBDIR)
+        .join("randomdir")
         .join(string_file_path);
-
-    // Rendered directories (checking that their files exist and have the expected contents)
     let dir_search_path = base_paths
         .remote_dir
         .join(GENERATED_FOLDER_NAME)
         .join(agent_id)
-        .join(DIRECTORIES_SUBDIR)
         .join(dir_path);
     let fully_templated_dir_search_path = base_paths
         .remote_dir
         .join(GENERATED_FOLDER_NAME)
         .join(agent_id)
-        .join(DIRECTORIES_SUBDIR)
         .join(fully_templated_dir);
 
     let expected_files_with_contents = [
