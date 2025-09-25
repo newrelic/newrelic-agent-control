@@ -118,9 +118,11 @@ fn retrieve_dir_mapping_values<F: FileReader>(
         .filter(|p| dir_info.valid_filename(p));
 
     let mut read_files = valid_extension_files.map(|filepath| {
-        file_reader
-            .read(&filepath)
-            .map(|content| (filepath, content))
+        file_reader.read(&filepath).map(|content| {
+            // If I am here means read was successful (it was a file), so I can unwrap `file_name`.
+            let filename = filepath.file_name().unwrap().to_string_lossy().to_string();
+            (filename, content)
+        })
     });
 
     let read_files = read_files.try_fold(HashMap::new(), |mut acc, read_file| {
