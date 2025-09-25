@@ -693,7 +693,6 @@ directories:
 
         let templated = parsed.template_with(&variables);
         assert!(templated.is_ok(), "Templated filesystem: {templated:?}");
-        // let templated = templated.unwrap();
     }
 
     #[test]
