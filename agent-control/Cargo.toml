@@ -96,7 +96,7 @@ prost = "0.14.1"
 httpmock = { version = "0.8.0-alpha.1", features = ["proxy"] }
 serial_test = "3.2.0"
 futures = "0.3.31"
-rcgen = { version = "0.14.4", features = ["crypto"] }
+rcgen = { version = "0.14.5", features = ["crypto"] }
 rustls-pemfile = { version = "2.2.0" }
 rstest = "0.26.1"
 tokio-stream = { version = "0.1.17", features = ["net"] }
