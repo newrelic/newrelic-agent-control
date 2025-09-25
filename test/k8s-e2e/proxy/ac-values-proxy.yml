@@ -43,8 +43,12 @@ agentControlCd:
               claimName: mitm-ca-pvc
 
 
+toolkitImage:
+  tag: failIfNotReplaced
 agentControlDeployment:
   chartValues:
+    image:
+      tag: failIfNotReplaced
     subAgentsNamespace: "newrelic-agents"
     # Mount a CA certificate bundle to the source-controller Trust root store.
     # It should contain the proxy CA certificates on it.
