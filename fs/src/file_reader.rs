@@ -15,11 +15,13 @@ pub enum FileReaderError {
 }
 
 pub trait FileReader {
-    /// Read the contents of file_path and return them as string
+    /// Read the contents of file_path and return them as string.
+    ///
     /// If the file is not present it will return a FileReaderError
     fn read(&self, file_path: &Path) -> Result<String, FileReaderError>;
 
     /// Return the entries inside a given Path.
+    ///
     /// If the path does not exist it will return a FileReaderError
     fn dir_entries(&self, dir_path: &Path) -> Result<Vec<PathBuf>, FileReaderError>;
 }
