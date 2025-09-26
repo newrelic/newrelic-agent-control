@@ -1,8 +1,8 @@
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntriesError;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::EventPublisher;
 use crate::health::health_checker::HealthCheckerError;
 use crate::sub_agent::error::SubAgentBuilderError;
-use crate::sub_agent::on_host::command::filesystem_entries::FileSystemEntriesError;
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use thiserror::Error;
 

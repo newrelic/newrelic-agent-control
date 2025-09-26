@@ -32,6 +32,8 @@ pub enum VariableTypeDefinition {
     MapStringString(FieldsDefinition<HashMap<String, String>>),
     #[serde(rename = "map[string]file")]
     MapStringFile(FieldsWithPathDefinition<HashMap<String, FilePathWithContent>>),
+    #[serde(rename = "map[string]yaml")]
+    MapStringYaml(FieldsDefinition<HashMap<String, serde_yaml::Value>>),
     #[serde(rename = "yaml")]
     Yaml(YamlFieldsDefinition),
 }
@@ -45,6 +47,7 @@ pub enum VariableType {
     File(FieldsWithPath<FilePathWithContent>),
     MapStringString(Fields<HashMap<String, String>>),
     MapStringFile(FieldsWithPath<HashMap<String, FilePathWithContent>>),
+    MapStringYaml(Fields<HashMap<String, serde_yaml::Value>>),
     Yaml(Fields<serde_yaml::Value>),
 }
 
@@ -62,50 +65,11 @@ impl VariableTypeDefinition {
             VariableTypeDefinition::MapStringFile(v) => {
                 VariableType::MapStringFile(v.with_config(constraints))
             }
+            VariableTypeDefinition::MapStringYaml(v) => {
+                VariableType::MapStringYaml(v.with_config(constraints))
+            }
             VariableTypeDefinition::Yaml(v) => VariableType::Yaml(v.with_config(constraints)),
         }
-    }
-}
-
-impl From<StringFields> for VariableType {
-    fn from(fields: StringFields) -> Self {
-        VariableType::String(fields)
-    }
-}
-
-impl From<Fields<bool>> for VariableType {
-    fn from(fields: Fields<bool>) -> Self {
-        VariableType::Bool(fields)
-    }
-}
-
-impl From<Fields<serde_yaml::Number>> for VariableType {
-    fn from(fields: Fields<serde_yaml::Number>) -> Self {
-        VariableType::Number(fields)
-    }
-}
-
-impl From<FieldsWithPath<FilePathWithContent>> for VariableType {
-    fn from(fields: FieldsWithPath<FilePathWithContent>) -> Self {
-        VariableType::File(fields)
-    }
-}
-
-impl From<Fields<HashMap<String, String>>> for VariableType {
-    fn from(fields: Fields<HashMap<String, String>>) -> Self {
-        VariableType::MapStringString(fields)
-    }
-}
-
-impl From<FieldsWithPath<HashMap<String, FilePathWithContent>>> for VariableType {
-    fn from(fields: FieldsWithPath<HashMap<String, FilePathWithContent>>) -> Self {
-        VariableType::MapStringFile(fields)
-    }
-}
-
-impl From<Fields<serde_yaml::Value>> for VariableType {
-    fn from(fields: Fields<serde_yaml::Value>) -> Self {
-        VariableType::Yaml(fields)
     }
 }
 
@@ -120,6 +84,7 @@ impl VariableType {
             VariableType::File(f) => f.inner.required,
             VariableType::MapStringString(f) => f.required,
             VariableType::MapStringFile(f) => f.inner.required,
+            VariableType::MapStringYaml(f) => f.required,
             VariableType::Yaml(f) => f.required,
         }
     }
@@ -146,6 +111,7 @@ impl VariableType {
                     .for_each(|fp| fp.with_path(f.file_path.clone()));
                 f.inner.set_final_value(files)
             }
+            VariableType::MapStringYaml(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Yaml(f) => f.set_final_value(value),
         }?;
         Ok(())
@@ -194,6 +160,12 @@ impl VariableType {
                 .or(f.inner.default.as_ref())
                 .cloned()
                 .map(TrivialValue::MapStringFile),
+            VariableType::MapStringYaml(f) => f
+                .final_value
+                .as_ref()
+                .or(f.default.as_ref())
+                .cloned()
+                .map(TrivialValue::MapStringYaml),
             VariableType::Yaml(f) => f
                 .final_value
                 .as_ref()
@@ -216,6 +188,53 @@ impl VariableType {
             VariableType::File(f) => f.set_file_path(file_path),
             VariableType::MapStringFile(f) => f.set_file_path(file_path),
             _ => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl From<StringFields> for VariableType {
+        fn from(fields: StringFields) -> Self {
+            VariableType::String(fields)
+        }
+    }
+
+    impl From<Fields<bool>> for VariableType {
+        fn from(fields: Fields<bool>) -> Self {
+            VariableType::Bool(fields)
+        }
+    }
+
+    impl From<Fields<serde_yaml::Number>> for VariableType {
+        fn from(fields: Fields<serde_yaml::Number>) -> Self {
+            VariableType::Number(fields)
+        }
+    }
+
+    impl From<FieldsWithPath<FilePathWithContent>> for VariableType {
+        fn from(fields: FieldsWithPath<FilePathWithContent>) -> Self {
+            VariableType::File(fields)
+        }
+    }
+
+    impl From<FieldsWithPath<HashMap<String, FilePathWithContent>>> for VariableType {
+        fn from(fields: FieldsWithPath<HashMap<String, FilePathWithContent>>) -> Self {
+            VariableType::MapStringFile(fields)
+        }
+    }
+
+    impl From<Fields<HashMap<String, serde_yaml::Value>>> for VariableType {
+        fn from(fields: Fields<HashMap<String, serde_yaml::Value>>) -> Self {
+            VariableType::MapStringYaml(fields)
+        }
+    }
+
+    impl From<Fields<serde_yaml::Value>> for VariableType {
+        fn from(fields: Fields<serde_yaml::Value>) -> Self {
+            VariableType::Yaml(fields)
         }
     }
 }
