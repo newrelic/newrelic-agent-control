@@ -1,6 +1,3 @@
-| ⚠️ | New Relic agent control is in preview and licensed under the New Relic Pre-Release Software Notice. |
-|----|:----------------------------------------------------------------------------------------------------|
-
 # New Relic agent control
 
 Our agent combines the power of existing New Relic capabilities with open standards technologies. The agent control is
