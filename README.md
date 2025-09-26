@@ -1,8 +1,10 @@
-# New Relic agent control
+# New Relic Agent Control
 
-Our agent combines the power of existing New Relic capabilities with open standards technologies. The agent control is
+
+Our agent combines the power of existing New Relic capabilities with open standards technologies. Agent Control is
 designed to be lightweight and efficient, and it can be configured to collect a wide range of data, including metrics,
 traces, logs, and events.
+
 The agent has a modular architecture, with a generic supervisor that is responsible for orchestrating the configured
 agents. It also integrates with New Relic fleet manager.
 
