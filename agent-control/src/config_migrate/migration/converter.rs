@@ -6,6 +6,7 @@ use crate::config_migrate::migration::{
 use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::LocalFile;
 use fs::file_reader::{FileReader, FileReaderError};
+use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use thiserror::Error;
@@ -125,12 +126,26 @@ fn retrieve_dir_mapping_values<F: FileReader>(
 
     let read_files = read_files.try_fold(HashMap::new(), |mut acc, read_file| {
         let (filepath, content) = read_file?;
-        let parsed = serde_yaml::from_str::<serde_yaml::Value>(&content)?;
+        let parsed = serde_yaml::from_str::<serde_yaml::Value>(&process_config_input(content))?;
         acc.insert(filepath, parsed);
         Ok::<_, ConversionError>(acc)
     })?;
 
     Ok(serde_yaml::to_value(read_files)?)
+}
+
+/// Handles the usage of environment variables in the YAML config files via the special
+/// `{{VAR_NAME}}` syntax, by replacing them with a YAML-compatible syntax `'{{VAR_NAME}}'`.
+/// (just adding quotes to make it a string). If this pattern is not quoted, the resulting YAML
+/// would evaluate to a nested mapping with a single key-null pair, which is not what we want.
+///
+/// This is a simple, non-performant approach that may not cover all edge cases, but works for
+/// the common scenarios we expect (small config strings).
+fn process_config_input(input: String) -> String {
+    // This regex matches {{VAR_NAME}} not already inside quotes
+    let re = Regex::new(r#"(?P<pre>[^'"]|^)\{\{([A-Za-z0-9_]+)\}\}(?P<post>[^'"]|$)"#).unwrap();
+    re.replace_all(&input, "${pre}'{{${2}}}'${post}")
+        .to_string()
 }
 
 #[cfg(test)]
@@ -139,6 +154,7 @@ mod tests {
 
     use fs::mock::MockLocalFile;
     use mockall::{PredicateBooleanExt, predicate};
+    use rstest::rstest;
 
     use crate::config_migrate::migration::config::DirInfo;
 
@@ -188,6 +204,27 @@ logs:
     file: /var/log/logFile.log
     pattern: WARN|ERROR
 "#;
+
+    #[rstest]
+    #[case::no_templates("license_key: {{MY_ENV_VAR}}", "license_key: '{{MY_ENV_VAR}}'")]
+    #[case::multiple_templates(
+        "license_key: {{MY_ENV_VAR}} other {{ANOTHER_ENV}}",
+        "license_key: '{{MY_ENV_VAR}}' other '{{ANOTHER_ENV}}'"
+    )]
+    #[case::no_templates_at_all(
+        "license_key: my_real_license_key",
+        "license_key: my_real_license_key"
+    )]
+    #[case::multiline_yaml_syntax(
+        "license_key: {{MY_ENV_VAR}}\nother_key: value",
+        "license_key: '{{MY_ENV_VAR}}'\nother_key: value"
+    )]
+    #[case::already_quoted("license_key: '{{MY_ENV_VAR}}'", "license_key: '{{MY_ENV_VAR}}'")]
+    #[case::double_quoted(r#"license_key: "{{MY_ENV_VAR}}""#, "license_key: \"{{MY_ENV_VAR}}\"")]
+    fn env_var_interpolation(#[case] input: &str, #[case] output: &str) {
+        let result = process_config_input(input.to_string());
+        assert_eq!(result, output);
+    }
 
     #[test]
     fn from_migration_config_to_conversion() {
