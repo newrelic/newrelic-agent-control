@@ -12,7 +12,7 @@ license-file = "./LICENSE.md"
 
 [workspace.dependencies]
 serde_json = "1.0.145"
-serde = "1.0.226"
+serde = "1.0.228"
 tempfile = "3.23.0"
 thiserror = "2.0.17"
 tracing = "0.1.41"
