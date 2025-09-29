@@ -48,6 +48,8 @@ struct AgentControlEffectiveConfig {
     agents: Option<serde_yaml::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     chart_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cd_chart_version: Option<String>,
 }
 
 #[derive(Debug, Error)]
