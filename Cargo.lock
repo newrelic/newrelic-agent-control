@@ -2631,7 +2631,6 @@ dependencies = [
  "ring",
  "rstest",
  "rustls",
- "rustls-pemfile",
  "schemars",
  "semver",
  "serde",
@@ -2649,7 +2648,6 @@ dependencies = [
  "tracing-subscriber",
  "tracing-test",
  "url",
- "webpki",
  "wrapper_with_default",
  "x509-parser",
 ]
@@ -3653,15 +3651,6 @@ dependencies = [
  "rustls-pki-types",
  "schannel",
  "security-framework",
-]
-
-[[package]]
-name = "rustls-pemfile"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dce314e5fee3f39953d46bb63bb8a46d40c2f8fb7cc5a3b6cab2bde9721d6e50"
-dependencies = [
- "rustls-pki-types",
 ]
 
 [[package]]
@@ -4908,16 +4897,6 @@ checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "webpki"
-version = "0.22.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed63aea5ce73d0ff405984102c42de94fc55a6b75765d621c65262469b3c9b53"
-dependencies = [
- "ring",
- "untrusted",
 ]
 
 [[package]]

@@ -31,11 +31,11 @@ pub enum VerifierStoreError {
     #[error("fetching verifying key: {0}")]
     Fetch(String),
     #[error(
-        "signature key ID ({signature_key_id}) does not match the latest available key ID ({certificate_key_id})"
+        "signature key ID ({signature_key_id}) does not match the latest available key ID ({stored_key_id})"
     )]
     KeyMismatch {
         signature_key_id: String,
-        certificate_key_id: String,
+        stored_key_id: String,
     },
     #[error("validating signature: {0}")]
     VerifySignature(String),
@@ -97,7 +97,7 @@ where
             if !verifier.key_id().eq_ignore_ascii_case(key_id) {
                 return Err(VerifierStoreError::KeyMismatch {
                     signature_key_id: key_id.to_string(),
-                    certificate_key_id: verifier.key_id().to_string(),
+                    stored_key_id: verifier.key_id().to_string(),
                 });
             }
         }

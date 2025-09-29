@@ -181,7 +181,7 @@ impl<'de> Deserialize<'de> for OpAMPClientConfig {
             #[serde(default)]
             fleet_id: String,
             #[serde(default)]
-            pub signature_validation: SignatureValidatorConfig,
+            signature_validation: SignatureValidatorConfig,
         }
 
         let mut intermediate_spec = IntermediateOpAMPClientConfig::deserialize(deserializer)?;
