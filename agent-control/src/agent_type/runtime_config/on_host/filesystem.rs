@@ -236,17 +236,36 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
         } else {
-            serde_yaml::from_str(&templated_string).map_err(|e| {
-                AgentTypeError::ValueNotParseableFromString(format!(
-                    "Could not parse templated directory items as YAML mapping: {e}"
-                ))
-            })?
+            let map_string_value: HashMap<SafePath, serde_yaml::Value> =
+                serde_yaml::from_str(&templated_string).map_err(|e| {
+                    AgentTypeError::ValueNotParseableFromString(format!(
+                        "Could not parse templated directory items as YAML: {e}"
+                    ))
+                })?;
+            // Convert the serde_yaml::Value (i.e. the file contents) to String
+
+            map_string_value
+                .into_iter()
+                .map(|(k, v)| Ok((k, output_string(v)?)))
+                .collect::<Result<HashMap<_, _>, serde_yaml::Error>>()?
         };
 
         Ok(Self {
             template: self.template,
             value: Some(DirEntriesMap(value)),
         })
+    }
+}
+
+/// Converts a serde_yaml::Value to a String.
+/// If the value is already a String, it is returned as-is.
+/// Otherwise, it is serialized to a YAML string using serde_yaml.
+fn output_string(value: serde_yaml::Value) -> Result<String, serde_yaml::Error> {
+    match value {
+        // Pass the string directly (serde_yaml inserts literal syntax for multi-line strings)
+        serde_yaml::Value::String(s) => Ok(s),
+        // Else serialize the value to a YAML string using the default methods
+        v => serde_yaml::to_string(&v),
     }
 }
 

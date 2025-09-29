@@ -128,6 +128,7 @@ fn complete_render_and_and_write_files_and_dirs() {
         "file4.txt",
         format!("File 4 contents with a variable: {string_var_content}\n"),
     );
+    let expected_dir_file5 = ("file5.yaml", "my_key: my_value\nmy_seq:\n- item1\n- item2\nmy_string: |-\n  This is a multi-line\n  string in YAML\n".to_string());
 
     // Create agent type definition
     create_file(
@@ -192,6 +193,14 @@ some_mapstringyaml:
   file3.txt: "File 3 contents"
   file4.txt: |
     File 4 contents with a variable: {string_var_content}
+  file5.yaml:
+    my_key: my_value
+    my_seq:
+        - item1
+        - item2
+    my_string: |-
+        This is a multi-line
+        string in YAML
 "#
         ),
         local_dir.to_path_buf(),
@@ -247,6 +256,10 @@ some_mapstringyaml:
         (
             fully_templated_dir_search_path.join(expected_dir_file4.0),
             expected_dir_file4.1,
+        ),
+        (
+            fully_templated_dir_search_path.join(expected_dir_file5.0),
+            expected_dir_file5.1,
         ),
     ];
 
