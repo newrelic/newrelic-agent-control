@@ -56,8 +56,6 @@ impl<F: FileReader> ConfigConverter<F> {
         // the places where the contents of these variables will be read from, namely
         // the files and directory paths respectively. They will be parsed to YAML or
         // key-value mappings (file as string, YAML) as appropriate.
-        // Errors when reading and parsing files are ignored and not included in the
-        // rendered values.
 
         let file_reader = &self.file_reader;
 
