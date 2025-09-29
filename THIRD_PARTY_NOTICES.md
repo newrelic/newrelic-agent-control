@@ -2286,6 +2286,12 @@ Distributed under the following license(s):
 
 * MIT
 
+## tonic-prost <https://crates.io/crates/tonic-prost>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## tower <https://crates.io/crates/tower>
 
 Distributed under the following license(s):
