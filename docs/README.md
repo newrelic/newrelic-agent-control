@@ -34,7 +34,7 @@ The communication between AC and FC is done over HTTPS and is generally complian
 
 > [...] a network protocol for remote management of large fleets of data collection Agents.
 
-We maintain our own Rust library for OpAMP clients on a separate repository: [`opamp-rs`](https://github.com/newrelic/opamp-rs).
+We maintain our own Rust library for OpAMP clients on a separate repository: [`newrelic-opamp-rs`](https://github.com/newrelic/newrelic-opamp-rs).
 
 From the point of view of OpAMP, AC is also an agent. That's why, even though each workload will have its own OpAMP communication channel when managed by AC, we commonly refer to the various observability workloads that AC can manage as **sub-agents**.
 
@@ -99,10 +99,7 @@ The avid reader might be asking at this point "*How does AC know the way to crea
 
 ## Getting started
 
-For the standard installation of Agent Control, either on-host or Kubernetes, head to the [official documentation](https://docs-preview.newrelic.com/docs/new-relic-agent-control#quickstart) on New Relic's website.
-
-> [!CAUTION]
-> The link to documentation shared above currently leads to the **preview** version! This will be stabilized and moved to the main site shortly, so make sure this is updated. Remove this warning when the documentation links to the proper place.
+For the standard installation of Agent Control, either on-host or Kubernetes, head to the [official documentation](https://docs.newrelic.com/docs/new-relic-control/agent-control/setup/) on New Relic's website.
 
 ### Configuration
 
