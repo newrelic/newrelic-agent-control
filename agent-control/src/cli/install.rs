@@ -17,6 +17,7 @@ use crate::{
         with_start_time::StartTime,
     },
     k8s::{
+        Error as K8sError,
         labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         utils::{get_name, get_type_meta},
     },
@@ -121,10 +122,16 @@ pub fn apply_resources(
     let k8s_client = try_new_k8s_client()?;
     let maybe_helm_release = k8s_client
         .get_dynamic_object(&helmrelease_v2_type_meta(), release_name, namespace)
-        .map_err(|err| {
-            CliError::ApplyResource(format!(
-                "could not get helmRelease with name {release_name}: {err}",
-            ))
+        .map_err(|err| match err {
+            // Specifying an invalid version of `agent-control-cd` throws an error showing that something is wrong with the api.
+            // It can be hard to understand without prior knowledge, thus we simplify the error message for that specific variant.
+            K8sError::MissingAPIResource(_) => CliError::ApplyResource(format!(
+                "could not get HelmRelease with name {release_name} and version {}",
+                install_data.chart_version
+            )),
+            _ => CliError::ApplyResource(format!(
+                "could not get HelmRelease with name {release_name}: {err}",
+            )),
         })?;
 
     let skip_installation_check = install_data.skip_installation_check;
