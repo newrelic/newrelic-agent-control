@@ -21,13 +21,13 @@ use tracing::{debug, error};
 
 #[derive(Error, Debug)]
 pub enum ConversionError {
-    #[error("`{0}`")]
+    #[error("{0}")]
     RepositoryError(#[from] AgentRepositoryError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     ConvertFileError(#[from] FileReaderError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentValueError(#[from] AgentValueError),
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
     #[error("cannot find required file map")]
     RequiredFileMappingNotFoundError,

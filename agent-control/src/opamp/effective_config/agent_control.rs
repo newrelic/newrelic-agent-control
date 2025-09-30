@@ -54,7 +54,7 @@ struct AgentControlEffectiveConfig {
 
 #[derive(Debug, Error)]
 pub enum AgentControlEffectiveConfigError {
-    #[error("processing agent-control effective config: `{0}`")]
+    #[error("processing agent-control effective config: {0}")]
     Conversion(String),
 }
 

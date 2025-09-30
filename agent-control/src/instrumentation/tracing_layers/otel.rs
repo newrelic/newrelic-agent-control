@@ -24,7 +24,7 @@ pub enum OtelBuildError {
     HttpClient(#[from] HttpBuildError),
     #[error("could not build the exporter: {0}")]
     ExporterBuild(#[from] ExporterBuildError),
-    #[error("invalid filtering directive `{directive}`: {err}")]
+    #[error("invalid filtering directive '{directive}': {err}")]
     FilteringDirective { directive: String, err: String },
 }
 

@@ -12,9 +12,9 @@ use crate::opamp::remote_config::{
 
 #[derive(Error, Debug)]
 pub enum CertificateError {
-    #[error("parsing certificate from bytes: `{0}`")]
+    #[error("parsing certificate from bytes: {0}")]
     ParseCertificate(String),
-    #[error("verifying signature: `{0}`")]
+    #[error("verifying signature: {0}")]
     VerifySignature(String),
 }
 #[derive(Debug, Clone)]

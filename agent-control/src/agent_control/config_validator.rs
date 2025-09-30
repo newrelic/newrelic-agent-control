@@ -5,7 +5,7 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DynamicConfigValidatorError {
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentRepositoryError(#[from] AgentRepositoryError),
 }
 

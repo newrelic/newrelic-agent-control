@@ -24,23 +24,23 @@ use tracing::error;
 
 #[derive(Error, Debug)]
 pub enum EffectiveAgentsAssemblerError {
-    #[error("error assembling agents: `{0}`")]
+    #[error("error assembling agents: {0}")]
     EffectiveAgentsAssemblerError(String),
-    #[error("error assembling agents: `{0}`")]
+    #[error("error assembling agents: {0}")]
     RepositoryError(#[from] AgentRepositoryError),
-    #[error("error assembling agents: `{0}`")]
+    #[error("error assembling agents: {0}")]
     SerdeYamlError(#[from] serde_yaml::Error),
-    #[error("error assembling agents: `{0}`")]
+    #[error("error assembling agents: {0}")]
     AgentTypeError(#[from] AgentTypeError),
-    #[error("error assembling agents: `{0}`")]
+    #[error("error assembling agents: {0}")]
     AgentTypeDefinitionError(#[from] AgentTypeDefinitionError),
-    #[error("error loading secrets: `{0}`")]
+    #[error("error loading secrets: {0}")]
     SecretVariablesError(#[from] SecretVariablesError),
 }
 
 #[derive(Error, Debug)]
 pub enum AgentTypeDefinitionError {
-    #[error("invalid agent-type for `{0}` environment: `{1}")]
+    #[error("invalid agent-type for '{0}' environment: {1}")]
     EnvironmentError(AgentTypeError, Environment),
 }
 
@@ -385,7 +385,7 @@ pub(crate) mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "error assembling agents: `agent type `namespace/name:0.0.1` not found`",
+            "error assembling agents: agent type namespace/name:0.0.1 not found",
             result.unwrap_err().to_string()
         );
     }

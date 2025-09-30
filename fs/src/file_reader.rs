@@ -6,11 +6,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileReaderError {
-    #[error("error reading contents: `{0}`")]
+    #[error("error reading contents: {0}")]
     Read(#[from] ioError),
-    #[error("file not found: `{0}`")]
+    #[error("file not found: {0}")]
     FileNotFound(String),
-    #[error("dir not found: `{0}`")]
+    #[error("dir not found: {0}")]
     DirNotFound(String),
 }
 
@@ -110,7 +110,7 @@ pub mod tests {
         let result = reader.read(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
-            String::from("file not found: `/a/path/that/does/not/exist`"),
+            String::from("file not found: /a/path/that/does/not/exist"),
             result.unwrap_err().to_string()
         );
     }
@@ -121,7 +121,7 @@ pub mod tests {
         let result = reader.dir_entries(Path::new("/a/path/that/does/not/exist"));
         assert!(result.is_err());
         assert_eq!(
-            String::from("dir not found: `/a/path/that/does/not/exist`"),
+            String::from("dir not found: /a/path/that/does/not/exist"),
             result.unwrap_err().to_string()
         );
     }

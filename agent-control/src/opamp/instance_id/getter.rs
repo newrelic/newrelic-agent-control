@@ -13,13 +13,13 @@ pub trait InstanceIDGetter {
 
 #[derive(thiserror::Error, Debug)]
 pub enum GetterError {
-    #[error("failed to persist data: `{0}`")]
+    #[error("failed to persist data: {0}")]
     OnHostPersisting(#[from] super::on_host::storer::StorerError),
 
-    #[error("failed to persist k8s data: `{0}`")]
+    #[error("failed to persist k8s data: {0}")]
     K8sPersisting(#[from] super::k8s::storer::StorerError),
 
-    #[error("initialising client: `{0}`")]
+    #[error("initialising client: {0}")]
     K8sClientInitialization(#[from] k8s::Error),
 
     #[cfg(test)]

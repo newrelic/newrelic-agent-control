@@ -56,16 +56,16 @@ impl Resource {
 #[derive(thiserror::Error, Debug)]
 pub enum DetectError {
     /// Error for the system implementation
-    #[error("error detecting system resources `{0}`")]
+    #[error("error detecting system resources {0}")]
     SystemError(#[from] SystemDetectorError),
     /// Error for the AWS cloud implementation
-    #[error("error detecting aws resources `{0}`")]
+    #[error("error detecting aws resources {0}")]
     AWSError(#[from] AWSDetectorError),
     /// Error for the Azure cloud implementation
-    #[error("error detecting azure resources `{0}`")]
+    #[error("error detecting azure resources {0}")]
     AzureError(#[from] AzureDetectorError),
     /// Error for the GCP cloud implementation
-    #[error("error detecting gcp resources `{0}`")]
+    #[error("error detecting gcp resources {0}")]
     GCPError(#[from] GCPDetectorError),
     /// Unsuccessful cloud detection.
     #[error("non of the cloud API responded")]

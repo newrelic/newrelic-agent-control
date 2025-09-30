@@ -227,7 +227,7 @@ mod tests {
         assert_eq!(
             rendered_err.to_string(),
             format!(
-                "missing value for key: `{}`",
+                "missing value for key: {}",
                 Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR)
             )
         );

@@ -9,7 +9,7 @@ pub enum EffectiveConfigError {
 /// Error type for the effective configuration loader.
 /// This is implementation-dependent so it only encapsulates a String.
 #[derive(Debug, Error)]
-#[error("could not load effective configuration: `{0}`")]
+#[error("could not load effective configuration: {0}")]
 pub struct LoaderError(String);
 
 impl From<String> for LoaderError {

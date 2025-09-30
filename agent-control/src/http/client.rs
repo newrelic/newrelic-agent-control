@@ -88,7 +88,7 @@ pub enum HttpResponseError {
     BuildingResponse(String),
     #[error("could build request: {0}")]
     BuildingRequest(String),
-    #[error("`{0}`")]
+    #[error("{0}")]
     TransportError(String),
 }
 

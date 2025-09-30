@@ -29,16 +29,16 @@ use tracing::{debug, error, trace};
 
 #[derive(Debug, Error)]
 pub enum AgentCallbacksError {
-    #[error("deserialization error: `{0}`")]
+    #[error("deserialization error: {0}")]
     DeserializationError(#[from] OpampRemoteConfigError),
 
-    #[error("invalid UTF-8 sequence: `{0}`")]
+    #[error("invalid UTF-8 sequence: {0}")]
     UTF8(#[from] FromUtf8Error),
 
     #[error("unable to publish OpAMP event")]
     PublishEventError(#[from] EventPublisherError),
 
-    #[error("unable to get effective config: `{0}`")]
+    #[error("unable to get effective config: {0}")]
     EffectiveConfigError(#[from] EffectiveConfigError),
 }
 
@@ -430,7 +430,7 @@ pub(crate) mod tests {
                 expected_remote_config_config_map: ConfigurationMap::default(),
                 expected_remote_config_hash:  Hash::from(valid_hash),
                 expected_remote_config_state: ConfigState::Failed {
-                    error_message: "Invalid remote config format: invalid UTF-8 sequence: `invalid utf-8 sequence of 1 bytes from index 0`".into(),
+                    error_message: "Invalid remote config format: invalid UTF-8 sequence: invalid utf-8 sequence of 1 bytes from index 0".into(),
                 },
                 expected_signature: None,
             },

@@ -11,10 +11,10 @@ use tracing::{error, instrument};
 #[derive(thiserror::Error, Debug)]
 pub enum SystemDetectorError {
     /// Error while getting hostname
-    #[error("error getting hostname `{0}`")]
+    #[error("error getting hostname {0}")]
     HostnameError(String),
     /// Error while getting the machine-id
-    #[error("error getting machine-id: `{0}`")]
+    #[error("error getting machine-id: {0}")]
     MachineIDError(String),
 }
 

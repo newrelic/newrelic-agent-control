@@ -14,13 +14,13 @@ use tracing::instrument;
 
 #[derive(Error, Debug)]
 pub enum WriteError {
-    #[error("directory error: `{0}`")]
+    #[error("directory error: {0}")]
     DirectoryError(#[from] DirectoryManagementError),
 
-    #[error("error creating file: `{0}`")]
+    #[error("error creating file: {0}")]
     ErrorCreatingFile(#[from] io::Error),
 
-    #[error("invalid path: `{0}`")]
+    #[error("invalid path: {0}")]
     InvalidPath(#[from] FsError),
 }
 
@@ -193,7 +193,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid path: `dots disallowed in path `some/path/../../etc/passwd``".to_string(),
+            "invalid path: dots disallowed in path some/path/../../etc/passwd".to_string(),
             result.unwrap_err().to_string()
         );
     }

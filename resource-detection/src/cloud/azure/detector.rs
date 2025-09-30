@@ -41,13 +41,13 @@ impl<C: HttpClient> AzureDetector<C> {
 #[derive(Error, Debug)]
 pub enum AzureDetectorError {
     /// Internal HTTP error
-    #[error("`{0}`")]
+    #[error("{0}")]
     HttpError(#[from] HttpClientError),
     /// Error while deserializing endpoint metadata
-    #[error("error deserializing json: `{0}`")]
+    #[error("error deserializing json: {0}")]
     JsonError(#[from] serde_json::Error),
     /// Unsuccessful HTTP response.
-    #[error("status code: `{0}` Canonical reason: `{1}`")]
+    #[error("status code: {0} Canonical reason: {1}")]
     UnsuccessfulResponse(u16, String),
 }
 

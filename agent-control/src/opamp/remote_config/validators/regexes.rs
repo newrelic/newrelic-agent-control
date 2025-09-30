@@ -12,7 +12,7 @@ pub enum RegexValidatorError {
     #[error("invalid config: restricted values detected")]
     InvalidConfig,
 
-    #[error("error compiling regex: `{0}`")]
+    #[error("error compiling regex: {0}")]
     RegexError(#[from] regex::Error),
 }
 

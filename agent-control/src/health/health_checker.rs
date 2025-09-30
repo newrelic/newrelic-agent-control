@@ -38,10 +38,10 @@ pub enum Health {
 pub enum HealthCheckerError {
     #[error("{0}")]
     Generic(String),
-    #[error("system time error `{0}`")]
+    #[error("system time error {0}")]
     SystemTime(#[from] SystemTimeError),
 
-    #[error("{kind}/{name} misses field `{field}`")]
+    #[error("{kind}/{name} misses field '{field}'")]
     MissingK8sObjectField {
         kind: String,
         name: String,

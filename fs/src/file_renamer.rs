@@ -6,9 +6,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum FileRenamerError {
-    #[error("error renaming file or dir: `{0}`")]
+    #[error("error renaming file or dir: {0}")]
     Rename(#[from] ioError),
-    #[error("file or dir not found: `{0}`")]
+    #[error("file or dir not found: {0}")]
     FileDirNotFound(String),
 }
 
@@ -67,7 +67,7 @@ pub mod tests {
         );
         assert!(result.is_err());
         assert_eq!(
-            String::from("file or dir not found: `/a/path/that/does/not/exist`"),
+            String::from("file or dir not found: /a/path/that/does/not/exist"),
             result.unwrap_err().to_string()
         );
     }

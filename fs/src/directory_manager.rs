@@ -6,13 +6,13 @@ use tracing::instrument;
 
 #[derive(Error, Debug)]
 pub enum DirectoryManagementError {
-    #[error("cannot create directory `{0}` : `{1}`")]
+    #[error("cannot create directory '{0}' : {1}")]
     ErrorCreatingDirectory(String, String),
 
-    #[error("cannot delete directory: `{0}`")]
+    #[error("cannot delete directory: {0}")]
     ErrorDeletingDirectory(String),
 
-    #[error("invalid directory: `{0}`")]
+    #[error("invalid directory: {0}")]
     InvalidDirectory(#[from] FsError),
 }
 
@@ -172,7 +172,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
+            "invalid directory: dots disallowed in path some/path/../with/../dots".to_string(),
             result.unwrap_err().to_string()
         );
     }
@@ -188,7 +188,7 @@ pub mod tests {
 
         assert!(result.is_err());
         assert_eq!(
-            "invalid directory: `dots disallowed in path `some/path/../with/../dots``".to_string(),
+            "invalid directory: dots disallowed in path some/path/../with/../dots".to_string(),
             result.unwrap_err().to_string()
         );
     }

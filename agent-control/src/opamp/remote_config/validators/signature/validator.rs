@@ -27,11 +27,11 @@ const DEFAULT_SIGNATURE_VALIDATOR_ENABLED: bool = true;
 type ErrorMessage = String;
 #[derive(Error, Debug)]
 pub enum SignatureValidatorError {
-    #[error("failed to fetch certificate: `{0}`")]
+    #[error("failed to fetch certificate: {0}")]
     FetchCertificate(ErrorMessage),
-    #[error("failed to build validator: `{0}`")]
+    #[error("failed to build validator: {0}")]
     BuildingValidator(ErrorMessage),
-    #[error("failed to verify signature: `{0}`")]
+    #[error("failed to verify signature: {0}")]
     VerifySignature(ErrorMessage),
 }
 

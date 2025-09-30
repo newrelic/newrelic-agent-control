@@ -24,13 +24,13 @@ pub struct PollInterval(#[serde(deserialize_with = "deserialize_duration")] Dura
 
 #[derive(Error, Debug)]
 pub enum OpAMPClientBuilderError {
-    #[error("OpAMP client: `{0}`")]
+    #[error("OpAMP client: {0}")]
     NotStartedClientError(#[from] NotStartedClientError),
 
-    #[error("error getting agent instance id: `{0}`")]
+    #[error("error getting agent instance id: {0}")]
     GetInstanceIDError(#[from] GetterError),
 
-    #[error("error building http client: `{0}`")]
+    #[error("error building http client: {0}")]
     HttpClientBuilderError(#[from] HttpClientBuilderError),
 }
 
