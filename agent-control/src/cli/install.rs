@@ -125,9 +125,6 @@ pub fn apply_resources(
         .map_err(|err| match err {
             // Specifying an invalid version of `agent-control-cd` throws an error showing that something is wrong with the api.
             // It can be hard to understand without prior knowledge, thus we simplify the error message for that specific variant.
-            //
-            // Old error message:
-            // could not get helmRelease with name agent-control-cd: api resource kind not present in the cluster: apiVersion: helm.toolkit.fluxcd.io/v1 kind: HelmRelease"
             K8sError::MissingAPIResource(_) => CliError::ApplyResource(format!(
                 "could not get helmRelease with name {release_name} and version {}",
                 install_data.chart_version
