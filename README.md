@@ -17,16 +17,17 @@ agents. It also integrates with New Relic fleet manager.
 
 ## Getting started
 
-Follow the [installation steps](https://docs-preview.newrelic.com/docs/new-relic-agent-control#quickstart) to get
-started on Linux hosts and [running in Kubernetes](/docs/README.md#running-in-kubernetes) to run it in your cluster.
+Follow the [installation steps](https://docs.newrelic.com/docs/new-relic-control/agent-control/setup/) to get
+started on Linux hosts or Kubernetes.
 
-For troubleshooting,
-see [Diagnose issues with agent logging](https://docs-preview.newrelic.com/docs/new-relic-agent-control#troubleshooting).
+To run the project locally, check out the [development](/docs/DEVELOPMENT.md) docs.
+
+For troubleshooting, see [Diagnose issues with agent logging](https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/).
 
 ## Documentation
 
 Learn more from the [technical documentation in this repository](/docs/README.md) and
-the [Limited Preview Documentation](https://docs-preview.newrelic.com/docs/new-relic-agent-control).
+the [New Relic Documentation](https://docs.newrelic.com/docs/new-relic-control/agent-control/overview/).
 
 ## Support
 
