@@ -126,11 +126,11 @@ pub fn apply_resources(
             // Specifying an invalid version of `agent-control-cd` throws an error showing that something is wrong with the api.
             // It can be hard to understand without prior knowledge, thus we simplify the error message for that specific variant.
             K8sError::MissingAPIResource(_) => CliError::ApplyResource(format!(
-                "could not get helmRelease with name {release_name} and version {}",
+                "could not get HelmRelease with name {release_name} and version {}",
                 install_data.chart_version
             )),
             _ => CliError::ApplyResource(format!(
-                "could not get helmRelease with name {release_name}: {err}",
+                "could not get HelmRelease with name {release_name}: {err}",
             )),
         })?;
 
