@@ -139,7 +139,7 @@ fn retrieve_dir_mapping_values<F: FileReader>(
 /// (just adding quotes to make it a string). If this pattern is not quoted, the resulting YAML
 /// would evaluate to a nested mapping with a single key-null pair, which is not what we want.
 ///
-/// This is a simple, non-performant approach that may not cover all edge cases, but works for
+/// This is a regex-based approach that may not cover all edge cases, but works for
 /// the common scenarios we expect (small config strings).
 fn process_config_input(input: String) -> String {
     // This regex matches {{VAR_NAME}} not already inside quotes
