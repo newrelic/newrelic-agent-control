@@ -69,6 +69,8 @@
               fleet_control:
                 fleet_id: "{{ fleet_id }}"
                 endpoint: "https://opamp.service.newrelic.com/v1/opamp"
+                signature_validation:
+                  public_key_server_url: https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
                 auth_config:
                   token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
                   client_id: "{{ system_identity_client_id }}"
