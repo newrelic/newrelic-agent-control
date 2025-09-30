@@ -14,6 +14,10 @@ cluster = os.getenv('CLUSTER', "")
 # Branch of the helm-charts repo to use.
 feature_branch = os.getenv('FEATURE_BRANCH', "master")
 
+# Remote updates are disabled by default in order to avoid accidental downgrades.
+enable_ac_remote_update = os.getenv('ENABLE_AC_REMOTE_UPDATE', "false")
+enable_cd_remote_update = os.getenv('ENABLE_CD_REMOTE_UPDATE', "false")
+
 # Enables basic auth in chartmuseum (for testing reasons)
 # 
 chartmuseum_basic_auth = os.getenv('CHARTMUSEUM_BASIC_AUTH', "")
@@ -109,6 +113,8 @@ ac_flags = [
   '--create-namespace',
   '--set=agentControlDeployment.chartRepositoryUrl=http://chartmuseum.default.svc.cluster.local:8080',
   '--set=agentControlDeployment.chartVersion=0.0.1',
+  '--set=agentControlDeployment.chartValues.config.acRemoteUpdate=' + enable_ac_remote_update,
+  '--set=agentControlDeployment.chartValues.config.cdRemoteUpdate=' + enable_cd_remote_update,
   '--version=>=0.0.0-beta',
   '--set=agentControlDeployment.chartValues.image.imagePullPolicy=Always',
   '--values=' + sa_chart_values_file,
