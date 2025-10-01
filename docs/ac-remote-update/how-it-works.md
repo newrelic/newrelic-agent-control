@@ -91,6 +91,7 @@ The implementation is, of course, more complex.
     agents:
         nr-infra: newrelic/com.newrelic.infrastructure:0.1.0
     chart_version: "1.0.0"
+    cd_chart_version: "1.0.0"
     ```
 
 2. **Report Initial State**: To provide visibility, Agent Control reports its status as `Applying`.

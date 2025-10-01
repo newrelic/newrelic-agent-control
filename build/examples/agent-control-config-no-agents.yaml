@@ -1,7 +1,7 @@
 # fleet_control:
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
 #   signature_validation:
-#     public_key_server_url: https://publickeys.newrelic.com/r/blob-management/GLOBAL/AgentConfiguration/jwks.json
+#     public_key_server_url: https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
 #   headers:
 #     api-key: API_KEY_HERE
 #   fleet_id: FLEET_ID_HERE

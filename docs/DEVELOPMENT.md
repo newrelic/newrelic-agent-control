@@ -140,7 +140,7 @@ ulimit -n 4096
 
 ## Troubleshooting
 
-See [diagnose issues with agent control logging](https://docs-preview.newrelic.com/docs/new-relic-agent-control#debug).
+See [diagnose issues with agent control logging](https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/).
 
 ### Disable Fleet Control
 
@@ -149,6 +149,8 @@ Users can disable remote management just by commenting its configuration out fro
 ```yaml
 # fleet_control:
 #   endpoint: https://opamp.service.newrelic.com/v1/opamp
+#   signature_validation:
+#     public_key_server_url: https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
 #   headers:
 #     api-key: API_KEY_HERE
 #   fleet_id: FLEET_ID_HERE

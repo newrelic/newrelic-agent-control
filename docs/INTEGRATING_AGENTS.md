@@ -150,7 +150,7 @@ All of these variable references will be replaced with actual values, either pro
 
 When adding these values as a user, either as a local config for AC (a file in the filesystem for on-host or a ConfigMap for Kubernetes) or as remote configs made available from FC, the format used is a YAML file with the values following the same tree-like structure defined for the variables in the agent type definition, but the *leaf nodes* being the actual values.
 
-For examples of this with actual agent type definitions, see [config examples](https://docs-preview.newrelic.com/docs/new-relic-agent-control-linux#config-examples) in the official New Relic documentation site.
+For examples of this with actual agent type definitions, see [kubernetes config examples](https://docs.newrelic.com/docs/new-relic-control/agent-control/configuration/#kubernetes-configuration) and [host config examples](https://docs.newrelic.com/docs/new-relic-control/agent-control/configuration/#linux-configuration) in the official New Relic documentation site.
 
 ##### Environment variable expansion on configuration values
 
@@ -265,7 +265,7 @@ As of now, the `executables` field is array and is actually **optional**. This w
 
 ##### `enable_file_logging` (`bool`)
 
-When set, this redirects the `stdout` and `stderr` of the created process to files inside AC's logging directory (see [on-host troubleshooting](https://docs-preview.newrelic.com/docs/new-relic-agent-control-linux#debug) in the official public documentation). These log files will reside inside a directory dedicated to the current sub-agent, identifiable by its `agent_id`.
+When set, this redirects the `stdout` and `stderr` of the created process to files inside AC's logging directory (see [on-host troubleshooting](https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/#linux-hosts-troubleshooting) in the official public documentation). These log files will reside inside a directory dedicated to the current sub-agent, identifiable by its `agent_id`.
 
 ##### `health` (on-host)
 
