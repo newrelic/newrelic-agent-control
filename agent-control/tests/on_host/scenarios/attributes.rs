@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
-    PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY, STORE_KEY_LOCAL_DATA_CONFIG_YAML,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
@@ -143,6 +143,8 @@ agents:
         agent_id.to_string(),
         NO_CONFIG.to_string(), // local empty config
         local_dir.path().into(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     let base_paths = BasePaths {
