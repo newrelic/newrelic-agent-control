@@ -9,6 +9,7 @@ use fs::file_reader::{FileReader, FileReaderError};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::error;
 
@@ -142,10 +143,20 @@ fn retrieve_dir_mapping_values<F: FileReader>(
 /// This is a regex-based approach that may not cover all edge cases, but works for
 /// the common scenarios we expect (small config strings).
 fn process_config_input(input: String) -> String {
-    // This regex matches {{VAR_NAME}} not already inside quotes
-    let re = Regex::new(r#"(?P<pre>[^'"]|^)\{\{([A-Za-z0-9_]+)\}\}(?P<post>[^'"]|$)"#).unwrap();
-    re.replace_all(&input, "${pre}'{{${2}}}'${post}")
+    env_var_syntax_regex()
+        .replace_all(&input, "${pre}'{{${2}}}'${post}")
         .to_string()
+}
+
+/// Regex to match {{VAR_NAME}} if not already inside quotes. Used for pre-processing YAML configs
+/// coming from the infrastructure-agent which may include this syntax for env var interpolation.
+///
+/// The Regex is compiled just once and reused.
+fn env_var_syntax_regex() -> &'static Regex {
+    static RE_ONCE: OnceLock<Regex> = OnceLock::new();
+    RE_ONCE.get_or_init(|| {
+        Regex::new(r#"(?P<pre>[^'"]|^)\{\{([A-Za-z0-9_]+)\}\}(?P<post>[^'"]|$)"#).unwrap()
+    })
 }
 
 #[cfg(test)]
