@@ -57,7 +57,7 @@
           include_role:
             name: edit_yaml_config
           vars:
-            config_path: "/etc/newrelic-agent-control/config.yaml"
+            config_path: "/etc/newrelic-agent-control/local-data-agent-control/config.yaml"
             update_config:
               log:
                 format:
@@ -89,12 +89,12 @@
 
         - name: Infra Agent config folder
           file:
-            path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/
+            path: /etc/newrelic-agent-control/local-data-nr-infra/values/
             state: directory
 
         - name: Infra Agent local config
           copy:
-            dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+            dest: /etc/newrelic-agent-control/local-data-nr-infra/values/values.yaml
             content: |
               config_agent: |+
                 status_server_enabled: true

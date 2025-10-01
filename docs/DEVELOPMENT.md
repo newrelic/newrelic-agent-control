@@ -144,7 +144,7 @@ See [diagnose issues with agent control logging](https://docs-preview.newrelic.c
 
 ### Disable Fleet Control
 
-Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/config.yaml` (on-host):
+Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/local-data-agent-control/config.yaml` (on-host):
 
 ```yaml
 # fleet_control:
