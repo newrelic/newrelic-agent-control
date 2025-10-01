@@ -63,20 +63,6 @@ where
             .get(self.metadata_endpoint.to_string(), self.headers.clone())
             .map_err(|e| DetectError::GCPError(GCPDetectorError::HttpError(e)))?;
 
-        // return error if status code is not within 200-299.
-        if !response.status().is_success() {
-            return Err(DetectError::GCPError(
-                GCPDetectorError::UnsuccessfulResponse(
-                    response.status().as_u16(),
-                    response
-                        .status()
-                        .canonical_reason()
-                        .unwrap_or_default()
-                        .to_string(),
-                ),
-            ));
-        }
-
         let metadata: GCPMetadata =
             serde_json::from_slice(response.body()).map_err(GCPDetectorError::JsonError)?;
 
@@ -178,12 +164,11 @@ mod tests {
     #[test]
     fn detect_internal_http_error() {
         let mut client_mock = MockHttpClient::new();
-        client_mock.expect_send().once().returning(|_| {
-            Ok(http::Response::builder()
-                .status(404)
-                .body(r#""#.as_bytes().to_vec())
-                .unwrap())
-        });
+
+        client_mock
+            .expect_send()
+            .once()
+            .returning(|_| Err(HttpClientError::ResponseError(404, "Not Found".to_string())));
 
         let detector = GCPDetector {
             http_client: client_mock,
@@ -195,9 +180,9 @@ mod tests {
 
         assert_matches!(
             result,
-            Err(DetectError::GCPError(
-                GCPDetectorError::UnsuccessfulResponse(404, _)
-            ))
+            Err(DetectError::GCPError(GCPDetectorError::HttpError(
+                HttpClientError::ResponseError(404, _)
+            )))
         );
     }
 

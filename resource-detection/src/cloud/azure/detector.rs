@@ -62,20 +62,6 @@ where
             .get(self.metadata_endpoint.to_string(), self.headers.clone())
             .map_err(|e| DetectError::AzureError(AzureDetectorError::HttpError(e)))?;
 
-        // return error if status code is not within 200-299.
-        if !response.status().is_success() {
-            return Err(DetectError::AzureError(
-                AzureDetectorError::UnsuccessfulResponse(
-                    response.status().as_u16(),
-                    response
-                        .status()
-                        .canonical_reason()
-                        .unwrap_or_default()
-                        .to_string(),
-                ),
-            ));
-        }
-
         let metadata: AzureMetadata =
             serde_json::from_slice(response.body()).map_err(AzureDetectorError::JsonError)?;
 
@@ -116,12 +102,10 @@ mod tests {
     #[test]
     fn invalid_response_code() {
         let mut client_mock = MockHttpClient::new();
-        client_mock.should_send(
-            http::Response::builder()
-                .status(503)
-                .body("".as_bytes().to_vec())
-                .unwrap(),
-        );
+        client_mock.should_not_send(HttpClientError::ResponseError(
+            503,
+            "Service Unavailable".to_string(),
+        ));
 
         let detector = AzureDetector {
             http_client: client_mock,
@@ -133,7 +117,9 @@ mod tests {
 
         assert_matches!(
             detect_error,
-            DetectError::AzureError(AzureDetectorError::UnsuccessfulResponse(503, _))
+            DetectError::AzureError(AzureDetectorError::HttpError(
+                HttpClientError::ResponseError(503, _)
+            ))
         );
     }
 

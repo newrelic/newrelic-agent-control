@@ -17,7 +17,7 @@ pub enum PubKeyError {
     #[error("validating signature: {0}")]
     ValidatingSignature(String),
 }
-
+#[derive(Debug)]
 pub struct PublicKey {
     pub public_key: UnparsedPublicKey<Vec<u8>>,
     pub key_id: String,

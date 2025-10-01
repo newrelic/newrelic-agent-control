@@ -3,15 +3,15 @@
 use crate::http::config::HttpConfig;
 use async_trait::async_trait;
 use bytes::Bytes;
-use http::Response as HttpResponse;
 use http::{Request, Response};
+use http::{Response as HttpResponse, StatusCode};
 use nr_auth::http_client::HttpClient as OauthHttpClient;
 use nr_auth::http_client::HttpClientError as OauthHttpClientError;
 use opamp_client::http::HttpClientError as OpampHttpClientError;
 use opentelemetry_http::HttpError;
 use reqwest::tls::TlsInfo;
 use reqwest::{
-    Certificate, Proxy,
+    Certificate, Error as ReqwestError, Proxy,
     blocking::{Client, Response as BlockingResponse},
 };
 use resource_detection::cloud::http_client::HttpClient as CloudClient;
@@ -66,17 +66,24 @@ impl HttpClient {
         &self,
         request: Request<Vec<u8>>,
     ) -> Result<HttpResponse<Vec<u8>>, HttpResponseError> {
-        let req = self
+        let req_builder = self
             .client
             .request(request.method().into(), request.uri().to_string().as_str())
             .headers(request.headers().clone())
             .body(request.body().to_vec());
 
-        let res = req
-            .send()
-            .map_err(|err| HttpResponseError::TransportError(err.to_string()))?;
+        let res = req_builder.send().map_err(from_reqwest_error)?;
 
-        try_build_response(res)
+        if res.status().is_success() {
+            try_build_response(res)
+        } else {
+            let status_code = res.status();
+            let body = res
+                .bytes()
+                .map_err(|err| HttpResponseError::ReadingResponse(err.to_string()))?
+                .to_vec();
+            Err(HttpResponseError::UnsuccessfulResponse { status_code, body })
+        }
     }
 }
 
@@ -88,14 +95,61 @@ pub enum HttpResponseError {
     BuildingResponse(String),
     #[error("could build request: {0}")]
     BuildingRequest(String),
-    #[error("{0}")]
-    TransportError(String),
+    /// Represents a response that was received, but had a non-successful status code.
+    #[error(
+        "unsuccessful response: {status_code} - body: {}",
+        String::from_utf8_lossy(body)
+    )]
+    UnsuccessfulResponse {
+        status_code: StatusCode,
+        body: Vec<u8>,
+    },
+    #[error(
+        "connection error: could not connect to the host. this is often caused by a firewall, proxy, or network routing issue. original error: {0}"
+    )]
+    ConnectError(#[source] ReqwestError),
+    #[error("timeout error: the request timed out. original error: {0}")]
+    TimeoutError(#[source] ReqwestError),
+    #[error(
+        "dns resolution error: could not resolve the host. please check your dns configuration. original error: {0}"
+    )]
+    DnsError(#[source] ReqwestError),
+    #[error("generic transport error: {0}")]
+    GenericTransportError(#[source] ReqwestError),
+}
+fn from_reqwest_error(e: ReqwestError) -> HttpResponseError {
+    if e.is_connect() {
+        HttpResponseError::ConnectError(e)
+    } else if e.is_timeout() {
+        HttpResponseError::TimeoutError(e)
+    } else if e.is_builder() || e.is_request() {
+        if e.to_string().to_lowercase().contains("dns") {
+            HttpResponseError::DnsError(e)
+        } else {
+            HttpResponseError::BuildingRequest(e.to_string())
+        }
+    } else {
+        HttpResponseError::GenericTransportError(e)
+    }
 }
 
 impl From<HttpResponseError> for OpampHttpClientError {
     fn from(err: HttpResponseError) -> Self {
         match err {
-            HttpResponseError::TransportError(msg) => OpampHttpClientError::TransportError(msg),
+            HttpResponseError::ConnectError(_)
+            | HttpResponseError::TimeoutError(_)
+            | HttpResponseError::DnsError(_)
+            | HttpResponseError::GenericTransportError(_) => {
+                OpampHttpClientError::TransportError(err.to_string())
+            }
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                let msg = format!(
+                    "HTTP Error {}: {}",
+                    status_code,
+                    String::from_utf8_lossy(&body)
+                );
+                OpampHttpClientError::HTTPBodyError(msg)
+            }
             HttpResponseError::BuildingRequest(msg)
             | HttpResponseError::BuildingResponse(msg)
             | HttpResponseError::ReadingResponse(msg) => OpampHttpClientError::HTTPBodyError(msg),
@@ -111,7 +165,15 @@ impl CloudClient for HttpClient {
 
 impl From<HttpResponseError> for CloudClientError {
     fn from(err: HttpResponseError) -> Self {
-        CloudClientError::TransportError(err.to_string())
+        match err {
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                CloudClientError::ResponseError(
+                    status_code.into(),
+                    String::from_utf8_lossy(&body).to_string(),
+                )
+            }
+            other_error => CloudClientError::TransportError(other_error.to_string()),
+        }
     }
 }
 
@@ -126,7 +188,20 @@ impl OauthHttpClient for HttpClient {
 impl From<HttpResponseError> for OauthHttpClientError {
     fn from(err: HttpResponseError) -> Self {
         match err {
-            HttpResponseError::TransportError(msg) => OauthHttpClientError::TransportError(msg),
+            HttpResponseError::ConnectError(_)
+            | HttpResponseError::TimeoutError(_)
+            | HttpResponseError::DnsError(_)
+            | HttpResponseError::GenericTransportError(_) => {
+                OauthHttpClientError::TransportError(err.to_string())
+            }
+            HttpResponseError::UnsuccessfulResponse { status_code, body } => {
+                let msg = format!(
+                    "HTTP Error {}: {}",
+                    status_code,
+                    String::from_utf8_lossy(&body)
+                );
+                OauthHttpClientError::InvalidResponse(msg)
+            }
             HttpResponseError::BuildingRequest(msg)
             | HttpResponseError::BuildingResponse(msg)
             | HttpResponseError::ReadingResponse(msg) => OauthHttpClientError::InvalidResponse(msg),
@@ -139,23 +214,12 @@ impl From<HttpResponseError> for OauthHttpClientError {
 impl opentelemetry_http::HttpClient for HttpClient {
     async fn send_bytes(&self, request: Request<Bytes>) -> Result<Response<Bytes>, HttpError> {
         let (parts, body) = request.into_parts();
-        let vec_body = Vec::from(body);
-        let req_vec = Request::from_parts(parts, vec_body);
+        let req_vec = Request::from_parts(parts, Vec::from(body));
 
-        let response = self.send(req_vec)?;
+        let response_vec = self.send(req_vec)?;
 
-        let (parts, body) = response.into_parts();
-        let bytes_body = Bytes::from(body);
-        let resp_vec = Response::from_parts(parts, bytes_body);
-
-        if !resp_vec.status().is_success() {
-            warn!(
-                "Self instrumentation Otlp sending unsuccessful: {:?}",
-                resp_vec
-            );
-        }
-
-        Ok(resp_vec)
+        let (parts, body) = response_vec.into_parts();
+        Ok(Response::from_parts(parts, Bytes::from(body)))
     }
 }
 
@@ -418,6 +482,63 @@ pub(crate) mod tests {
         assert_eq!(certificates.len(), 1);
     }
 
+    #[test]
+    fn test_error_conversions() {
+        let http_err = HttpResponseError::UnsuccessfulResponse {
+            status_code: StatusCode::UNAUTHORIZED,
+            body: b"invalid token".to_vec(),
+        };
+        let oauth_err: OauthHttpClientError = http_err.into();
+        assert_matches!(oauth_err, OauthHttpClientError::InvalidResponse(_));
+        assert!(
+            oauth_err
+                .to_string()
+                .contains("HTTP Error 401 Unauthorized")
+        );
+
+        let http_err = HttpResponseError::UnsuccessfulResponse {
+            status_code: StatusCode::INTERNAL_SERVER_ERROR,
+            body: b"server failed".to_vec(),
+        };
+        let opamp_err: OpampHttpClientError = http_err.into();
+        assert_matches!(opamp_err, OpampHttpClientError::HTTPBodyError(_));
+        assert!(
+            opamp_err
+                .to_string()
+                .contains("HTTP Error 500 Internal Server Error")
+        );
+
+        let http_err = HttpResponseError::ReadingResponse("could not read".to_string());
+        let opamp_err: OpampHttpClientError = http_err.into();
+        assert_matches!(opamp_err, OpampHttpClientError::HTTPBodyError(_));
+        assert!(opamp_err.to_string().contains("could not read"));
+    }
+
+    #[test]
+    fn test_http_client_timeout() {
+        let mock_server = MockServer::start();
+        mock_server.mock(|when, then| {
+            when.path("/");
+            then.delay(Duration::from_millis(200)).status(200);
+        });
+
+        let http_config = HttpConfig::new(
+            Duration::from_millis(50),
+            Duration::from_millis(50),
+            Default::default(),
+        );
+        let http_client = HttpClient::new(http_config).unwrap();
+
+        let request = Request::builder()
+            .uri(mock_server.url("/").as_str())
+            .method("GET")
+            .body(Vec::new())
+            .unwrap();
+
+        let result = http_client.send(request);
+        assert_matches!(result, Err(HttpResponseError::TimeoutError(_)));
+    }
+
     // This test seems to be testing the reqwest library, but it is useful to detect particular behaviors of the
     // underlying libraries. Context: some libraries, such as ureq, return an error if any response has a status code
     // not in the 2XX range and the client implementation needs to handle that properly.
@@ -426,13 +547,14 @@ pub(crate) mod tests {
         struct TestCase {
             name: &'static str,
             status_code: u16,
+            expects_success: bool,
         }
 
         impl TestCase {
             fn run(self) {
                 let path = "/";
                 let mock_server = MockServer::start();
-                let req_mock = mock_server.mock(|when, then| {
+                let mock = mock_server.mock(|when, then| {
                     when.path(path).method(GET);
                     then.status(self.status_code).body(self.name);
                 });
@@ -442,18 +564,8 @@ pub(crate) mod tests {
                     Duration::from_secs(3),
                     Default::default(),
                 );
-                let url: Url = mock_server.url(path).parse().unwrap_or_else(|err| {
-                    panic!(
-                        "could not parse the mock-server url: {} - {}",
-                        err, self.name
-                    )
-                });
-                let http_client = HttpClient::new(http_config).unwrap_or_else(|err| {
-                    panic!(
-                        "unexpected error building the http client {} - {}",
-                        err, self.name
-                    )
-                });
+                let url: Url = mock_server.url(path).parse().unwrap();
+                let http_client = HttpClient::new(http_config).unwrap();
 
                 let request = Request::builder()
                     .uri(url.as_str())
@@ -461,35 +573,39 @@ pub(crate) mod tests {
                     .body(Vec::new())
                     .unwrap();
 
-                let res = http_client.send(request).unwrap();
+                let result = http_client.send(request);
 
-                req_mock.assert_calls(1);
-                assert_eq!(
-                    res.status(),
-                    self.status_code,
-                    "not expected status code in {}",
-                    self.name
-                );
-                assert_eq!(
-                    *res.body(),
-                    self.name.to_string().as_bytes().to_vec(),
-                    "not expected body code in {}",
-                    self.name
-                );
+                if self.expects_success {
+                    let res = result.unwrap();
+                    mock.assert();
+                    assert_eq!(res.status().as_u16(), self.status_code);
+                    assert_eq!(*res.body(), self.name.as_bytes());
+                } else {
+                    let err = result.unwrap_err();
+                    mock.assert();
+                    assert_matches!(err, HttpResponseError::UnsuccessfulResponse { .. });
+                    if let HttpResponseError::UnsuccessfulResponse { status_code, body } = err {
+                        assert_eq!(status_code.as_u16(), self.status_code);
+                        assert_eq!(body, self.name.as_bytes());
+                    }
+                }
             }
         }
         let test_cases = [
             TestCase {
                 name: "OK",
                 status_code: 200,
+                expects_success: true,
             },
             TestCase {
                 name: "Not found",
                 status_code: 404,
+                expects_success: false,
             },
             TestCase {
                 name: "Server error",
                 status_code: 500,
+                expects_success: false,
             },
         ];
         test_cases.into_iter().for_each(|tc| tc.run());

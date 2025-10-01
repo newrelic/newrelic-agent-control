@@ -53,20 +53,6 @@ where
             .get()
             .map_err(AWSDetectorError::HttpError)?;
 
-        // return error if status code is not within 200-299.
-        if !response.status().is_success() {
-            return Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(
-                    response.status().as_u16(),
-                    response
-                        .status()
-                        .canonical_reason()
-                        .unwrap_or_default()
-                        .to_string(),
-                ),
-            ));
-        }
-
         let metadata: AWSMetadata =
             serde_json::from_slice(response.body()).map_err(AWSDetectorError::JsonError)?;
 
@@ -147,16 +133,14 @@ mod tests {
         client_mock.expect_send().once().returning(|_| {
             Ok(http::Response::builder()
                 .status(200)
-                .body(r#""#.as_bytes().to_vec())
+                .body(b"token".to_vec())
                 .unwrap())
         });
 
-        client_mock.expect_send().once().returning(|_| {
-            Ok(http::Response::builder()
-                .status(404)
-                .body(r#""#.as_bytes().to_vec())
-                .unwrap())
-        });
+        client_mock
+            .expect_send()
+            .once()
+            .returning(|_| Err(HttpClientError::ResponseError(404, "Not Found".to_string())));
 
         let aws_http_client = AWSHttpClient::new(
             client_mock,
@@ -166,14 +150,13 @@ mod tests {
         );
 
         let detector = AWSDetector { aws_http_client };
-
         let result = detector.detect();
 
         assert_matches!(
             result,
-            Err(DetectError::AWSError(
-                AWSDetectorError::UnsuccessfulResponse(404, _)
-            ))
+            Err(DetectError::AWSError(AWSDetectorError::HttpError(
+                HttpClientError::ResponseError(404, _)
+            )))
         );
     }
 
