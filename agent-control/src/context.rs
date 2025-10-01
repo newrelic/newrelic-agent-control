@@ -7,10 +7,6 @@ impl<T> Context<T>
 where
     T: Default,
 {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Sets the cancellation signal. All threads that are waiting for this signal (i.e. were passed this [`Context`] are notified so they unblock and finish execution, cancelling the processes.
     pub fn cancel_all(&self, val: T) -> Result<(), PoisonError<MutexGuard<'_, T>>> /* this is the error type returned by a failed `lock()` */
     {
@@ -48,7 +44,7 @@ mod tests {
     fn test_context_can_be_cancelled_while_waiting() {
         let after_cancel = Arc::new(Mutex::new(()));
         let after_cancel_clone = after_cancel.clone();
-        let ctx: Context<bool> = Context::new();
+        let ctx: Context<bool> = Context::default();
         let ctx_clone = ctx.clone();
         let guard = after_cancel.lock().unwrap();
         thread::spawn(move || {

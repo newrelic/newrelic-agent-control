@@ -215,7 +215,7 @@ impl NotStartedSupervisorOnHost {
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
         let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
-        let shutdown_ctx = Context::new();
+        let shutdown_ctx = Context::default();
         _ = wait_for_termination(current_pid.clone(), self.ctx.clone(), shutdown_ctx.clone());
 
         // NotStartedThreadContext takes as input a callback that requires a EventConsumer<CancellationMessage>
@@ -512,7 +512,7 @@ pub mod tests {
         #[case] run_warmup_time: Option<Duration>,
         #[case] contain_logs: Vec<&'static str>,
     ) {
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
         let any_exit_code = vec![];
@@ -605,7 +605,7 @@ pub mod tests {
 
     #[test]
     fn test_supervisor_retries_and_exits_on_wrong_command() {
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
@@ -646,7 +646,7 @@ pub mod tests {
     #[test]
     #[traced_test]
     fn test_supervisor_one_wrong_command_one_correct_command() {
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
@@ -699,7 +699,7 @@ pub mod tests {
         let timer = Instant::now();
 
         // set a fixed backoff of 10 seconds
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(10))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
@@ -737,7 +737,7 @@ pub mod tests {
     #[cfg(target_family = "unix")]
     #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
@@ -793,7 +793,7 @@ pub mod tests {
     #[test]
     #[cfg(target_family = "unix")]
     fn test_supervisor_health_events_on_breaking_backoff() {
-        let backoff = Backoff::new()
+        let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
