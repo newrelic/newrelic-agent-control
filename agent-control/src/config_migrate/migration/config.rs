@@ -82,19 +82,9 @@ impl Hash for AgentTypeFieldFQN {
     }
 }
 
-pub struct FileMap {
-    pub file_path: FilePath,
-    pub agent_type_fqn: AgentTypeID,
-}
-
-pub struct DirMap {
-    pub file_path: FilePath,
-    pub agent_type_fqn: AgentTypeID,
-}
-
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct DirInfo {
-    pub path: FilePath,
+    pub dir_path: FilePath,
     pub extensions: Vec<String>,
 }
 
@@ -106,9 +96,6 @@ impl DirInfo {
             .any(|ext| filename.as_ref().extension().is_some_and(|e| e == ext))
     }
 }
-
-pub type FilesMap = HashMap<AgentTypeFieldFQN, FilePath>;
-pub type DirsMap = HashMap<AgentTypeFieldFQN, DirInfo>;
 
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 pub struct MigrationConfig {
@@ -148,28 +135,25 @@ impl MigrationConfig {
 pub struct MigrationAgentConfig {
     #[serde(deserialize_with = "AgentTypeID::deserialize_fqn")]
     pub agent_type_fqn: AgentTypeID,
-    pub files_map: FilesMap,
-    pub dirs_map: DirsMap,
+    pub filesystem_mappings: HashMap<AgentTypeFieldFQN, MappingType>,
     pub next: Option<AgentTypeID>,
 }
 
-impl MigrationAgentConfig {
-    pub fn get_file(&self, fqn_to_check: AgentTypeFieldFQN) -> Option<FilePath> {
-        for (fqn, path) in self.files_map.iter() {
-            if *fqn == fqn_to_check {
-                return Some(path.clone());
-            }
-        }
-        None
-    }
+#[derive(Debug, PartialEq, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum MappingType {
+    File(PathBuf),
+    Dir(DirInfo),
+}
 
-    pub fn get_dir(&self, fqn_to_check: AgentTypeFieldFQN) -> Option<DirInfo> {
-        for (fqn, dir_info) in self.dirs_map.iter() {
-            if *fqn == fqn_to_check {
-                return Some(dir_info.clone());
-            }
-        }
-        None
+impl From<DirInfo> for MappingType {
+    fn from(value: DirInfo) -> Self {
+        MappingType::Dir(value)
+    }
+}
+impl<P: Into<PathBuf>> From<P> for MappingType {
+    fn from(value: P) -> Self {
+        MappingType::File(value.into())
     }
 }
 
@@ -177,7 +161,9 @@ impl MigrationAgentConfig {
 mod tests {
 
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::config_migrate::migration::config::{DirInfo, FilePath, MigrationConfig};
+    use crate::config_migrate::migration::config::{
+        DirInfo, FilePath, MappingType, MigrationConfig,
+    };
     use crate::config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING;
 
     #[test]
@@ -186,68 +172,60 @@ mod tests {
 configs:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.0.2
-    files_map:
+    filesystem_mappings:
       config_agent: /etc/newrelic-infra.yml
-    dirs_map:
       config_ohis:
-        path: /etc/newrelic-infra/integrations.d
+        dir_path: /etc/newrelic-infra/integrations.d
         extensions:
           - "yaml"
           - "yml"
       logging:
-        path: /etc/newrelic-infra/logging.d
+        dir_path: /etc/newrelic-infra/logging.d
         extensions:
           - "yaml"
           - "yml"
   -
     agent_type_fqn: newrelic/com.newrelic.another:1.0.0
-    files_map:
+    filesystem_mappings:
       config_another: /etc/another.yml
-    dirs_map:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:1.0.1
-    files_map:
+    filesystem_mappings:
       config_agent: /etc/newrelic-infra.yml
-    dirs_map:
       config_integrations:
-        path: /etc/newrelic-infra/integrations.d
+        dir_path: /etc/newrelic-infra/integrations.d
         extensions:
           - "yaml"
           - "yml"
-
       config_logging:
-        path: /etc/newrelic-infra/logging.d
+        dir_path: /etc/newrelic-infra/logging.d
         extensions:
           - "yaml"
           - "yml"
 
   -
     agent_type_fqn: francisco-partners/com.newrelic.another:0.0.2
-    files_map:
+    filesystem_mappings:
       config_another: /etc/another.yml
-    dirs_map:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.2
-    files_map:
+    filesystem_mappings:
       config_agent: /etc/newrelic-infra.yml
-    dirs_map:
       config_integrations:
-        path: /etc/newrelic-infra/integrations.d
+        dir_path: /etc/newrelic-infra/integrations.d
         extensions:
           - "yaml"
           - "yml"
-
       config_logging:
-        path: /etc/newrelic-infra/logging.d
+        dir_path: /etc/newrelic-infra/logging.d
         extensions:
           - "yaml"
           - "yml"
         
   -
     agent_type_fqn: newrelic/com.newrelic.another:0.0.1
-    files_map:
+    filesystem_mappings:
       config_another: /etc/another.yml
-    dirs_map:
 "#;
 
         let expected_fqns_in_order = [
@@ -306,7 +284,7 @@ configs: []
                 String::from("yml"),
                 String::from("otro"),
             ],
-            path: FilePath::from("some/path"),
+            dir_path: FilePath::from("some/path"),
         };
 
         assert!(dir_info.valid_filename("something.yaml"));
@@ -322,13 +300,21 @@ configs: []
         let migration_config: MigrationConfig =
             MigrationConfig::parse(NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING).unwrap();
 
-        for config in migration_config.configs {
-            for dir_map in config.dirs_map {
-                assert!(dir_map.1.valid_filename("something.yaml"));
-                assert!(dir_map.1.valid_filename("something.yml"));
-                assert!(!dir_map.1.valid_filename("something.yml.sample"));
-                assert!(!dir_map.1.valid_filename("something.yaml.sample"));
-                assert!(!dir_map.1.valid_filename("something.yoml"));
+        for config in migration_config.configs.into_iter() {
+            let dir_mappings =
+                config
+                    .filesystem_mappings
+                    .into_iter()
+                    .filter_map(|(_, v)| match v {
+                        MappingType::Dir(dir) => Some(dir),
+                        _ => None,
+                    });
+            for dir_map in dir_mappings {
+                assert!(dir_map.valid_filename("something.yaml"));
+                assert!(dir_map.valid_filename("something.yml"));
+                assert!(!dir_map.valid_filename("something.yml.sample"));
+                assert!(!dir_map.valid_filename("something.yaml.sample"));
+                assert!(!dir_map.valid_filename("something.yoml"));
             }
         }
     }

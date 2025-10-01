@@ -1,13 +1,14 @@
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
+use crate::config_migrate::migration::config::MappingType;
 use crate::config_migrate::migration::{
     agent_value_spec::AgentValueError,
-    config::{AgentTypeFieldFQN, DirInfo, MigrationAgentConfig},
+    config::{DirInfo, MigrationAgentConfig},
 };
 use crate::sub_agent::effective_agents_assembler::AgentTypeDefinitionError;
 use fs::LocalFile;
 use fs::file_reader::{FileReader, FileReaderError};
 use regex::Regex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::OnceLock;
 use thiserror::Error;
@@ -29,8 +30,6 @@ pub enum ConversionError {
     RequiredDirMappingNotFoundError(String),
     #[error("deserializing YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("duplicate key found in file and dir mappings: {0}")]
-    DuplicateKeyFound(AgentTypeFieldFQN),
 }
 
 pub struct ConfigConverter<F: FileReader> {
@@ -61,48 +60,21 @@ impl<F: FileReader> ConfigConverter<F> {
 
         let file_reader = &self.file_reader;
 
-        let file_mapping_vars = migration_agent_config
-            .files_map
+        migration_agent_config
+            .filesystem_mappings
             .iter()
-            .map(|(k, v)| Ok((k, retrieve_file_mapping_value(file_reader, v)?)))
-            .collect::<Result<HashMap<_, _>, ConversionError>>()?;
-
-        let directory_mapping_vars = migration_agent_config
-            .dirs_map
-            .iter()
-            .map(|(k, v)| Ok((k, retrieve_dir_mapping_values(file_reader, v)?)))
-            .collect::<Result<HashMap<_, _>, ConversionError>>()?;
-
-        // Search for duplicate keys and error out if found,
-        // as duplicates would overwrite previous values silently
-        // When transforming to the final YAML structure.
-        let all_keys = file_mapping_vars
-            .keys()
-            .chain(directory_mapping_vars.keys())
-            .copied();
-        assert_no_duplicates(all_keys)?;
-
-        let final_map = file_mapping_vars
-            .into_iter()
-            .chain(directory_mapping_vars)
-            .map(|(k, v)| (k.to_string(), v))
-            .collect();
-
-        Ok(final_map)
+            .map(|(k, v)| match v {
+                MappingType::File(path) => Ok((
+                    k.to_string(),
+                    retrieve_file_mapping_value(file_reader, path)?,
+                )),
+                MappingType::Dir(dir_info) => Ok((
+                    k.to_string(),
+                    retrieve_dir_mapping_values(file_reader, dir_info)?,
+                )),
+            })
+            .collect::<Result<HashMap<_, _>, ConversionError>>()
     }
-}
-
-fn assert_no_duplicates<'a>(
-    mut key_iter: impl Iterator<Item = &'a AgentTypeFieldFQN>,
-) -> Result<(), ConversionError> {
-    let mut visited = HashSet::new();
-    key_iter.try_for_each(|k| {
-        if !visited.insert(k) {
-            Err(ConversionError::DuplicateKeyFound(k.clone()))
-        } else {
-            Ok(())
-        }
-    })
 }
 
 fn retrieve_file_mapping_value<F: FileReader>(
@@ -119,7 +91,7 @@ fn retrieve_dir_mapping_values<F: FileReader>(
     dir_info: &DirInfo,
 ) -> Result<serde_yaml::Value, ConversionError> {
     let valid_extension_files = file_reader
-        .dir_entries(&dir_info.path)?
+        .dir_entries(&dir_info.dir_path)?
         .into_iter()
         .filter(|p| dir_info.valid_filename(p));
 
@@ -249,21 +221,23 @@ logs:
             agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
                 .try_into()
                 .unwrap(),
-            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
-            dirs_map: HashMap::from([
+            filesystem_mappings: HashMap::from([
+                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
                 (
                     "config_integrations".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/integrations.d".into(),
+                        dir_path: "/etc/newrelic-infra/integrations.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
                 (
                     "config_logging".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/logging.d".into(),
+                        dir_path: "/etc/newrelic-infra/logging.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
             ]),
             next: None,
@@ -383,21 +357,23 @@ logs:
             agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
                 .try_into()
                 .unwrap(),
-            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
-            dirs_map: HashMap::from([
+            filesystem_mappings: HashMap::from([
+                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
                 (
                     "config_integrations".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/integrations.d".into(),
+                        dir_path: "/etc/newrelic-infra/integrations.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
                 (
                     "config_logging".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/logging.d".into(),
+                        dir_path: "/etc/newrelic-infra/logging.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
             ]),
             next: None,
@@ -491,21 +467,23 @@ logs:
             agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
                 .try_into()
                 .unwrap(),
-            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
-            dirs_map: HashMap::from([
+            filesystem_mappings: HashMap::from([
+                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
                 (
                     "config_integrations".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/integrations.d".into(),
+                        dir_path: "/etc/newrelic-infra/integrations.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
                 (
                     "config_logging".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/logging.d".into(),
+                        dir_path: "/etc/newrelic-infra/logging.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
             ]),
             next: None,
@@ -514,13 +492,22 @@ logs:
         let mut file_reader = MockLocalFile::new();
 
         file_reader
+            .expect_dir_entries()
+            .with(predicate::always())
+            // We don't care about the dir entries for this test
+            .returning(|_| Ok(vec![]));
+        file_reader
             .expect_read()
-            .with(predicate::eq(Path::new("/etc/newrelic-infra.yml")))
-            .times(1)
-            .return_once(move |_| {
-                Err(FileReaderError::FileNotFound(String::from(
-                    "file not found: `/etc/newrelic-infra.yml`",
-                )))
+            .with(predicate::always())
+            .return_once(move |p| {
+                if p == Path::new("/etc/newrelic-infra.yml") {
+                    Err(FileReaderError::FileNotFound(String::from(
+                        "file not found: `/etc/newrelic-infra.yml`",
+                    )))
+                } else {
+                    // Default string because we don't care about other reads
+                    Ok(String::new())
+                }
             });
 
         let config_converter = ConfigConverter { file_reader };
@@ -536,21 +523,23 @@ logs:
             agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
                 .try_into()
                 .unwrap(),
-            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
-            dirs_map: HashMap::from([
+            filesystem_mappings: HashMap::from([
+                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
                 (
                     "config_integrations".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/integrations.d".into(),
+                        dir_path: "/etc/newrelic-infra/integrations.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
                 (
                     "config_logging".into(),
                     DirInfo {
-                        path: "/etc/newrelic-infra/logging.d".into(),
+                        dir_path: "/etc/newrelic-infra/logging.d".into(),
                         extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
+                    }
+                    .into(),
                 ),
             ]),
             next: None,
@@ -604,51 +593,5 @@ logs:
 
         let expected_logs = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
-    }
-
-    #[test]
-    fn duplicate_keys_should_fail() {
-        // Sample config
-        let migration_agent_config = MigrationAgentConfig {
-            agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
-                .try_into()
-                .unwrap(),
-            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
-            dirs_map: HashMap::from([
-                (
-                    "config_agent".into(), // Duplicate key on purpose
-                    DirInfo {
-                        path: "/etc/newrelic-infra/config.d".into(),
-                        extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
-                ),
-                (
-                    "config_logging".into(),
-                    DirInfo {
-                        path: "/etc/newrelic-infra/logging.d".into(),
-                        extensions: vec!["yml".to_string(), "yaml".to_string()],
-                    },
-                ),
-            ]),
-            next: None,
-        };
-        let mut file_reader = MockLocalFile::new();
-        // I don't care about the file contents for this test, return empty string
-        file_reader
-            .expect_read()
-            .with(predicate::always())
-            .returning(move |_| Ok(String::default()));
-        file_reader
-            .expect_dir_entries()
-            .with(predicate::always())
-            .returning(|_| Ok(vec![PathBuf::from("file.yaml")]));
-        let config_converter = ConfigConverter { file_reader };
-        let result = config_converter.convert(&migration_agent_config);
-        assert!(matches!(result, Err(ConversionError::DuplicateKeyFound(_))));
-
-        let ConversionError::DuplicateKeyFound(key) = result.unwrap_err() else {
-            panic!("expected DuplicateKeyFound error");
-        };
-        assert_eq!(key, "config_agent".into());
     }
 }

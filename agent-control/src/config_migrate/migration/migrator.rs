@@ -173,8 +173,7 @@ mod tests {
         let agent_config_mapping = MigrationAgentConfig {
             agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
                 .unwrap(),
-            files_map: Default::default(),
-            dirs_map: Default::default(),
+            filesystem_mappings: Default::default(),
             next: None,
         };
         let migration = migrator.migrate(&agent_config_mapping);

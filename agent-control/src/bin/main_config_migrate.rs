@@ -1,7 +1,7 @@
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::config_migrate::cli::Cli;
 use newrelic_agent_control::config_migrate::migration::agent_config_getter::AgentConfigGetter;
-use newrelic_agent_control::config_migrate::migration::config::MigrationConfig;
+use newrelic_agent_control::config_migrate::migration::config::{MappingType, MigrationConfig};
 use newrelic_agent_control::config_migrate::migration::converter::ConfigConverter;
 use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator, MigratorError};
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
@@ -35,11 +35,15 @@ fn main() -> Result<(), Box<dyn Error>> {
         debug!("Checking configurations for {}", cfg.agent_type_fqn);
         match config_migrator.migrate(&cfg) {
             Ok(_) => {
-                for (_, dir_path) in cfg.dirs_map {
-                    legacy_config_renamer.rename_path(dir_path.path.as_path())?;
-                }
-                for (_, file_path) in cfg.files_map {
-                    legacy_config_renamer.rename_path(file_path.as_path())?;
+                for (_, mapping_type) in cfg.filesystem_mappings {
+                    match mapping_type {
+                        MappingType::Dir(dir_path) => {
+                            legacy_config_renamer.rename_path(dir_path.dir_path.as_path())?
+                        }
+                        MappingType::File(file_path) => {
+                            legacy_config_renamer.rename_path(file_path.as_path())?
+                        }
+                    }
                 }
                 debug!("Classic config files and paths renamed");
             }
