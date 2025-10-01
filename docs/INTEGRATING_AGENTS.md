@@ -265,7 +265,7 @@ As of now, the `executables` field is array and is actually **optional**. This w
 
 ##### `enable_file_logging` (`bool`)
 
-When set, this redirects the `stdout` and `stderr` of the created process to files inside AC's logging directory (see [on-host troubleshooting](https://docs-preview.newrelic.com/docs/new-relic-agent-control-linux#debug) in the official public documentation). These log files will reside inside a directory dedicated to the current sub-agent, identifiable by its `agent_id`.
+When set, this redirects the `stdout` and `stderr` of the created process to files inside AC's logging directory (see [on-host troubleshooting](https://docs.newrelic.com/docs/new-relic-control/agent-control/troubleshooting/#linux-hosts-troubleshooting) in the official public documentation). These log files will reside inside a directory dedicated to the current sub-agent, identifiable by its `agent_id`.
 
 ##### `health` (on-host)
 
