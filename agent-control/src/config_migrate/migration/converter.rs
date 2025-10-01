@@ -76,18 +76,11 @@ impl<F: FileReader> ConfigConverter<F> {
         // Search for duplicate keys and error out if found,
         // as duplicates would overwrite previous values silently
         // When transforming to the final YAML structure.
-        let mut all_keys = file_mapping_vars
+        let all_keys = file_mapping_vars
             .keys()
             .chain(directory_mapping_vars.keys())
             .copied();
-        let mut visited = HashSet::new();
-        all_keys.try_for_each(|k| {
-            if !visited.insert(k) {
-                Err(ConversionError::DuplicateKeyFound(k.clone()))
-            } else {
-                Ok(())
-            }
-        })?;
+        assert_no_duplicates(all_keys)?;
 
         let final_map = file_mapping_vars
             .into_iter()
@@ -97,6 +90,19 @@ impl<F: FileReader> ConfigConverter<F> {
 
         Ok(final_map)
     }
+}
+
+fn assert_no_duplicates<'a>(
+    mut key_iter: impl Iterator<Item = &'a AgentTypeFieldFQN>,
+) -> Result<(), ConversionError> {
+    let mut visited = HashSet::new();
+    key_iter.try_for_each(|k| {
+        if !visited.insert(k) {
+            Err(ConversionError::DuplicateKeyFound(k.clone()))
+        } else {
+            Ok(())
+        }
+    })
 }
 
 fn retrieve_file_mapping_value<F: FileReader>(
@@ -599,5 +605,51 @@ logs:
 
         let expected_logs = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
+    }
+
+    #[test]
+    fn duplicate_keys_should_fail() {
+        // Sample config
+        let migration_agent_config = MigrationAgentConfig {
+            agent_type_fqn: "newrelic/com.newrelic.infrastructure:0.1.0"
+                .try_into()
+                .unwrap(),
+            files_map: HashMap::from([("config_agent".into(), "/etc/newrelic-infra.yml".into())]),
+            dirs_map: HashMap::from([
+                (
+                    "config_agent".into(), // Duplicate key on purpose
+                    DirInfo {
+                        path: "/etc/newrelic-infra/config.d".into(),
+                        extensions: vec!["yml".to_string(), "yaml".to_string()],
+                    },
+                ),
+                (
+                    "config_logging".into(),
+                    DirInfo {
+                        path: "/etc/newrelic-infra/logging.d".into(),
+                        extensions: vec!["yml".to_string(), "yaml".to_string()],
+                    },
+                ),
+            ]),
+            next: None,
+        };
+        let mut file_reader = MockLocalFile::new();
+        // I don't care about the file contents for this test, return empty string
+        file_reader
+            .expect_read()
+            .with(predicate::always())
+            .returning(move |_| Ok(String::default()));
+        file_reader
+            .expect_dir_entries()
+            .with(predicate::always())
+            .returning(|_| Ok(vec![PathBuf::from("file.yaml")]));
+        let config_converter = ConfigConverter { file_reader };
+        let result = config_converter.convert(&migration_agent_config);
+        assert!(matches!(result, Err(ConversionError::DuplicateKeyFound(_))));
+
+        let ConversionError::DuplicateKeyFound(key) = result.unwrap_err() else {
+            panic!("expected DuplicateKeyFound error");
+        };
+        assert_eq!(key, "config_agent".into());
     }
 }
