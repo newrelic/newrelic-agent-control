@@ -17,8 +17,7 @@ agents. It also integrates with New Relic fleet manager.
 
 ## Getting started
 
-Follow the [installation steps](https://docs.newrelic.com/docs/new-relic-control/agent-control/setup/) to get
-started on Linux hosts or Kubernetes.
+Follow the [installation steps](https://docs.newrelic.com/docs/new-relic-control/agent-control/setup/) to install agent control.
 
 To run the project locally, check out the [development](/docs/DEVELOPMENT.md) docs.
 
