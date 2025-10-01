@@ -3,6 +3,8 @@ use crate::agent_type::agent_type_registry::AgentRegistry;
 use std::sync::Arc;
 use thiserror::Error;
 
+pub mod k8s;
+
 #[derive(Error, Debug)]
 #[error("config validation failed: {0}")]
 pub struct DynamicConfigValidatorError(String);

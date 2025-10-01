@@ -3,6 +3,7 @@ use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelea
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
+use crate::agent_control::config_validator::k8s::K8sReleaseNamesConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
     OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
@@ -202,8 +203,14 @@ impl AgentControlRunner {
             ))
             .map_err(ResourceCleanerError::from)?;
 
-        let dynamic_config_validator =
+        let registry_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
+
+        let dynamic_config_validator = K8sReleaseNamesConfigValidator::new(
+            registry_config_validator,
+            self.k8s_config.ac_release_name.to_string(),
+            self.k8s_config.cd_release_name.to_string(),
+        );
 
         // The http server stops on Drop. We need to keep it while the agent control is running.
         let _http_server = self.http_server_runner.map(Runner::start);
