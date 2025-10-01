@@ -67,23 +67,23 @@ pub struct AgentControlConfig {
 
 #[derive(Error, Debug)]
 pub enum AgentControlConfigError {
-    #[error("deleting agent control config: `{0}`")]
+    #[error("deleting agent control config: {0}")]
     Delete(String),
-    #[error("loading agent control config: `{0}`")]
+    #[error("loading agent control config: {0}")]
     Load(String),
-    #[error("storing agent control config: `{0}`")]
+    #[error("storing agent control config: {0}")]
     Store(String),
-    #[error("updating agent control config: `{0}`")]
+    #[error("updating agent control config: {0}")]
     Update(String),
-    #[error("building source to parse environment variables: `{0}`")]
+    #[error("building source to parse environment variables: {0}")]
     ConfigError(#[from] config::ConfigError),
-    #[error("sub agent configuration `{0}` not found")]
+    #[error("sub agent configuration '{0}' not found")]
     SubAgentNotFound(String),
-    #[error("configuration is not valid YAML: `{0}`")]
+    #[error("configuration is not valid YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
-    #[error("remote config error: `{0}`")]
+    #[error("remote config error: {0}")]
     RemoteConfigError(#[from] OpampRemoteConfigError),
-    #[error("remote config error: `{0}`")]
+    #[error("remote config error: {0}")]
     IOError(#[from] std::io::Error),
 }
 

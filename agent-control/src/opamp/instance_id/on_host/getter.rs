@@ -41,12 +41,12 @@ impl Display for Identifiers {
 #[derive(Error, Debug)]
 pub enum IdentifiersProviderError {
     #[error(
-        "generating host identification: adding a `host_id` in the agent-control config is required for this case`"
+        "generating host identification: adding a 'host_id' in the agent-control config is required for this case"
     )]
     MissingHostIDError,
-    #[error("detecting resources: `{0}`")]
+    #[error("detecting resources: {0}")]
     DetectError(#[from] DetectError),
-    #[error("building cloud detector: `{0}`")]
+    #[error("building cloud detector: {0}")]
     BuildError(#[from] HttpClientError),
 }
 

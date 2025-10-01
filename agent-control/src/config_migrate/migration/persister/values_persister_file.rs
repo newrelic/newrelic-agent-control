@@ -9,10 +9,10 @@ use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum PersistError {
-    #[error("directory error: `{0}`")]
+    #[error("directory error: {0}")]
     DirectoryError(#[from] DirectoryManagementError),
 
-    #[error("file error: `{0}`")]
+    #[error("file error: {0}")]
     FileError(#[from] WriteError),
 }
 

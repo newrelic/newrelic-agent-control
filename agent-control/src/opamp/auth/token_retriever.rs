@@ -19,10 +19,10 @@ const DEFAULT_AUTHENTICATOR_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Error, Debug)]
 pub enum TokenRetrieverImplError {
-    #[error("building JWT signer: `{0}`")]
+    #[error("building JWT signer: {0}")]
     JwtSignerBuildError(#[from] JwtSignerImplError),
 
-    #[error("error building http client: `{0}`")]
+    #[error("error building http client: {0}")]
     HTTPBuildingClientError(String),
 }
 

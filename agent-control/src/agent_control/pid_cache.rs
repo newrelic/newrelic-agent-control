@@ -13,10 +13,10 @@ pub enum PIDCacheError {
     #[error("invalid PID file path")]
     InvalidFilePath,
 
-    #[error("directory error: `{0}`")]
+    #[error("directory error: {0}")]
     DirectoryError(#[from] DirectoryManagementError),
 
-    #[error("file error: `{0}`")]
+    #[error("file error: {0}")]
     SaveError(#[from] WriteError),
 
     #[error("pid-file already exists. Can't guarantee that no other agent-control is running.")]

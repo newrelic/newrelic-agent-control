@@ -4,10 +4,10 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub enum FsError {
-    #[error("invalid path: `{0}`")]
+    #[error("invalid path: {0}")]
     InvalidPath(String),
 
-    #[error("dots disallowed in path `{0}`")]
+    #[error("dots disallowed in path {0}")]
     DotsDisallowed(String),
 }
 

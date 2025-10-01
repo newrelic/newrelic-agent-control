@@ -24,16 +24,16 @@ pub enum MigratorError {
     #[error("")]
     AgentTypeNotFoundOnConfig,
 
-    #[error("`{0}`")]
+    #[error("{0}")]
     AgentControlConfigError(#[from] AgentControlConfigError),
 
-    #[error("configuration is not valid YAML: `{0}`")]
+    #[error("configuration is not valid YAML: {0}")]
     InvalidYamlConfiguration(#[from] serde_yaml::Error),
 
-    #[error("error persisting values file: `{0}`")]
+    #[error("error persisting values file: {0}")]
     PersistError(#[from] PersistError),
 
-    #[error("`{0}`")]
+    #[error("{0}")]
     ConversionError(#[from] ConversionError),
 }
 

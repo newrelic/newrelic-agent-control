@@ -9,20 +9,20 @@ pub enum K8sError {
     #[error("{0}")]
     Generic(String),
 
-    #[error("the kube client returned an error: `{0}`")]
+    #[error("the kube client returned an error: {0}")]
     KubeRs(Box<kube::Error>),
 
-    #[error("it is not possible to read kubeconfig: `{0}`")]
+    #[error("it is not possible to read kubeconfig: {0}")]
     UnableToSetupClientKubeconfig(#[from] KubeconfigError),
 
-    #[error("cannot start a k8s reader `{0}`")]
+    #[error("cannot start a k8s reader {0}")]
     ReflectorWriterDropped(#[from] kube::runtime::reflector::store::WriterDropped),
 
     // We need to add the debug info since the string representation of CommitError hide the source of the error
-    #[error("cannot post object `{0:?}`")]
+    #[error("cannot post object {0:?}")]
     CommitError(Box<api::entry::CommitError>),
 
-    #[error("cannot patch object {0} with `{1}`")]
+    #[error("cannot patch object {0} with {1}")]
     PatchError(String, String),
 
     #[error("the kind of the resource is missing")]
@@ -37,7 +37,7 @@ pub enum K8sError {
     #[error("{0} does not have .metadata.name")]
     MissingName(String),
 
-    #[error("error parsing GroupVersion: `{0}`")]
+    #[error("error parsing GroupVersion: {0}")]
     ParseGroupVersion(#[from] ParseGroupVersionError),
 
     #[error("while getting dynamic resource: {0}")]
@@ -73,10 +73,10 @@ impl From<api::entry::CommitError> for K8sError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum GarbageCollectorK8sError {
-    #[error("the kube client returned an error: `{0}`")]
+    #[error("the kube client returned an error: {0}")]
     Generic(#[from] K8sError),
 
-    #[error("garbage collector failed loading config store: `{0}`")]
+    #[error("garbage collector failed loading config store: {0}")]
     LoadingConfigStore(#[from] AgentControlConfigError),
 
     #[error("garbage collector executed with empty current agents list")]
@@ -88,9 +88,9 @@ pub enum GarbageCollectorK8sError {
     #[error("garbage collector fetched resources without required annotations")]
     MissingAnnotations(),
 
-    #[error("unable to parse AgentTypeID: `{0}`")]
+    #[error("unable to parse AgentTypeID: {0}")]
     ParsingAgentType(#[from] AgentTypeIDError),
 
-    #[error("unable to parse AgentID: `{0}`")]
+    #[error("unable to parse AgentID: {0}")]
     ParsingAgentId(#[from] AgentIDError),
 }

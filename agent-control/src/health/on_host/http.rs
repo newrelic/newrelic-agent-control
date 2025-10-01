@@ -13,7 +13,7 @@ const DEFAULT_PROTOCOL: &str = "http://";
 /// An enumeration of potential errors related to the HTTP client.
 #[derive(Error, Debug)]
 pub enum HttpClientError {
-    #[error("internal HTTP client error: `{0}`")]
+    #[error("internal HTTP client error: {0}")]
     HttpClientError(String),
 }
 
@@ -175,7 +175,7 @@ pub(crate) mod tests {
 
         assert!(health_response.is_err());
         assert_eq!(
-            "internal HTTP client error: `Timeout`".to_string(),
+            "internal HTTP client error: Timeout".to_string(),
             health_response.unwrap_err().to_string()
         );
     }

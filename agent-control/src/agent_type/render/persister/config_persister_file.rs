@@ -404,7 +404,7 @@ mod tests {
         let result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(result.is_err());
         assert_eq!(
-            "directory error: `cannot delete directory: `oh now...``".to_string(),
+            "directory error: cannot delete directory: oh now...".to_string(),
             result.unwrap_err().to_string()
         );
     }
@@ -442,7 +442,7 @@ mod tests {
         let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
-            "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
+            "directory error: cannot create directory 'some/path/some-agent-id' : oh now..."
                 .to_string(),
             persist_result.unwrap_err().to_string()
         );
@@ -479,7 +479,7 @@ mod tests {
         let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
-            "directory error: `cannot create directory `some/path/some-agent-id` : `oh now...``"
+            "directory error: cannot create directory 'some/path/some-agent-id' : oh now..."
                 .to_string(),
             persist_result.unwrap_err().to_string()
         );
@@ -518,7 +518,7 @@ mod tests {
         let persist_result = persister.persist_agent_config(&agent_id, &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
-            "file error: `error creating file: `permission denied``".to_string(),
+            "file error: error creating file: permission denied".to_string(),
             persist_result.unwrap_err().to_string()
         );
     }
@@ -564,7 +564,7 @@ mod tests {
         let persist_result = persister.persist_agent_config(&agent_id.clone(), &filled_variables);
         assert!(persist_result.is_err());
         assert_eq!(
-            "file error: `error creating file: `entity already exists``".to_string(),
+            "file error: error creating file: entity already exists".to_string(),
             persist_result.unwrap_err().to_string()
         );
     }

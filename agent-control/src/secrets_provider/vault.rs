@@ -32,13 +32,13 @@ pub enum VaultError {
     SerdeError(#[from] Error),
 
     /// Represents an error building the HttpClient
-    #[error("could not build the HTTP client: `{0}`")]
+    #[error("could not build the HTTP client: {0}")]
     BuildingError(String),
 
-    #[error("http transport error: `{0}`")]
+    #[error("http transport error: {0}")]
     HttpTransportError(String),
 
-    #[error("unable to deserialize body: `{0}`")]
+    #[error("unable to deserialize body: {0}")]
     DeserializeError(String),
 
     #[error("secret path '{0}' does not have a valid format 'source:mount:path:name'")]

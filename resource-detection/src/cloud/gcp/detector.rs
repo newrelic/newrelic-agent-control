@@ -42,13 +42,13 @@ impl<C: HttpClient> GCPDetector<C> {
 #[derive(Error, Debug)]
 pub enum GCPDetectorError {
     /// Internal HTTP error
-    #[error("`{0}`")]
+    #[error("{0}")]
     HttpError(#[from] HttpClientError),
     /// Error while deserializing endpoint metadata
-    #[error("`{0}`")]
+    #[error("{0}")]
     JsonError(#[from] serde_json::Error),
     /// Unsuccessful HTTP response.
-    #[error("status code: `{0}` Canonical reason: `{1}`")]
+    #[error("status code: {0} Canonical reason: {1}")]
     UnsuccessfulResponse(u16, String),
 }
 

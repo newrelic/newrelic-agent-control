@@ -27,15 +27,15 @@ where
 pub enum StorerError {
     #[error("generic error")]
     Generic,
-    #[error("error (de)serializing from/into an identifiers file: `{0}`")]
+    #[error("error (de)serializing from/into an identifiers file: {0}")]
     Serde(#[from] serde_yaml::Error),
-    #[error("directory management error: `{0}`")]
+    #[error("directory management error: {0}")]
     DirectoryManagement(#[from] DirectoryManagementError),
-    #[error("error writing file: `{0}`")]
+    #[error("error writing file: {0}")]
     WriteError(#[from] WriteError),
-    #[error("error creating file: `{0}`")]
+    #[error("error creating file: {0}")]
     IOError(#[from] io::Error),
-    #[error("error reading file: `{0}`")]
+    #[error("error reading file: {0}")]
     ReadError(#[from] FileReaderError),
 }
 

@@ -19,13 +19,13 @@ use tracing::{debug, error};
 
 #[derive(Error, Debug)]
 pub enum OnHostConfigRepositoryError {
-    #[error("serialize error loading SubAgentConfig: `{0}`")]
+    #[error("serialize error loading SubAgentConfig: {0}")]
     StoreSerializeError(#[from] serde_yaml::Error),
-    #[error("directory manager error: `{0}`")]
+    #[error("directory manager error: {0}")]
     DirectoryManagementError(#[from] DirectoryManagementError),
-    #[error("file write error: `{0}`")]
+    #[error("file write error: {0}")]
     WriteError(#[from] WriteError),
-    #[error("file read error: `{0}`")]
+    #[error("file read error: {0}")]
     ReadError(#[from] FileReaderError),
     #[cfg(test)]
     #[error("common variant for k8s and on-host implementations")]

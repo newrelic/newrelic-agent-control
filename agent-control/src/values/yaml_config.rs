@@ -14,7 +14,7 @@ pub struct YAMLConfig(HashMap<String, serde_yaml::Value>);
 
 #[derive(Error, Debug)]
 pub enum YAMLConfigError {
-    #[error("invalid agent values format: `{0}`")]
+    #[error("invalid agent values format: {0}")]
     FormatError(#[from] serde_yaml::Error),
 }
 
@@ -310,7 +310,7 @@ deployment:
         assert!(result.is_err());
         assert_eq!(
             format!("{}", result.unwrap_err()),
-            "error while parsing: `invalid type: boolean `true`, expected a string`"
+            "error while parsing: invalid type: boolean `true`, expected a string"
         );
     }
 }

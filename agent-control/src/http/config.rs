@@ -46,7 +46,7 @@ const HTTPS_PROXY_ENV_NAME: &str = "HTTPS_PROXY";
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProxyError {
-    #[error("invalid proxy url `{0}`: `{1}`")]
+    #[error("invalid proxy url '{0}': {1}")]
     InvalidUrl(String, String),
 }
 

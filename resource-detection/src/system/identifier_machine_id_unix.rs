@@ -130,7 +130,7 @@ mod tests {
         let result = provider.provide();
         assert!(result.is_err());
         assert_eq!(
-            String::from("error getting machine-id: `file not found: `some error message``"),
+            String::from("error getting machine-id: file not found: some error message"),
             result.unwrap_err().to_string()
         );
     }

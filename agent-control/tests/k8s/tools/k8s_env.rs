@@ -21,7 +21,7 @@ use tracing::{error, info};
 
 #[derive(Debug, Error)]
 enum PortForwardError {
-    #[error("kube wait error `{0}`")]
+    #[error("kube wait error {0}")]
     KubeWaitError(#[from] KubeWaitError),
 
     #[error("pod not found: {0}")]

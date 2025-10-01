@@ -935,7 +935,9 @@ deployment:
             RemoteConfigStatus {
                 status: RemoteConfigStatuses::Failed as i32,
                 last_remote_config_hash: Self::hash().to_string().into_bytes(),
-                error_message: "could not build the supervisor from an effective agent: ``no configuration found``".into(),
+                error_message:
+                    "could not build the supervisor from an effective agent: no configuration found"
+                        .into(),
             }
         }
 

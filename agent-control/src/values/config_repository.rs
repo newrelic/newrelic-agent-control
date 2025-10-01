@@ -8,13 +8,13 @@ use tracing::debug;
 
 #[derive(Error, Debug, Clone)]
 pub enum ConfigRepositoryError {
-    #[error("error loading values: `{0}`")]
+    #[error("error loading values: {0}")]
     LoadError(String),
-    #[error("error storing values: `{0}`")]
+    #[error("error storing values: {0}")]
     StoreError(String),
-    #[error("error deleting values: `{0}`")]
+    #[error("error deleting values: {0}")]
     DeleteError(String),
-    #[error("error updating hash, no remote config to update: `{0}`")]
+    #[error("error updating hash, no remote config to update: {0}")]
     UpdateHashStateError(String),
 }
 

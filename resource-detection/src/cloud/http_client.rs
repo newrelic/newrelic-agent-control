@@ -10,16 +10,16 @@ pub const DEFAULT_CLIENT_TIMEOUT: Duration = Duration::from_secs(5);
 #[derive(Error, Debug)]
 pub enum HttpClientError {
     /// Represents an error building the HttpClient
-    #[error("could not build the HTTP client: `{0}`")]
+    #[error("could not build the HTTP client: {0}")]
     BuildingError(String),
     /// Represents an internal HTTP client error.
-    #[error("internal HTTP client error: `{0}`")]
+    #[error("internal HTTP client error: {0}")]
     InternalError(String),
     /// Represents HTTP Transport error.
-    #[error("transport HTTP client error: `{0}`")]
+    #[error("transport HTTP client error: {0}")]
     TransportError(String),
     /// Represents an error in the HTTP response.
-    #[error("status code: `{0}`, Reason: `{1}`")]
+    #[error("status code: {0}, Reason: {1}")]
     ResponseError(u16, String),
 }
 

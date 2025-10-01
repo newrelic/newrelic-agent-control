@@ -11,7 +11,7 @@ use url::Url;
 
 #[derive(thiserror::Error, Debug)]
 pub enum OpAMPHttpClientError {
-    #[error("could not build auth headers: `{0}`")]
+    #[error("could not build auth headers: {0}")]
     AuthorizationHeadersError(String),
 }
 

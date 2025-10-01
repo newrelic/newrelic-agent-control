@@ -28,10 +28,10 @@ pub struct OpampRemoteConfig {
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum OpampRemoteConfigError {
-    #[error("invalid UTF-8 sequence: `{0}`")]
+    #[error("invalid UTF-8 sequence: {0}")]
     UTF8(#[from] FromUtf8Error),
 
-    #[error("config hash: `{0}` config error: `{1}`")]
+    #[error("invalid config for hash '{0}': {1}")]
     InvalidConfig(String, String),
 }
 

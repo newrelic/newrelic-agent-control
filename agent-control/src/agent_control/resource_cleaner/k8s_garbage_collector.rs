@@ -242,10 +242,10 @@ impl K8sGarbageCollectorMode<'_> {
 
 #[derive(Error, Debug)]
 pub enum K8sGarbageCollectorError {
-    #[error("the kube client returned an error: `{0}`")]
+    #[error("the kube client returned an error: {0}")]
     Generic(#[from] K8sError),
 
-    #[error("garbage collector failed loading config store: `{0}`")]
+    #[error("garbage collector failed loading config store: {0}")]
     LoadingConfigStore(#[from] AgentControlConfigError),
 
     #[error("garbage collector fetched resources without required labels")]
@@ -254,10 +254,10 @@ pub enum K8sGarbageCollectorError {
     #[error("garbage collector fetched resources without required annotations")]
     MissingAnnotations,
 
-    #[error("unable to parse AgentTypeID: `{0}`")]
+    #[error("unable to parse AgentTypeID: {0}")]
     ParsingAgentType(#[from] AgentTypeIDError),
 
-    #[error("unable to parse AgentID: `{0}`")]
+    #[error("unable to parse AgentID: {0}")]
     ParsingAgentId(#[from] AgentIDError),
 
     #[error("attempted to clean up resources for Agent Control")]

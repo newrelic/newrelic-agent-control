@@ -5,11 +5,11 @@ use super::definition::AgentTypeDefinition;
 
 #[derive(Error, Debug)]
 pub enum AgentRepositoryError {
-    #[error("agent type `{0}` not found")]
+    #[error("agent type {0} not found")]
     NotFound(String),
-    #[error("agent `{0}` already exists")]
+    #[error("agent {0} already exists")]
     AlreadyExists(String),
-    #[error("`{0}`")]
+    #[error("{0}")]
     SerdeYaml(#[from] serde_yaml::Error),
 }
 

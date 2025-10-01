@@ -19,10 +19,10 @@ pub type DirPath = PathBuf;
 
 #[derive(Error, Debug)]
 pub enum MigrationConfigError {
-    #[error("error parsing yaml: `{0}`")]
+    #[error("error parsing yaml: {0}")]
     SerdeYaml(#[from] Error),
 
-    #[error("config mapping should not be empty`")]
+    #[error("config mapping should not be empty")]
     EmptyConfigMapping,
 }
 
