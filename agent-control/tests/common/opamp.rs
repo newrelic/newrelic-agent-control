@@ -7,7 +7,6 @@ use newrelic_agent_control::opamp::remote_config::DEFAULT_AGENT_CONFIG_IDENTIFIE
 use newrelic_agent_control::opamp::remote_config::signature::{
     ED25519, SIGNATURE_CUSTOM_CAPABILITY, SIGNATURE_CUSTOM_MESSAGE_TYPE, SignatureFields,
 };
-use newrelic_agent_control::opamp::remote_config::validators::signature::public_key_fingerprint;
 use opamp_client::opamp::proto::{
     AgentConfigFile, AgentConfigMap, AgentDescription, AgentRemoteConfig, AgentToServer,
     ComponentHealth, CustomMessage, EffectiveConfig, RemoteConfigStatus, ServerToAgent,
@@ -15,30 +14,24 @@ use opamp_client::opamp::proto::{
 };
 use opamp_client::operation::instance_uid::InstanceUid;
 use prost::Message;
-use rcgen::{CertificateParams, KeyPair, PKCS_ED25519, PublicKeyData};
 use ring::digest;
 use ring::rand::SystemRandom;
 use ring::signature::{Ed25519KeyPair, KeyPair as _};
 use serde_json::json;
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::PathBuf;
 use std::sync::Mutex;
 use std::{collections::HashMap, net, sync::Arc};
-use tempfile::TempDir;
 use tokio::task::JoinHandle;
 
 const FAKE_SERVER_PATH: &str = "/opamp-fake-server";
 const JWKS_SERVER_PATH: &str = "/jwks";
-const CERT_FILE: &str = "server.crt";
+const JWKS_PUBLIC_KEY_ID: &str = "fakeKeyName/0";
 
 /// Represents the state of the FakeServer.
 struct ServerState {
     agent_state: HashMap<InstanceID, AgentState>,
     // Key pair to sign remote configuration
     key_pair: Ed25519KeyPair,
-    // Use the legacy system (instead of key_pair) to sign remote configuration
-    use_legacy_signatures: bool,
-    legacy_key_pair: KeyPair, // TODO: cleanup when no longer used
 }
 
 #[derive(Default)]
@@ -52,12 +45,10 @@ struct AgentState {
 }
 
 impl ServerState {
-    fn new(cert_key_pair: KeyPair, use_legacy_signatures: bool) -> Self {
+    fn generate() -> Self {
         Self {
             agent_state: HashMap::new(),
             key_pair: generate_key_pair(),
-            use_legacy_signatures,
-            legacy_key_pair: cert_key_pair,
         }
     }
 }
@@ -87,7 +78,6 @@ pub struct FakeServer {
     state: Arc<Mutex<ServerState>>,
     port: u16,
     path: String,
-    cert_tmp_dir: TempDir,
 }
 
 impl FakeServer {
@@ -102,30 +92,11 @@ impl FakeServer {
 
     /// Starts and returns new FakeServer in a random port.
     pub fn start_new() -> Self {
-        Self::start_new_with_legacy_signatures(false)
-    }
-
-    /// If `use_legacy_signatures` is set to true, the jwks endpoint is still available but
-    /// configs are signed using the legacy system.
-    pub fn start_new_with_legacy_signatures(use_legacy_signatures: bool) -> Self {
         // While binding to port 0, the kernel gives you a free ephemeral port.
         let listener = net::TcpListener::bind("0.0.0.0:0").unwrap();
         let port = listener.local_addr().unwrap().port();
 
-        // Legacy certificate-based key pair
-        let legacy_key_pair = KeyPair::generate_for(&PKCS_ED25519).unwrap();
-        let cert = CertificateParams::new(vec!["localhost".to_string()])
-            .unwrap()
-            .self_signed(&legacy_key_pair)
-            .unwrap();
-
-        let tmp_dir = tempfile::tempdir().unwrap();
-        std::fs::write(tmp_dir.path().join(CERT_FILE), cert.pem()).unwrap();
-
-        let state = Arc::new(Mutex::new(ServerState::new(
-            legacy_key_pair,
-            use_legacy_signatures,
-        )));
+        let state = Arc::new(Mutex::new(ServerState::generate()));
 
         let handle = tokio_runtime().spawn(Self::run_http_server(listener, state.clone()));
 
@@ -134,7 +105,6 @@ impl FakeServer {
             state,
             port,
             path: FAKE_SERVER_PATH.to_string(),
-            cert_tmp_dir: tmp_dir,
         }
     }
 
@@ -163,10 +133,6 @@ impl FakeServer {
             .entry(identifier)
             .or_default()
             .remote_config = Some(response.as_ref().into());
-    }
-
-    pub fn cert_file_path(&self) -> PathBuf {
-        self.cert_tmp_dir.path().join(CERT_FILE)
     }
 
     pub fn get_health_status(&self, identifier: &InstanceID) -> Option<ComponentHealth> {
@@ -269,26 +235,7 @@ async fn opamp_handler(state: web::Data<Arc<Mutex<ServerState>>>, req: web::Byte
 
     let _ = agent_state; // We need to get rid of the mutable reference before leveraging another immutable.
 
-    let (key_pair, key_id) = if server_state.use_legacy_signatures {
-        (
-            &Ed25519KeyPair::from_pkcs8(&server_state.legacy_key_pair.serialize_der()).unwrap(),
-            public_key_fingerprint(&server_state.legacy_key_pair.subject_public_key_info()),
-        )
-    } else {
-        let public_key = server_state.key_pair.public_key().as_ref().to_vec();
-        (&server_state.key_pair, public_key_fingerprint(&public_key))
-    };
-
-    let use_legacy_signature = server_state.use_legacy_signatures;
-
-    let server_to_agent = build_response(
-        identifier,
-        remote_config,
-        key_pair,
-        key_id,
-        flags,
-        use_legacy_signature,
-    );
+    let server_to_agent = build_response(identifier, remote_config, &server_state.key_pair, flags);
     HttpResponse::Ok().body(server_to_agent)
 }
 
@@ -302,7 +249,7 @@ async fn jwks_handler(state: web::Data<Arc<Mutex<ServerState>>>, _req: web::Byte
                 "kty": "OKP",
                 "alg": null,
                 "use": "sig",
-                "kid": public_key_fingerprint(&public_key),
+                "kid": JWKS_PUBLIC_KEY_ID,
                 "n": null,
                 "x": enc_public_key,
                 "y": null,
@@ -317,9 +264,7 @@ fn build_response(
     instance_id: InstanceID,
     agent_remote_config: Option<RemoteConfig>,
     key_pair: &Ed25519KeyPair,
-    key_id: String,
     flags: u64,
-    use_legacy_signature: bool,
 ) -> Vec<u8> {
     let mut remote_config = None;
     let mut custom_message = None;
@@ -338,17 +283,12 @@ fn build_response(
             }),
         });
 
-        let msg = if use_legacy_signature {
-            config.raw_body
-        } else {
-            // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
-            // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
-            // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
-            // the signature against that.
-            let digest = digest::digest(&digest::SHA256, config.raw_body.as_bytes());
-            BASE64_STANDARD.encode(digest)
-        };
-
+        // Actual implementation from FC side signs the Base64 representation of the SHA256 digest
+        // of the message (i.e. the remote configs). Hence, to verify the signature, we need to
+        // compute the SHA256 digest of the message, then Base64 encode it, and finally verify
+        // the signature against that.
+        let digest = digest::digest(&digest::SHA256, config.raw_body.as_bytes());
+        let msg = BASE64_STANDARD.encode(digest);
         let signature = key_pair.sign(msg.as_bytes());
 
         let custom_message_data = HashMap::from([(
@@ -356,7 +296,7 @@ fn build_response(
             vec![SignatureFields {
                 signature: BASE64_STANDARD.encode(signature),
                 signing_algorithm: ED25519,
-                key_id,
+                key_id: JWKS_PUBLIC_KEY_ID.to_string(),
             }],
         )]);
 

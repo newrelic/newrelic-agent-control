@@ -43,7 +43,6 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -122,7 +121,6 @@ fn onhost_opamp_sub_agent_with_no_local_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // There is no local configuration for the sub-agent

@@ -53,7 +53,6 @@ file:
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -160,7 +159,6 @@ http:
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
     create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
 

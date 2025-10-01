@@ -17,7 +17,6 @@ pub fn create_agent_control_config(
     jwks_endpoint: String,
     agents: String,
     local_dir: PathBuf,
-    remote_config_sign_cert: PathBuf,
 ) {
     create_agent_control_config_with_proxy(
         opamp_server_endpoint,
@@ -25,7 +24,6 @@ pub fn create_agent_control_config(
         agents,
         local_dir,
         None,
-        remote_config_sign_cert,
     );
 }
 
@@ -36,7 +34,6 @@ pub fn create_agent_control_config_with_proxy(
     agents: String,
     local_dir: PathBuf,
     proxy: Option<String>,
-    remote_config_sign_cert: PathBuf,
 ) {
     let proxy_config = proxy
         .map(|config| format!("proxy: {config}"))
@@ -50,15 +47,10 @@ fleet_control:
   poll_interval: 5s
   signature_validation:
     public_key_server_url: {}
-    certificate_pem_file_path: {}
 agents: {}
 {}
 "#,
-        opamp_server_endpoint,
-        jwks_endpoint,
-        remote_config_sign_cert.to_str().unwrap(),
-        agents,
-        proxy_config,
+        opamp_server_endpoint, jwks_endpoint, agents, proxy_config,
     );
     create_file(
         agent_control_config,

@@ -59,7 +59,6 @@ fn proxy_onhost_opamp_agent_control_local_effective_config() {
         Some(format!(
             "{{\"url\": \"{proxy_url}\", \"ca_bundle_dir\": \"{proxy_ca_dir}\"}}"
         )),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {

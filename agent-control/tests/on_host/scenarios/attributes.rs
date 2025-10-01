@@ -49,7 +49,6 @@ fn test_attributes_from_non_existing_agent_type() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -135,7 +134,6 @@ agents:
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has empty config values

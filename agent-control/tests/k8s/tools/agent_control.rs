@@ -16,10 +16,10 @@ use newrelic_agent_control::{
     agent_control::run::BasePaths,
     k8s::store::{CM_NAME_LOCAL_DATA_PREFIX, K8sStore, STORE_KEY_LOCAL_DATA_CONFIG},
 };
+use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
 use std::time::Duration;
-use std::{collections::BTreeMap, path::PathBuf};
 use std::{fs::File, io::Write};
 
 pub const TEST_CLUSTER_NAME: &str = "minikube";
@@ -40,7 +40,6 @@ pub fn start_agent_control_with_testdata_config(
     client: Client,
     ac_ns: &str,
     agents_ns: &str,
-    remote_config_sign_cert: Option<PathBuf>,
     opamp_endpoint: Option<&str>,
     jwks_endpoint: Option<&str>,
     subagent_file_names: Vec<&str>,
@@ -61,7 +60,6 @@ pub fn start_agent_control_with_testdata_config(
         agents_ns,
         opamp_endpoint,
         jwks_endpoint,
-        remote_config_sign_cert,
         folder_name,
         local_dir,
     );
@@ -138,7 +136,6 @@ pub fn create_local_agent_control_config(
     agents_ns: &str,
     opamp_endpoint: Option<&str>,
     jwk_endpoint: Option<&str>,
-    remote_config_sign_cert: Option<PathBuf>,
     folder_name: &str,
     tmp_dir: &Path,
 ) {
@@ -160,9 +157,6 @@ pub fn create_local_agent_control_config(
     }
     if let Some(endpoint) = jwk_endpoint {
         content = content.replace("<jwks-endpoint>", endpoint);
-    }
-    if let Some(cert_path) = remote_config_sign_cert {
-        content = content.replace("<cert-path>", cert_path.to_str().unwrap());
     }
     block_on(create_config_map(
         client,

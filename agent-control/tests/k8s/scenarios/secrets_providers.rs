@@ -31,7 +31,6 @@ fn k8s_template_secrets() {
         &namespace,
         None,
         None,
-        None,
         // This config is intended to be empty
         vec!["local-data-hello-world"],
         tmp_dir.path(),

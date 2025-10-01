@@ -2,7 +2,6 @@ fleet_control:
   endpoint: <opamp-endpoint>
   poll_interval: 5s
   signature_validation:
-    certificate_pem_file_path: <cert-path>
     public_key_server_url: <jwks-endpoint>
 k8s:
   namespace: <ns>

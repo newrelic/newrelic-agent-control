@@ -32,7 +32,6 @@ fn k8s_signature_disabled() {
         k8s.client.clone(),
         &namespace,
         &namespace,
-        None,
         Some(&server.endpoint()),
         Some(&server.jwks_endpoint()),
         // This config is intended to be empty
