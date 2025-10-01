@@ -146,8 +146,7 @@ fn retrieve_dir_mapping_values<F: FileReader>(
 /// (just adding quotes to make it a string). If this pattern is not quoted, the resulting YAML
 /// would evaluate to a nested mapping with a single key-null pair, which is not what we want.
 ///
-/// This is a regex-based approach that may not cover all edge cases, but works for
-/// the common scenarios we expect (small config strings).
+/// This uses a regex-based approach.
 fn process_config_input(input: String) -> String {
     env_var_syntax_regex()
         .replace_all(&input, "${pre}'{{${2}}}'${post}")
