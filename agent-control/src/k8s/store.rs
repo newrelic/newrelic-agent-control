@@ -3,22 +3,11 @@ use super::Error;
 use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::{CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX};
 use std::sync::{Arc, RwLock};
-
-/// The prefixes for the ConfigMap name.
-/// The cm having CM_NAME_LOCAL_DATA_PREFIX stores all the config that are "local",
-/// the SA treats those CM as read-only.
-pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
-/// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
-/// Instance IDs, hashes, and remote configs. The Sa reads and writes those CMs.
-pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "fleet-data-";
 
 /// The key used to identify the data in the Store.
 pub type StoreKey = str;
-
-pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
-pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
-pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.

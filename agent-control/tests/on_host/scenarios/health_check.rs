@@ -10,6 +10,7 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use httpmock::Method::GET;
 use httpmock::MockServer;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::defaults::STORE_KEY_LOCAL_DATA_CONFIG_YAML;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use std::time::Duration;
 use tempfile::tempdir;
@@ -47,7 +48,13 @@ file:
 "#
     );
 
-    create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
+    create_sub_agent_values(
+        sub_agent_id.to_string(),
+        "".into(),
+        local_dir.path().into(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
+    );
     create_agent_control_config(
         opamp_server.endpoint(),
         opamp_server.jwks_endpoint(),
@@ -160,7 +167,13 @@ http:
         agents.to_string(),
         local_dir.path().to_path_buf(),
     );
-    create_sub_agent_values(sub_agent_id.to_string(), "".into(), local_dir.path().into());
+    create_sub_agent_values(
+        sub_agent_id.to_string(),
+        "".into(),
+        local_dir.path().into(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
+    );
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

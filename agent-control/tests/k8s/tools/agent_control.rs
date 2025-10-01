@@ -10,12 +10,12 @@ use kube::{
     Client,
     api::{Api, DeleteParams, PostParams},
 };
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
-use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
-use newrelic_agent_control::{
-    agent_control::run::BasePaths,
-    k8s::store::{CM_NAME_LOCAL_DATA_PREFIX, K8sStore, STORE_KEY_LOCAL_DATA_CONFIG},
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, CM_NAME_LOCAL_DATA_PREFIX,
+    FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
+use newrelic_agent_control::agent_control::{agent_id::AgentID, run::Environment};
+use newrelic_agent_control::{agent_control::run::BasePaths, k8s::store::K8sStore};
 use std::collections::BTreeMap;
 use std::io::Read;
 use std::path::Path;
@@ -75,7 +75,7 @@ pub fn start_agent_control_with_testdata_config(
     start_agent_control_with_custom_config(
         BasePaths {
             local_dir: local_dir.to_path_buf(),
-            remote_dir: local_dir.join("remote").to_path_buf(),
+            remote_dir: local_dir.to_path_buf(),
             log_dir: local_dir.join("log").to_path_buf(),
         },
         Environment::K8s,
@@ -165,7 +165,10 @@ pub fn create_local_agent_control_config(
         content.clone(),
     ));
 
-    File::create(tmp_dir.join(AGENT_CONTROL_CONFIG_FILENAME))
+    let local = tmp_dir.join(FOLDER_NAME_LOCAL_DATA).join(AGENT_CONTROL_ID);
+    std::fs::create_dir_all(&local).unwrap();
+
+    File::create(local.join(AGENT_CONTROL_CONFIG_FILENAME))
         .unwrap()
         .write_all(content.as_bytes())
         .unwrap();

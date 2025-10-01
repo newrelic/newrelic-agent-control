@@ -4,7 +4,9 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA,
+};
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
@@ -36,7 +38,9 @@ fn test_auth_local_provider_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -99,7 +103,9 @@ fn test_empty_auth_config_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"
@@ -153,7 +159,9 @@ fn test_unauthorized_token_retrieve_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
         AGENT_CONTROL_CONFIG_FILENAME,
         format!(
             r#"

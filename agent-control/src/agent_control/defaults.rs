@@ -1,4 +1,6 @@
+use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::k8s::store::StoreKey;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
@@ -46,13 +48,29 @@ cfg_if::cfg_if! {
         pub const AGENT_CONTROL_LOG_DIR: &str = "/var/log/newrelic-agent-control";
     }
 }
-
-pub const SUB_AGENT_DIR: &str = "fleet/agents.d";
+/// The prefixes for the ConfigMap name
+/// The cm having CM_NAME_LOCAL_DATA_PREFIX stores all the config that are "local",
+/// the SA treats those CM as read-only.
+/// IMPORTANT: This value is derived from `FOLDER_NAME_LOCAL_DATA` and must be updated if the base name changes.
+pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
+/// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
+/// Instance IDs, hashes, and remote configs. The Sa reads and writes those CMs.
+/// IMPORTANT: This value is derived from `FOLDER_NAME_FLEET_DATA` and must be updated if the base name changes.
+pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "fleet-data-";
+/// The name for on-host directories storing local, read-only configurations.
+pub const FOLDER_NAME_LOCAL_DATA: &str = "local-data";
+/// The name for on-host directories storing read-write data
+pub const FOLDER_NAME_FLEET_DATA: &str = "fleet-data";
 pub const AGENT_CONTROL_CONFIG_FILENAME: &str = "config.yaml";
+pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
+pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
+/// IMPORTANT: This value is derived from `STORE_KEY_LOCAL_DATA_CONFIG` and must be updated if the base name changes.
+pub const STORE_KEY_LOCAL_DATA_CONFIG_YAML: &StoreKey = "local_config.yaml";
+/// IMPORTANT: This value is derived from `STORE_KEY_OPAMP_DATA_CONFIG` and must be updated if the base name changes.
+pub const STORE_KEY_OPAMP_DATA_CONFIG_YAML: &StoreKey = "remote_config.yaml";
+pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
-pub const IDENTIFIERS_FILENAME: &str = "identifiers.yaml";
-pub const VALUES_DIR: &str = "values";
-pub const VALUES_FILENAME: &str = "values.yaml";
+pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
 pub const STDOUT_LOG_PREFIX: &str = "stdout.log";
@@ -73,6 +91,10 @@ pub fn default_sub_agent_custom_capabilities() -> CustomCapabilities {
     CustomCapabilities {
         capabilities: vec![SIGNATURE_CUSTOM_CAPABILITY.to_string()],
     }
+}
+
+pub fn build_folder_name(agent_id: &AgentID, prefix: &str) -> String {
+    format!("{prefix}{agent_id}")
 }
 
 pub(crate) fn get_custom_capabilities(agent_type_id: &AgentTypeID) -> Option<CustomCapabilities> {

@@ -1,5 +1,8 @@
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use newrelic_agent_control::agent_control::agent_id::AgentID;
+use newrelic_agent_control::agent_control::defaults::{
+    FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG_YAML,
+};
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
@@ -40,7 +43,12 @@ fn test_store_remote_no_mocks() {
 
     assert_eq!(
         AGENT_VALUES_SINGLE_FILE_STORED,
-        read_to_string(concatenate_sub_agent_dir_path(&remote_dir, &agent_id)).unwrap()
+        read_to_string(concatenate_sub_agent_dir_path(
+            &remote_dir.join(FOLDER_NAME_FLEET_DATA),
+            &agent_id,
+            STORE_KEY_OPAMP_DATA_CONFIG_YAML
+        ))
+        .unwrap()
     );
 }
 
