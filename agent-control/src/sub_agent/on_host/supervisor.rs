@@ -526,7 +526,7 @@ pub mod tests {
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
-        let ctx = Context::<bool>::new();
+        let ctx = Context::<bool>::default();
         if agent_id == "long-running-before-start" {
             ctx.cancel_all(true).unwrap();
         }
@@ -584,7 +584,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );
@@ -624,7 +624,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );
@@ -671,7 +671,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );
@@ -718,7 +718,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );
@@ -756,7 +756,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );
@@ -814,7 +814,7 @@ pub mod tests {
         let agent = NotStartedSupervisorOnHost::new(
             agent_identity,
             executables,
-            Context::new(),
+            Context::default(),
             OnHostHealthConfig::default(),
             None,
         );

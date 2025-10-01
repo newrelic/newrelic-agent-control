@@ -106,7 +106,7 @@ mod tests {
 
         let terminator = ProcessTerminator::new(pid);
 
-        let context = Context::new();
+        let context = Context::default();
         let context_child = context.clone();
 
         thread::spawn(|| {
@@ -139,7 +139,7 @@ mod tests {
 
         let terminator = ProcessTerminator::new(pid);
 
-        let context = Context::new();
+        let context = Context::default();
         let context_child = context.clone();
 
         thread::spawn(|| {
