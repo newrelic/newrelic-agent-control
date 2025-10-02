@@ -62,7 +62,6 @@ opentelemetry-semantic-conventions = { version = "0.31.0", features = [
 http-serde = "2.1.1"
 config = { version = "0.15.18", features = ["yaml"] }
 rustls = { version = "0.23.32", features = ["ring"] }
-webpki = { version = "0.22.4", features = ["alloc"] }
 x509-parser = "0.18.0"
 ring = "0.17.14"
 bytes = "1.10.1"
@@ -97,7 +96,6 @@ httpmock = { version = "0.8.0", features = ["proxy"] }
 serial_test = "3.2.0"
 futures = "0.3.31"
 rcgen = { version = "0.14.5", features = ["crypto"] }
-rustls-pemfile = { version = "2.2.0" }
 rstest = "0.26.1"
 tokio-stream = { version = "0.1.17", features = ["net"] }
 

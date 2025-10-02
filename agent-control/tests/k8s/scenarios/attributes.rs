@@ -42,7 +42,6 @@ fn k8s_test_attributes_from_existing_agent_type() {
         k8s.client.clone(),
         &namespace,
         &namespace,
-        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         Some(&server.jwks_endpoint()),
         vec!["local-data-hello-world"],

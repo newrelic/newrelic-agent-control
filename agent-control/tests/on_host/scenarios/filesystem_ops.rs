@@ -60,7 +60,6 @@ deployment:
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.to_path_buf(),
-        opamp_server.cert_file_path(),
     );
     create_sub_agent_values(
         agent_id.to_string(),
@@ -179,7 +178,6 @@ deployment:
 "#
         ),
         local_dir.to_path_buf(),
-        opamp_server.cert_file_path(),
     );
     // Values. Contains 3 variables: a YAML, a string, and a map[string]yaml (to create files in a directory)
     create_sub_agent_values(

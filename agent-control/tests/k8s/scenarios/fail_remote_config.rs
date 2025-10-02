@@ -30,7 +30,6 @@ fn k8s_fail_remote_config_missing_required_values() {
         k8s.client.clone(),
         &namespace,
         &namespace,
-        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         Some(&server.jwks_endpoint()),
         vec!["local-data-fake-agent"],

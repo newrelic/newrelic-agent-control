@@ -58,10 +58,8 @@ fleet_control:
     retries: 3 # Number of retries if the authentication fails.
   fleet_id: "some-id" # Fleet identifier.
   signature_validation:
-    certificate_server_url: "https://newrelic.com/" # Server to obtain the certificate for signature validation.
-    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/global/agentconfiguration" # Server to obtain the public key for signature validation.
-    certificate_pem_file_path: "/some/certificate/" # Optional, if set it uses a local certificated instead of fetching it from 'certicate_server_url'.
     enabled: true # Defaults to true, allows disabling the signature validation.
+    public_key_server_url: "https://publickeys.newrelic.com/signing/blob-management/global/agentconfiguration" # Server to obtain the public key for signature validation.
 ```
 
 ### proxy
@@ -72,8 +70,6 @@ proxy options can also be configured using the proxy configuration field. If bot
 1. `proxy` configuration field
 2. `HTTP_PROXY` environment variable
 3. `HTTPS_PROXY` environment variable
-
-⚠️ Proxy configuration is currently not compatible with fetching the certificate for signature validation. If you need to setup a proxy you will need to either, add a firewall exception to https://newrelic.com so requests to that endpoints can skip the proxy (recommended), use a local certificate through `fleet_control.signature_validation.certificate_pem_file_path` (certificate rotation should need to be manually handled) or disable signature validation (highly discouraged).
 
 ```yaml
 proxy:

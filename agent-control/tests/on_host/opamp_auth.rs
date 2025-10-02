@@ -47,6 +47,8 @@ fleet_control:
     client_id: "fake"
     provider: "local"
     private_key_path: "{}"
+  signature_validation:
+    enabled: false
 log:
   level: debug
 agents: {{}}
@@ -105,6 +107,8 @@ fleet_control:
   endpoint: "{}"
   headers:
     api-key: "fakeKey"
+  signature_validation:
+    enabled: false
 log:
   level: debug
 agents: {{}}
@@ -160,6 +164,8 @@ fleet_control:
     client_id: "fake"
     provider: "local"
     private_key_path: "{}"
+  signature_validation:
+    enabled: false
 log:
   level: debug
 agents: {{}}

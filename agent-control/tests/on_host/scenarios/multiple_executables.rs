@@ -47,7 +47,6 @@ agents:
         opamp_server.jwks_endpoint(),
         agents,
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -106,7 +105,6 @@ agents:
         opamp_server.jwks_endpoint(),
         agents,
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {

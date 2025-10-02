@@ -43,7 +43,6 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -133,7 +132,6 @@ fn test_invalid_config_executable_less_supervisor() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -211,7 +209,6 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values

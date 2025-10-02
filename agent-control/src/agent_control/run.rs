@@ -15,9 +15,7 @@ use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;
 use crate::opamp::client_builder::PollInterval;
 use crate::opamp::http::builder::OpAMPHttpClientBuilder;
-use crate::opamp::remote_config::validators::signature::validator::{
-    SignatureValidator, build_signature_validator,
-};
+use crate::opamp::remote_config::validators::signature::validator::SignatureValidator;
 use std::error::Error;
 use std::fmt::{self, Display, Formatter};
 use std::path::PathBuf;
@@ -160,10 +158,10 @@ impl AgentControlRunner {
         let signature_validator = config
             .opamp
             .map(|fleet_config| {
-                build_signature_validator(fleet_config.signature_validation, config.proxy)
+                SignatureValidator::new(fleet_config.signature_validation, config.proxy)
             })
             .transpose()?
-            .unwrap_or(SignatureValidator::Noop);
+            .unwrap_or(SignatureValidator::new_noop());
 
         Ok(AgentControlRunner {
             http_server_runner,

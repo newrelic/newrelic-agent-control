@@ -39,7 +39,6 @@ fn onhost_opamp_agent_control_local_effective_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -87,7 +86,6 @@ fn onhost_opamp_agent_control_remote_effective_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -175,7 +173,6 @@ fn onhost_opamp_agent_control_remote_config_with_unknown_field() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let base_paths = BasePaths {
@@ -259,7 +256,6 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -332,7 +328,6 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has local config values
@@ -402,7 +397,6 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     // And the custom-agent has empty config values
@@ -488,7 +482,6 @@ agents:
         opamp_server.jwks_endpoint(),
         agents.to_string(),
         local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
     );
 
     let sub_agent_id = AgentID::try_from("no-executables").unwrap();
@@ -552,91 +545,5 @@ status_time_unix_nano: 1725444001
             return Err("not the expected content for first config".into());
         }
         check_latest_health_status_was_healthy(&opamp_server, &sub_agent_instance_id)
-    });
-}
-
-/// Test that if AC signature validation fails using the public key obtained from the JWKS endpoint, it falls back
-/// to the previous certificate validation (useful while transitioning).
-#[test]
-fn test_opamp_with_legacy_signatures() {
-    let mut opamp_server = FakeServer::start_new_with_legacy_signatures(true);
-
-    let local_dir = tempdir().expect("failed to create local temp dir");
-    let remote_dir = tempdir().expect("failed to create remote temp dir");
-
-    let agents = "{}";
-    create_agent_control_config(
-        opamp_server.endpoint(),
-        opamp_server.jwks_endpoint(),
-        agents.to_string(),
-        local_dir.path().to_path_buf(),
-        opamp_server.cert_file_path(),
-    );
-
-    let base_paths = BasePaths {
-        local_dir: local_dir.path().to_path_buf(),
-        remote_dir: remote_dir.path().to_path_buf(),
-        log_dir: local_dir.path().to_path_buf(),
-    };
-
-    // Add custom agent_type to registry
-    let sleep_agent_type = CustomAgentType::default().build(local_dir.path().to_path_buf());
-
-    let _agent_control =
-        start_agent_control_with_custom_config(base_paths.clone(), Environment::OnHost);
-
-    let agent_control_instance_id = get_instance_id(&AgentID::AgentControl, base_paths.clone());
-
-    let agents = format!(
-        r#"
-agents:
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-
-    // When a new config with an agent is received from OpAMP
-    opamp_server.set_config_response(agent_control_instance_id.clone(), agents.as_str());
-
-    // Then the config should be updated in the remote filesystem.
-    let expected_config = format!(
-        r#"agents:
-  nr-sleep-agent:
-    agent_type: "{sleep_agent_type}"
-"#
-    );
-    let expected_config_parsed =
-        serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
-
-    retry(60, Duration::from_secs(1), || {
-        let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
-        let remote_config = std::fs::read_to_string(remote_file.as_path())
-            .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
-        let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
-        if content_parsed.config != expected_config_parsed {
-            return Err(format!(
-                "Agent Control config not as expected, Expected: {expected_config:?}, Found: {remote_config:?}",
-            )
-            .into());
-        }
-
-        check_latest_effective_config_is_expected(
-            &opamp_server,
-            &agent_control_instance_id,
-            serde_yaml::to_string(&content_parsed.config).unwrap(),
-        )?;
-        check_latest_health_status_was_healthy(&opamp_server, &agent_control_instance_id)
-    });
-
-    let subagent_instance_id = get_instance_id(
-        &AgentID::try_from("nr-sleep-agent").unwrap(),
-        base_paths.clone(),
-    );
-
-    // The sub-agent waits for the remote config to be set, it cannot be empty since it would default to local
-    // which does not exist.
-    opamp_server.set_config_response(subagent_instance_id.clone(), "fake_variable: value");
-    retry(60, Duration::from_secs(1), || {
-        check_latest_health_status_was_healthy(&opamp_server, &subagent_instance_id)
     });
 }

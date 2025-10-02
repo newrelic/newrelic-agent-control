@@ -40,7 +40,6 @@ fn k8s_opamp_subagent_configuration_change_after_ac_restarts() {
         k8s.client.clone(),
         &namespace,
         &namespace,
-        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         Some(&server.jwks_endpoint()),
         // This config is intended to be empty
@@ -98,7 +97,6 @@ valid: true
         k8s.client.clone(),
         &namespace,
         &namespace,
-        Some(server.cert_file_path()),
         Some(&server.endpoint()),
         Some(&server.jwks_endpoint()),
         // This config is intended to be empty
