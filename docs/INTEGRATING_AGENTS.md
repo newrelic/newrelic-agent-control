@@ -6,7 +6,7 @@ Currently, the supported workloads that AC is able to manage are hard-coded into
 
 The definition for an agent type consists on a single YAML file with three main areas defined below.
 
-We recommend that you read the following sections, but at any time feel free to check the currently available definitions [here](../agent-control/agent-type-registry/README.md) to see working examples of the explained concepts.
+We recommend that you read the following sections, but at any time feel free to check the currently available definitions in [its dedicated docs](../agent-control/agent-type-registry/README.md) to see working examples of the explained concepts.
 
 ### Agent Type Metadata
 
@@ -38,10 +38,9 @@ variables:
   on_host:
     config_agent:
       description: "Newrelic infra configuration"
-      type: file
+      type: yaml
       required: false
-      default: ""
-      file_path: "newrelic-infra.yml"
+      default: {}
   k8s:
     chart_values:
       newrelic-infrastructure:
@@ -86,10 +85,9 @@ The value type that is accepted for this variable. As of now, the following type
 - `string`.
 - `bool`.
 - `number`: Integer or floating point are supported.
-- `file`: Intended to contain the same as `string`, which will be the contents of the file. See [Templating `file` and `map[string]file` variables](#templating-file-and-mapstringfile-variables) for an explanation of what this type does[^1].
 - `map[string]string`: i.e. key-value pairs.
-- `map[string]file`: Intended to contain the same as `map[string]string`, the keys of the map being the file names and their values the file contents. See [Templating `file` and `map[string]file` variables](#templating-file-and-mapstringfile-variables) for an explanation of what this type does[^1].
 - `yaml`: An arbitrary YAML value, like an array, an object or even a scalar.
+- `map[string]yaml`: A YAML value where the top-level is guaranteed to consist on string keys for other values.
 
 ##### `required` (`bool`)
 
@@ -101,17 +99,14 @@ A default value for this variable, for the cases where no configuration value ha
 
 In the case of the `yaml` variable type, is recommended to explicitly set a 'null' default value as `default: null`.
 
-##### `file_path` (`String`, optional)
-
-If the type for the variable is `file` or `map[string]file`, this field defines either the file name (for `file`) or the containing directory name (for `map[string]file`) for the rendered files passed as values.
-
 ##### `variants` (optional)
 
 Only available for **String** variables.
-	
+
 A list of accepted values for this variable. If any configuration includes a value for this variable that is not among the specified variants, the configuration will be invalid. The accepted values can be changed in the Agent Control configuration, as in the example below:
 
 Agent type:
+
 ```yaml
 my_variable:
   # ...
@@ -120,14 +115,16 @@ my_variable:
     ac_config_field: "my_variable_variants" # If the field is set in `agent_type_var_constraints.variants`, the configures values will be used instead of the default ones.
     values: ["value1", "value2"] # Otherwise the values defined here are used
 ```
+
 AC config:
+
 ```yaml
 agent_type_var_constraints:
   variants: # map of variants
     my_variable_variants: ["supported_value1", "supported_value2"] # The key should match what is defined in the Agent Type
 ```
 
-By default, no variants are set resulting in no variants validation.
+By default, no variants are set, resulting in no variant validation.
 
 ### Agent Type Deployment
 
@@ -154,7 +151,7 @@ For examples of this with actual agent type definitions, see [kubernetes config 
 
 ##### Environment variable expansion on configuration values
 
-Any AC environment variable can be referenced within local or remote configuration values using the `${nr-env:<ENVIRONMENT_VARIABLE>}` syntax. During the rendering process, AC will resolve the `ENVIRONMENT_VARIABLE` and replace the placeholder with its corresponding value. 
+Any AC environment variable can be referenced within local or remote configuration values using the `${nr-env:<ENVIRONMENT_VARIABLE>}` syntax. During the rendering process, AC will resolve the `ENVIRONMENT_VARIABLE` and replace the placeholder with its corresponding value.
 
 For example, consider the following configuration snippet:
 
@@ -172,15 +169,6 @@ It is important to note that the availability of environment variables depends o
 
 By leveraging this mechanism, you can dynamically inject environment-specific values into your configurations, simplifying deployment and ensuring flexibility across different environments.
 
-##### Templating `file` and `map[string]file` variables
-
-When a variable of type `file` or `map[string]file` is referenced inside the `deployment` section, the rendering process will:
-
-1. Persist the contents of the variable (the provided configuration value or the default if the variable is not required) on a certain location on the file system.
-2. Replace the variable reference with the complete file path.
-    - For `file`, the full path to the file.
-    - For `map[string]file`, the full path to a directory containing each of the map's key-value pairs as file name and file contents respectively.
-
 The following is a section of the defined deployment instructions for the New Relic Infrastructure Agent. It contains definitions both for on-host and Kubernetes, so this agent type is supported when AC runs on either setting.
 
 ```yaml
@@ -194,12 +182,22 @@ deployment:
       http:
         path: "/v1/status/health"
         port: ${nr-var:health_port}
+    filesystem:
+      config:
+        newrelic-infra.yaml: |
+          ${nr-var:config_agent}
+      integrations.d: ${nr-var:config_integrations}
+      logging.d: ${nr-var:config_logging}
     executables:
-      - path: /usr/bin/newrelic-infra
+      - id: newrelic-infra
+        path: /usr/bin/newrelic-infra
         args: >-
-          --config=${nr-var:config_agent}
+          --config=${nr-sub:autogenerated_agent_dir}/config/newrelic-infra.yaml
         env:
-          NRIA_PLUGIN_DIR: "${nr-var:config_integrations}"
+          NRIA_PLUGIN_DIR: "${nr-sub:autogenerated_agent_dir}/integrations.d"
+          NRIA_LOGGING_CONFIGS_DIR: "${nr-sub:autogenerated_agent_dir}/logging.d"
+          NRIA_STATUS_SERVER_ENABLED: true
+          NRIA_STATUS_SERVER_PORT: "${nr-var:health_port}"
           NR_HOST_ID: "${nr-ac:host_id}"
         restart_policy:
           backoff_strategy:
@@ -235,12 +233,13 @@ We have some global metadata available both for on-host and k8s. Be aware that t
 
 For **on-host**, we have:
 
-* `host_id`: contains an identifier calculated from the retrieved information about the host, such as the hostname or cloud-related data (when available).
+- `host_id`: contains an identifier calculated from the retrieved information about the host, such as the hostname or cloud-related data (when available).
+- `autogenerated_agent_dir`: contains the absolute path to a dedicated file system directory for this sub-agent. The default value in Linux systems is `/var/lib/newrelic_agent_control/auto-generated/<AGENT_ID>`. Note how the agent type definition uses this variable for content added via the `filesystem` field (see below).
 
 For **k8s**, we have:
 
-* `namespace`: the namespace where Agent Control and Flux will be created.
-* `namespace_agents`: the namespace where sub-agents will be created. Due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), Instrumentation CRs are created in this namespace too.
+- `namespace`: the namespace where Agent Control and Flux will be created.
+- `namespace_agents`: the namespace where sub-agents will be created. Due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), Instrumentation CRs are created in this namespace too.
 
 #### On-host deployment definition
 
@@ -262,6 +261,19 @@ Instructions to actually run the sub-agent process. It is composed of the follow
     - `last_retry_interval`: Time interval for the back-off number of retries to maintain its number. That is, if the process spends more than this interval after the restart policy was triggered, the restart policy values like the current tries or the back-off delays will be reset.  This is a time string in the form of `10s`, `1h`, etc.
 
 As of now, the `executables` field is array and is actually **optional**. This was intended to cover the APM agents use case for on-host, in which the agents are not processes but libraries or plugins injected to other processes, customer applications, whose lifecycle AC must not manage (see [*Agent-less* supervisors](#agent-less-supervisors) below). However, this is **not yet supported**. An agent without `executables` is accepted as valid, but AC will just spawn an internal supervisor structure for the sub-agent without actually doing anything besides checking health, if it was configured.
+
+##### `filesystem`
+
+Represents the file system configuration for the deployment of a host agent.
+Consisting of a set of directories (map keys) which in turn contain a set of files (nested map keys)
+with their respective content (map values).
+
+The contents defined here will be written to the sub-agent's dedicated directory for auto-generated
+files, which can be referenced in other fields via the variable `${nr-sub:autogenerated_agent_dir}`.
+
+The files can be hardcoded, with the contents possibly containing templates, or the whole set of
+files can be templated, so a directory contains an arbitrary number of files (a place to use a
+`map[string]yaml` variable type). **The paths cannot be templated individually.**
 
 ##### `enable_file_logging` (`bool`)
 
@@ -292,8 +304,6 @@ Agent Control in Kubernetes uses two distinct namespaces for resource management
 - **Agent Control namespace (`namespace`)**: This is where Agent Control, Flux, and their supporting resources are created and managed.
 - **Agents namespace (`namespace_agents`)**: This is dedicated to sub-agents and their managed resources. Ideally, Instrumentation CRs should be in the Agent Control namespace, but due to a [limitation in the `k8s-agents-operator`](https://github.com/newrelic/k8s-agents-operator/blob/92c19208864f051f03f457ee04b772fca5042162/api/v1beta1/instrumentation_webhook.go#L110C27-L110C72), they must be in the same namespace as the operator.
 
-
-
 This separation makes it more secure. That way, agents can't use Flux or Agent Control Service Accounts with wide privileges. When defining agent types or configuring deployments, ensure that resources are created in the correct namespace. The variables `${nr-ac:namespace}` and `${nr-ac:namespace_agents}` are available for templating these values in your agent type definitions.
 
 #### Kubernetes deployment definition
@@ -319,9 +329,9 @@ Key-value pairs of the [Kubernetes Objects](https://kubernetes.io/docs/concepts/
   - `labels`: key-value pair of strings representing Kubernetes labels.
 - And a collection of arbitrary fields representing the actual data (e.g. the `spec`) of the object.
   
-Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation. 
+Most of Agent Control sub-agents currently deploy [Flux](https://fluxcd.io) CRs which end up in helm chart installation.
 
-A detailed example of a Kubernetes deployment AgentType is available [here](../agent-control/agent-type-registry/newrelic/com.newrelic.infrastructure-0.1.0.yaml). This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
+You can check an [existing agent type with a Kubernetes deployment](../agent-control/agent-type-registry/newrelic/com.newrelic.infrastructure-0.1.0.yaml) as an example. This file includes all necessary Flux CR configurations required for Agent Control to manage sub-agent deployments effectively. It serves as a comprehensive reference for understanding the integration and deployment process.
 
 ## Applying configurations
 
