@@ -1,13 +1,13 @@
 use crate::agent_control::config::AgentControlDynamicConfig;
-use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
+use crate::agent_type::agent_type_registry::AgentRegistry;
 use std::sync::Arc;
 use thiserror::Error;
 
+pub mod k8s;
+
 #[derive(Error, Debug)]
-pub enum DynamicConfigValidatorError {
-    #[error("{0}")]
-    AgentRepositoryError(#[from] AgentRepositoryError),
-}
+#[error("config validation failed: {0}")]
+pub struct DynamicConfigValidatorError(String);
 
 /// Represents a validator for dynamic config
 pub trait DynamicConfigValidator {
@@ -40,7 +40,12 @@ impl<R: AgentRegistry> DynamicConfigValidator for RegistryDynamicConfigValidator
             .try_for_each(|sub_agent_cfg| {
                 let _ = self
                     .agent_type_registry
-                    .get(sub_agent_cfg.agent_type.to_string().as_str())?;
+                    .get(sub_agent_cfg.agent_type.to_string().as_str())
+                    .map_err(|err| {
+                        DynamicConfigValidatorError(format!(
+                            "AgentType registry check failed: {err}"
+                        ))
+                    })?;
                 Ok(())
             })
     }
@@ -78,9 +83,7 @@ pub mod tests {
             if self.valid {
                 Ok(())
             } else {
-                Err(DynamicConfigValidatorError::AgentRepositoryError(
-                    AgentRepositoryError::NotFound("not-found".to_string()),
-                ))
+                Err(DynamicConfigValidatorError("not-found".to_string()))
             }
         }
     }
