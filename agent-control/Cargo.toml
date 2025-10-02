@@ -57,7 +57,7 @@ cfg-if = "1.0.3"
 # HOST_ID and HOST_NAME attributes are experimental fields and after 0.26.0 are not included by default.
 # Check <https://github.com/open-telemetry/opentelemetry-rust/pull/2098> for details.
 opentelemetry-semantic-conventions = { version = "0.31.0", features = [
-  "semconv_experimental",
+    "semconv_experimental",
 ] }
 http-serde = "2.1.1"
 config = { version = "0.15.18", features = ["yaml"] }
@@ -72,7 +72,7 @@ tracing-opentelemetry = "0.32.0"
 opentelemetry-otlp = { version = "0.31.0", features = ["reqwest-rustls"] }
 opentelemetry-http = { version = "0.31.0" }
 opentelemetry-appender-tracing = { version = "0.31.0", features = [
-  "experimental_use_tracing_span_context",
+    "experimental_use_tracing_span_context",
 ] }
 async-trait = "0.1.89"
 
