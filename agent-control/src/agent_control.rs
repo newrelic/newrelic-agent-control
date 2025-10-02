@@ -22,6 +22,7 @@ use crate::event::{
 use crate::health::health_checker::{HealthChecker, spawn_health_checker};
 use crate::health::with_start_time::HealthWithStartTime;
 use crate::opamp::remote_config::report::report_state;
+use crate::opamp::remote_config::validators::RemoteConfigValidator;
 use crate::opamp::remote_config::{OpampRemoteConfig, OpampRemoteConfigError, hash::ConfigState};
 use crate::sub_agent::{
     NotStartedSubAgent, SubAgentBuilder, collection::StartedSubAgents, identity::AgentIdentity,
@@ -48,11 +49,12 @@ use version_updater::updater::VersionUpdater;
 type BuilderStartedSubAgent<S> =
     <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent;
 
-pub struct AgentControl<S, O, SL, DV, RC, VU, HC, HCB>
+pub struct AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
 where
     O: StartedClient,
     SL: AgentControlDynamicConfigRepository,
     S: SubAgentBuilder,
+    RV: RemoteConfigValidator,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
@@ -68,6 +70,7 @@ where
     agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
     agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
     agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
+    remote_config_validator: RV,
     dynamic_config_validator: DV,
     resource_cleaner: RC,
     version_updater: VU,
@@ -75,11 +78,12 @@ where
     health_checker_builder: HCB,
 }
 
-impl<S, O, SL, DV, RC, VU, HC, HCB> AgentControl<S, O, SL, DV, RC, VU, HC, HCB>
+impl<S, O, SL, RV, DV, RC, VU, HC, HCB> AgentControl<S, O, SL, RV, DV, RC, VU, HC, HCB>
 where
     O: StartedClient,
     S: SubAgentBuilder,
     SL: AgentControlDynamicConfigRepository,
+    RV: RemoteConfigValidator,
     DV: DynamicConfigValidator,
     RC: ResourceCleaner,
     VU: VersionUpdater,
@@ -97,6 +101,7 @@ where
         agent_control_opamp_consumer: Option<EventConsumer<OpAMPEvent>>,
         agent_control_internal_publisher: EventPublisher<AgentControlInternalEvent>,
         agent_control_internal_consumer: EventConsumer<AgentControlInternalEvent>,
+        remote_config_validator: RV,
         dynamic_config_validator: DV,
         resource_cleaner: RC,
         version_updater: VU,
@@ -113,6 +118,7 @@ where
             agent_control_opamp_consumer,
             agent_control_internal_consumer,
             agent_control_internal_publisher,
+            remote_config_validator,
             dynamic_config_validator,
             resource_cleaner,
             health_checker_builder,
@@ -306,12 +312,12 @@ where
                                     remote_config_count += 1;
                                     trace!(monotonic_counter.remote_configs_received = remote_config_count);
 
-                                    match self.handle_remote_config(remote_config, &mut sub_agents,&current_dynamic_config){
-                                        Ok(new_dynamic_config)=>{
+                                    match self.handle_remote_config(remote_config, &mut sub_agents, &current_dynamic_config) {
+                                        Ok(new_dynamic_config) => {
                                             // A new config has been applied from remote, so we update the current to this.
-                                            current_dynamic_config=new_dynamic_config
+                                            current_dynamic_config = new_dynamic_config
                                         }
-                                        Err(err)=> {
+                                        Err(err) => {
                                             error!(error_msg = %err,"Error processing remote config")
                                         }
                                     };
@@ -431,6 +437,13 @@ where
             .into());
         }
 
+        self.remote_config_validator
+            .validate(
+                &AgentIdentity::new_agent_control_identity(),
+                opamp_remote_config,
+            )
+            .map_err(|err| AgentError::RemoteConfigValidator(err.to_string()))?;
+
         let remote_config_value = opamp_remote_config.get_default()?;
 
         let new_dynamic_config = if remote_config_value.is_empty() {
@@ -447,7 +460,8 @@ where
             remote_config_value
         );
         self.dynamic_config_validator
-            .validate(&new_dynamic_config)?;
+            .validate(&new_dynamic_config)
+            .map_err(|err| AgentError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
         self.version_updater.update(&new_dynamic_config)?;
@@ -583,6 +597,7 @@ mod tests {
     use crate::health::with_start_time::HealthWithStartTime;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
+    use crate::opamp::remote_config::validators::tests::TestRemoteConfigValidator;
     use crate::opamp::remote_config::{
         ConfigurationMap, DEFAULT_AGENT_CONFIG_IDENTIFIER, OpampRemoteConfig,
     };
@@ -598,6 +613,7 @@ mod tests {
     use mockall::{Sequence, predicate};
     use opamp_client::opamp::proto::RemoteConfigStatus;
     use opamp_client::opamp::proto::RemoteConfigStatuses::{Applied, Applying, Failed};
+    use rstest::rstest;
     use std::collections::{HashMap, HashSet};
     use std::sync::Arc;
     use std::thread::{sleep, spawn};
@@ -608,6 +624,7 @@ mod tests {
         MockSubAgentBuilder,
         MockStartedOpAMPClient,
         InMemoryAgentControlDynamicConfigRepository,
+        TestRemoteConfigValidator,
         TestDynamicConfigValidator,
         MockResourceCleaner,
         MockVersionUpdater,
@@ -790,6 +807,8 @@ agents:
             let sa_dynamic_config_store =
                 Arc::new(InMemoryAgentControlDynamicConfigRepository::default());
             let started_client = MockStartedOpAMPClient::new();
+            // remote config is valid by default, set it up for other expectations
+            let remote_config_validator = TestRemoteConfigValidator { valid: true };
             let dynamic_config_validator = TestDynamicConfigValidator { valid: true };
             let sub_agent_builder = MockSubAgentBuilder::new();
             let (application_event_publisher, application_event_consumer) = pub_sub();
@@ -819,6 +838,7 @@ agents:
                     Some(opamp_consumer),
                     agent_control_internal_publisher,
                     agent_control_internal_consumer,
+                    remote_config_validator,
                     dynamic_config_validator,
                     resource_cleaner,
                     version_updater,
@@ -845,7 +865,12 @@ agents:
             }
         }
 
-        /// Sets if configuration should be valid or not
+        /// Sets if opamp configuration should be valid or not
+        fn set_remote_config_valid(&mut self, valid: bool) {
+            self.remote_config_validator = TestRemoteConfigValidator { valid }
+        }
+
+        /// Sets if dynamic configuration should be valid or not
         fn set_dynamic_config_valid(&mut self, valid: bool) {
             self.dynamic_config_validator = TestDynamicConfigValidator { valid }
         }
@@ -1398,12 +1423,16 @@ agents:
         });
     }
 
-    #[test]
-    /// Checks that an invalid config (according to the [super::DynamicConfigValidator]) prevents an update to take place.
-    fn test_handle_remote_config_invalid_config_prevents_update() {
+    #[rstest]
+    #[case::invalid_remote_config(|ac: &mut TestAgentControl| { ac.set_remote_config_valid(false)})]
+    #[case::invalid_dynamic_config(|ac: &mut TestAgentControl| { ac.set_dynamic_config_valid(false)})]
+    /// Checks that an invalid OpAMP config prevents version update to take place.
+    fn test_handle_remote_config_invalid_config_prevents_update(
+        #[case] setup: impl Fn(&mut TestAgentControl),
+    ) {
         let (t, mut agent_control) = TestAgentControl::setup();
         agent_control.set_noop_resource_cleaner();
-        agent_control.set_dynamic_config_valid(false); // config is invalid
+        setup(&mut agent_control);
         agent_control.version_updater.expect_update().never(); // version updater should not be called
 
         let (current_dynamic_config, mut running_sub_agents) =
