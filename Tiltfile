@@ -122,7 +122,7 @@ ac_flags = [
 
 ac_chart_deps = ['build-binary', 'local-child-chart-upload']
 
-latest_flux = os.getenv('LATEST_FLUX', 'false').lower() == 'true'
+latest_flux = os.getenv('USE_LATEST_FLUX', 'false').lower() == 'true'
 
 if latest_flux:
     ## we are saving the latest flux version chart in the local repository and updating the dependencies to point to it in
