@@ -16,10 +16,7 @@ use crate::{
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
-        render::{
-            persister::config_persister_file::ConfigurationPersisterFile,
-            renderer::{Renderer, TemplateRenderer, tests::testing_agent_attributes},
-        },
+        render::{Renderer, TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
     sub_agent::effective_agents_assembler::build_agent_type,
@@ -579,7 +576,7 @@ fn iterate_test_cases(environment: &Environment) {
         let agent_id = AgentID::try_from("random-agent-id").unwrap();
 
         // Create the renderer with specifics for the environment
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
+        let renderer = match environment {
             Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
                 HashMap::from([
                     (

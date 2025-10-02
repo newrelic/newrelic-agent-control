@@ -4,7 +4,7 @@ use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::render::renderer::Renderer;
+use crate::agent_type::render::Renderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
@@ -241,7 +241,7 @@ pub(crate) mod tests {
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::render::renderer::tests::MockRenderer;
+    use crate::agent_type::render::tests::MockRenderer;
     use crate::agent_type::runtime_config::k8s::K8sObject;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;

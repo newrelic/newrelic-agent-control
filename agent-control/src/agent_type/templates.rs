@@ -90,7 +90,7 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
         // Get variable value
         let normalized_var = normalized_var(captured_var, variables)?;
         let value = normalized_var
-            .get_template_value()
+            .get_final_value()
             .ok_or(AgentTypeError::MissingTemplateKey(
                 templatable_placeholder.to_string(),
             ))?
@@ -167,7 +167,7 @@ fn template_yaml_value_string(
     let var_name = template_trim(s.as_str());
     let var_spec = normalized_var(var_name, variables)?;
     let var_value = var_spec
-        .get_template_value()
+        .get_final_value()
         .ok_or(AgentTypeError::MissingValue(var_name.to_string()))?;
 
     match var_spec.kind() {

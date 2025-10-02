@@ -1,19 +1,19 @@
 //! This module defines the supported types for Agent Type variables.
 
-use std::{collections::HashMap, path::PathBuf};
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
     error::AgentTypeError,
-    trivial_value::{FilePathWithContent, TrivialValue},
+    trivial_value::TrivialValue,
     variable::{
         constraints::VariableConstraints,
         fields::{StringFields, StringFieldsDefinition, YamlFieldsDefinition},
     },
 };
 
-use super::fields::{Fields, FieldsDefinition, FieldsWithPath, FieldsWithPathDefinition};
+use super::fields::{Fields, FieldsDefinition};
 
 /// Defines the supported values for the `type` field in AgentTypes, each variant also defines the
 /// rest of the fields that are supported for variables of that type.
@@ -26,12 +26,8 @@ pub enum VariableTypeDefinition {
     Bool(FieldsDefinition<bool>),
     #[serde(rename = "number")]
     Number(FieldsDefinition<serde_yaml::Number>),
-    #[serde(rename = "file")]
-    File(FieldsWithPathDefinition<FilePathWithContent>),
     #[serde(rename = "map[string]string")]
     MapStringString(FieldsDefinition<HashMap<String, String>>),
-    #[serde(rename = "map[string]file")]
-    MapStringFile(FieldsWithPathDefinition<HashMap<String, FilePathWithContent>>),
     #[serde(rename = "map[string]yaml")]
     MapStringYaml(FieldsDefinition<HashMap<String, serde_yaml::Value>>),
     #[serde(rename = "yaml")]
@@ -44,9 +40,7 @@ pub enum VariableType {
     String(StringFields),
     Bool(Fields<bool>),
     Number(Fields<serde_yaml::Number>),
-    File(FieldsWithPath<FilePathWithContent>),
     MapStringString(Fields<HashMap<String, String>>),
-    MapStringFile(FieldsWithPath<HashMap<String, FilePathWithContent>>),
     MapStringYaml(Fields<HashMap<String, serde_yaml::Value>>),
     Yaml(Fields<serde_yaml::Value>),
 }
@@ -58,12 +52,8 @@ impl VariableTypeDefinition {
             VariableTypeDefinition::String(v) => VariableType::String(v.with_config(constraints)),
             VariableTypeDefinition::Bool(v) => VariableType::Bool(v.with_config(constraints)),
             VariableTypeDefinition::Number(v) => VariableType::Number(v.with_config(constraints)),
-            VariableTypeDefinition::File(v) => VariableType::File(v.with_config(constraints)),
             VariableTypeDefinition::MapStringString(v) => {
                 VariableType::MapStringString(v.with_config(constraints))
-            }
-            VariableTypeDefinition::MapStringFile(v) => {
-                VariableType::MapStringFile(v.with_config(constraints))
             }
             VariableTypeDefinition::MapStringYaml(v) => {
                 VariableType::MapStringYaml(v.with_config(constraints))
@@ -81,9 +71,7 @@ impl VariableType {
             VariableType::String(f) => f.inner.required,
             VariableType::Bool(f) => f.required,
             VariableType::Number(f) => f.required,
-            VariableType::File(f) => f.inner.required,
             VariableType::MapStringString(f) => f.required,
-            VariableType::MapStringFile(f) => f.inner.required,
             VariableType::MapStringYaml(f) => f.required,
             VariableType::Yaml(f) => f.required,
         }
@@ -97,20 +85,7 @@ impl VariableType {
             VariableType::String(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Bool(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Number(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::File(f) => {
-                let mut file: FilePathWithContent = serde_yaml::from_value(value)?;
-                file.with_path(f.file_path.clone());
-                f.inner.set_final_value(file)
-            }
             VariableType::MapStringString(f) => f.set_final_value(serde_yaml::from_value(value)?),
-            VariableType::MapStringFile(f) => {
-                let mut files: HashMap<String, FilePathWithContent> =
-                    serde_yaml::from_value(value)?;
-                files
-                    .values_mut()
-                    .for_each(|fp| fp.with_path(f.file_path.clone()));
-                f.inner.set_final_value(files)
-            }
             VariableType::MapStringYaml(f) => f.set_final_value(serde_yaml::from_value(value)?),
             VariableType::Yaml(f) => f.set_final_value(value),
         }?;
@@ -133,33 +108,12 @@ impl VariableType {
                 .or(f.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Number),
-            VariableType::File(f) => f
-                .inner
-                .final_value
-                .as_ref()
-                .or({
-                    let mut file = f.inner.default.clone();
-                    if let Some(fp) = file.as_mut() {
-                        fp.with_path(f.file_path.clone())
-                    }
-                    file
-                }
-                .as_ref())
-                .cloned()
-                .map(TrivialValue::File),
             VariableType::MapStringString(f) => f
                 .final_value
                 .as_ref()
                 .or(f.default.as_ref())
                 .cloned()
                 .map(TrivialValue::MapStringString),
-            VariableType::MapStringFile(f) => f
-                .inner
-                .final_value
-                .as_ref()
-                .or(f.inner.default.as_ref())
-                .cloned()
-                .map(TrivialValue::MapStringFile),
             VariableType::MapStringYaml(f) => f
                 .final_value
                 .as_ref()
@@ -172,22 +126,6 @@ impl VariableType {
                 .or(f.default.as_ref())
                 .cloned()
                 .map(TrivialValue::Yaml),
-        }
-    }
-
-    pub(crate) fn get_file_path(&self) -> Option<&PathBuf> {
-        match self {
-            VariableType::File(f) => Some(f.get_file_path()),
-            VariableType::MapStringFile(f) => Some(f.get_file_path()),
-            _ => None,
-        }
-    }
-
-    pub(crate) fn set_file_path(&mut self, file_path: PathBuf) {
-        match self {
-            VariableType::File(f) => f.set_file_path(file_path),
-            VariableType::MapStringFile(f) => f.set_file_path(file_path),
-            _ => {}
         }
     }
 }
@@ -211,18 +149,6 @@ mod tests {
     impl From<Fields<serde_yaml::Number>> for VariableType {
         fn from(fields: Fields<serde_yaml::Number>) -> Self {
             VariableType::Number(fields)
-        }
-    }
-
-    impl From<FieldsWithPath<FilePathWithContent>> for VariableType {
-        fn from(fields: FieldsWithPath<FilePathWithContent>) -> Self {
-            VariableType::File(fields)
-        }
-    }
-
-    impl From<FieldsWithPath<HashMap<String, FilePathWithContent>>> for VariableType {
-        fn from(fields: FieldsWithPath<HashMap<String, FilePathWithContent>>) -> Self {
-            VariableType::MapStringFile(fields)
         }
     }
 

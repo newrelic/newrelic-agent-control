@@ -1,5 +1,5 @@
 //! This module defines the fields the Agent Type supports depending on the corresponding type.
-use std::{fmt::Debug, path::PathBuf};
+use std::fmt::Debug;
 
 use serde::{Deserialize, Deserializer, Serialize};
 use tracing::debug;
@@ -40,17 +40,6 @@ pub struct StringFieldsDefinition {
     pub(crate) variants: VariantsConfig<String>,
 }
 
-/// Type support a `file_path` field for particular variable types.
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct FieldsWithPathDefinition<T>
-where
-    T: PartialEq,
-{
-    #[serde(flatten)]
-    pub(crate) inner: FieldsDefinition<T>,
-    pub(crate) file_path: PathBuf,
-}
-
 /// A [FieldsDefinition] including information known at runtime.
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Fields<T>
@@ -68,17 +57,6 @@ pub struct StringFields {
     #[serde(flatten)]
     pub(crate) inner: Fields<String>,
     pub(crate) variants: Variants<String>,
-}
-
-/// A [FieldsWithPathDefinition] including information known at runtime.
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct FieldsWithPath<T>
-where
-    T: PartialEq,
-{
-    #[serde(flatten)]
-    pub(crate) inner: Fields<T>,
-    pub(crate) file_path: PathBuf,
 }
 
 impl<T> FieldsDefinition<T>
@@ -133,15 +111,6 @@ impl StringFieldsDefinition {
     }
 }
 
-impl<T: PartialEq> FieldsWithPathDefinition<T> {
-    pub fn with_config(self, constraints: &VariableConstraints) -> FieldsWithPath<T> {
-        FieldsWithPath {
-            inner: self.inner.with_config(constraints),
-            file_path: self.file_path,
-        }
-    }
-}
-
 impl<T> Fields<T>
 where
     T: PartialEq + Debug,
@@ -159,18 +128,6 @@ impl StringFields {
         }
         self.inner.set_final_value(value)?;
         Ok(())
-    }
-}
-
-impl<T> FieldsWithPath<T>
-where
-    T: PartialEq,
-{
-    pub(crate) fn get_file_path(&self) -> &PathBuf {
-        &self.file_path
-    }
-    pub(crate) fn set_file_path(&mut self, path: PathBuf) {
-        self.file_path = path;
     }
 }
 
@@ -249,8 +206,6 @@ impl<'de> Deserialize<'de> for YamlFieldsDefinition {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use assert_matches::assert_matches;
     use rstest::rstest;
     use serde_yaml::Mapping;
@@ -266,7 +221,7 @@ mod tests {
         },
     };
 
-    use super::{Fields, FieldsWithPath};
+    use super::Fields;
 
     impl<T> Fields<T>
     where
@@ -277,27 +232,6 @@ mod tests {
                 required,
                 default,
                 final_value,
-            }
-        }
-    }
-
-    impl<T> FieldsWithPath<T>
-    where
-        T: PartialEq,
-    {
-        pub(crate) fn new(
-            required: bool,
-            default: Option<T>,
-            final_value: Option<T>,
-            file_path: PathBuf,
-        ) -> Self {
-            Self {
-                inner: Fields {
-                    required,
-                    default,
-                    final_value,
-                },
-                file_path,
             }
         }
     }

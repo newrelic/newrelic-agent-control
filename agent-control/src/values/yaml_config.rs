@@ -78,7 +78,6 @@ mod tests {
         agent_control::run::Environment,
         agent_type::{
             definition::AgentType,
-            trivial_value::FilePathWithContent,
             variable::{Variable, tree::Tree},
         },
     };
@@ -188,11 +187,6 @@ namespace: newrelic
 version: 0.1.0
 variables:
   common:
-    config:
-      description: "Path to the agent"
-      type: file
-      required: true
-      file_path: "newrelic-infra.yml"
     deployment:
       on_host:
         path:
@@ -203,11 +197,6 @@ variables:
           description: "Args passed to the agent"
           type: string
           required: true
-    integrations:
-      description: "Newrelic integrations configuration yamls"
-      type: map[string]file
-      required: true
-      file_path: integrations.d
 deployment:
   on_host:
     executables:
@@ -222,63 +211,32 @@ deployment:
         let agent_type =
             AgentType::build_for_testing(EXAMPLE_AGENT_YAML_REPLACE, &Environment::OnHost);
 
-        let expected = HashMap::from([
-            (
-                "deployment".to_string(),
-                Tree::Mapping(HashMap::from([(
-                    "on_host".to_string(),
-                    Tree::Mapping(HashMap::from([
-                        (
-                            "path".to_string(),
-                            Tree::End(Variable::new_string(
-                                "Path to the agent".to_string(),
-                                true,
-                                None,
-                                Some("/etc".to_string()),
-                            )),
-                        ),
-                        (
-                            "args".to_string(),
-                            Tree::End(Variable::new_string(
-                                "Args passed to the agent".to_string(),
-                                true,
-                                None,
-                                Some("--verbose true".to_string()),
-                            )),
-                        ),
-                    ])),
-                )])),
-            ),
-            (
-                "config".to_string(),
-                Tree::End(Variable::new_with_file_path(
-                    "Path to the agent".to_string(),
-                    true,
-                    None,
-                    Some(FilePathWithContent::new(
-                        "newrelic-infra.yml".into(),
-                        "test\n".to_string(),
-                    )),
-                    "newrelic-infra.yml".into(),
-                )),
-            ),
-            (
-                "integrations".to_string(),
-                Tree::End(Variable::new_with_file_path(
-                    "Newrelic integrations configuration yamls".to_string(),
-                    true,
-                    None,
-                    Some(HashMap::from([(
-                        "kafka".into(),
-                        FilePathWithContent::new(
-                            "integrations.d".into(),
-                            "strategy: bootstrap\n".to_string(),
-                        ),
-                    )])),
-                    "integrations.d".into(),
-                )),
-            ),
-        ]);
+        let expected = HashMap::from([(
+            "deployment".to_string(),
+            Tree::Mapping(HashMap::from([(
+                "on_host".to_string(),
+                Tree::Mapping(HashMap::from([
+                    (
+                        "path".to_string(),
+                        Tree::End(Variable::new_string(
+                            "Path to the agent".to_string(),
+                            true,
+                            None,
+                            Some("/etc".to_string()),
+                        )),
+                    ),
+                    (
+                        "args".to_string(),
+                        Tree::End(Variable::new_string(
+                            "Args passed to the agent".to_string(),
+                            true,
+                            None,
+                            Some("--verbose true".to_string()),
+                        )),
+                    ),
+                ])),
+            )])),
+        )]);
 
         let filled_variables = agent_type
             .variables

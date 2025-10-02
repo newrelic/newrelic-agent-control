@@ -5,7 +5,6 @@ use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_control::version_updater::updater::UpdaterError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::render::persister::config_persister::PersistError;
 use crate::event::channel::EventPublisherError;
 use crate::opamp::client_builder::OpAMPClientBuilderError;
 use crate::opamp::instance_id;
@@ -53,9 +52,6 @@ pub enum AgentError {
 
     #[error("{0}")]
     OpAMPStartedClient(#[from] StartedClientError),
-
-    #[error("error persisting agent config: {0}")]
-    Persistence(#[from] PersistError),
 
     #[error("error getting agent instance id: {0}")]
     GetInstanceID(#[from] instance_id::getter::GetterError),

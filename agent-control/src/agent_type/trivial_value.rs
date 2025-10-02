@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap as Map,
     fmt::{Display, Formatter},
-    path::PathBuf,
 };
 
 use serde::{Deserialize, Serialize};
@@ -14,15 +13,11 @@ pub enum TrivialValue {
     Bool(bool),
     Number(serde_yaml::Number),
     #[serde(skip)]
-    File(FilePathWithContent),
-    #[serde(skip)]
     Yaml(serde_yaml::Value),
     #[serde(skip)]
     MapStringString(Map<String, String>),
     #[serde(skip)]
     MapStringYaml(Map<String, serde_yaml::Value>),
-    #[serde(skip)]
-    MapStringFile(Map<String, FilePathWithContent>),
 }
 
 impl TrivialValue {
@@ -33,27 +28,12 @@ impl TrivialValue {
             _ => None,
         }
     }
-
-    pub fn as_file(&self) -> Option<&FilePathWithContent> {
-        match self {
-            Self::File(file) => Some(file),
-            _ => None,
-        }
-    }
-
-    pub fn as_map_string_file(&self) -> Option<&Map<String, FilePathWithContent>> {
-        match self {
-            Self::MapStringFile(map) => Some(map),
-            _ => None,
-        }
-    }
 }
 
 impl Display for TrivialValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             TrivialValue::String(s) => write!(f, "{s}"),
-            TrivialValue::File(file) => write!(f, "{}", file.path.to_string_lossy()),
             TrivialValue::Yaml(yaml) => write!(
                 f,
                 "{}",
@@ -75,61 +55,7 @@ impl Display for TrivialValue {
                 "{}",
                 serde_yaml::to_string(n)
                     .expect("A value of type HashMap<String, serde_yaml::Value> should always be serializable")
-            ),
-            TrivialValue::MapStringFile(n) => {
-                let flatten: Vec<String> = n
-                    .iter()
-                    .map(|(key, value)| format!("{key}={}", value.path.to_string_lossy()))
-                    .collect();
-                write!(f, "{}", flatten.join(" "))
-            }
+            )
         }
-    }
-}
-
-/// Represents a file path and its content.
-#[derive(Debug, PartialEq, Default, Clone, Deserialize, Serialize)]
-#[serde(from = "String")]
-#[serde(into = "String")]
-pub struct FilePathWithContent {
-    #[serde(skip)]
-    pub path: PathBuf,
-    #[serde(flatten)]
-    pub content: String,
-}
-
-impl FilePathWithContent {
-    pub fn new(path: PathBuf, content: String) -> Self {
-        FilePathWithContent { path, content }
-    }
-    pub fn with_path(&mut self, path: PathBuf) {
-        self.path = path;
-    }
-}
-
-// The minimum information needed to create a FilePathWithContent is the contents
-impl From<String> for FilePathWithContent {
-    fn from(content: String) -> Self {
-        FilePathWithContent {
-            content,
-            ..Default::default()
-        }
-    }
-}
-
-impl From<FilePathWithContent> for String {
-    fn from(file: FilePathWithContent) -> Self {
-        file.content
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::FilePathWithContent;
-
-    #[test]
-    fn test_file_path_with_contents() {
-        let file = FilePathWithContent::new("path".into(), "file_content".to_string());
-        assert_eq!(serde_yaml::to_string(&file).unwrap(), "file_content\n");
     }
 }
