@@ -4,15 +4,16 @@ pub const NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING: &str = r#"
 configs:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.0
-    files_map:
+    filesystem_mappings:
       config_agent: /etc/newrelic-infra.yml
-    dirs_map:
       config_integrations:
-        path: /etc/newrelic-infra/integrations.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        dir_path: /etc/newrelic-infra/integrations.d
+        extensions:
+          - "yml"
+          - "yaml"
       config_logging:
-        path: /etc/newrelic-infra/logging.d
-        filename_patterns:
-          - ".*\\.ya?ml$"
+        dir_path: /etc/newrelic-infra/logging.d
+        extensions:
+          - "yml"
+          - "yaml"
 "#;

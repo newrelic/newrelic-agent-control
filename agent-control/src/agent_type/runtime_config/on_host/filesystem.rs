@@ -242,8 +242,8 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
                         "Could not parse templated directory items as YAML: {e}"
                     ))
                 })?;
-            // Convert the serde_yaml::Value (i.e. the file contents) to String
 
+            // Convert the serde_yaml::Value (i.e. the file contents) to String
             map_string_value
                 .into_iter()
                 .map(|(k, v)| Ok((k, output_string(v)?)))

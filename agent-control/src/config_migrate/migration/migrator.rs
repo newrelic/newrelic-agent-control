@@ -1,8 +1,6 @@
 use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
-use crate::agent_type::agent_type_registry::AgentRegistry;
-use crate::agent_type::embedded_registry::EmbeddedRegistry;
 #[cfg_attr(test, mockall_double::double)]
 use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use crate::config_migrate::migration::config::MigrationAgentConfig;
@@ -38,26 +36,24 @@ pub enum MigratorError {
 }
 
 pub struct ConfigMigrator<
-    R: AgentRegistry,
     SL: AgentControlDynamicConfigRepository + 'static,
     C: DirectoryManager,
     F: FileReader,
 > {
-    config_converter: ConfigConverter<R, F>,
+    config_converter: ConfigConverter<F>,
     agent_config_getter: AgentConfigGetter<SL>,
     values_persister: ValuesPersisterFile<C>,
 }
 
 impl
     ConfigMigrator<
-        EmbeddedRegistry,
         AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
         DirectoryManagerFs,
         LocalFile,
     >
 {
     pub fn new(
-        config_converter: ConfigConverter<EmbeddedRegistry, LocalFile>,
+        config_converter: ConfigConverter<LocalFile>,
         agent_config_getter: AgentConfigGetter<
             AgentControlConfigStore<ConfigRepositoryFile<LocalFile, DirectoryManagerFs>>,
         >,
@@ -109,7 +105,6 @@ mod tests {
     use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
-    use crate::config_migrate::migration::agent_value_spec::AgentValueSpec::AgentValueSpecEnd;
     use crate::config_migrate::migration::config::MigrationAgentConfig;
     use crate::config_migrate::migration::converter::MockConfigConverter;
     use crate::config_migrate::migration::migrator::ConfigMigrator;
@@ -150,8 +145,10 @@ mod tests {
                 })
             });
 
-        let agent_variables =
-            HashMap::from([("cfg".to_string(), AgentValueSpecEnd("value".to_string()))]);
+        let agent_variables = HashMap::from([(
+            "cfg".to_string(),
+            serde_yaml::Value::String("value".to_string()),
+        )]);
 
         let mut config_converter = MockConfigConverter::default();
         config_converter
@@ -176,8 +173,7 @@ mod tests {
         let agent_config_mapping = MigrationAgentConfig {
             agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
                 .unwrap(),
-            files_map: Default::default(),
-            dirs_map: Default::default(),
+            filesystem_mappings: Default::default(),
             next: None,
         };
         let migration = migrator.migrate(&agent_config_mapping);
