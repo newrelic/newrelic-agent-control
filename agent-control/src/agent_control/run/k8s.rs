@@ -190,8 +190,6 @@ impl AgentControlRunner {
             namespace: self.k8s_config.namespace.clone(),
             namespace_agents: self.k8s_config.namespace_agents.clone(),
             cr_type_meta: self.k8s_config.cr_type_meta,
-            ac_release_name: self.k8s_config.ac_release_name.clone(),
-            cd_release_name: self.k8s_config.cd_release_name.clone(),
         };
 
         info!("Initiating cleanup of outdated resources from previous Agent Control executions");
