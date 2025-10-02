@@ -19,12 +19,14 @@ impl<V: DynamicConfigValidator> DynamicConfigValidator for K8sReleaseNamesConfig
             .agents
             .keys()
             .try_for_each(|agent_id| match agent_id.as_str() {
-                agent_id if agent_id == self.ac_release_name => {
-                    Err(validation_error(agent_id, "agent-control-deployment"))
-                }
-                agent_id if agent_id == self.cd_release_name => {
-                    Err(validation_error(agent_id, "agent-control-cd"))
-                }
+                agent_id if agent_id == self.ac_release_name => Err(validation_error(
+                    agent_id,
+                    "Agent Control itself (agent-control-deployment)",
+                )),
+                agent_id if agent_id == self.cd_release_name => Err(validation_error(
+                    agent_id,
+                    "Agent Control CD (agent-control-cd)",
+                )),
                 _ => Ok(()),
             })
     }
@@ -40,9 +42,9 @@ impl<V: DynamicConfigValidator> K8sReleaseNamesConfigValidator<V> {
     }
 }
 
-fn validation_error(agent_id: &str, chart_name: &str) -> DynamicConfigValidatorError {
+fn validation_error(agent_id: &str, component: &str) -> DynamicConfigValidatorError {
     DynamicConfigValidatorError(format!(
-        "agent_id '{agent_id}' collides with '{chart_name}' release name"
+        "agent_id '{agent_id}' collides with the release name to deploy {component}"
     ))
 }
 
@@ -118,7 +120,7 @@ mod tests {
 
         let result = validator.validate(&dynamic_config);
         assert_matches!(result, Err(DynamicConfigValidatorError(s)) => {
-            assert!(s.contains("agent-control-deployment"));
+            assert!(s.contains("nrdot") && s.contains("agent-control-deployment"));
         });
     }
 
@@ -140,7 +142,7 @@ mod tests {
 
         let result = validator.validate(&dynamic_config);
         assert_matches!(result, Err(DynamicConfigValidatorError(s)) => {
-            assert!(s.contains("agent-control-cd"));
+            assert!(s.contains("infra-agent") && s.contains("agent-control-cd"));
         });
     }
 }
