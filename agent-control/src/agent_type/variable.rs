@@ -130,6 +130,15 @@ mod tests {
         }
     }
 
+    impl From<Fields<HashMap<String, serde_yaml::Value>>> for Variable {
+        fn from(kind_value: Fields<HashMap<String, serde_yaml::Value>>) -> Self {
+            Self {
+                description: String::new(),
+                variable_type: VariableType::MapStringYaml(kind_value),
+            }
+        }
+    }
+
     impl Variable {
         pub(crate) fn new<T>(
             description: String,
