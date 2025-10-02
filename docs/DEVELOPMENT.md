@@ -37,7 +37,7 @@ To compile and run locally:
         api-key: YOUR_INGEST_KEY
     agents:
       nr-otel-collector:
-        agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+        agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
     ```
 
 7. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
@@ -194,7 +194,7 @@ There is a service that ultimately exposes a `/status` endpoint for Agent Contro
   "sub_agents": {
     "nr-otel-collector": {
       "agent_id": "nr-otel-collector",
-      "agent_type": "newrelic/io.opentelemetry.collector:0.1.0",
+      "agent_type": "newrelic/com.newrelic.opentelemetry.collector:0.1.0",
       "healthy": true
     },
     "nr-infra-agent": {

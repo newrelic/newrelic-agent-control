@@ -266,7 +266,7 @@ agents:
   infra-agent-b:
     agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   not-infra-agent:
-    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
 "#;
     let remote_values_agent = RemoteConfig {
         config: from_str::<YAMLConfig>(agents_cfg).unwrap(),

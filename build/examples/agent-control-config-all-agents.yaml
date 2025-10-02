@@ -11,8 +11,6 @@
 #     provider: PLACEHOLDER
 #     private_key_path: PLACEHOLDER
 
-
-
 server:
   enabled: true
 
@@ -20,4 +18,4 @@ agents:
   nr-infra:
     agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
   nrdot:
-    agent_type: "newrelic/io.opentelemetry.collector:0.1.0"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"

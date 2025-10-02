@@ -679,13 +679,17 @@ k8s:
                     AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1").unwrap(),
             },
         )));
-        assert!(diff.contains(&(
-            &AgentID::try_from("nrdot").unwrap(),
-            &SubAgentConfig {
-                agent_type:
-                    AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap(),
-            },
-        )));
+        assert!(
+            diff.contains(&(
+                &AgentID::try_from("nrdot").unwrap(),
+                &SubAgentConfig {
+                    agent_type: AgentTypeID::try_from(
+                        "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
+                    )
+                    .unwrap(),
+                },
+            ))
+        );
     }
 
     #[test]
@@ -723,7 +727,7 @@ k8s:
     pub fn nrdot_identity() -> AgentIdentity {
         let id = AgentID::try_from("nrdot").unwrap();
         let agent_type_id =
-            AgentTypeID::try_from("newrelic/io.opentelemetry.collector:0.0.1").unwrap();
+            AgentTypeID::try_from("newrelic/com.newrelic.opentelemetry.collector:0.0.1").unwrap();
         AgentIdentity { id, agent_type_id }
     }
 

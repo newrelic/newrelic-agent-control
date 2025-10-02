@@ -10,7 +10,7 @@ The metadata section contains information about the agent type, such as its name
 
 ```yaml
 namespace: newrelic
-name: io.opentelemetry.collector
+name: com.newrelic.opentelemetry.collector
 version: 0.0.1
 ```
 

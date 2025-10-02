@@ -32,7 +32,7 @@ fn k8s_cli_install_agent_control_installation_and_uninstallation() {
             },
             "agents": {
                 "nrdot":{
-                    "agent_type" : "newrelic/io.opentelemetry.collector:0.1.0",
+                    "agent_type" : "newrelic/com.newrelic.opentelemetry.collector:0.1.0",
                 },
             }
         },

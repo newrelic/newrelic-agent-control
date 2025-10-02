@@ -130,7 +130,7 @@ agents:
   infra-agent-c:
     agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
 "#,
                 expected: AgentControlDynamicConfig {
                     agents: HashMap::from([
@@ -171,7 +171,7 @@ agents:
   infra-agent-c:
     agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
 "#,
                 expected: AgentControlDynamicConfig {
                     agents: HashMap::from([
@@ -249,7 +249,7 @@ agents:
   infra-agent-b:
     agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
   not-infra-agent:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
 "#,
             },
             TestCase {
@@ -268,7 +268,7 @@ agents:
   infra-agent-c:
     agent_type: "newrelic/com.newrelic.infrastructure:1.0.3"
   not-infra-agent:
-    agent_type: "newrelic/io.opentelemetry.collector:0.0.1"
+    agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.0.1"
 "#,
             },
         ];

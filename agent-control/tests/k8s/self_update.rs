@@ -162,7 +162,7 @@ fn k8s_self_update_bump_chart_version_with_new_config() {
     // This agent will not actually be deployed since misses the chart_version config.
     let agents_config = r#"agents:
   nrdot:
-    agent_type: newrelic/io.opentelemetry.collector:0.1.0
+    agent_type: newrelic/com.newrelic.opentelemetry.collector:0.1.0
 "#;
 
     let ac_config = format!(

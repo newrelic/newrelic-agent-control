@@ -1,5 +1,5 @@
 namespace: newrelic
-name: io.opentelemetry.collector
+name: com.newrelic.opentelemetry.collector
 version: 0.1.0
 variables:
   on_host:

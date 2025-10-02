@@ -354,7 +354,7 @@ static AGENT_TYPE_FLUENTBIT: LazyLock<AgentTypeValuesTestCase> =
 
 static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
-        agent_type: "newrelic/io.opentelemetry.collector:0.1.0",
+        agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0",
         values_k8s: AgentTypeValues {
             cases: HashMap::from([
                 ("mandatory fields only", r#"chart_version: "some-version""#),
