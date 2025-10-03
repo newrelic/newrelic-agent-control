@@ -156,19 +156,19 @@ pub(super) mod tests {
     fn test_validate() {
         let content = r#"
         health_port: 18003
-        config_agent: |+
+        config_agent:
           staging: true
           enable_process_metrics: true
           status_server_enabled: true
           status_server_port: 18003
           log:
             level: info
-          license_key: {{NEW_RELIC_LICENSE_KEY}}
+          license_key: '{{NEW_RELIC_LICENSE_KEY}}'
           custom_attributes:
             nr_deployed_by: newrelic-cli
 
         config_integrations:
-          docker-config.yml: |
+          docker-config.yml:
             integrations:
               - name: nri-docker
                 when:
@@ -214,7 +214,7 @@ pub(super) mod tests {
     }
 
     pub static VALID_ONHOST_NRDOT_CONFIG: &str = r#"
-config: |
+config:
 
   extensions:
     health_check:
@@ -380,7 +380,7 @@ config: |
       attributes:
         - key: host.display_name
           action: upsert
-          value: {{ display_name }}
+          value: '{{ display_name }}'
 
     resourcedetection:
       detectors: ["env", "system"]
@@ -403,7 +403,7 @@ config: |
     otlp:
       endpoint: staging-otlp.nr-data.net:4317
       headers:
-        api-key: {{ nr_license_key_canaries }}
+        api-key: '{{ nr_license_key_canaries }}'
 
   service:
 "#;
@@ -518,8 +518,8 @@ config: |
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
-  license_key: {{ NEW_RELIC_LICENSE_KEY }}
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   staging: true
   display_name: host-display-name
   enable_process_metrics: true
@@ -529,7 +529,7 @@ config_agent: |
 
 # Configuration for New Relic Integrations
 config_integrations:
-  flex.yml: |
+  flex.yml:
     integrations:
       - name: nri-flex
         offset: 10s
@@ -564,8 +564,8 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
-  license_key: {{ NEW_RELIC_LICENSE_KEY }}
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   staging: true
   display_name: host-display-name
   enable_process_metrics: true
@@ -605,8 +605,8 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
-  license_key: {{ NEW_RELIC_LICENSE_KEY }}
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   staging: true
   display_name: host-display-name
   enable_process_metrics: true
@@ -616,14 +616,14 @@ config_agent: |
 
 # Configuration for New Relic Integrations
 config_integrations:
-  mysql.yml: |
+  mysql.yml:
     integrations:
       - name: nri-mysql
         offset: 10s
         config:
           name: RandomNumbers
           exec: an extra command
-  mysql.yml: |
+  mysql.yml:
     integrations:
       - name: nri-mysql
         env:
@@ -646,8 +646,8 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
-  license_key: {{ NEW_RELIC_LICENSE_KEY }}
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   staging: true
   display_name: host-display-name
   enable_process_metrics: true
@@ -657,7 +657,7 @@ config_agent: |
 
 # Configuration for New Relic Integrations
 config_integrations:
-  apache.yml: |
+  apache.yml:
     - name: nri-apache
       env:
         INVENTORY: "true"
@@ -679,8 +679,8 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
-  license_key: {{ NEW_RELIC_LICENSE_KEY }}
+config_agent:
+  license_key: '{{ NEW_RELIC_LICENSE_KEY }}'
   staging: true
   display_name: host-display-name
   enable_process_metrics: true
@@ -690,7 +690,7 @@ config_agent: |
 
 # Configuration for New Relic Integrations
 config_integrations:
-  apache.yml: |
+  apache.yml:
     - name: nri-apache
       env:
         INVENTORY: "true"

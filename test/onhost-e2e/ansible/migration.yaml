@@ -33,11 +33,13 @@
         copy:
           dest: /etc/newrelic-infra.yml
           content: |
+            {% raw %}
             enable_process_metrics: true
             status_server_enabled: true
             status_server_port: 18003
-            license_key: {{ nr_license_key }}
-      
+            license_key: '{{ nr_license_key }}'
+            {% endraw %}
+
       - name: Install docker
         include_role:
           name: caos.ansible_roles.docker_install 
@@ -63,11 +65,13 @@
           path: "/etc/newrelic-infra/integrations.d/nri-mysql-config.yml"
           regexp: "name: nri-mysql"
           replace: |-
+            {% raw %}
             name: nri-mysql
                 labels:
-                  test_id: {{ test_id }}
+                  test_id: '{{ test_id }}'
                   test_installed_agent: infra_agent
-      
+            {% endraw %}
+
       - name: Restart Infra Agent
         include_role:
           name: caos.ansible_roles.service_status
