@@ -21,7 +21,7 @@ Example:
 
 ```yaml
 agents:
-  nrdot: "newrelic/io.opentelemetry.collector:0.1.0"
+  nrdot: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
 ```
 
 ### logs
@@ -82,7 +82,6 @@ proxy:
 #### ⚠️ Proxy configuration for Agents
 
 Configuring a proxy in Agent Control does not automatically configure the same proxy settings for the agents it manages. Each agent has its own proxy configuration that must be set separately according to that agent's specific configuration format and requirements.
-
 
 ### server
 
