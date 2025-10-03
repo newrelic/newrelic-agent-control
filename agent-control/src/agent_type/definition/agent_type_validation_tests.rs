@@ -16,7 +16,7 @@ use crate::{
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
-        render::{Renderer, TemplateRenderer, tests::testing_agent_attributes},
+        render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
     sub_agent::effective_agents_assembler::build_agent_type,
@@ -605,7 +605,6 @@ fn iterate_test_cases(environment: &Environment) {
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
             let result = renderer.render(
-                &agent_id,
                 agent_type,
                 variables,
                 attributes,

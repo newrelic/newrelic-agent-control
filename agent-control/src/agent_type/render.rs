@@ -1,4 +1,3 @@
-use crate::agent_control::agent_id::AgentID;
 use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
@@ -13,29 +12,15 @@ use crate::agent_type::{
 use crate::values::yaml_config::YAMLConfig;
 use std::collections::HashMap;
 
-/// Defines how to render an AgentType and obtain the runtime configuration needed to execute a sub agent.
-pub trait Renderer {
-    /// Renders the runtime configuration in an [AgentType] using the provided values and attributes.
-    fn render(
-        &self,
-        agent_id: &AgentID,
-        agent_type: AgentType,
-        values: YAMLConfig,
-        attributes: AgentAttributes,
-        env_vars: HashMap<String, Variable>,
-        secrets: HashMap<String, Variable>,
-    ) -> Result<Runtime, AgentTypeError>;
-}
-
 #[derive(Debug, Default)]
 pub struct TemplateRenderer {
     sa_variables: HashMap<NamespacedVariableName, Variable>,
 }
 
-impl Renderer for TemplateRenderer {
-    fn render(
+impl TemplateRenderer {
+    /// Renders an AgentType and obtain the runtime configuration needed to execute a sub agent.
+    pub fn render(
         &self,
-        _agent_id: &AgentID,
         agent_type: AgentType,
         values: YAMLConfig,
         attributes: AgentAttributes,
@@ -63,9 +48,7 @@ impl Renderer for TemplateRenderer {
 
         Ok(rendered_runtime_config)
     }
-}
 
-impl TemplateRenderer {
     /// Adds variables to the renderer with the agent-control namespace.
     pub fn with_agent_control_variables(
         self,
@@ -126,7 +109,7 @@ pub(crate) mod tests {
 
     use super::*;
     use crate::{
-        agent_control::run::Environment,
+        agent_control::{agent_id::AgentID, run::Environment},
         agent_type::{
             definition::AgentType,
             runtime_config::{
@@ -138,47 +121,6 @@ pub(crate) mod tests {
         },
     };
     use assert_matches::assert_matches;
-    use mockall::{mock, predicate};
-
-    mock! {
-         pub(crate) Renderer {}
-
-         impl Renderer for Renderer {
-             fn render(
-                &self,
-                agent_id: &AgentID,
-                agent_type: AgentType,
-                values: YAMLConfig,
-                attributes: AgentAttributes,
-                env_vars: HashMap<String, Variable>,
-                secrets: HashMap<String, Variable>,
-            ) -> Result<Runtime, AgentTypeError>;
-         }
-    }
-
-    impl MockRenderer {
-        pub fn should_render(
-            &mut self,
-            agent_id: &AgentID,
-            agent_type: &AgentType,
-            values: &YAMLConfig,
-            attributes: &AgentAttributes,
-            runtime: Runtime,
-        ) {
-            self.expect_render()
-                .once()
-                .with(
-                    predicate::eq(agent_id.clone()),
-                    predicate::eq(agent_type.clone()),
-                    predicate::eq(values.clone()),
-                    //predicate::eq(attributes.clone()),
-                    predicate::eq(attributes.clone()),
-                    predicate::always(), // Not caring for env vars
-                    predicate::always(), // Not caring for secrets
-                )
-                .returning(move |_, _, _, _, _, _| Ok(runtime.clone()));
-        }
-    }
 
     fn testing_values(yaml_values: &str) -> YAMLConfig {
         serde_yaml::from_str(yaml_values).unwrap()
@@ -198,7 +140,6 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
             .render(
-                &agent_id,
                 agent_type,
                 values,
                 attributes,
@@ -232,7 +173,6 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default();
         let result = renderer.render(
-            &agent_id,
             agent_type,
             values,
             attributes,
@@ -253,7 +193,6 @@ pub(crate) mod tests {
 
         let renderer = TemplateRenderer::default();
         let result = renderer.render(
-            &agent_id,
             agent_type,
             values,
             attributes,
@@ -276,7 +215,6 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
             .render(
-                &agent_id,
                 agent_type,
                 values,
                 attributes,
@@ -321,7 +259,6 @@ pub(crate) mod tests {
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
             .render(
-                &agent_id,
                 agent_type,
                 values,
                 attributes,
@@ -408,7 +345,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer
             .render(
-                &agent_id,
                 agent_type,
                 values,
                 attributes,
@@ -467,14 +403,8 @@ substituted_2: my-value-2
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            &agent_id,
-            agent_type,
-            values,
-            attributes,
-            env_vars,
-            HashMap::new(),
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let cr1 = k8s.objects.get("cr1").unwrap();
@@ -528,14 +458,8 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
             serde_yaml::from_str(expected_spec_yaml).unwrap();
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            &agent_id,
-            agent_type,
-            values,
-            attributes,
-            HashMap::new(),
-            secrets,
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, HashMap::new(), secrets);
 
         let k8s = runtime_config.unwrap().deployment.k8s.unwrap();
         let values = k8s.objects.get("cr1").unwrap().fields.get("spec").unwrap();
@@ -554,7 +478,6 @@ collision_avoided: ${config.values}-${env:agent_id}-${UNTOUCHED}
 
         let renderer = TemplateRenderer::default();
         let runtime_config = renderer.render(
-            &agent_id,
             agent_type,
             values,
             attributes,
@@ -609,14 +532,8 @@ deployment:
         )]);
 
         let renderer = TemplateRenderer::default();
-        let runtime_config = renderer.render(
-            &agent_id,
-            agent_type,
-            values,
-            attributes,
-            env_vars,
-            HashMap::new(),
-        );
+        let runtime_config =
+            renderer.render(agent_type, values, attributes, env_vars, HashMap::new());
 
         assert_matches!(
             runtime_config.unwrap_err(),
@@ -655,7 +572,6 @@ deployment:
             .with_agent_control_variables(agent_control_variables.into_iter());
         let runtime_config = renderer
             .render(
-                &agent_id,
                 agent_type,
                 values,
                 attributes,

@@ -752,7 +752,7 @@ pub mod tests {
         MockSupervisorBuilder<MockSupervisorStarter>,
         AgentRemoteConfigParser<MockRemoteConfigValidator>,
         InMemoryConfigRepository,
-        LocalEffectiveAgentsAssembler<EmbeddedRegistry, TemplateRenderer>,
+        LocalEffectiveAgentsAssembler<EmbeddedRegistry>,
     >;
 
     mock! {
