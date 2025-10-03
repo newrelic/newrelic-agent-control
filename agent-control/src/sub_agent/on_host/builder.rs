@@ -170,7 +170,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         let executable_supervisors = NotStartedSupervisorOnHost::new(
             effective_agent.get_agent_identity().clone(),
             executables,
-            Context::new(),
+            Context::default(),
             on_host.health,
             on_host.version,
         )

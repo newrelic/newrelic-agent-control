@@ -94,16 +94,16 @@ pub type SecretsProviders = Registry<SecretsProviderType>;
 pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
 
 impl<S: SecretsProvider> Registry<S> {
-    pub fn new() -> Self {
-        Registry(HashMap::new())
-    }
-
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 }
 
 impl Registry<SecretsProviderType> {
+    pub fn new() -> Self {
+        Registry(HashMap::new())
+    }
+
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
