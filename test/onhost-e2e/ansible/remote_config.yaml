@@ -157,5 +157,13 @@
           debug:
             var: ac_logs.stdout_lines
 
+        - name: Inspect the rendered config file from remote
+          shell: cat /var/lib/newrelic-agent-control/auto-generated/nr-infra/config/newrelic-infra.yaml
+          register: rendered_config
+
+        - name: Debug rendered config
+          debug:
+            var: rendered_config.stdout_lines
+
         - name: Cleanup
           include_tasks: ./tasks/clean_all.yaml
