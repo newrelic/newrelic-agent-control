@@ -5,7 +5,7 @@ use super::OpampRemoteConfig;
 use crate::sub_agent::identity::AgentIdentity;
 use regexes::RegexValidator;
 use signature::validator::SignatureValidator;
-use std::fmt::Display;
+use std::{fmt::Display, sync::Arc};
 use thiserror::Error;
 
 /// Represents a validator for config remote
@@ -23,10 +23,10 @@ pub trait RemoteConfigValidator {
 #[error("{0}")]
 /// Represents an error for RemoteConfigValidatorImpl
 pub struct SupportedRemoteConfigValidatorError(String);
+
 /// Variants of Implementations of [RemoteConfigValidator] to facilitate Static Dispatch.
-#[allow(clippy::large_enum_variant)]
 pub enum SupportedRemoteConfigValidator {
-    Signature(SignatureValidator),
+    Signature(Arc<SignatureValidator>),
     Regex(RegexValidator),
 }
 
@@ -81,6 +81,26 @@ pub mod tests {
                     predicate::eq(opamp_remote_config.clone()),
                 )
                 .return_once(move |_, _| result);
+        }
+    }
+
+    pub struct TestRemoteConfigValidator {
+        pub valid: bool,
+    }
+
+    impl RemoteConfigValidator for TestRemoteConfigValidator {
+        type Err = String;
+
+        fn validate(
+            &self,
+            _agent_identity: &AgentIdentity,
+            _remote_config: &OpampRemoteConfig,
+        ) -> Result<(), Self::Err> {
+            if self.valid {
+                Ok(())
+            } else {
+                Err("invalid".to_string())
+            }
         }
     }
 }

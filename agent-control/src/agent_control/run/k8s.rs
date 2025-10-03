@@ -165,8 +165,9 @@ impl AgentControlRunner {
         let supervisor_builder =
             SupervisorBuilderK8s::new(k8s_client.clone(), self.k8s_config.clone());
 
+        let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![
-            SupportedRemoteConfigValidator::Signature(self.signature_validator),
+            SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
         ];
 
@@ -179,7 +180,7 @@ impl AgentControlRunner {
             Arc::new(supervisor_builder),
             Arc::new(remote_config_parser),
             yaml_config_repository.clone(),
-            agents_assembler.clone(),
+            agents_assembler,
             self.sub_agent_publisher,
         );
 
@@ -252,6 +253,7 @@ impl AgentControlRunner {
             maybe_opamp_consumer,
             agent_control_internal_publisher,
             agent_control_internal_consumer,
+            SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             garbage_collector,
             k8s_ac_updater,
