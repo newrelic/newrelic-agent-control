@@ -63,7 +63,6 @@ impl TemplateRenderer {
                     )
                 })
                 .collect(),
-            // ..self
         }
     }
 
