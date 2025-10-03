@@ -157,6 +157,14 @@
           debug:
             var: ac_logs.stdout_lines
 
+        - name: Inspect the remote values
+          shell: cat /var/lib/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          register: remote_values
+
+        - name: Debug remote values
+          debug:
+            var: remote_values.stdout_lines
+
         - name: Inspect the rendered config file from remote
           shell: cat /var/lib/newrelic-agent-control/auto-generated/nr-infra/config/newrelic-infra.yaml
           register: rendered_config
