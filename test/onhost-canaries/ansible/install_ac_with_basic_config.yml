@@ -72,7 +72,7 @@
     copy:
       dest: /etc/newrelic-agent-control/fleet/agents.d/infra/values/values.yaml
       content: |
-        config_agent: |+
+        config_agent:
           staging: {{ infra_staging }}
           enable_process_metrics: true
           status_server_enabled: true

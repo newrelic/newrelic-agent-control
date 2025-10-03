@@ -156,7 +156,7 @@ pub(super) mod tests {
     fn test_validate() {
         let content = r#"
         health_port: 18003
-        config_agent: |+
+        config_agent:
           staging: true
           enable_process_metrics: true
           status_server_enabled: true
@@ -518,7 +518,7 @@ config: |
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
+config_agent:
   license_key: {{ NEW_RELIC_LICENSE_KEY }}
   staging: true
   display_name: host-display-name
@@ -564,7 +564,7 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
+config_agent:
   license_key: {{ NEW_RELIC_LICENSE_KEY }}
   staging: true
   display_name: host-display-name
@@ -605,7 +605,7 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
+config_agent:
   license_key: {{ NEW_RELIC_LICENSE_KEY }}
   staging: true
   display_name: host-display-name
@@ -646,7 +646,7 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
+config_agent:
   license_key: {{ NEW_RELIC_LICENSE_KEY }}
   staging: true
   display_name: host-display-name
@@ -679,7 +679,7 @@ config_integrations:
 ################################################
 
 # Configuration for the Infrastructure Agent
-config_agent: |
+config_agent:
   license_key: {{ NEW_RELIC_LICENSE_KEY }}
   staging: true
   display_name: host-display-name
