@@ -11,8 +11,7 @@ use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::updater::NoOpUpdater;
-use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
-use crate::agent_type::render::renderer::TemplateRenderer;
+use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::event::channel::pub_sub;
 use crate::health::noop::NoOpHealthChecker;
@@ -136,10 +135,6 @@ impl AgentControlRunner {
         let opamp_client_builder = opamp_client_builder.map(|b| b.with_startup_check_disabled());
 
         let template_renderer = TemplateRenderer::default()
-            .with_config_persister(
-                ConfigurationPersisterFile::new(&self.base_paths.remote_dir),
-                self.base_paths.remote_dir.clone(),
-            )
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let mut secrets_providers = SecretsProviders::new().with_env();

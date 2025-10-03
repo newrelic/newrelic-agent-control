@@ -1,6 +1,5 @@
 mod cli;
 mod command;
-mod config_persister;
 mod config_repository;
 mod consts;
 mod id;

@@ -15,8 +15,7 @@ use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
 use crate::agent_control::run::AgentControlRunner;
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
-use crate::agent_type::render::persister::config_persister_file::ConfigurationPersisterFile;
-use crate::agent_type::render::renderer::TemplateRenderer;
+use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
 use crate::agent_type::version_config::{
     AGENT_CONTROL_VERSION_CHECKER_INITIAL_DELAY, VersionCheckerInterval,
@@ -141,9 +140,8 @@ impl AgentControlRunner {
             ),
         ]);
 
-        let template_renderer: TemplateRenderer<ConfigurationPersisterFile> =
-            TemplateRenderer::default()
-                .with_agent_control_variables(agent_control_variables.clone().into_iter());
+        let template_renderer = TemplateRenderer::default()
+            .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
         let mut secrets_providers = SecretsProviders::new()
             .with_env()

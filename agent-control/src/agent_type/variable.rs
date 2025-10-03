@@ -14,8 +14,6 @@ pub mod tree;
 pub mod variable_type;
 pub mod variants;
 
-use std::path::{Path, PathBuf};
-
 use serde::{Deserialize, Serialize};
 
 use crate::agent_type::{
@@ -78,28 +76,8 @@ impl Variable {
         self.variable_type.get_final_value()
     }
 
-    pub fn get_file_path(&self) -> Option<&PathBuf> {
-        self.variable_type.get_file_path()
-    }
-
-    pub fn extend_file_path(&mut self, path: &Path) {
-        if let Some(current_path) = self.get_file_path() {
-            self.variable_type.set_file_path(path.join(current_path))
-        }
-    }
-
     pub fn merge_with_yaml_value(&mut self, yaml: serde_yaml::Value) -> Result<(), AgentTypeError> {
         self.variable_type.merge_with_yaml_value(yaml)
-    }
-
-    /// Returns the replacement value that will be used to substitute
-    /// the placeholder from an agent_type when templating a config
-    pub fn get_template_value(&self) -> Option<TrivialValue> {
-        match self.get_file_path() {
-            // For MapStringFile and file the file_path includes the full path with agent_configs_path
-            Some(p) => Some(TrivialValue::String(p.to_string_lossy().into())),
-            _ => self.get_final_value(),
-        }
     }
 
     pub fn kind(&self) -> &VariableType {
@@ -109,11 +87,11 @@ impl Variable {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, path::PathBuf};
+    use std::collections::HashMap;
 
     use crate::agent_type::variable::{
         VariableDefinition,
-        fields::{Fields, FieldsDefinition, FieldsWithPath, StringFields, StringFieldsDefinition},
+        fields::{Fields, FieldsDefinition, StringFields, StringFieldsDefinition},
         tree::Tree,
         variable_type::{VariableType, VariableTypeDefinition},
         variants::VariantsConfig,
@@ -171,24 +149,6 @@ mod tests {
                     final_value,
                 )
                 .into(),
-            }
-        }
-
-        pub(crate) fn new_with_file_path<T>(
-            description: String,
-            required: bool,
-            default: Option<T>,
-            final_value: Option<T>,
-            file_path: PathBuf,
-        ) -> Self
-        where
-            T: PartialEq,
-            VariableType: From<FieldsWithPath<T>>,
-        {
-            Self {
-                description,
-                variable_type: FieldsWithPath::new(required, default, final_value, file_path)
-                    .into(),
             }
         }
     }

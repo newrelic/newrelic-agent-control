@@ -80,7 +80,6 @@ mod tests {
         BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
         RestartPolicyConfig,
     };
-    use crate::agent_type::trivial_value::FilePathWithContent;
     use crate::agent_type::variable::Variable;
     use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
     use serde_yaml::Number;
@@ -156,7 +155,7 @@ restart_policy:
             id: "otelcol".to_string(),
             path: TemplateableValue::from_template("${nr-var:bin}/otelcol".to_string()),
             args: TemplateableValue::from_template(
-                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
+                "--verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                     .to_string(),
             ),
             env: Env::default(),
@@ -177,44 +176,6 @@ restart_policy:
             (
                 "nr-var:bin".to_string(),
                 Variable::new_string("binary".to_string(), true, None, Some("/etc".to_string())),
-            ),
-            (
-                "nr-var:config".to_string(),
-                Variable::new_with_file_path(
-                    "config".to_string(),
-                    true,
-                    None,
-                    Some(FilePathWithContent::new(
-                        "config2.yml".into(),
-                        "license_key: abc123\nstaging: true\n".to_string(),
-                    )),
-                    "config_path".into(),
-                ),
-            ),
-            (
-                "nr-var:integrations".to_string(),
-                Variable::new_with_file_path(
-                    "integrations".to_string(),
-                    true,
-                    None,
-                    Some(HashMap::from([
-                        (
-                            "kafka.yml".to_string(),
-                            FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            ),
-                        ),
-                        (
-                            "redis.yml".to_string(),
-                            FilePathWithContent::new(
-                                "config2.yml".into(),
-                                "license_key: abc123\nstaging: true\n".to_string(),
-                            ),
-                        ),
-                    ])),
-                    "integration_path".into(),
-                ),
             ),
             (
                 "nr-var:deployment.on_host.verbose".to_string(),
@@ -281,9 +242,9 @@ restart_policy:
                 template: "${nr-var:bin}/otelcol".to_string(),
             },
             args: TemplateableValue {
-                value: Some(Args("--config config_path --plugin_dir integration_path --verbose true --logs trace".to_string())),
+                value: Some(Args("--verbose true --logs trace".to_string())),
                 template:
-                "--config ${nr-var:config} --plugin_dir ${nr-var:integrations} --verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
+                "--verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
                     .to_string(),
             },
             env: Env::default(),
@@ -469,43 +430,12 @@ restart_policy:
                 "nr-var:backoff.interval".to_string(),
                 Variable::new_string(String::default(), true, None, Some("300s".to_string())),
             ),
-            (
-                "nr-var:config".to_string(),
-                Variable::new_with_file_path(
-                    "config".to_string(),
-                    true,
-                    None,
-                    Some(FilePathWithContent::new(
-                        "config2.yml".into(),
-                        "license_key: abc123\nstaging: true\n".to_string(),
-                    )),
-                    "config_path".into(),
-                ),
-            ),
-            (
-                "nr-var:integrations".to_string(),
-                Variable::new_with_file_path(
-                    "integrations".to_string(),
-                    true,
-                    None,
-                    Some(HashMap::from([(
-                        "kafka.yml".to_string(),
-                        FilePathWithContent::new(
-                            "config2.yml".into(),
-                            "license_key: abc123\nstaging: true\n".to_string(),
-                        ),
-                    )])),
-                    "integration_path".into(),
-                ),
-            ),
         ]);
 
         let input = Executable {
             id: "myapp".to_string(),
             path: TemplateableValue::from_template("${nr-var:path}".to_string()),
-            args: TemplateableValue::from_template(
-                "${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string(),
-            ),
+            args: TemplateableValue::from_template("${nr-var:args}".to_string()),
             env: Env(HashMap::from([(
                 "MYAPP_PORT".to_string(),
                 TemplateableValue::from_template("${nr-var:env.MYAPP_PORT}".to_string()),
@@ -532,10 +462,8 @@ restart_policy:
             id: "myapp".to_string(),
             path: TemplateableValue::new("/usr/bin/myapp".to_string())
                 .with_template("${nr-var:path}".to_string()),
-            args: TemplateableValue::new(Args(
-                "--config /etc/myapp.conf config_path integration_path".to_string(),
-            ))
-            .with_template("${nr-var:args} ${nr-var:config} ${nr-var:integrations}".to_string()),
+            args: TemplateableValue::new(Args("--config /etc/myapp.conf".to_string()))
+                .with_template("${nr-var:args}".to_string()),
             env: Env(HashMap::from([(
                 "MYAPP_PORT".to_string(),
                 TemplateableValue::new("8080".to_string())

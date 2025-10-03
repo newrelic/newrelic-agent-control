@@ -16,10 +16,7 @@ use crate::{
     agent_type::{
         agent_type_registry::AgentRegistry,
         embedded_registry::EmbeddedRegistry,
-        render::{
-            persister::config_persister_file::ConfigurationPersisterFile,
-            renderer::{Renderer, TemplateRenderer, tests::testing_agent_attributes},
-        },
+        render::{TemplateRenderer, tests::testing_agent_attributes},
         variable::{Variable, namespace::Namespace},
     },
     sub_agent::effective_agents_assembler::build_agent_type,
@@ -639,7 +636,7 @@ fn iterate_test_cases(environment: &Environment) {
         let agent_id = AgentID::try_from("random-agent-id").unwrap();
 
         // Create the renderer with specifics for the environment
-        let renderer: TemplateRenderer<ConfigurationPersisterFile> = match environment {
+        let renderer = match environment {
             Environment::K8s => TemplateRenderer::default().with_agent_control_variables(
                 HashMap::from([
                     (
@@ -668,7 +665,6 @@ fn iterate_test_cases(environment: &Environment) {
             let attributes = testing_agent_attributes(&agent_id);
             let variables = serde_yaml::from_str::<YAMLConfig>(yaml).unwrap();
             let result = renderer.render(
-                &agent_id,
                 agent_type,
                 variables,
                 attributes,

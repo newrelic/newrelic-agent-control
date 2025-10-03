@@ -1,4 +1,3 @@
-use crate::agent_type::render::persister::config_persister::PersistError;
 use thiserror::Error;
 
 /// The different error types to be returned by operations involving the [`Agent`] type.
@@ -24,8 +23,6 @@ pub enum AgentTypeError {
     InvalidVariant(String),
     #[error("rendering template: {0}")]
     RenderingTemplate(String),
-    #[error("error assembling agents: {0}")]
-    ConfigurationPersisterError(#[from] PersistError),
     #[error("conflicting variable definition: {0}")]
     ConflictingVariableDefinition(String),
 }

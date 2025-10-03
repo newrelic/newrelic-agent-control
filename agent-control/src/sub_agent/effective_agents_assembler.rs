@@ -4,7 +4,7 @@ use crate::agent_type::agent_attributes::AgentAttributes;
 use crate::agent_type::agent_type_registry::{AgentRegistry, AgentRepositoryError};
 use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::render::renderer::Renderer;
+use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
 use crate::agent_type::runtime_config::on_host::OnHost;
 use crate::agent_type::runtime_config::{Deployment, Runtime};
@@ -103,26 +103,24 @@ pub trait EffectiveAgentsAssembler {
 ///
 /// Important: Assembling an Agent may mutate the state of external resources by creating
 /// or removing configs when the Runtime is [Renderer].
-pub struct LocalEffectiveAgentsAssembler<R, Y>
+pub struct LocalEffectiveAgentsAssembler<R>
 where
     R: AgentRegistry,
-    Y: Renderer,
 {
     registry: Arc<R>,
-    renderer: Y,
+    renderer: TemplateRenderer,
     variable_constraints: VariableConstraints,
     secrets_providers: SecretsProviders,
     auto_generated_dir: PathBuf,
 }
 
-impl<R, Y> LocalEffectiveAgentsAssembler<R, Y>
+impl<R> LocalEffectiveAgentsAssembler<R>
 where
     R: AgentRegistry,
-    Y: Renderer,
 {
     pub fn new(
         registry: Arc<R>,
-        renderer: Y,
+        renderer: TemplateRenderer,
         variable_constraints: VariableConstraints,
         secrets_providers: SecretsProviders,
         remote_dir: &Path,
@@ -137,10 +135,9 @@ where
     }
 }
 
-impl<R, N> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R, N>
+impl<R> EffectiveAgentsAssembler for LocalEffectiveAgentsAssembler<R>
 where
     R: AgentRegistry,
-    N: Renderer,
 {
     fn assemble_agent(
         &self,
@@ -172,14 +169,9 @@ where
         let env_vars = load_env_vars();
         let secrets = secret_variables.load_secrets(&self.secrets_providers)?;
 
-        let runtime_config = self.renderer.render(
-            &agent_identity.id,
-            agent_type,
-            values,
-            attributes,
-            env_vars,
-            secrets,
-        )?;
+        let runtime_config = self
+            .renderer
+            .render(agent_type, values, attributes, env_vars, secrets)?;
 
         Ok(EffectiveAgent::new(agent_identity.clone(), runtime_config))
     }
@@ -234,15 +226,12 @@ pub fn build_agent_type(
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::path::Path;
 
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::agent_type_registry::tests::MockAgentRegistry;
     use crate::agent_type::definition::AgentTypeDefinition;
-    use crate::agent_type::render::renderer::tests::MockRenderer;
-    use crate::agent_type::runtime_config::k8s::K8sObject;
     use crate::values::yaml_config::YAMLConfig;
     use assert_matches::assert_matches;
     use mockall::{mock, predicate};
@@ -281,15 +270,14 @@ pub(crate) mod tests {
         }
     }
 
-    impl<R, N> LocalEffectiveAgentsAssembler<R, N>
+    impl<R> LocalEffectiveAgentsAssembler<R>
     where
         R: AgentRegistry,
-        N: Renderer,
     {
-        pub fn new_for_testing(registry: R, renderer: N) -> Self {
+        pub fn new_for_testing(registry: R) -> Self {
             Self {
                 registry: Arc::new(registry),
-                renderer,
+                renderer: TemplateRenderer::default(),
                 variable_constraints: VariableConstraints::default(),
                 secrets_providers: SecretsProviders::new(),
                 auto_generated_dir: PathBuf::default(),
@@ -297,32 +285,10 @@ pub(crate) mod tests {
         }
     }
 
-    // Returns a testing runtime config with some content.
-    fn testing_rendered_runtime_config() -> Runtime {
-        Runtime {
-            deployment: Deployment {
-                on_host: None,
-                k8s: Some(K8s {
-                    objects: vec![("key".to_string(), K8sObject::default())]
-                        .into_iter()
-                        .collect(),
-                    health: Some(Default::default()),
-                    version: Default::default(),
-                }),
-            },
-        }
-    }
-
-    // Returns the expected agent_attributes given an agent_id.
-    fn testing_agent_attributes(agent_id: &AgentID, auto_generated_dir: &Path) -> AgentAttributes {
-        AgentAttributes::try_new(agent_id.to_owned(), auto_generated_dir.to_path_buf()).unwrap()
-    }
-
     #[test]
     fn test_assemble_agents() {
         // Mocks
         let mut registry = MockAgentRegistry::new();
-        let mut renderer = MockRenderer::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -332,35 +298,17 @@ pub(crate) mod tests {
         let environment = Environment::OnHost;
         let agent_type_definition =
             AgentTypeDefinition::empty_with_metadata("ns/name:0.0.1".try_into().unwrap());
-        let agent_type = build_agent_type(
-            agent_type_definition.clone(),
-            &environment,
-            &VariableConstraints::default(),
-        )
-        .unwrap();
         let values = YAMLConfig::default();
-
-        let attributes = testing_agent_attributes(&agent_identity.id, &PathBuf::default());
-        let rendered_runtime_config = testing_rendered_runtime_config();
 
         //Expectations
         registry.should_get("ns/name:0.0.1".to_string(), &agent_type_definition);
 
-        renderer.should_render(
-            &agent_identity.id,
-            &agent_type,
-            &values,
-            &attributes,
-            rendered_runtime_config.clone(),
-        );
-
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry, renderer);
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
         let effective_agent = assembler
             .assemble_agent(&agent_identity, values, &environment)
             .unwrap();
 
-        assert_eq!(rendered_runtime_config, effective_agent.runtime_config);
         assert_eq!(agent_identity, effective_agent.agent_identity);
     }
 
@@ -368,7 +316,6 @@ pub(crate) mod tests {
     fn test_assemble_agents_error_on_registry() {
         //Mocks
         let mut registry = MockAgentRegistry::new();
-        let renderer = MockRenderer::new();
 
         // Objects
         let agent_identity = AgentIdentity::from((
@@ -378,7 +325,7 @@ pub(crate) mod tests {
 
         //Expectations
         registry.should_not_get("namespace/name:0.0.1".to_string());
-        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry, renderer);
+        let assembler = LocalEffectiveAgentsAssembler::new_for_testing(registry);
 
         let result =
             assembler.assemble_agent(&agent_identity, YAMLConfig::default(), &Environment::OnHost);

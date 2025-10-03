@@ -166,7 +166,7 @@ pub mod tests {
     use crate::agent_type::runtime_config::Deployment;
     use crate::agent_type::variable::constraints::VariableConstraints;
     use crate::{
-        agent_type::trivial_value::{FilePathWithContent, TrivialValue},
+        agent_type::trivial_value::TrivialValue,
         sub_agent::effective_agents_assembler::build_agent_type,
     };
     use serde_yaml::{Error, Number};
@@ -341,31 +341,10 @@ namespace: newrelic
 version: 1.39.1
 variables:
   common:
-    config:
-      description: "Newrelic infra configuration yaml"
-      type: file
-      required: true
-      file_path: "config.yml"
-    config2:
-      description: "Newrelic infra configuration yaml"
-      type: file
-      required: false
-      default: |
-        license_key: abc123
-        staging: true
-      file_path: "config2.yml"
     config3:
       description: "Newrelic infra configuration yaml"
       type: map[string]string
       required: true
-    integrations:
-      description: "Newrelic integrations configuration yamls"
-      type: map[string]file
-      required: false
-      default:
-        kafka: |
-          bootstrap: zookeeper
-      file_path: "integrations.d"
     status_server_port:
       description: "Newrelic infra health status port"
       type: number
@@ -391,14 +370,6 @@ unknown_variable: ignored
 config3:
   log_level: trace
   forward: "true"
-integrations:
-  kafka.conf: |
-    strategy: bootstrap
-  redis.yml: |
-    user: redis
-config: |
-  license_key: abc124
-  staging: false
 status_server_port: 8004
 "#;
 
@@ -415,30 +386,6 @@ status_server_port: 8004
             ("log_level".to_string(), "trace".to_string()),
             ("forward".to_string(), "true".to_string()),
         ]));
-        // File with default
-        let expected_config_2 = TrivialValue::File(FilePathWithContent::new(
-            "config2.yml".into(),
-            "license_key: abc123\nstaging: true\n".to_string(),
-        ));
-        // File with values
-        let expected_config = TrivialValue::File(FilePathWithContent::new(
-            "config.yml".into(),
-            "license_key: abc124\nstaging: false\n".to_string(),
-        ));
-        // MapStringFile
-        let expected_integrations = TrivialValue::MapStringFile(HashMap::from([
-            (
-                "kafka.conf".to_string(),
-                FilePathWithContent::new(
-                    "integrations.d".into(),
-                    "strategy: bootstrap\n".to_string(),
-                ),
-            ),
-            (
-                "redis.yml".to_string(),
-                FilePathWithContent::new("integrations.d".into(), "user: redis\n".to_string()),
-            ),
-        ]));
         // Number
         let expected_status_server = TrivialValue::Number(Number::from(8004));
 
@@ -452,36 +399,7 @@ status_server_port: 8004
                 .unwrap()
                 .clone()
         );
-        assert_eq!(
-            expected_config_2,
-            filled_variables
-                .get("config2")
-                .unwrap()
-                .get_final_value()
-                .as_ref()
-                .unwrap()
-                .clone()
-        );
-        assert_eq!(
-            expected_config,
-            filled_variables
-                .get("config")
-                .unwrap()
-                .get_final_value()
-                .as_ref()
-                .unwrap()
-                .clone()
-        );
-        assert_eq!(
-            expected_integrations,
-            filled_variables
-                .get("integrations")
-                .unwrap()
-                .get_final_value()
-                .as_ref()
-                .unwrap()
-                .clone()
-        );
+
         assert_eq!(
             expected_status_server,
             filled_variables
