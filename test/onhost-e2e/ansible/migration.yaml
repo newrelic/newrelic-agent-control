@@ -33,12 +33,10 @@
         copy:
           dest: /etc/newrelic-infra.yml
           content: |
-            {% raw %}
             enable_process_metrics: true
             status_server_enabled: true
             status_server_port: 18003
-            license_key: '{{ nr_license_key }}'
-            {% endraw %}
+            license_key: {{ nr_license_key }}
 
       - name: Install docker
         include_role:
@@ -65,12 +63,10 @@
           path: "/etc/newrelic-infra/integrations.d/nri-mysql-config.yml"
           regexp: "name: nri-mysql"
           replace: |-
-            {% raw %}
             name: nri-mysql
                 labels:
-                  test_id: '{{ test_id }}'
+                  test_id: {{ test_id }}
                   test_installed_agent: infra_agent
-            {% endraw %}
 
       - name: Restart Infra Agent
         include_role:

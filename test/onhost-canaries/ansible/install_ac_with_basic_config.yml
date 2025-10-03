@@ -74,7 +74,7 @@
       content: |
         {% raw %}
         config_agent:
-          staging: '{{ infra_staging }}'
+          staging: {% endraw -%} {{ infra_staging }} {%- raw %}
           enable_process_metrics: true
           status_server_enabled: true
           status_server_port: 18003
