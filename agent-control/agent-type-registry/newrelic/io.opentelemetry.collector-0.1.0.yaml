@@ -1,3 +1,6 @@
+# This is the same agent type as `com.newrelic.opentelemetry.collector`, kept in the repository
+# for compatibility with existing deployments and Fleet Control support.
+# It should not drift from the `com.newrelic.opentelemetry.collector` definition!
 namespace: newrelic
 name: io.opentelemetry.collector
 version: 0.1.0
