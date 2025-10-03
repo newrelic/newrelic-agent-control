@@ -411,6 +411,65 @@ static AGENT_TYPE_OTEL_COLLECTOR: LazyLock<AgentTypeValuesTestCase> =
         .into(),
     });
 
+static AGENT_TYPE_OTEL_COLLECTOR_OLD: LazyLock<AgentTypeValuesTestCase> =
+    LazyLock::new(|| AgentTypeValuesTestCase {
+        agent_type: "newrelic/io.opentelemetry.collector:0.1.0",
+        values_k8s: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", r#"chart_version: "some-version""#),
+                (
+                    "check all value types are correct",
+                    r#"
+                chart_version: "some-version"
+                chart_values.nr-k8s-otel-collector:
+                    yaml: object
+                chart_values.global:
+                    yaml: object
+                "#,
+                ),
+            ]),
+            additional_env: HashMap::from([
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_LICENSE_KEY"),
+                    Variable::new_final_string_variable("abcd1234".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_CLUSTER_NAME"),
+                    Variable::new_final_string_variable("my-test-cluster".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_STAGING"),
+                    Variable::new_final_string_variable("true".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_LOW_DATA_MODE"),
+                    Variable::new_final_string_variable("true".to_string()),
+                ),
+                (
+                    Namespace::EnvironmentVariable.namespaced_name("NR_VERBOSE_LOG"),
+                    Variable::new_final_string_variable("true".to_string()),
+                ),
+            ]),
+        }
+        .into(),
+        values_onhost: AgentTypeValues {
+            cases: HashMap::from([
+                ("mandatory fields only", ""),
+                (
+                    "check all value types are correct",
+                    r#"
+                config: "some file contents"
+                backoff_delay: "10s"
+                health_check.path: "/health"
+                health_check.port: 12345
+                "#,
+                ),
+            ]),
+            ..Default::default()
+        }
+        .into(),
+    });
+
 static AGENT_TYPE_PIPELINE_CONTROL_GATEWAY: LazyLock<AgentTypeValuesTestCase> =
     LazyLock::new(|| AgentTypeValuesTestCase {
         agent_type: "newrelic/com.newrelic.pipeline_control_gateway:0.1.0",
@@ -507,6 +566,7 @@ fn get_agent_type_test_cases() -> impl Iterator<Item = &'static AgentTypeValuesT
         &AGENT_TYPE_PROMETHEUS,
         &AGENT_TYPE_FLUENTBIT,
         &AGENT_TYPE_OTEL_COLLECTOR,
+        &AGENT_TYPE_OTEL_COLLECTOR_OLD,
         &AGENT_TYPE_PIPELINE_CONTROL_GATEWAY,
         &AGENT_TYPE_EBPF,
     ]
