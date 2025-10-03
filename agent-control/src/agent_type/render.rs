@@ -29,8 +29,6 @@ pub trait Renderer {
 
 #[derive(Debug, Default)]
 pub struct TemplateRenderer {
-    // persister: Option<C>,
-    // config_base_dir: Option<PathBuf>,
     sa_variables: HashMap<NamespacedVariableName, Variable>,
 }
 
@@ -57,20 +55,6 @@ impl Renderer for TemplateRenderer {
         let filled_variables = variables.fill_with_values(values_expanded)?.flatten();
 
         Self::check_all_vars_are_populated(&filled_variables)?;
-
-        // TODO: the persister performs specific actions for file and `File` and `MapStringFile` variables kind only.
-        // If another kind with specific actions is introduced, the kind definition should be refactored to allow
-        // performing additional actions when filling variables with values.
-        // if let Some(persister) = &self.persister {
-        //     let sub_agent_config_path = self
-        //         .config_base_dir
-        //         .as_ref()
-        //         .unwrap_or(&PathBuf::from(AGENT_CONTROL_DATA_DIR))
-        //         .join(GENERATED_FOLDER_NAME)
-        //         .join(agent_id);
-        //     persister.delete_agent_config(agent_id)?;
-        //     persister.persist_agent_config(agent_id, &filled_variables)?;
-        // }
 
         // Setup namespaced variables
         let ns_variables = self.build_namespaced_variables(filled_variables, env_vars, &attributes);
@@ -99,14 +83,6 @@ impl TemplateRenderer {
             // ..self
         }
     }
-
-    // pub fn with_config_persister(self, c: C, config_base_dir: PathBuf) -> Self {
-    //     Self {
-    //         persister: Some(c),
-    //         config_base_dir: Some(config_base_dir),
-    //         ..self
-    //     }
-    // }
 
     fn check_all_vars_are_populated(
         variables: &HashMap<String, Variable>,
