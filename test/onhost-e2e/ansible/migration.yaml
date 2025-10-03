@@ -37,7 +37,7 @@
             status_server_enabled: true
             status_server_port: 18003
             license_key: {{ nr_license_key }}
-      
+
       - name: Install docker
         include_role:
           name: caos.ansible_roles.docker_install 
@@ -67,7 +67,7 @@
                 labels:
                   test_id: {{ test_id }}
                   test_installed_agent: infra_agent
-      
+
       - name: Restart Infra Agent
         include_role:
           name: caos.ansible_roles.service_status

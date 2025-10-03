@@ -95,10 +95,12 @@
           copy:
             dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
             content: |
-              config_agent: |+
+              {% raw %}
+              config_agent:
                 status_server_enabled: true
                 status_server_port: 18003
-                license_key: {{'{{'}}NEW_RELIC_LICENSE_KEY{{'}}'}}
+                license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+              {% endraw %}
 
         - name: Restart Agent Control
           include_role:
