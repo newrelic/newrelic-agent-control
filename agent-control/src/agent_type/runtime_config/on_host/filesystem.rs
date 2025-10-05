@@ -50,25 +50,11 @@ pub mod rendered;
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct FileSystem(HashMap<SafePath, DirEntriesType>);
 
-impl FileSystem {
-    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`] so they can
-    /// be written into the actual host filesystem.
-    ///
-    /// **WARNING**: This must be called **after** the rendering process has finished
-    /// or else AC might crash!
-    fn rendered(self) -> HashMap<PathBuf, String> {
-        self.0
-            .into_iter()
-            .flat_map(|(dir_path, dir_entries)| dir_entries.rendered_with(&dir_path))
-            .collect()
-    }
-}
-
 /// A path to a file or directory that has been validated to be "safe",
 /// i.e. relative and not escaping its base directory (e.g. with parent dir specifiers like `..`).
 #[derive(Debug, Default, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(try_from = "PathBuf")]
-struct SafePath(PathBuf);
+pub struct SafePath(PathBuf);
 
 /// Allow borrowing the inner [`Path`] from a [`SafePath`].
 impl AsRef<Path> for SafePath {
@@ -131,32 +117,10 @@ impl Default for DirEntriesType {
     }
 }
 
-impl DirEntriesType {
-    /// Renders the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
-    /// be written into the actual host filesystem.
-    ///
-    /// **WARNING**: This must be called **after** the rendering process has finished
-    /// or else AC might crash!
-    fn rendered_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
-        match self {
-            DirEntriesType::FixedWithTemplatedContent(map) => map
-                .into_iter()
-                .map(|(k, v)| (path.as_ref().join(k), v.get()))
-                .collect(),
-            DirEntriesType::FullyTemplated(tv) => {
-                let map = HashMap::from(tv.get());
-                map.into_iter()
-                    .map(|(k, v)| (path.as_ref().join(k), v))
-                    .collect()
-            }
-        }
-    }
-}
-
 /// A helper newtype to allow implementing `Templateable` for `TemplateableValue<HashMap<PathBuf, String>>`
 /// without running into orphan rule issues.
 #[derive(Debug, Default, PartialEq, Clone)]
-struct DirEntriesMap(HashMap<SafePath, String>);
+pub struct DirEntriesMap(HashMap<SafePath, String>);
 
 impl From<DirEntriesMap> for HashMap<SafePath, String> {
     fn from(value: DirEntriesMap) -> Self {
@@ -165,9 +129,9 @@ impl From<DirEntriesMap> for HashMap<SafePath, String> {
 }
 
 impl Templateable for FileSystem {
-    type Output = Self;
+    type Output = RenderedFileSystem;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         if let Some(TrivialValue::String(generated_dir)) = variables
             .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR))
             .and_then(Variable::get_final_value)
@@ -186,7 +150,7 @@ impl Templateable for FileSystem {
                     ))
                 })
                 .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-            Ok(Self(filesystem))
+            Ok(RenderedFileSystem(filesystem))
         } else {
             Err(AgentTypeError::MissingValue(
                 Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
@@ -196,7 +160,7 @@ impl Templateable for FileSystem {
 }
 
 impl Templateable for DirEntriesType {
-    type Output = Self;
+    type Output = RenderedDirEntriesType;
     /// Replaces placeholders in the content with values from the `Variables` map.
     ///
     /// Behaves differently depending on the variant:
@@ -205,24 +169,26 @@ impl Templateable for DirEntriesType {
     ///   be a valid (YAML) mapping of safe `PathBuf` to `String`.
     ///
     /// See [`TemplateableValue<DirEntriesMap>::template_with`] for details.
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         match self {
             DirEntriesType::FixedWithTemplatedContent(map) => {
                 let rendered_map = map
                     .into_iter()
                     .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-                Ok(DirEntriesType::FixedWithTemplatedContent(rendered_map))
+                Ok(RenderedDirEntriesType::FixedWithTemplatedContent(
+                    rendered_map,
+                ))
             }
-            DirEntriesType::FullyTemplated(tv) => {
-                Ok(DirEntriesType::FullyTemplated(tv.template_with(variables)?))
-            }
+            DirEntriesType::FullyTemplated(tv) => Ok(RenderedDirEntriesType::FullyTemplated(
+                tv.template_with(variables)?,
+            )),
         }
     }
 }
 
 impl Templateable for TemplateableValue<DirEntriesMap> {
-    type Output = Self;
+    type Output = DirEntriesMap;
     /// Performs the templating of the defined directory entries for this sub-agent in the case where
     /// they were fully templated (see [`DirEntriesType::FullyTemplated`]).
     ///
@@ -233,7 +199,7 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
     /// due to the parse-time validations of [`FileSystem`], so here we "safely" prepend the
     /// provided base dir to them, as it must be defined in the variables passed to the sub-agent.
     /// If the value of the sub-agent's dedicated directory is missing, the templating fails.
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         // Template content as a string first. Then parse as a YAML and attempt to convert to the
         // expected HashMap<PathBuf, String> type.
         let templated_string = self.template.clone().template_with(variables)?;
@@ -254,10 +220,7 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
                 .collect::<Result<HashMap<_, _>, serde_yaml::Error>>()?
         };
 
-        Ok(Self {
-            template: self.template,
-            value: Some(DirEntriesMap(value)),
-        })
+        Ok(DirEntriesMap(value))
     }
 }
 
@@ -313,6 +276,66 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     })
 }
 
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct RenderedFileSystem(HashMap<SafePath, RenderedDirEntriesType>);
+
+impl RenderedFileSystem {
+    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem.
+    ///
+    /// **WARNING**: This must be called **after** the rendering process has finished
+    /// or else AC might crash!
+    fn rendered(self) -> HashMap<PathBuf, String> {
+        self.0
+            .into_iter()
+            .flat_map(|(dir_path, dir_entries)| dir_entries.rendered_with(&dir_path))
+            .collect()
+    }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum RenderedDirEntriesType {
+    /// A directory with a fixed set of entries (i.e. files). Each entry's content can be templated.
+    /// E.g.
+    /// ```yaml
+    /// "my/dir":
+    ///   filepath1: "file1 content with ${nr-var:some_var}"
+    ///   filepath2: "file2 content"
+    /// ```
+    FixedWithTemplatedContent(HashMap<SafePath, String>),
+
+    /// A directory with a fully templated set of entries, where it's expected that a full template
+    /// is provided that renders to a valid YAML mapping of a safe [`PathBuf`] to [`String`].
+    /// E.g.
+    /// ```yaml
+    /// "my/templated/dir":
+    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping}
+    /// ```
+    FullyTemplated(DirEntriesMap),
+}
+
+impl RenderedDirEntriesType {
+    /// Renders the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem.
+    ///
+    /// **WARNING**: This must be called **after** the rendering process has finished
+    /// or else AC might crash!
+    fn rendered_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
+        match self {
+            Self::FixedWithTemplatedContent(map) => map
+                .into_iter()
+                .map(|(k, v)| (path.as_ref().join(k), v))
+                .collect(),
+            Self::FullyTemplated(tv) => {
+                let map = HashMap::from(tv);
+                map.into_iter()
+                    .map(|(k, v)| (path.as_ref().join(k), v))
+                    .collect()
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
@@ -357,12 +380,11 @@ mod tests {
         let rendered = rendered.unwrap();
         assert!(rendered.0.len() == 1);
 
-        let expected_filesystem = FileSystem(HashMap::from([(
+        let expected_filesystem = RenderedFileSystem(HashMap::from([(
             SafePath(PathBuf::from("/base/dir/my/path")),
-            DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+            RenderedDirEntriesType::FixedWithTemplatedContent(HashMap::from([(
                 PathBuf::from("my/file/path").try_into().unwrap(),
-                TemplateableValue::new("some content".to_string())
-                    .with_template("some content".to_string()),
+                "some content".to_string(),
             )])),
         )]));
 

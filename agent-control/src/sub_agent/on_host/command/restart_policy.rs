@@ -1,5 +1,5 @@
 use crate::agent_type::runtime_config::restart_policy::{
-    BackoffStrategyConfig, BackoffStrategyType, RestartPolicyConfig,
+    BackoffStrategyType, RenderedBackoffStrategyConfig, RenderedRestartPolicyConfig,
 };
 use std::cmp::max;
 use std::time::{Duration, Instant};
@@ -45,9 +45,9 @@ impl Default for RestartPolicy {
     }
 }
 
-impl From<RestartPolicyConfig> for RestartPolicy {
-    fn from(value: RestartPolicyConfig) -> Self {
-        RestartPolicy::new((&value.backoff_strategy).into(), value.restart_exit_codes)
+impl From<RenderedRestartPolicyConfig> for RestartPolicy {
+    fn from(value: RenderedRestartPolicyConfig) -> Self {
+        RestartPolicy::new(value.backoff_strategy.into(), value.restart_exit_codes)
     }
 }
 
@@ -142,9 +142,9 @@ impl Backoff {
     }
 }
 
-impl From<&BackoffStrategyConfig> for BackoffStrategy {
-    fn from(value: &BackoffStrategyConfig) -> Self {
-        match value.clone().backoff_type.get() {
+impl From<RenderedBackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: RenderedBackoffStrategyConfig) -> Self {
+        match value.backoff_type {
             BackoffStrategyType::Fixed => BackoffStrategy::Fixed(realize_backoff_config(value)),
             BackoffStrategyType::Linear => BackoffStrategy::Linear(realize_backoff_config(value)),
             BackoffStrategyType::Exponential => {

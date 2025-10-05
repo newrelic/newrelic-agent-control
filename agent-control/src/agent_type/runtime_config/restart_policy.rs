@@ -21,10 +21,10 @@ pub struct RestartPolicyConfig {
 }
 
 impl Templateable for RestartPolicyConfig {
-    type Output = Self;
+    type Output = RenderedRestartPolicyConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             backoff_strategy: self.backoff_strategy.template_with(variables)?,
             restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
         })
@@ -74,15 +74,15 @@ pub struct BackoffStrategyConfig {
 }
 
 impl Templateable for BackoffStrategyConfig {
-    type Output = Self;
+    type Output = RenderedBackoffStrategyConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
         let backoff_delay = self.backoff_delay.template_with(variables)?;
         let max_retries = self.max_retries.template_with(variables)?;
         let last_retry_interval = self.last_retry_interval.template_with(variables)?;
 
-        let result = Self {
+        let result = Self::Output {
             backoff_type,
             backoff_delay,
             max_retries,
@@ -123,4 +123,20 @@ impl Default for BackoffStrategyConfig {
             last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone, Default)]
+pub struct RenderedRestartPolicyConfig {
+    /// Strategy configuration to retry in case of failure.
+    pub backoff_strategy: RenderedBackoffStrategyConfig,
+    /// List of exit codes that triggers a restart.
+    pub restart_exit_codes: Vec<i32>,
+}
+
+#[derive(Debug, Default, PartialEq, Clone)]
+pub struct RenderedBackoffStrategyConfig {
+    pub backoff_type: BackoffStrategyType,
+    pub backoff_delay: BackoffDelay,
+    pub max_retries: MaxRetries,
+    pub last_retry_interval: BackoffLastRetryInterval,
 }

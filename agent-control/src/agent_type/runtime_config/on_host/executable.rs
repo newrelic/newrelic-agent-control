@@ -5,7 +5,10 @@ use serde::Deserialize;
 use crate::agent_type::{
     definition::Variables,
     error::AgentTypeError,
-    runtime_config::{restart_policy::RestartPolicyConfig, templateable_value::TemplateableValue},
+    runtime_config::{
+        restart_policy::{RenderedRestartPolicyConfig, RestartPolicyConfig},
+        templateable_value::TemplateableValue,
+    },
     templates::Templateable,
 };
 
@@ -31,10 +34,10 @@ pub struct Executable {
 }
 
 impl Templateable for Executable {
-    type Output = Self;
+    type Output = RenderedExecutable;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
@@ -63,13 +66,30 @@ impl Env {
 }
 
 impl Templateable for Env {
-    type Output = Self;
+    type Output = RenderedEnv;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         self.0
             .into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
             .collect::<Result<HashMap<_, _>, _>>()
-            .map(Env)
+            .map(RenderedEnv)
     }
 }
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct RenderedExecutable {
+    /// Executable identifier for the health checker.
+    pub id: String,
+    /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
+    pub path: String,
+    /// Arguments passed to the executable.
+    pub args: Args, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+    /// Environmental variables passed to the process.
+    pub env: RenderedEnv,
+    /// Defines how the executable will be restarted in case of failure.
+    pub restart_policy: RenderedRestartPolicyConfig,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct RenderedEnv(pub HashMap<String, String>);

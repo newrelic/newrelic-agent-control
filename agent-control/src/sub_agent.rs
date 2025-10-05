@@ -1058,7 +1058,6 @@ deployment:
                     .unwrap()
                     .path
                     .clone()
-                    .get()
                     .eq(&expected_config_value.clone())
             })
             .return_once(|_| Ok(stopped_supervisor));

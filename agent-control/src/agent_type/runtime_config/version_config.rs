@@ -64,13 +64,33 @@ impl PartialEq for OnHostVersionConfig {
 }
 
 impl Templateable for OnHostVersionConfig {
-    type Output = Self;
+    type Output = RenderedOnHostVersionConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
             regex: self.regex,
         })
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct RenderedOnHostVersionConfig {
+    /// Path to the binary from which we want to check the version.
+    pub path: String,
+    // Command arguments.
+    pub args: Args,
+    /// The regex expression to get the version from the command output.
+    ///
+    /// If not provided, the entire output will be used.
+    pub(crate) regex: Option<Regex>,
+}
+
+impl PartialEq for RenderedOnHostVersionConfig {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+            && self.args == other.args
+            && self.regex.as_ref().map(|r| r.as_str()) == other.regex.as_ref().map(|r| r.as_str())
     }
 }

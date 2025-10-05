@@ -154,15 +154,15 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 
         let on_host = effective_agent.get_onhost_config()?.clone();
 
-        let enable_file_logging = on_host.enable_file_logging.get();
+        let enable_file_logging = on_host.enable_file_logging;
 
         let executables = on_host
             .executables
             .into_iter()
             .map(|e| {
-                ExecutableData::new(e.id, e.path.get())
-                    .with_args(e.args.get().into_vector())
-                    .with_env(e.env.get())
+                ExecutableData::new(e.id, e.path)
+                    .with_args(e.args.into_vector())
+                    .with_env(e.env.0)
                     .with_restart_policy(e.restart_policy.into())
             })
             .collect();
@@ -191,7 +191,7 @@ mod tests {
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::{Deployment, Runtime};
+    use crate::agent_type::runtime_config::{RenderedDeployment, RenderedRuntime};
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::instance_id::InstanceID;
@@ -297,8 +297,8 @@ mod tests {
         let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
         let effective_agent = EffectiveAgent::new(
             agent_identity.clone(),
-            Runtime {
-                deployment: Deployment::default(),
+            RenderedRuntime {
+                deployment: RenderedDeployment::default(),
             },
         );
         effective_agents_assembler.should_assemble_agent(
@@ -420,8 +420,8 @@ mod tests {
         let mut effective_agents_assembler = MockEffectiveAgentAssembler::new();
         let effective_agent = EffectiveAgent::new(
             agent_identity.clone(),
-            Runtime {
-                deployment: Deployment::default(),
+            RenderedRuntime {
+                deployment: RenderedDeployment::default(),
             },
         );
         effective_agents_assembler.should_assemble_agent(

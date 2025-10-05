@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::health_config::OnHostHealthConfig;
+use crate::agent_type::runtime_config::health_config::RenderedOnHostHealthConfig;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedFileSystemEntries;
-use crate::agent_type::runtime_config::version_config::OnHostVersionConfig;
+use crate::agent_type::runtime_config::version_config::RenderedOnHostVersionConfig;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
@@ -47,8 +47,8 @@ pub struct NotStartedSupervisorOnHost {
     executables: Vec<ExecutableData>,
     log_to_file: bool,
     logging_path: PathBuf,
-    health_config: OnHostHealthConfig,
-    version_config: Option<OnHostVersionConfig>,
+    health_config: RenderedOnHostHealthConfig,
+    version_config: Option<RenderedOnHostVersionConfig>,
     filesystem_entries: RenderedFileSystemEntries,
 }
 
@@ -121,8 +121,8 @@ impl NotStartedSupervisorOnHost {
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
-        health_config: OnHostHealthConfig,
-        version_config: Option<OnHostVersionConfig>,
+        health_config: RenderedOnHostHealthConfig,
+        version_config: Option<RenderedOnHostVersionConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -191,8 +191,8 @@ impl NotStartedSupervisorOnHost {
         };
 
         let onhost_version_checker = OnHostAgentVersionChecker {
-            path: version_config.path.clone().get(),
-            args: version_config.args.clone().get(),
+            path: version_config.path.clone(),
+            args: version_config.args.clone(),
             regex: version_config.regex.clone(),
         };
 
@@ -535,7 +535,7 @@ pub mod tests {
             agent_identity,
             executable_data,
             ctx,
-            OnHostHealthConfig::default(),
+            RenderedOnHostHealthConfig::default(),
             None,
         );
 

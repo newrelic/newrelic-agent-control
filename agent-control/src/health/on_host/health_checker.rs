@@ -1,7 +1,7 @@
 use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
-use crate::agent_type::runtime_config::health_config::OnHostHealthCheck;
+use crate::agent_type::runtime_config::health_config::RenderedOnHostHealthCheck;
 use crate::event::channel::EventConsumer;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -22,21 +22,21 @@ impl OnHostHealthCheckers {
     pub(crate) fn try_new(
         exec_health_consumer: EventConsumer<(String, HealthWithStartTime)>,
         http_client: HttpClient,
-        health_check_type: Option<OnHostHealthCheck>,
+        health_check_type: Option<RenderedOnHostHealthCheck>,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
         let mut health_checkers = vec![OnHostHealthChecker::Exec(ExecHealthChecker::new(
             exec_health_consumer,
         ))];
         match health_check_type {
-            Some(OnHostHealthCheck::HttpHealth(http_config)) => {
+            Some(RenderedOnHostHealthCheck::HttpHealth(http_config)) => {
                 health_checkers.push(OnHostHealthChecker::Http(HttpHealthChecker::new(
                     http_client,
                     http_config,
                     start_time,
                 )?));
             }
-            Some(OnHostHealthCheck::FileHealth(file_config)) => {
+            Some(RenderedOnHostHealthCheck::FileHealth(file_config)) => {
                 health_checkers.push(OnHostHealthChecker::File(FileHealthChecker::new(
                     PathBuf::from(file_config.path),
                 )));

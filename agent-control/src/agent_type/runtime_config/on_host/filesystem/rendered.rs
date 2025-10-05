@@ -7,7 +7,7 @@ use ::fs::{
 use thiserror::Error;
 use tracing::trace;
 
-use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
+use crate::agent_type::runtime_config::on_host::filesystem::RenderedFileSystem;
 
 #[derive(Debug, Error)]
 #[error("file system entries error: {0}")]
@@ -20,8 +20,8 @@ pub enum FileSystemEntriesError {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct RenderedFileSystemEntries(HashMap<PathBuf, String>);
 
-impl From<FileSystem> for RenderedFileSystemEntries {
-    fn from(value: FileSystem) -> Self {
+impl From<RenderedFileSystem> for RenderedFileSystemEntries {
+    fn from(value: RenderedFileSystem) -> Self {
         Self(value.rendered())
     }
 }

@@ -172,47 +172,50 @@ impl Templateable for HttpPath {
 }
 
 impl Templateable for OnHostHealthConfig {
-    type Output = Self;
+    type Output = RenderedOnHostHealthConfig;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             check: self
                 .check
                 .map(|check| check.template_with(variables))
                 .transpose()?,
-            ..self
+            interval: self.interval,
+            initial_delay: self.initial_delay,
+            timeout: self.timeout,
         })
     }
 }
 
 impl Templateable for OnHostHealthCheck {
-    type Output = Self;
+    type Output = RenderedOnHostHealthCheck;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(match self {
             OnHostHealthCheck::HttpHealth(conf) => {
-                let health_conf = HttpHealth {
+                let health_conf = RenderedHttpHealth {
                     host: conf.host.template_with(variables)?,
                     path: conf.path.template_with(variables)?,
                     port: conf.port.template_with(variables)?,
-                    ..conf
+                    headers: conf.headers,
+                    healthy_status_codes: conf.healthy_status_codes,
                 };
-                OnHostHealthCheck::HttpHealth(health_conf)
+                RenderedOnHostHealthCheck::HttpHealth(health_conf)
             }
             OnHostHealthCheck::FileHealth(conf) => {
                 let health_conf = FileHealth {
                     path: conf.path.template_with(variables)?,
                 };
-                OnHostHealthCheck::FileHealth(health_conf)
+                RenderedOnHostHealthCheck::FileHealth(health_conf)
             }
         })
     }
 }
 
 impl Templateable for TemplateableValue<HttpPort> {
-    type Output = Self;
+    type Output = HttpPort;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPort::default()
@@ -222,43 +225,67 @@ impl Templateable for TemplateableValue<HttpPort> {
                 .map(HttpPort)
                 .map_err(|_| AgentTypeError::ValueNotParseableFromString(templated_string))?
         };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
+        Ok(value)
     }
 }
 
 impl Templateable for TemplateableValue<HttpHost> {
-    type Output = Self;
+    type Output = HttpHost;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpHost::default()
         } else {
             HttpHost(templated_string)
         };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
+        Ok(value)
     }
 }
 
 impl Templateable for TemplateableValue<HttpPath> {
-    type Output = Self;
+    type Output = HttpPath;
 
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPath::default()
         } else {
             HttpPath(templated_string)
         };
-        Ok(Self {
-            template: self.template,
-            value: Some(value),
-        })
+        Ok(value)
     }
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct RenderedOnHostHealthConfig {
+    /// The duration to wait between health checks.
+    pub(crate) interval: HealthCheckInterval,
+    /// The initial delay before the first health check is performed.
+    pub(crate) initial_delay: InitialDelay,
+    /// The maximum duration a health check may run before considered failed.
+    pub(crate) timeout: HealthCheckTimeout,
+    /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
+    pub(crate) check: Option<RenderedOnHostHealthCheck>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum RenderedOnHostHealthCheck {
+    HttpHealth(RenderedHttpHealth),
+    FileHealth(RenderedFileHealth),
+}
+
+type RenderedFileHealth = FileHealth;
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct RenderedHttpHealth {
+    pub(crate) host: HttpHost,
+    /// The HTTP path to check for the health check.
+    pub(crate) path: HttpPath,
+    /// The port to be checked during the health check.
+    pub(crate) port: HttpPort,
+    /// Optional HTTP headers to be included during the health check.
+    pub(crate) headers: HashMap<String, String>,
+    // allowed healthy HTTP status codes
+    pub(crate) healthy_status_codes: Vec<u16>,
 }
