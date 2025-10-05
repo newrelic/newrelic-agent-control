@@ -21,6 +21,8 @@ pub struct RestartPolicyConfig {
 }
 
 impl Templateable for RestartPolicyConfig {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             backoff_strategy: self.backoff_strategy.template_with(variables)?,
@@ -72,6 +74,8 @@ pub struct BackoffStrategyConfig {
 }
 
 impl Templateable for BackoffStrategyConfig {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
         let backoff_delay = self.backoff_delay.template_with(variables)?;

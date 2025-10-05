@@ -78,6 +78,8 @@ impl<S> Templateable for TemplateableValue<S>
 where
     S: FromStr + Default,
 {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
@@ -95,6 +97,8 @@ where
 }
 
 impl Templateable for TemplateableValue<Args> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         Ok(Self {
@@ -105,6 +109,8 @@ impl Templateable for TemplateableValue<Args> {
 }
 
 impl Templateable for TemplateableValue<BackoffDelay> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
@@ -123,6 +129,8 @@ impl Templateable for TemplateableValue<BackoffDelay> {
 }
 
 impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
@@ -141,6 +149,8 @@ impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
 }
 
 impl Templateable for TemplateableValue<MaxRetries> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {

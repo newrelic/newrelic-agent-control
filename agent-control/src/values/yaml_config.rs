@@ -19,12 +19,16 @@ pub enum YAMLConfigError {
 }
 
 impl Templateable for YAMLConfig {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self(self.0.template_with(variables)?))
     }
 }
 
 impl Templateable for HashMap<String, serde_yaml::Value> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(key, v)| Ok((key, v.template_with(variables)?)))

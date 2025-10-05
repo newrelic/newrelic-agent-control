@@ -165,6 +165,8 @@ impl From<DirEntriesMap> for HashMap<SafePath, String> {
 }
 
 impl Templateable for FileSystem {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         if let Some(TrivialValue::String(generated_dir)) = variables
             .get(&Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR))
@@ -194,6 +196,7 @@ impl Templateable for FileSystem {
 }
 
 impl Templateable for DirEntriesType {
+    type Output = Self;
     /// Replaces placeholders in the content with values from the `Variables` map.
     ///
     /// Behaves differently depending on the variant:
@@ -219,6 +222,7 @@ impl Templateable for DirEntriesType {
 }
 
 impl Templateable for TemplateableValue<DirEntriesMap> {
+    type Output = Self;
     /// Performs the templating of the defined directory entries for this sub-agent in the case where
     /// they were fully templated (see [`DirEntriesType::FullyTemplated`]).
     ///

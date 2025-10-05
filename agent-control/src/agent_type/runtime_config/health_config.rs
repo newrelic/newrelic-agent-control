@@ -56,6 +56,7 @@ pub(crate) struct FileHealth {
 }
 
 impl Templateable for FileHealth {
+    type Output = Self;
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let rendered = self.path.template_with(variables)?;
         Ok(Self { path: rendered })
@@ -162,6 +163,8 @@ impl From<String> for HttpPath {
 }
 
 impl Templateable for HttpPath {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.0.template_with(variables)?;
         Ok(Self(templated_string))
@@ -169,6 +172,8 @@ impl Templateable for HttpPath {
 }
 
 impl Templateable for OnHostHealthConfig {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             check: self
@@ -181,6 +186,8 @@ impl Templateable for OnHostHealthConfig {
 }
 
 impl Templateable for OnHostHealthCheck {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(match self {
             OnHostHealthCheck::HttpHealth(conf) => {
@@ -203,6 +210,8 @@ impl Templateable for OnHostHealthCheck {
 }
 
 impl Templateable for TemplateableValue<HttpPort> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
@@ -221,6 +230,8 @@ impl Templateable for TemplateableValue<HttpPort> {
 }
 
 impl Templateable for TemplateableValue<HttpHost> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {
@@ -236,6 +247,8 @@ impl Templateable for TemplateableValue<HttpHost> {
 }
 
 impl Templateable for TemplateableValue<HttpPath> {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_string = self.template.clone().template_with(variables)?;
         let value = if templated_string.is_empty() {

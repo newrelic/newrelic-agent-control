@@ -31,6 +31,8 @@ pub struct Executable {
 }
 
 impl Templateable for Executable {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             id: self.id.template_with(variables)?,
@@ -61,6 +63,8 @@ impl Env {
 }
 
 impl Templateable for Env {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.0
             .into_iter()

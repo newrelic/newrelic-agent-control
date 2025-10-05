@@ -53,6 +53,8 @@ where
 }
 
 impl Templateable for OnHost {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             executables: self

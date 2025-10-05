@@ -39,6 +39,7 @@ pub struct K8sObjectMeta {
 }
 
 impl Templateable for K8s {
+    type Output = Self;
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             objects: self
@@ -53,6 +54,7 @@ impl Templateable for K8s {
 }
 
 impl Templateable for K8sObject {
+    type Output = Self;
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             api_version: self.api_version.clone(),
@@ -64,6 +66,8 @@ impl Templateable for K8sObject {
 }
 
 impl Templateable for K8sObjectMeta {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             labels: self

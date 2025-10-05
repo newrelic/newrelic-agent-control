@@ -58,6 +58,8 @@ impl<'de> Deserialize<'de> for Deployment {
 }
 
 impl Templateable for Deployment {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
@@ -96,6 +98,8 @@ impl Templateable for Deployment {
 }
 
 impl Templateable for Runtime {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             deployment: self.deployment.template_with(variables)?,

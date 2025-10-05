@@ -64,6 +64,8 @@ impl PartialEq for OnHostVersionConfig {
 }
 
 impl Templateable for OnHostVersionConfig {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         Ok(Self {
             path: self.path.template_with(variables)?,
