@@ -59,12 +59,6 @@ impl Args {
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 
-impl Env {
-    pub fn get(self) -> HashMap<String, String> {
-        self.0.into_iter().map(|(k, v)| (k, v.get())).collect()
-    }
-}
-
 impl Templateable for Env {
     type Output = RenderedEnv;
 

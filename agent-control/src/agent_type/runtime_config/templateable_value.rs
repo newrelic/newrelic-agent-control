@@ -10,7 +10,7 @@ use super::restart_policy::{BackoffDelay, BackoffLastRetryInterval, MaxRetries};
 
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct TemplateableValue<T> {
-    pub(super) value: Option<T>,
+    value: Option<T>,
     pub(super) template: String,
 }
 
@@ -44,10 +44,6 @@ impl<'de, T> Deserialize<'de> for TemplateableValue<T> {
 }
 
 impl<T> TemplateableValue<T> {
-    pub fn get(self) -> T {
-        self.value
-            .unwrap_or_else(|| unreachable!("Values must be populated at this point"))
-    }
     pub fn new(value: T) -> Self {
         Self {
             value: Some(value),
