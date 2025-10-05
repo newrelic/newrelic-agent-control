@@ -23,16 +23,16 @@ pub mod filesystem;
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
     #[serde(deserialize_with = "deserialize_executables", default)]
-    pub executables: Vec<Executable>,
+    executables: Vec<Executable>,
     #[serde(default)]
-    pub enable_file_logging: TemplateableValue<bool>,
+    enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
     #[serde(default)]
-    pub health: OnHostHealthConfig,
+    health: OnHostHealthConfig,
     /// Enables and define version checks configuration.
-    pub version: Option<OnHostVersionConfig>,
+    version: Option<OnHostVersionConfig>,
     #[serde(default)]
-    pub filesystem: FileSystem,
+    filesystem: FileSystem,
 }
 
 fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>

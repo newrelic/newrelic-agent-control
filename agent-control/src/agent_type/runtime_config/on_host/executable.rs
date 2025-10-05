@@ -13,24 +13,24 @@ use crate::agent_type::{
 };
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct Executable {
+pub(super) struct Executable {
     /// Executable identifier for the health checker.
-    pub id: String,
+    pub(super) id: String,
 
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
-    pub path: TemplateableValue<String>, // make it templatable
+    pub(super) path: TemplateableValue<String>, // make it templatable
 
     /// Arguments passed to the executable.
     #[serde(default)]
-    pub args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+    pub(super) args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
 
     /// Environmental variables passed to the process.
     #[serde(default)]
-    pub env: Env,
+    pub(super) env: Env,
 
     /// Defines how the executable will be restarted in case of failure.
     #[serde(default)]
-    pub restart_policy: RestartPolicyConfig,
+    pub(super) restart_policy: RestartPolicyConfig,
 }
 
 impl Templateable for Executable {
