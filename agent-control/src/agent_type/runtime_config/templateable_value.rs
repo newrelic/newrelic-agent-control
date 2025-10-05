@@ -77,7 +77,7 @@ where
     type Output = S;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             S::default()
         } else {
@@ -93,7 +93,7 @@ impl Templateable for TemplateableValue<Args> {
     type Output = Args;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         Ok(Args(templated_string))
     }
 }
@@ -102,7 +102,7 @@ impl Templateable for TemplateableValue<BackoffDelay> {
     type Output = BackoffDelay;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             BackoffDelay::default()
         } else {
@@ -119,7 +119,7 @@ impl Templateable for TemplateableValue<BackoffLastRetryInterval> {
     type Output = BackoffLastRetryInterval;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             BackoffLastRetryInterval::default()
         } else {
@@ -136,7 +136,7 @@ impl Templateable for TemplateableValue<MaxRetries> {
     type Output = MaxRetries;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             MaxRetries::default()
         } else {

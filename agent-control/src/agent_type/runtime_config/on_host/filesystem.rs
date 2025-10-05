@@ -202,7 +202,7 @@ impl Templateable for TemplateableValue<DirEntriesMap> {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         // Template content as a string first. Then parse as a YAML and attempt to convert to the
         // expected HashMap<PathBuf, String> type.
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value: HashMap<SafePath, String> = if templated_string.is_empty() {
             HashMap::new()
         } else {

@@ -216,7 +216,7 @@ impl Templateable for TemplateableValue<HttpPort> {
     type Output = HttpPort;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPort::default()
         } else {
@@ -233,7 +233,7 @@ impl Templateable for TemplateableValue<HttpHost> {
     type Output = HttpHost;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpHost::default()
         } else {
@@ -247,7 +247,7 @@ impl Templateable for TemplateableValue<HttpPath> {
     type Output = HttpPath;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
-        let templated_string = self.template.clone().template_with(variables)?;
+        let templated_string = self.template.template_with(variables)?;
         let value = if templated_string.is_empty() {
             HttpPath::default()
         } else {
