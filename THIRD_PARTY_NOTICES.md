@@ -2097,6 +2097,12 @@ Distributed under the following license(s):
 * Apache-2.0
 * MIT
 
+## simd-adler32 <https://crates.io/crates/simd-adler32>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## simple_asn1 <https://crates.io/crates/simple_asn1>
 
 Distributed under the following license(s):
