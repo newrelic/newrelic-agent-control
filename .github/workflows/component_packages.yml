@@ -23,7 +23,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "~1.20"
+          go-version: "^1.20"
           check-latest: true
 
       - name: Obtain Rust version from project
