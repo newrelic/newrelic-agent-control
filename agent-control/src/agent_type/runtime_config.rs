@@ -7,11 +7,10 @@
 pub mod health_config;
 pub mod k8s;
 pub mod on_host;
+pub mod rendered;
 pub mod restart_policy;
 pub mod templateable_value;
 pub mod version_config;
-
-use crate::agent_type::runtime_config::on_host::RenderedOnHost;
 
 use super::definition::Variables;
 use super::error::AgentTypeError;
@@ -60,7 +59,7 @@ impl<'de> Deserialize<'de> for Deployment {
 }
 
 impl Templateable for Deployment {
-    type Output = RenderedDeployment;
+    type Output = rendered::Deployment;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         /*
@@ -100,24 +99,13 @@ impl Templateable for Deployment {
 }
 
 impl Templateable for Runtime {
-    type Output = RenderedRuntime;
+    type Output = rendered::Runtime;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             deployment: self.deployment.template_with(variables)?,
         })
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RenderedRuntime {
-    pub deployment: RenderedDeployment,
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedDeployment {
-    pub on_host: Option<RenderedOnHost>,
-    pub k8s: Option<K8s>,
 }
 
 #[cfg(test)]

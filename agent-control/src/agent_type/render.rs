@@ -2,7 +2,7 @@ use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
     error::AgentTypeError,
-    runtime_config::RenderedRuntime,
+    runtime_config::rendered::Runtime,
     templates::Templateable,
     variable::{
         Variable,
@@ -26,7 +26,7 @@ impl TemplateRenderer {
         attributes: AgentAttributes,
         env_vars: HashMap<String, Variable>,
         secrets: HashMap<String, Variable>,
-    ) -> Result<RenderedRuntime, AgentTypeError> {
+    ) -> Result<Runtime, AgentTypeError> {
         // Get empty variables and runtime_config from the agent-type
         let (variables, runtime_config) = (agent_type.variables, agent_type.runtime_config);
 

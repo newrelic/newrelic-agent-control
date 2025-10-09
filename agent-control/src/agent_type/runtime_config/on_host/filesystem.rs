@@ -123,7 +123,7 @@ impl Default for DirEntriesType {
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
 impl Templateable for FileSystem {
-    type Output = RenderedFileSystem;
+    type Output = rendered::FileSystem;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         if let Some(TrivialValue::String(generated_dir)) = variables
@@ -144,7 +144,7 @@ impl Templateable for FileSystem {
                     ))
                 })
                 .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-            Ok(RenderedFileSystem(filesystem))
+            Ok(rendered::FileSystem(filesystem))
         } else {
             Err(AgentTypeError::MissingValue(
                 Namespace::SubAgent.namespaced_name(AgentAttributes::GENERATED_DIR),
@@ -154,7 +154,7 @@ impl Templateable for FileSystem {
 }
 
 impl Templateable for DirEntriesType {
-    type Output = RenderedDirEntriesType;
+    type Output = rendered::DirEntriesType;
     /// Replaces placeholders in the content with values from the `Variables` map.
     ///
     /// Behaves differently depending on the variant:
@@ -170,11 +170,11 @@ impl Templateable for DirEntriesType {
                     .into_iter()
                     .map(|(k, v)| Ok((k, v.template_with(variables)?)))
                     .collect::<Result<HashMap<_, _>, AgentTypeError>>()?;
-                Ok(RenderedDirEntriesType::FixedWithTemplatedContent(
+                Ok(rendered::DirEntriesType::FixedWithTemplatedContent(
                     rendered_map,
                 ))
             }
-            DirEntriesType::FullyTemplated(tv) => Ok(RenderedDirEntriesType::FullyTemplated(
+            DirEntriesType::FullyTemplated(tv) => Ok(rendered::DirEntriesType::FullyTemplated(
                 tv.template_with(variables)?,
             )),
         }
@@ -270,56 +270,6 @@ fn check_basedir_escape_safety(path: &Path) -> Result<(), String> {
     })
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedFileSystem(HashMap<SafePath, RenderedDirEntriesType>);
-
-impl RenderedFileSystem {
-    /// Returns the internal file entries as a [`HashMap<PathBuf, String>`] so they can
-    /// be written into the actual host filesystem.
-    fn expand_paths(self) -> HashMap<PathBuf, String> {
-        self.0
-            .into_iter()
-            .flat_map(|(dir_path, dir_entries)| dir_entries.expand_paths_with(&dir_path))
-            .collect()
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum RenderedDirEntriesType {
-    /// A directory with a fixed set of entries (i.e. files). Each entry's content can be templated.
-    /// E.g.
-    /// ```yaml
-    /// "my/dir":
-    ///   filepath1: "file1 content with ${nr-var:some_var}"
-    ///   filepath2: "file2 content"
-    /// ```
-    FixedWithTemplatedContent(HashMap<SafePath, String>),
-
-    /// A directory with a fully templated set of entries, where it's expected that a full template
-    /// is provided that renders to a valid YAML mapping of a safe [`PathBuf`] to [`String`].
-    /// E.g.
-    /// ```yaml
-    /// "my/templated/dir":
-    ///   ${nr-var:some_var_that_renders_to_a_yaml_mapping}
-    /// ```
-    FullyTemplated(DirEntriesMap),
-}
-
-impl RenderedDirEntriesType {
-    /// Returns the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
-    /// be written into the actual host filesystem. Takes a base path to prepend to each entry.
-    fn expand_paths_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
-        let map = match self {
-            Self::FixedWithTemplatedContent(map) => map,
-            Self::FullyTemplated(tv) => tv.0,
-        };
-
-        map.into_iter()
-            .map(|(k, v)| (path.as_ref().join(k), v))
-            .collect()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use rstest::rstest;
@@ -364,9 +314,9 @@ mod tests {
         let rendered = rendered.unwrap();
         assert!(rendered.0.len() == 1);
 
-        let expected_filesystem = RenderedFileSystem(HashMap::from([(
+        let expected_filesystem = rendered::FileSystem(HashMap::from([(
             SafePath(PathBuf::from("/base/dir/my/path")),
-            RenderedDirEntriesType::FixedWithTemplatedContent(HashMap::from([(
+            rendered::DirEntriesType::FixedWithTemplatedContent(HashMap::from([(
                 PathBuf::from("my/file/path").try_into().unwrap(),
                 "some content".to_string(),
             )])),

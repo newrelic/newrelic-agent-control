@@ -194,7 +194,7 @@ pub mod tests {
     use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
-    use crate::agent_type::runtime_config::{RenderedDeployment, RenderedRuntime};
+    use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::http::builder::HttpClientBuilderError;
@@ -300,8 +300,8 @@ pub mod tests {
 
         let effective_agent = EffectiveAgent::new(
             agent_identity,
-            RenderedRuntime {
-                deployment: RenderedDeployment {
+            Runtime {
+                deployment: Deployment {
                     on_host: None,
                     k8s: Some(k8s_sample_runtime_config(true)),
                 },
@@ -324,8 +324,8 @@ pub mod tests {
 
         let effective_agent = EffectiveAgent::new(
             agent_identity,
-            RenderedRuntime {
-                deployment: RenderedDeployment {
+            Runtime {
+                deployment: Deployment {
                     on_host: None,
                     k8s: Some(k8s_sample_runtime_config(false)),
                 },

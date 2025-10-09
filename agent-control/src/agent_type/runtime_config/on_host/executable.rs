@@ -5,12 +5,11 @@ use serde::Deserialize;
 use crate::agent_type::{
     definition::Variables,
     error::AgentTypeError,
-    runtime_config::{
-        restart_policy::{RenderedRestartPolicyConfig, RestartPolicyConfig},
-        templateable_value::TemplateableValue,
-    },
+    runtime_config::{restart_policy::RestartPolicyConfig, templateable_value::TemplateableValue},
     templates::Templateable,
 };
+
+pub mod rendered;
 
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub(super) struct Executable {
@@ -34,7 +33,7 @@ pub(super) struct Executable {
 }
 
 impl Templateable for Executable {
-    type Output = RenderedExecutable;
+    type Output = rendered::Executable;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
@@ -60,30 +59,13 @@ impl Args {
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 
 impl Templateable for Env {
-    type Output = RenderedEnv;
+    type Output = rendered::Env;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         self.0
             .into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
             .collect::<Result<HashMap<_, _>, _>>()
-            .map(RenderedEnv)
+            .map(rendered::Env)
     }
 }
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedExecutable {
-    /// Executable identifier for the health checker.
-    pub id: String,
-    /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
-    pub path: String,
-    /// Arguments passed to the executable.
-    pub args: Args,
-    /// Environmental variables passed to the process.
-    pub env: RenderedEnv,
-    /// Defines how the executable will be restarted in case of failure.
-    pub restart_policy: RenderedRestartPolicyConfig,
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedEnv(pub HashMap<String, String>);

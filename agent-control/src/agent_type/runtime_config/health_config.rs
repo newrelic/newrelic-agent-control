@@ -12,6 +12,8 @@ use super::templateable_value::TemplateableValue;
 
 const DEFAULT_HEALTH_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 
+pub mod rendered;
+
 /// Represents the configuration for health checks.
 ///
 /// This structure includes parameters to define intervals between health checks,
@@ -172,7 +174,7 @@ impl Templateable for HttpPath {
 }
 
 impl Templateable for OnHostHealthConfig {
-    type Output = RenderedOnHostHealthConfig;
+    type Output = rendered::OnHostHealthConfig;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
@@ -188,25 +190,25 @@ impl Templateable for OnHostHealthConfig {
 }
 
 impl Templateable for OnHostHealthCheck {
-    type Output = RenderedOnHostHealthCheck;
+    type Output = rendered::OnHostHealthCheck;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(match self {
             OnHostHealthCheck::HttpHealth(conf) => {
-                let health_conf = RenderedHttpHealth {
+                let health_conf = rendered::HttpHealth {
                     host: conf.host.template_with(variables)?,
                     path: conf.path.template_with(variables)?,
                     port: conf.port.template_with(variables)?,
                     headers: conf.headers,
                     healthy_status_codes: conf.healthy_status_codes,
                 };
-                RenderedOnHostHealthCheck::HttpHealth(health_conf)
+                rendered::OnHostHealthCheck::HttpHealth(health_conf)
             }
             OnHostHealthCheck::FileHealth(conf) => {
                 let health_conf = FileHealth {
                     path: conf.path.template_with(variables)?,
                 };
-                RenderedOnHostHealthCheck::FileHealth(health_conf)
+                rendered::OnHostHealthCheck::FileHealth(health_conf)
             }
         })
     }
@@ -255,37 +257,4 @@ impl Templateable for TemplateableValue<HttpPath> {
         };
         Ok(value)
     }
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedOnHostHealthConfig {
-    /// The duration to wait between health checks.
-    pub(crate) interval: HealthCheckInterval,
-    /// The initial delay before the first health check is performed.
-    pub(crate) initial_delay: InitialDelay,
-    /// The maximum duration a health check may run before considered failed.
-    pub(crate) timeout: HealthCheckTimeout,
-    /// Details on the type of health check. Defined by the `HealthCheck` enumeration.
-    pub(crate) check: Option<RenderedOnHostHealthCheck>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) enum RenderedOnHostHealthCheck {
-    HttpHealth(RenderedHttpHealth),
-    FileHealth(RenderedFileHealth),
-}
-
-type RenderedFileHealth = FileHealth;
-
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct RenderedHttpHealth {
-    pub(crate) host: HttpHost,
-    /// The HTTP path to check for the health check.
-    pub(crate) path: HttpPath,
-    /// The port to be checked during the health check.
-    pub(crate) port: HttpPort,
-    /// Optional HTTP headers to be included during the health check.
-    pub(crate) headers: HashMap<String, String>,
-    // allowed healthy HTTP status codes
-    pub(crate) healthy_status_codes: Vec<u16>,
 }

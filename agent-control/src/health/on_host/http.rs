@@ -1,4 +1,4 @@
-use crate::agent_type::runtime_config::health_config::RenderedHttpHealth;
+use crate::agent_type::runtime_config::health_config::rendered::HttpHealth;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
@@ -84,7 +84,7 @@ where
 impl HttpHealthChecker<InnerClient> {
     pub(crate) fn new(
         client: InnerClient,
-        http_config: RenderedHttpHealth,
+        http_config: HttpHealth,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
         let host = format!("{}{}", DEFAULT_PROTOCOL, String::from(http_config.host),);

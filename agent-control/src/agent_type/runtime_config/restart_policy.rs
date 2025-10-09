@@ -8,6 +8,8 @@ use wrapper_with_default::WrapperWithDefault;
 
 use super::templateable_value::TemplateableValue;
 
+pub mod rendered;
+
 /// Defines the Restart Policy configuration.
 /// This policy outlines the procedures followed for restarting agents when their execution encounters failure.
 #[derive(Debug, Deserialize, PartialEq, Clone, Default)]
@@ -21,7 +23,7 @@ pub struct RestartPolicyConfig {
 }
 
 impl Templateable for RestartPolicyConfig {
-    type Output = RenderedRestartPolicyConfig;
+    type Output = rendered::RestartPolicyConfig;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
@@ -74,7 +76,7 @@ pub struct BackoffStrategyConfig {
 }
 
 impl Templateable for BackoffStrategyConfig {
-    type Output = RenderedBackoffStrategyConfig;
+    type Output = rendered::BackoffStrategyConfig;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         let backoff_type = self.backoff_type.template_with(variables)?;
@@ -123,20 +125,4 @@ impl Default for BackoffStrategyConfig {
             last_retry_interval: TemplateableValue::new(DEFAULT_BACKOFF_LAST_RETRY_INTERVAL.into()),
         }
     }
-}
-
-#[derive(Debug, PartialEq, Clone, Default)]
-pub struct RenderedRestartPolicyConfig {
-    /// Strategy configuration to retry in case of failure.
-    pub backoff_strategy: RenderedBackoffStrategyConfig,
-    /// List of exit codes that triggers a restart.
-    pub restart_exit_codes: Vec<i32>,
-}
-
-#[derive(Debug, Default, PartialEq, Clone)]
-pub struct RenderedBackoffStrategyConfig {
-    pub backoff_type: BackoffStrategyType,
-    pub backoff_delay: BackoffDelay,
-    pub max_retries: MaxRetries,
-    pub last_retry_interval: BackoffLastRetryInterval,
 }

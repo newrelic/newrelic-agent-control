@@ -1,5 +1,5 @@
 use crate::agent_type::runtime_config::restart_policy::{
-    BackoffStrategyType, RenderedBackoffStrategyConfig, RenderedRestartPolicyConfig,
+    BackoffStrategyType, rendered::BackoffStrategyConfig, rendered::RestartPolicyConfig,
 };
 use std::cmp::max;
 use std::time::{Duration, Instant};
@@ -45,8 +45,8 @@ impl Default for RestartPolicy {
     }
 }
 
-impl From<RenderedRestartPolicyConfig> for RestartPolicy {
-    fn from(value: RenderedRestartPolicyConfig) -> Self {
+impl From<RestartPolicyConfig> for RestartPolicy {
+    fn from(value: RestartPolicyConfig) -> Self {
         RestartPolicy::new(value.backoff_strategy.into(), value.restart_exit_codes)
     }
 }
@@ -142,8 +142,8 @@ impl Backoff {
     }
 }
 
-impl From<RenderedBackoffStrategyConfig> for BackoffStrategy {
-    fn from(value: RenderedBackoffStrategyConfig) -> Self {
+impl From<BackoffStrategyConfig> for BackoffStrategy {
+    fn from(value: BackoffStrategyConfig) -> Self {
         match value.backoff_type {
             BackoffStrategyType::Fixed => BackoffStrategy::Fixed(realize_backoff_config(value)),
             BackoffStrategyType::Linear => BackoffStrategy::Linear(realize_backoff_config(value)),
@@ -154,11 +154,11 @@ impl From<RenderedBackoffStrategyConfig> for BackoffStrategy {
     }
 }
 
-fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
+fn realize_backoff_config(i: BackoffStrategyConfig) -> Backoff {
     Backoff::default()
-        .with_initial_delay(i.backoff_delay.clone().get().into())
-        .with_max_retries(i.max_retries.clone().get().into())
-        .with_last_retry_interval(i.last_retry_interval.clone().get().into())
+        .with_initial_delay(i.backoff_delay.into())
+        .with_max_retries(i.max_retries.into())
+        .with_last_retry_interval(i.last_retry_interval.into())
 }
 
 /// fixed is a function executing a sleep function with a constant delay

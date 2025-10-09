@@ -1,7 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_type::runtime_config::health_config::RenderedOnHostHealthConfig;
-use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedFileSystemEntries;
-use crate::agent_type::runtime_config::version_config::RenderedOnHostVersionConfig;
+use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthConfig;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
+use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionConfig;
 use crate::context::Context;
 use crate::event::SubAgentInternalEvent;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
@@ -47,9 +47,9 @@ pub struct NotStartedSupervisorOnHost {
     executables: Vec<ExecutableData>,
     log_to_file: bool,
     logging_path: PathBuf,
-    health_config: RenderedOnHostHealthConfig,
-    version_config: Option<RenderedOnHostVersionConfig>,
-    filesystem_entries: RenderedFileSystemEntries,
+    health_config: OnHostHealthConfig,
+    version_config: Option<OnHostVersionConfig>,
+    filesystem_entries: FileSystemEntries,
 }
 
 impl SupervisorStarter for NotStartedSupervisorOnHost {
@@ -121,8 +121,8 @@ impl NotStartedSupervisorOnHost {
         agent_identity: AgentIdentity,
         executables: Vec<ExecutableData>,
         ctx: Context<bool>,
-        health_config: RenderedOnHostHealthConfig,
-        version_config: Option<RenderedOnHostVersionConfig>,
+        health_config: OnHostHealthConfig,
+        version_config: Option<OnHostVersionConfig>,
     ) -> Self {
         NotStartedSupervisorOnHost {
             agent_identity,
@@ -132,11 +132,11 @@ impl NotStartedSupervisorOnHost {
             logging_path: PathBuf::default(),
             health_config,
             version_config,
-            filesystem_entries: RenderedFileSystemEntries::default(),
+            filesystem_entries: FileSystemEntries::default(),
         }
     }
 
-    pub fn with_filesystem_entries(self, filesystem_entries: RenderedFileSystemEntries) -> Self {
+    pub fn with_filesystem_entries(self, filesystem_entries: FileSystemEntries) -> Self {
         Self {
             filesystem_entries,
             ..self
@@ -472,6 +472,7 @@ fn wait_for_termination(
 pub mod tests {
     use super::*;
     use crate::agent_type::agent_type_id::AgentTypeID;
+    use crate::agent_type::runtime_config::health_config::rendered;
     use crate::context::Context;
     use crate::event::channel::pub_sub;
     use crate::health::health_checker::HEALTH_CHECKER_THREAD_NAME;
@@ -535,7 +536,7 @@ pub mod tests {
             agent_identity,
             executable_data,
             ctx,
-            RenderedOnHostHealthConfig::default(),
+            OnHostHealthConfig::default(),
             None,
         );
 
@@ -757,7 +758,7 @@ pub mod tests {
             agent_identity,
             executables,
             Context::default(),
-            OnHostHealthConfig::default(),
+            rendered::OnHostHealthConfig::default(),
             None,
         );
 

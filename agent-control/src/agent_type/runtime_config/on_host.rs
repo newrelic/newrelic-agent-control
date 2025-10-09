@@ -4,10 +4,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::agent_type::definition::Variables;
 use crate::agent_type::error::AgentTypeError;
-use crate::agent_type::runtime_config::health_config::RenderedOnHostHealthConfig;
-use crate::agent_type::runtime_config::on_host::executable::{Executable, RenderedExecutable};
-use crate::agent_type::runtime_config::on_host::filesystem::{FileSystem, RenderedFileSystem};
-use crate::agent_type::runtime_config::version_config::RenderedOnHostVersionConfig;
+use crate::agent_type::runtime_config::on_host::executable::Executable;
+use crate::agent_type::runtime_config::on_host::filesystem::FileSystem;
 use crate::agent_type::templates::Templateable;
 
 use super::health_config::OnHostHealthConfig;
@@ -16,6 +14,7 @@ use super::version_config::OnHostVersionConfig;
 
 pub mod executable;
 pub mod filesystem;
+pub mod rendered;
 
 /// The definition for an on-host supervisor.
 ///
@@ -55,7 +54,7 @@ where
 }
 
 impl Templateable for OnHost {
-    type Output = RenderedOnHost;
+    type Output = rendered::OnHost;
 
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
@@ -75,25 +74,15 @@ impl Templateable for OnHost {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RenderedOnHost {
-    pub executables: Vec<RenderedExecutable>,
-    pub enable_file_logging: bool,
-    /// Enables and define health checks configuration.
-    pub health: RenderedOnHostHealthConfig,
-    pub version: Option<RenderedOnHostVersionConfig>,
-    pub filesystem: RenderedFileSystem,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
-    use crate::agent_type::runtime_config::on_host::executable::{Args, Env, RenderedEnv};
+    use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
     use crate::agent_type::runtime_config::restart_policy::{
-        BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
-        RenderedBackoffStrategyConfig, RenderedRestartPolicyConfig, RestartPolicyConfig,
+        self, BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
+        RestartPolicyConfig,
     };
     use crate::agent_type::variable::Variable;
     use crate::health::health_checker::{HealthCheckInterval, InitialDelay};
@@ -250,13 +239,13 @@ restart_policy:
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
-        let exec_expected = RenderedExecutable {
+        let exec_expected = executable::rendered::Executable {
             id: "otelcol".to_string(),
             path: "/etc/otelcol".to_string(),
             args: Args("--verbose true --logs trace".to_string()),
-            env: RenderedEnv::default(),
-            restart_policy: RenderedRestartPolicyConfig {
-                backoff_strategy: RenderedBackoffStrategyConfig {
+            env: executable::rendered::Env::default(),
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
                     backoff_type: BackoffStrategyType::Exponential,
                     backoff_delay: BackoffDelay::from_secs(10),
                     max_retries: 30.into(),
@@ -353,13 +342,13 @@ restart_policy:
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
-        let exec_expected = RenderedExecutable {
+        let exec_expected = executable::rendered::Executable {
             id: "otelcol".to_string(),
             path: "/etc/otelcol".to_string(),
             args: Args("--verbose true --verbose_again true".to_string()),
-            env: RenderedEnv::default(),
-            restart_policy: RenderedRestartPolicyConfig {
-                backoff_strategy: RenderedBackoffStrategyConfig {
+            env: executable::rendered::Env::default(),
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
                     backoff_type: BackoffStrategyType::Linear,
                     backoff_delay: BackoffDelay::from_secs(10),
                     max_retries: 30.into(),
@@ -441,16 +430,16 @@ restart_policy:
                 restart_exit_codes: vec![],
             },
         };
-        let expected_output = RenderedExecutable {
+        let expected_output = executable::rendered::Executable {
             id: "myapp".to_string(),
             path: "/usr/bin/myapp".to_string(),
             args: Args("--config /etc/myapp.conf".to_string()),
-            env: RenderedEnv(HashMap::from([(
+            env: executable::rendered::Env(HashMap::from([(
                 "MYAPP_PORT".to_string(),
                 "8080".to_string(),
             )])),
-            restart_policy: RenderedRestartPolicyConfig {
-                backoff_strategy: RenderedBackoffStrategyConfig {
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
                     backoff_type: BackoffStrategyType::Linear,
                     backoff_delay: BackoffDelay::from_secs(10),
                     max_retries: 30.into(),
