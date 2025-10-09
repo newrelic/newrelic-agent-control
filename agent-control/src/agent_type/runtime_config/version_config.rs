@@ -31,9 +31,9 @@ impl<'de> Deserialize<'de> for OnHostVersionConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         pub struct IntermediateOnHostVersionConfig {
-            pub path: TemplateableValue<String>,
-            pub args: TemplateableValue<Args>,
-            pub(crate) regex: Option<String>,
+            path: TemplateableValue<String>,
+            args: TemplateableValue<Args>,
+            regex: Option<String>,
         }
 
         let intermediate_spec = IntermediateOnHostVersionConfig::deserialize(deserializer)?;
