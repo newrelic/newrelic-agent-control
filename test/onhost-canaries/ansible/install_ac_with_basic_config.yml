@@ -82,7 +82,7 @@
         {% endraw %}
 
   - name: Add license to service
-    shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
+    shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' > {{ agent_control_service_conf }}
 
   - name: Restart Agent Control
     include_role:
