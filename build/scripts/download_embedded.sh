@@ -2,9 +2,10 @@
 
 ARCH="${ARCH:-amd64}"
 GOCACHE=/tmp/.gocache
+GOVERSION="${GOVERSION:-1.25}"
 
 # download assets
-docker run --rm --user "$(id -u)":"$(id -g)" -e GOCACHE="$GOCACHE" -e ARCH="$ARCH" -e ARTIFACTS_VERSIONS="${ARTIFACTS_VERSIONS}" -v "$PWD":/usr/src/app -w /usr/src/app golang:1.20 make build/embedded
+docker run --rm --user "$(id -u)":"$(id -g)" -e GOCACHE="$GOCACHE" -e ARCH="$ARCH" -e ARTIFACTS_VERSIONS="${ARTIFACTS_VERSIONS}" -v "$PWD":/usr/src/app -w /usr/src/app golang:"$GOVERSION" make build/embedded
 
 # validate
 docker run --rm -v "$PWD":/usr/src/app -w /usr/src/app ubuntu /bin/bash -c "apt-get update && apt-get install tree -y && tree ./build/embedded"
