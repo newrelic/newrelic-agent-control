@@ -1,7 +1,6 @@
 use super::config::AgentControlConfigError;
 use super::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::config_validator::DynamicConfigValidatorError;
 use crate::agent_control::version_updater::updater::UpdaterError;
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
 use crate::agent_type::error::AgentTypeError;
@@ -96,7 +95,7 @@ pub enum AgentError {
     InitializeIdentifiersProvider(#[from] IdentifiersProviderError),
 
     #[error("agent control remote config validation error: {0}")]
-    RemoteConfigValidator(#[from] DynamicConfigValidatorError),
+    RemoteConfigValidator(String),
 
     #[error("resource cleaner error: {0}")]
     ResourceCleaner(#[from] ResourceCleanerError),

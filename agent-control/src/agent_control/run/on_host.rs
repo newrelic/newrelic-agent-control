@@ -157,8 +157,9 @@ impl AgentControlRunner {
         let supervisor_builder =
             SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR));
 
+        let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![
-            SupportedRemoteConfigValidator::Signature(self.signature_validator),
+            SupportedRemoteConfigValidator::Signature(signature_validator.clone()),
             SupportedRemoteConfigValidator::Regex(RegexValidator::default()),
         ];
         let remote_config_parser = AgentRemoteConfigParser::new(remote_config_validators);
@@ -190,6 +191,7 @@ impl AgentControlRunner {
             maybe_sa_opamp_consumer,
             agent_control_internal_publisher,
             agent_control_internal_consumer,
+            SupportedRemoteConfigValidator::Signature(signature_validator),
             dynamic_config_validator,
             NoOpResourceCleaner,
             NoOpUpdater,
