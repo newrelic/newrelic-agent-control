@@ -3,7 +3,6 @@ use crate::context::Context;
 use std::time::Duration;
 use tracing::error;
 
-/// DEFAULT_EXIT_TIMEOUT of 2 seconds
 const DEFAULT_EXIT_TIMEOUT: Duration = Duration::new(10, 0);
 
 /// ProcessTerminator it's a service that allows shutting down gracefully the process

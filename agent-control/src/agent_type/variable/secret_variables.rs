@@ -217,7 +217,7 @@ eof"#;
         let secrets = SecretVariables {
             variables: HashMap::new(),
         };
-        let result = secrets.load_secrets(&SecretsProviders::new()).unwrap();
+        let result = secrets.load_secrets(&SecretsProviders::default()).unwrap();
         assert!(result.is_empty());
     }
 }

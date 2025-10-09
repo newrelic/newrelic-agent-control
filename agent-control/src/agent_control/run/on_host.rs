@@ -142,7 +142,7 @@ impl AgentControlRunner {
             )
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
-        let mut secrets_providers = SecretsProviders::new().with_env();
+        let mut secrets_providers = SecretsProviders::default().with_env();
         if let Some(config) = &agent_control_config.secrets_providers {
             secrets_providers = secrets_providers.with_config(config.clone()).map_err(|e| {
                 AgentError::ConfigResolve(AgentControlConfigError::Load(format!(

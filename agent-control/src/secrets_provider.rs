@@ -90,7 +90,6 @@ impl SecretsProvider for SecretsProviderType {
 /// Collection of [SecretsProviderType]s.
 pub type SecretsProviders = Registry<SecretsProviderType>;
 
-#[derive(Default)]
 pub struct Registry<S: SecretsProvider>(HashMap<Namespace, S>);
 
 impl<S: SecretsProvider> Registry<S> {
@@ -99,11 +98,13 @@ impl<S: SecretsProvider> Registry<S> {
     }
 }
 
-impl Registry<SecretsProviderType> {
-    pub fn new() -> Self {
-        Registry(HashMap::new())
+impl Default for Registry<SecretsProviderType> {
+    fn default() -> Self {
+        Self(HashMap::new())
     }
+}
 
+impl Registry<SecretsProviderType> {
     pub fn with_env(mut self) -> Self {
         self.0.insert(
             Namespace::EnvironmentVariable,
