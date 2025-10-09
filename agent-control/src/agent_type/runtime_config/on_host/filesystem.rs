@@ -122,12 +122,6 @@ impl Default for DirEntriesType {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct DirEntriesMap(HashMap<SafePath, String>);
 
-impl From<DirEntriesMap> for HashMap<SafePath, String> {
-    fn from(value: DirEntriesMap) -> Self {
-        value.0
-    }
-}
-
 impl Templateable for FileSystem {
     type Output = RenderedFileSystem;
 
@@ -315,18 +309,14 @@ impl RenderedDirEntriesType {
     /// Returns the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
     /// be written into the actual host filesystem. Takes a base path to prepend to each entry.
     fn expand_paths_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
-        match self {
-            Self::FixedWithTemplatedContent(map) => map
-                .into_iter()
-                .map(|(k, v)| (path.as_ref().join(k), v))
-                .collect(),
-            Self::FullyTemplated(tv) => {
-                let map = HashMap::from(tv);
-                map.into_iter()
-                    .map(|(k, v)| (path.as_ref().join(k), v))
-                    .collect()
-            }
-        }
+        let map = match self {
+            Self::FixedWithTemplatedContent(map) => map,
+            Self::FullyTemplated(tv) => tv.0,
+        };
+
+        map.into_iter()
+            .map(|(k, v)| (path.as_ref().join(k), v))
+            .collect()
     }
 }
 
