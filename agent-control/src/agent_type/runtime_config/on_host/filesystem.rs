@@ -282,13 +282,10 @@ pub struct RenderedFileSystem(HashMap<SafePath, RenderedDirEntriesType>);
 impl RenderedFileSystem {
     /// Returns the internal file entries as a [`HashMap<PathBuf, String>`] so they can
     /// be written into the actual host filesystem.
-    ///
-    /// **WARNING**: This must be called **after** the rendering process has finished
-    /// or else AC might crash!
-    fn rendered(self) -> HashMap<PathBuf, String> {
+    fn expand_paths(self) -> HashMap<PathBuf, String> {
         self.0
             .into_iter()
-            .flat_map(|(dir_path, dir_entries)| dir_entries.rendered_with(&dir_path))
+            .flat_map(|(dir_path, dir_entries)| dir_entries.expand_paths_with(&dir_path))
             .collect()
     }
 }
@@ -315,12 +312,9 @@ pub enum RenderedDirEntriesType {
 }
 
 impl RenderedDirEntriesType {
-    /// Renders the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
-    /// be written into the actual host filesystem.
-    ///
-    /// **WARNING**: This must be called **after** the rendering process has finished
-    /// or else AC might crash!
-    fn rendered_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
+    /// Returns the directory entries as an iterator of [`HashMap<PathBuf, String>`] so they can
+    /// be written into the actual host filesystem. Takes a base path to prepend to each entry.
+    fn expand_paths_with(self, path: impl AsRef<Path>) -> HashMap<PathBuf, String> {
         match self {
             Self::FixedWithTemplatedContent(map) => map
                 .into_iter()
@@ -602,7 +596,7 @@ mod tests {
                 String::from("multi-line\ncontentB"),
             ),
         ];
-        let rendered = templated.rendered();
+        let rendered = templated.expand_paths();
         assert_eq!(
             rendered.len(),
             expected_rendered.len(),

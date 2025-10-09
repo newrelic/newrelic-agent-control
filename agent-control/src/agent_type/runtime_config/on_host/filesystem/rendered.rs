@@ -22,7 +22,7 @@ pub struct RenderedFileSystemEntries(HashMap<PathBuf, String>);
 
 impl From<RenderedFileSystem> for RenderedFileSystemEntries {
     fn from(value: RenderedFileSystem) -> Self {
-        Self(value.rendered())
+        Self(value.expand_paths())
     }
 }
 
