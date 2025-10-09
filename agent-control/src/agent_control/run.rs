@@ -9,7 +9,6 @@ use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
-
 use crate::event::{AgentControlEvent, ApplicationEvent, SubAgentEvent, channel::EventConsumer};
 use crate::http::config::ProxyConfig;
 use crate::opamp::auth::token_retriever::TokenRetrieverImpl;

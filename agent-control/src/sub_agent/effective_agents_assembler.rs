@@ -279,7 +279,7 @@ pub(crate) mod tests {
                 registry: Arc::new(registry),
                 renderer: TemplateRenderer::default(),
                 variable_constraints: VariableConstraints::default(),
-                secrets_providers: SecretsProviders::new(),
+                secrets_providers: SecretsProviders::default(),
                 auto_generated_dir: PathBuf::default(),
             }
         }

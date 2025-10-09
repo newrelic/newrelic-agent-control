@@ -107,10 +107,6 @@ impl Default for Backoff {
 }
 
 impl Backoff {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn with_initial_delay(mut self, initial_delay: Duration) -> Self {
         self.initial_delay = initial_delay;
         self
@@ -159,7 +155,7 @@ impl From<&BackoffStrategyConfig> for BackoffStrategy {
 }
 
 fn realize_backoff_config(i: &BackoffStrategyConfig) -> Backoff {
-    Backoff::new()
+    Backoff::default()
         .with_initial_delay(i.backoff_delay.clone().get().into())
         .with_max_retries(i.max_retries.clone().get().into())
         .with_last_retry_interval(i.last_retry_interval.clone().get().into())
@@ -213,7 +209,7 @@ mod tests {
         let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new().with_max_retries(3);
+        let mut b = Backoff::default().with_max_retries(3);
         let results = vec![true, true, true, false];
 
         results.into_iter().for_each(|result| {
@@ -233,7 +229,7 @@ mod tests {
             slept += dur;
         };
 
-        let mut b = Backoff::new()
+        let mut b = Backoff::default()
             .with_max_retries(3)
             .with_last_retry_interval(Duration::from_micros(1));
         let results = vec![true, true, true, true];
@@ -255,7 +251,7 @@ mod tests {
         let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new().with_initial_delay(Duration::from_secs(6));
+        let mut b = Backoff::default().with_initial_delay(Duration::from_secs(6));
         let results = vec![true, true, true, true];
 
         results.into_iter().for_each(|result| {
@@ -273,7 +269,7 @@ mod tests {
         let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new();
+        let mut b = Backoff::default();
         let results = vec![true, true, true, true, true];
 
         results.into_iter().for_each(|result| {
@@ -291,7 +287,7 @@ mod tests {
         let mut slept = Duration::new(0, 0);
         let mut sleep_mock = |dur: Duration| slept += dur;
 
-        let mut b = Backoff::new();
+        let mut b = Backoff::default();
         let results = vec![true, true, true, true, true];
 
         results.into_iter().for_each(|result| {

@@ -143,7 +143,7 @@ impl AgentControlRunner {
         let template_renderer = TemplateRenderer::default()
             .with_agent_control_variables(agent_control_variables.clone().into_iter());
 
-        let mut secrets_providers = SecretsProviders::new()
+        let mut secrets_providers = SecretsProviders::default()
             .with_env()
             .with_k8s_secret(k8s_client.clone());
         if let Some(config) = &agent_control_config.secrets_providers {

@@ -996,7 +996,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition().into()),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProviders::new(),
+            SecretsProviders::default(),
             PathBuf::default().as_path(),
         ));
 
@@ -1082,7 +1082,7 @@ deployment:
             Arc::new(EmbeddedRegistry::from(TestAgent::agent_type_definition())),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProviders::new(),
+            SecretsProviders::default(),
             PathBuf::default().as_path(),
         ));
 
@@ -1531,7 +1531,7 @@ deployment:
             Arc::new(TestAgent::agent_type_definition_with_required_var().into()),
             TemplateRenderer::default(),
             VariableConstraints::default(),
-            SecretsProviders::new(),
+            SecretsProviders::default(),
             PathBuf::default().as_path(),
         ));
 
