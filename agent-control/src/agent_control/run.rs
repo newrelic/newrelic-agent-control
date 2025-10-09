@@ -3,7 +3,6 @@ use super::defaults::{
     AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     DYNAMIC_AGENT_TYPE_DIR,
 };
-use super::error::AgentError;
 use super::http_server::config::ServerConfig;
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_type::embedded_registry::EmbeddedRegistry;
@@ -21,6 +20,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 use tracing::{debug, error};
+
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct RunError(String);
 
 // k8s and on_host need to be public to allow integration tests to access the fn run_agent_control.
 
@@ -178,7 +181,7 @@ impl AgentControlRunner {
         })
     }
 
-    pub fn run(self, mode: Environment) -> Result<(), AgentError> {
+    pub fn run(self, mode: Environment) -> Result<(), RunError> {
         match mode {
             Environment::OnHost => self.run_onhost(),
             Environment::K8s => self.run_k8s(),

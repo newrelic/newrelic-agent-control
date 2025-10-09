@@ -36,7 +36,7 @@ use config_repository::repository::AgentControlDynamicConfigRepository;
 use config_validator::DynamicConfigValidator;
 use crossbeam::channel::never;
 use crossbeam::select;
-use error::{AgentError, BuildingSubagentErrors};
+use error::{AgentControlError, BuildingSubagentErrors};
 use opamp_client::StartedClient;
 use resource_cleaner::ResourceCleaner;
 use std::sync::Arc;
@@ -127,7 +127,7 @@ where
         }
     }
 
-    pub fn run(self) -> Result<(), AgentError> {
+    pub fn run(self) -> Result<(), AgentControlError> {
         let ac_startup_span = info_span!("start_agent_control", id = AGENT_CONTROL_ID);
         let _ac_startup_span_guard = ac_startup_span.enter();
         info!("Starting the agents supervisor runtime");
@@ -210,7 +210,7 @@ where
         &self,
         agent_identity: &AgentIdentity,
         running_sub_agents: &mut StartedSubAgents<BuilderStartedSubAgent<S>>,
-    ) -> Result<(), AgentError> {
+    ) -> Result<(), AgentControlError> {
         running_sub_agents.stop_and_remove(&agent_identity.id)?;
         self.build_and_run_sub_agent(agent_identity, running_sub_agents)
     }
@@ -223,7 +223,7 @@ where
         sub_agents: &SubAgentsMap,
     ) -> (
         StartedSubAgents<BuilderStartedSubAgent<S>>,
-        Result<(), AgentError>,
+        Result<(), AgentControlError>,
     ) {
         let mut running_sub_agents = StartedSubAgents::default();
         let mut errors = BuildingSubagentErrors::default();
@@ -247,7 +247,7 @@ where
         } else {
             (
                 running_sub_agents,
-                Err(AgentError::BuildingSubagents(errors)),
+                Err(AgentControlError::BuildingSubagents(errors)),
             )
         }
     }
@@ -259,7 +259,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-    ) -> Result<(), AgentError> {
+    ) -> Result<(), AgentControlError> {
         running_sub_agents.insert(
             agent_identity.id.clone(),
             self.sub_agent_builder.build(agent_identity)?.run(),
@@ -374,7 +374,7 @@ where
             <<S as SubAgentBuilder>::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         current_dynamic_config: &AgentControlDynamicConfig,
-    ) -> Result<AgentControlDynamicConfig, AgentError> {
+    ) -> Result<AgentControlDynamicConfig, AgentControlError> {
         let Some(opamp_client) = &self.opamp_client else {
             unreachable!("got remote config without OpAMP being enabled");
         };
@@ -392,7 +392,7 @@ where
             current_dynamic_config,
         ) {
             // Remote config partially applied, the config was stored so it needs to be updated to fail state.
-            Err(AgentError::BuildingSubagents(err)) => {
+            Err(AgentControlError::BuildingSubagents(err)) => {
                 let error_message =
                     format!("Error applying Agent Control remote config for some agents: {err}");
                 let config_state = ConfigState::Failed { error_message };
@@ -400,7 +400,7 @@ where
                     .update_state(config_state.clone())?;
                 report_state(config_state, opamp_remote_config.hash, opamp_client)?;
                 opamp_client.update_effective_config()?;
-                Err(AgentError::BuildingSubagents(err))
+                Err(AgentControlError::BuildingSubagents(err))
             }
             // Remote config failed to apply, the config was not stored.
             Err(err) => {
@@ -426,7 +426,7 @@ where
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
         current_dynamic_config: &AgentControlDynamicConfig,
-    ) -> Result<AgentControlDynamicConfig, AgentError> {
+    ) -> Result<AgentControlDynamicConfig, AgentControlError> {
         // Fail if the remote config has already identified as failed.
         if let Some(err) = opamp_remote_config.state.error_message().cloned() {
             // TODO seems like this error should be sent by the remote config itself
@@ -442,7 +442,7 @@ where
                 &AgentIdentity::new_agent_control_identity(),
                 opamp_remote_config,
             )
-            .map_err(|err| AgentError::RemoteConfigValidator(err.to_string()))?;
+            .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         let remote_config_value = opamp_remote_config.get_default()?;
 
@@ -461,7 +461,7 @@ where
         );
         self.dynamic_config_validator
             .validate(&new_dynamic_config)
-            .map_err(|err| AgentError::RemoteConfigValidator(err.to_string()))?;
+            .map_err(|err| AgentControlError::RemoteConfigValidator(err.to_string()))?;
 
         // The updater is responsible for determining the current version and deciding whether an update is necessary.
         self.version_updater.update(&new_dynamic_config)?;
@@ -504,7 +504,7 @@ where
         running_sub_agents: &mut StartedSubAgents<
             <S::NotStartedSubAgent as NotStartedSubAgent>::StartedSubAgent,
         >,
-    ) -> Result<(), AgentError> {
+    ) -> Result<(), AgentControlError> {
         let mut errors = BuildingSubagentErrors::default();
 
         for (agent_id, agent_config) in &new_dynamic_config.agents {
@@ -553,7 +553,7 @@ where
         }
 
         if !errors.is_empty() {
-            Err(AgentError::BuildingSubagents(errors))
+            Err(AgentControlError::BuildingSubagents(errors))
         } else {
             Ok(())
         }
@@ -583,7 +583,7 @@ mod tests {
     use super::config_repository::repository::AgentControlDynamicConfigRepository;
     use super::config_repository::repository::tests::InMemoryAgentControlDynamicConfigRepository;
     use super::config_validator::tests::TestDynamicConfigValidator;
-    use super::error::AgentError;
+    use super::error::AgentControlError;
     use super::resource_cleaner::tests::MockResourceCleaner;
     use super::version_updater::updater::UpdaterError;
     use super::version_updater::updater::tests::MockVersionUpdater;
@@ -1163,7 +1163,7 @@ agents:
             &current_dynamic_config,
         );
 
-        assert_matches!(result, Err(AgentError::RemoteConfig(s)) => {
+        assert_matches!(result, Err(AgentControlError::RemoteConfig(s)) => {
             assert!(s.to_string().contains("some error"))
         });
         t.assert_no_persisted_remote_config();
@@ -1264,7 +1264,7 @@ chart_version: 0.0.1 # Set for consistency but it is actually unused since we us
             &mut running_sub_agents,
             &current_dynamic_config,
         );
-        assert_matches!(result, Err(AgentError::Updater(_)));
+        assert_matches!(result, Err(AgentControlError::Updater(_)));
         t.assert_no_persisted_remote_config(); // When the updater fails the remote configuration is not persisted
     }
 
@@ -1416,7 +1416,7 @@ agents:
             &current_dynamic_config,
         );
 
-        assert_matches!(result, Err(AgentError::BuildingSubagents(_)));
+        assert_matches!(result, Err(AgentControlError::BuildingSubagents(_)));
         t.assert_stored_remote_config(|config| {
             assert_eq!(config.hash, opamp_remote_config.hash);
             assert!(config.state.is_failed());
@@ -1462,7 +1462,7 @@ chart_version: 0.0.2 # not actually used, we rely on a mock
             &current_dynamic_config,
         );
 
-        assert_matches!(result, Err(AgentError::RemoteConfigValidator(_)));
+        assert_matches!(result, Err(AgentControlError::RemoteConfigValidator(_)));
         t.assert_no_persisted_remote_config();
     }
 
