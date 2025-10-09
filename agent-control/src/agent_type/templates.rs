@@ -31,6 +31,8 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 /// provided `Variables` map. Placeholders follow a specific format, such as
 /// `${nr-var:key}`.
 ///
+/// This trait allows to specify the output type with the `Output` associated type.
+///
 /// # Errors
 ///
 /// Returns an `AgentTypeError` if a placeholder references an undefined or
