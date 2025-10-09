@@ -78,7 +78,7 @@ pub struct RenderedExecutable {
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
     pub path: String,
     /// Arguments passed to the executable.
-    pub args: Args, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+    pub args: Args,
     /// Environmental variables passed to the process.
     pub env: RenderedEnv,
     /// Defines how the executable will be restarted in case of failure.
