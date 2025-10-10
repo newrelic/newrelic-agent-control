@@ -74,8 +74,8 @@ jobs:
           make build-agent-control-k8s ARCH=amd64 PKG=newrelic_agent_control
           
           # We do not do it in parallel because most of the dependencies are shared
-          make build-agent-control-cli ARCH=arm64 PKG=newrelic_agent_control
-          make build-agent-control-cli ARCH=amd64 PKG=newrelic_agent_control
+          make build-agent-control-k8s-cli ARCH=arm64 PKG=newrelic_agent_control
+          make build-agent-control-k8s-cli ARCH=amd64 PKG=newrelic_agent_control
 
       - uses: docker/setup-qemu-action@v3
 

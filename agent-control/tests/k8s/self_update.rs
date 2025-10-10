@@ -375,7 +375,7 @@ fn bootstrap_ac(
 }
 
 fn install_ac_with_cli(namespace: &str, chart_version: &str, release_name: &str) {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
 
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");

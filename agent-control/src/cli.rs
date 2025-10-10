@@ -1,4 +1,1 @@
-pub mod errors;
-pub mod install;
-pub mod uninstall;
-pub mod utils;
+pub mod k8s;

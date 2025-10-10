@@ -144,7 +144,7 @@ pub fn ac_install_cmd(
     release_name: &str,
     secrets: &str,
 ) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");
     cmd.arg("--chart-name").arg("agent-control-deployment");

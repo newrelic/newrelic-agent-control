@@ -7,11 +7,11 @@ use clap::{Parser, arg};
 use kube::api::{DynamicObject, ObjectMeta};
 use tracing::{debug, info};
 
+use super::{errors::CliError, utils::try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
     agent_control::config::{helmrelease_v2_type_meta, helmrepository_type_meta},
-    cli::{errors::CliError, utils::try_new_k8s_client},
     health::{
         health_checker::HealthChecker, k8s::health_checker::K8sHealthChecker,
         with_start_time::StartTime,
@@ -384,14 +384,13 @@ fn check_installation(
 
 #[cfg(test)]
 mod tests {
+    use super::agent_control::InstallAgentControl;
+    use super::*;
     use crate::{
         agent_control::config::helmrepository_type_meta,
-        cli::install::agent_control::InstallAgentControl,
         k8s::labels::{AGENT_CONTROL_VERSION_SET_FROM, LOCAL_VAL, REMOTE_VAL},
         sub_agent::identity::AgentIdentity,
     };
-
-    use super::*;
 
     const LOCAL_TEST_VERSION: &str = "1.0.0";
     const TEST_NAMESPACE: &str = "test-namespace";

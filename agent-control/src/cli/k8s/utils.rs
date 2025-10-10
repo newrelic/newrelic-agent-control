@@ -1,4 +1,4 @@
-use crate::cli::errors::CliError;
+use super::errors::CliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use std::collections::BTreeMap;
@@ -14,7 +14,7 @@ use tracing::debug;
 ///
 /// ```
 /// use std::collections::BTreeMap;
-/// use newrelic_agent_control::cli::utils::parse_key_value_pairs;
+/// use newrelic_agent_control::cli::k8s::utils::parse_key_value_pairs;
 ///
 /// let data = "key1=value1, key2=value2, key3=value3";
 /// let parsed = parse_key_value_pairs(data);
