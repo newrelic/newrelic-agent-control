@@ -18,7 +18,7 @@ thiserror = "2.0.17"
 tracing = "0.1.41"
 regex = "1.12.2"
 mockall = "0.13.1"
-clap = "4.5.48"
+clap = "4.5.49"
 nix = "0.30.1"
 tracing-subscriber = { version = "0.3.20", features = [ "json" ] }
 tracing-test = "0.2.5"
