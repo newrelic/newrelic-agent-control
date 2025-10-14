@@ -1,4 +1,4 @@
-use super::errors::CliError;
+use super::errors::K8sCliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use std::collections::BTreeMap;
@@ -34,7 +34,7 @@ pub fn parse_key_value_pairs(data: impl AsRef<str>) -> BTreeMap<String, String> 
         .collect()
 }
 
-pub fn try_new_k8s_client() -> Result<SyncK8sClient, CliError> {
+pub fn try_new_k8s_client() -> Result<SyncK8sClient, K8sCliError> {
     debug!("Starting the runtime");
     let runtime = Arc::new(
         tokio::runtime::Builder::new_multi_thread()
@@ -44,7 +44,7 @@ pub fn try_new_k8s_client() -> Result<SyncK8sClient, CliError> {
     );
 
     debug!("Starting the k8s client");
-    SyncK8sClient::try_new(runtime).map_err(|err| CliError::K8sClient(err.to_string()))
+    SyncK8sClient::try_new(runtime).map_err(|err| K8sCliError::K8sClient(err.to_string()))
 }
 
 #[cfg(test)]

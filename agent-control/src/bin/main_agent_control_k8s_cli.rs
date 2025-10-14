@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use newrelic_agent_control::cli::k8s::errors::CliError;
+use newrelic_agent_control::cli::error::CliError;
 use newrelic_agent_control::cli::k8s::install::agent_control::InstallAgentControl;
 use newrelic_agent_control::cli::k8s::install::flux::InstallFlux;
 use newrelic_agent_control::cli::k8s::install::{InstallData, apply_resources};
@@ -7,15 +7,9 @@ use newrelic_agent_control::cli::k8s::uninstall::agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
 use newrelic_agent_control::cli::k8s::uninstall::flux::{FluxUninstallData, remove_flux_crs};
-use newrelic_agent_control::{
-    agent_control::defaults::AGENT_CONTROL_LOG_DIR,
-    http::tls::install_rustls_default_crypto_provider,
-    instrumentation::{
-        config::logs::config::LoggingConfig,
-        tracing::{TracingConfig, try_init_tracing},
-    },
-};
-use std::{path::PathBuf, process::ExitCode};
+use newrelic_agent_control::cli::logs;
+use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
+use std::process::ExitCode;
 use tracing::{Level, debug, error};
 
 /// Manage agent control resources
@@ -54,15 +48,10 @@ enum Operations {
 fn main() -> ExitCode {
     let cli = Cli::parse();
 
-    let logging_config: LoggingConfig = serde_yaml::from_str(&format!("level: {}", cli.log_level))
-        .expect("Logging config should be valid");
-    let tracing_config = TracingConfig::from_logging_path(PathBuf::from(AGENT_CONTROL_LOG_DIR))
-        .with_logging_config(logging_config);
-    let tracer = try_init_tracing(tracing_config).map_err(|err| CliError::Tracing(err.to_string()));
-
+    let tracer = logs::init(cli.log_level);
     if let Err(err) = tracer {
-        eprintln!("Failed to initialize tracing: {err:?}");
-        return err.to_exit_code();
+        eprintln!("Failed to initialize tracing: {err}");
+        return err.into();
     }
 
     debug!("Installing default rustls crypto provider");
@@ -89,7 +78,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
             error!("Operation failed: {}", err);
-            err.to_exit_code()
+            CliError::from(err).into()
         }
     }
 }

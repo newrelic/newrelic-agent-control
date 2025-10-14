@@ -7,7 +7,7 @@ use clap::{Parser, arg};
 use kube::api::{DynamicObject, ObjectMeta};
 use tracing::{debug, info};
 
-use super::{errors::CliError, utils::try_new_k8s_client};
+use super::{errors::K8sCliError, utils::try_new_k8s_client};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::{
@@ -116,7 +116,7 @@ pub fn apply_resources(
     dyn_object_list_builder: impl DynamicObjectListBuilder,
     namespace: &str,
     install_data: &InstallData,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let release_name = &install_data.release_name;
     info!("Installing release {release_name}");
     let k8s_client = try_new_k8s_client()?;
@@ -125,11 +125,11 @@ pub fn apply_resources(
         .map_err(|err| match err {
             // Specifying an invalid version of `agent-control-cd` throws an error showing that something is wrong with the api.
             // It can be hard to understand without prior knowledge, thus we simplify the error message for that specific variant.
-            K8sError::MissingAPIResource(_) => CliError::ApplyResource(format!(
+            K8sError::MissingAPIResource(_) => K8sCliError::ApplyResource(format!(
                 "could not get HelmRelease with name {release_name} and version {}",
                 install_data.chart_version
             )),
-            _ => CliError::ApplyResource(format!(
+            _ => K8sCliError::ApplyResource(format!(
                 "could not get HelmRelease with name {release_name}: {err}",
             )),
         })?;
@@ -166,14 +166,14 @@ pub fn apply_resources(
     Ok(())
 }
 
-fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<(), CliError> {
+fn apply_resource(k8s_client: &SyncK8sClient, object: &DynamicObject) -> Result<(), K8sCliError> {
     let name = get_name(object).expect("name is expected to be present");
     let tm = get_type_meta(object).expect("type is expected to be present");
 
     info!("Applying {} with name \"{}\"", tm.kind, name);
     k8s_client
         .apply_dynamic_object(object)
-        .map_err(|err| CliError::ApplyResource(err.to_string()))?;
+        .map_err(|err| K8sCliError::ApplyResource(err.to_string()))?;
     info!("{} with name {} applied successfully", tm.kind, name);
 
     Ok(())
@@ -335,13 +335,13 @@ fn check_installation(
     timeout: Duration,
     initial_delay: Duration,
     objects: Vec<DynamicObject>,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let health_checker =
         K8sHealthChecker::try_new(Arc::new(k8s_client), Arc::new(objects), StartTime::now())
             .map_err(|err| {
-                CliError::InstallationCheck(format!("could not build health-checker: {err}"))
+                K8sCliError::InstallationCheck(format!("could not build health-checker: {err}"))
             })?
-            .ok_or(CliError::InstallationCheck(
+            .ok_or(K8sCliError::InstallationCheck(
                 "no resources to check health were found".to_string(),
             ))?;
 
@@ -357,7 +357,7 @@ fn check_installation(
     thread::sleep(initial_delay);
 
     let retry_err = |err| {
-        CliError::InstallationCheck(format!(
+        K8sCliError::InstallationCheck(format!(
             "installation check failed after {} seconds timeout ({} attempts): {}",
             timeout.as_secs(),
             max_retries,
