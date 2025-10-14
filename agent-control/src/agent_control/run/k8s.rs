@@ -1,5 +1,5 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::{AgentControlConfigError, K8sConfig, helmrelease_v2_type_meta};
+use crate::agent_control::config::{K8sConfig, helmrelease_v2_type_meta};
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -11,9 +11,8 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::health_checker::k8s::agent_control_health_checker_builder;
 use crate::agent_control::http_server::runner::Runner;
-use crate::agent_control::resource_cleaner::ResourceCleanerError;
 use crate::agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector;
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, RunError};
 use crate::agent_control::version_updater::k8s::K8sACUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -24,6 +23,7 @@ use crate::event::AgentControlInternalEvent;
 use crate::event::channel::{EventPublisher, pub_sub};
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
+use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::getter::{Identifiers, get_identifiers};
@@ -38,7 +38,6 @@ use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
 use crate::version_checker::k8s::checkers::spawn_version_checker;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
     values::k8s::ConfigRepositoryConfigMap,
@@ -54,18 +53,18 @@ pub const NAMESPACE_VARIABLE_NAME: &str = "namespace";
 pub const NAMESPACE_AGENTS_VARIABLE_NAME: &str = "namespace_agents";
 
 impl AgentControlRunner {
-    pub(super) fn run_k8s(self) -> Result<(), AgentError> {
+    pub(super) fn run_k8s(self) -> Result<(), RunError> {
         info!("Starting the k8s client");
         let k8s_client = Arc::new(
             SyncK8sClient::try_new(self.runtime)
-                .map_err(|e| AgentError::ExternalError(e.to_string()))?,
+                .map_err(|err| RunError(format!("failed to start the k8s client: {err}")))?,
         );
         let k8s_store = Arc::new(K8sStore::new(
             k8s_client.clone(),
             self.k8s_config.namespace.clone(),
         ));
 
-        debug!("Initialising yaml_config_repository");
+        debug!("Initializing yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
             Arc::new(ConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
         } else {
@@ -75,7 +74,9 @@ impl AgentControlRunner {
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
 
         info!("Loading Agent Control configuration");
-        let agent_control_config = config_storer.load()?;
+        let agent_control_config = config_storer.load().map_err(|err| {
+            RunError(format!("failed to load Agent Control configuration: {err}"))
+        })?;
 
         let fleet_id = agent_control_config
             .fleet_control
@@ -122,7 +123,8 @@ impl AgentControlRunner {
                 )
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
+            .transpose()
+            .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
@@ -147,11 +149,9 @@ impl AgentControlRunner {
             .with_env()
             .with_k8s_secret(k8s_client.clone());
         if let Some(config) = &agent_control_config.secrets_providers {
-            secrets_providers = secrets_providers.with_config(config.clone()).map_err(|e| {
-                AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
-                    "failed to load secrets providers: {e}"
-                )))
-            })?;
+            secrets_providers = secrets_providers
+                .with_config(config.clone())
+                .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
@@ -198,7 +198,7 @@ impl AgentControlRunner {
             .retain(K8sGarbageCollector::active_config_ids(
                 &agent_control_config.dynamic.agents,
             ))
-            .map_err(ResourceCleanerError::from)?;
+            .map_err(|err| RunError(format!("failure on K8s garbage collector: {err}")))?;
 
         let registry_config_validator =
             RegistryDynamicConfigValidator::new(self.agent_type_registry);
@@ -261,6 +261,7 @@ impl AgentControlRunner {
             agent_control_config,
         )
         .run()
+        .map_err(|err| RunError(err.to_string()))
     }
 }
 

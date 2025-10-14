@@ -1,5 +1,4 @@
 use crate::agent_control::AgentControl;
-use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_control::config_repository::repository::AgentControlConfigLoader;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
@@ -9,7 +8,7 @@ use crate::agent_control::defaults::{
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
-use crate::agent_control::run::AgentControlRunner;
+use crate::agent_control::run::{AgentControlRunner, RunError};
 use crate::agent_control::version_updater::updater::NoOpUpdater;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::variable::Variable;
@@ -17,6 +16,7 @@ use crate::event::channel::pub_sub;
 use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
@@ -29,7 +29,6 @@ use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::{agent_control::error::AgentError, opamp::client_builder::DefaultOpAMPClientBuilder};
 use crate::{
     sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::ConfigRepositoryFile,
 };
@@ -45,8 +44,8 @@ use tracing::{debug, info};
 pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 
 impl AgentControlRunner {
-    pub(super) fn run_onhost(self) -> Result<(), AgentError> {
-        debug!("Initialising yaml_config_repository");
+    pub(super) fn run_onhost(self) -> Result<(), RunError> {
+        debug!("Initializing yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
             Arc::new(
                 ConfigRepositoryFile::new(
@@ -63,7 +62,9 @@ impl AgentControlRunner {
         };
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
-        let agent_control_config = config_storer.load()?;
+        let agent_control_config = config_storer
+            .load()
+            .map_err(|err| RunError(format!("failed to load Agent Control config: {err}")))?;
 
         let fleet_id = agent_control_config
             .fleet_control
@@ -77,7 +78,7 @@ impl AgentControlRunner {
             // The default value of proxy configuration is an empty proxy config without any rule
             ProxyConfig::default(),
         ))
-        .map_err(|e| AgentError::Http(e.to_string()))?;
+        .map_err(|err| RunError(format!("failed to create http client: {err}")))?;
 
         let identifiers_provider = IdentifiersProvider::new(http_client)
             .with_host_id(agent_control_config.host_id.to_string())
@@ -85,7 +86,7 @@ impl AgentControlRunner {
 
         let identifiers = identifiers_provider
             .provide()
-            .map_err(|e| AgentError::Identifiers(e.to_string()))?;
+            .map_err(|err| RunError(format!("failure obtaining identifiers: {err}")))?;
         let non_identifying_attributes =
             agent_control_opamp_non_identifying_attributes(&identifiers);
         info!("Instance Identifiers: {:?}", identifiers);
@@ -127,7 +128,8 @@ impl AgentControlRunner {
                 )
             })
             // Transpose changes Option<Result<T, E>> to Result<Option<T>, E>, enabling the use of `?` to handle errors in this function
-            .transpose()?
+            .transpose()
+            .map_err(|err| RunError(format!("error initializing OpAMP client: {err}")))?
             .map(|(client, consumer)| (Some(client), Some(consumer)))
             .unwrap_or_default();
 
@@ -139,11 +141,9 @@ impl AgentControlRunner {
 
         let mut secrets_providers = SecretsProviders::default().with_env();
         if let Some(config) = &agent_control_config.secrets_providers {
-            secrets_providers = secrets_providers.with_config(config.clone()).map_err(|e| {
-                AgentError::ConfigResolve(AgentControlConfigError::Load(format!(
-                    "failed to load secrets providers: {e}"
-                )))
-            })?;
+            secrets_providers = secrets_providers
+                .with_config(config.clone())
+                .map_err(|e| RunError(format!("failed to load secrets providers: {e}")))?;
         }
 
         let agents_assembler = Arc::new(LocalEffectiveAgentsAssembler::new(
@@ -199,6 +199,7 @@ impl AgentControlRunner {
             agent_control_config,
         )
         .run()
+        .map_err(|err| RunError(err.to_string()))
     }
 }
 
