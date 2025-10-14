@@ -257,7 +257,7 @@ pub mod tests {
     use crate::agent_control::run::Environment;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8sHealthConfig, K8sObjectMeta};
-    use crate::agent_type::runtime_config::{Deployment, Runtime};
+    use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::event::SubAgentEvent;
     use crate::event::broadcaster::unbounded::UnboundedBroadcast;
     use crate::event::channel::pub_sub;

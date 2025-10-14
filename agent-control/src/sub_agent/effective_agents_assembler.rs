@@ -6,8 +6,8 @@ use crate::agent_type::definition::{AgentType, AgentTypeDefinition};
 use crate::agent_type::error::AgentTypeError;
 use crate::agent_type::render::TemplateRenderer;
 use crate::agent_type::runtime_config::k8s::K8s;
-use crate::agent_type::runtime_config::on_host::OnHost;
-use crate::agent_type::runtime_config::{Deployment, Runtime};
+use crate::agent_type::runtime_config::on_host::rendered::OnHost;
+use crate::agent_type::runtime_config::{Deployment, Runtime, rendered};
 use crate::agent_type::variable::constraints::VariableConstraints;
 use crate::agent_type::variable::secret_variables::{
     SecretVariables, SecretVariablesError, load_env_vars,
@@ -47,7 +47,7 @@ pub enum AgentTypeDefinitionError {
 #[derive(Clone, Debug, PartialEq)]
 pub struct EffectiveAgent {
     agent_identity: AgentIdentity,
-    runtime_config: Runtime,
+    runtime_config: rendered::Runtime,
 }
 
 impl Display for EffectiveAgent {
@@ -57,7 +57,7 @@ impl Display for EffectiveAgent {
 }
 
 impl EffectiveAgent {
-    pub(crate) fn new(agent_identity: AgentIdentity, runtime_config: Runtime) -> Self {
+    pub(crate) fn new(agent_identity: AgentIdentity, runtime_config: rendered::Runtime) -> Self {
         Self {
             agent_identity,
             runtime_config,

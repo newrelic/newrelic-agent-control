@@ -2,7 +2,7 @@ use crate::agent_type::{
     agent_attributes::AgentAttributes,
     definition::AgentType,
     error::AgentTypeError,
-    runtime_config::Runtime,
+    runtime_config::rendered::Runtime,
     templates::Templateable,
     variable::{
         Variable,
@@ -155,10 +155,10 @@ pub(crate) mod tests {
             .executables
             .iter()
             .for_each(|exec| {
-                assert_eq!(bin_stack.next().unwrap(), exec.path.clone().get());
+                assert_eq!(bin_stack.next().unwrap(), exec.path.clone());
                 assert_eq!(
                     Args("--config_path=/some/path/config --foo=bar".into()),
-                    exec.args.clone().get()
+                    exec.args.clone()
                 );
             });
     }
@@ -231,19 +231,16 @@ pub(crate) mod tests {
             .backoff_strategy;
         assert_eq!(
             BackoffStrategyType::Linear,
-            backoff_strategy.backoff_type.clone().get()
+            backoff_strategy.backoff_type.clone()
         );
         assert_eq!(
             BackoffDelay::from_secs(10),
-            backoff_strategy.backoff_delay.clone().get()
+            backoff_strategy.backoff_delay.clone()
         );
-        assert_eq!(
-            MaxRetries::from(30),
-            backoff_strategy.max_retries.clone().get()
-        );
+        assert_eq!(MaxRetries::from(30), backoff_strategy.max_retries.clone());
         assert_eq!(
             BackoffLastRetryInterval::from_secs(300),
-            backoff_strategy.last_retry_interval.clone().get()
+            backoff_strategy.last_retry_interval.clone()
         );
     }
 
@@ -275,19 +272,16 @@ pub(crate) mod tests {
             .backoff_strategy;
         assert_eq!(
             BackoffStrategyType::Fixed,
-            backoff_strategy.backoff_type.clone().get()
+            backoff_strategy.backoff_type.clone()
         );
         assert_eq!(
             BackoffDelay::from_secs((10 * 60) + 30),
-            backoff_strategy.backoff_delay.clone().get()
+            backoff_strategy.backoff_delay.clone()
         );
-        assert_eq!(
-            MaxRetries::from(30),
-            backoff_strategy.max_retries.clone().get()
-        );
+        assert_eq!(MaxRetries::from(30), backoff_strategy.max_retries.clone());
         assert_eq!(
             BackoffLastRetryInterval::from_secs(300),
-            backoff_strategy.last_retry_interval.clone().get()
+            backoff_strategy.last_retry_interval.clone()
         );
     }
 
@@ -589,7 +583,6 @@ deployment:
                 .unwrap()
                 .args
                 .clone()
-                .get()
         );
     }
 

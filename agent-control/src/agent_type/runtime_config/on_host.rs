@@ -14,6 +14,7 @@ use super::version_config::OnHostVersionConfig;
 
 pub mod executable;
 pub mod filesystem;
+pub mod rendered;
 
 /// The definition for an on-host supervisor.
 ///
@@ -21,16 +22,16 @@ pub mod filesystem;
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
 pub struct OnHost {
     #[serde(deserialize_with = "deserialize_executables", default)]
-    pub executables: Vec<Executable>,
+    executables: Vec<Executable>,
     #[serde(default)]
-    pub enable_file_logging: TemplateableValue<bool>,
+    enable_file_logging: TemplateableValue<bool>,
     /// Enables and define health checks configuration.
     #[serde(default)]
-    pub health: OnHostHealthConfig,
+    health: OnHostHealthConfig,
     /// Enables and define version checks configuration.
-    pub version: Option<OnHostVersionConfig>,
+    version: Option<OnHostVersionConfig>,
     #[serde(default)]
-    pub filesystem: FileSystem,
+    filesystem: FileSystem,
 }
 
 fn deserialize_executables<'de, D>(deserializer: D) -> Result<Vec<Executable>, D::Error>
@@ -53,8 +54,10 @@ where
 }
 
 impl Templateable for OnHost {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    type Output = rendered::OnHost;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             executables: self
                 .executables
                 .into_iter()
@@ -74,10 +77,11 @@ impl Templateable for OnHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use crate::agent_type::runtime_config::health_config::HealthCheckTimeout;
     use crate::agent_type::runtime_config::on_host::executable::{Args, Env};
     use crate::agent_type::runtime_config::restart_policy::{
-        BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
+        self, BackoffDelay, BackoffLastRetryInterval, BackoffStrategyConfig, BackoffStrategyType,
         RestartPolicyConfig,
     };
     use crate::agent_type::variable::Variable;
@@ -235,37 +239,17 @@ restart_policy:
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
-        let exec_expected = Executable {
+        let exec_expected = executable::rendered::Executable {
             id: "otelcol".to_string(),
-            path: TemplateableValue {
-                value: Some("/etc/otelcol".to_string()),
-                template: "${nr-var:bin}/otelcol".to_string(),
-            },
-            args: TemplateableValue {
-                value: Some(Args("--verbose true --logs trace".to_string())),
-                template:
-                "--verbose ${nr-var:deployment.on_host.verbose} --logs ${nr-var:deployment.on_host.log_level}"
-                    .to_string(),
-            },
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue {
-                        value: Some(BackoffStrategyType::Exponential),
-                        template: "${nr-var:backoff.type}".to_string(),
-                    },
-                    backoff_delay: TemplateableValue {
-                        value: Some(BackoffDelay::from_secs(10)),
-                        template: "${nr-var:backoff.delay}".to_string(),
-                    },
-                    max_retries: TemplateableValue {
-                        value: Some(30.into()),
-                        template: "${nr-var:backoff.retries}".to_string(),
-                    },
-                    last_retry_interval: TemplateableValue {
-                        value: Some(BackoffLastRetryInterval::from_secs(300)),
-                        template: "${nr-var:backoff.interval}".to_string(),
-                    },
+            path: "/etc/otelcol".to_string(),
+            args: Args("--verbose true --logs trace".to_string()),
+            env: executable::rendered::Env::default(),
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
+                    backoff_type: BackoffStrategyType::Exponential,
+                    backoff_delay: BackoffDelay::from_secs(10),
+                    max_retries: 30.into(),
+                    last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
                 restart_exit_codes: vec![],
             },
@@ -358,29 +342,17 @@ restart_policy:
 
         let exec_actual = exec.template_with(&normalized_values).unwrap();
 
-        let exec_expected = Executable {
+        let exec_expected = executable::rendered::Executable {
             id: "otelcol".to_string(),
-            path: TemplateableValue { value: Some("/etc/otelcol".to_string()), template: "${nr-var:bin}/otelcol".to_string() },
-            args: TemplateableValue { value: Some(Args("--verbose true --verbose_again true".to_string())), template: "--verbose ${nr-var:deployment.on_host.verbose} --verbose_again ${nr-var:deployment.on_host.verbose}".to_string() },
-            env: Env::default(),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue {
-                        value: Some(BackoffStrategyType::Linear),
-                        template: "${nr-var:backoff.type}".to_string(),
-                    },
-                    backoff_delay: TemplateableValue {
-                        value: Some(BackoffDelay::from_secs(10)),
-                        template: "${nr-var:backoff.delay}".to_string(),
-                    },
-                    max_retries: TemplateableValue {
-                        value: Some(30.into()),
-                        template: "${nr-var:backoff.retries}".to_string(),
-                    },
-                    last_retry_interval: TemplateableValue {
-                        value: Some(BackoffLastRetryInterval::from_secs(300)),
-                        template: "${nr-var:backoff.interval}".to_string(),
-                    },
+            path: "/etc/otelcol".to_string(),
+            args: Args("--verbose true --verbose_again true".to_string()),
+            env: executable::rendered::Env::default(),
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
+                    backoff_type: BackoffStrategyType::Linear,
+                    backoff_delay: BackoffDelay::from_secs(10),
+                    max_retries: 30.into(),
+                    last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
                 restart_exit_codes: vec![],
             },
@@ -458,29 +430,20 @@ restart_policy:
                 restart_exit_codes: vec![],
             },
         };
-        let expected_output = Executable {
+        let expected_output = executable::rendered::Executable {
             id: "myapp".to_string(),
-            path: TemplateableValue::new("/usr/bin/myapp".to_string())
-                .with_template("${nr-var:path}".to_string()),
-            args: TemplateableValue::new(Args("--config /etc/myapp.conf".to_string()))
-                .with_template("${nr-var:args}".to_string()),
-            env: Env(HashMap::from([(
+            path: "/usr/bin/myapp".to_string(),
+            args: Args("--config /etc/myapp.conf".to_string()),
+            env: executable::rendered::Env(HashMap::from([(
                 "MYAPP_PORT".to_string(),
-                TemplateableValue::new("8080".to_string())
-                    .with_template("${nr-var:env.MYAPP_PORT}".to_string()),
+                "8080".to_string(),
             )])),
-            restart_policy: RestartPolicyConfig {
-                backoff_strategy: BackoffStrategyConfig {
-                    backoff_type: TemplateableValue::new(BackoffStrategyType::Linear)
-                        .with_template("${nr-var:backoff.type}".to_string()),
-                    backoff_delay: TemplateableValue::new(BackoffDelay::from_secs(10))
-                        .with_template("${nr-var:backoff.delay}".to_string()),
-                    max_retries: TemplateableValue::new(30.into())
-                        .with_template("${nr-var:backoff.retries}".to_string()),
-                    last_retry_interval: TemplateableValue::new(
-                        BackoffLastRetryInterval::from_secs(300),
-                    )
-                    .with_template("${nr-var:backoff.interval}".to_string()),
+            restart_policy: restart_policy::rendered::RestartPolicyConfig {
+                backoff_strategy: restart_policy::rendered::BackoffStrategyConfig {
+                    backoff_type: BackoffStrategyType::Linear,
+                    backoff_delay: BackoffDelay::from_secs(10),
+                    max_retries: 30.into(),
+                    last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
                 restart_exit_codes: vec![],
             },

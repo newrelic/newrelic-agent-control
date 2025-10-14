@@ -31,15 +31,17 @@ pub const TEMPLATE_KEY_SEPARATOR: &str = ".";
 /// provided `Variables` map. Placeholders follow a specific format, such as
 /// `${nr-var:key}`.
 ///
+/// This trait allows to specify the output type with the `Output` associated type.
+///
 /// # Errors
 ///
 /// Returns an `AgentTypeError` if a placeholder references an undefined or
 /// missing variable.
 pub trait Templateable {
+    type Output;
+
     /// Replaces placeholders in the content with values from the `Variables` map.
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError>
-    where
-        Self: std::marker::Sized;
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError>;
 }
 
 pub fn template_re() -> &'static Regex {
@@ -70,6 +72,8 @@ fn normalized_var<'a>(
 
 // The actual std type that has a meaningful implementation of Templateable
 impl Templateable for String {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<String, AgentTypeError> {
         template_string(self, variables)
     }
@@ -112,6 +116,8 @@ fn template_string(s: String, variables: &Variables) -> Result<String, AgentType
 }
 
 impl Templateable for serde_yaml::Value {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         let templated_value = match self {
             serde_yaml::Value::Mapping(m) => {
@@ -129,6 +135,8 @@ impl Templateable for serde_yaml::Value {
 }
 
 impl Templateable for serde_yaml::Mapping {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
@@ -137,6 +145,8 @@ impl Templateable for serde_yaml::Mapping {
 }
 
 impl Templateable for serde_yaml::Sequence {
+    type Output = Self;
+
     fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
         self.into_iter()
             .map(|v| v.template_with(variables))

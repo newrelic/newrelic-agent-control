@@ -8,6 +8,8 @@ use crate::agent_type::{
     templates::Templateable,
 };
 
+pub mod rendered;
+
 /// Represents the configuration for version checks.
 #[derive(Debug, Clone)]
 pub struct OnHostVersionConfig {
@@ -31,9 +33,9 @@ impl<'de> Deserialize<'de> for OnHostVersionConfig {
         // intermediate serialization type to validate `default` and `required` fields
         #[derive(Debug, Deserialize)]
         pub struct IntermediateOnHostVersionConfig {
-            pub path: TemplateableValue<String>,
-            pub args: TemplateableValue<Args>,
-            pub(crate) regex: Option<String>,
+            path: TemplateableValue<String>,
+            args: TemplateableValue<Args>,
+            regex: Option<String>,
         }
 
         let intermediate_spec = IntermediateOnHostVersionConfig::deserialize(deserializer)?;
@@ -64,8 +66,10 @@ impl PartialEq for OnHostVersionConfig {
 }
 
 impl Templateable for OnHostVersionConfig {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    type Output = rendered::OnHostVersionConfig;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
             regex: self.regex,

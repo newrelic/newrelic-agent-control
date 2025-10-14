@@ -1,4 +1,4 @@
-use crate::agent_type::runtime_config::health_config::HttpHealth;
+use crate::agent_type::runtime_config::health_config::rendered::HttpHealth;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy, Unhealthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::{HttpClient as InnerClient, HttpResponseError};
@@ -87,17 +87,13 @@ impl HttpHealthChecker<InnerClient> {
         http_config: HttpHealth,
         start_time: StartTime,
     ) -> Result<Self, HealthCheckerError> {
-        let host = format!(
-            "{}{}",
-            DEFAULT_PROTOCOL,
-            String::from(http_config.host.get()),
-        );
+        let host = format!("{}{}", DEFAULT_PROTOCOL, String::from(http_config.host),);
 
         let mut url =
             Url::parse(host.as_str()).map_err(|e| HealthCheckerError::Generic(e.to_string()))?;
-        let _ = url.set_port(Some(http_config.port.get().into()));
+        let _ = url.set_port(Some(http_config.port.into()));
 
-        let path: String = http_config.path.get().into();
+        let path: String = http_config.path.into();
         url.set_path(path.as_str());
 
         let headers = http_config.headers;

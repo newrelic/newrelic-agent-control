@@ -1,7 +1,7 @@
 use super::exec::ExecHealthChecker;
 use super::file::FileHealthChecker;
 use super::http::HttpHealthChecker;
-use crate::agent_type::runtime_config::health_config::OnHostHealthCheck;
+use crate::agent_type::runtime_config::health_config::rendered::OnHostHealthCheck;
 use crate::event::channel::EventConsumer;
 use crate::health::health_checker::{HealthChecker, HealthCheckerError, Healthy};
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};

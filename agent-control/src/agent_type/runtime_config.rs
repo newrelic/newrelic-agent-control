@@ -7,6 +7,7 @@
 pub mod health_config;
 pub mod k8s;
 pub mod on_host;
+pub mod rendered;
 pub mod restart_policy;
 pub mod templateable_value;
 pub mod version_config;
@@ -58,7 +59,9 @@ impl<'de> Deserialize<'de> for Deployment {
 }
 
 impl Templateable for Deployment {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    type Output = rendered::Deployment;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         /*
         `self.on_host` has type `Option<OnHost>`
 
@@ -91,13 +94,15 @@ impl Templateable for Deployment {
             .k8s
             .map(|k8s| k8s.template_with(variables))
             .transpose()?;
-        Ok(Self { on_host: oh, k8s })
+        Ok(Self::Output { on_host: oh, k8s })
     }
 }
 
 impl Templateable for Runtime {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    type Output = rendered::Runtime;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             deployment: self.deployment.template_with(variables)?,
         })
     }

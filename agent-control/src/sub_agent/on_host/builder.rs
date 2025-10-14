@@ -1,6 +1,6 @@
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_control::run::Environment;
-use crate::agent_type::runtime_config::on_host::filesystem::rendered::RenderedFileSystemEntries;
+use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
 use crate::context::Context;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
@@ -154,15 +154,15 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
 
         let on_host = effective_agent.get_onhost_config()?.clone();
 
-        let enable_file_logging = on_host.enable_file_logging.get();
+        let enable_file_logging = on_host.enable_file_logging;
 
         let executables = on_host
             .executables
             .into_iter()
             .map(|e| {
-                ExecutableData::new(e.id, e.path.get())
-                    .with_args(e.args.get().into_vector())
-                    .with_env(e.env.get())
+                ExecutableData::new(e.id, e.path)
+                    .with_args(e.args.into_vector())
+                    .with_env(e.env.0)
                     .with_restart_policy(e.restart_policy.into())
             })
             .collect();
@@ -175,7 +175,7 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
             on_host.version,
         )
         .with_file_logging(enable_file_logging, self.logging_path.to_path_buf())
-        .with_filesystem_entries(RenderedFileSystemEntries::from(on_host.filesystem));
+        .with_filesystem_entries(FileSystemEntries::from(on_host.filesystem));
 
         Ok(executable_supervisors)
     }
@@ -191,7 +191,7 @@ mod tests {
         PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::agent_type::runtime_config::{Deployment, Runtime};
+    use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
     use crate::opamp::instance_id::InstanceID;

@@ -9,30 +9,34 @@ use crate::agent_type::{
     templates::Templateable,
 };
 
+pub mod rendered;
+
 #[derive(Debug, Deserialize, Default, Clone, PartialEq)]
-pub struct Executable {
+pub(super) struct Executable {
     /// Executable identifier for the health checker.
-    pub id: String,
+    pub(super) id: String,
 
     /// Executable binary path. If not an absolute path, the PATH will be searched in an OS-defined way.
-    pub path: TemplateableValue<String>, // make it templatable
+    pub(super) path: TemplateableValue<String>, // make it templatable
 
     /// Arguments passed to the executable.
     #[serde(default)]
-    pub args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
+    pub(super) args: TemplateableValue<Args>, // make it templatable, it should be aware of the value type, if templated with array, should be expanded
 
     /// Environmental variables passed to the process.
     #[serde(default)]
-    pub env: Env,
+    pub(super) env: Env,
 
     /// Defines how the executable will be restarted in case of failure.
     #[serde(default)]
-    pub restart_policy: RestartPolicyConfig,
+    pub(super) restart_policy: RestartPolicyConfig,
 }
 
 impl Templateable for Executable {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
-        Ok(Self {
+    type Output = rendered::Executable;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
+        Ok(Self::Output {
             id: self.id.template_with(variables)?,
             path: self.path.template_with(variables)?,
             args: self.args.template_with(variables)?,
@@ -54,18 +58,14 @@ impl Args {
 #[derive(Debug, Default, Deserialize, Clone, PartialEq)]
 pub struct Env(pub(super) HashMap<String, TemplateableValue<String>>);
 
-impl Env {
-    pub fn get(self) -> HashMap<String, String> {
-        self.0.into_iter().map(|(k, v)| (k, v.get())).collect()
-    }
-}
-
 impl Templateable for Env {
-    fn template_with(self, variables: &Variables) -> Result<Self, AgentTypeError> {
+    type Output = rendered::Env;
+
+    fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         self.0
             .into_iter()
             .map(|(k, v)| Ok((k, v.template_with(variables)?)))
             .collect::<Result<HashMap<_, _>, _>>()
-            .map(Env)
+            .map(rendered::Env)
     }
 }
