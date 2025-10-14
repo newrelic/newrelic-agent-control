@@ -82,13 +82,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## addr2line <https://crates.io/crates/addr2line>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
-
 ## adler2 <https://crates.io/crates/adler2>
 
 Distributed under the following license(s):
@@ -291,13 +284,6 @@ Distributed under the following license(s):
 
 Distributed under the following license(s):
 
-* Apache-2.0
-
-## backtrace <https://crates.io/crates/backtrace>
-
-Distributed under the following license(s):
-
-* MIT
 * Apache-2.0
 
 ## base64 <https://crates.io/crates/base64>
@@ -900,13 +886,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## gimli <https://crates.io/crates/gimli>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## glob <https://crates.io/crates/glob>
 
 Distributed under the following license(s):
@@ -1132,13 +1111,6 @@ Distributed under the following license(s):
 
 * Apache-2.0
 * MIT
-
-## io-uring <https://crates.io/crates/io-uring>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## ipnet <https://crates.io/crates/ipnet>
 
@@ -1470,13 +1442,6 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
-
-## object <https://crates.io/crates/object>
-
-Distributed under the following license(s):
-
-* Apache-2.0
-* MIT
 
 ## oid-registry <https://crates.io/crates/oid-registry>
 
@@ -1868,13 +1833,6 @@ Distributed under the following license(s):
 Distributed under the following license(s):
 
 * MIT
-
-## rustc-demangle <https://crates.io/crates/rustc-demangle>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
 
 ## rustc-hash <https://crates.io/crates/rustc-hash>
 
