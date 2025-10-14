@@ -7,7 +7,7 @@ use kube::{
 };
 use tracing::info;
 
-use super::errors::CliError;
+use super::errors::K8sCliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::utils::retry::retry;
@@ -39,14 +39,14 @@ impl<'a> Deleter<'a> {
         tm: &TypeMeta,
         name: &str,
         namespace: &str,
-    ) -> Result<(), CliError> {
+    ) -> Result<(), K8sCliError> {
         info!(%name, type=tm.kind, "Deleting resource");
         retry(self.max_attempts, self.interval, || {
             let res = self
                 .k8s_client
                 .delete_dynamic_object(tm, name, namespace)
                 .map_err(|err| {
-                    CliError::DeleteResource(format!(
+                    K8sCliError::DeleteResource(format!(
                         "could not delete resource '{}' of type '{}': {}",
                         name, tm.kind, err
                     ))
@@ -55,7 +55,7 @@ impl<'a> Deleter<'a> {
                 info!(%name, type=tm.kind, "Resource deleted");
                 Ok(())
             } else {
-                Err(CliError::DeleteResource(format!(
+                Err(K8sCliError::DeleteResource(format!(
                     "deletion of resource '{}' of type '{}' is not complete",
                     name, tm.kind
                 )))
@@ -68,14 +68,14 @@ impl<'a> Deleter<'a> {
         tm: &TypeMeta,
         namespace: &str,
         selector: &str,
-    ) -> Result<(), CliError> {
+    ) -> Result<(), K8sCliError> {
         retry(self.max_attempts, self.interval, || {
             info!(type=tm.kind, %selector, "Deleting resources");
             let res = self
                 .k8s_client
                 .delete_dynamic_object_collection(tm, namespace, selector)
                 .map_err(|err| {
-                    CliError::DeleteResource(format!(
+                    K8sCliError::DeleteResource(format!(
                         "failed to delete resources of type '{}': {}",
                         tm.kind, err
                     ))
@@ -84,7 +84,7 @@ impl<'a> Deleter<'a> {
                 info!(type=tm.kind, %selector, "Resources deleted");
                 Ok(())
             } else {
-                Err(CliError::DeleteResource(format!(
+                Err(K8sCliError::DeleteResource(format!(
                     "deletion of resources of type '{}' is not complete",
                     tm.kind
                 )))

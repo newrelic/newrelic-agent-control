@@ -1,7 +1,7 @@
 use crate::agent_control::config::{
     default_group_version_kinds, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use crate::cli::k8s::errors::CliError;
+use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::agent_control::REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
 use crate::cli::k8s::utils::try_new_k8s_client;
@@ -26,7 +26,7 @@ pub struct AgentControlUninstallData {
 pub fn uninstall_agent_control(
     namespace: &str,
     uninstall_data: &AgentControlUninstallData,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let k8s_client = try_new_k8s_client()?;
     let kinds_available = retrieve_api_resources(&k8s_client)?;
     let AgentControlUninstallData {
@@ -44,12 +44,12 @@ pub fn uninstall_agent_control(
     Ok(())
 }
 
-fn retrieve_api_resources(k8s_client: &SyncK8sClient) -> Result<HashSet<TypeMeta>, CliError> {
+fn retrieve_api_resources(k8s_client: &SyncK8sClient) -> Result<HashSet<TypeMeta>, K8sCliError> {
     let mut tm_available = HashSet::new();
 
     let all_api_resource_list = k8s_client
         .list_api_resources()
-        .map_err(|err| CliError::Generic(format!("failed to retrieve api_resources: {err}")))?;
+        .map_err(|err| K8sCliError::Generic(format!("failed to retrieve api_resources: {err}")))?;
 
     for api_resource_list in &all_api_resource_list {
         for resource in &api_resource_list.resources {
@@ -67,7 +67,7 @@ fn delete_owned_objects(
     k8s_client: &SyncK8sClient,
     kinds_available: &HashSet<TypeMeta>,
     namespace: &str,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let ac_owned_label_selector = Labels::default().selector();
     let deleter = Deleter::with_default_retry_setup(k8s_client);
     for tm in objects_to_delete(kinds_available) {
@@ -97,7 +97,7 @@ fn delete_agent_control_crs(
     kinds_available: &HashSet<TypeMeta>,
     namespace: &str,
     release_name: &str,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let mut crs_to_delete: Vec<(TypeMeta, &str)> = vec![
         (helmrelease_v2_type_meta(), release_name),
         (helmrepository_type_meta(), REPOSITORY_NAME),

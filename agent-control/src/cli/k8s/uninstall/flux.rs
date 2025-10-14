@@ -13,7 +13,7 @@ use tracing::{debug, info};
 use crate::agent_control::config::{
     helmchart_type_meta, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use crate::cli::k8s::errors::CliError;
+use crate::cli::k8s::errors::K8sCliError;
 use crate::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
 use crate::cli::k8s::uninstall::Deleter;
 use crate::cli::k8s::utils::try_new_k8s_client;
@@ -33,7 +33,7 @@ pub struct FluxUninstallData {
 
 /// Suspends the HelmRelease and then removes the HelmRelease, HelmChart and HelmRepository used to handle
 /// the Flux installation in Agent Control.
-pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), CliError> {
+pub fn remove_flux_crs(namespace: &str, release_name: &str) -> Result<(), K8sCliError> {
     let k8s_client = try_new_k8s_client()?;
     let helmrelease_type_meta = helmrelease_v2_type_meta();
     let helmrepository_type_meta = helmrepository_type_meta();
@@ -69,13 +69,15 @@ fn suspend_helmrelease(
     helmrelease: &DynamicObject,
     suspend_check_max_retries: usize,
     suspend_check_interval: Duration,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     info!(helrelease_name = name, "Suspending HelmRelease");
 
     let patch = json!({"spec": {"suspend": true}});
     k8s_client
         .patch_dynamic_object(helmrelease_type_meta, name, namespace, patch)
-        .map_err(|err| CliError::Generic(format!("could not suspend HelmRelease {name}: {err}")))?;
+        .map_err(|err| {
+            K8sCliError::Generic(format!("could not suspend HelmRelease {name}: {err}"))
+        })?;
     debug!(
         helrelease_name = name,
         "Checking that the helm-release is effectively suspended"
@@ -86,7 +88,7 @@ fn suspend_helmrelease(
         if is_helmrelease_updated_after_suspension(helmrelease, &current) {
             Ok(())
         } else {
-            Err(CliError::Generic(format!(
+            Err(K8sCliError::Generic(format!(
                 "Could not verify that HelmRelease {name} was effectively suspended"
             )))
         }
@@ -101,11 +103,11 @@ fn get_helmrelease(
     tm: &TypeMeta,
     name: &str,
     namespace: &str,
-) -> Result<Arc<DynamicObject>, CliError> {
+) -> Result<Arc<DynamicObject>, K8sCliError> {
     k8s_client
         .get_dynamic_object(tm, name, namespace)
-        .map_err(|err| CliError::GetResource(err.to_string()))?
-        .ok_or_else(|| CliError::GetResource(format!("could not find HelmRerelease {name}")))
+        .map_err(|err| K8sCliError::GetResource(err.to_string()))?
+        .ok_or_else(|| K8sCliError::GetResource(format!("could not find HelmRerelease {name}")))
 }
 
 /// Checks if `current` is updated from `previous` considering the fields `.metadata.resource_version` and
@@ -137,7 +139,7 @@ fn delete_helmchart_object(
     deleter: &Deleter,
     helmrelease_name: &str,
     helmrelease: &DynamicObject,
-) -> Result<(), CliError> {
+) -> Result<(), K8sCliError> {
     let Some((helmchart_namespace, helmchart_name)) = helmrelease
         .data
         .get("status")

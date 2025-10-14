@@ -122,6 +122,10 @@ path = "src/bin/main_config_migrate.rs"
 name = "newrelic-agent-control-k8s-cli"
 path = "src/bin/main_agent_control_k8s_cli.rs"
 
+[[bin]] # TODO: add to package when ready, check goreleaser limitations as in the on-host binary
+name = "newrelic-agent-control-onhost-cli"
+path = "src/bin/main_agent_control_onhost_cli.rs"
+
 [features]
 # feature tokio-console allows debugging tokio tasks using tokio-console
 tokio-console = ["tokio/full", "tokio/tracing", "dep:console-subscriber"]
