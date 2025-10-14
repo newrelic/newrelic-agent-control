@@ -6,7 +6,7 @@ ARG TARGETARCH
 # Automatically bumpled by a Renovate regex rule.
 ARG HELM_VERSION=v3.19.0
 
-COPY --chmod=755 bin/newrelic-agent-control-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
+COPY --chmod=755 bin/newrelic-agent-control-k8s-cli-${TARGETARCH} /bin/newrelic-agent-control-cli
 
 RUN apt-get update && \
     apt-get upgrade -y && \

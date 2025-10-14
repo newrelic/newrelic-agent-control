@@ -13,10 +13,10 @@ use tracing::{debug, info};
 use crate::agent_control::config::{
     helmchart_type_meta, helmrelease_v2_type_meta, helmrepository_type_meta,
 };
-use crate::cli::errors::CliError;
-use crate::cli::install::flux::HELM_REPOSITORY_NAME;
-use crate::cli::uninstall::Deleter;
-use crate::cli::utils::try_new_k8s_client;
+use crate::cli::k8s::errors::CliError;
+use crate::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
+use crate::cli::k8s::uninstall::Deleter;
+use crate::cli::k8s::utils::try_new_k8s_client;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
 use crate::utils::retry::retry;

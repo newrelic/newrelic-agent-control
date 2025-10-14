@@ -7,9 +7,10 @@ use kube::{
 };
 use tracing::info;
 
+use super::errors::CliError;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::{cli::errors::CliError, utils::retry::retry};
+use crate::utils::retry::retry;
 
 pub mod agent_control;
 pub mod flux;

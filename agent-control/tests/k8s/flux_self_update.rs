@@ -32,7 +32,7 @@ use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_VERSION, OPAMP_AC_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
 };
-use newrelic_agent_control::cli::install::flux::HELM_REPOSITORY_NAME;
+use newrelic_agent_control::cli::k8s::install::flux::HELM_REPOSITORY_NAME;
 use opamp_client::opamp::proto::{self, KeyValue, RemoteConfigStatuses};
 use std::time::Duration;
 use tempfile::tempdir;
@@ -251,7 +251,7 @@ fn expected_identifying_attributes(
 }
 
 fn create_flux_resources(namespace: &str, chart_version: &str) {
-    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
     cmd.timeout(Duration::from_secs(60));
     cmd.arg("create-cd-resources");
     cmd.arg("--installation-check-initial-delay").arg("1s");
@@ -270,7 +270,7 @@ fn create_flux_resources(namespace: &str, chart_version: &str) {
 }
 
 fn remove_flux_resources(namespace: &str) {
-    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
     cmd.timeout(Duration::from_secs(60));
     cmd.arg("remove-cd-resources");
     cmd.arg("--namespace").arg(namespace);

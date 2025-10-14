@@ -1,12 +1,12 @@
 use clap::{Parser, Subcommand};
-use newrelic_agent_control::cli::errors::CliError;
-use newrelic_agent_control::cli::install::agent_control::InstallAgentControl;
-use newrelic_agent_control::cli::install::flux::InstallFlux;
-use newrelic_agent_control::cli::install::{InstallData, apply_resources};
-use newrelic_agent_control::cli::uninstall::agent_control::{
+use newrelic_agent_control::cli::k8s::errors::CliError;
+use newrelic_agent_control::cli::k8s::install::agent_control::InstallAgentControl;
+use newrelic_agent_control::cli::k8s::install::flux::InstallFlux;
+use newrelic_agent_control::cli::k8s::install::{InstallData, apply_resources};
+use newrelic_agent_control::cli::k8s::uninstall::agent_control::{
     AgentControlUninstallData, uninstall_agent_control,
 };
-use newrelic_agent_control::cli::uninstall::flux::{FluxUninstallData, remove_flux_crs};
+use newrelic_agent_control::cli::k8s::uninstall::flux::{FluxUninstallData, remove_flux_crs};
 use newrelic_agent_control::{
     agent_control::defaults::AGENT_CONTROL_LOG_DIR,
     http::tls::install_rustls_default_crypto_provider,
