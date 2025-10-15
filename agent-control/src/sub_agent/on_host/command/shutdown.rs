@@ -1,9 +1,4 @@
 use super::error::CommandError;
-use crate::context::Context;
-use std::time::Duration;
-use tracing::error;
-
-const DEFAULT_EXIT_TIMEOUT: Duration = Duration::new(10, 0);
 
 /// ProcessTerminator it's a service that allows shutting down gracefully the process
 /// with the pid provided or force killing it if the timeout provided is reached
@@ -44,118 +39,43 @@ impl ProcessTerminator {
     }
 }
 
-/// wait_exit_timeout is a function that waits on a condvar for a change in a boolean exit variable
-/// but returning a false if the timeout provided is reached before any state change.
-pub fn wait_exit_timeout(context: Context<bool>, exit_timeout: Duration) -> bool {
-    let (lock, cvar) = context.get_lock_cvar();
-    let exited = lock.lock();
-    match exited {
-        Ok(mut exited) => loop {
-            let result = cvar.wait_timeout(exited, exit_timeout);
-            match result {
-                Ok(result) => {
-                    exited = result.0;
-                    let timer = result.1;
-                    if timer.timed_out() {
-                        return false;
-                    }
-                    if *exited {
-                        return true;
-                    }
-                }
-                Err(error) => {
-                    error!("wait error: {}", error);
-                    return false;
-                }
-            }
-        },
-        Err(error) => {
-            error!("lock error: {}", error);
-            false
-        }
-    }
-}
-
-/// waits on a condvar for a change in a boolean exit variable
-/// with a default timeout of DEFAULT_EXIT_TIMEOUT seconds
-pub fn wait_exit_timeout_default(context: Context<bool>) -> bool {
-    wait_exit_timeout(context, DEFAULT_EXIT_TIMEOUT)
-}
-
 #[cfg(test)]
 mod tests {
+    use rstest::rstest;
+
     use super::*;
     use std::{
         process::Command,
         thread::{self, sleep},
+        time::Duration,
     };
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
-    #[test]
-    fn shutdown_custom_timeout() {
+    #[rstest]
+    #[case::custom_timeout(35, || false, "signal: 9 (SIGKILL)")]
+    #[case::on_time(1, || true, "exit status: 0")]
+    fn shutdown_custom_timeout(
+        #[case] trap_sleep: u64,
+        #[case] shutdown_fn: fn() -> bool,
+        #[case] output: &str,
+    ) {
         let mut trap_cmd = Command::new("sh")
             .arg("-c")
-            .arg("trap \"sleep 35;exit 0\" TERM;while true; do sleep 1; done")
+            .arg(format!(
+                "trap \"sleep {};exit 0\" TERM;while true; do sleep 1; done",
+                trap_sleep
+            ))
             .spawn();
-
-        let pid = trap_cmd.as_mut().unwrap().id();
 
         // Warm-up time for the trap sub-process to start and be able to catch the signal
-        let one_second = Duration::from_secs(1);
-        sleep(one_second);
-
-        let terminator = ProcessTerminator::new(pid);
-
-        let context = Context::default();
-        let context_child = context.clone();
-
-        thread::spawn(|| {
-            _ = terminator
-                .shutdown(|| wait_exit_timeout(context_child, Duration::from_millis(300)));
-        });
-
-        // Wait for process to exit
-        let result = trap_cmd.unwrap().wait();
-
-        // We update the status o cvar to notify it exited
-        let (lock, cvar) = context.get_lock_cvar();
-        let mut exited = lock.lock().unwrap();
-        *exited = true;
-        cvar.notify_all();
-
-        assert_eq!("signal: 9 (SIGKILL)", result.unwrap().to_string());
-    }
-
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
-    #[test]
-    fn shutdown_on_time() {
-        let mut trap_cmd = Command::new("sh")
-            .arg("-c")
-            .arg("trap \"sleep 1;exit 0\" TERM;while true; do sleep 1; done")
-            .spawn();
+        sleep(Duration::from_secs(1));
 
         let pid = trap_cmd.as_mut().unwrap().id();
-        let one_second = Duration::from_secs(1);
-        sleep(one_second);
-
-        let terminator = ProcessTerminator::new(pid);
-
-        let context = Context::default();
-        let context_child = context.clone();
-
-        thread::spawn(|| {
-            _ = terminator.shutdown(|| wait_exit_timeout(context_child, Duration::new(3, 0)));
+        thread::spawn(move || {
+            _ = ProcessTerminator::new(pid).shutdown(shutdown_fn);
         });
 
         // Wait for process to exit
         let result = trap_cmd.unwrap().wait();
-
-        // We update the status o cvar to notify it exited
-        let (lock, cvar) = context.get_lock_cvar();
-        let mut exited = lock.lock().unwrap();
-        *exited = true;
-        cvar.notify_all();
-
-        assert_eq!("exit status: 0", result.unwrap().to_string());
+        assert_eq!(output, result.unwrap().to_string());
     }
 }
