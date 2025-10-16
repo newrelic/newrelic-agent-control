@@ -16,4 +16,9 @@ impl EventConsumer<CancellationMessage> {
         );
         !timed_out
     }
+
+    /// Check if a cancellation message is available immediately.
+    pub fn recv_now(&self) -> bool {
+        self.as_ref().recv_timeout(Duration::ZERO).is_ok()
+    }
 }
