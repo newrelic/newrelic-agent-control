@@ -56,7 +56,8 @@ impl DynamicObjectListBuilder for InstallAgentControl {
             labels.clone(),
             annotations.clone(),
         );
-        // This is not strictly necessary, but it helps to ensure that the labels are consistent
+        // This is needed whenever the version is managed remotely (otherwise we would lose such info)
+        // Moreover, we add it also when it is local to be consistent.
         let mut helm_release_labels = labels;
         helm_release_labels.insert(AGENT_CONTROL_VERSION_SET_FROM.to_string(), source);
 
