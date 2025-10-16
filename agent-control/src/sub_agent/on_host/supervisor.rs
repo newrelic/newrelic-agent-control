@@ -237,7 +237,7 @@ impl NotStartedSupervisorOnHost {
             // will finish without needing to cancel any process (current_pid==None).
             let pid_guard = current_pid_clone.lock().unwrap();
 
-            if kill_process_consumer.is_cancelled(Duration::ZERO) {
+            if kill_process_consumer.is_cancelled_immediately() {
                 debug!("supervisor stopped before starting the process");
                 break;
             }
@@ -301,7 +301,7 @@ impl NotStartedSupervisorOnHost {
                 });
 
             // Check the cancellation signal
-            if kill_process_consumer.is_cancelled(Duration::ZERO) {
+            if kill_process_consumer.is_cancelled_immediately() {
                 info!(
                     supervisor = bin,
                     msg = "supervisor has been stopped and process terminated"
