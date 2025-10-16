@@ -216,7 +216,7 @@ impl NotStartedSupervisorOnHost {
                     if let Some(pid) = *current_pid_clone.lock().unwrap() {
                         info!(pid = pid, msg = "stopping supervisor process");
                         _ = ProcessTerminator::new(pid)
-                            .shutdown(|| process_finished_consumer.is_cancelled(Duration::new(10, 0)));
+                            .shutdown(|| process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0)));
                     } else {
                         info!(msg = "stopped supervisor without process running");
                     }
@@ -237,7 +237,7 @@ impl NotStartedSupervisorOnHost {
             // will finish without needing to cancel any process (current_pid==None).
             let pid_guard = current_pid_clone.lock().unwrap();
 
-            if kill_process_consumer.is_cancelled(Duration::ZERO) {
+            if kill_process_consumer.is_cancelled() {
                 debug!("supervisor stopped before starting the process");
                 break;
             }
@@ -300,7 +300,7 @@ impl NotStartedSupervisorOnHost {
             }
 
             // Check the cancellation signal
-            if kill_process_consumer.is_cancelled(Duration::ZERO) {
+            if kill_process_consumer.is_cancelled() {
                 info!(
                     supervisor = bin,
                     msg = "supervisor has been stopped and process terminated"
@@ -339,7 +339,7 @@ impl NotStartedSupervisorOnHost {
 
             restart_policy.backoff(|duration| {
                 // early exit if supervisor timeout is canceled
-                kill_process_consumer.is_cancelled(duration);
+                kill_process_consumer.is_cancelled_with_timeout(duration);
             });
         };
 

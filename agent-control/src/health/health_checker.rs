@@ -311,7 +311,7 @@ where
             event_publisher.publish_health_event(health);
 
             // Check the cancellation signal
-            if stop_consumer.is_cancelled(interval.into()) {
+            if stop_consumer.is_cancelled_with_timeout(interval.into()) {
                 break;
             }
         }
