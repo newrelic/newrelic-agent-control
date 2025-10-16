@@ -208,10 +208,7 @@ impl NotStartedSupervisorOnHost {
         let agent_id = self.agent_identity.id.clone();
         let current_pid_clone = current_pid.clone();
         let terminator_callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-            let span = info_span!("termination_signal",
-                    { ID_ATTRIBUTE_NAME } = %agent_id
-            );
-            let _span_guard = span.enter();
+            let _ = info_span!("termination_signal", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
             select! {
                 recv(stop_consumer.as_ref()) -> _ => {
                     let _ = kill_process_publisher.publish(());
@@ -224,9 +221,7 @@ impl NotStartedSupervisorOnHost {
                         info!(msg = "stopped supervisor without process running");
                     }
                 },
-                recv(process_error_consumer.as_ref()) -> _ => {
-                    info!(msg = "stopped supervisor without process running");
-                },
+                recv(process_error_consumer.as_ref()) -> _ => info!(msg = "stopped supervisor without process running"),
             }
         };
 
@@ -236,10 +231,7 @@ impl NotStartedSupervisorOnHost {
         let logging_path = self.logging_path.clone();
         let current_pid_clone = current_pid.clone();
         let executor_callback = move |_| loop {
-            let span = info_span!(
-                "start_executable",
-                { ID_ATTRIBUTE_NAME } = %agent_id
-            );
+            let span = info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id);
             let span_guard = span.enter();
             // locks the current_pid to prevent `wait_for_termination` finishing before the process
             // is started and the pid is set.
@@ -265,27 +257,20 @@ impl NotStartedSupervisorOnHost {
 
             let supervisor_start_time = SystemTime::now();
 
-            let init_health = Healthy::new();
-
             // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
             // can lead to false positives (reporting healthy when the executable is actually not working)
+            let id = executable_data_clone.id.clone();
+            let bin = executable_data_clone.bin.clone();
             debug!("Informing executable as healthy");
             if let Err(err) = health_publisher.publish((
-                executable_data_clone.id.to_string(),
-                HealthWithStartTime::new(init_health.into(), supervisor_start_time),
+                id.clone(),
+                HealthWithStartTime::new(Healthy::new().into(), supervisor_start_time),
             )) {
-                error!(
-                    "Error publishing health status for {}: {}",
-                    executable_data_clone.id, err
-                );
+                error!("Error publishing health status for {id}: {err}",);
             }
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
-            let span = info_span!(
-                "stop_executable",
-                { ID_ATTRIBUTE_NAME } = %agent_id
-            );
-            let _span_guard = span.enter();
+            let _ = info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
 
             match command_result {
                 Ok(exit_status) => handle_termination(
@@ -298,21 +283,18 @@ impl NotStartedSupervisorOnHost {
                 ),
                 Err(err) => {
                     error!(
-                        supervisor = executable_data_clone.bin,
-                        "error while launching supervisor process: {}", err
+                        supervisor = bin,
+                        "error while launching supervisor process: {err}"
                     );
                     debug!(
                         "Informing of executable as unhealthy as there was an error launching it"
                     );
                     let unhealthy = Unhealthy::new(format!("Error launching process: {err}"));
                     if let Err(err) = health_publisher.publish((
-                        executable_data_clone.id.to_string(),
+                        id.to_string(),
                         HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
                     )) {
-                        error!(
-                            "Error publishing health status for {}: {}",
-                            executable_data_clone.id, err
-                        );
+                        error!("Error publishing health status for {id}: {err}",);
                     }
                 }
             }
@@ -320,7 +302,7 @@ impl NotStartedSupervisorOnHost {
             // Check the cancellation signal
             if kill_process_consumer.is_cancelled(Duration::ZERO) {
                 info!(
-                    supervisor = executable_data_clone.bin,
+                    supervisor = bin,
                     msg = "supervisor has been stopped and process terminated"
                 );
                 break;
@@ -345,13 +327,10 @@ impl NotStartedSupervisorOnHost {
                 let unhealthy =
                     Unhealthy::new("executable exceeded its defined restart policy".to_string());
                 if let Err(err) = health_publisher.publish((
-                    executable_data_clone.id.to_string(),
+                    id.clone(),
                     HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
                 )) {
-                    error!(
-                        "Error publishing health status for {}: {}",
-                        executable_data_clone.id, err
-                    );
+                    error!("Error publishing health status for {id}: {err}");
                 }
                 break;
             }
