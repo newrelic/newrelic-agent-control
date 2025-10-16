@@ -73,18 +73,18 @@ jobs:
             exit 1
           fi
 
-  notify-failure:
-    if: ${{ always() && failure() }}
-    needs: [puppet-install]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify failure via Slack
-        uses: slackapi/slack-github-action@v1.22.0
-        with:
-          payload: |
-            {
-              "text": ":warning: [Puppet installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-            }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+#  notify-failure:
+#    if: ${{ always() && failure() }}
+#    needs: [puppet-install]
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Notify failure via Slack
+#        uses: slackapi/slack-github-action@v1.22.0
+#        with:
+#          payload: |
+#            {
+#              "text": ":warning: [Puppet installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
+#            }
+#        env:
+#          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+#          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
