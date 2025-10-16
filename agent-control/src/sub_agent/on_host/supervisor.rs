@@ -231,18 +231,19 @@ impl NotStartedSupervisorOnHost {
         let logging_path = self.logging_path.clone();
         let current_pid_clone = current_pid.clone();
         let executor_callback = move |_| loop {
-            let span = info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id);
-            let span_guard = span.enter();
-            // locks the current_pid to prevent `wait_for_termination` finishing before the process
+            // locks the current_pid to prevent the "terminator" thread from finishing before the process
             // is started and the pid is set.
-            // In case starting the process fail the guard will be dropped and `wait_for_termination`
+            // In case starting the process fail the guard will be dropped and the "terminator" thread
             // will finish without needing to cancel any process (current_pid==None).
             let pid_guard = current_pid_clone.lock().unwrap();
-            // Check the cancellation signal
+
             if kill_process_consumer.is_cancelled(Duration::ZERO) {
                 debug!("supervisor stopped before starting the process");
                 break;
             }
+
+            let span = info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id);
+            let span_guard = span.enter();
 
             info!("starting supervisor process");
 
@@ -278,7 +279,6 @@ impl NotStartedSupervisorOnHost {
                     exit_status,
                     health_publisher.clone(),
                     &agent_id,
-                    &executable_data_clone.bin,
                     supervisor_start_time,
                 ),
                 Err(err) => {
@@ -356,27 +356,24 @@ fn handle_termination(
     exit_status: ExitStatus,
     health_publisher: EventPublisher<(String, HealthWithStartTime)>,
     agent_id: &AgentID,
-    bin: &str,
     start_time: SystemTime,
 ) {
+    let ExecutableData { bin, args, id, .. } = exec_data;
+
     if !exit_status.success() {
         debug!(%exit_status, "Informing of executable as unhealthy");
-        let last_error = format!(
-            "path '{}' with args '{}' failed with '{}'",
-            exec_data.bin,
-            exec_data.args.join(" "),
-            exit_status
-        );
+        let args = args.join(" ");
+        let last_error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
         let unhealthy: Unhealthy = Unhealthy::new(last_error).with_status(format!(
             "process exited with code: {:?}",
             exit_status.code().unwrap_or_default()
         ));
 
         if let Err(err) = health_publisher.publish((
-            exec_data.id.to_string(),
+            id.clone(),
             HealthWithStartTime::new(unhealthy.into(), start_time),
         )) {
-            error!("Error publishing health status for {}: {err}", exec_data.id);
+            error!("Error publishing health status for {}: {err}", id);
         }
 
         error!(
