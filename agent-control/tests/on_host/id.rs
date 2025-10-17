@@ -6,7 +6,10 @@ use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG_YAML,
+};
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
@@ -196,7 +199,11 @@ deployment:
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
-    let sa_config_path = local_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+    let sa_config_path = local_dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID)
+        .join(AGENT_CONTROL_CONFIG_FILENAME);
     create_file(
         r#"
 host_id: fixed-host-id
@@ -207,7 +214,13 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
-    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
+    create_sub_agent_values(
+        "test-agent".into(),
+        "".into(),
+        local_dir.path().into(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
+    );
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

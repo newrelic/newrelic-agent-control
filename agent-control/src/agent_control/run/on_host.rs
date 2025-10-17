@@ -4,7 +4,7 @@ use crate::agent_control::config_repository::store::AgentControlConfigStore;
 use crate::agent_control::config_validator::RegistryDynamicConfigValidator;
 use crate::agent_control::defaults::{
     AGENT_CONTROL_VERSION, FLEET_ID_ATTRIBUTE_KEY, HOST_ID_ATTRIBUTE_KEY, HOST_NAME_ATTRIBUTE_KEY,
-    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY, SUB_AGENT_DIR,
+    OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
 };
 use crate::agent_control::http_server::runner::Runner;
 use crate::agent_control::resource_cleaner::no_op::NoOpResourceCleaner;
@@ -100,7 +100,6 @@ impl AgentControlRunner {
             LocalFile,
             DirectoryManagerFs,
             self.base_paths.remote_dir.clone(),
-            self.base_paths.remote_dir.join(SUB_AGENT_DIR),
         );
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
@@ -154,8 +153,7 @@ impl AgentControlRunner {
             &self.base_paths.remote_dir,
         ));
 
-        let supervisor_builder =
-            SupervisortBuilderOnHost::new(self.base_paths.log_dir.join(SUB_AGENT_DIR));
+        let supervisor_builder = SupervisortBuilderOnHost::new(self.base_paths.log_dir);
 
         let signature_validator = Arc::new(self.signature_validator);
         let remote_config_validators = vec![

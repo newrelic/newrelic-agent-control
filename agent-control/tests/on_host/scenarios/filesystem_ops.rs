@@ -1,11 +1,5 @@
 use std::{fs::read_to_string, path::Path, time::Duration};
 
-use newrelic_agent_control::agent_control::{
-    defaults::GENERATED_FOLDER_NAME,
-    run::{BasePaths, Environment},
-};
-use tempfile::tempdir;
-
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config, opamp::FakeServer, retry::retry,
@@ -15,6 +9,12 @@ use crate::{
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
     },
 };
+use newrelic_agent_control::agent_control::defaults::STORE_KEY_LOCAL_DATA_CONFIG_YAML;
+use newrelic_agent_control::agent_control::{
+    defaults::GENERATED_FOLDER_NAME,
+    run::{BasePaths, Environment},
+};
+use tempfile::tempdir;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory.
@@ -65,6 +65,8 @@ deployment:
         agent_id.to_string(),
         "".to_string(),
         local_dir.to_path_buf(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     let base_paths = BasePaths {
@@ -202,6 +204,8 @@ some_mapstringyaml:
 "#
         ),
         local_dir.to_path_buf(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     let base_paths = BasePaths {

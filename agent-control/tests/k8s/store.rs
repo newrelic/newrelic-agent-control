@@ -6,13 +6,15 @@ use kube::Api;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
-use newrelic_agent_control::agent_control::defaults::default_capabilities;
+use newrelic_agent_control::agent_control::defaults::{
+    CM_NAME_LOCAL_DATA_PREFIX, default_capabilities,
+};
+use newrelic_agent_control::agent_control::defaults::{
+    CM_NAME_OPAMP_DATA_PREFIX, STORE_KEY_INSTANCE_ID, STORE_KEY_OPAMP_DATA_CONFIG,
+};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::Labels;
-use newrelic_agent_control::k8s::store::{
-    CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX, K8sStore, STORE_KEY_INSTANCE_ID,
-    STORE_KEY_OPAMP_DATA_CONFIG, StoreKey,
-};
+use newrelic_agent_control::k8s::store::{K8sStore, StoreKey};
 use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };

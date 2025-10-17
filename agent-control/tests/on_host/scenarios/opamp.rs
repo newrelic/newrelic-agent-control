@@ -11,7 +11,10 @@ use crate::on_host::tools::config::{
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA,
+    STORE_KEY_LOCAL_DATA_CONFIG_YAML, STORE_KEY_OPAMP_DATA_CONFIG_YAML,
+};
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -124,7 +127,11 @@ agents:
         serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
 
     retry(60, Duration::from_secs(1), || {
-        let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+        let remote_file = remote_dir
+            .path()
+            .join(FOLDER_NAME_FLEET_DATA)
+            .join(AGENT_CONTROL_ID)
+            .join(AGENT_CONTROL_CONFIG_FILENAME);
         let remote_config = std::fs::read_to_string(remote_file.as_path())
             .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
         let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
@@ -200,7 +207,11 @@ non-existing: {}
             // Then the config should be updated in the remote filesystem.
             let expected_containing = "non-existing: {}";
 
-            let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+            let remote_file = remote_dir
+                .path()
+                .join(FOLDER_NAME_FLEET_DATA)
+                .join(AGENT_CONTROL_ID)
+                .join(AGENT_CONTROL_CONFIG_FILENAME);
             let remote_config =
                 std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
             if !remote_config.contains(expected_containing) {
@@ -273,6 +284,8 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         agent_id.to_string(),
         values_config.to_string(),
         local_dir.path().to_path_buf(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     let base_paths = BasePaths {
@@ -337,6 +350,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     // And the custom-agent has also remote config values
@@ -347,6 +362,8 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
         agent_id.to_string(),
         remote_values_config.to_string(),
         remote_dir.path().to_path_buf(),
+        STORE_KEY_OPAMP_DATA_CONFIG_YAML.to_string(),
+        true,
     );
 
     let base_paths = BasePaths {
@@ -405,6 +422,8 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
         agent_id.to_string(),
         "".to_string(), // local empty config
         local_dir.path().into(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     let base_paths = BasePaths {
@@ -490,6 +509,8 @@ agents:
         sub_agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
+        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
+        false,
     );
 
     // create sub agent health file as healthy

@@ -1,5 +1,7 @@
 use crate::on_host::cli::cmd_with_config_file;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA,
+};
 use predicates::prelude::predicate;
 use tempfile::TempDir;
 
@@ -14,10 +16,21 @@ pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join(AGENT_CONTROL_CONFIG_FILENAME), EMPTY_CONFIG).unwrap();
+
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+
+    std::fs::create_dir_all(&config_path).unwrap();
+
+    std::fs::write(
+        config_path.join(AGENT_CONTROL_CONFIG_FILENAME),
+        EMPTY_CONFIG,
+    )
+    .unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
-    // Expecting to fail as non_root
     cmd.assert()
         .failure()
         .stdout(
@@ -37,7 +50,19 @@ fn default_log_level_no_root() {
 #[ignore = "requires root"]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join(AGENT_CONTROL_CONFIG_FILENAME), EMPTY_CONFIG).unwrap();
+
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+
+    std::fs::create_dir_all(&config_path).unwrap();
+
+    std::fs::write(
+        config_path.join(AGENT_CONTROL_CONFIG_FILENAME),
+        EMPTY_CONFIG,
+    )
+    .unwrap();
 
     let mut cmd = cmd_with_config_file(dir.path());
     cmd.assert()
@@ -66,8 +91,16 @@ fn default_log_level_as_root() {
 #[test]
 fn debug_log_level_no_root() {
     let dir = TempDir::new().unwrap();
+
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+
+    std::fs::create_dir_all(&config_path).unwrap();
+
     std::fs::write(
-        dir.path().join(AGENT_CONTROL_CONFIG_FILENAME),
+        config_path.join(AGENT_CONTROL_CONFIG_FILENAME),
         DEBUG_LEVEL_CONFIG,
     )
     .unwrap();
@@ -92,8 +125,16 @@ fn debug_log_level_no_root() {
 #[ignore = "requires root"]
 fn trace_log_level_as_root() {
     let dir = TempDir::new().unwrap();
+
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+
+    std::fs::create_dir_all(&config_path).unwrap();
+
     std::fs::write(
-        dir.path().join(AGENT_CONTROL_CONFIG_FILENAME),
+        config_path.join(AGENT_CONTROL_CONFIG_FILENAME),
         TRACE_LEVEL_CONFIG,
     )
     .unwrap();

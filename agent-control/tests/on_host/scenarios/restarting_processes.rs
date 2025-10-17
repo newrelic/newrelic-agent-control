@@ -1,7 +1,7 @@
 #![cfg(target_family = "unix")]
 use assert_cmd::Command;
 use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_DIR,
+    AGENT_CONTROL_CONFIG_FILENAME, AGENT_CONTROL_ID, DYNAMIC_AGENT_TYPE_DIR, FOLDER_NAME_LOCAL_DATA,
 };
 use nix::{
     sys::signal::{self, Signal},
@@ -63,12 +63,10 @@ deployment:
 
     let _values_file = create_temp_file(
         dir.path()
-            .join("fleet")
-            .join("agents.d")
+            .join(FOLDER_NAME_LOCAL_DATA)
             .join("test-agent")
-            .join("values")
             .as_path(),
-        "values.yaml",
+        "local_config.yaml",
         r#"
 duration-1: "1000000"
 duration-2: "2000000"
@@ -76,7 +74,9 @@ duration-2: "2000000"
     );
 
     let _config_path = create_temp_file(
-        dir.path(),
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
         AGENT_CONTROL_CONFIG_FILENAME,
         r#"
 log:
