@@ -143,6 +143,20 @@ where
         trace!(thread = self.thread_name, "Joining");
         self.join_thread()
     }
+
+    pub fn notify_stop(&self) {
+        trace!(thread = self.thread_name, "Publishing stop");
+        // Stop consumer could be disconnected if the thread has finished already.
+        // Either the stop is full or disconnected that shouldn't prevent to join the thread.
+        let _ = self.stop_publisher.try_publish(()).inspect_err(|err| {
+            debug!(thread = self.thread_name, "Publishing stop failed: {}", err)
+        });
+    }
+
+    pub fn wait_stop(self) -> Result<T, ThreadContextStopperError> {
+        trace!(thread = self.thread_name, "Joining");
+        self.join_thread()
+    }
 }
 
 #[cfg(test)]

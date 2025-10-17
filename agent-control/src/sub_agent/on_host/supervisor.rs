@@ -63,7 +63,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let executable_thread_contexts = self
             .executables
             .iter()
-            .flat_map(|e| self.start_process_thread(e, health_publisher.clone()));
+            .flat_map(|e| self.start_process_threads(e, health_publisher.clone()));
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
@@ -86,9 +86,13 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let mut stop_result = Ok(());
 
-        for thread_context in self.thread_contexts.into_iter() {
+        for thread_context in self.thread_contexts.iter() {
+            thread_context.notify_stop();
+        }
+
+        for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
-            match thread_context.stop_blocking() {
+            match thread_context.wait_stop() {
                 Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
                     error!("Error stopping '{thread_name}': {error_msg}");
@@ -193,7 +197,7 @@ impl NotStartedSupervisorOnHost {
         )
     }
 
-    fn start_process_thread(
+    fn start_process_threads(
         &self,
         executable_data: &ExecutableData,
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
@@ -257,11 +261,11 @@ impl NotStartedSupervisorOnHost {
             );
 
             let supervisor_start_time = SystemTime::now();
+            let id = executable_data_clone.id.clone();
+            let bin = executable_data_clone.bin.clone();
 
             // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
             // can lead to false positives (reporting healthy when the executable is actually not working)
-            let id = executable_data_clone.id.clone();
-            let bin = executable_data_clone.bin.clone();
             debug!("Informing executable as healthy");
             if let Err(err) = health_publisher.publish((
                 id.clone(),
@@ -271,6 +275,9 @@ impl NotStartedSupervisorOnHost {
             }
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
+            let _ = process_finished_publisher.publish(());
+            *current_pid_clone.lock().unwrap() = None;
+
             let _ = info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
 
             match command_result {
@@ -297,7 +304,7 @@ impl NotStartedSupervisorOnHost {
                         error!("Error publishing health status for {id}: {err}",);
                     }
                 }
-            }
+            };
 
             // Check the cancellation signal
             if kill_process_consumer.is_cancelled() {
@@ -308,17 +315,10 @@ impl NotStartedSupervisorOnHost {
                 break;
             }
 
-            // canceling the shutdown ctx must be done before getting current_pid lock
-            // as it locked by the wait_for_termination function
-            let _ = process_finished_publisher.publish(());
-            *current_pid_clone.lock().unwrap() = None;
-
             // check if restart policy needs to be applied
-            // As the exit code comes inside a Result but we don't care about the Err,
-            // we just unwrap or take the default value (0)
             if !restart_policy.should_retry() {
                 let _ = process_error_publisher.publish(());
-                // Log if we are not restarting anymore due to the restart policy being broken
+
                 warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
                 debug!(
@@ -344,8 +344,8 @@ impl NotStartedSupervisorOnHost {
         };
 
         vec![
-            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
             NotStartedThreadContext::new(executable_data.bin.clone(), executor_callback).start(),
+            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
         ]
     }
 }
@@ -734,7 +734,7 @@ pub mod tests {
         let executable_thread_contexts = agent
             .executables
             .iter()
-            .flat_map(|e| agent.start_process_thread(e, health_publisher.clone()));
+            .flat_map(|e| agent.start_process_threads(e, health_publisher.clone()));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {

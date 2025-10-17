@@ -13,7 +13,7 @@ impl EventConsumer<CancellationMessage> {
     }
 
     /// Checks whether the consumer is cancelled for the given timeout.
-    /// 
+    ///
     /// It returns true if the consumer received a cancellation message or received an error
     /// before the provided timeout is elapsed. Otherwise it blocks until the timeout is elapsed
     /// and returns false.
