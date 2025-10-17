@@ -19,8 +19,8 @@ pub fn get_hostname() -> Result<String, SystemDetectorError> {
     use std::os::windows::ffi::OsStringExt;
     init();
 
-    windows_targets::link!("ws2_32.dll" "system" fn GetHostNameW(name : *mut u16, namelen : i32) -> i32);
-    windows_targets::link!("ws2_32.dll" "system" fn WSAGetLastError() -> i32);
+    windows_link::link!("ws2_32.dll" "system" fn GetHostNameW(name : *mut u16, namelen : i32) -> i32);
+    windows_link::link!("ws2_32.dll" "system" fn WSAGetLastError() -> i32);
 
     // The documentation of GetHostNameW says that a buffer size of 256 is
     // always enough.
