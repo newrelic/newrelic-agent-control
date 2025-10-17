@@ -92,7 +92,7 @@ tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros"] }
 fake = { version = "4.4.0", features = ["derive", "http"] }
 prost = "0.14.1"
 # Alpha version needed to test proxy the feature, it is safe because it is only used as dev-dependency
-httpmock = { version = "0.8.1", features = ["proxy"] }
+httpmock = { version = "0.8.2", features = ["proxy"] }
 serial_test = "3.2.0"
 futures = "0.3.31"
 rcgen = { version = "0.14.5", features = ["crypto"] }
