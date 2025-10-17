@@ -237,7 +237,7 @@ impl NotStartedSupervisorOnHost {
             loop {
                 // locks the current_pid to prevent the "terminator" thread from finishing before the process
                 // is started and the pid is set.
-                // In case starting the process fail the guard will be dropped and the "terminator" thread
+                // If starting the process fails, the guard will be dropped and the "terminator" thread
                 // will finish without needing to cancel any process (current_pid==None).
                 let pid_guard = current_pid_clone.lock().unwrap();
 
@@ -423,14 +423,10 @@ fn start_command(
     not_started_command: CommandOSNotStarted,
     mut pid: std::sync::MutexGuard<Option<u32>>,
 ) -> Result<ExitStatus, CommandError> {
-    // run and stream the process
     let started = not_started_command.start()?;
-
     let streaming = started.stream()?;
 
-    // set current running pid
     *pid = Some(streaming.get_pid());
-    // free the lock so the wait_for_termination can lock it on graceful shutdown
     drop(pid);
 
     streaming.wait()
