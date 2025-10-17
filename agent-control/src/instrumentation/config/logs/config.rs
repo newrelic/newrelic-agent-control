@@ -11,7 +11,11 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::Filter;
 use tracing_subscriber::{EnvFilter, Registry};
 
-const LOGGING_ENABLED_CRATES: &[&str] = &["newrelic_agent_control", "opamp_client"];
+const LOGGING_ENABLED_CRATES: &[&str] = &[
+    "newrelic_agent_control",
+    "opamp_client",
+    "newrelic_config_migrate",
+];
 
 const SPAN_ATTRIBUTES_MAX_LEVEL: &Level = &Level::INFO;
 
