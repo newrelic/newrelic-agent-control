@@ -3448,6 +3448,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "tracing",
+ "windows-targets 0.53.5",
 ]
 
 [[package]]
