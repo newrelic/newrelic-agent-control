@@ -9,7 +9,7 @@ use nr_auth::{
     authenticator::HttpAuthenticator,
     jwt::signer::{JwtSignerImpl, JwtSignerImplError, local::LocalPrivateKeySigner},
     token::{AccessToken, Token, TokenType},
-    token_retriever::TokenRetrieverWithCache,
+    token_retriever::{TokenRetrieverWithCache, credential::JwtSignerAuthBuilder},
 };
 use std::time::Duration;
 use thiserror::Error;
@@ -27,7 +27,8 @@ pub enum TokenRetrieverImplError {
 }
 
 // Just an alias to make the code more readable
-type TokenRetrieverHttp = TokenRetrieverWithCache<HttpAuthenticator<HttpClient>, JwtSignerImpl>;
+type TokenRetrieverHttp =
+    TokenRetrieverWithCache<HttpAuthenticator<HttpClient>, JwtSignerAuthBuilder<JwtSignerImpl>>;
 
 /// Enumerates all implementations for `TokenRetriever` for static dispatching reasons.
 #[allow(clippy::large_enum_variant)]
