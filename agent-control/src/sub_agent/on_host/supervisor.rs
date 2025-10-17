@@ -95,7 +95,7 @@ impl SupervisorStopper for StartedSupervisorOnHost {
             match thread_context.wait_stop() {
                 Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
-                    error!("Error stopping '{thread_name}': {error_msg}");
+                    error!("Stopping '{thread_name}': {error_msg}");
                     if stop_result.is_ok() {
                         stop_result = Err(error_msg);
                     }
@@ -175,7 +175,7 @@ impl NotStartedSupervisorOnHost {
         sub_agent_internal_publisher: EventPublisher<SubAgentInternalEvent>,
     ) {
         let Some(version_config) = &self.version_config else {
-            info!(agent_type=%self.agent_identity.agent_type_id, "version checks are disabled for this agent");
+            info!(agent_type=%self.agent_identity.agent_type_id, "Version checks are disabled for this agent");
             return;
         };
 
@@ -211,22 +211,24 @@ impl NotStartedSupervisorOnHost {
 
         let agent_id = self.agent_identity.id.clone();
         let current_pid_clone = current_pid.clone();
+        let executable_data_clone = executable_data.clone();
         let terminator_callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-            let _ = info_span!("termination_signal", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
+            let span = info_span!("termination_signal", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id = %executable_data_clone.id).entered();
             select! {
                 recv(stop_consumer.as_ref()) -> _ => {
                     let _ = kill_process_publisher.publish(());
 
                     if let Some(pid) = *current_pid_clone.lock().unwrap() {
-                        info!(pid = pid, msg = "stopping supervisor process");
+                        info!(pid = pid, msg = "Stopping executable");
                         _ = ProcessTerminator::new(pid)
                             .shutdown(|| process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0)));
                     } else {
-                        info!(msg = "stopped supervisor without process running");
+                        info!(msg = "Executable not running");
                     }
                 },
-                recv(process_error_consumer.as_ref()) -> _ => info!(msg = "stopped supervisor without process running"),
+                recv(process_error_consumer.as_ref()) -> _ => info!(msg = "Executable not running"),
             }
+            span.exit();
         };
 
         let executable_data_clone = executable_data.clone();
@@ -234,113 +236,124 @@ impl NotStartedSupervisorOnHost {
         let log_to_file = self.log_to_file;
         let logging_path = self.logging_path.clone();
         let current_pid_clone = current_pid.clone();
-        let executor_callback = move |_| loop {
-            // locks the current_pid to prevent the "terminator" thread from finishing before the process
-            // is started and the pid is set.
-            // In case starting the process fail the guard will be dropped and the "terminator" thread
-            // will finish without needing to cancel any process (current_pid==None).
-            let pid_guard = current_pid_clone.lock().unwrap();
+        let executor_callback = move |_| {
+            let mut i = 0;
+            loop {
+                // locks the current_pid to prevent the "terminator" thread from finishing before the process
+                // is started and the pid is set.
+                // If starting the process fails, the guard will be dropped and the "terminator" thread
+                // will finish without needing to cancel any process (current_pid==None).
+                let pid_guard = current_pid_clone.lock().unwrap();
 
-            if kill_process_consumer.is_cancelled() {
-                debug!("supervisor stopped before starting the process");
-                break;
-            }
+                let exec_id = executable_data_clone.id.clone();
+                let span =
+                    info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
+                        .entered();
 
-            let span = info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id);
-            let span_guard = span.enter();
+                if kill_process_consumer.is_cancelled() {
+                    debug!("Supervisor stopped before starting executable");
+                    break;
+                }
 
-            info!("starting supervisor process");
+                info!("Starting executable");
 
-            // Signals return exit_code 0, if in the future we need to act on them we can import
-            // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-            let not_started_command = CommandOSNotStarted::new(
-                agent_id.clone(),
-                &executable_data_clone,
-                log_to_file,
-                logging_path.clone(),
-            );
-
-            let supervisor_start_time = SystemTime::now();
-            let id = executable_data_clone.id.clone();
-            let bin = executable_data_clone.bin.clone();
-
-            // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
-            // can lead to false positives (reporting healthy when the executable is actually not working)
-            debug!("Informing executable as healthy");
-            if let Err(err) = health_publisher.publish((
-                id.clone(),
-                HealthWithStartTime::new(Healthy::new().into(), supervisor_start_time),
-            )) {
-                error!("Error publishing health status for {id}: {err}",);
-            }
-
-            let command_result = start_command(not_started_command, pid_guard, span_guard);
-            let _ = process_finished_publisher.publish(());
-            *current_pid_clone.lock().unwrap() = None;
-
-            let _ = info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
-
-            match command_result {
-                Ok(exit_status) => handle_termination(
+                // Signals return exit_code 0, if in the future we need to act on them we can import
+                // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
+                let not_started_command = CommandOSNotStarted::new(
+                    agent_id.clone(),
                     &executable_data_clone,
-                    exit_status,
-                    health_publisher.clone(),
-                    &agent_id,
-                    supervisor_start_time,
-                ),
-                Err(err) => {
-                    error!(
-                        supervisor = bin,
-                        "error while launching supervisor process: {err}"
+                    log_to_file,
+                    logging_path.clone(),
+                );
+
+                let supervisor_start_time = SystemTime::now();
+                let bin = executable_data_clone.bin.clone();
+
+                // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
+                // can lead to false positives (reporting healthy when the executable is actually not working)
+                debug!("Informing executable as healthy");
+                if let Err(err) = health_publisher.publish((
+                    exec_id.clone(),
+                    HealthWithStartTime::new(Healthy::new().into(), supervisor_start_time),
+                )) {
+                    error!("Publishing health status: {err}",);
+                }
+
+                let command_result = start_command(not_started_command, pid_guard);
+                span.exit();
+
+                let _ = process_finished_publisher.publish(());
+                *current_pid_clone.lock().unwrap() = None;
+
+                let span =
+                    info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
+                        .entered();
+
+                let exit_code = match command_result {
+                    Ok(exit_status) => handle_termination(
+                        &executable_data_clone,
+                        exit_status,
+                        health_publisher.clone(),
+                        &agent_id,
+                        supervisor_start_time,
+                    ),
+                    Err(err) => {
+                        error!(supervisor = bin, "Launching executable: {err}");
+                        debug!(
+                            "Informing of executable as unhealthy as there was an error launching it"
+                        );
+                        let unhealthy = Unhealthy::new(format!("Error launching process: {err}"));
+                        if let Err(err) = health_publisher.publish((
+                            exec_id.to_string(),
+                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
+                        )) {
+                            error!("Publishing health status: {err}",);
+                        }
+                    }
+                };
+
+                if kill_process_consumer.is_cancelled() {
+                    info!(supervisor = bin, msg = "Executable terminated");
+                    break;
+                }
+
+                // check if restart policy needs to be applied
+                if !restart_policy.should_retry() {
+                    let _ = process_error_publisher.publish(());
+
+                    warn!(
+                        "Executable won't restart anymore due to having exceeded its restart policy"
                     );
+
                     debug!(
-                        "Informing of executable as unhealthy as there was an error launching it"
+                        "Informing of executable as unhealthy because the restart policy was exceeded"
                     );
-                    let unhealthy = Unhealthy::new(format!("Error launching process: {err}"));
+                    let unhealthy = Unhealthy::new(
+                        "executable exceeded its defined restart policy".to_string(),
+                    );
                     if let Err(err) = health_publisher.publish((
-                        id.to_string(),
+                        exec_id.clone(),
                         HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
                     )) {
-                        error!("Error publishing health status for {id}: {err}",);
+                        error!("Publishing health status: {err}");
                     }
+                    break;
                 }
-            };
 
-            // Check the cancellation signal
-            if kill_process_consumer.is_cancelled() {
                 info!(
-                    supervisor = bin,
-                    msg = "supervisor has been stopped and process terminated"
+                    "Restarting supervisor ({}/{})",
+                    i + 1,
+                    restart_policy.backoff.max_retries()
                 );
-                break;
+
+                restart_policy.backoff(|duration| {
+                    // early exit if supervisor timeout is canceled
+                    kill_process_consumer.is_cancelled_with_timeout(duration);
+                });
+                i += 1;
+
+                span.exit();
             }
-
-            // check if restart policy needs to be applied
-            if !restart_policy.should_retry() {
-                let _ = process_error_publisher.publish(());
-
-                warn!("supervisor won't restart anymore due to having exceeded its restart policy");
-
-                debug!(
-                    "Informing of executable as unhealthy because the restart policy was exceeded"
-                );
-                let unhealthy =
-                    Unhealthy::new("executable exceeded its defined restart policy".to_string());
-                if let Err(err) = health_publisher.publish((
-                    id.clone(),
-                    HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                )) {
-                    error!("Error publishing health status for {id}: {err}");
-                }
-                break;
-            }
-
-            info!("restarting supervisor");
-
-            restart_policy.backoff(|duration| {
-                // early exit if supervisor timeout is canceled
-                kill_process_consumer.is_cancelled_with_timeout(duration);
-            });
         };
 
         vec![
@@ -373,14 +386,14 @@ fn handle_termination(
             id.clone(),
             HealthWithStartTime::new(unhealthy.into(), start_time),
         )) {
-            error!("Error publishing health status for {}: {err}", id);
+            error!("Publishing health status for {}: {err}", id);
         }
 
         error!(
             %agent_id,
             supervisor = bin,
             exit_code = ?exit_status.code(),
-            "supervisor process exited unsuccessfully"
+            "Executable exited unsuccessfully"
         )
     }
 }
@@ -390,19 +403,12 @@ fn handle_termination(
 fn start_command(
     not_started_command: CommandOSNotStarted,
     mut pid: std::sync::MutexGuard<Option<u32>>,
-    span_guard: tracing::span::Entered<'_>,
 ) -> Result<ExitStatus, CommandError> {
-    // run and stream the process
     let started = not_started_command.start()?;
-
     let streaming = started.stream()?;
 
-    // set current running pid
     *pid = Some(streaming.get_pid());
-    // free the lock so the wait_for_termination can lock it on graceful shutdown
     drop(pid);
-
-    drop(span_guard);
 
     streaming.wait()
 }
@@ -430,12 +436,12 @@ pub mod tests {
         "long-running",
         ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
-        vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
+        vec!["Stopping executable", "Executable terminated"])]
     #[case::fail_process_shutdown_after_start(
         "wrong-command",
         ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
         Some(Duration::from_secs(1)),
-        vec!["stopped supervisor without process running"])]
+        vec!["Executable not running"])]
     fn test_supervisor_gracefully_shutdown(
         #[case] agent_id: &str,
         #[case] executable: ExecutableData,
