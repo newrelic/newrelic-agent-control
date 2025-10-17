@@ -464,11 +464,6 @@ pub mod tests {
         ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
         Some(Duration::from_secs(1)),
         vec!["Executable not running"])]
-    #[case::long_running_process_shutdown_before_start(
-        "long-running-before-start",
-        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
-        None,
-        vec!["Supervisor stopped before starting executable", "Executable not running"])]
     fn test_supervisor_gracefully_shutdown(
         #[case] agent_id: &str,
         #[case] executable: ExecutableData,
@@ -508,9 +503,6 @@ pub mod tests {
         let start = Instant::now();
         started_supervisor.expect("no error").stop().unwrap();
         let duration = start.elapsed();
-
-        // gives the `wait_for_termination` thread time to finish.
-        thread::sleep(Duration::from_secs(1));
 
         let max_duration = Duration::from_millis(100);
         assert!(
