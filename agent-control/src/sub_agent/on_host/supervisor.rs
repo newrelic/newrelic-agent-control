@@ -63,7 +63,7 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
         let executable_thread_contexts = self
             .executables
             .iter()
-            .flat_map(|e| self.start_process_thread(e, health_publisher.clone()));
+            .flat_map(|e| self.start_process_threads(e, health_publisher.clone()));
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
@@ -193,7 +193,7 @@ impl NotStartedSupervisorOnHost {
         )
     }
 
-    fn start_process_thread(
+    fn start_process_threads(
         &self,
         executable_data: &ExecutableData,
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
@@ -257,11 +257,11 @@ impl NotStartedSupervisorOnHost {
             );
 
             let supervisor_start_time = SystemTime::now();
+            let id = executable_data_clone.id.clone();
+            let bin = executable_data_clone.bin.clone();
 
             // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
             // can lead to false positives (reporting healthy when the executable is actually not working)
-            let id = executable_data_clone.id.clone();
-            let bin = executable_data_clone.bin.clone();
             debug!("Informing executable as healthy");
             if let Err(err) = health_publisher.publish((
                 id.clone(),
@@ -271,10 +271,20 @@ impl NotStartedSupervisorOnHost {
             }
 
             let command_result = start_command(not_started_command, pid_guard, span_guard);
+            let _ = process_finished_publisher.publish(());
+            *current_pid_clone.lock().unwrap() = None;
+
             let _ = info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id).enter();
 
-            let exit_code = command_result
-                .inspect_err(|err| {
+            let exit_code = match command_result {
+                Ok(exit_status) => handle_termination(
+                    &executable_data_clone,
+                    exit_status,
+                    health_publisher.clone(),
+                    &agent_id,
+                    supervisor_start_time,
+                ),
+                Err(err) => {
                     error!(
                         supervisor = bin,
                         "error while launching supervisor process: {err}"
@@ -289,18 +299,11 @@ impl NotStartedSupervisorOnHost {
                     )) {
                         error!("Error publishing health status for {id}: {err}",);
                     }
-                })
-                .map(|exit_status| {
-                    handle_termination(
-                        &executable_data_clone,
-                        exit_status,
-                        health_publisher.clone(),
-                        &agent_id,
-                        supervisor_start_time,
-                    )
-                });
 
-            // Check the cancellation signal
+                    0 // Default exit code
+                }
+            };
+
             if kill_process_consumer.is_cancelled_immediately() {
                 info!(
                     supervisor = bin,
@@ -309,17 +312,10 @@ impl NotStartedSupervisorOnHost {
                 break;
             }
 
-            // canceling the shutdown ctx must be done before getting current_pid lock
-            // as it locked by the wait_for_termination function
-            let _ = process_finished_publisher.publish(());
-            *current_pid_clone.lock().unwrap() = None;
-
             // check if restart policy needs to be applied
-            // As the exit code comes inside a Result but we don't care about the Err,
-            // we just unwrap or take the default value (0)
-            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+            if !restart_policy.should_retry(exit_code) {
                 let _ = process_error_publisher.publish(());
-                // Log if we are not restarting anymore due to the restart policy being broken
+
                 warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
                 debug!(
@@ -768,7 +764,7 @@ pub mod tests {
         let executable_thread_contexts = agent
             .executables
             .iter()
-            .flat_map(|e| agent.start_process_thread(e, health_publisher.clone()));
+            .flat_map(|e| agent.start_process_threads(e, health_publisher.clone()));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
