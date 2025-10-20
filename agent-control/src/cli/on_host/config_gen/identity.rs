@@ -44,11 +44,16 @@ pub fn provide_identity(args: &Args) -> Result<Identity, CliError> {
 
 /// Helper to allow injecting testing urls when building the identity.
 fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Identity, CliError> {
+    let auth_private_key_path = args.auth_private_key_path.clone().ok_or_else(|| {
+        CliError::Command("'auth-private-key-path' is required when fleet is enabled".to_string())
+    })?;
+
     // Already provided identity
     if !args.auth_client_id.is_empty() {
+        info!("Using provided System Identity");
         return Ok(Identity {
             client_id: args.auth_client_id.to_string(),
-            private_key_path: args.auth_private_key_path.clone(),
+            private_key_path: auth_private_key_path,
         });
     }
 
@@ -68,6 +73,7 @@ fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Ident
     })?;
 
     let token = if args.auth_parent_token.is_empty() {
+        info!("Retrieving token using the provided client-id + secret");
         // Generate the parent token if it wasn't provided
         let authenticator =
             HttpAuthenticator::new(http_client.clone(), environment.token_renewal_endpoint());
@@ -85,6 +91,7 @@ fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Ident
             ))
         })?
     } else {
+        info!("Using the provided token for authentication");
         Token::new(
             args.auth_parent_token.clone(),
             TokenType::Bearer,
@@ -92,8 +99,7 @@ fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Ident
         )
     };
 
-    let output_platform =
-        OutputPlatform::LocalPrivateKeyPath(args.auth_private_key_path.to_owned());
+    let output_platform = OutputPlatform::LocalPrivateKeyPath(auth_private_key_path.clone());
 
     let system_identity_creation_metadata = SystemIdentityCreationMetadata {
         system_identity_input: SystemIdentityInput {
@@ -108,7 +114,7 @@ fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Ident
 
     let key_creator = LocalCreator::from(KeyPairGeneratorLocalConfig {
         key_type: KeyType::Rsa4096,
-        file_path: args.auth_private_key_path.clone(),
+        file_path: auth_private_key_path.clone(),
     });
 
     let system_identity_generator = L2SystemIdentityGenerator {
@@ -121,13 +127,13 @@ fn build_identity(args: &Args, environment: NewRelicEnvironment) -> Result<Ident
         .map_err(|err| CliError::Command(format!("error generating the system identity: {err}")))?;
 
     info!(
-        private_key_path = %args.auth_private_key_path.to_string_lossy(),
+        private_key_path = %auth_private_key_path.to_string_lossy(),
         "System Identity successfully generated"
     );
 
     Ok(Identity {
         client_id: result.client_id,
-        private_key_path: args.auth_private_key_path.clone(),
+        private_key_path: auth_private_key_path,
     })
 }
 
@@ -179,7 +185,7 @@ pub mod tests {
             "",
             "",
             "",
-            auth_private_key_path.clone(),
+            Some(auth_private_key_path.clone()),
             "provided_client_id",
         );
         let identity = build_identity(&args, environment).expect("no error expected");
@@ -198,7 +204,7 @@ pub mod tests {
             "parent-client-id",
             "",
             "TOKEN",
-            auth_private_key_path.clone(),
+            Some(auth_private_key_path.clone()),
             "",
         );
 
@@ -243,7 +249,7 @@ pub mod tests {
             "parent-client-id",
             "client-secret-value",
             "",
-            auth_private_key_path.clone(),
+            Some(auth_private_key_path.clone()),
             "",
         );
 
@@ -290,16 +296,16 @@ pub mod tests {
         auth_parent_client_id: &str,
         auth_parent_client_secret: &str,
         auth_parent_token: &str,
-        auth_private_key_path: PathBuf,
+        auth_private_key_path: Option<PathBuf>,
         auth_client_id: &str,
     ) -> Args {
         Args {
             output_path: Default::default(),
-            fleet_enabled: true,
+            fleet_disabled: true,
             region: Region::US,
             fleet_id: "some-id".to_string(),
             organization_id: "some-org".to_string(),
-            agent_set: AgentSet::None,
+            agent_set: AgentSet::NoAgents,
             auth_parent_client_id: auth_parent_client_id.to_string(),
             auth_parent_client_secret: auth_parent_client_secret.to_string(),
             auth_parent_token: auth_parent_token.to_string(),

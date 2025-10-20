@@ -11,7 +11,7 @@ use crate::http::config::ProxyConfig;
 pub enum AgentSet {
     InfraAgent,
     Otel,
-    None,
+    NoAgents,
 }
 
 impl From<AgentSet> for HashMap<String, Agent> {
@@ -31,7 +31,7 @@ impl From<AgentSet> for HashMap<String, Agent> {
                 },
             )]
             .into(),
-            AgentSet::None => HashMap::new(),
+            AgentSet::NoAgents => HashMap::new(),
         }
     }
 }
@@ -89,7 +89,7 @@ mod tests {
     #[rstest]
     #[case(AgentSet::InfraAgent, vec![("nr-infra", "newrelic/com.newrelic.infrastructure:0.1.0")])]
     #[case(AgentSet::Otel, vec![("nrdot", "newrelic/com.newrelic.opentelemetry.collector:0.1.0")])]
-    #[case(AgentSet::None, vec![])]
+    #[case(AgentSet::NoAgents, vec![])]
     fn test_agent_set_to_hash_map(
         #[case] agent_set: AgentSet,
         #[case] expected: Vec<(&str, &str)>,

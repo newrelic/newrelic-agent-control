@@ -2,7 +2,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
-use tracing::Level;
+use tracing::{Level, error};
 
 #[derive(Debug, clap::Parser)]
 #[command()]
@@ -35,6 +35,7 @@ fn main() -> ExitCode {
     };
 
     if let Err(err) = result {
+        error!("Command failed: {err}");
         return err.into();
     }
 

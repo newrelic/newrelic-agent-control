@@ -28,10 +28,10 @@ pub enum Region {
 
 pub fn region_parser() -> ValueParser {
     ValueParser::from(|s: &str| -> Result<Region, String> {
-        match s {
-            s if s.to_lowercase() == "us" => Ok(Region::US),
-            s if s.to_lowercase() == "eu" => Ok(Region::EU),
-            s if s.to_lowercase() == "staging" => Ok(Region::STAGING),
+        match s.to_lowercase() {
+            s if s == "us" => Ok(Region::US),
+            s if s == "eu" => Ok(Region::EU),
+            s if s == "staging" => Ok(Region::STAGING),
             _ => Err(format!("{s} is not a supported region")),
         }
     })
@@ -165,8 +165,6 @@ mod tests {
     #[rstest]
     #[case("invalid")]
     #[case("")]
-    //#[case("invalid", Err("invalid is not a supported region".to_string()))]
-    //#[case("", Err(" is not a supported region".to_string()))]
     fn test_region_parser_error(#[case] input: &str) {
         let cmd = clap::Command::new("cmd").arg(
             clap::Arg::new("flag")
