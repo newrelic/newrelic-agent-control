@@ -217,7 +217,7 @@ impl NotStartedSupervisorOnHost {
                     if let Some(pid) = *current_pid_clone.lock().unwrap() {
                         info!(pid = pid, msg = "Stopping executable");
                         _ = ProcessTerminator::new(pid)
-                            .shutdown(|| process_finished_consumer.is_cancelled(Duration::new(10, 0)));
+                            .shutdown(|| process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0)));
                     } else {
                         info!(msg = "Executable not running");
                     }
@@ -246,7 +246,7 @@ impl NotStartedSupervisorOnHost {
                     info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
                         .entered();
 
-                if kill_process_consumer.is_cancelled_immediately() {
+                if kill_process_consumer.is_cancelled() {
                     debug!("Supervisor stopped before starting executable");
                     break;
                 }
@@ -310,7 +310,7 @@ impl NotStartedSupervisorOnHost {
                     }
                 };
 
-                if kill_process_consumer.is_cancelled_immediately() {
+                if kill_process_consumer.is_cancelled() {
                     info!(supervisor = bin, msg = "Executable terminated");
                     break;
                 }
@@ -346,7 +346,7 @@ impl NotStartedSupervisorOnHost {
 
                 restart_policy.backoff(|duration| {
                     // early exit if supervisor timeout is canceled
-                    kill_process_consumer.is_cancelled(duration);
+                    kill_process_consumer.is_cancelled_with_timeout(duration);
                 });
                 i += 1;
 
