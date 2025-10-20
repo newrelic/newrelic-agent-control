@@ -22,9 +22,9 @@ use crate::utils::thread_context::{
     NotStartedThreadContext, StartedThreadContext, ThreadContextStopperError,
 };
 use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
-use crossbeam::select;
 use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::sync::{Arc, Mutex};
@@ -33,6 +33,7 @@ use tracing::{debug, error, info, info_span, warn};
 
 pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
+    processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -60,10 +61,11 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorStarterError::FileSystem)?;
 
+        let processes = Arc::new(Mutex::new(HashMap::new()));
         let executable_thread_contexts = self
             .executables
             .iter()
-            .flat_map(|e| self.start_process_threads(e, health_publisher.clone()));
+            .map(|e| self.start_process_thread(e, health_publisher.clone(), processes.clone()));
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
@@ -78,21 +80,26 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .chain(thread_contexts)
             .collect();
 
-        Ok(StartedSupervisorOnHost { thread_contexts })
+        Ok(StartedSupervisorOnHost {
+            thread_contexts,
+            processes,
+        })
     }
 }
 
 impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        let mut stop_result = Ok(());
-
-        for thread_context in self.thread_contexts.iter() {
-            thread_context.notify_stop();
+        for (pid, process_finished_consumer) in self.processes.lock().unwrap().iter() {
+            info!(pid = pid, msg = "Stopping executable");
+            _ = ProcessTerminator::new(*pid).shutdown(|| {
+                process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0))
+            });
         }
 
+        let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
-            match thread_context.wait_stop() {
+            match thread_context.stop_blocking() {
                 Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
                     error!("Stopping '{thread_name}': {error_msg}");
@@ -197,60 +204,27 @@ impl NotStartedSupervisorOnHost {
         )
     }
 
-    fn start_process_threads(
+    fn start_process_thread(
         &self,
         executable_data: &ExecutableData,
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
-    ) -> Vec<StartedThreadContext> {
+        processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
+    ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
-        let current_pid: Arc<Mutex<Option<u32>>> = Arc::new(Mutex::new(None));
-
-        let (process_finished_publisher, process_finished_consumer) = pub_sub();
-        let (kill_process_publisher, kill_process_consumer) = pub_sub();
-        let (process_error_publisher, process_error_consumer) = pub_sub();
-
-        let agent_id = self.agent_identity.id.clone();
-        let current_pid_clone = current_pid.clone();
-        let executable_data_clone = executable_data.clone();
-        let terminator_callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
-            let span = info_span!("termination_signal", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id = %executable_data_clone.id).entered();
-            select! {
-                recv(stop_consumer.as_ref()) -> _ => {
-                    let _ = kill_process_publisher.publish(());
-
-                    if let Some(pid) = *current_pid_clone.lock().unwrap() {
-                        info!(pid = pid, msg = "Stopping executable");
-                        _ = ProcessTerminator::new(pid)
-                            .shutdown(|| process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0)));
-                    } else {
-                        info!(msg = "Executable not running");
-                    }
-                },
-                recv(process_error_consumer.as_ref()) -> _ => info!(msg = "Executable not running"),
-            }
-            span.exit();
-        };
 
         let executable_data_clone = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
         let log_to_file = self.log_to_file;
         let logging_path = self.logging_path.clone();
-        let current_pid_clone = current_pid.clone();
-        let executor_callback = move |_| {
+        let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let mut i = 0;
             loop {
-                // locks the current_pid to prevent the "terminator" thread from finishing before the process
-                // is started and the pid is set.
-                // If starting the process fails, the guard will be dropped and the "terminator" thread
-                // will finish without needing to cancel any process (current_pid==None).
-                let pid_guard = current_pid_clone.lock().unwrap();
-
                 let exec_id = executable_data_clone.id.clone();
                 let span =
                     info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
                         .entered();
 
-                if kill_process_consumer.is_cancelled() {
+                if stop_consumer.is_cancelled() {
                     debug!("Supervisor stopped before starting executable");
                     break;
                 }
@@ -279,11 +253,15 @@ impl NotStartedSupervisorOnHost {
                     error!("Publishing health status: {err}",);
                 }
 
-                let command_result = start_command(not_started_command, pid_guard);
+                let (process_finished_publisher, process_finished_consumer) = pub_sub();
+                let command_result = start_command(
+                    not_started_command,
+                    processes.clone(),
+                    process_finished_consumer,
+                );
                 span.exit();
 
                 let _ = process_finished_publisher.publish(());
-                *current_pid_clone.lock().unwrap() = None;
 
                 let span =
                     info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
@@ -314,14 +292,14 @@ impl NotStartedSupervisorOnHost {
                     }
                 };
 
-                if kill_process_consumer.is_cancelled() {
+                if stop_consumer.is_cancelled() {
                     info!(supervisor = bin, msg = "Executable terminated");
                     break;
                 }
 
                 // check if restart policy needs to be applied
                 if !restart_policy.should_retry(exit_code) {
-                    let _ = process_error_publisher.publish(());
+                    info!(msg = "Executable not running");
 
                     warn!(
                         "Executable won't restart anymore due to having exceeded its restart policy"
@@ -348,20 +326,26 @@ impl NotStartedSupervisorOnHost {
                     restart_policy.backoff.max_retries()
                 );
 
+                let mut should_stop = false;
                 restart_policy.backoff(|duration| {
                     // early exit if supervisor timeout is canceled
-                    kill_process_consumer.is_cancelled_with_timeout(duration);
+                    if stop_consumer.is_cancelled_with_timeout(duration) {
+                        should_stop = true;
+                    }
                 });
+
+                if should_stop {
+                    debug!(supervisor = bin, msg = "Stop signal send during backoff");
+                    break;
+                }
+
                 i += 1;
 
                 span.exit();
             }
         };
 
-        vec![
-            NotStartedThreadContext::new(executable_data.bin.clone(), executor_callback).start(),
-            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
-        ]
+        NotStartedThreadContext::new(executable_data.bin.clone(), callback).start()
     }
 }
 
@@ -425,13 +409,18 @@ fn compute_exit_code(exit_status: ExitStatus) -> i32 {
 /// into the provided variable. It waits until the process exits.
 fn start_command(
     not_started_command: CommandOSNotStarted,
-    mut pid: std::sync::MutexGuard<Option<u32>>,
+    processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
+    process_finished_consumer: EventConsumer<CancellationMessage>,
 ) -> Result<ExitStatus, CommandError> {
     let started = not_started_command.start()?;
     let streaming = started.stream()?;
 
-    *pid = Some(streaming.get_pid());
-    drop(pid);
+    let process_pid = streaming.get_pid();
+    processes
+        .lock()
+        .unwrap()
+        .insert(process_pid, process_finished_consumer);
+    drop(processes);
 
     streaming.wait()
 }
@@ -641,6 +630,7 @@ pub mod tests {
     }
 
     #[test]
+    #[traced_test]
     fn test_supervisor_restart_policy_early_exit() {
         let timer = Instant::now();
 
@@ -764,10 +754,13 @@ pub mod tests {
 
         let (health_publisher, health_consumer) = pub_sub();
 
-        let executable_thread_contexts = agent
-            .executables
-            .iter()
-            .flat_map(|e| agent.start_process_threads(e, health_publisher.clone()));
+        let executable_thread_contexts = agent.executables.iter().map(|e| {
+            agent.start_process_thread(
+                e,
+                health_publisher.clone(),
+                Arc::new(Mutex::new(HashMap::new())),
+            )
+        });
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
