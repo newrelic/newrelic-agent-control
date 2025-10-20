@@ -86,9 +86,13 @@ impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
         let mut stop_result = Ok(());
 
-        for thread_context in self.thread_contexts.into_iter() {
+        for thread_context in self.thread_contexts.iter() {
+            thread_context.notify_stop();
+        }
+
+        for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
-            match thread_context.stop_blocking() {
+            match thread_context.wait_stop() {
                 Ok(_) => info!("{} stopped", thread_name),
                 Err(error_msg) => {
                     error!("Stopping '{thread_name}': {error_msg}");
@@ -355,8 +359,8 @@ impl NotStartedSupervisorOnHost {
         };
 
         vec![
-            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
             NotStartedThreadContext::new(executable_data.bin.clone(), executor_callback).start(),
+            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
         ]
     }
 }
