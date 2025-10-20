@@ -355,8 +355,8 @@ impl NotStartedSupervisorOnHost {
         };
 
         vec![
-            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
             NotStartedThreadContext::new(executable_data.bin.clone(), executor_callback).start(),
+            NotStartedThreadContext::new(executable_data.bin.clone(), terminator_callback).start(),
         ]
     }
 }
