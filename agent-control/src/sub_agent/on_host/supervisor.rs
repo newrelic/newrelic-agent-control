@@ -5,17 +5,17 @@ use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionCo
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
+use crate::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthCheckers;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
 use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
-use crate::sub_agent::on_host::command::command_os::CommandOSNotStarted;
+use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use crate::sub_agent::on_host::command::shutdown::ProcessTerminator;
+use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
 use crate::sub_agent::supervisor::starter::{SupervisorStarter, SupervisorStarterError};
 use crate::sub_agent::supervisor::stopper::SupervisorStopper;
 use crate::utils::thread_context::{
@@ -24,16 +24,15 @@ use crate::utils::thread_context::{
 use crate::version_checker::onhost::{OnHostAgentVersionChecker, check_version};
 use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::ExitStatus;
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 use tracing::{debug, error, info, info_span, warn};
 
+const WAIT_FOR_EXIT_TIMEOUT: std::time::Duration = Duration::from_secs(1);
+
 pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
-    processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
 }
 
 pub struct NotStartedSupervisorOnHost {
@@ -61,11 +60,10 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .write(&LocalFile, &DirectoryManagerFs)
             .map_err(SupervisorStarterError::FileSystem)?;
 
-        let processes = Arc::new(Mutex::new(HashMap::new()));
         let executable_thread_contexts = self
             .executables
             .iter()
-            .map(|e| self.start_process_thread(e, health_publisher.clone(), processes.clone()));
+            .map(|e| self.start_process_thread(e, health_publisher.clone()));
 
         self.check_subagent_version(sub_agent_internal_publisher.clone());
 
@@ -80,22 +78,12 @@ impl SupervisorStarter for NotStartedSupervisorOnHost {
             .chain(thread_contexts)
             .collect();
 
-        Ok(StartedSupervisorOnHost {
-            thread_contexts,
-            processes,
-        })
+        Ok(StartedSupervisorOnHost { thread_contexts })
     }
 }
 
 impl SupervisorStopper for StartedSupervisorOnHost {
     fn stop(self) -> Result<(), ThreadContextStopperError> {
-        for (pid, process_finished_consumer) in self.processes.lock().unwrap().iter() {
-            info!(pid = pid, msg = "Stopping executable");
-            _ = ProcessTerminator::new(*pid).shutdown(|| {
-                process_finished_consumer.is_cancelled_with_timeout(Duration::new(10, 0))
-            });
-        }
-
         let mut stop_result = Ok(());
         for thread_context in self.thread_contexts {
             let thread_name = thread_context.thread_name().to_string();
@@ -208,136 +196,82 @@ impl NotStartedSupervisorOnHost {
         &self,
         executable_data: &ExecutableData,
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
-        processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
-
-        let executable_data_clone = executable_data.clone();
+        let exec_data = executable_data.clone();
         let agent_id = self.agent_identity.id.clone();
         let log_to_file = self.log_to_file;
         let logging_path = self.logging_path.clone();
+
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let mut i = 0;
             loop {
-                let exec_id = executable_data_clone.id.clone();
-                let span =
-                    info_span!("start_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
-                        .entered();
+                let span = info_span!("executable process", { ID_ATTRIBUTE_NAME } = %agent_id, exec_data.id);
+                let span = span.entered();
 
+                // Check if we need to cancel the process before even getting started.
+                // Otherwise, we would always execute the command at least once. This
+                // might have unintended consequences. For example, modifying files in the system
+                // that shouldn't have been modified.
                 if stop_consumer.is_cancelled() {
                     debug!("Supervisor stopped before starting executable");
                     break;
                 }
 
-                info!("Starting executable");
+                // It's important to create a new health handler for each process instance
+                // Otherwise, the published time won't be updated.
+                let health_handler =
+                    HealthHandler::new(exec_data.id.clone(), health_publisher.clone());
 
-                // Signals return exit_code 0, if in the future we need to act on them we can import
-                // std::os::unix::process::ExitStatusExt to get the code with the method into_raw
-                let not_started_command = CommandOSNotStarted::new(
+                info!("Starting executable");
+                let command = CommandOSNotStarted::new(
                     agent_id.clone(),
-                    &executable_data_clone,
+                    &exec_data,
                     log_to_file,
                     logging_path.clone(),
                 );
 
-                let supervisor_start_time = SystemTime::now();
-                let bin = executable_data_clone.bin.clone();
-
                 // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
                 // can lead to false positives (reporting healthy when the executable is actually not working)
                 debug!("Informing executable as healthy");
-                if let Err(err) = health_publisher.publish((
-                    exec_id.clone(),
-                    HealthWithStartTime::new(Healthy::new().into(), supervisor_start_time),
-                )) {
-                    error!("Publishing health status: {err}",);
-                }
+                health_handler.publish_healthy();
 
-                let (process_finished_publisher, process_finished_consumer) = pub_sub();
-                let command_result = start_command(
-                    not_started_command,
-                    processes.clone(),
-                    process_finished_consumer,
-                );
-                span.exit();
+                let started = command.start().and_then(|cmd| cmd.stream());
 
-                let _ = process_finished_publisher.publish(());
+                let bin = &exec_data.bin;
+                let executable_result = started.and_then(|cmd| wait_exit(cmd, bin, &stop_consumer));
 
-                let span =
-                    info_span!("stop_executable", { ID_ATTRIBUTE_NAME } = %agent_id, exec_id)
-                        .entered();
+                match executable_result {
+                    Ok((exit_status, was_cancelled)) => {
+                        handle_exit(&agent_id, &exec_data, &exit_status, &health_handler);
 
-                let exit_code = match command_result {
-                    Ok(exit_status) => handle_termination(
-                        &executable_data_clone,
-                        exit_status,
-                        health_publisher.clone(),
-                        &agent_id,
-                        supervisor_start_time,
-                    ),
-                    Err(err) => {
-                        error!(supervisor = bin, "Launching executable: {err}");
-                        debug!(
-                            "Informing of executable as unhealthy as there was an error launching it"
-                        );
-                        let unhealthy = Unhealthy::new(format!("Error launching process: {err}"));
-                        if let Err(err) = health_publisher.publish((
-                            exec_id.to_string(),
-                            HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                        )) {
-                            error!("Publishing health status: {err}",);
+                        if was_cancelled {
+                            span.exit();
+                            break;
                         }
                     }
-                };
-
-                if stop_consumer.is_cancelled() {
-                    info!(supervisor = bin, msg = "Executable terminated");
-                    break;
+                    Err(err) => {
+                        error!(supervisor = exec_data.bin, "Launching executable: {err}");
+                        debug!("Error launching executable, marking as unhealthy");
+                        health_handler.publish_unhealthy(format!("Error launching process: {err}"));
+                    }
                 }
 
-                // check if restart policy needs to be applied
+                info!(msg = "Executable not running");
+
                 if !restart_policy.should_retry() {
-                    info!(msg = "Executable not running");
-
-                    warn!(
-                        "Executable won't restart anymore due to having exceeded its restart policy"
-                    );
-
-                    debug!(
-                        "Informing of executable as unhealthy because the restart policy was exceeded"
-                    );
-                    let unhealthy = Unhealthy::new(
-                        "executable exceeded its defined restart policy".to_string(),
-                    );
-                    if let Err(err) = health_publisher.publish((
-                        exec_id.clone(),
-                        HealthWithStartTime::new(unhealthy.into(), supervisor_start_time),
-                    )) {
-                        error!("Publishing health status: {err}");
-                    }
-                    break;
-                }
-
-                info!(
-                    "Restarting supervisor ({}/{})",
-                    i + 1,
-                    restart_policy.backoff.max_retries()
-                );
-
-                let mut should_stop = false;
-                restart_policy.backoff(|duration| {
-                    // early exit if supervisor timeout is canceled
-                    if stop_consumer.is_cancelled_with_timeout(duration) {
-                        should_stop = true;
-                    }
-                });
-
-                if should_stop {
-                    debug!(supervisor = bin, msg = "Stop signal send during backoff");
+                    warn!("Restart policy exceeded, executable won't restart anymore");
+                    debug!("Restart policy exceeded, marking as unhealthy");
+                    health_handler.publish_unhealthy("Restart policy exceeded".to_string());
+                    span.exit();
                     break;
                 }
 
                 i += 1;
+                if !restart_process_thread(&mut restart_policy, i, &stop_consumer) {
+                    span.exit();
+                    break;
+                }
 
                 span.exit();
             }
@@ -347,59 +281,116 @@ impl NotStartedSupervisorOnHost {
     }
 }
 
-/// From the `ExitStatus`, send appropriate event and emit logs.
-fn handle_termination(
-    exec_data: &ExecutableData,
-    exit_status: ExitStatus,
-    health_publisher: EventPublisher<(String, HealthWithStartTime)>,
-    agent_id: &AgentID,
-    start_time: SystemTime,
-) {
-    let ExecutableData { bin, args, id, .. } = exec_data;
+/// Waits for the command to complete or be cancelled
+fn wait_exit(
+    mut command: CommandOSStarted,
+    bin: &str,
+    stop_consumer: &EventConsumer<CancellationMessage>,
+) -> Result<(ExitStatus, bool), CommandError> {
+    info!("Waiting for executable to complete or be cancelled");
+    let mut was_cancelled = false;
 
-    if !exit_status.success() {
-        debug!(%exit_status, "Informing of executable as unhealthy");
-        let args = args.join(" ");
-        let last_error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
-        let unhealthy: Unhealthy = Unhealthy::new(last_error).with_status(format!(
-            "process exited with code: {:?}",
-            exit_status.code().unwrap_or_default()
-        ));
-
-        if let Err(err) = health_publisher.publish((
-            id.clone(),
-            HealthWithStartTime::new(unhealthy.into(), start_time),
-        )) {
-            error!("Publishing health status for {}: {err}", id);
+    // Busy waiting is avoided with `is_cancelled_with_timeout`
+    while command.is_running() {
+        // Shutdown the spawned process when the cancel signal is received.
+        // This ensures the thread stops in time.
+        if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
+            info!(supervisor = bin, "Stopping executable");
+            if let Err(err) = command.shutdown() {
+                error!(supervisor = bin, "Failed to stop executable: {err}");
+            }
+            info!(supervisor = bin, msg = "Executable terminated");
+            was_cancelled = true;
         }
-
-        error!(
-            %agent_id,
-            supervisor = bin,
-            exit_code = ?exit_status.code(),
-            "Executable exited unsuccessfully"
-        )
     }
+
+    // At this point, the command is already dead. However, we call `wait` to
+    // release resources.
+    // Reference - https://doc.rust-lang.org/std/process/struct.Child.html#warning
+    command
+        .wait()
+        .map(|exit_status| (exit_status, was_cancelled))
 }
 
-/// launch_process starts a new process with a streamed channel and sets its current pid
-/// into the provided variable. It waits until the process exits.
-fn start_command(
-    not_started_command: CommandOSNotStarted,
-    processes: Arc<Mutex<HashMap<u32, EventConsumer<CancellationMessage>>>>,
-    process_finished_consumer: EventConsumer<CancellationMessage>,
-) -> Result<ExitStatus, CommandError> {
-    let started = not_started_command.start()?;
-    let streaming = started.stream()?;
+/// Waits for the restart policy backoff timeout to complete
+///
+/// If the [`CancellationMessage`] while waiting, the restart will be aborted.
+fn restart_process_thread(
+    restart_policy: &mut RestartPolicy,
+    step: u32,
+    stop_consumer: &EventConsumer<CancellationMessage>,
+) -> bool {
+    let max_retries = restart_policy.backoff.max_retries();
+    info!("Restarting supervisor ({step}/{max_retries})");
 
-    let process_pid = streaming.get_pid();
-    processes
-        .lock()
-        .unwrap()
-        .insert(process_pid, process_finished_consumer);
-    drop(processes);
+    let mut restart = true;
+    restart_policy.backoff(|duration| {
+        // early exit if supervisor timeout is canceled
+        if stop_consumer.is_cancelled_with_timeout(duration) {
+            restart = false;
+        }
+    });
 
-    streaming.wait()
+    restart
+}
+
+/// Executes operations based on the exit status of the command
+fn handle_exit(
+    agent_id: &AgentID,
+    exec_data: &ExecutableData,
+    exit_status: &ExitStatus,
+    health_handler: &HealthHandler,
+) {
+    if exit_status.success() {
+        return;
+    }
+
+    let ExecutableData { bin, args, .. } = &exec_data;
+    error!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
+    debug!(%exit_status, "Error executing executable, marking as unhealthy");
+
+    let args = args.join(" ");
+    let error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
+    let status = format!(
+        "process exited with code: {:?}",
+        exit_status.code().unwrap_or_default()
+    );
+    health_handler.publish_unhealthy_with_status(error, status);
+}
+
+struct HealthHandler {
+    id: String,
+    health_publisher: EventPublisher<(String, HealthWithStartTime)>,
+    time: SystemTime,
+}
+
+impl HealthHandler {
+    fn new(id: String, health_publisher: EventPublisher<(String, HealthWithStartTime)>) -> Self {
+        Self {
+            id,
+            health_publisher,
+            time: SystemTime::now(),
+        }
+    }
+
+    fn publish_healthy(&self) {
+        self.publish_health(Healthy::new().into());
+    }
+
+    fn publish_unhealthy(&self, error: String) {
+        self.publish_health(Unhealthy::new(error).into());
+    }
+
+    fn publish_unhealthy_with_status(&self, error: String, status: String) {
+        self.publish_health(Unhealthy::new(error).with_status(status).into());
+    }
+
+    fn publish_health(&self, health: Health) {
+        let health = HealthWithStartTime::new(health, self.time);
+        if let Err(err) = self.health_publisher.publish((self.id.clone(), health)) {
+            error!("Publishing health status for {}: {err}", self.id);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -417,6 +408,8 @@ pub mod tests {
     use std::time::{Duration, Instant};
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
+
+    const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
 
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[traced_test]
@@ -469,7 +462,7 @@ pub mod tests {
         started_supervisor.expect("no error").stop().unwrap();
         let duration = start.elapsed();
 
-        let max_duration = Duration::from_millis(100);
+        let max_duration = WAIT_FOR_EXIT_TIMEOUT + DURATION_DELTA;
         assert!(
             duration < max_duration,
             "stopping the supervisor took to much time: {duration:?}"
@@ -727,13 +720,10 @@ pub mod tests {
 
         let (health_publisher, health_consumer) = pub_sub();
 
-        let executable_thread_contexts = agent.executables.iter().map(|e| {
-            agent.start_process_thread(
-                e,
-                health_publisher.clone(),
-                Arc::new(Mutex::new(HashMap::new())),
-            )
-        });
+        let executable_thread_contexts = agent
+            .executables
+            .iter()
+            .map(|e| agent.start_process_thread(e, health_publisher.clone()));
 
         for thread_context in executable_thread_contexts {
             while !thread_context.is_thread_finished() {
@@ -765,8 +755,7 @@ pub mod tests {
             (
                 "echo".to_owned(),
                 HealthWithStartTime::new(
-                    Unhealthy::new("executable exceeded its defined restart policy".to_string())
-                        .into(),
+                    Unhealthy::new("Restart policy exceeded".to_string()).into(),
                     start_time,
                 ),
             ),
