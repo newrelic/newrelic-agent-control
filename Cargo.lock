@@ -2611,6 +2611,7 @@ dependencies = [
  "k8s-openapi",
  "konst",
  "kube",
+ "lazy_static",
  "mockall",
  "mockall_double",
  "nix",
