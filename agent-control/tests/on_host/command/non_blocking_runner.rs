@@ -2,7 +2,6 @@
 use newrelic_agent_control::sub_agent::on_host::command::command_os::CommandOSNotStarted;
 use newrelic_agent_control::sub_agent::on_host::command::executable_data::ExecutableData;
 use newrelic_agent_control::sub_agent::on_host::command::restart_policy::RestartPolicy;
-use newrelic_agent_control::sub_agent::on_host::command::shutdown::ProcessTerminator;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
@@ -26,9 +25,7 @@ fn non_blocking_runner() {
         PathBuf::default(),
     );
 
-    let started_cmd = cmd.start().unwrap();
-
-    // kill the process
-    let terminated = ProcessTerminator::new(started_cmd.get_pid()).shutdown(|| true);
+    let mut started_cmd = cmd.start().unwrap();
+    let terminated = started_cmd.shutdown();
     assert!(terminated.is_ok());
 }
