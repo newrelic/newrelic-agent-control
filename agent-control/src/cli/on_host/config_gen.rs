@@ -44,19 +44,19 @@ pub struct Args {
     agent_set: AgentSet,
 
     /// Organization identifier
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     organization_id: String,
 
     /// Client ID corresponding to the parent system identity (requires `auth_client_secret`).
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     auth_parent_client_id: String,
 
     /// Client Secret corresponding to the parent system identity (requires `auth_client_id`).
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     auth_parent_client_secret: String,
 
     /// Auth token corresponding to the parent system identity.
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     auth_parent_token: String,
 
     /// When ('auth_token' or 'auth_client_id' + 'auth_client_secret') are set, this path is used
@@ -67,7 +67,7 @@ pub struct Args {
 
     /// Client identifier corresponding to an already provisioned identity. No identity creation is performed,
     /// therefore setting this up also requires an existing private key pointed in `auth_private_key_path`.
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     auth_client_id: String,
 
     /// Proxy configuration
@@ -77,44 +77,48 @@ pub struct Args {
 
 impl Args {
     /// Performs additional args validation (not covered by clap's arguments)
-    fn validate(&self) -> Result<(), CliError> {
+    pub fn validate(&self) -> Result<(), String> {
         if !self.fleet_disabled {
+            // Fleet-id is required
+            if self.fleet_id.is_empty() {
+                return Err(String::from("'fleet_id' should be set when enabling fleet"));
+            }
             // Any method to provide the identity should be selected
             if self.auth_client_id.is_empty()
                 && self.auth_parent_token.is_empty()
                 && self.auth_parent_client_secret.is_empty()
             {
-                return Err(CliError::Command(String::from(
+                return Err(String::from(
                     "either 'auth_client_id', 'auth_parent_token' or 'auth_parent_secret' should be set when enabling fleet",
-                )));
+                ));
             }
             // 'auth_private_key_path' is required
             let Some(auth_private_key_path) = self.auth_private_key_path.as_ref() else {
-                return Err(CliError::Command(String::from(
+                return Err(String::from(
                     "'auth_private_key_path' needs to be set when enabling fleet",
-                )));
+                ));
             };
             // Requirements for existing identity
             if !self.auth_client_id.is_empty() && !auth_private_key_path.exists() {
-                return Err(CliError::Command(String::from(
+                return Err(String::from(
                     "when 'auth_client_id' is provided the 'auth_private_key_path' must also be provided and exist",
-                )));
+                ));
             }
             // Requirements for token-based identity generation
             if !self.auth_parent_token.is_empty()
                 && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
             {
-                return Err(CliError::Command(String::from(
+                return Err(String::from(
                     "token based system identity generation requires 'auth_parent_token', 'auth_parent_client_id' and 'organization_id'",
-                )));
+                ));
             }
             // Requirements for client + secret identity generation
             if !self.auth_parent_client_secret.is_empty()
                 && (self.organization_id.is_empty() || self.auth_parent_client_id.is_empty())
             {
-                return Err(CliError::Command(String::from(
+                return Err(String::from(
                     "client-secret based system identity generation requires 'auth_parent_client_secret', 'auth_parent_client_id' and 'organization_id'",
-                )));
+                ));
             }
         }
         Ok(())
@@ -123,8 +127,6 @@ impl Args {
 
 /// Generates the Agent Control configuration and any requisite according to the provided inputs.
 pub fn generate_config(args: Args) -> Result<(), CliError> {
-    args.validate()?;
-
     info!("Generating Agent Control configuration");
     let yaml = gen_config(&args, provide_identity)?;
 
@@ -189,6 +191,25 @@ mod tests {
     use rstest::rstest;
     use std::env::current_dir;
 
+    impl Default for Args {
+        fn default() -> Self {
+            Args {
+                output_path: Default::default(),
+                fleet_disabled: false,
+                region: Region::US,
+                fleet_id: Default::default(),
+                agent_set: AgentSet::NoAgents,
+                organization_id: Default::default(),
+                auth_parent_client_id: Default::default(),
+                auth_parent_client_secret: Default::default(),
+                auth_parent_token: Default::default(),
+                auth_private_key_path: None,
+                auth_client_id: Default::default(),
+                proxy_config: None,
+            }
+        }
+    }
+
     #[rstest]
     #[case::fleet_disabled(
         || String::from("--fleet-disabled --output-path /some/path --agent-set otel --region us")
@@ -240,7 +261,7 @@ mod tests {
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
 
-        assert_matches!(args.validate(), Err(CliError::Command(_)));
+        assert_matches!(args.validate(), Err(_));
     }
 
     #[rstest]

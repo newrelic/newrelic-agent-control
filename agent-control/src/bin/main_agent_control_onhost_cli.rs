@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use clap::Parser;
+use clap::{CommandFactory, Parser, error::ErrorKind};
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -31,7 +31,14 @@ fn main() -> ExitCode {
     }
 
     let result = match cli.command {
-        Commands::GenerateConfig(inputs) => config_gen::generate_config(inputs),
+        Commands::GenerateConfig(args) => {
+            if let Err(err) = args.validate() {
+                let mut cmd = Cli::command();
+                cmd.error(ErrorKind::ArgumentConflict, err.to_string())
+                    .exit()
+            }
+            config_gen::generate_config(args)
+        }
     };
 
     if let Err(err) = result {

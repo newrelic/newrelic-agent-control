@@ -161,10 +161,8 @@ fn build_nr_auth_proxy_config(
 pub mod tests {
     use http::header::AUTHORIZATION;
     use httpmock::{Method::POST, MockServer};
-    use tempfile::TempDir;
-
-    use crate::cli::on_host::config_gen::{config::AgentSet, region::Region};
     use std::fs;
+    use tempfile::TempDir;
 
     use super::*;
 
@@ -181,13 +179,12 @@ pub mod tests {
                 .parse()
                 .expect("url should be valid"),
         };
-        let args = testing_args(
-            "",
-            "",
-            "",
-            Some(auth_private_key_path.clone()),
-            "provided_client_id",
-        );
+        let args = Args {
+            auth_private_key_path: Some(auth_private_key_path.clone()),
+            auth_client_id: "provided_client_id".to_string(),
+            ..Default::default()
+        };
+
         let identity = build_identity(&args, environment).expect("no error expected");
         assert_eq!(identity.client_id, "provided_client_id".to_string());
         assert_eq!(identity.private_key_path, auth_private_key_path);
@@ -200,13 +197,12 @@ pub mod tests {
 
         let server = MockServer::start();
 
-        let args = testing_args(
-            "parent-client-id",
-            "",
-            "TOKEN",
-            Some(auth_private_key_path.clone()),
-            "",
-        );
+        let args = Args {
+            auth_parent_client_id: "parent-client-id".to_string(),
+            auth_parent_token: "TOKEN".to_string(),
+            auth_private_key_path: Some(auth_private_key_path.clone()),
+            ..Default::default()
+        };
 
         // Expect a request to create the identity
         let identity_mock = server.mock(|when, then| {
@@ -245,13 +241,12 @@ pub mod tests {
 
         let server = MockServer::start();
 
-        let args = testing_args(
-            "parent-client-id",
-            "client-secret-value",
-            "",
-            Some(auth_private_key_path.clone()),
-            "",
-        );
+        let args = Args {
+            auth_parent_client_id: "parent-client-id".to_string(),
+            auth_parent_client_secret: "client-secret-value".to_string(),
+            auth_private_key_path: Some(auth_private_key_path.clone()),
+            ..Default::default()
+        };
 
         // Expect a request to authenticate (obtain the token) and another to create the identity
         let token_mock = server.mock(|when, then| {
@@ -290,29 +285,6 @@ pub mod tests {
                 .unwrap()
                 .contains("BEGIN PRIVATE KEY"),
         );
-    }
-
-    fn testing_args(
-        auth_parent_client_id: &str,
-        auth_parent_client_secret: &str,
-        auth_parent_token: &str,
-        auth_private_key_path: Option<PathBuf>,
-        auth_client_id: &str,
-    ) -> Args {
-        Args {
-            output_path: Default::default(),
-            fleet_disabled: true,
-            region: Region::US,
-            fleet_id: "some-id".to_string(),
-            organization_id: "some-org".to_string(),
-            agent_set: AgentSet::NoAgents,
-            auth_parent_client_id: auth_parent_client_id.to_string(),
-            auth_parent_client_secret: auth_parent_client_secret.to_string(),
-            auth_parent_token: auth_parent_token.to_string(),
-            auth_private_key_path,
-            auth_client_id: auth_client_id.to_string(),
-            proxy_config: None,
-        }
     }
 
     fn token_body(token: &str) -> String {
