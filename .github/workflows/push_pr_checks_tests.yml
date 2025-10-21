@@ -428,6 +428,10 @@ jobs:
       - name: Build
         run: cargo build --all --release --target x86_64-pc-windows-msvc
 
+      - name: Run tests agent control lib excluding root-required tests (on-host)
+        shell: bash
+        run: make -C agent-control test/onhost
+
   check-all-green:
     name: 🟢 All required checks and tests pass
     if: always()
