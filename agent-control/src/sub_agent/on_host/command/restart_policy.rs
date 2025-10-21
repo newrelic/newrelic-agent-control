@@ -7,20 +7,15 @@ use std::time::{Duration, Instant};
 #[derive(Clone, Debug)]
 pub struct RestartPolicy {
     pub backoff: BackoffStrategy,
-    // If empty all codes trigger restart if populated, only the existing codes will.
-    restart_exit_codes: Vec<i32>,
 }
 
 impl RestartPolicy {
-    pub fn new(backoff: BackoffStrategy, restart_exit_codes: Vec<i32>) -> Self {
-        Self {
-            backoff,
-            restart_exit_codes,
-        }
+    pub fn new(backoff: BackoffStrategy) -> Self {
+        Self { backoff }
     }
 
-    pub fn should_retry(&mut self, exit_code: i32) -> bool {
-        self.exit_code_triggers_restart(exit_code) && self.backoff.should_backoff()
+    pub fn should_retry(&mut self) -> bool {
+        self.backoff.should_backoff()
     }
 
     pub fn backoff<S>(&mut self, sleep_func: S)
@@ -29,25 +24,17 @@ impl RestartPolicy {
     {
         self.backoff.backoff(sleep_func)
     }
-
-    fn exit_code_triggers_restart(&self, exit_code: i32) -> bool {
-        if self.restart_exit_codes.is_empty() {
-            return true;
-        }
-
-        self.restart_exit_codes.contains(&exit_code)
-    }
 }
 
 impl Default for RestartPolicy {
     fn default() -> Self {
-        RestartPolicy::new(BackoffStrategy::Fixed(Backoff::default()), Vec::new())
+        RestartPolicy::new(BackoffStrategy::Fixed(Backoff::default()))
     }
 }
 
 impl From<RestartPolicyConfig> for RestartPolicy {
     fn from(value: RestartPolicyConfig) -> Self {
-        RestartPolicy::new(value.backoff_strategy.into(), value.restart_exit_codes)
+        RestartPolicy::new(value.backoff_strategy.into())
     }
 }
 
@@ -192,17 +179,6 @@ mod tests {
     use super::*;
     use std::thread::sleep;
     use std::time::Duration;
-
-    #[test]
-    fn test_restart_policy_should_retry() {
-        let mut rb = RestartPolicy::new(BackoffStrategy::Fixed(Backoff::default()), vec![1, 3]);
-        let results = vec![false, true, false, true];
-
-        results
-            .into_iter()
-            .enumerate()
-            .for_each(|(n, result)| assert_eq!(result, rb.should_retry(n as i32)));
-    }
 
     #[test]
     fn test_backoff_linear_max_retries_reached() {
