@@ -5,7 +5,7 @@ env:
   # Currently the only way to update the sub-agent versions is rebuild the binary of the agent-control
   - NEWRELIC_INFRA_AGENT_VERSION=1.70.0
   - NR_OTEL_COLLECTOR_VERSION=1.5.0
-  - NR_AUTH_CLIENT_VERSION=0.0.11
+  - NR_AUTH_CLIENT_VERSION=0.1.1
 builds:
   - id: newrelic-agent-control
     builder: rust
