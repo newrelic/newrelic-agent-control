@@ -12,9 +12,6 @@ use crate::{
         instance_id::get_instance_id,
     },
 };
-use newrelic_agent_control::agent_control::defaults::{
-    STORE_KEY_LOCAL_DATA_CONFIG_YAML, STORE_KEY_OPAMP_DATA_CONFIG_YAML,
-};
 use newrelic_agent_control::agent_control::{
     agent_id::AgentID,
     run::{BasePaths, Environment},
@@ -56,8 +53,6 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
-        STORE_KEY_LOCAL_DATA_CONFIG_YAML.to_string(),
-        false,
     );
 
     // And the custom-agent has also remote config values
@@ -68,8 +63,6 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
         agent_id.to_string(),
         remote_values_config.to_string(),
         remote_dir.path().to_path_buf(),
-        STORE_KEY_OPAMP_DATA_CONFIG_YAML.to_string(),
-        true,
     );
 
     let base_paths = BasePaths {
