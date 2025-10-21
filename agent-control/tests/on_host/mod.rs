@@ -1,3 +1,4 @@
+mod agent_control_cli;
 mod cli;
 mod command;
 mod config_repository;
