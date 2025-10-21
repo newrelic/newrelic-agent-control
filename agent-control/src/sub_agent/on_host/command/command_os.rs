@@ -87,22 +87,7 @@ impl CommandOSStarted {
         signal::kill(Pid::from_raw(pid), signal::SIGTERM)
             .map_err(|err| CommandError::NixError(err.to_string()))?;
 
-        let mut callback = || {
-            let timeout = Duration::from_secs(10); // 10s total
-            let poll_interval = Duration::from_millis(10); // Check every 10ms
-            let deadline = std::time::Instant::now() + timeout;
-
-            while std::time::Instant::now() < deadline {
-                if self.is_running() {
-                    std::thread::sleep(poll_interval);
-                } else {
-                    return true;
-                }
-            }
-
-            false
-        };
-        if !callback() {
+        if self.is_running_after_timeout(Duration::from_secs(10)) {
             signal::kill(Pid::from_raw(pid), signal::SIGKILL)
                 .map_err(|err| CommandError::NixError(err.to_string()))?;
         }
@@ -111,6 +96,21 @@ impl CommandOSStarted {
 
     pub(crate) fn is_running(&mut self) -> bool {
         self.process.try_wait().is_ok_and(|v| v.is_none())
+    }
+
+    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
+        let poll_interval = Duration::from_millis(10); // Check every 10ms
+        let deadline = std::time::Instant::now() + timeout;
+
+        while std::time::Instant::now() < deadline {
+            if self.is_running() {
+                std::thread::sleep(poll_interval);
+            } else {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
