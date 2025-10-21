@@ -36,7 +36,7 @@ pub struct Args {
     region: Region,
 
     /// Fleet identifier
-    #[arg(long, default_value = "")]
+    #[arg(long, default_value_t)]
     fleet_id: String,
 
     /// Set of agents to be used as local configuration.
@@ -215,13 +215,13 @@ mod tests {
         || String::from("--fleet-disabled --output-path /some/path --agent-set otel --region us")
     )]
     #[case::identity_already_provided(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-client-id some-client-id", pwd())
+        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-client-id some-client-id", pwd())
     )]
     #[case::token_based_identity(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id", pwd())
+        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-token TOKEN --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     #[case::client_id_and_secret_based_identity(
-        || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
+        || format!("--output-path /some/path --agent-set otel --region us --fleet-id some-id --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id --organization-id org-id", pwd())
     )]
     fn test_args_validation(#[case] args: fn() -> String) {
         let cmd = Args::command().no_binary_name(true);
