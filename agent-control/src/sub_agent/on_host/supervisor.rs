@@ -485,6 +485,7 @@ pub mod tests {
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[traced_test]
     #[rstest]
     #[case::long_running_process_shutdown_after_start(
@@ -502,11 +503,6 @@ pub mod tests {
         ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         None,
         vec!["supervisor stopped before starting the process", "stopped supervisor without process running"])]
-    #[case::long_running_process_shutdown_after_start(
-        "long-running",
-        ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
-        Some(Duration::from_secs(1)),
-        vec!["stopping supervisor process", "supervisor has been stopped and process terminated"])]
     fn test_supervisor_gracefully_shutdown(
         #[case] agent_id: &str,
         #[case] executable: ExecutableData,

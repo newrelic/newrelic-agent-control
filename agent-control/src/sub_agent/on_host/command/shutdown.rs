@@ -90,6 +90,7 @@ mod tests {
         thread::{self, sleep},
     };
 
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn shutdown_custom_timeout() {
         let mut trap_cmd = Command::new("sh")
@@ -125,6 +126,7 @@ mod tests {
         assert_eq!("signal: 9 (SIGKILL)", result.unwrap().to_string());
     }
 
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn shutdown_on_time() {
         let mut trap_cmd = Command::new("sh")
