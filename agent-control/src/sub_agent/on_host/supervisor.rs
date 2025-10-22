@@ -29,6 +29,8 @@ use std::process::ExitStatus;
 use std::time::{Duration, SystemTime};
 use tracing::{debug, error, info, info_span, warn};
 
+const WAIT_FOR_EXIT_TIMEOUT: std::time::Duration = Duration::from_secs(1);
+
 pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
 }
@@ -366,7 +368,7 @@ impl StartedExecutable {
         // Upon receiving the signal, we kill the process. That way, we can ensure
         // that the thread stops in time.
         while self.command.is_running() {
-            if stop_consumer.is_cancelled() {
+            if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
                 info!(supervisor = self.bin, "Stopping executable");
                 if let Err(err) = self.command.shutdown() {
                     error!(supervisor = self.bin, "Failed to stop executable: {err}");
@@ -449,6 +451,8 @@ pub mod tests {
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
+    const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
+
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[traced_test]
     #[rstest]
@@ -500,7 +504,7 @@ pub mod tests {
         started_supervisor.expect("no error").stop().unwrap();
         let duration = start.elapsed();
 
-        let max_duration = Duration::from_millis(100);
+        let max_duration = WAIT_FOR_EXIT_TIMEOUT + DURATION_DELTA;
         assert!(
             duration < max_duration,
             "stopping the supervisor took to much time: {duration:?}"
