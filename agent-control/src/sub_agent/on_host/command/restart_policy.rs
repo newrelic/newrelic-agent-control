@@ -54,9 +54,9 @@ pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 impl BackoffStrategy {
     pub fn max_retries(&self) -> usize {
         match self {
-            BackoffStrategy::Fixed(b) => b.max_retries,
-            BackoffStrategy::Linear(b) => b.max_retries,
-            BackoffStrategy::Exponential(b) => b.max_retries,
+            BackoffStrategy::Fixed(b)
+            | BackoffStrategy::Linear(b)
+            | BackoffStrategy::Exponential(b) => b.max_retries,
         }
     }
 
