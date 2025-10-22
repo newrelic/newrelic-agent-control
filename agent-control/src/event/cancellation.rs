@@ -19,9 +19,8 @@ impl EventConsumer<CancellationMessage> {
     /// and returns false.
     pub fn is_cancelled_with_timeout(&self, timeout: Duration) -> bool {
         match self.as_ref().recv_timeout(timeout) {
-            Ok(_) => true,
+            Ok(_) | Err(RecvTimeoutError::Disconnected) => true,
             Err(RecvTimeoutError::Timeout) => false,
-            Err(RecvTimeoutError::Disconnected) => true,
         }
     }
 }
