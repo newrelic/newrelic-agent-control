@@ -43,12 +43,26 @@ builds:
       - --bin=newrelic-config-migrate
     env:
       - AGENT_CONTROL_VERSION={{ .Version }}
+  - id: newrelic-agent-control-cli
+    builder: rust
+    binary: newrelic-agent-control-cli
+    targets:
+      - x86_64-unknown-linux-musl
+      - aarch64-unknown-linux-musl
+    flags:
+      - --release
+      - --package=newrelic_agent_control
+      - --bin=newrelic-agent-control-cli
+    env:
+      - AGENT_CONTROL_VERSION={{ .Version }}
+
 archives:
   - formats: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     ids:
       - newrelic-agent-control
       - newrelic-config-migrate
+      - newrelic-agent-control-cli
 
 nfpms:
   - package_name: newrelic-agent-control
@@ -178,6 +192,7 @@ nfpms:
     ids:
       - newrelic-agent-control
       - newrelic-config-migrate
+      - newrelic-agent-control-cli
     formats:
       - deb
       - rpm

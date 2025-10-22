@@ -254,7 +254,7 @@ impl NotStartedSupervisorOnHost {
                     // Reference - https://doc.rust-lang.org/std/process/struct.Child.html#warning
                     command.wait()
                 });
-                let exit_code = match command_result {
+                match command_result {
                     Ok(exit_status) => handle_termination(
                         &exec_data,
                         exit_status,
@@ -271,15 +271,13 @@ impl NotStartedSupervisorOnHost {
                         let _ = health_publisher
                             .publish((exec_id.to_string(), unhealthy_with_time))
                             .inspect_err(|err| error!("Publishing health status: {err}"));
-
-                        0 // Default exit code
                     }
                 };
 
                 info!(msg = "Executable not running");
 
                 // check if restart policy needs to be applied
-                if !restart_policy.should_retry(exit_code) {
+                if !restart_policy.should_retry() {
                     warn!("Restart policy exceeded, executable won't restart anymore");
                     debug!("Restart policy exceeded, marking as unhealthy");
 
@@ -317,14 +315,14 @@ impl NotStartedSupervisorOnHost {
     }
 }
 
-/// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
+/// From the `ExitStatus`, send appropriate event and emit logs.
 fn handle_termination(
     exec_data: &ExecutableData,
     exit_status: ExitStatus,
     health_publisher: &EventPublisher<(String, HealthWithStartTime)>,
     agent_id: &AgentID,
     start_time: SystemTime,
-) -> i32 {
+) {
     let ExecutableData { bin, args, id, .. } = exec_data;
 
     if !exit_status.success() {
@@ -347,27 +345,6 @@ fn handle_termination(
             "Executable exited unsuccessfully"
         )
     }
-    compute_exit_code(exit_status)
-}
-
-#[cfg(target_family = "unix")]
-fn compute_exit_code(exit_status: ExitStatus) -> i32 {
-    use std::os::unix::process::ExitStatusExt;
-    // From the docs on `ExitStatus::code()`: "On Unix, this will return `None` if the process was terminated by a signal."
-    // Since we need to act on this exit code irrespective of it coming from a signal or not, we try to get the code,
-    // falling back to getting the signal if not, and finally to 0 if both fail.
-    let exit_code = exit_status.code();
-    let exit_signal = exit_status.signal();
-
-    // If in the future we need to act differently on signals, we can return a sum type that
-    // can contain either an exit code or a signal, has a sensible default for our use case,
-    // and have `RestartPolicy::should_retry` handle it.
-    exit_code.or(exit_signal).unwrap_or_default()
-}
-
-#[cfg(target_family = "windows")]
-fn compute_exit_code(exit_status: ExitStatus) -> i32 {
-    unimplemented!()
 }
 
 #[cfg(test)]
@@ -408,11 +385,9 @@ pub mod tests {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
-        let any_exit_code = vec![];
-        let executable_data = vec![executable.with_restart_policy(RestartPolicy::new(
-            BackoffStrategy::Fixed(backoff),
-            any_exit_code,
-        ))];
+        let executable_data = vec![
+            executable.with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
 
         let agent_identity = AgentIdentity::from((
             agent_id.to_owned().try_into().unwrap(),
@@ -496,7 +471,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -536,13 +511,10 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(
-                    BackoffStrategy::Fixed(backoff.clone()),
-                    vec![0],
-                )),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff.clone()))),
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["NR-command".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -589,7 +561,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -626,7 +598,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["hello!".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -683,7 +655,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
