@@ -1,7 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use std::time::Duration;
 use std::{
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
@@ -81,36 +80,11 @@ impl CommandOSStarted {
     }
 
     pub fn shutdown(&mut self) -> Result<(), CommandError> {
-        let pid = self.get_pid() as i32;
-
-        use nix::{sys::signal, unistd::Pid};
-        signal::kill(Pid::from_raw(pid), signal::SIGTERM)
-            .map_err(|err| CommandError::NixError(err.to_string()))?;
-
-        if self.is_running_after_timeout(Duration::from_secs(10)) {
-            signal::kill(Pid::from_raw(pid), signal::SIGKILL)
-                .map_err(|err| CommandError::NixError(err.to_string()))?;
-        }
-        Ok(())
+        self.process.kill().map_err(CommandError::from)
     }
 
     pub(crate) fn is_running(&mut self) -> bool {
         self.process.try_wait().is_ok_and(|v| v.is_none())
-    }
-
-    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
-        let poll_interval = Duration::from_millis(10); // Check every 10ms
-        let deadline = std::time::Instant::now() + timeout;
-
-        while std::time::Instant::now() < deadline {
-            if self.is_running() {
-                std::thread::sleep(poll_interval);
-            } else {
-                return false;
-            }
-        }
-
-        true
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
