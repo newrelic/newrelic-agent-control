@@ -368,7 +368,9 @@ impl StartedExecutable {
         while self.command.is_running() {
             if stop_consumer.is_cancelled() {
                 info!(supervisor = self.bin, "Stopping executable");
-                let _ = self.command.shutdown();
+                if let Err(err) = self.command.shutdown() {
+                    error!(supervisor = self.bin, "Failed to stop executable: {err}");
+                }
                 info!(supervisor = self.bin, msg = "Executable terminated");
                 was_cancelled = true;
             }
