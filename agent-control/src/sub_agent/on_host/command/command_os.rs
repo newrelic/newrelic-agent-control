@@ -106,11 +106,11 @@ impl CommandOSStarted {
             if self.is_running() {
                 std::thread::sleep(poll_interval);
             } else {
-                return true;
+                return false;
             }
         }
 
-        false
+        true
     }
 
     pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
