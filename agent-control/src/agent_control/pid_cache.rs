@@ -111,6 +111,7 @@ pub mod tests {
     use fs::mock::MockLocalFile;
     use std::path::PathBuf;
 
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn test_new_pid_when_already_running_pid_fails_storing() {
         let already_running_pid: u32 = 123;

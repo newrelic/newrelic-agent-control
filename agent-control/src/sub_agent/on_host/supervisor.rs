@@ -386,6 +386,7 @@ pub mod tests {
     use tracing_test::internal::logs_with_scope_contain;
     use tracing_test::traced_test;
 
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[traced_test]
     #[rstest]
     #[case::long_running_process_shutdown_after_start(

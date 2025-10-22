@@ -89,16 +89,6 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-checks
-
       - name: Create documentation
         run: cargo doc --no-deps --package newrelic_agent_control
         env:
@@ -409,7 +399,7 @@ jobs:
       E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   build-windows:
-    name: build-widows-binary
+    name: build-windows-binary
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
@@ -420,6 +410,19 @@ jobs:
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
 
+      - name: cargo generate-lockfile
+        if: hashFiles('Cargo.lock') == ''
+        run: cargo generate-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-windows-release
+
       - name: Install Rust ${{ env.RUST_VERSION }}
         uses: dtolnay/rust-toolchain@master
         with:
@@ -427,6 +430,10 @@ jobs:
 
       - name: Build
         run: cargo build --all --release --target x86_64-pc-windows-msvc
+
+      - name: Run tests agent control lib excluding root-required tests (on-host)
+        shell: bash
+        run: make -C agent-control test/onhost
 
   check-all-green:
     name: 🟢 All required checks and tests pass
