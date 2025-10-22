@@ -282,8 +282,16 @@ impl NotStartedSupervisorOnHost {
             );
             let _span_guard = span.enter();
 
-            let exit_code = command_result
-                .inspect_err(|err| {
+            match command_result {
+                Ok(exit_status) => handle_termination(
+                    &executable_data_clone,
+                    exit_status,
+                    health_publisher.clone(),
+                    &agent_id,
+                    &executable_data_clone.bin,
+                    supervisor_start_time,
+                ),
+                Err(err) => {
                     error!(
                         supervisor = executable_data_clone.bin,
                         "error while launching supervisor process: {}", err
@@ -301,17 +309,8 @@ impl NotStartedSupervisorOnHost {
                             executable_data_clone.id, err
                         );
                     }
-                })
-                .map(|exit_status| {
-                    handle_termination(
-                        &executable_data_clone,
-                        exit_status,
-                        health_publisher.clone(),
-                        &agent_id,
-                        &executable_data_clone.bin,
-                        supervisor_start_time,
-                    )
-                });
+                }
+            }
 
             // A context cancelled means that the supervisor has been gracefully stopped and is the
             // most probably reason why process has been exited.
@@ -331,7 +330,7 @@ impl NotStartedSupervisorOnHost {
             // check if restart policy needs to be applied
             // As the exit code comes inside a Result but we don't care about the Err,
             // we just unwrap or take the default value (0)
-            if !restart_policy.should_retry(exit_code.unwrap_or_default()) {
+            if !restart_policy.should_retry() {
                 // Log if we are not restarting anymore due to the restart policy being broken
                 warn!("supervisor won't restart anymore due to having exceeded its restart policy");
 
@@ -364,7 +363,7 @@ impl NotStartedSupervisorOnHost {
     }
 }
 
-/// From the `ExitStatus`, send appropriate event and emit logs, return exit code.
+/// From the `ExitStatus`, send appropriate event and emit logs.
 fn handle_termination(
     exec_data: &ExecutableData,
     exit_status: ExitStatus,
@@ -372,7 +371,7 @@ fn handle_termination(
     agent_id: &AgentID,
     bin: &str,
     start_time: SystemTime,
-) -> i32 {
+) {
     if !exit_status.success() {
         debug!(%exit_status, "Informing of executable as unhealthy");
         let last_error = format!(
@@ -400,27 +399,6 @@ fn handle_termination(
             "supervisor process exited unsuccessfully"
         )
     }
-    compute_exit_code(exit_status)
-}
-
-#[cfg(target_family = "unix")]
-fn compute_exit_code(exit_status: ExitStatus) -> i32 {
-    use std::os::unix::process::ExitStatusExt;
-    // From the docs on `ExitStatus::code()`: "On Unix, this will return `None` if the process was terminated by a signal."
-    // Since we need to act on this exit code irrespective of it coming from a signal or not, we try to get the code,
-    // falling back to getting the signal if not, and finally to 0 if both fail.
-    let exit_code = exit_status.code();
-    let exit_signal = exit_status.signal();
-
-    // If in the future we need to act differently on signals, we can return a sum type that
-    // can contain either an exit code or a signal, has a sensible default for our use case,
-    // and have `RestartPolicy::should_retry` handle it.
-    exit_code.or(exit_signal).unwrap_or_default()
-}
-
-#[cfg(target_family = "windows")]
-fn compute_exit_code(exit_status: ExitStatus) -> i32 {
-    unimplemented!()
 }
 
 /// launch_process starts a new process with a streamed channel and sets its current pid
@@ -512,11 +490,9 @@ pub mod tests {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::from_secs(5))
             .with_max_retries(1);
-        let any_exit_code = vec![];
-        let executable_data = vec![executable.with_restart_policy(RestartPolicy::new(
-            BackoffStrategy::Fixed(backoff),
-            any_exit_code,
-        ))];
+        let executable_data = vec![
+            executable.with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+        ];
 
         let agent_identity = AgentIdentity::from((
             agent_id.to_owned().try_into().unwrap(),
@@ -610,7 +586,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -651,13 +627,10 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(
-                    BackoffStrategy::Fixed(backoff.clone()),
-                    vec![0],
-                )),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff.clone()))),
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["NR-command".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -704,7 +677,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -742,7 +715,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["hello!".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
@@ -800,7 +773,7 @@ pub mod tests {
         let executables = vec![
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["".to_owned()])
-                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff), vec![0])),
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((

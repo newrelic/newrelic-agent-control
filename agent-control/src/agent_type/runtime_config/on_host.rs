@@ -172,7 +172,6 @@ restart_policy:
                         "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
-                restart_exit_codes: Vec::default(),
             },
         };
 
@@ -251,7 +250,6 @@ restart_policy:
                     max_retries: 30.into(),
                     last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
-                restart_exit_codes: vec![],
             },
         };
 
@@ -284,7 +282,6 @@ restart_policy:
                             .to_string(),
                     ),
                 },
-                restart_exit_codes: vec![],
             },
         };
 
@@ -354,7 +351,6 @@ restart_policy:
                     max_retries: 30.into(),
                     last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
-                restart_exit_codes: vec![],
             },
         };
 
@@ -427,7 +423,6 @@ restart_policy:
                         "${nr-var:backoff.interval}".to_string(),
                     ),
                 },
-                restart_exit_codes: vec![],
             },
         };
         let expected_output = executable::rendered::Executable {
@@ -445,7 +440,6 @@ restart_policy:
                     max_retries: 30.into(),
                     last_retry_interval: BackoffLastRetryInterval::from_secs(300),
                 },
-                restart_exit_codes: vec![],
             },
         };
         let actual_output = input.template_with(&variables).unwrap();
@@ -492,7 +486,6 @@ executables:
                         max_retries: TemplateableValue::from_template("3".to_string()),
                         last_retry_interval: TemplateableValue::from_template("30s".to_string()),
                     },
-                    restart_exit_codes: vec![],
                 },
                 env: Env::default(),
             }],

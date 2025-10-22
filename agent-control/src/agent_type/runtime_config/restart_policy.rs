@@ -17,9 +17,6 @@ pub struct RestartPolicyConfig {
     /// Strategy configuration to retry in case of failure.
     #[serde(default)]
     pub backoff_strategy: BackoffStrategyConfig,
-    /// List of exit codes that triggers a restart.
-    #[serde(default)]
-    pub restart_exit_codes: Vec<i32>,
 }
 
 impl Templateable for RestartPolicyConfig {
@@ -28,7 +25,6 @@ impl Templateable for RestartPolicyConfig {
     fn template_with(self, variables: &Variables) -> Result<Self::Output, AgentTypeError> {
         Ok(Self::Output {
             backoff_strategy: self.backoff_strategy.template_with(variables)?,
-            restart_exit_codes: self.restart_exit_codes, // TODO Not templating this for now!
         })
     }
 }
