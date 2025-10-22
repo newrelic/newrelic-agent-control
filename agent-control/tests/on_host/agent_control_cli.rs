@@ -8,7 +8,7 @@ fn test_config_generator_fleet_disabled_proxy() {
     let tmp = TempDir::new().unwrap();
     let path = tmp.path().join("output.yaml").to_string_lossy().to_string();
 
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost-cli").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     let args = format!(
         "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url https://some.proxy.url/ --proxy-ca-bundle-dir /test/bundle/dir --proxy-ca-bundle-file /test/bundle/file --ignore-system-proxy --output-path {path}",
     );
@@ -43,7 +43,7 @@ fn test_config_generator_fleet_enabled_identity_provisioned() {
     std::fs::write(&key_path, "fake-key").unwrap();
     let key_path = key_path.to_string_lossy().to_string();
 
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-onhost-cli").unwrap();
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     let args = format!(
         "generate-config --agent-set infra-agent --region us --fleet-id FLEET-ID --auth-client-id CLIENT-ID --auth-private-key-path {key_path} --output-path {path}",
     );
