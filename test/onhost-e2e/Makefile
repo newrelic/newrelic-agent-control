@@ -1,14 +1,15 @@
 # Include Ansible dependencies common installation strategy
 include ../Ansible.common
 
-REPOSITORY_ENDPOINT ?= "https://download.newrelic.com/preview"
+LOCAL_PACKAGE_PATH ?= $(CURDIR)/../../dist
+RECIPE_BRANCH ?= gsanchez/test/e2e
 
 # Variables dependent on the New Relic platform region.
 OPAMP_ENDPOINT = "https://opamp.staging-service.newrelic.com/v1/opamp"
-NEW_RELIC_API_HOST = "https://staging-api.newrelic.com"
+NEW_RELIC_API_ENDPOINT = "https://staging-api.newrelic.com"
 ifeq ($(ENVIRONMENT), production)
 	OPAMP_ENDPOINT = "https://opamp.service.newrelic.com/v1/opamp"
-	NEW_RELIC_API_HOST = "https://api.newrelic.com"
+	NEW_RELIC_API_ENDPOINT = "https://api.newrelic.com"
 	NR_LICENSE_KEY ?= $(NR_PROD_LICENSE_KEY)
 	NEW_RELIC_ACCOUNT_ID ?= $(NEW_RELIC_PROD_ACCOUNT_ID)
 	NEW_RELIC_API_KEY ?= $(NEW_RELIC_PROD_API_KEY)
@@ -62,11 +63,12 @@ e2e:
 	@ANSIBLE_DISPLAY_SKIPPED_HOSTS=NO ansible-playbook \
 		-e nr_license_key=$(NR_LICENSE_KEY) \
 		-e nr_api_key=$(NEW_RELIC_API_KEY) \
-		-e nr_api_host=$(NEW_RELIC_API_HOST) \
 		-e nr_account_id=$(NEW_RELIC_ACCOUNT_ID) \
-		-e repo_endpoint=$(REPOSITORY_ENDPOINT) \
+		-e nr_api_endpoint=$(NEW_RELIC_API_ENDPOINT) \
 		-e opamp_endpoint=${OPAMP_ENDPOINT} \
-		-e package_version=${PACKAGE_VERSION} \
+		-e recipe_repo_branch=$(RECIPE_BRANCH) \
+		-e local_package_path=$(LOCAL_PACKAGE_PATH) \
+		-e agent_control_version=${PACKAGE_VERSION} \
 		-e system_identity_client_id=${NR_SYSTEM_IDENTITY_CLIENT_ID} \
 		$(ANSIBLE_FOLDER)/$(ANSIBLE_PLAYBOOK)
 

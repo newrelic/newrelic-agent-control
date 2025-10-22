@@ -7,6 +7,11 @@ on:
         description: 'set to true if running a real pre-release'
         type: boolean
         required: true
+      skip_sign:
+        description: 'skip signing the packages'
+        type: boolean
+        required: false
+        default: false
       tag_name:
         description: 'tag name for the packages'
         type: string
@@ -74,11 +79,16 @@ jobs:
         run: |
           git tag ${{ inputs.tag_name }}
           echo SKIP_UPLOAD=--skip=publish >> $GITHUB_ENV 
+      
+      - name: Skip packages sign
+        if: ${{ inputs.skip_sign }}
+        run: |
+          echo SKIP_SIGN=--skip=sign >> $GITHUB_ENV 
 
       - name: Release packages with GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          args: release ${{ env.SKIP_UPLOAD }} --clean --verbose --timeout 2h
+          args: release ${{ env.SKIP_UPLOAD }} ${{ env.SKIP_SIGN }} --clean --verbose --timeout 2h
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_PASSPHRASE: ${{ secrets.OHAI_GPG_PASSPHRASE }}

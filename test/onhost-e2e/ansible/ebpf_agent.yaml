@@ -13,48 +13,17 @@
 
         # Currently eBPF Agent is not embedded in the AC package but installed along side it with the recipe.
         # NEW_RELIC_AGENT_CONTROL=true disables the systemd service so the Agent is controlled by AC.
-        - name: Install eBPF Agent
-          shell: |
-            curl -Ls https://download.newrelic.com/install/newrelic-cli/scripts/install.sh | \
-              bash && sudo \
-              NEW_RELIC_CLI_SKIP_CORE=1 \
-              NEW_RELIC_LICENSE_KEY={{ nr_license_key }} \
-              NEW_RELIC_API_KEY={{ nr_api_key }} \
-              NEW_RELIC_ACCOUNT_ID={{ nr_account_id }} \
-              NEW_RELIC_REGION=US \
-              NEW_RELIC_AGENT_CONTROL=true \
-              /usr/local/bin/newrelic install -n ebpf-agent-installer
-          register: out
-        - debug:
-            var: out.stdout_lines
-
-        - name: Install Agent Control
+        - name: Install Agent Control and ebpf
           include_role:
-            name: newrelic-agent-control
-
-        - name: Register agent control version
-          command: "/usr/bin/newrelic-agent-control --version"
-          register: version
-
-        - name: Assert version
-          include_role:
-            name: caos.ansible_roles.assert_version
+            name: install_ac_recipe
           vars:
-            target_versions:
-              - exec: "/usr/bin/newrelic-agent-control --version"
-                version: "{{ package_version }}"
-          when: package_version | length > 0
-
-        - name: Debug agent control version
-          debug:
-            var: version.stdout
+            recipe_list: "agent-control,ebpf-agent-installer"
+            fleet_enabled: "false"
 
         - name: Setup AC config
-          include_role:
-            name: edit_yaml_config
-          vars:
-            config_path: "/etc/newrelic-agent-control/config.yaml"
-            update_config:
+          copy:
+            dest: "/etc/newrelic-agent-control/config.yaml"
+            content: |
               log:
                 format:
                   ansi_colors: true
@@ -65,9 +34,6 @@
                   agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
                 nr-ebpf:
                   agent_type: "newrelic/com.newrelic.ebpf:0.1.0"
-
-        - name: Add license to service
-          shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
 
         - name: Set test identifier
           set_fact:

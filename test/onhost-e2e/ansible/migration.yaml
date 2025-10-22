@@ -91,33 +91,10 @@
 
       - name: Install Agent Control
         include_role:
-          name: newrelic-agent-control
-
-      - name: Register Agent Control version
-        command: "/usr/bin/newrelic-agent-control --version"
-        register: version
-
-      - name: Assert version
-        include_role:
-          name: caos.ansible_roles.assert_version
+          name: install_ac_recipe
         vars:
-          target_versions:
-            - exec: "/usr/bin/newrelic-agent-control --version"
-              version: "{{ package_version }}"
-        when: package_version | length > 0
-
-      - name: Setup Agent Control config
-        include_role:
-          name: edit_yaml_config
-        vars:
-          config_path: "/etc/newrelic-agent-control/config.yaml"
-          update_config:
-            agents:
-              nr-infra:
-                agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
-      
-      - name: Migrate Infra Agent config
-        command: newrelic-config-migrate
+          fleet_enabled: "false"
+          monitoring_source: "infra-agent"
       
       - name: Change installed agent label
         replace:

@@ -31,24 +31,12 @@
 
         - name: Install Agent Control
           include_role:
-            name: newrelic-agent-control
-
-        - name: Register agent control version
-          command: "/usr/bin/newrelic-agent-control --version"
-          register: version
-
-        - name: Assert version
-          include_role:
-            name: caos.ansible_roles.assert_version
+            name: install_ac_recipe
           vars:
-            target_versions:
-              - exec: "/usr/bin/newrelic-agent-control --version"
-                version: "{{ package_version }}"
-          when: package_version | length > 0
-
-        - name: Debug agent control version
-          debug:
-            var: version.stdout
+            monitoring_source: "infra-agent"
+            # TODO whenever Parent L2 is supported replace the hack
+            fleet_enabled: "false"
+            
 
         - name: Import the L2 private key from env-var
           copy:
@@ -61,14 +49,13 @@
             name: edit_yaml_config
           vars:
             config_path: "/etc/newrelic-agent-control/config.yaml"
+            # TODO once the recipe support parent L2 simplify to just the log config
             update_config:
               log:
                 format:
+                  formatter: pretty
                   target: true
                 level: debug
-              agents:
-                nr-infra:
-                  agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
               fleet_control:
                 fleet_id: "{{ fleet_id }}"
                 endpoint: "https://opamp.service.newrelic.com/v1/opamp"
@@ -79,9 +66,6 @@
                   client_id: "{{ system_identity_client_id }}"
                   provider: local
                   private_key_path: "{{ agent_control_private_key }}"
-
-        - name: Add license to service
-          shell: echo 'NEW_RELIC_LICENSE_KEY="{{ nr_license_key }}"' >> {{ agent_control_service_conf }}
 
         - name: Set test identifier
           set_fact:
@@ -172,6 +156,10 @@
         - name: Debug rendered config
           debug:
             var: rendered_config.stdout_lines
+
+        - name: Debug test identifier
+          debug:
+            var: test_id
 
         - name: Cleanup
           include_tasks: ./tasks/clean_all.yaml

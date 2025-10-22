@@ -1,0 +1,18 @@
+---
+recipe_list: "agent-control"
+monitoring_source: "none"
+fleet_id: ""
+fleet_enabled: "true"
+migrate_infra_config: "true" 
+
+local_package_path: ""
+recipe_repo_branch: "main"
+
+agent_control_version: ""
+
+nr_license_key: ""
+nr_api_key: ""
+nr_account_id: ""
+nr_region: ""
+...
+
