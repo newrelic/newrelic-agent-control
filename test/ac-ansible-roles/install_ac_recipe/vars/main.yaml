@@ -1,18 +1,36 @@
 ---
+# List of recipes to be installed
 recipe_list: "agent-control"
-monitoring_source: "none"
-fleet_id: ""
-fleet_enabled: "true"
-migrate_infra_config: "true" 
 
+# Source of monitoring configuration ("infra-agent", "otel")
+monitoring_source: "none"
+
+# Unique identifier for the fleet this agent belongs to
+fleet_id: ""
+
+# Flag to enable or disable fleet management functionality
+fleet_enabled: "true"
+
+# Flag to migrate existing infrastructure agent configuration
+migrate_infra_config: "true"
+
+# Local file system path where local packages (.deb) exists.
 local_package_path: ""
+
+# Git branch name to use when fetching recipes from the repository
 recipe_repo_branch: "main"
 
+# Specific version of the agent control software to install
 agent_control_version: ""
 
+# New Relic license key for agent authentication
 nr_license_key: ""
-nr_api_key: ""
-nr_account_id: ""
-nr_region: ""
-...
 
+# New Relic API key for programmatic access to New Relic services
+nr_api_key: ""
+
+# New Relic account identifier for associating the agent
+nr_account_id: ""
+
+# New Relic region endpoint (e.g., "US", "EU") for data reporting
+nr_region: ""
