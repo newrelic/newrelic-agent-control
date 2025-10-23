@@ -26,10 +26,11 @@ use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
 use std::path::PathBuf;
 use std::process::ExitStatus;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use tracing::{debug, error, info, info_span, warn};
 
-const WAIT_FOR_EXIT_TIMEOUT: std::time::Duration = Duration::from_secs(1);
+const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
+const HEALTHY_DELAY: Duration = Duration::from_secs(10);
 
 pub struct StartedSupervisorOnHost {
     thread_contexts: Vec<StartedThreadContext>,
@@ -231,15 +232,12 @@ impl NotStartedSupervisorOnHost {
                     logging_path.clone(),
                 );
 
-                // TODO: when the executable fails, and max-retries are not configured in the backoff policy, this
-                // can lead to false positives (reporting healthy when the executable is actually not working)
-                debug!("Informing executable as healthy");
-                health_handler.publish_healthy();
-
                 let started = command.start().and_then(|cmd| cmd.stream());
 
                 let bin = &exec_data.bin;
-                let executable_result = started.and_then(|cmd| wait_exit(cmd, bin, &stop_consumer));
+                let executable_result = started.and_then(|cmd| {
+                    wait_exit(cmd, bin, &stop_consumer, HEALTHY_DELAY, &health_handler)
+                });
 
                 match executable_result {
                     Ok((exit_status, was_cancelled)) => {
@@ -286,9 +284,13 @@ fn wait_exit(
     mut command: CommandOSStarted,
     bin: &str,
     stop_consumer: &EventConsumer<CancellationMessage>,
+    healthy_publish_delay: Duration,
+    health_handler: &HealthHandler,
 ) -> Result<(ExitStatus, bool), CommandError> {
     info!("Waiting for executable to complete or be cancelled");
     let mut was_cancelled = false;
+    let deadline = Instant::now() + healthy_publish_delay;
+    let mut already_published = false;
 
     // Busy waiting is avoided with `is_cancelled_with_timeout`
     while command.is_running() {
@@ -302,6 +304,14 @@ fn wait_exit(
             info!(supervisor = bin, msg = "Executable terminated");
             was_cancelled = true;
         }
+
+        // Publish healthy status once after the process has been running
+        // for an arbitrary long time without issues.
+        if !already_published && Instant::now() > deadline {
+            debug!("Informing executable as healthy");
+            health_handler.publish_healthy();
+            already_published = true;
+        }
     }
 
     // At this point, the command is already dead. However, we call `wait` to
@@ -309,6 +319,12 @@ fn wait_exit(
     // Reference - https://doc.rust-lang.org/std/process/struct.Child.html#warning
     command
         .wait()
+        .inspect(|exit_status| {
+            if !already_published && exit_status.success() {
+                debug!("Informing executable as healthy");
+                health_handler.publish_healthy();
+            }
+        })
         .map(|exit_status| (exit_status, was_cancelled))
 }
 
@@ -358,6 +374,7 @@ fn handle_exit(
     health_handler.publish_unhealthy_with_status(error, status);
 }
 
+#[derive(Clone)]
 struct HealthHandler {
     id: String,
     health_publisher: EventPublisher<(String, HealthWithStartTime)>,
@@ -776,5 +793,71 @@ pub mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(actual_ordered_events, expected_ordered_events);
+    }
+
+    #[test]
+    fn test_wait_on_exit_publish_healthy_once() {
+        let exec_data = ExecutableData::new("sleep".to_owned(), "sleep".to_owned())
+            .with_args(vec!["3".to_owned()]);
+
+        let command =
+            CommandOSNotStarted::new(AgentID::AgentControl, &exec_data, false, PathBuf::new())
+                .start()
+                .unwrap();
+
+        let (health_publisher, health_consumer) = pub_sub();
+        let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
+
+        // Don't use the "_" expression for the publisher.
+        // Renaming it to "_" drops the channel. Hence, it will be disconnected.
+        // `wait_for_exit` then gets out on the first iteration and this test will
+        // always pass even when it shouldn't.
+        let (_stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
+        let _ = wait_exit(command, "", &stop_consumer, Duration::ZERO, &health_handler);
+
+        let start_time = SystemTime::now();
+        let expected_ordered_events = vec![(
+            "sleep".to_owned(),
+            HealthWithStartTime::new(Healthy::new().into(), start_time),
+        )];
+
+        let actual_ordered_events = health_consumer
+            .as_ref()
+            .try_iter()
+            .map(|event| {
+                // Patch start_time for health events to allow comparison
+                (
+                    event.0.clone(),
+                    HealthWithStartTime::new(event.1.into(), start_time),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(actual_ordered_events, expected_ordered_events);
+    }
+
+    #[test]
+    fn test_wait_on_exit_no_publish() {
+        let exec_data = ExecutableData::new("ls".to_owned(), "ls".to_owned())
+            .with_args(vec!["non-existent-path".to_owned()]);
+
+        let command =
+            CommandOSNotStarted::new(AgentID::AgentControl, &exec_data, false, PathBuf::new())
+                .start()
+                .unwrap();
+
+        let (health_publisher, health_consumer) = pub_sub();
+        let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
+
+        let (_stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
+        let _ = wait_exit(
+            command,
+            "",
+            &stop_consumer,
+            Duration::from_secs(10),
+            &health_handler,
+        );
+
+        assert!(health_consumer.as_ref().is_empty())
     }
 }
