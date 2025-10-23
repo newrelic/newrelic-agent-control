@@ -1,20 +1,20 @@
 use std::{fs::read_to_string, path::Path, time::Duration};
 
-use newrelic_agent_control::agent_control::{
-    defaults::GENERATED_FOLDER_NAME,
-    run::{BasePaths, Environment},
-};
-use tempfile::tempdir;
-
+use crate::on_host::consts::NO_CONFIG;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config, opamp::FakeServer, retry::retry,
     },
     on_host::tools::{
-        config::{create_agent_control_config, create_file, create_sub_agent_values},
+        config::{create_agent_control_config, create_file, create_local_config},
         custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME,
     },
 };
+use newrelic_agent_control::agent_control::{
+    defaults::GENERATED_FOLDER_NAME,
+    run::{BasePaths, Environment},
+};
+use tempfile::tempdir;
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory.
@@ -61,9 +61,9 @@ deployment:
         agents.to_string(),
         local_dir.to_path_buf(),
     );
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
-        "".to_string(),
+        NO_CONFIG.to_string(),
         local_dir.to_path_buf(),
     );
 
@@ -180,7 +180,7 @@ deployment:
         local_dir.to_path_buf(),
     );
     // Values. Contains 3 variables: a YAML, a string, and a map[string]yaml (to create files in a directory)
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
         format!(
             r#"

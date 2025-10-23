@@ -27,7 +27,7 @@ use tempfile::tempdir;
 fn k8s_test_attributes_from_existing_agent_type() {
     let test_name = "k8s_opamp_attributes_existing_agent_type";
 
-    // setup the fake-opamp-server, with empty configuration for agents in local config local config should be used.
+    // setup the fake-opamp-server, with empty configuration for agents in local config should be used.
     let mut server = FakeServer::start_new();
 
     // setup the k8s environment
