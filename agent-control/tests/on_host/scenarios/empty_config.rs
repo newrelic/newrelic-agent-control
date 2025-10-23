@@ -1,4 +1,5 @@
 #![cfg(target_family = "unix")]
+use crate::on_host::tools::config::create_remote_config;
 use crate::{
     common::{
         agent_control::start_agent_control_with_custom_config,
@@ -6,7 +7,7 @@ use crate::{
         retry::retry,
     },
     on_host::tools::{
-        config::{create_agent_control_config, create_sub_agent_values},
+        config::{create_agent_control_config, create_local_config},
         custom_agent_type::CustomAgentType,
         instance_id::get_instance_id,
     },
@@ -48,7 +49,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
     let local_values_config = "fake_variable: from local\n";
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -58,7 +59,7 @@ fn onhost_opamp_sub_agent_set_empty_config_defaults_to_local() {
     let remote_values_config_body = "fake_variable: from remote\n";
     let remote_values_config =
         format!("config:\n  {remote_values_config_body}hash: hash-test\nstate: applying\n");
-    create_sub_agent_values(
+    create_remote_config(
         agent_id.to_string(),
         remote_values_config.to_string(),
         remote_dir.path().to_path_buf(),

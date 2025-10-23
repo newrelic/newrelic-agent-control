@@ -8,7 +8,7 @@
   vars:
     # Pre-release version of the agent control is used by default
     repo_endpoint: http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview
-    agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
+    agent_control_service_conf: /etc/newrelic-agent-control/systemd-env.conf
     agent_control_private_key: /etc/newrelic-agent-control/priv.key
     infra_staging: true
 
@@ -51,7 +51,7 @@
     include_role:
       name: edit_yaml_config
     vars:
-      config_path: "/etc/newrelic-agent-control/config.yaml"
+      config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
       update_config:
         log:
           level: info
@@ -65,12 +65,12 @@
       
   - name: Infra Agent config folder
     file:
-      path: /etc/newrelic-agent-control/fleet/agents.d/infra/values/
+      path: /etc/newrelic-agent-control/local-data/infra/
       state: directory
 
   - name: Infra Agent config file
     copy:
-      dest: /etc/newrelic-agent-control/fleet/agents.d/infra/values/values.yaml
+      dest: /etc/newrelic-agent-control/local-data/infra/local_config.yaml
       content: |
         {% raw %}
         config_agent:

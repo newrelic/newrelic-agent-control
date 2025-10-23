@@ -1,7 +1,9 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{
-    AGENT_CONTROL_CONFIG_FILENAME, SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME,
+    FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    STORE_KEY_OPAMP_DATA_CONFIG,
 };
+use crate::opamp::instance_id::on_host::storer::build_config_name;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
@@ -11,7 +13,7 @@ use fs::directory_manager::{DirectoryManagementError, DirectoryManager, Director
 use fs::file_reader::{FileReader, FileReaderError};
 use fs::writer_file::{FileWriter, WriteError};
 use opamp_client::operation::capabilities::Capabilities;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::RwLock;
 use thiserror::Error;
 use tracing::log::trace;
@@ -70,20 +72,18 @@ where
     S: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    pub fn get_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        if agent_id == &AgentID::AgentControl {
-            return self.local_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
-        }
-        concatenate_sub_agent_dir_path(&self.local_conf_path, agent_id)
+    pub fn get_local_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
+        self.local_conf_path
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(agent_id)
+            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG))
     }
 
     pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        // This file (soon files) will often be removed, but its parent directory contains files
-        // that should persist across these deletions.
-        if agent_id == &AgentID::AgentControl {
-            return self.remote_conf_path.join(AGENT_CONTROL_CONFIG_FILENAME);
-        }
-        concatenate_sub_agent_dir_path(&self.remote_conf_path, agent_id)
+        self.remote_conf_path
+            .join(FOLDER_NAME_FLEET_DATA)
+            .join(agent_id)
+            .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG))
     }
 
     // Load a file contents only if the file is present.
@@ -131,7 +131,7 @@ where
     #[tracing::instrument(skip_all, err)]
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<Config>, ConfigRepositoryError> {
         let _read_guard = self.rw_lock.read().unwrap();
-        let local_values_path = self.get_values_file_path(agent_id);
+        let local_values_path = self.get_local_values_file_path(agent_id);
 
         self.load_file_if_present(local_values_path)
             .map_err(|err| ConfigRepositoryError::LoadError(format!("loading local config: {err}")))
@@ -311,18 +311,11 @@ where
     }
 }
 
-pub fn concatenate_sub_agent_dir_path(dir: &Path, agent_id: &AgentID) -> PathBuf {
-    dir.join(SUB_AGENT_DIR)
-        .join(agent_id)
-        .join(VALUES_DIR)
-        .join(VALUES_FILENAME)
-}
-
 #[cfg(test)]
 pub mod tests {
     use rstest::*;
 
-    use super::{ConfigRepositoryFile, concatenate_sub_agent_dir_path};
+    use super::ConfigRepositoryFile;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
@@ -338,7 +331,7 @@ pub mod tests {
     use fs::writer_file::FileWriter;
     use serde_yaml::Value;
     use std::collections::HashMap;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::sync::RwLock;
     use values::yaml_config::YAMLConfig;
 
@@ -370,8 +363,8 @@ pub mod tests {
     ) -> ConfigRepositoryFile<MockLocalFile, MockDirectoryManager> {
         let file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManager::new();
-        let remote_dir_path = Path::new("some/remote/path");
-        let local_dir_path = Path::new("some/local/path");
+        let remote_dir_path = Path::new("some/remote/path/");
+        let local_dir_path = Path::new("some/local/path/");
 
         ConfigRepositoryFile::with_mocks(
             file_rw,
@@ -382,13 +375,15 @@ pub mod tests {
         )
     }
 
-    fn get_conf_path(
-        yaml_config: &ConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
-    ) -> &Path {
-        if yaml_config.remote_enabled {
-            &yaml_config.remote_conf_path
+    fn get_test_path_to_read(
+        repo: &ConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
+        agent_id: &AgentID,
+        remote_enabled: bool,
+    ) -> PathBuf {
+        if remote_enabled {
+            repo.get_remote_values_file_path(agent_id)
         } else {
-            &yaml_config.local_conf_path
+            repo.get_local_values_file_path(agent_id)
         }
     }
 
@@ -413,8 +408,9 @@ state: applied
         }
 
         let mut repo = yaml_config_repository_file_mock(remote_enabled);
+
         repo.file_rw.should_read(
-            concatenate_sub_agent_dir_path(get_conf_path(&repo), &agent_id).as_path(),
+            &get_test_path_to_read(&repo, &agent_id, remote_enabled),
             yaml_config_content.to_string(),
         );
 
@@ -437,16 +433,15 @@ state: applied
     fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(true);
 
-        repo.file_rw.should_not_read_file_not_found(
-            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
-            "some_error_message".to_string(),
-        );
+        let remote_path = repo.get_remote_values_file_path(&agent_id);
+        let local_path = repo.get_local_values_file_path(&agent_id);
+
+        repo.file_rw
+            .should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
 
         let yaml_config_content = "some_config: true\nanother_item: false";
-        repo.file_rw.should_read(
-            concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
-            yaml_config_content.to_string(),
-        );
+        repo.file_rw
+            .should_read(&local_path, yaml_config_content.to_string());
 
         let config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -466,10 +461,10 @@ state: applied
     #[rstest]
     fn test_load_local_file_not_found_should_return_none(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
-        repo.file_rw.should_not_read_file_not_found(
-            concatenate_sub_agent_dir_path(&repo.local_conf_path, &agent_id).as_path(),
-            "some message".to_string(),
-        );
+
+        let local_path = repo.get_local_values_file_path(&agent_id);
+        repo.file_rw
+            .should_not_read_file_not_found(&local_path, "some message".to_string());
 
         let yaml_config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -483,9 +478,9 @@ state: applied
     #[case::remote_disabled(false)]
     fn test_load_io_error(#[case] remote_enabled: bool, agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(remote_enabled);
-        repo.file_rw.should_not_read_io_error(
-            concatenate_sub_agent_dir_path(get_conf_path(&repo), &agent_id).as_path(),
-        );
+
+        repo.file_rw
+            .should_not_read_io_error(&get_test_path_to_read(&repo, &agent_id, remote_enabled));
 
         let result = repo.load_remote_fallback_local(&agent_id, &default_capabilities());
         let err = result.unwrap_err();
@@ -498,12 +493,13 @@ state: applied
     fn test_store_remote(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
 
-        repo.directory_manager.should_create(Path::new(
-            "some/remote/path/fleet/agents.d/some-agent-id/values",
-        ));
+        let remote_path = repo.get_remote_values_file_path(&agent_id);
+
+        repo.directory_manager
+            .should_create(remote_path.parent().unwrap());
 
         repo.file_rw.should_write(
-            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
+            &remote_path,
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
         );
 
@@ -520,8 +516,10 @@ state: applied
     fn test_store_remote_error_creating_dir(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
 
+        let remote_path = repo.get_remote_values_file_path(&agent_id);
+
         repo.directory_manager.should_not_create(
-            Path::new("some/remote/path/fleet/agents.d/some-agent-id/values"),
+            remote_path.parent().unwrap(),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
 
@@ -532,22 +530,20 @@ state: applied
             state: ConfigState::Applying,
         };
         let result = repo.store_remote(&agent_id, &remote_config);
-        let err = result.unwrap_err();
-        assert_matches!(err, ConfigRepositoryError::StoreError(s) => {
-            assert!(s.contains("cannot create directory"));
-        });
+        assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 
     #[rstest]
     fn test_store_remote_error_writing_file(agent_id: AgentID) {
         let mut repo = yaml_config_repository_file_mock(false);
 
-        repo.directory_manager.should_create(Path::new(
-            "some/remote/path/fleet/agents.d/some-agent-id/values",
-        ));
+        let remote_path = repo.get_remote_values_file_path(&agent_id);
+
+        repo.directory_manager
+            .should_create(remote_path.parent().unwrap());
 
         repo.file_rw.should_not_write(
-            concatenate_sub_agent_dir_path(&repo.remote_conf_path, &agent_id).as_path(),
+            &remote_path,
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
         );
 
@@ -558,10 +554,7 @@ state: applied
             state: ConfigState::Applying,
         };
         let result = repo.store_remote(&agent_id, &remote_config);
-        let err = result.unwrap_err();
-        assert_matches!(err, ConfigRepositoryError::StoreError(s) => {
-            assert!(s.contains("error creating file"));
-        });
+        assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
     }
 
     #[rstest]

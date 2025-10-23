@@ -110,7 +110,7 @@
         include_role:
           name: edit_yaml_config
         vars:
-          config_path: "/etc/newrelic-agent-control/config.yaml"
+          config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
           update_config:
             agents:
               nr-infra:
@@ -121,7 +121,7 @@
       
       - name: Change installed agent label
         replace:
-          path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          path: /etc/newrelic-agent-control/local-data/nr-infra/local_config.yaml
           regexp: "test_installed_agent: infra_agent"
           replace: "test_installed_agent: agent_control"
 

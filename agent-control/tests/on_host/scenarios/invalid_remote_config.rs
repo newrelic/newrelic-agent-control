@@ -4,12 +4,13 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
 use crate::on_host::tools::config::load_remote_config_content;
-use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
+use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::{SUB_AGENT_DIR, VALUES_DIR, VALUES_FILENAME};
+use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -48,7 +49,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config() {
     // And the custom-agent has local config values
 
     let local_config = "fake_variable: from local\n";
-    create_sub_agent_values(
+    create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -121,7 +122,7 @@ fn test_invalid_config_executable_less_supervisor() {
     );
 
     let local_config = "fake_variable: from local\n";
-    create_sub_agent_values(
+    create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -156,10 +157,8 @@ fn test_invalid_config_executable_less_supervisor() {
             // Then the remote config should be created in the remote filesystem.
             let remote_file = remote_dir
                 .path()
-                .join(SUB_AGENT_DIR)
                 .join(sub_agent_id.clone())
-                .join(VALUES_DIR)
-                .join(VALUES_FILENAME);
+                .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
             if remote_file.exists() {
                 return Err("Remote config file should not be created".into());
             }
@@ -214,7 +213,7 @@ fn onhost_opamp_sub_agent_invalid_remote_config_rollback_previous_remote() {
     // And the custom-agent has local config values
 
     let local_config = "fake_variable: from local\n";
-    create_sub_agent_values(
+    create_local_config(
         sub_agent_id.to_string(),
         local_config.to_string(),
         local_dir.path().to_path_buf(),

@@ -6,13 +6,15 @@ use kube::Api;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
-use newrelic_agent_control::agent_control::defaults::default_capabilities;
+use newrelic_agent_control::agent_control::defaults::{
+    FOLDER_NAME_FLEET_DATA, STORE_KEY_INSTANCE_ID, STORE_KEY_OPAMP_DATA_CONFIG,
+};
+use newrelic_agent_control::agent_control::defaults::{
+    FOLDER_NAME_LOCAL_DATA, default_capabilities,
+};
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::Labels;
-use newrelic_agent_control::k8s::store::{
-    CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX, K8sStore, STORE_KEY_INSTANCE_ID,
-    STORE_KEY_OPAMP_DATA_CONFIG, StoreKey,
-};
+use newrelic_agent_control::k8s::store::{K8sStore, StoreKey};
 use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
@@ -250,7 +252,7 @@ agents:
     block_on(create_config_map(
         test.client.clone(),
         test_ns.as_str(),
-        K8sStore::build_cm_name(&AgentID::AgentControl, CM_NAME_LOCAL_DATA_PREFIX).as_str(),
+        K8sStore::build_cm_name(&AgentID::AgentControl, FOLDER_NAME_LOCAL_DATA).as_str(),
         agents_cfg_local,
     ));
 
@@ -338,7 +340,7 @@ fn k8s_multiple_store_entries() {
 }
 
 fn assert_agent_cm(cm_client: &Api<ConfigMap>, agent_id: &AgentID, store_key: &StoreKey) {
-    let cm_name = format!("{CM_NAME_OPAMP_DATA_PREFIX}{agent_id}");
+    let cm_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
     let cm = block_on(cm_client.get(&cm_name));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();
