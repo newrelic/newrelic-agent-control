@@ -3,7 +3,7 @@
 
   inputs = {
     # Nix package repository
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"; # Can change this to 25.11 for stable
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable"; # Can change this to 25.11 for stable
     # A "framework" of sorts that implements a module system
     flake-parts.url = "github:hercules-ci/flake-parts";
     # Build Rust projects
