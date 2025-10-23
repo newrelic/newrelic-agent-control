@@ -1,6 +1,6 @@
 use crate::{
     agent_control::defaults::{
-        AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR, SUB_AGENT_DIR,
+        AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, AGENT_CONTROL_LOG_DIR,
     },
     config_migrate::migration::defaults::NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING,
 };
@@ -36,10 +36,6 @@ impl Cli {
 
     pub fn local_data_dir(&self) -> PathBuf {
         self.local_dir.to_path_buf()
-    }
-
-    pub fn local_sub_agent_data_dir(&self) -> PathBuf {
-        self.local_dir.join(SUB_AGENT_DIR)
     }
 
     pub fn remote_data_dir(&self) -> PathBuf {

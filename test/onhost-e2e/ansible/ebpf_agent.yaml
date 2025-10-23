@@ -22,7 +22,7 @@
 
         - name: Setup AC config
           copy:
-            dest: "/etc/newrelic-agent-control/config.yaml"
+            dest: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
             content: |
               log:
                 format:
@@ -41,12 +41,12 @@
 
         - name: eBPF Agent config folder
           file:
-            path: /etc/newrelic-agent-control/fleet/agents.d/nr-ebpf/values/
+            path: /etc/newrelic-agent-control/local-data/nr-ebpf/
             state: directory
 
         - name: eBPF Agent local config
           copy:
-            dest: /etc/newrelic-agent-control/fleet/agents.d/nr-ebpf/values/values.yaml
+            dest: /etc/newrelic-agent-control/local-data/nr-ebpf/local_config.yaml
             content: |
               config_agent:
                 DEPLOYMENT_NAME: {{ test_id }}
@@ -54,12 +54,12 @@
         # The infra-agent is used to generate traffic for ebpf metrics to appear.
         - name: Infra Agent config folder
           file:
-            path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/
+            path: /etc/newrelic-agent-control/local-data/nr-infra/
             state: directory
 
         - name: Infra Agent local config
           copy:
-            dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+            dest: /etc/newrelic-agent-control/local-data/nr-infra/local_config.yaml
             content: |
               {% raw %}
               config_agent:

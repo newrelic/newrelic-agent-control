@@ -1,15 +1,12 @@
 use crate::agent_control::agent_id::AgentID;
 
-use crate::k8s::{
-    self,
-    store::{K8sStore, STORE_KEY_INSTANCE_ID},
-};
+use super::getter::Identifiers;
+use crate::agent_control::defaults::STORE_KEY_INSTANCE_ID;
+use crate::k8s::{self, store::K8sStore};
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use std::sync::Arc;
 use tracing::debug;
-
-use super::getter::Identifiers;
 
 pub struct Storer {
     k8s_store: Arc<K8sStore>,
