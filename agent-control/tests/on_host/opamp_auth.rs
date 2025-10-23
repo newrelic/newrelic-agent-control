@@ -5,7 +5,10 @@ use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;
@@ -37,8 +40,10 @@ fn test_auth_local_provider_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         format!(
             r#"
 fleet_control:
@@ -100,8 +105,10 @@ fn test_empty_auth_config_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         format!(
             r#"
 fleet_control:
@@ -154,8 +161,10 @@ fn test_unauthorized_token_retrieve_as_root() {
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         format!(
             r#"
 fleet_control:

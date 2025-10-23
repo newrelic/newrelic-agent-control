@@ -1,6 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
 use crate::k8s;
-use crate::k8s::store::{K8sStore, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
+use crate::k8s::store::K8sStore;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::{Config, RemoteConfig};
 use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};

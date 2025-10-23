@@ -4,16 +4,20 @@ use crate::common::effective_config::check_latest_effective_config_is_expected;
 use crate::common::health::check_latest_health_status_was_healthy;
 use crate::common::remote_config_status::check_latest_remote_config_status_is_expected;
 use crate::common::{opamp::FakeServer, retry::retry};
-use crate::on_host::tools::config::load_remote_config_content;
+use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::config::{
-    create_agent_control_config, create_file, create_sub_agent_values,
+    create_agent_control_config, create_file, create_local_config,
 };
+use crate::on_host::tools::config::{create_remote_config, load_remote_config_content};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
+};
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
@@ -124,7 +128,11 @@ agents:
         serde_yaml::from_str::<YAMLConfig>(expected_config.as_str()).unwrap();
 
     retry(60, Duration::from_secs(1), || {
-        let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+        let remote_file = remote_dir
+            .path()
+            .join(FOLDER_NAME_FLEET_DATA)
+            .join(AGENT_CONTROL_ID)
+            .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
         let remote_config = std::fs::read_to_string(remote_file.as_path())
             .unwrap_or("config: \nhash: a-hash\nstate: applying\n".to_string());
         let content_parsed = serde_yaml::from_str::<RemoteConfig>(remote_config.as_str()).unwrap();
@@ -200,7 +208,11 @@ non-existing: {}
             // Then the config should be updated in the remote filesystem.
             let expected_containing = "non-existing: {}";
 
-            let remote_file = remote_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+            let remote_file = remote_dir
+                .path()
+                .join(FOLDER_NAME_FLEET_DATA)
+                .join(AGENT_CONTROL_ID)
+                .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG));
             let remote_config =
                 std::fs::read_to_string(remote_file.as_path()).unwrap_or("agents:".to_string());
             if !remote_config.contains(expected_containing) {
@@ -269,7 +281,7 @@ fn onhost_opamp_sub_agent_local_effective_config_with_env_var() {
         "fake_variable: ${{{}}}",
         Namespace::EnvironmentVariable.namespaced_name("my_env_var")
     );
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
         values_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -333,7 +345,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     // And the custom-agent has local config values
     let agent_id = "nr-sleep-agent";
     let local_values_config = "fake_variable: from local\n";
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),
@@ -343,7 +355,7 @@ fn onhost_opamp_sub_agent_remote_effective_config() {
     let remote_values_config_body = "fake_variable: from remote\n";
     let remote_values_config =
         format!("config:\n  {remote_values_config_body}hash: hash-test\nstate: applying\n");
-    create_sub_agent_values(
+    create_remote_config(
         agent_id.to_string(),
         remote_values_config.to_string(),
         remote_dir.path().to_path_buf(),
@@ -401,9 +413,9 @@ fn onhost_opamp_sub_agent_empty_local_effective_config() {
 
     // And the custom-agent has empty config values
     let agent_id = "nr-sleep-agent";
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
-        "".to_string(), // local empty config
+        NO_CONFIG.to_string(), // local empty config
         local_dir.path().into(),
     );
 
@@ -486,7 +498,7 @@ agents:
 
     let sub_agent_id = AgentID::try_from("no-executables").unwrap();
     let local_values_config = "fake_variable: valid local config\n";
-    create_sub_agent_values(
+    create_local_config(
         sub_agent_id.to_string(),
         local_values_config.to_string(),
         local_dir.path().to_path_buf(),

@@ -1,6 +1,6 @@
 use super::getter::Identifiers;
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::IDENTIFIERS_FILENAME;
+use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, INSTANCE_ID_FILENAME};
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use fs::LocalFile;
@@ -19,8 +19,7 @@ where
 {
     file_rw: F,
     dir_manager: D,
-    agent_control_remote_dir: PathBuf,
-    agent_remote_dir: PathBuf,
+    remote_dir: PathBuf,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -67,17 +66,11 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    pub fn new(
-        file_rw: F,
-        dir_manager: D,
-        agent_control_remote_dir: PathBuf,
-        agent_remote_dir: PathBuf,
-    ) -> Self {
+    pub fn new(file_rw: F, dir_manager: D, remote_dir: PathBuf) -> Self {
         Self {
             file_rw,
             dir_manager,
-            agent_control_remote_dir,
-            agent_remote_dir,
+            remote_dir,
         }
     }
 }
@@ -129,19 +122,21 @@ where
     }
 
     fn get_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
-        if agent_id == &AgentID::AgentControl {
-            self.agent_control_remote_dir.join(IDENTIFIERS_FILENAME)
-        } else {
-            self.agent_remote_dir
-                .join(agent_id)
-                .join("identifiers.yaml")
-        }
+        self.remote_dir
+            .join(FOLDER_NAME_FLEET_DATA)
+            .join(agent_id)
+            .join(INSTANCE_ID_FILENAME)
     }
+}
+
+pub fn build_config_name(name: &str) -> String {
+    format!("{name}.yaml")
 }
 
 #[cfg(test)]
 mod tests {
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, INSTANCE_ID_FILENAME};
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::getter::Identifiers;
@@ -156,26 +151,35 @@ mod tests {
     #[test]
     fn basic_get_uild_path() {
         let sa_dir = PathBuf::from("/super");
-        let sub_agent_dir = PathBuf::from("/sub");
         let storer = Storer::new(
             MockLocalFile::default(),
             MockDirectoryManager::default(),
             sa_dir.clone(),
-            sub_agent_dir.clone(),
         );
         let agent_id = AgentID::try_from("test").unwrap();
         let path = storer.get_instance_id_path(&agent_id);
-        assert_eq!(path, sub_agent_dir.join("test").join("identifiers.yaml"));
+        assert_eq!(
+            path,
+            sa_dir
+                .join(FOLDER_NAME_FLEET_DATA)
+                .join("test")
+                .join(INSTANCE_ID_FILENAME)
+        );
 
         let agent_control_id = AgentID::AgentControl;
         let path = storer.get_instance_id_path(&agent_control_id);
-        assert_eq!(path, sa_dir.join("identifiers.yaml"));
+        assert_eq!(
+            path,
+            sa_dir
+                .join("fleet-data/agent-control")
+                .join(INSTANCE_ID_FILENAME)
+        );
     }
 
     #[test]
     fn test_successful_write() {
         // Data
-        let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
+        let (agent_id, sa_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
@@ -188,14 +192,14 @@ mod tests {
         dir_manager.should_create(instance_id_path.parent().unwrap());
         file_rw.should_write(&instance_id_path, expected_file(instance_id));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
+        let storer = Storer::new(file_rw, dir_manager, sa_path);
         assert!(storer.set(&agent_id, &ds).is_ok());
     }
 
     #[test]
     fn test_unsuccessful_write() {
         // Data
-        let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
+        let (agent_id, sa_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
         let mut dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
@@ -208,14 +212,14 @@ mod tests {
         file_rw.should_not_write(&instance_id_path, expected_file(instance_id));
         dir_manager.should_create(instance_id_path.parent().unwrap());
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
+        let storer = Storer::new(file_rw, dir_manager, sa_path);
         assert!(storer.set(&agent_id, &ds).is_err());
     }
 
     #[test]
     fn test_successful_read() {
         // Data
-        let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
+        let (agent_id, sa_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManager::default();
         let instance_id = InstanceID::create();
@@ -234,7 +238,7 @@ mod tests {
             .once()
             .return_once(|_| Ok(expected_file(instance_id)));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
+        let storer = Storer::new(file_rw, dir_manager, sa_path);
         let actual = storer.get(&agent_id);
         assert!(actual.is_ok());
         assert_eq!(expected, actual.unwrap());
@@ -242,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_unsuccessful_read() {
-        let (agent_id, sa_path, sub_agent_path, instance_id_path) = test_data();
+        let (agent_id, sa_path, instance_id_path) = test_data();
         let mut file_rw = MockLocalFile::default();
         let dir_manager = MockDirectoryManager::default();
 
@@ -254,7 +258,7 @@ mod tests {
             .once()
             .return_once(|_| Err(io::Error::other("some error message").into()));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path, sub_agent_path);
+        let storer = Storer::new(file_rw, dir_manager, sa_path);
         let expected = storer.get(&agent_id);
 
         // As said above, we are not generating the error variant here
@@ -270,12 +274,11 @@ mod tests {
     const HOST_ID: &str = "test-host-id";
     const FLEET_ID: &str = "test-fleet-id";
 
-    fn test_data() -> (AgentID, PathBuf, PathBuf, PathBuf) {
+    fn test_data() -> (AgentID, PathBuf, PathBuf) {
         let agent_id = AgentID::try_from("test").unwrap();
         let sa_path = PathBuf::from("/super");
-        let sub_agent_path = PathBuf::from("/sub");
-        let instance_id_path = PathBuf::from("/sub/test/identifiers.yaml");
-        (agent_id, sa_path, sub_agent_path, instance_id_path)
+        let instance_id_path = PathBuf::from("/super/fleet-data/test/instance_id.yaml");
+        (agent_id, sa_path, instance_id_path)
     }
 
     fn expected_file(instance_id: InstanceID) -> String {
