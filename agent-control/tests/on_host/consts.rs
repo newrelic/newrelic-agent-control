@@ -234,3 +234,5 @@ pub(super) const AZURE_VM_RESPONSE: &str = r#"
     }
 }
 "#;
+
+pub const NO_CONFIG: &str = "";

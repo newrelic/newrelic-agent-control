@@ -2,7 +2,7 @@
 include ../Ansible.common
 
 LOCAL_PACKAGE_PATH ?= $(CURDIR)/../../dist
-RECIPE_BRANCH ?= NR_483970_use_cli_host_monitoring
+RECIPE_BRANCH ?= change-ac-config-route
 
 # Variables dependent on the New Relic platform region.
 OPAMP_ENDPOINT = "https://opamp.staging-service.newrelic.com/v1/opamp"
