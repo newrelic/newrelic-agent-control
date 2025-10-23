@@ -1,6 +1,6 @@
 [package]
 name = "newrelic_agent_control"
-description = "New Relic Agent Control Limited Preview"
+description = "New Relic Agent Control"
 version = "1.2.0"
 authors.workspace = true
 edition.workspace = true
@@ -105,11 +105,12 @@ glob = "0.3.3"
 name = "newrelic-agent-control-k8s"
 path = "src/bin/main_k8s.rs"
 
-[[bin]] # on-host binary
+# On-host binary
 # Due to a GoReleaser limitation, the generated binary here must have the same name as the final
 # name we want to use in the generated and packaged assets.
 # As our K8s build is more manual and does not have this problem, we can name the on-host binary
 # just `newrelic-agent-control` while the K8s one is kept as `newrelic-agent-control-k8s`.
+[[bin]]
 name = "newrelic-agent-control"
 path = "src/bin/main_onhost.rs"
 
