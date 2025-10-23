@@ -127,8 +127,7 @@ agents:
         check_latest_health_status(&opamp_server, &subagent_instance_id, |h| {
             !h.healthy
                 && h.last_error.contains("failing-process")
-                && h.last_error
-                    .contains("executable exceeded its defined restart policy")
+                && h.last_error.contains("Restart policy exceeded")
         })
     });
 }
