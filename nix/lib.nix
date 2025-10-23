@@ -2,7 +2,7 @@
   crateExpression =
     craneLib:
     {
-      libiconv,
+      pkgs,
       lib,
       stdenv,
     }:
@@ -21,7 +21,7 @@
           # pkg-config
         ]
         ++ lib.optionals stdenv.buildPlatform.isDarwin [
-          libiconv
+          pkgs.buildPackages.libiconv
         ];
         # Dependencies which need to be built for the platform on which
         # the binary will run. In this case, we need to compile openssl
