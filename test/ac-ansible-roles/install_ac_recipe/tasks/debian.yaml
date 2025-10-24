@@ -43,6 +43,8 @@
       NEW_RELIC_LICENSE_KEY={{ nr_license_key }} \
       NEW_RELIC_API_KEY={{ nr_api_key }} \
       NEW_RELIC_ACCOUNT_ID={{ nr_account_id }} \
+      NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID={{ system_identity_client_id }} \
+      NEW_RELIC_AUTH_PRIVATE_KEY_PATH={{ agent_control_private_key }} \
       NEW_RELIC_AGENT_VERSION={{ agent_control_version }} \
       NEW_RELIC_REGION={{ nr_region }} \
       NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE={{ monitoring_source }} \
@@ -55,6 +57,7 @@
       --localRecipes {{ tmp_recipes.path }}\
       -n {{ recipe_list }}
   register: install_logs
+  
 - name: Install logs
   debug:
     var: install_logs.stdout_lines

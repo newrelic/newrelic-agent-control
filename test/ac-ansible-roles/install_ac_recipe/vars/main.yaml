@@ -33,4 +33,10 @@ nr_api_key: ""
 nr_account_id: ""
 
 # New Relic region endpoint (e.g., "US", "EU") for data reporting
-nr_region: ""
+nr_region: "US"
+
+# SI client id
+system_identity_client_id: ""
+
+# SI private key
+agent_control_private_key: ""

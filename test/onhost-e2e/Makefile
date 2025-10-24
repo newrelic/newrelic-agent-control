@@ -2,7 +2,7 @@
 include ../Ansible.common
 
 LOCAL_PACKAGE_PATH ?= $(CURDIR)/../../dist
-RECIPE_BRANCH ?= gsanchez/test/e2e
+RECIPE_BRANCH ?= feat/agent-control-use-ac-cli
 
 # Variables dependent on the New Relic platform region.
 OPAMP_ENDPOINT = "https://opamp.staging-service.newrelic.com/v1/opamp"

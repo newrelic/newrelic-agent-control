@@ -19,53 +19,43 @@
   become: true
   gather_facts: yes
 
-  vars:
-    # ac-e2e-onhost-2 fleet on canaries account
-    fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg
-
   tasks:
     - name: Install AC and assert a remote config is applied.
       block:
         - name: Cleanup
           include_tasks: ./tasks/clean_all.yaml
 
+        - name: Create AC etc dir
+          file:
+            path: "/etc/newrelic-agent-control/"
+            state: directory
+
+        - name: Import the L2 private key from env-var
+          copy:
+            dest: "/etc/newrelic-agent-control/priv.key"
+            # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
+            content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+
         - name: Install Agent Control
           include_role:
             name: install_ac_recipe
           vars:
             monitoring_source: "infra-agent"
-            # TODO whenever Parent L2 is supported replace the hack
-            fleet_enabled: "false"
-            
-
-        - name: Import the L2 private key from env-var
-          copy:
-            dest: "{{ agent_control_private_key }}"
-            # Read private key from an env var directly because of issues passing multiline --extra-vars to ansible-playbook.
-            content: "{{ lookup('ansible.builtin.env', 'NR_SYSTEM_IDENTITY_PRIVATE_KEY') }}"
+            # ac-e2e-onhost-2 fleet on canaries account
+            fleet_id: NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg
+            agent_control_private_key: "/etc/newrelic-agent-control/priv.key"
 
         - name: Setup AC config
           include_role:
             name: edit_yaml_config
           vars:
             config_path: "/etc/newrelic-agent-control/config.yaml"
-            # TODO once the recipe support parent L2 simplify to just the log config
             update_config:
               log:
                 format:
                   formatter: pretty
                   target: true
                 level: debug
-              fleet_control:
-                fleet_id: "{{ fleet_id }}"
-                endpoint: "https://opamp.service.newrelic.com/v1/opamp"
-                signature_validation:
-                  public_key_server_url: https://publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json
-                auth_config:
-                  token_url: "https://system-identity-oauth.service.newrelic.com/oauth2/token"
-                  client_id: "{{ system_identity_client_id }}"
-                  provider: local
-                  private_key_path: "{{ agent_control_private_key }}"
 
         - name: Set test identifier
           set_fact:
