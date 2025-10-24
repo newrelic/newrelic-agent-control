@@ -199,18 +199,10 @@ impl NotStartedSupervisorOnHost {
         health_publisher: EventPublisher<(String, HealthWithStartTime)>,
     ) -> StartedThreadContext {
         let mut restart_policy = executable_data.restart_policy.clone();
-
         let exec_data = executable_data.clone();
-        let mut health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher.clone());
-
         let agent_id = self.agent_identity.id.clone();
-        let not_started_executable = NotStartedExecutable::new(
-            agent_id.clone(),
-            exec_data.clone(),
-            self.log_to_file,
-            self.logging_path.clone(),
-            health_handler.clone(),
-        );
+        let log_to_file = self.log_to_file;
+        let logging_path = self.logging_path.clone();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
             let mut i = 0;
@@ -227,7 +219,15 @@ impl NotStartedSupervisorOnHost {
                     break;
                 }
 
-                health_handler.set_time(SystemTime::now());
+                let health_handler =
+                    HealthHandler::new(exec_data.id.clone(), health_publisher.clone());
+                let not_started_executable = NotStartedExecutable::new(
+                    agent_id.clone(),
+                    exec_data.clone(),
+                    log_to_file,
+                    logging_path.clone(),
+                    health_handler.clone(),
+                );
 
                 let started = not_started_executable.launch();
                 let executable_result = started
@@ -418,10 +418,6 @@ impl HealthHandler {
             health_publisher,
             time: SystemTime::now(),
         }
-    }
-
-    fn set_time(&mut self, time: SystemTime) {
-        self.time = time;
     }
 
     fn publish_healthy(&self) {
