@@ -5,7 +5,7 @@ use crate::agent_type::runtime_config::version_config::rendered::OnHostVersionCo
 use crate::event::SubAgentInternalEvent;
 use crate::event::cancellation::CancellationMessage;
 use crate::event::channel::{EventConsumer, EventPublisher, pub_sub};
-use crate::health::health_checker::{HealthCheckerError, spawn_health_checker};
+use crate::health::health_checker::{Health, HealthCheckerError, spawn_health_checker};
 use crate::health::health_checker::{Healthy, Unhealthy};
 use crate::health::on_host::health_checker::OnHostHealthCheckers;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
@@ -201,7 +201,7 @@ impl NotStartedSupervisorOnHost {
         let mut restart_policy = executable_data.restart_policy.clone();
 
         let exec_data = executable_data.clone();
-        let mut health_handler = HealthHandler::new(exec_data.clone(), health_publisher.clone());
+        let mut health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher.clone());
 
         let agent_id = self.agent_identity.id.clone();
         let not_started_executable = NotStartedExecutable::new(
@@ -406,18 +406,15 @@ impl StartedExecutable {
 
 #[derive(Clone)]
 struct HealthHandler {
-    exec_data: ExecutableData,
+    id: String,
     health_publisher: EventPublisher<(String, HealthWithStartTime)>,
     time: SystemTime,
 }
 
 impl HealthHandler {
-    fn new(
-        exec_data: ExecutableData,
-        health_publisher: EventPublisher<(String, HealthWithStartTime)>,
-    ) -> Self {
+    fn new(id: String, health_publisher: EventPublisher<(String, HealthWithStartTime)>) -> Self {
         Self {
-            exec_data,
+            id,
             health_publisher,
             time: SystemTime::now(),
         }
@@ -428,27 +425,21 @@ impl HealthHandler {
     }
 
     fn publish_healthy(&self) {
-        let id = self.exec_data.id.to_string();
-        let health = HealthWithStartTime::new(Healthy::new().into(), self.time);
-        if let Err(err) = self.health_publisher.publish((id.clone(), health)) {
-            error!("Publishing health status for {id}: {err}");
-        }
+        self.publish_health(Healthy::new().into());
     }
 
     fn publish_unhealthy(&self, error: String) {
-        let id = self.exec_data.id.to_string();
-        let unhealthy = HealthWithStartTime::new(Unhealthy::new(error).into(), self.time);
-        if let Err(err) = self.health_publisher.publish((id.clone(), unhealthy)) {
-            error!("Publishing health status for {id}: {err}");
-        }
+        self.publish_health(Unhealthy::new(error).into());
     }
 
     fn publish_unhealthy_with_status(&self, error: String, status: String) {
-        let id = self.exec_data.id.to_string();
-        let unhealthy =
-            HealthWithStartTime::new(Unhealthy::new(error).with_status(status).into(), self.time);
-        if let Err(err) = self.health_publisher.publish((id.clone(), unhealthy)) {
-            error!("Publishing health status for {id}: {err}");
+        self.publish_health(Unhealthy::new(error).with_status(status).into());
+    }
+
+    fn publish_health(&self, health: Health) {
+        let health = HealthWithStartTime::new(health, self.time);
+        if let Err(err) = self.health_publisher.publish((self.id.clone(), health)) {
+            error!("Publishing health status for {}: {err}", self.id);
         }
     }
 }
@@ -844,7 +835,7 @@ pub mod tests {
             .with_args(vec!["3".to_owned()]);
 
         let (health_publisher, health_consumer) = pub_sub();
-        let health_handler = HealthHandler::new(exec_data.clone(), health_publisher);
+        let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
         let executable = NotStartedExecutable::new(
             AgentID::AgentControl,
             exec_data,
@@ -889,7 +880,7 @@ pub mod tests {
             .with_args(vec!["non-existent-path".to_owned()]);
 
         let (health_publisher, health_consumer) = pub_sub();
-        let health_handler = HealthHandler::new(exec_data.clone(), health_publisher);
+        let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
         let executable = NotStartedExecutable::new(
             AgentID::AgentControl,
             exec_data,
