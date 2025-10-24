@@ -3,7 +3,7 @@ Description=New Relic Agent Control
 After=network.target
 
 [Service]
-EnvironmentFile=/etc/newrelic-agent-control/newrelic-agent-control.conf
+EnvironmentFile=/etc/newrelic-agent-control/systemd-env.conf
 ExecStart=/usr/bin/newrelic-agent-control
 KillMode=mixed
 Restart=on-failure

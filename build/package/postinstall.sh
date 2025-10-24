@@ -17,7 +17,7 @@ fi
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
     systemctl enable newrelic-agent-control.service
-    if [ -f /etc/newrelic-agent-control/config.yaml ]; then
+    if [ -f /etc/newrelic-agent-control/local-data/agent-control/local_config.yaml ]; then
         systemctl start newrelic-agent-control.service
     fi
 fi

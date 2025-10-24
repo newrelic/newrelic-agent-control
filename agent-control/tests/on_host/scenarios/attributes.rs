@@ -6,7 +6,8 @@ use crate::common::attributes::{
 };
 use crate::common::opamp::FakeServer;
 use crate::common::retry::retry;
-use crate::on_host::tools::config::{create_agent_control_config, create_sub_agent_values};
+use crate::on_host::consts::NO_CONFIG;
+use crate::on_host::tools::config::{create_agent_control_config, create_local_config};
 use crate::on_host::tools::custom_agent_type::CustomAgentType;
 use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
@@ -138,9 +139,9 @@ agents:
 
     // And the custom-agent has empty config values
     let agent_id = "nr-sleep-agent";
-    create_sub_agent_values(
+    create_local_config(
         agent_id.to_string(),
-        "".to_string(), // local empty config
+        NO_CONFIG.to_string(), // local empty config
         local_dir.path().into(),
     );
 
