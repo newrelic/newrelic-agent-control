@@ -101,20 +101,6 @@ jobs:
           local_packages_path: "/srv/dist/"
           apt_skip_mirror: false
 
-  onhost-e2e:
-    uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ upload ]
-    with:
-      scenarios: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
-      repository_endpoint: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
-      package_version: ${{ github.event.inputs.tag || github.event.release.tag_name }}
-    secrets:
-      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
-      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
-      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
-      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
-      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
-
   molecule-packaging-tests:
     uses: ./.github/workflows/component_molecule_packaging.yml
     needs: [ upload ]
@@ -122,6 +108,15 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.event.release.tag_name }}
       PACKAGE_NAME: "newrelic-agent-control"
       REPO_ENDPOINT: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+
+  onhost-e2e:
+    uses: ./.github/workflows/component_onhost_e2e.yaml
+    secrets:
+      NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
+      NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
+      E2E_ACCOUNT_ID: ${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}
+      E2E_API_KEY: ${{ secrets.AC_PROD_E2E_API_KEY }}
+      E2E_LICENSE_KEY: ${{ secrets.AC_PROD_E2E_LICENSE_KEY }}
 
   k8s-e2e-tests:
     uses: ./.github/workflows/component_k8s_e2e.yml

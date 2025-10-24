@@ -8,7 +8,7 @@
     headers:
       Content-Type: "application/json"
       API-Key: "{{ nr_api_key }}"
-    url: "{{ nr_api_host }}/graphql"
+    url: "{{ nr_api_endpoint }}/graphql"
     method: POST
     body_format: json
     body:

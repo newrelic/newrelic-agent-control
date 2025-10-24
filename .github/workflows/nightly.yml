@@ -39,6 +39,7 @@ jobs:
   security-source-code:
     uses: ./.github/workflows/component_security.yml
 
+  # This is currently required for canaries
   upload-packages-s3:
     runs-on: ubuntu-latest
     needs: [ build-packages ]
@@ -80,11 +81,6 @@ jobs:
 
   onhost-e2e:
     uses: ./.github/workflows/component_onhost_e2e.yaml
-    needs: [ upload-packages-s3 ]
-    with:
-      scenarios: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
-      repository_endpoint: "http://nr-downloads-ohai-testing.s3-website-us-east-1.amazonaws.com/preview"
-      package_version: 0.100.${{ github.run_id }}
     secrets:
       NR_SYSTEM_IDENTITY_CLIENT_ID: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}
       NR_SYSTEM_IDENTITY_PRIVATE_KEY: ${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}
