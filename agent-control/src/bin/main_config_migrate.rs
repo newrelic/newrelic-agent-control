@@ -15,7 +15,7 @@ use tracing::{debug, info, warn};
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::load();
     let tracing_config = TracingConfig::from_logging_path(cli.log_dir());
-    let _tracer = try_init_tracing(tracing_config);
+    let _tracer = try_init_tracing(tracing_config)?;
 
     info!("Starting config conversion tool...");
 

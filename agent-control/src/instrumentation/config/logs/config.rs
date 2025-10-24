@@ -11,7 +11,11 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::Filter;
 use tracing_subscriber::{EnvFilter, Registry};
 
-const LOGGING_ENABLED_CRATES: &[&str] = &["newrelic_agent_control", "opamp_client"];
+const LOGGING_ENABLED_CRATES: &[&str] = &[
+    "newrelic_agent_control",
+    "opamp_client",
+    "newrelic_config_migrate",
+];
 
 const SPAN_ATTRIBUTES_MAX_LEVEL: &Level = &Level::INFO;
 
@@ -202,7 +206,7 @@ mod tests {
             TestCase {
                 name: "everything default",
                 config: Default::default(),
-                expected: "newrelic_agent_control=info,opamp_client=info,off",
+                expected: "newrelic_config_migrate=info,newrelic_agent_control=info,opamp_client=info,off",
             },
             TestCase {
                 name: "insecure fine grained overrides any logging",
@@ -219,7 +223,7 @@ mod tests {
                     insecure_fine_grained_level: Some("".into()),
                     ..Default::default()
                 },
-                expected: "newrelic_agent_control=info,opamp_client=info,off", // default
+                expected: "newrelic_config_migrate=info,newrelic_agent_control=info,opamp_client=info,off", // default
             },
             TestCase {
                 name: "several specific targets in insecure_fine_grained_level",
