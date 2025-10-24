@@ -1,5 +1,7 @@
 use crate::sub_agent::on_host::command::restart_policy::RestartPolicy;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Duration};
+
+const DEFAULT_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone)]
 pub struct ExecutableData {
@@ -8,6 +10,7 @@ pub struct ExecutableData {
     pub args: Vec<String>,
     pub env: HashMap<String, String>,
     pub restart_policy: RestartPolicy,
+    pub shutdown_timeout: Duration,
 }
 
 impl ExecutableData {
@@ -18,6 +21,7 @@ impl ExecutableData {
             args: Vec::default(),
             env: HashMap::default(),
             restart_policy: RestartPolicy::default(),
+            shutdown_timeout: DEFAULT_SHUTDOWN_TIMEOUT,
         }
     }
 

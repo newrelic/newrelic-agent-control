@@ -147,7 +147,7 @@ impl NotStartedSupervisorK8s {
             }
 
             // Check the cancellation signal
-            if stop_consumer.is_cancelled(interval) {
+            if stop_consumer.is_cancelled_with_timeout(interval) {
                 break;
             }
         };

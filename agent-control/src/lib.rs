@@ -8,7 +8,6 @@ pub mod agent_type;
 pub mod cli;
 pub mod command;
 pub mod config_migrate;
-pub mod context;
 pub mod event;
 pub mod health;
 pub mod http;

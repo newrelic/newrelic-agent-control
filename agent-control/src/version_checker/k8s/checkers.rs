@@ -153,7 +153,7 @@ where
             }
         }
 
-        if stop_consumer.is_cancelled(interval.into()) {
+        if stop_consumer.is_cancelled_with_timeout(interval.into()) {
             break;
         }
     };

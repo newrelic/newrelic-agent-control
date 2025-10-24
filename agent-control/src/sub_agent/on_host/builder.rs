@@ -1,7 +1,6 @@
 use crate::agent_control::defaults::{HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
 use crate::agent_control::run::Environment;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
-use crate::context::Context;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -170,7 +169,6 @@ impl SupervisorBuilder for SupervisortBuilderOnHost {
         let executable_supervisors = NotStartedSupervisorOnHost::new(
             effective_agent.get_agent_identity().clone(),
             executables,
-            Context::default(),
             on_host.health,
             on_host.version,
         )

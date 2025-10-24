@@ -165,7 +165,7 @@ pub mod tests {
     fn test_thread_context_start_stop_blocking() {
         let thread_name = "test-thread";
         let callback = |stop_consumer: EventConsumer<CancellationMessage>| loop {
-            if stop_consumer.is_cancelled(Duration::default()) {
+            if stop_consumer.is_cancelled_with_timeout(Duration::default()) {
                 break;
             }
         };
