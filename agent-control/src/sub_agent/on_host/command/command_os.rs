@@ -1,6 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use std::time::Duration;
 use std::{
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
@@ -23,11 +24,13 @@ pub struct CommandOSNotStarted {
     agent_id: AgentID,
     logs_to_file: bool,
     logging_path: PathBuf,
+    shutdown_timeout: Duration,
 }
 pub struct CommandOSStarted {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
+    shutdown_timeout: Duration,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +54,7 @@ impl CommandOSNotStarted {
             cmd,
             logs_to_file,
             logging_path,
+            shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
 
@@ -66,6 +70,7 @@ impl CommandOSNotStarted {
             agent_id,
             process: self.cmd.spawn()?,
             loggers,
+            shutdown_timeout: self.shutdown_timeout,
         })
     }
 }
@@ -124,7 +129,6 @@ mod unix {
     use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
 
     use std::time::Duration;
-    const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(10);
     const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
     impl CommandOSStarted {
@@ -135,7 +139,7 @@ mod unix {
             signal::kill(Pid::from_raw(pid), signal::SIGTERM)
                 .map_err(|err| CommandError::NixError(err.to_string()))?;
 
-            if self.is_running_after_timeout(WAIT_FOR_EXIT_TIMEOUT) {
+            if self.is_running_after_timeout(self.shutdown_timeout) {
                 signal::kill(Pid::from_raw(pid), signal::SIGKILL)
                     .map_err(|err| CommandError::NixError(err.to_string()))?;
             }
