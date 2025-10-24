@@ -49,17 +49,6 @@
     {
       customType: 'regex',
       managerFilePatterns: [
-        '/^.goreleaser.yml$/',
-      ],
-      depNameTemplate: 'newrelic/newrelic-auth-rs',
-      datasourceTemplate: 'github-releases',
-      matchStrings: [
-        ' *- NR_AUTH_CLIENT_VERSION=(?<currentValue>.+)',
-      ],
-    },
-    {
-      customType: 'regex',
-      managerFilePatterns: [
         '**/Cargo.toml',
       ],
       matchStrings: [
