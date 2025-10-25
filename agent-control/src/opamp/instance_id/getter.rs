@@ -47,13 +47,6 @@ where
             identifiers,
         }
     }
-
-    pub fn with_identifiers(self, identifiers: S::Identifiers) -> Self {
-        Self {
-            identifiers,
-            ..self
-        }
-    }
 }
 
 impl<S> InstanceIDGetter for InstanceIDWithIdentifiersGetter<S>
