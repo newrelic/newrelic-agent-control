@@ -1,6 +1,7 @@
 pub mod auth;
 pub mod callbacks;
 pub mod client_builder;
+pub mod data_store;
 pub mod effective_config;
 pub mod http;
 pub mod instance_id;
