@@ -13,6 +13,7 @@ pub mod health;
 pub mod http;
 pub mod instrumentation;
 pub mod k8s;
+pub mod on_host;
 pub mod opamp;
 pub mod secrets_provider;
 pub mod sub_agent;
