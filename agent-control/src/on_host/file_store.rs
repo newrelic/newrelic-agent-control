@@ -1,15 +1,70 @@
-use std::{io::Error, path::Path};
+use std::{
+    io::Error,
+    path::{Path, PathBuf},
+};
 
+use fs::{
+    LocalFile,
+    directory_manager::{DirectoryManager, DirectoryManagerFs},
+    file_reader::FileReader,
+    writer_file::FileWriter,
+};
 use serde::{Serialize, de::DeserializeOwned};
 
-use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::{agent_id::AgentID, run::BasePaths};
 
-struct FileStore;
+pub struct FileStore<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    file_writer: F,
+    directory_manager: D,
+    local_dir: PathBuf,
+    remote_dir: PathBuf,
+}
+
+impl From<BasePaths> for FileStore<LocalFile, DirectoryManagerFs> {
+    fn from(
+        BasePaths {
+            local_dir,
+            remote_dir,
+            ..
+        }: BasePaths,
+    ) -> Self {
+        let file_writer = LocalFile;
+        let directory_manager = DirectoryManagerFs;
+
+        FileStore {
+            file_writer,
+            directory_manager,
+            local_dir,
+            remote_dir,
+        }
+    }
+}
 
 // Proposed API
-impl FileStore {
-    pub fn new() -> Self {
-        FileStore
+impl<F, D> FileStore<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    pub fn new(
+        file_writer: F,
+        directory_manager: D,
+        BasePaths {
+            local_dir,
+            remote_dir,
+            ..
+        }: BasePaths,
+    ) -> Self {
+        Self {
+            file_writer,
+            directory_manager,
+            local_dir,
+            remote_dir,
+        }
     }
 
     pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &Path) -> Result<Option<T>, Error>
@@ -79,9 +134,5 @@ impl FileStore {
         // self.k8s_client
         //     .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
         unimplemented!();
-    }
-
-    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{prefix}-{agent_id}")
     }
 }
