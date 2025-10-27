@@ -76,15 +76,15 @@ where
         agent_id: &AgentID,
         capabilities: &Capabilities,
     ) -> Result<Option<Config>, ConfigRepositoryError> {
-        if self.remote_enabled && has_remote_management(capabilities) {
+        if !self.remote_enabled || !has_remote_management(capabilities) {
+            Ok(None)
+        } else {
             self.file_store
                 .get_opamp_data::<RemoteConfig>(agent_id)
                 .map_err(|err| {
                     ConfigRepositoryError::LoadError(format!("loading remote config: {err}"))
                 })
                 .map(|opt_rc| opt_rc.map(Config::RemoteConfig))
-        } else {
-            Ok(None)
         }
     }
 
@@ -165,76 +165,21 @@ pub mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::default_capabilities;
     use crate::on_host::file_store::FileStore;
+    use crate::on_host::file_store::LocalDir;
+    use crate::on_host::file_store::RemoteDir;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::values;
     use crate::values::config::RemoteConfig;
     use crate::values::config_repository::{ConfigRepository, ConfigRepositoryError};
     use assert_matches::assert_matches;
     use fs::directory_manager::DirectoryManagementError::ErrorCreatingDirectory;
-    use fs::directory_manager::DirectoryManager;
     use fs::directory_manager::mock::MockDirectoryManager;
-    use fs::file_reader::FileReader;
     use fs::mock::MockLocalFile;
-    use fs::writer_file::FileWriter;
     use serde_yaml::Value;
     use std::collections::HashMap;
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
     use std::sync::Arc;
     use values::yaml_config::YAMLConfig;
-
-    impl<F, S> ConfigRepositoryFile<F, S>
-    where
-        S: DirectoryManager,
-        F: FileWriter + FileReader,
-    {
-        pub fn with_mocks(
-            file_rw: F,
-            directory_manager: S,
-            local_path: &Path,
-            remote_path: &Path,
-            remote_enabled: bool,
-        ) -> Self {
-            let file_store = Arc::new(FileStore::new(
-                file_rw,
-                directory_manager,
-                local_path.to_path_buf(),
-                remote_path.to_path_buf(),
-            ));
-
-            let config_repo_file = ConfigRepositoryFile::new(file_store);
-
-            if remote_enabled {
-                config_repo_file.with_remote()
-            } else {
-                config_repo_file
-            }
-        }
-    }
-
-    fn yaml_config_repository_file_mock(
-        remote_enabled: bool,
-    ) -> ConfigRepositoryFile<MockLocalFile, MockDirectoryManager> {
-        let file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManager::new();
-        let remote_dir_path = Path::new("some/remote/path/");
-        let local_dir_path = Path::new("some/local/path/");
-
-        ConfigRepositoryFile::with_mocks(
-            file_rw,
-            dir_manager,
-            local_dir_path,
-            remote_dir_path,
-            remote_enabled,
-        )
-    }
-
-    fn get_test_path_to_read(
-        repo: &ConfigRepositoryFile<MockLocalFile, MockDirectoryManager>,
-        agent_id: &AgentID,
-        remote_enabled: bool,
-    ) -> PathBuf {
-        repo.file_store.get_testing_path(agent_id, remote_enabled)
-    }
 
     #[fixture]
     fn agent_id() -> AgentID {
@@ -256,13 +201,30 @@ state: applied
 "#;
         }
 
-        let mut repo = yaml_config_repository_file_mock(remote_enabled);
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let test_path = if remote_enabled {
+            remote_dir_path.get_remote_values_file_path(&agent_id)
+        } else {
+            local_dir_path.get_local_values_file_path(&agent_id)
+        };
 
-        let test_path = get_test_path_to_read(&repo, &agent_id, remote_enabled);
+        // Expectations
+        file_rw.should_read(&test_path, yaml_config_content.to_string());
 
-        repo.file_store
-            .file_rw_mut()
-            .should_read(&test_path, yaml_config_content.to_string());
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = if remote_enabled {
+            ConfigRepositoryFile::new(file_store).with_remote()
+        } else {
+            ConfigRepositoryFile::new(file_store)
+        };
 
         let config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -281,19 +243,26 @@ state: applied
 
     #[rstest]
     fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local(agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(true);
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
+        let local_path = local_dir_path.get_local_values_file_path(&agent_id);
 
-        let remote_path = repo.file_store.get_remote_values_file_path(&agent_id);
-        let local_path = repo.file_store.get_local_values_file_path(&agent_id);
-
-        repo.file_store
-            .file_rw_mut()
-            .should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
+        // Expectations
+        file_rw.should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
 
         let yaml_config_content = "some_config: true\nanother_item: false";
-        repo.file_store
-            .file_rw_mut()
-            .should_read(&local_path, yaml_config_content.to_string());
+        file_rw.should_read(&local_path, yaml_config_content.to_string());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = ConfigRepositoryFile::new(file_store).with_remote();
 
         let config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -312,12 +281,22 @@ state: applied
 
     #[rstest]
     fn test_load_local_file_not_found_should_return_none(agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(false);
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = PathBuf::from("some/remote/path/");
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let local_path = local_dir_path.get_local_values_file_path(&agent_id);
 
-        let local_path = repo.file_store.get_local_values_file_path(&agent_id);
-        repo.file_store
-            .file_rw_mut()
-            .should_not_read_file_not_found(&local_path, "some message".to_string());
+        // Expectations
+        file_rw.should_not_read_file_not_found(&local_path, "some message".to_string());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path,
+        ));
+        let repo = ConfigRepositoryFile::new(file_store);
 
         let yaml_config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -330,34 +309,62 @@ state: applied
     #[case::remote_enabled(true)]
     #[case::remote_disabled(false)]
     fn test_load_io_error(#[case] remote_enabled: bool, agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(remote_enabled);
-        let test_path = get_test_path_to_read(&repo, &agent_id, remote_enabled);
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_test_path = remote_dir_path.get_remote_values_file_path(&agent_id);
+        let local_test_path = local_dir_path.get_local_values_file_path(&agent_id);
 
-        repo.file_store
-            .file_rw_mut()
-            .should_not_read_io_error(&test_path);
+        // Expectations
+        if remote_enabled {
+            file_rw.should_not_read_io_error(&remote_test_path);
+        } else {
+            file_rw.should_not_read_io_error(&local_test_path);
+        }
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = if remote_enabled {
+            ConfigRepositoryFile::new(file_store).with_remote()
+        } else {
+            ConfigRepositoryFile::new(file_store)
+        };
 
         let result = repo.load_remote_fallback_local(&agent_id, &default_capabilities());
         let err = result.unwrap_err();
         assert_matches!(err, ConfigRepositoryError::LoadError(s) => {
-            assert!(s.contains("file read error"));
+            assert!(s.contains("permission denied")); // the error returned by `should_not_read_io_error`
         });
     }
 
     #[rstest]
     fn test_store_remote(agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(false);
+        let mut file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
 
-        let remote_path = repo.file_store.get_remote_values_file_path(&agent_id);
-
-        repo.file_store
-            .directory_manager_mut()
-            .should_create(remote_path.parent().unwrap());
-
-        repo.file_store.file_rw_mut().should_write(
+        // Expectations
+        dir_manager.should_create(remote_path.parent().unwrap());
+        file_rw.should_write(
             &remote_path,
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
         );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+
+        let repo = ConfigRepositoryFile::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -370,14 +377,25 @@ state: applied
 
     #[rstest]
     fn test_store_remote_error_creating_dir(agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(false);
+        let file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
 
-        let remote_path = repo.file_store.get_remote_values_file_path(&agent_id);
-
-        repo.file_store.directory_manager_mut().should_not_create(
+        // Expectations
+        dir_manager.should_not_create(
             remote_path.parent().unwrap(),
             ErrorCreatingDirectory("dir name".to_string(), "oh now...".to_string()),
         );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = ConfigRepositoryFile::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -391,17 +409,26 @@ state: applied
 
     #[rstest]
     fn test_store_remote_error_writing_file(agent_id: AgentID) {
-        let mut repo = yaml_config_repository_file_mock(false);
+        let mut file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
 
-        let remote_path = repo.file_store.get_remote_values_file_path(&agent_id);
-        repo.file_store
-            .directory_manager_mut()
-            .should_create(remote_path.parent().unwrap());
-
-        repo.file_store.file_rw_mut().should_not_write(
+        // Expectations
+        dir_manager.should_create(remote_path.parent().unwrap());
+        file_rw.should_not_write(
             &remote_path,
             "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
         );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = ConfigRepositoryFile::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -416,7 +443,17 @@ state: applied
     #[rstest]
     fn test_delete_remote(agent_id: AgentID) {
         // TODO add a test without mocks checking actual deletion
-        let repo = yaml_config_repository_file_mock(false);
+        let file_rw = MockLocalFile::default();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = PathBuf::from("some/remote/path/");
+        let local_dir_path = PathBuf::from("some/local/path/");
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path,
+            remote_dir_path,
+        ));
+        let repo = ConfigRepositoryFile::new(file_store);
         repo.delete_remote(&agent_id).unwrap();
     }
 }
