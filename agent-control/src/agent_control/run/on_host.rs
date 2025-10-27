@@ -46,7 +46,12 @@ pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
-        let file_store = Arc::new(FileStore::from(self.base_paths.clone()));
+        let file_store = Arc::new(FileStore::new(
+            LocalFile,
+            DirectoryManagerFs,
+            self.base_paths.local_dir.clone(),
+            self.base_paths.remote_dir.clone(),
+        ));
 
         debug!("Initializing yaml_config_repository");
         let config_repository_file = ConfigRepositoryFile::new(
