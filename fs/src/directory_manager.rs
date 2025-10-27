@@ -49,7 +49,17 @@ impl DirectoryManager for DirectoryManagerFs {
 
     #[cfg(target_family = "windows")]
     fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
-        unimplemented!()
+        validate_path(path)?;
+
+        let directory_creation = DirBuilder::new().recursive(true).create(path);
+
+        match directory_creation {
+            Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
+                path.to_str().unwrap().to_string(),
+                e.to_string(),
+            )),
+            _ => Ok(()),
+        }
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
@@ -252,5 +262,20 @@ pub mod tests {
         assert!(delete_result.is_ok());
         let create_result = directory_manager.create(path.as_path());
         assert!(create_result.is_ok());
+    }
+
+    #[test]
+    #[cfg(target_family = "windows")]
+    fn test_windows_folder_creation() {
+        let folder_name = "some_windows_folder";
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join(folder_name);
+
+        let directory_manager = DirectoryManagerFs;
+        let create_result = directory_manager.create(&path);
+        assert!(create_result.is_ok());
+
+        assert!(path.exists());
+        assert!(path.is_dir());
     }
 }
