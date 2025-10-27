@@ -4,16 +4,15 @@ use std::path::PathBuf;
 
 use tracing::info;
 
-use crate::{
-    cli::{
-        error::CliError,
-        on_host::config_gen::{
-            config::{AgentSet, AuthConfig, Config, FleetControl, Server, SignatureValidation},
-            identity::{Identity, provide_identity},
-            region::{Region, region_parser},
+use crate::cli::{
+    error::CliError,
+    on_host::config_gen::{
+        config::{
+            AgentSet, AuthConfig, Config, FleetControl, ProxyConfig, Server, SignatureValidation,
         },
+        identity::{Identity, provide_identity},
+        region::{Region, region_parser},
     },
-    http::config::ProxyConfig,
 };
 
 pub mod config;
@@ -121,6 +120,11 @@ impl Args {
                 ));
             }
         }
+        if let Some(proxy_config) = self.proxy_config.clone()
+            && let Err(err) = crate::http::config::ProxyConfig::try_from(proxy_config)
+        {
+            return Err(format!("invalid proxy configuration: {err}"));
+        }
         Ok(())
     }
 }
@@ -226,7 +230,7 @@ mod tests {
     fn test_args_validation(#[case] args: fn() -> String) {
         let cmd = Args::command().no_binary_name(true);
         let matches = cmd
-            .try_get_matches_from(args().split(" "))
+            .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
         assert_matches!(args.validate(), Ok(_));
@@ -254,10 +258,13 @@ mod tests {
     #[case::missing_auth_parent_client_id_with_secret(
         || format!("--output-path /some/path --agent-set otel --region us --auth-private-key-path {} --auth-parent-client-secret SECRET --auth-parent-client-id id", pwd())
     )]
+    #[case::invalid_proxy_config(
+        || String::from("--fleet-disabled --output-path /some/path --agent-set otel --region us --proxy-url https::/invalid")
+    )]
     fn test_args_validation_errors(#[case] args: fn() -> String) {
         let cmd = Args::command().no_binary_name(true);
         let matches = cmd
-            .try_get_matches_from(args().split(" "))
+            .try_get_matches_from(args().split_ascii_whitespace())
             .expect("arguments should be valid");
         let args = Args::from_arg_matches(&matches).expect("should create the struct back");
 
@@ -348,11 +355,12 @@ mod tests {
     }
 
     fn some_proxy_config() -> Option<ProxyConfig> {
-        let proxy_config: ProxyConfig = serde_yaml::from_str(
-            r#"{"url": "https://some.proxy.url/", "ca_bundle_dir": "/test/bundle/dir",
-                "ca_bundle_file": "/test/bundle/file", "ignore_system_proxy": true}"#,
-        )
-        .unwrap();
+        let proxy_config = ProxyConfig {
+            proxy_url: Some("https://some.proxy.url/".to_string()),
+            proxy_ca_bundle_dir: Some("/test/bundle/dir".to_string()),
+            proxy_ca_bundle_file: Some("/test/bundle/file".to_string()),
+            ignore_system_proxy: true,
+        };
         Some(proxy_config)
     }
 

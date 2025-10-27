@@ -10,9 +10,9 @@ fn test_config_generator_fleet_disabled_proxy() {
 
     let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
     let args = format!(
-        "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url https://some.proxy.url/ --proxy-ca-bundle-dir /test/bundle/dir --proxy-ca-bundle-file /test/bundle/file --ignore-system-proxy --output-path {path}",
+        "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url https://some.proxy.url/ --proxy-ca-bundle-dir /test/bundle/dir --ignore-system-proxy true --output-path {path}",
     );
-    cmd.args(args.split(" "));
+    cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
     let expected_value: serde_yaml::Value = serde_yaml::from_str(
@@ -25,8 +25,36 @@ agents:
 proxy:
   url: https://some.proxy.url/
   ca_bundle_dir: /test/bundle/dir
-  ca_bundle_file: /test/bundle/file
   ignore_system_proxy: true
+    "#,
+    )
+    .unwrap();
+    let actual_content = std::fs::read_to_string(&path).unwrap();
+    let actual_value: serde_yaml::Value = serde_yaml::from_str(&actual_content).unwrap();
+    assert_eq!(actual_value, expected_value);
+}
+
+#[test]
+fn test_config_generator_fleet_disabled_proxy_empty_fields() {
+    let tmp = TempDir::new().unwrap();
+    let path = tmp.path().join("output.yaml").to_string_lossy().to_string();
+
+    let mut cmd = Command::cargo_bin("newrelic-agent-control-cli").unwrap();
+    let args = format!(
+        "generate-config --fleet-disabled --agent-set infra-agent --region us --proxy-url= --proxy-ca-bundle-dir= --proxy-ca-bundle-file= --ignore-system-proxy= --output-path {path}",
+    );
+    cmd.args(args.split_ascii_whitespace());
+    cmd.assert().success();
+
+    let expected_value: serde_yaml::Value = serde_yaml::from_str(
+        r#"
+server:
+  enabled: true
+agents:
+  nr-infra:
+    agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
+proxy:
+  ignore_system_proxy: false
     "#,
     )
     .unwrap();
@@ -47,7 +75,7 @@ fn test_config_generator_fleet_enabled_identity_provisioned() {
     let args = format!(
         "generate-config --agent-set infra-agent --region us --fleet-id FLEET-ID --auth-client-id CLIENT-ID --auth-private-key-path {key_path} --output-path {path}",
     );
-    cmd.args(args.split(" "));
+    cmd.args(args.split_ascii_whitespace());
     cmd.assert().success();
 
     let expected_value: serde_yaml::Value = serde_yaml::from_str(
