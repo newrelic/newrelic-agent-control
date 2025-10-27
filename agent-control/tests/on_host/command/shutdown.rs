@@ -45,7 +45,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
             args: Default::default(),
             env: Default::default(),
             restart_policy: Default::default(),
-            shutdown_timeout: Duration::from_secs(1),
+            shutdown_timeout: Duration::from_millis(100),
         },
         false,
         Default::default(),
@@ -55,5 +55,7 @@ fn command_shutdown_when_sigterm_is_ignored() {
     sleep(Duration::from_millis(500)); // Give the process some room to start
 
     let terminated = cmd.shutdown();
-    assert!(terminated.is_ok())
+    sleep(Duration::from_millis(200));
+    assert!(!cmd.is_running());
+    assert!(terminated.is_ok());
 }

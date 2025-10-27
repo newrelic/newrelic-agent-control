@@ -84,7 +84,7 @@ impl CommandOSStarted {
         self.process.id()
     }
 
-    pub(crate) fn is_running(&mut self) -> bool {
+    pub fn is_running(&mut self) -> bool {
         self.process.try_wait().is_ok_and(|v| v.is_none())
     }
 
