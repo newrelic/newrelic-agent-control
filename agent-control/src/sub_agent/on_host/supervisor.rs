@@ -268,7 +268,8 @@ impl NotStartedSupervisorOnHost {
                 }
 
                 i += 1;
-                if !restart_process_thread(&mut restart_policy, i, &stop_consumer) {
+                let restart_cancelled = wait_restart(&mut restart_policy, i, &stop_consumer);
+                if restart_cancelled {
                     break;
                 }
             }
@@ -328,10 +329,8 @@ fn wait_exit(
         .map(|exit_status| (exit_status, was_cancelled))
 }
 
-/// Waits for the restart policy backoff timeout to complete
-///
-/// If the [`CancellationMessage`] while waiting, the restart will be aborted.
-fn restart_process_thread(
+/// Waits for the restart policy backoff timeout and returns whether it was cancelled or not
+fn wait_restart(
     restart_policy: &mut RestartPolicy,
     step: u32,
     stop_consumer: &EventConsumer<CancellationMessage>,
@@ -339,15 +338,15 @@ fn restart_process_thread(
     let max_retries = restart_policy.backoff.max_retries();
     info!("Restarting supervisor ({step}/{max_retries})");
 
-    let mut restart = true;
+    let mut cancelled = false;
     restart_policy.backoff(|duration| {
         // early exit if supervisor timeout is canceled
         if stop_consumer.is_cancelled_with_timeout(duration) {
-            restart = false;
+            cancelled = true;
         }
     });
 
-    restart
+    cancelled
 }
 
 /// Executes operations based on the exit status of the command
