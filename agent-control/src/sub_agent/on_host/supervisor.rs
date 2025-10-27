@@ -290,7 +290,7 @@ fn wait_exit(
     info!(%agent_id, %exec_id, "Waiting for executable to complete or be cancelled");
     let mut was_cancelled = false;
     let deadline = Instant::now() + healthy_publish_delay;
-    let mut already_published = false;
+    let mut healthy_already_published = false;
 
     // Busy waiting is avoided with `is_cancelled_with_timeout`
     while command.is_running() {
@@ -307,10 +307,10 @@ fn wait_exit(
 
         // Publish healthy status once after the process has been running
         // for an arbitrary long time without issues.
-        if !already_published && Instant::now() > deadline {
+        if !healthy_already_published && Instant::now() > deadline {
             debug!(%agent_id, %exec_id, "Informing executable as healthy");
             health_handler.publish_healthy();
-            already_published = true;
+            healthy_already_published = true;
         }
     }
 
@@ -320,7 +320,7 @@ fn wait_exit(
     command
         .wait()
         .inspect(|exit_status| {
-            if !already_published && exit_status.success() {
+            if !healthy_already_published && exit_status.success() {
                 debug!(%agent_id, %exec_id, "Informing executable as healthy");
                 health_handler.publish_healthy();
             }
