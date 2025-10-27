@@ -11,7 +11,7 @@ use crate::health::on_host::health_checker::OnHostHealthCheckers;
 use crate::health::with_start_time::{HealthWithStartTime, StartTime};
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
-use crate::sub_agent::identity::{AgentIdentity, ID_ATTRIBUTE_NAME};
+use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::command::command_os::{CommandOSNotStarted, CommandOSStarted};
 use crate::sub_agent::on_host::command::error::CommandError;
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
@@ -27,7 +27,7 @@ use fs::directory_manager::DirectoryManagerFs;
 use std::path::PathBuf;
 use std::process::ExitStatus;
 use std::time::{Duration, Instant, SystemTime};
-use tracing::{debug, error, info, info_span, warn};
+use tracing::{debug, error, info, warn};
 
 const WAIT_FOR_EXIT_TIMEOUT: Duration = Duration::from_secs(1);
 const HEALTHY_DELAY: Duration = Duration::from_secs(10);
@@ -205,26 +205,24 @@ impl NotStartedSupervisorOnHost {
         let logging_path = self.logging_path.clone();
 
         let callback = move |stop_consumer: EventConsumer<CancellationMessage>| {
+            let exec_id = exec_data.id.clone();
+
             let mut i = 0;
             loop {
-                let span = info_span!("executable process", { ID_ATTRIBUTE_NAME } = %agent_id, exec_data.id);
-                let span = span.entered();
-
                 // Check if we need to cancel the process before even getting started.
                 // Otherwise, we would always execute the command at least once. This
                 // might have unintended consequences. For example, modifying files in the system
                 // that shouldn't have been modified.
                 if stop_consumer.is_cancelled() {
-                    debug!("Supervisor stopped before starting executable");
+                    debug!(%agent_id, %exec_id, "Supervisor stopped before starting executable");
                     break;
                 }
 
                 // It's important to create a new health handler for each process instance
                 // Otherwise, the published time won't be updated.
-                let health_handler =
-                    HealthHandler::new(exec_data.id.clone(), health_publisher.clone());
+                let health_handler = HealthHandler::new(exec_id.clone(), health_publisher.clone());
 
-                info!("Starting executable");
+                info!(%agent_id, %exec_id, "Starting executable");
                 let command = CommandOSNotStarted::new(
                     agent_id.clone(),
                     &exec_data,
@@ -234,9 +232,15 @@ impl NotStartedSupervisorOnHost {
 
                 let started = command.start().and_then(|cmd| cmd.stream());
 
-                let bin = &exec_data.bin;
                 let executable_result = started.and_then(|cmd| {
-                    wait_exit(cmd, bin, &stop_consumer, HEALTHY_DELAY, &health_handler)
+                    wait_exit(
+                        cmd,
+                        &stop_consumer,
+                        HEALTHY_DELAY,
+                        &health_handler,
+                        &agent_id,
+                        &exec_id,
+                    )
                 });
 
                 match executable_result {
@@ -244,34 +248,29 @@ impl NotStartedSupervisorOnHost {
                         handle_exit(&agent_id, &exec_data, &exit_status, &health_handler);
 
                         if was_cancelled {
-                            span.exit();
                             break;
                         }
                     }
                     Err(err) => {
-                        error!(supervisor = exec_data.bin, "Launching executable: {err}");
-                        debug!("Error launching executable, marking as unhealthy");
+                        error!(%agent_id, %exec_id, "Launching executable: {err}");
+                        debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
                         health_handler.publish_unhealthy(format!("Error launching process: {err}"));
                     }
                 }
 
-                info!(msg = "Executable not running");
+                info!(%agent_id, %exec_id, "Executable not running");
 
                 if !restart_policy.should_retry() {
-                    warn!("Restart policy exceeded, executable won't restart anymore");
-                    debug!("Restart policy exceeded, marking as unhealthy");
+                    warn!(%agent_id, %exec_id, "Restart policy exceeded, executable won't restart anymore");
+                    debug!(%agent_id, %exec_id, "Restart policy exceeded, marking as unhealthy");
                     health_handler.publish_unhealthy("Restart policy exceeded".to_string());
-                    span.exit();
                     break;
                 }
 
                 i += 1;
                 if !restart_process_thread(&mut restart_policy, i, &stop_consumer) {
-                    span.exit();
                     break;
                 }
-
-                span.exit();
             }
         };
 
@@ -282,12 +281,13 @@ impl NotStartedSupervisorOnHost {
 /// Waits for the command to complete or be cancelled
 fn wait_exit(
     mut command: CommandOSStarted,
-    bin: &str,
     stop_consumer: &EventConsumer<CancellationMessage>,
     healthy_publish_delay: Duration,
     health_handler: &HealthHandler,
+    agent_id: &AgentID,
+    exec_id: &str,
 ) -> Result<(ExitStatus, bool), CommandError> {
-    info!("Waiting for executable to complete or be cancelled");
+    info!(%agent_id, %exec_id, "Waiting for executable to complete or be cancelled");
     let mut was_cancelled = false;
     let deadline = Instant::now() + healthy_publish_delay;
     let mut already_published = false;
@@ -297,18 +297,18 @@ fn wait_exit(
         // Shutdown the spawned process when the cancel signal is received.
         // This ensures the thread stops in time.
         if stop_consumer.is_cancelled_with_timeout(WAIT_FOR_EXIT_TIMEOUT) {
-            info!(supervisor = bin, "Stopping executable");
+            info!(%agent_id, %exec_id, "Stopping executable");
             if let Err(err) = command.shutdown() {
-                error!(supervisor = bin, "Failed to stop executable: {err}");
+                error!(%agent_id, %exec_id, "Failed to stop executable: {err}");
             }
-            info!(supervisor = bin, msg = "Executable terminated");
+            info!(%agent_id, %exec_id, "Executable terminated");
             was_cancelled = true;
         }
 
         // Publish healthy status once after the process has been running
         // for an arbitrary long time without issues.
         if !already_published && Instant::now() > deadline {
-            debug!("Informing executable as healthy");
+            debug!(%agent_id, %exec_id, "Informing executable as healthy");
             health_handler.publish_healthy();
             already_published = true;
         }
@@ -321,7 +321,7 @@ fn wait_exit(
         .wait()
         .inspect(|exit_status| {
             if !already_published && exit_status.success() {
-                debug!("Informing executable as healthy");
+                debug!(%agent_id, %exec_id, "Informing executable as healthy");
                 health_handler.publish_healthy();
             }
         })
@@ -800,10 +800,10 @@ pub mod tests {
         let exec_data = ExecutableData::new("sleep".to_owned(), "sleep".to_owned())
             .with_args(vec!["3".to_owned()]);
 
-        let command =
-            CommandOSNotStarted::new(AgentID::AgentControl, &exec_data, false, PathBuf::new())
-                .start()
-                .unwrap();
+        let agent_id = AgentID::AgentControl;
+        let command = CommandOSNotStarted::new(agent_id.clone(), &exec_data, false, PathBuf::new())
+            .start()
+            .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
         let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
@@ -813,7 +813,14 @@ pub mod tests {
         // `wait_for_exit` then gets out on the first iteration and this test will
         // always pass even when it shouldn't.
         let (_stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
-        let _ = wait_exit(command, "", &stop_consumer, Duration::ZERO, &health_handler);
+        let _ = wait_exit(
+            command,
+            &stop_consumer,
+            Duration::ZERO,
+            &health_handler,
+            &agent_id,
+            &exec_data.id,
+        );
 
         let start_time = SystemTime::now();
         let expected_ordered_events = vec![(
@@ -841,10 +848,10 @@ pub mod tests {
         let exec_data = ExecutableData::new("ls".to_owned(), "ls".to_owned())
             .with_args(vec!["non-existent-path".to_owned()]);
 
-        let command =
-            CommandOSNotStarted::new(AgentID::AgentControl, &exec_data, false, PathBuf::new())
-                .start()
-                .unwrap();
+        let agent_id = AgentID::AgentControl;
+        let command = CommandOSNotStarted::new(agent_id.clone(), &exec_data, false, PathBuf::new())
+            .start()
+            .unwrap();
 
         let (health_publisher, health_consumer) = pub_sub();
         let health_handler = HealthHandler::new(exec_data.id.clone(), health_publisher);
@@ -852,10 +859,11 @@ pub mod tests {
         let (_stop_publisher, stop_consumer) = pub_sub::<CancellationMessage>();
         let _ = wait_exit(
             command,
-            "",
             &stop_consumer,
             Duration::from_secs(10),
             &health_handler,
+            &agent_id,
+            &exec_data.id,
         );
 
         assert!(health_consumer.as_ref().is_empty())
