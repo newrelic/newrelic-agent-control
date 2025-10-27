@@ -252,7 +252,7 @@ impl NotStartedSupervisorOnHost {
                         }
                     }
                     Err(err) => {
-                        error!(%agent_id, %exec_id, "Launching executable: {err}");
+                        warn!(%agent_id, %exec_id, "Launching executable: {err}");
                         debug!(%agent_id, %exec_id, "Error launching executable, marking as unhealthy");
                         health_handler.publish_unhealthy(format!("Error launching process: {err}"));
                     }
@@ -367,7 +367,7 @@ fn handle_exit(
     }
 
     let ExecutableData { bin, args, .. } = &exec_data;
-    error!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
+    warn!(%agent_id,supervisor = bin,exit_code = ?exit_status.code(),"Executable exited unsuccessfully");
     debug!(%exit_status, "Error executing executable, marking as unhealthy");
 
     let args = args.join(" ");
