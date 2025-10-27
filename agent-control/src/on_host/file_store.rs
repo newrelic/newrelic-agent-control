@@ -5,13 +5,12 @@ use std::{
 };
 
 use fs::{
-    LocalFile,
-    directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
+    directory_manager::{DirectoryManagementError, DirectoryManager},
     file_reader::{FileReader, FileReaderError},
     writer_file::FileWriter,
 };
 use serde::{Serialize, de::DeserializeOwned};
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 
 use crate::{
     agent_control::{
@@ -20,7 +19,6 @@ use crate::{
             FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
             STORE_KEY_OPAMP_DATA_CONFIG,
         },
-        run::BasePaths,
     },
     opamp::instance_id::on_host::storer::build_config_name,
 };
@@ -32,30 +30,29 @@ where
 {
     directory_manager: D,
     file_rw: F,
-    remote_dir: PathBuf,
-    local_dir: PathBuf,
-    rw_lock: RwLock<()>,
+    remote_dir: RwLock<RemoteDir>, // Will write to this path
+    local_dir: LocalDir,           // Read-only, no need to sync?
 }
 
-impl From<BasePaths> for FileStore<LocalFile, DirectoryManagerFs> {
-    fn from(
-        BasePaths {
-            local_dir,
-            remote_dir,
-            ..
-        }: BasePaths,
-    ) -> Self {
-        let file_rw = LocalFile;
-        let directory_manager = DirectoryManagerFs;
-        let rw_lock = RwLock::new(());
+pub struct LocalDir(PathBuf);
 
-        Self {
-            file_rw,
-            directory_manager,
-            local_dir,
-            remote_dir,
-            rw_lock,
-        }
+impl LocalDir {
+    pub fn get_local_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
+        self.0
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(agent_id)
+            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG))
+    }
+}
+
+pub struct RemoteDir(PathBuf);
+
+impl RemoteDir {
+    pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
+        self.0
+            .join(FOLDER_NAME_FLEET_DATA)
+            .join(agent_id)
+            .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG))
     }
 }
 
@@ -65,37 +62,15 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    pub fn new(
-        file_rw: F,
-        directory_manager: D,
-        BasePaths {
-            local_dir,
-            remote_dir,
-            ..
-        }: BasePaths,
-    ) -> Self {
-        let rw_lock = RwLock::new(());
+    pub fn new(file_rw: F, directory_manager: D, local_dir: PathBuf, remote_dir: PathBuf) -> Self {
+        let remote_dir = RwLock::new(RemoteDir(remote_dir));
+        let local_dir = LocalDir(local_dir);
         Self {
             file_rw,
             directory_manager,
             local_dir,
             remote_dir,
-            rw_lock,
         }
-    }
-
-    pub fn get_local_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        self.local_dir
-            .join(FOLDER_NAME_LOCAL_DATA)
-            .join(agent_id)
-            .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG))
-    }
-
-    pub fn get_remote_values_file_path(&self, agent_id: &AgentID) -> PathBuf {
-        self.remote_dir
-            .join(FOLDER_NAME_FLEET_DATA)
-            .join(agent_id)
-            .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG))
     }
 
     // Load a file contents only if the file is present.
@@ -140,8 +115,6 @@ where
     where
         T: DeserializeOwned,
     {
-        let _read_guard = self.rw_lock.read().unwrap();
-
         self.load_file_if_present(key)
             .map_err(Error::other) // TODO: Address this!
             .and_then(|maybe_values| {
@@ -156,44 +129,65 @@ where
     where
         T: DeserializeOwned,
     {
-        self.get(self.get_remote_values_file_path(agent_id))
+        let remote_dir = self.remote_dir.read().unwrap();
+        self.get(remote_dir.get_remote_values_file_path(agent_id))
     }
 
     pub fn get_local_data<T>(&self, agent_id: &AgentID) -> Result<Option<T>, Error>
     where
         T: DeserializeOwned,
     {
-        self.get(self.get_local_values_file_path(agent_id))
+        self.get(self.local_dir.get_local_values_file_path(agent_id))
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &Path, data: &T) -> Result<(), Error>
+    pub fn set_opamp_data<T>(&self, agent_id: &AgentID, data: &T) -> Result<(), Error>
     where
         T: Serialize,
     {
-        // #[allow(clippy::readonly_write_lock)]
-        // let _write_guard = self.rw_lock.write().unwrap();
+        // I'm writing the locked file, not mutating the path
+        // I think the OS will handle concurrent write/delete fine from all
+        // threads/subprocesses of the program, but just in case. We can revisit later.
+        #[allow(clippy::readonly_write_lock)]
+        let remote_dir = self.remote_dir.write().unwrap();
 
-        // let data_as_string = serde_yaml::to_string(data)?;
-        // let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        // self.k8s_client.set_configmap_key(
-        //     &configmap_name,
-        //     self.namespace.as_str(),
-        //     Labels::new(agent_id).get(),
-        //     key,
-        //     &data_as_string,
-        // )
-        unimplemented!();
+        let remote_values_path = remote_dir.get_remote_values_file_path(agent_id);
+
+        self.ensure_directory_existence(&remote_values_path)
+            .map_err(|err| {
+                Error::other(format!(
+                    "error ensuring directory existence for {}: {}",
+                    remote_values_path.display(),
+                    err
+                ))
+            })?;
+        let content =
+            serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+
+        self.file_rw
+            .write(remote_values_path.as_path(), content)
+            .map_err(|err| {
+                Error::other(format!(
+                    "error writing file {}: {}",
+                    remote_values_path.display(),
+                    err
+                ))
+            })
     }
 
-    /// Delete data in the specified StoreKey of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &Path) -> Result<(), Error> {
-        // #[allow(clippy::readonly_write_lock)]
-        // let _write_guard = self.rw_lock.write().unwrap();
+    /// Delete data of an Agent store.
+    pub fn delete_opamp_data(&self, agent_id: &AgentID) -> Result<(), Error> {
+        // I'm writing (deleting) the locked file, not mutating the path
+        // I think the OS will handle concurrent write/delete fine from all
+        // threads/subprocesses of the program, but just in case. We can revisit later.
+        #[allow(clippy::readonly_write_lock)]
+        let remote_dir = self.remote_dir.write().unwrap();
 
-        // let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        // self.k8s_client
-        //     .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
-        unimplemented!();
+        let remote_path_file = remote_dir.get_remote_values_file_path(agent_id);
+        if remote_path_file.exists() {
+            debug!("deleting remote config: {:?}", remote_path_file);
+            std::fs::remove_file(remote_path_file)?;
+        }
+        Ok(())
     }
 }
