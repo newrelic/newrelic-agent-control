@@ -23,7 +23,7 @@ use nr_auth::{
 };
 use tracing::info;
 
-use crate::{cli::error::CliError, http::config::ProxyConfig};
+use crate::cli::{error::CliError, on_host::config_gen::config::ProxyConfig};
 
 use super::Args;
 
@@ -142,13 +142,13 @@ fn build_nr_auth_proxy_config(
     ac_cfg: ProxyConfig,
 ) -> Result<nr_auth::http::config::ProxyConfig, CliError> {
     let auth_cfg = nr_auth::http::config::ProxyConfig::new(
-        ac_cfg.url_as_string(),
-        ac_cfg.ca_bundle_dir().to_owned(),
-        ac_cfg.ca_bundle_file().to_owned(),
+        ac_cfg.proxy_url.unwrap_or_default(),
+        PathBuf::from(ac_cfg.proxy_ca_bundle_dir.unwrap_or_default()),
+        PathBuf::from(ac_cfg.proxy_ca_bundle_file.unwrap_or_default()),
     )
     .map_err(|err| CliError::Command(format!("invalid proxy configuration: {err}")))?;
 
-    if ac_cfg.ignore_system_proxy() {
+    if ac_cfg.ignore_system_proxy {
         Ok(auth_cfg)
     } else {
         auth_cfg
