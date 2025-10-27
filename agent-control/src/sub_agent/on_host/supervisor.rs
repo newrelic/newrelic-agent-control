@@ -336,7 +336,7 @@ fn wait_restart(
     stop_consumer: &EventConsumer<CancellationMessage>,
 ) -> bool {
     let max_retries = restart_policy.backoff.max_retries();
-    info!("Restarting supervisor ({step}/{max_retries})");
+    info!("Waiting for restart policy backoff");
 
     let mut cancelled = false;
     restart_policy.backoff(|duration| {
@@ -345,6 +345,12 @@ fn wait_restart(
             cancelled = true;
         }
     });
+
+    if !cancelled {
+        info!("Restarting supervisor ({step}/{max_retries})");
+    } else {
+        info!("Restarting supervisor ({step}/{max_retries}) was cancelled");
+    }
 
     cancelled
 }
