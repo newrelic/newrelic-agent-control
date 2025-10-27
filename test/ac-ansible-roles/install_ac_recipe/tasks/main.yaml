@@ -1,0 +1,3 @@
+---
+- name: Install AC with recipe from branch (and local package)
+  ansible.builtin.include_tasks: debian.yaml

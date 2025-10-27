@@ -17,33 +17,37 @@ on:
     inputs:
       scenarios:
         description: 'JSON array of test scenarios to run'
-        required: true
-        type: string
-      package_version:
         required: false
         type: string
-        default: ""
-      repository_endpoint:
-        required: false
-        type: string
-        description: 'Repository endpoint to fetch packages from'
-        default: "http://nr-downloads-ohai-staging.s3-website-us-east-1.amazonaws.com/preview"
+        default: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
 
 permissions:
   contents: read
 
 jobs:
+  build-packages:
+    name: Build packages
+    uses: ./.github/workflows/component_packages.yml
+    with:
+      pre-release: false
+      skip_sign: true
+      tag_name: 0.900.${{ github.run_id }}
+
   on-host-e2e:
     name: OnHost E2E tests
+    needs: [build-packages]
     # using ubuntu 24 prevents from adding the testing repo from http .
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         group: ${{ fromJSON(inputs.scenarios) }}
-
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: built-binaries
+          path: ./
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -61,5 +65,4 @@ jobs:
           make test/onhost-e2e \
             ANSIBLE_PLAYBOOK=${{ matrix.group }} \
             ENVIRONMENT=production \
-            REPOSITORY_ENDPOINT=${{ inputs.repository_endpoint }} \
-            PACKAGE_VERSION=${{ inputs.package_version }}
+            PACKAGE_VERSION=0.900.${{ github.run_id }}
