@@ -9,38 +9,20 @@ use crate::agent_control::agent_id::AgentID;
 ///
 /// The data to be written/read needs to be serializable/deserializable via Serde.
 pub trait OpAMPDataStore {
-    type DataIndex;
     type Error;
 
-    fn get_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &Self::DataIndex,
-    ) -> Result<Option<T>, Self::Error>
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned;
 
-    fn get_local_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &Self::DataIndex,
-    ) -> Result<Option<T>, Self::Error>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned;
 
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &Self::DataIndex,
-        data: &T,
-    ) -> Result<(), Self::Error>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
     where
         T: Serialize;
 
     /// Delete data in the specified StoreKey of an Agent store.
-    fn delete_opamp_data(
-        &self,
-        agent_id: &AgentID,
-        key: &Self::DataIndex,
-    ) -> Result<(), Self::Error>;
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error>;
 }

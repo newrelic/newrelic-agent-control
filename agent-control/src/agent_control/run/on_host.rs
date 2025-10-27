@@ -16,6 +16,7 @@ use crate::event::channel::pub_sub;
 use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
@@ -45,21 +46,18 @@ pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
+        let file_store = Arc::new(FileStore::from(self.base_paths.clone()));
+
         debug!("Initializing yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(
-                ConfigRepositoryFile::new(
-                    self.base_paths.local_dir.clone(),
-                    self.base_paths.remote_dir.clone(),
-                )
-                .with_remote(),
-            )
+        let config_repository_file = ConfigRepositoryFile::new(
+            self.base_paths.local_dir.clone(),
+            self.base_paths.remote_dir.clone(),
+        );
+        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+            config_repository_file.with_remote()
         } else {
-            Arc::new(ConfigRepositoryFile::new(
-                self.base_paths.local_dir.clone(),
-                self.base_paths.remote_dir.clone(),
-            ))
-        };
+            config_repository_file
+        });
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
         let agent_control_config = config_storer
