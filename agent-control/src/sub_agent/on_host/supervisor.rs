@@ -367,7 +367,7 @@ fn handle_exit(
     let args = args.join(" ");
     let error = format!("path '{bin}' with args '{args}' failed with '{exit_status}'",);
     let status = format!(
-        "process exited with code: {:?}",
+        "process exited with code: {}",
         exit_status.code().unwrap_or_default()
     );
     health_handler.publish_unhealthy_with_status(error, status);
