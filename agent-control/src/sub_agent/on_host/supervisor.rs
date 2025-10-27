@@ -308,7 +308,7 @@ fn wait_exit(
         // Publish healthy status once after the process has been running
         // for an arbitrary long time without issues.
         if !healthy_already_published && Instant::now() > deadline {
-            debug!(%agent_id, %exec_id, "Informing executable as healthy");
+            debug!(%agent_id, %exec_id, "{}", format!("Informing executable as healthy after running for {} seconds", healthy_publish_delay.as_secs()));
             health_handler.publish_healthy();
             healthy_already_published = true;
         }
@@ -321,7 +321,7 @@ fn wait_exit(
         .wait()
         .inspect(|exit_status| {
             if !healthy_already_published && exit_status.success() {
-                debug!(%agent_id, %exec_id, "Informing executable as healthy");
+                debug!(%agent_id, %exec_id, "Informing executable as healthy after terminating successfully");
                 health_handler.publish_healthy();
             }
         })
