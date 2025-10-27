@@ -201,7 +201,7 @@ pub mod tests {
 
     use crate::agent_control::agent_id::AgentID;
 
-    use super::FileStore;
+    use super::*;
 
     impl<F, S> FileStore<F, S>
     where
@@ -217,6 +217,30 @@ pub mod tests {
             } else {
                 self.local_dir.get_local_values_file_path(agent_id)
             }
+        }
+    }
+
+    impl From<PathBuf> for LocalDir {
+        fn from(path: PathBuf) -> Self {
+            Self(path)
+        }
+    }
+
+    impl From<RemoteDir> for PathBuf {
+        fn from(remote_dir: RemoteDir) -> Self {
+            remote_dir.0
+        }
+    }
+
+    impl From<PathBuf> for RemoteDir {
+        fn from(path: PathBuf) -> Self {
+            Self(path)
+        }
+    }
+
+    impl From<LocalDir> for PathBuf {
+        fn from(local_dir: LocalDir) -> Self {
+            local_dir.0
         }
     }
 }
