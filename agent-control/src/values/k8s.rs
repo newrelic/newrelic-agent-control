@@ -90,8 +90,7 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
             .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, remote_config)
             .map_err(|err| {
                 ConfigRepositoryError::StoreError(format!("storing remote config: {err}"))
-            })?;
-        Ok(())
+            })
     }
 
     fn get_remote_config(
@@ -123,20 +122,18 @@ impl ConfigRepository for ConfigRepositoryConfigMap {
             })?;
 
         match maybe_config {
-            Some(remote_config) => {
-                self.k8s_store
-                    .set_opamp_data(
-                        agent_id,
-                        STORE_KEY_OPAMP_DATA_CONFIG,
-                        &remote_config.with_state(state),
-                    )
-                    .map_err(|err| {
-                        ConfigRepositoryError::StoreError(format!(
-                            "updating remote config state: {err}"
-                        ))
-                    })?;
-                Ok(())
-            }
+            Some(remote_config) => self
+                .k8s_store
+                .set_opamp_data(
+                    agent_id,
+                    STORE_KEY_OPAMP_DATA_CONFIG,
+                    &remote_config.with_state(state),
+                )
+                .map_err(|err| {
+                    ConfigRepositoryError::StoreError(format!(
+                        "updating remote config state: {err}"
+                    ))
+                }),
             None => Err(ConfigRepositoryError::UpdateHashStateError(
                 "No remote config found".to_string(),
             )),

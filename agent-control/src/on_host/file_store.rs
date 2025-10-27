@@ -191,3 +191,32 @@ where
         Ok(())
     }
 }
+#[cfg(test)]
+pub mod tests {
+    use std::path::PathBuf;
+
+    use fs::{
+        directory_manager::DirectoryManager, file_reader::FileReader, writer_file::FileWriter,
+    };
+
+    use crate::agent_control::agent_id::AgentID;
+
+    use super::FileStore;
+
+    impl<F, S> FileStore<F, S>
+    where
+        S: DirectoryManager,
+        F: FileWriter + FileReader,
+    {
+        pub fn get_testing_path(&self, agent_id: &AgentID, remote_enabled: bool) -> PathBuf {
+            if remote_enabled {
+                self.remote_dir
+                    .read()
+                    .unwrap()
+                    .get_remote_values_file_path(agent_id)
+            } else {
+                self.local_dir.get_local_values_file_path(agent_id)
+            }
+        }
+    }
+}

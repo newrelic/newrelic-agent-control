@@ -1,3 +1,5 @@
+use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::config_migrate::cli::Cli;
 use newrelic_agent_control::config_migrate::migration::agent_config_getter::AgentConfigGetter;
@@ -7,6 +9,7 @@ use newrelic_agent_control::config_migrate::migration::migrator::{ConfigMigrator
 use newrelic_agent_control::config_migrate::migration::persister::legacy_config_renamer::LegacyConfigRenamer;
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
+use newrelic_agent_control::on_host::file_store::FileStore;
 use newrelic_agent_control::values::file::ConfigRepositoryFile;
 use std::error::Error;
 use std::sync::Arc;
@@ -21,7 +24,13 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config = MigrationConfig::parse(&cli.get_migration_config_str()?)?;
 
-    let vr = ConfigRepositoryFile::new(cli.local_data_dir(), cli.remote_data_dir());
+    let file_store = Arc::new(FileStore::new(
+        LocalFile,
+        DirectoryManagerFs,
+        cli.local_data_dir(),
+        cli.remote_data_dir(),
+    ));
+    let vr = ConfigRepositoryFile::new(file_store);
     let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
