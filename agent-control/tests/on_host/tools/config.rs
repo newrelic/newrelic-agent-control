@@ -1,13 +1,17 @@
 use std::fs::{File, create_dir_all};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 
+use fs::LocalFile;
+use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
     STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
+use newrelic_agent_control::on_host::file_store::FileStore;
 use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::file::ConfigRepositoryFile;
@@ -94,9 +98,13 @@ pub fn create_remote_config(agent_id: String, config: String, base_dir: PathBuf)
 }
 
 pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> Option<String> {
-    let yaml_config_repo =
-        ConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone())
-            .with_remote();
+    let file_store = Arc::new(FileStore::new(
+        LocalFile,
+        DirectoryManagerFs,
+        base_paths.local_dir.clone(),
+        base_paths.remote_dir.clone(),
+    ));
+    let yaml_config_repo = ConfigRepositoryFile::new(file_store).with_remote();
 
     yaml_config_repo
         .load_remote(agent_id, &default_capabilities())
