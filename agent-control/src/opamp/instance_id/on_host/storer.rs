@@ -1,15 +1,15 @@
 use super::getter::Identifiers;
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, INSTANCE_ID_FILENAME};
+use crate::agent_control::defaults::STORE_KEY_INSTANCE_ID;
+use crate::on_host::file_store::FileStore;
 use crate::opamp::instance_id::getter::DataStored;
 use crate::opamp::instance_id::storer::InstanceIDStorer;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::{FileReader, FileReaderError};
-use fs::utils::FsError;
 use fs::writer_file::{FileWriter, WriteError};
 use std::io;
-use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::debug;
 
 pub struct Storer<F = LocalFile, D = DirectoryManagerFs>
@@ -17,9 +17,17 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    file_rw: F,
-    dir_manager: D,
-    remote_dir: PathBuf,
+    file_store: Arc<FileStore<F, D>>,
+}
+
+impl<F, D> From<Arc<FileStore<F, D>>> for Storer<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    fn from(file_store: Arc<FileStore<F, D>>) -> Self {
+        Self { file_store }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -50,84 +58,98 @@ where
         agent_id: &AgentID,
         ds: &DataStored<Self::Identifiers>,
     ) -> Result<(), Self::Error> {
-        self.write_contents(agent_id, ds)
+        debug!("storer: setting Instance ID of agent_id: {}", agent_id);
+
+        self.file_store
+            .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, ds)?;
+
+        Ok(())
     }
 
     fn get(
         &self,
         agent_id: &AgentID,
     ) -> Result<Option<DataStored<Self::Identifiers>>, Self::Error> {
-        self.read_contents(agent_id)
-    }
-}
+        debug!("storer: getting Instance ID of agent_id: {}", agent_id);
 
-impl<F, D> Storer<F, D>
-where
-    D: DirectoryManager,
-    F: FileWriter + FileReader,
-{
-    pub fn new(file_rw: F, dir_manager: D, remote_dir: PathBuf) -> Self {
-        Self {
-            file_rw,
-            dir_manager,
-            remote_dir,
+        if let Some(data) = self
+            .file_store
+            .get_opamp_data(agent_id, STORE_KEY_INSTANCE_ID)?
+        {
+            return Ok(Some(data));
         }
+
+        Ok(None)
     }
 }
 
-impl<F, D> Storer<F, D>
-where
-    D: DirectoryManager,
-    F: FileWriter + FileReader,
-{
-    fn write_contents(
-        &self,
-        agent_id: &AgentID,
-        ds: &DataStored<Identifiers>,
-    ) -> Result<(), StorerError> {
-        let dest_file = self.get_instance_id_path(agent_id);
-        // Get a ref to the target file's parent directory
-        let dest_dir = dest_file
-            .parent()
-            .ok_or(WriteError::from(FsError::InvalidPath(format!(
-                "no parent directory found for {} (empty or root dir)",
-                dest_file.display()
-            ))))?;
+// impl<F, D> Storer<F, D>
+// where
+//     D: DirectoryManager,
+//     F: FileWriter + FileReader,
+// {
+//     pub fn new(file_rw: F, dir_manager: D, remote_dir: PathBuf) -> Self {
+//         Self {
+//             file_rw,
+//             dir_manager,
+//             remote_dir,
+//         }
+//     }
+// }
 
-        self.dir_manager.create(dest_dir)?;
-        let contents = serde_yaml::to_string(ds)?;
+// impl<F, D> Storer<F, D>
+// where
+//     D: DirectoryManager,
+//     F: FileWriter + FileReader,
+// {
+//     fn write_contents(
+//         &self,
+//         agent_id: &AgentID,
+//         ds: &DataStored<Identifiers>,
+//     ) -> Result<(), StorerError> {
+//         let dest_file = self.get_instance_id_path(agent_id);
+//         // Get a ref to the target file's parent directory
+//         let dest_dir = dest_file
+//             .parent()
+//             .ok_or(WriteError::from(FsError::InvalidPath(format!(
+//                 "no parent directory found for {} (empty or root dir)",
+//                 dest_file.display()
+//             ))))?;
 
-        Ok(self.file_rw.write(&dest_file, contents)?)
-    }
+//         self.dir_manager.create(dest_dir)?;
+//         let contents = serde_yaml::to_string(ds)?;
 
-    fn read_contents(
-        &self,
-        agent_id: &AgentID,
-    ) -> Result<Option<DataStored<Identifiers>>, StorerError> {
-        let dest_path = self.get_instance_id_path(agent_id);
-        let file_str = match self.file_rw.read(dest_path.as_path()) {
-            Ok(s) => s,
-            Err(e) => {
-                debug!("error reading file for agent {}: {}", agent_id, e);
-                return Ok(None);
-            }
-        };
-        match serde_yaml::from_str(&file_str) {
-            Ok(ds) => Ok(Some(ds)),
-            Err(e) => {
-                debug!("error deserializing data for agent {}: {}", agent_id, e);
-                Ok(None)
-            }
-        }
-    }
+//         Ok(self.file_rw.write(&dest_file, contents)?)
+//     }
 
-    fn get_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
-        self.remote_dir
-            .join(FOLDER_NAME_FLEET_DATA)
-            .join(agent_id)
-            .join(INSTANCE_ID_FILENAME)
-    }
-}
+//     fn read_contents(
+//         &self,
+//         agent_id: &AgentID,
+//     ) -> Result<Option<DataStored<Identifiers>>, StorerError> {
+//         let dest_path = self.get_instance_id_path(agent_id);
+//         let file_str = match self.file_rw.read(dest_path.as_path()) {
+//             Ok(s) => s,
+//             Err(e) => {
+//                 debug!("error reading file for agent {}: {}", agent_id, e);
+//                 return Ok(None);
+//             }
+//         };
+//         match serde_yaml::from_str(&file_str) {
+//             Ok(ds) => Ok(Some(ds)),
+//             Err(e) => {
+//                 debug!("error deserializing data for agent {}: {}", agent_id, e);
+//                 Ok(None)
+//             }
+//         }
+//     }
+
+//     fn get_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
+//         self.remote_dir
+//             .join(FOLDER_NAME_FLEET_DATA)
+//             .join(agent_id)
+//             .join(INSTANCE_ID_FILENAME)
+//     }
+// }
 
 pub fn build_config_name(name: &str) -> String {
     format!("{name}.yaml")
@@ -137,6 +159,7 @@ pub fn build_config_name(name: &str) -> String {
 mod tests {
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, INSTANCE_ID_FILENAME};
+    use crate::on_host::file_store::FileStore;
     use crate::opamp::instance_id::InstanceID;
     use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::instance_id::on_host::getter::Identifiers;
@@ -147,17 +170,20 @@ mod tests {
     use mockall::predicate;
     use std::io;
     use std::path::PathBuf;
+    use std::sync::Arc;
 
     #[test]
     fn basic_get_uild_path() {
         let sa_dir = PathBuf::from("/super");
-        let storer = Storer::new(
+        let file_store = Arc::new(FileStore::new(
             MockLocalFile::default(),
             MockDirectoryManager::default(),
+            PathBuf::default(),
             sa_dir.clone(),
-        );
+        ));
+        let storer = Storer::from(file_store);
         let agent_id = AgentID::try_from("test").unwrap();
-        let path = storer.get_instance_id_path(&agent_id);
+        let path = storer.file_store.get_testing_instance_id_path(&agent_id);
         assert_eq!(
             path,
             sa_dir
@@ -167,7 +193,9 @@ mod tests {
         );
 
         let agent_control_id = AgentID::AgentControl;
-        let path = storer.get_instance_id_path(&agent_control_id);
+        let path = storer
+            .file_store
+            .get_testing_instance_id_path(&agent_control_id);
         assert_eq!(
             path,
             sa_dir
@@ -192,7 +220,14 @@ mod tests {
         dir_manager.should_create(instance_id_path.parent().unwrap());
         file_rw.should_write(&instance_id_path, expected_file(instance_id));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path);
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+
+        let storer = Storer::from(file_store);
         assert!(storer.set(&agent_id, &ds).is_ok());
     }
 
@@ -212,7 +247,14 @@ mod tests {
         file_rw.should_not_write(&instance_id_path, expected_file(instance_id));
         dir_manager.should_create(instance_id_path.parent().unwrap());
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path);
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path.clone(),
+        ));
+
+        let storer = Storer::from(file_store);
         assert!(storer.set(&agent_id, &ds).is_err());
     }
 
@@ -238,7 +280,13 @@ mod tests {
             .once()
             .return_once(|_| Ok(expected_file(instance_id)));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path);
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+        let storer = Storer::from(file_store);
         let actual = storer.get(&agent_id);
         assert!(actual.is_ok());
         assert_eq!(expected, actual.unwrap());
@@ -258,12 +306,21 @@ mod tests {
             .once()
             .return_once(|_| Err(io::Error::other("some error message").into()));
 
-        let storer = Storer::new(file_rw, dir_manager, sa_path);
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+        let storer = Storer::from(file_store);
         let expected = storer.get(&agent_id);
 
         // As said above, we are not generating the error variant here
-        assert!(expected.is_ok());
-        assert!(expected.unwrap().is_none());
+        assert!(
+            matches!(expected, Err(ref s) if s.to_string().contains("some error message")),
+            "Expected Err variant, got {:?}",
+            expected
+        );
     }
 
     // HELPERS
