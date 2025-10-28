@@ -53,7 +53,6 @@ impl RemoteDir {
     }
 }
 
-// Proposed API
 impl<F, D> FileStore<F, D>
 where
     D: DirectoryManager,
