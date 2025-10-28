@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Error, ErrorKind},
+    io::{Error, ErrorKind},
     path::{Path, PathBuf},
     sync::RwLock,
 };
@@ -18,7 +18,7 @@ use crate::{
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
     opamp::{
-        data_store::{OpAMPDataStore, StoreKey},
+        data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey},
         instance_id::on_host::storer::build_config_name,
     },
 };
@@ -201,31 +201,46 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    type Error = io::Error;
-
-    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
         T: DeserializeOwned,
     {
         self.get_opamp_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_local_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
         T: DeserializeOwned,
     {
         self.get_local_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    fn set_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+        data: &T,
+    ) -> Result<(), OpAMPDataStoreError>
     where
         T: Serialize,
     {
         self.set_opamp_data(agent_id, key, data)
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
         self.delete_opamp_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::Io)
     }
 }
 
