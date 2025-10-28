@@ -1,5 +1,5 @@
 use std::{
-    io::{Error, ErrorKind},
+    io::{self, Error, ErrorKind},
     path::{Path, PathBuf},
     sync::RwLock,
 };
@@ -17,7 +17,10 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
-    opamp::{data_store::StoreKey, instance_id::on_host::storer::build_config_name},
+    opamp::{
+        data_store::{OpAMPDataStore, StoreKey},
+        instance_id::on_host::storer::build_config_name,
+    },
 };
 
 pub struct FileStore<F, D>
@@ -192,6 +195,40 @@ where
         Ok(())
     }
 }
+
+impl<F, D> OpAMPDataStore for FileStore<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    type Error = io::Error;
+
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    where
+        T: DeserializeOwned,
+    {
+        self.get_opamp_data(agent_id, key)
+    }
+
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    where
+        T: DeserializeOwned,
+    {
+        self.get_local_data(agent_id, key)
+    }
+
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    where
+        T: Serialize,
+    {
+        self.set_opamp_data(agent_id, key, data)
+    }
+
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+        self.delete_opamp_data(agent_id, key)
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use std::path::PathBuf;
