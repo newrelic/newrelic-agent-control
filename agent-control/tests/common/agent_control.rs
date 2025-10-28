@@ -11,7 +11,7 @@ use newrelic_agent_control::event::ApplicationEvent;
 use newrelic_agent_control::event::channel::{EventPublisher, pub_sub};
 use newrelic_agent_control::http::tls::install_rustls_default_crypto_provider;
 use newrelic_agent_control::on_host::file_store::FileStore;
-use newrelic_agent_control::values::file::ConfigRepositoryFile;
+use newrelic_agent_control::values::GenericConfigRepository;
 use std::sync::Arc;
 
 /// Starts the agent-control in a separate thread. The agent-control will be stopped when the `StartedAgentControl` is dropped.
@@ -34,7 +34,7 @@ pub fn start_agent_control_with_custom_config(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
         ));
-        let agent_control_repository = ConfigRepositoryFile::new(file_store);
+        let agent_control_repository = GenericConfigRepository::new(file_store);
         let config_storer = AgentControlConfigStore::new(Arc::new(agent_control_repository));
 
         let agent_control_config = config_storer.load().unwrap();
