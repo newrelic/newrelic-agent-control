@@ -21,7 +21,7 @@ use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
-use crate::opamp::instance_id::on_host::storer::Storer;
+use crate::opamp::instance_id::storer::GenericStorer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
@@ -95,7 +95,7 @@ impl AgentControlRunner {
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
-        let instance_id_storer = Storer::from(file_store);
+        let instance_id_storer = GenericStorer::from(file_store);
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
