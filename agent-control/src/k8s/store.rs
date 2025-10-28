@@ -4,10 +4,8 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
+use crate::opamp::data_store::StoreKey;
 use std::sync::{Arc, RwLock};
-
-/// The key used to identify the data in the Store.
-pub type StoreKey = str;
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.

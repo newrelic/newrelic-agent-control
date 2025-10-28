@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG};
 use crate::on_host::file_store::FileStore;
 use crate::opamp::remote_config::hash::ConfigState;
 use crate::values::config::{Config, RemoteConfig};
@@ -65,7 +66,7 @@ where
     #[tracing::instrument(skip_all, err)]
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<Config>, ConfigRepositoryError> {
         self.file_store
-            .get_local_data::<YAMLConfig>(agent_id)
+            .get_local_data::<YAMLConfig>(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
             .map_err(|err| ConfigRepositoryError::LoadError(format!("loading local config: {err}")))
             .map(|opt_yaml| opt_yaml.map(|yc| Config::LocalConfig(yc.into())))
     }
@@ -80,7 +81,7 @@ where
             Ok(None)
         } else {
             self.file_store
-                .get_opamp_data::<RemoteConfig>(agent_id)
+                .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
                 .map_err(|err| {
                     ConfigRepositoryError::LoadError(format!("loading remote config: {err}"))
                 })
@@ -97,7 +98,7 @@ where
         debug!(agent_id = agent_id.to_string(), "saving remote config");
 
         self.file_store
-            .set_opamp_data(agent_id, remote_config)
+            .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, remote_config)
             .map_err(|e| ConfigRepositoryError::StoreError(format!("storing remote config: {}", e)))
     }
 
@@ -106,7 +107,7 @@ where
         agent_id: &AgentID,
     ) -> Result<Option<RemoteConfig>, ConfigRepositoryError> {
         self.file_store
-            .get_opamp_data::<RemoteConfig>(agent_id)
+            .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|e| {
                 ConfigRepositoryError::LoadError(format!("getting remote config hash: {}", e))
             })
@@ -124,7 +125,7 @@ where
 
         let maybe_config = self
             .file_store
-            .get_opamp_data::<RemoteConfig>(agent_id)
+            .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|e| {
                 ConfigRepositoryError::LoadError(format!("updating remote config state: {e}"))
             })?;
@@ -132,7 +133,11 @@ where
         match maybe_config {
             Some(remote_config) => self
                 .file_store
-                .set_opamp_data(agent_id, &remote_config.with_state(state))
+                .set_opamp_data(
+                    agent_id,
+                    STORE_KEY_OPAMP_DATA_CONFIG,
+                    &remote_config.with_state(state),
+                )
                 .map_err(|err| {
                     ConfigRepositoryError::StoreError(format!(
                         "updating remote config state: {err}"
@@ -151,9 +156,11 @@ where
     fn delete_remote(&self, agent_id: &AgentID) -> Result<(), ConfigRepositoryError> {
         debug!(agent_id = agent_id.to_string(), "deleting remote config");
 
-        self.file_store.delete_opamp_data(agent_id).map_err(|e| {
-            ConfigRepositoryError::DeleteError(format!("deleting remote config: {}", e))
-        })
+        self.file_store
+            .delete_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            .map_err(|e| {
+                ConfigRepositoryError::DeleteError(format!("deleting remote config: {}", e))
+            })
     }
 }
 
@@ -206,9 +213,9 @@ state: applied
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
         let test_path = if remote_enabled {
-            remote_dir_path.get_remote_values_file_path(&agent_id)
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
         } else {
-            local_dir_path.get_local_values_file_path(&agent_id)
+            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
         };
 
         // Expectations
@@ -247,8 +254,9 @@ state: applied
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
-        let local_path = local_dir_path.get_local_values_file_path(&agent_id);
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         file_rw.should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
@@ -285,7 +293,7 @@ state: applied
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = PathBuf::from("some/remote/path/");
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let local_path = local_dir_path.get_local_values_file_path(&agent_id);
+        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         file_rw.should_not_read_file_not_found(&local_path, "some message".to_string());
@@ -313,8 +321,10 @@ state: applied
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_test_path = remote_dir_path.get_remote_values_file_path(&agent_id);
-        let local_test_path = local_dir_path.get_local_values_file_path(&agent_id);
+        let remote_test_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_test_path =
+            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         if remote_enabled {
@@ -348,7 +358,8 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_create(remote_path.parent().unwrap());
@@ -381,7 +392,8 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_not_create(
@@ -413,7 +425,8 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path = remote_dir_path.get_remote_values_file_path(&agent_id);
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_create(remote_path.parent().unwrap());

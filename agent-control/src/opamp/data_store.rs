@@ -2,6 +2,9 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::agent_control::agent_id::AgentID;
 
+/// The key used to identify the data in the OpAMP Data Store.
+pub type StoreKey = str;
+
 /// Implementers of this trait represent data stores for OpAMP-related data.
 ///
 /// They expose ways to get, set and delete data associated with the management of agent
