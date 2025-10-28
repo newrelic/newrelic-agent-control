@@ -54,7 +54,7 @@ impl AgentControlRunner {
         ));
 
         debug!("Initializing yaml_config_repository");
-        let config_repository_file = ConfigRepositoryFile::new(file_store);
+        let config_repository_file = ConfigRepositoryFile::new(file_store.clone());
         let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
             config_repository_file.with_remote()
         } else {
@@ -96,11 +96,7 @@ impl AgentControlRunner {
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
-        let instance_id_storer = Storer::new(
-            LocalFile,
-            DirectoryManagerFs,
-            self.base_paths.remote_dir.clone(),
-        );
+        let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 

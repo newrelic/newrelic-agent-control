@@ -203,7 +203,9 @@ pub mod tests {
 
     use crate::agent_control::{
         agent_id::AgentID,
-        defaults::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG},
+        defaults::{
+            STORE_KEY_INSTANCE_ID, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG,
+        },
     };
 
     use super::*;
@@ -213,7 +215,7 @@ pub mod tests {
         S: DirectoryManager,
         F: FileWriter + FileReader,
     {
-        pub fn get_testing_path(&self, agent_id: &AgentID, remote_enabled: bool) -> PathBuf {
+        pub fn get_testing_values_path(&self, agent_id: &AgentID, remote_enabled: bool) -> PathBuf {
             if remote_enabled {
                 self.remote_dir
                     .read()
@@ -223,6 +225,13 @@ pub mod tests {
                 self.local_dir
                     .get_local_file_path(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
             }
+        }
+
+        pub fn get_testing_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
+            self.remote_dir
+                .read()
+                .unwrap()
+                .get_remote_file_path(agent_id, STORE_KEY_INSTANCE_ID)
         }
     }
 
