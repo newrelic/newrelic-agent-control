@@ -13,8 +13,8 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::on_host::file_store::FileStore;
 use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::values::GenericConfigRepository;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
-use newrelic_agent_control::values::file::ConfigRepositoryFile;
 
 /// Creates the agent-control config given an opamp_server_endpoint
 /// and a list of agents on the specified local_dir.
@@ -104,7 +104,7 @@ pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> 
         base_paths.local_dir.clone(),
         base_paths.remote_dir.clone(),
     ));
-    let yaml_config_repo = ConfigRepositoryFile::new(file_store).with_remote();
+    let yaml_config_repo = GenericConfigRepository::new(file_store).with_remote();
 
     yaml_config_repo
         .load_remote(agent_id, &default_capabilities())
