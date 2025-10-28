@@ -2,7 +2,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::agent_control::agent_id::AgentID;
 
-/// Implementors of this trait represent data stores for OpAMP-related data.
+/// Implementers of this trait represent data stores for OpAMP-related data.
 ///
 /// They expose ways to get, set and delete data associated with the management of agent
 /// workloads in a way that matches the OpAMP specification.
