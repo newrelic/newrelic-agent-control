@@ -1,10 +1,13 @@
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+
 use super::Error;
 #[cfg_attr(test, mockall_double::double)]
 use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
-use crate::opamp::data_store::{OpAMPDataStore, StoreKey};
+use crate::opamp::data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey};
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -104,31 +107,46 @@ impl K8sStore {
 }
 
 impl OpAMPDataStore for K8sStore {
-    type Error = Error;
-
-    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
-        T: serde::de::DeserializeOwned,
+        T: DeserializeOwned,
     {
         self.get_opamp_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::K8s)
     }
 
-    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_local_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
-        T: serde::de::DeserializeOwned,
+        T: DeserializeOwned,
     {
         self.get_local_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::K8s)
     }
 
-    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    fn set_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+        data: &T,
+    ) -> Result<(), OpAMPDataStoreError>
     where
-        T: serde::Serialize,
+        T: Serialize,
     {
         self.set_opamp_data(agent_id, key, data)
+            .map_err(OpAMPDataStoreError::K8s)
     }
 
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
         self.delete_opamp_data(agent_id, key)
+            .map_err(OpAMPDataStoreError::K8s)
     }
 }
 
