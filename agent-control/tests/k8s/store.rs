@@ -14,7 +14,8 @@ use newrelic_agent_control::agent_control::defaults::{
 };
 use newrelic_agent_control::k8s::client::SyncK8sClient;
 use newrelic_agent_control::k8s::labels::Labels;
-use newrelic_agent_control::k8s::store::{K8sStore, StoreKey};
+use newrelic_agent_control::k8s::store::K8sStore;
+use newrelic_agent_control::opamp::data_store::StoreKey;
 use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
