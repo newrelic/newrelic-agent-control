@@ -2473,13 +2473,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## wasm-bindgen-backend <https://crates.io/crates/wasm-bindgen-backend>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## wasm-bindgen-futures <https://crates.io/crates/wasm-bindgen-futures>
 
 Distributed under the following license(s):
@@ -2641,6 +2634,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## winnow <https://crates.io/crates/winnow>
+
+Distributed under the following license(s):
+
+* MIT
+
+## winreg <https://crates.io/crates/winreg>
 
 Distributed under the following license(s):
 

@@ -1,10 +1,8 @@
 //! System resource detector implementation
-use super::{
-    HOSTNAME_KEY, MACHINE_ID_KEY, identifier_machine_id_unix::IdentifierProviderMachineId,
-};
+use super::{HOSTNAME_KEY, MACHINE_ID_KEY};
 use crate::system::hostname::get_hostname;
+use crate::system::machine_identifier::MachineIdentityProvider;
 use crate::{DetectError, Detector, Key, Resource, Value};
-use fs::LocalFile;
 use tracing::{error, instrument};
 
 /// An enumeration of potential errors related to the system detector.
@@ -19,19 +17,15 @@ pub enum SystemDetectorError {
 }
 
 /// The `SystemDetector` struct encapsulates system detection functionality.
-///
-/// # Fields:
-/// - `hostname_getter`: An instance of the `HostnameGetter` struct for retrieving system hostname.
-/// - `machine_id_provider`: An instance of the `IdentifierProviderMachineId` struct for retrieving machine ID.
 pub struct SystemDetector {
-    machine_id_provider: IdentifierProviderMachineId<LocalFile>,
+    machine_id_provider: MachineIdentityProvider,
 }
 
 /// Default implementation for `SystemDetector` struct.
 impl Default for SystemDetector {
     fn default() -> Self {
         Self {
-            machine_id_provider: IdentifierProviderMachineId::default(),
+            machine_id_provider: MachineIdentityProvider::default(),
         }
     }
 }
