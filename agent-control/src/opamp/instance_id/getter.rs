@@ -1,4 +1,5 @@
 use crate::k8s;
+use crate::opamp::data_store::OpAMPDataStoreError;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -13,6 +14,9 @@ pub trait InstanceIDGetter {
 
 #[derive(thiserror::Error, Debug)]
 pub enum GetterError {
+    #[error("failed to interact with the OpAMP data store: {0}")]
+    DataStoreInteraction(#[from] OpAMPDataStoreError),
+
     #[error("failed to persist data: {0}")]
     OnHostPersisting(#[from] super::on_host::storer::StorerError),
 

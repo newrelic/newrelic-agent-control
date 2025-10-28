@@ -1,6 +1,71 @@
-use crate::{agent_control::agent_id::AgentID, opamp::instance_id::getter::DataStored};
+use std::{marker::PhantomData, sync::Arc};
+
+use serde::{Serialize, de::DeserializeOwned};
+use tracing::debug;
+
+use crate::{
+    agent_control::{agent_id::AgentID, defaults::STORE_KEY_INSTANCE_ID},
+    opamp::{
+        data_store::{OpAMPDataStore, OpAMPDataStoreError},
+        instance_id::getter::DataStored,
+    },
+};
 
 use super::{definition::InstanceIdentifiers, getter::GetterError};
+
+pub struct GenericStorer<D, I>
+where
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + Serialize + DeserializeOwned,
+{
+    opamp_data_store: Arc<D>,
+    _identifiers: PhantomData<I>,
+}
+
+impl<D, I> From<Arc<D>> for GenericStorer<D, I>
+where
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + Serialize + DeserializeOwned,
+{
+    fn from(opamp_data_store: Arc<D>) -> Self {
+        Self {
+            opamp_data_store,
+            _identifiers: PhantomData,
+        }
+    }
+}
+
+impl<D, I> InstanceIDStorer for GenericStorer<D, I>
+where
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + Serialize + DeserializeOwned,
+{
+    type Error = OpAMPDataStoreError;
+
+    type Identifiers = I;
+
+    fn set(&self, agent_id: &AgentID, data: &DataStored<I>) -> Result<(), OpAMPDataStoreError> {
+        debug!("storer: setting Instance ID of agent_id: {}", agent_id);
+
+        self.opamp_data_store
+            .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, data)?;
+
+        Ok(())
+    }
+
+    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<I>>, OpAMPDataStoreError> {
+        debug!("storer: getting Instance ID of agent_id: {}", agent_id);
+
+        if let Some(data) = self
+            .opamp_data_store
+            .get_opamp_data(agent_id, STORE_KEY_INSTANCE_ID)?
+        {
+            return Ok(Some(data));
+        }
+
+        Ok(None)
+    }
+}
 
 pub trait InstanceIDStorer
 where
