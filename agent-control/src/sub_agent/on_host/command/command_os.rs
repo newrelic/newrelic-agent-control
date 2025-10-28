@@ -1,6 +1,7 @@
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
+use std::time::Duration;
 use std::{
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
@@ -23,11 +24,13 @@ pub struct CommandOSNotStarted {
     agent_id: AgentID,
     logs_to_file: bool,
     logging_path: PathBuf,
+    shutdown_timeout: Duration,
 }
 pub struct CommandOSStarted {
     agent_id: AgentID,
     process: Child,
     loggers: Option<FileSystemLoggers>,
+    shutdown_timeout: Duration,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -51,6 +54,7 @@ impl CommandOSNotStarted {
             cmd,
             logs_to_file,
             logging_path,
+            shutdown_timeout: executable_data.shutdown_timeout,
         }
     }
 
@@ -66,6 +70,7 @@ impl CommandOSNotStarted {
             agent_id,
             process: self.cmd.spawn()?,
             loggers,
+            shutdown_timeout: self.shutdown_timeout,
         })
     }
 }
@@ -75,12 +80,16 @@ impl CommandOSNotStarted {
 ////////////////////////////////////////////////////////////////////////////////////
 
 impl CommandOSStarted {
-    pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
-        self.process.wait().map_err(CommandError::from)
-    }
-
     pub fn get_pid(&self) -> u32 {
         self.process.id()
+    }
+
+    pub fn is_running(&mut self) -> bool {
+        self.process.try_wait().is_ok_and(|v| v.is_none())
+    }
+
+    pub(crate) fn wait(mut self) -> Result<ExitStatus, CommandError> {
+        self.process.wait().map_err(CommandError::from)
     }
 
     pub(crate) fn stream(mut self) -> Result<Self, CommandError> {
@@ -112,6 +121,56 @@ impl CommandOSStarted {
         logging::thread::spawn_logger(stderr, stderr_loggers);
 
         Ok(self)
+    }
+}
+
+#[cfg(unix)]
+mod unix {
+    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
+
+    use std::time::Duration;
+    const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+    impl CommandOSStarted {
+        pub fn shutdown(&mut self) -> Result<(), CommandError> {
+            let pid = self.get_pid() as i32;
+
+            use nix::{sys::signal, unistd::Pid};
+            signal::kill(Pid::from_raw(pid), signal::SIGTERM)
+                .map_err(|err| CommandError::NixError(err.to_string()))?;
+
+            if self.is_running_after_timeout(self.shutdown_timeout) {
+                signal::kill(Pid::from_raw(pid), signal::SIGKILL)
+                    .map_err(|err| CommandError::NixError(err.to_string()))?;
+            }
+            Ok(())
+        }
+
+        fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
+            let deadline = std::time::Instant::now() + timeout;
+
+            while std::time::Instant::now() < deadline {
+                if self.is_running() {
+                    std::thread::sleep(POLL_INTERVAL);
+                } else {
+                    return false;
+                }
+            }
+
+            true
+        }
+    }
+}
+
+//TODO Properly design unix/windows shutdown when Windows support is added
+#[cfg(windows)]
+mod windows {
+    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
+
+    impl CommandOSStarted {
+        pub fn shutdown(&mut self) -> Result<(), CommandError> {
+            self.process.kill().map_err(CommandError::from)
+        }
     }
 }
 

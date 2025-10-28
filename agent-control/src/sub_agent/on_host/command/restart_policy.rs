@@ -52,6 +52,14 @@ pub enum BackoffStrategy {
 pub const LAST_RETRY_INTERVAL: Duration = Duration::new(30, 0);
 
 impl BackoffStrategy {
+    pub fn max_retries(&self) -> usize {
+        match self {
+            BackoffStrategy::Fixed(b)
+            | BackoffStrategy::Linear(b)
+            | BackoffStrategy::Exponential(b) => b.max_retries,
+        }
+    }
+
     fn should_backoff(&mut self) -> bool {
         match self {
             BackoffStrategy::Fixed(b)
