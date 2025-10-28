@@ -4,7 +4,7 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
-use crate::opamp::data_store::StoreKey;
+use crate::opamp::data_store::{OpAMPDataStore, StoreKey};
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -100,6 +100,35 @@ impl K8sStore {
 
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
         format!("{prefix}-{agent_id}")
+    }
+}
+
+impl OpAMPDataStore for K8sStore {
+    type Error = Error;
+
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.get_opamp_data(agent_id, key)
+    }
+
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.get_local_data(agent_id, key)
+    }
+
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    where
+        T: serde::Serialize,
+    {
+        self.set_opamp_data(agent_id, key, data)
+    }
+
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+        self.delete_opamp_data(agent_id, key)
     }
 }
 
