@@ -10,7 +10,7 @@ use newrelic_agent_control::config_migrate::migration::persister::legacy_config_
 use newrelic_agent_control::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use newrelic_agent_control::instrumentation::tracing::{TracingConfig, try_init_tracing};
 use newrelic_agent_control::on_host::file_store::FileStore;
-use newrelic_agent_control::values::file::ConfigRepositoryFile;
+use newrelic_agent_control::values::GenericConfigRepository;
 use std::error::Error;
 use std::sync::Arc;
 use tracing::{debug, info, warn};
@@ -30,7 +30,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli.local_data_dir(),
         cli.remote_data_dir(),
     ));
-    let vr = ConfigRepositoryFile::new(file_store);
+    let vr = GenericConfigRepository::new(file_store);
     let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
