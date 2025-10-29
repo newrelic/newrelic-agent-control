@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
+use newrelic_agent_control::cli::on_host::host_monitoring_gen;
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -15,10 +16,13 @@ struct Cli {
 }
 
 /// Commands supported by the cli
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     // Generate Agent Control configuration according to the provided configuration data.
     GenerateConfig(config_gen::Args),
+    // Generate Host Monitoring configuration according to the provided configuration data.
+    GenerateHostMonitoring(host_monitoring_gen::Args),
 }
 
 fn main() -> ExitCode {
@@ -38,6 +42,9 @@ fn main() -> ExitCode {
                     .exit()
             }
             config_gen::generate_config(args)
+        }
+        Commands::GenerateHostMonitoring(args) => {
+            host_monitoring_gen::generate_host_monitoring_config(args)
         }
     };
 

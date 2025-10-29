@@ -36,7 +36,6 @@ impl ValuesPersisterFile<DirectoryManagerFs> {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 impl<C> ValuesPersisterFile<C>
 where
     C: DirectoryManager,

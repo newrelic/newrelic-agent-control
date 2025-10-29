@@ -1,5 +1,5 @@
 use crate::agent_type::agent_type_registry::AgentRepositoryError;
-use crate::config_migrate::migration::config::MappingType;
+use crate::config_migrate::migration::config::{FileInfo, MappingType};
 use crate::config_migrate::migration::{
     agent_value_spec::AgentValueError,
     config::{DirInfo, MigrationAgentConfig},
@@ -9,7 +9,6 @@ use fs::LocalFile;
 use fs::file_reader::{FileReader, FileReaderError};
 use regex::Regex;
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::OnceLock;
 use thiserror::Error;
 use tracing::error;
@@ -44,7 +43,6 @@ impl Default for ConfigConverter<LocalFile> {
     }
 }
 
-#[cfg_attr(test, mockall::automock)]
 impl<F: FileReader> ConfigConverter<F> {
     pub fn convert(
         &self,
@@ -64,9 +62,9 @@ impl<F: FileReader> ConfigConverter<F> {
             .filesystem_mappings
             .iter()
             .map(|(k, v)| match v {
-                MappingType::File(path) => Ok((
+                MappingType::File(file_info) => Ok((
                     k.to_string(),
-                    retrieve_file_mapping_value(file_reader, path)?,
+                    retrieve_file_mapping_value(file_reader, file_info)?,
                 )),
                 MappingType::Dir(dir_info) => Ok((
                     k.to_string(),
@@ -79,10 +77,22 @@ impl<F: FileReader> ConfigConverter<F> {
 
 fn retrieve_file_mapping_value<F: FileReader>(
     file_reader: &F,
-    file_path: &Path,
+    file_info: &FileInfo,
 ) -> Result<serde_yaml::Value, ConversionError> {
-    let yaml_value = file_reader.read(file_path)?;
-    let parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
+    let yaml_value = file_reader.read(file_info.file_path.as_path())?;
+    let mut parsed_yaml: serde_yaml::Value = serde_yaml::from_str(&yaml_value)?;
+    // Overwrite or add attributes from the HashMap
+    if let serde_yaml::Value::Mapping(ref mut map) = parsed_yaml {
+        // Remove elements based on the Vec of keys
+        for key in &file_info.deletions {
+            map.remove(serde_yaml::Value::String(key.clone()));
+        }
+
+        for (key, value) in &file_info.overwrites {
+            map.insert(serde_yaml::Value::String(key.clone()), value.clone());
+        }
+    }
+
     Ok(parsed_yaml)
 }
 
@@ -222,7 +232,15 @@ logs:
                 .try_into()
                 .unwrap(),
             filesystem_mappings: HashMap::from([
-                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
+                (
+                    "config_agent".into(),
+                    FileInfo {
+                        file_path: "/etc/newrelic-infra.yml".into(),
+                        overwrites: HashMap::default(),
+                        deletions: Vec::default(),
+                    }
+                    .into(),
+                ),
                 (
                     "config_integrations".into(),
                     DirInfo {
@@ -243,7 +261,10 @@ logs:
             next: None,
         };
 
-        let config_agent = "license_key: TESTING_CONVERSION";
+        let config_agent = r#"
+license_key: TESTING_CONVERSION
+element: dsfadsf
+"#;
 
         let mut file_reader = MockLocalFile::new();
 
@@ -358,7 +379,15 @@ logs:
                 .try_into()
                 .unwrap(),
             filesystem_mappings: HashMap::from([
-                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
+                (
+                    "config_agent".into(),
+                    FileInfo {
+                        file_path: "/etc/newrelic-infra.yml".into(),
+                        overwrites: HashMap::default(),
+                        deletions: Vec::default(),
+                    }
+                    .into(),
+                ),
                 (
                     "config_integrations".into(),
                     DirInfo {
@@ -468,7 +497,15 @@ logs:
                 .try_into()
                 .unwrap(),
             filesystem_mappings: HashMap::from([
-                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
+                (
+                    "config_agent".into(),
+                    FileInfo {
+                        file_path: "/etc/newrelic-infra.yml".into(),
+                        overwrites: HashMap::default(),
+                        deletions: Vec::default(),
+                    }
+                    .into(),
+                ),
                 (
                     "config_integrations".into(),
                     DirInfo {
@@ -524,7 +561,15 @@ logs:
                 .try_into()
                 .unwrap(),
             filesystem_mappings: HashMap::from([
-                ("config_agent".into(), "/etc/newrelic-infra.yml".into()),
+                (
+                    "config_agent".into(),
+                    FileInfo {
+                        file_path: "/etc/newrelic-infra.yml".into(),
+                        overwrites: HashMap::default(),
+                        deletions: Vec::default(),
+                    }
+                    .into(),
+                ),
                 (
                     "config_integrations".into(),
                     DirInfo {
@@ -593,5 +638,114 @@ logs:
 
         let expected_logs = serde_yaml::Value::Mapping(serde_yaml::Mapping::new());
         assert_eq!(&expected_logs, result.get("config_logging").unwrap());
+    }
+
+    #[test]
+    fn test_retrieve_file_mapping_value() {
+        // Mock YAML content
+        let yaml_content = r#"
+        license_key: "old_key"
+        status_server_port: 8080
+        status_server_enabled: true
+        enable_process_metrics: false
+        extra_field: true
+        staging: "test"
+        custom_attributes: {}
+        is_integrations_only: false
+        "#;
+
+        let mut file_reader = MockLocalFile::new();
+
+        file_reader
+            .expect_read()
+            .times(1)
+            .returning(|_| Ok(yaml_content.to_string()));
+
+        // Create a FileInfo instance with overwrites and deletions
+        let file_info = FileInfo {
+            file_path: PathBuf::from("/a/path/newrelic-infra.yml"),
+            overwrites: {
+                let mut map = HashMap::new();
+                map.insert(
+                    "license_key".to_string(),
+                    serde_yaml::Value::String("new_key".to_string()),
+                );
+                map.insert(
+                    "status_server_port".to_string(),
+                    serde_yaml::Value::Number(serde_yaml::Number::from(9090)),
+                );
+                map.insert(
+                    "status_server_enabled".to_string(),
+                    serde_yaml::Value::Bool(false),
+                );
+                map.insert(
+                    "enable_process_metrics".to_string(),
+                    serde_yaml::Value::Bool(true),
+                );
+                map
+            },
+            deletions: vec![
+                "staging".to_string(),
+                "enable_process_metrics".to_string(),
+                "status_server_enabled".to_string(),
+                "status_server_port".to_string(),
+                "license_key".to_string(),
+                "custom_attributes".to_string(),
+                "is_integrations_only".to_string(),
+            ],
+        };
+
+        // Call the function
+        let result = retrieve_file_mapping_value(&file_reader, &file_info);
+
+        // Assert the result
+        assert!(result.is_ok());
+        let parsed_yaml = result.unwrap();
+
+        // Check that the YAML has been modified correctly
+        if let serde_yaml::Value::Mapping(map) = parsed_yaml {
+            assert!(
+                map.get(serde_yaml::Value::String(
+                    "enable_process_metrics".to_string()
+                ))
+                .unwrap()
+                .as_bool()
+                .unwrap()
+            );
+            assert!(
+                !map.get(serde_yaml::Value::String(
+                    "status_server_enabled".to_string()
+                ))
+                .unwrap()
+                .as_bool()
+                .unwrap()
+            );
+            assert_eq!(
+                9090,
+                map.get(serde_yaml::Value::String("status_server_port".to_string()))
+                    .unwrap()
+                    .as_i64()
+                    .unwrap()
+            );
+            assert_eq!(
+                "new_key",
+                map.get(serde_yaml::Value::String("license_key".to_string()))
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+            );
+            assert!(
+                map.get(serde_yaml::Value::String(
+                    "is_integrations_only".to_string()
+                ))
+                .is_none()
+            );
+            assert!(
+                map.get(serde_yaml::Value::String("extra_field".to_string()))
+                    .is_some()
+            );
+        } else {
+            panic!("Expected a YAML mapping");
+        }
     }
 }

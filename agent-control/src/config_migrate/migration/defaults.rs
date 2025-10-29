@@ -5,7 +5,10 @@ configs:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.0
     filesystem_mappings:
-      config_agent: /etc/newrelic-infra.yml
+      config_agent:
+        file_path: /etc/newrelic-infra.yml
+        overwrites: {}
+        deletions: []
       config_integrations:
         dir_path: /etc/newrelic-infra/integrations.d
         extensions:
