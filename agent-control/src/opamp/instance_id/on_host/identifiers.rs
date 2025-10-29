@@ -163,7 +163,7 @@ where
 
 #[cfg(test)]
 pub mod tests {
-    use crate::opamp::instance_id::on_host::getter::{
+    use crate::opamp::instance_id::on_host::identifiers::{
         Identifiers, IdentifiersProvider, IdentifiersProviderError,
     };
     use assert_matches::assert_matches;

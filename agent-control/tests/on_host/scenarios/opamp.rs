@@ -17,7 +17,7 @@ use newrelic_agent_control::agent_control::defaults::{
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use newrelic_agent_control::agent_type::variable::namespace::Namespace;
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::on_host::file_store::build_config_name;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
