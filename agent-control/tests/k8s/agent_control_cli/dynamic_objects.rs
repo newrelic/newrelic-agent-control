@@ -1,7 +1,7 @@
 use crate::common::runtime::{block_on, tokio_runtime};
 use crate::k8s::tools::cmd::print_cli_output;
 use crate::k8s::tools::k8s_env::K8sEnv;
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use newrelic_agent_control::agent_control::config::{
     helmrelease_v2_type_meta, helmrepository_type_meta,
 };
@@ -19,7 +19,7 @@ fn k8s_cli_install_agent_control_creates_resources() {
     let namespace = block_on(k8s_env.test_namespace());
     let release_name = "install-ac-creates-resources";
 
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");
@@ -156,7 +156,7 @@ fn k8s_cli_install_agent_control_creates_resources_with_specific_repository_url(
     let namespace = block_on(k8s_env.test_namespace());
 
     let repository_url = "https://cli-charts.newrelic.com";
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.arg("install-agent-control");
     cmd.arg("--chart-name").arg("agent-control-deployment");
     cmd.arg("--chart-version").arg("1.0.0");

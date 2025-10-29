@@ -9,6 +9,7 @@ use crate::k8s::tools::local_chart::{
 };
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use kube::Client;
 use std::time::Duration;
 
@@ -144,7 +145,7 @@ pub fn ac_install_cmd(
     release_name: &str,
     secrets: &str,
 ) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");
     cmd.arg("--chart-name").arg("agent-control-deployment");

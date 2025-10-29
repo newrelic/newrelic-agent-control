@@ -1,5 +1,5 @@
 #![cfg(target_family = "unix")]
-use assert_cmd::Command;
+use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_CONFIG_FILENAME, DYNAMIC_AGENT_TYPE_DIR,
 };
@@ -93,7 +93,7 @@ agents:
     let path = dir.path().to_path_buf();
 
     let agent_control_join = thread::spawn(move || {
-        let mut cmd = Command::cargo_bin("newrelic-agent-control").unwrap();
+        let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
         cmd.arg("--local-dir").arg(path);
         // cmd_assert is not made for long running programs, so we kill it anyway after 10 seconds
         cmd.timeout(Duration::from_secs(10));

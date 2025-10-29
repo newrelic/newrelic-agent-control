@@ -7,6 +7,7 @@ use crate::k8s::tools::k8s_env::K8sEnv;
 use crate::k8s::tools::local_chart::agent_control_deploymet::CHART_VERSION_LATEST_RELEASE;
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kube::Api;
@@ -122,7 +123,7 @@ fn k8s_cli_uninstall_agent_control_clean_empty_cluster() {
 
 /// Builds an uninstallation command for testing purposes with a curated set of defaults and the provided arguments.
 fn ac_uninstall_cmd(namespace: &str, namespace_agents: &str, release_name: &str) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.arg("uninstall-agent-control");
     cmd.arg("--namespace").arg(namespace);
     cmd.arg("--namespace-agents").arg(namespace_agents);
