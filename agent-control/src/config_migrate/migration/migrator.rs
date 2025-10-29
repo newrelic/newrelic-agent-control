@@ -99,7 +99,6 @@ impl
 #[cfg(test)]
 mod tests {
     use crate::agent_control::config_repository::store::AgentControlConfigStore;
-    use crate::agent_control::defaults::SUB_AGENT_DIR;
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
     use crate::config_migrate::migration::config::MigrationAgentConfig;

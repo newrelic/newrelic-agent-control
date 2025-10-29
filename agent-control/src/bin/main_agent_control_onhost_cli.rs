@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
+use newrelic_agent_control::cli::on_host::migrate_folders;
 use newrelic_agent_control::cli::on_host::{host_monitoring_gen, systemd_gen};
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
@@ -25,6 +26,8 @@ enum Commands {
     HostMonitoring(host_monitoring_gen::Args),
     // Generate systemd configuration according to the provided configuration data.
     SystemdConfig(systemd_gen::Args),
+    /// Migrate from the older on host folders to the new ones. DON'T USE IT
+    FilesBackwardsCompatibilityMigrationFromV120,
 }
 
 fn main() -> ExitCode {
@@ -45,6 +48,7 @@ fn main() -> ExitCode {
             }
             config_gen::generate_config(args)
         }
+        Commands::MigrateFolders => migrate_folders::migrate(),
         Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
         }

@@ -1,7 +1,5 @@
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
-use crate::agent_control::defaults::{
-    AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR, SUB_AGENT_DIR,
-};
+use crate::agent_control::defaults::{AGENT_CONTROL_DATA_DIR, AGENT_CONTROL_LOCAL_DATA_DIR};
 use crate::agent_type::agent_type_id::AgentTypeID;
 use crate::cli::error::CliError;
 use crate::cli::on_host::config_gen::region::Region;
