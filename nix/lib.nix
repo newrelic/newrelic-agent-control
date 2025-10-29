@@ -51,14 +51,12 @@
     craneLib:
     { pkgs, ... }:
     let
-      buildPlatformSuffix = pkgs.lib.strings.toLower pkgs.pkgsBuildHost.stdenv.hostPlatform.rust.cargoEnvVarTarget;
       src = craneLib.cleanCargoSource ../.;
 
       commonArgsWin = {
         inherit src;
         strictDeps = true;
         doCheck = false;
-
 
         # fixes issues with aws-lc-sys
         CFLAGS = "-Wno-stringop-overflow -Wno-array-bounds -Wno-restrict"; # ignore some warnings that pop up when cross compiling
