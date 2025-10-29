@@ -7,7 +7,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::on_host::file_store::build_config_name;
 use nr_auth::authenticator::{AuthCredential, TokenRetrievalRequest, TokenRetrievalResponse};
 use nr_auth::jwt::claims::Claims;
 use predicates::prelude::predicate;

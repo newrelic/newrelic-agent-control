@@ -17,12 +17,6 @@ pub enum GetterError {
     #[error("failed to interact with the OpAMP data store: {0}")]
     DataStoreInteraction(#[from] OpAMPDataStoreError),
 
-    #[error("failed to persist data: {0}")]
-    OnHostPersisting(#[from] super::on_host::storer::StorerError),
-
-    #[error("failed to persist k8s data: {0}")]
-    K8sPersisting(#[from] super::k8s::storer::StorerError),
-
     #[error("initialising client: {0}")]
     K8sClientInitialization(#[from] k8s::Error),
 

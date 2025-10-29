@@ -20,7 +20,7 @@ use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
+use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
 use crate::opamp::instance_id::storer::GenericStorer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
