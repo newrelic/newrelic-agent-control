@@ -247,8 +247,9 @@ pub fn build_config_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{io, path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
 
+    use assert_matches::assert_matches;
     use fs::{
         directory_manager::{DirectoryManager, mock::MockDirectoryManager},
         file_reader::FileReader,
@@ -256,20 +257,31 @@ mod tests {
         writer_file::FileWriter,
     };
     use mockall::predicate;
+    use rstest::{fixture, rstest};
+    use serde_yaml::Value;
 
     use crate::{
         agent_control::{
             agent_id::AgentID,
             defaults::{
                 INSTANCE_ID_FILENAME, STORE_KEY_INSTANCE_ID, STORE_KEY_LOCAL_DATA_CONFIG,
-                STORE_KEY_OPAMP_DATA_CONFIG,
+                STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
             },
         },
-        opamp::instance_id::{
-            InstanceID,
-            getter::DataStored,
-            on_host::identifiers::Identifiers,
-            storer::{GenericStorer, InstanceIDStorer},
+        opamp::{
+            instance_id::{
+                InstanceID,
+                getter::DataStored,
+                on_host::identifiers::Identifiers,
+                storer::{GenericStorer, InstanceIDStorer},
+            },
+            remote_config::hash::{ConfigState, Hash},
+        },
+        values::{
+            GenericConfigRepository,
+            config::RemoteConfig,
+            config_repository::{ConfigRepository, ConfigRepositoryError},
+            yaml_config::YAMLConfig,
         },
     };
 
@@ -472,6 +484,291 @@ mod tests {
             "Expected Err variant, got {:?}",
             expected
         );
+    }
+
+    #[fixture]
+    fn agent_id() -> AgentID {
+        AgentID::try_from("some-agent-id").unwrap()
+    }
+
+    #[rstest]
+    #[case::remote_enabled(true)]
+    #[case::remote_disabled(false)]
+    fn test_load_with(#[case] remote_enabled: bool, agent_id: AgentID) {
+        let mut yaml_config_content = "some_config: true\nanother_item: false";
+        if remote_enabled {
+            yaml_config_content = r#"
+config:
+    some_config: true
+    another_item: false
+hash: a-hash
+state: applied
+"#;
+        }
+
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let test_path = if remote_enabled {
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+        } else {
+            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
+        };
+
+        // Expectations
+        file_rw.should_read(&test_path, yaml_config_content.to_string());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = if remote_enabled {
+            GenericConfigRepository::new(file_store).with_remote()
+        } else {
+            GenericConfigRepository::new(file_store)
+        };
+
+        let config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
+
+        assert_eq!(
+            config.get_yaml_config().get("some_config").unwrap(),
+            &Value::Bool(true)
+        );
+        assert_eq!(
+            config.get_yaml_config().get("another_item").unwrap(),
+            &Value::Bool(false)
+        );
+    }
+
+    #[rstest]
+    fn test_load_when_remote_enabled_file_not_found_fallbacks_to_local(agent_id: AgentID) {
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+
+        // Expectations
+        file_rw.should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
+
+        let yaml_config_content = "some_config: true\nanother_item: false";
+        file_rw.should_read(&local_path, yaml_config_content.to_string());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = GenericConfigRepository::new(file_store).with_remote();
+
+        let config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
+            .expect("unexpected error loading config")
+            .expect("expected some configuration, got None");
+
+        assert_eq!(
+            config.get_yaml_config().get("some_config").unwrap(),
+            &Value::Bool(true)
+        );
+        assert_eq!(
+            config.get_yaml_config().get("another_item").unwrap(),
+            &Value::Bool(false)
+        );
+    }
+
+    #[rstest]
+    fn test_load_local_file_not_found_should_return_none(agent_id: AgentID) {
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = PathBuf::from("some/remote/path/");
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+
+        // Expectations
+        file_rw.should_not_read_file_not_found(&local_path, "some message".to_string());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path,
+        ));
+        let repo = GenericConfigRepository::new(file_store);
+
+        let yaml_config = repo
+            .load_remote_fallback_local(&agent_id, &default_capabilities())
+            .unwrap();
+
+        assert!(yaml_config.is_none());
+    }
+
+    #[rstest]
+    #[case::remote_enabled(true)]
+    #[case::remote_disabled(false)]
+    fn test_load_io_error(#[case] remote_enabled: bool, agent_id: AgentID) {
+        let mut file_rw = MockLocalFile::new();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_test_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_test_path =
+            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+
+        // Expectations
+        if remote_enabled {
+            file_rw.should_not_read_io_error(&remote_test_path);
+        } else {
+            file_rw.should_not_read_io_error(&local_test_path);
+        }
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = if remote_enabled {
+            GenericConfigRepository::new(file_store).with_remote()
+        } else {
+            GenericConfigRepository::new(file_store)
+        };
+
+        let result = repo.load_remote_fallback_local(&agent_id, &default_capabilities());
+        let err = result.unwrap_err();
+        assert_matches!(err, ConfigRepositoryError::LoadError(s) => {
+            assert!(s.contains("permission denied")); // the error returned by `should_not_read_io_error`
+        });
+    }
+
+    #[rstest]
+    fn test_store_remote(agent_id: AgentID) {
+        let mut file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+
+        // Expectations
+        dir_manager.should_create(remote_path.parent().unwrap());
+        file_rw.should_write(
+            &remote_path,
+            "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
+        );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+
+        let repo = GenericConfigRepository::new(file_store);
+
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
+        repo.store_remote(&agent_id, &remote_config).unwrap();
+    }
+
+    #[rstest]
+    fn test_store_remote_error_creating_dir(agent_id: AgentID) {
+        let file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+
+        // Expectations
+        dir_manager.should_not_create(
+            remote_path.parent().unwrap(),
+            DirectoryManagementError::ErrorCreatingDirectory(
+                "dir name".to_string(),
+                "oh now...".to_string(),
+            ),
+        );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = GenericConfigRepository::new(file_store);
+
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
+        let result = repo.store_remote(&agent_id, &remote_config);
+        assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
+    }
+
+    #[rstest]
+    fn test_store_remote_error_writing_file(agent_id: AgentID) {
+        let mut file_rw = MockLocalFile::new();
+        let mut dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
+        let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
+        let remote_path =
+            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+
+        // Expectations
+        dir_manager.should_create(remote_path.parent().unwrap());
+        file_rw.should_not_write(
+            &remote_path,
+            "config:\n  one_item: one value\nhash: a-hash\nstate: applying\n".to_string(),
+        );
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path.into(),
+            remote_dir_path.into(),
+        ));
+        let repo = GenericConfigRepository::new(file_store);
+
+        let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
+        let remote_config = RemoteConfig {
+            config: yaml_config,
+            hash: Hash::from("a-hash"),
+            state: ConfigState::Applying,
+        };
+        let result = repo.store_remote(&agent_id, &remote_config);
+        assert_matches!(result, Err(ConfigRepositoryError::StoreError(_)));
+    }
+
+    #[rstest]
+    fn test_delete_remote(agent_id: AgentID) {
+        // TODO add a test without mocks checking actual deletion
+        let file_rw = MockLocalFile::default();
+        let dir_manager = MockDirectoryManager::new();
+        let remote_dir_path = PathBuf::from("some/remote/path/");
+        let local_dir_path = PathBuf::from("some/local/path/");
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            local_dir_path,
+            remote_dir_path,
+        ));
+        let repo = GenericConfigRepository::new(file_store);
+        repo.delete_remote(&agent_id).unwrap();
     }
 
     // HELPERS
