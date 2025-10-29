@@ -42,82 +42,38 @@
         { system, ... }:
         let
           acLib = import ./nix/lib.nix;
-          pkgs = import inputs.nixpkgs {
-            inherit system;
-            overlays = [ (import inputs.rust-overlay) ];
+          lib = inputs.nixpkgs.lib;
+
+          nativePkgs = acLib.mkPkgs { inherit inputs system; };
+
+          defaultAgentControl = acLib.mkAgentControlForTarget {
+            inherit inputs system;
+            # doCheck = false;
           };
-          # Retrieve the Rust version from the Cargo.toml file
-          rustVersion = (pkgs.lib.importTOML ./Cargo.toml).workspace.package.rust-version;
-          craneLib = (inputs.crane.mkLib pkgs).overrideToolchain (
-            # Set the toolchain to the pinned Rust version
-            p: p.rust-bin.stable.${rustVersion}.default
-          );
-          # The default AC package definition
-          defaultAgentControl = pkgs.callPackage (acLib.crateExpression craneLib) { };
+
+          crossPackages = lib.mapAttrs (
+            name: target:
+            acLib.mkAgentControlForTarget {
+              inherit inputs system;
+              crossConfig = target;
+            }
+          ) acLib.defaultCrossTargets;
+
+          windowsPackage = acLib.mkAgentControlForTarget {
+            inherit inputs system;
+            crossConfig = acLib.windowsCrossConfig;
+            windows = true;
+          };
         in
         {
-          checks = {
-            # Build the crate as part of `nix flake check` for convenience
-            inherit defaultAgentControl;
-          };
+          checks = { inherit defaultAgentControl; };
           packages = {
-            # Let's start defining everything even though there'll be quite a bit of repetition.
-            # First, a default package which builds AC natively for the platform.
             default = defaultAgentControl;
-            # Cross-compiled packages
-            cross-linux-aarch64-musl =
-              let
-                crossSystem = {
-                  config = "aarch64-unknown-linux-musl";
-                };
-                localSystem = system;
-                pkgs' = import inputs.nixpkgs {
-                  inherit crossSystem localSystem;
-                  overlays = [ (import inputs.rust-overlay) ];
-                };
-                craneLib = (inputs.crane.mkLib pkgs').overrideToolchain (
-                  p: p.rust-bin.stable.${rustVersion}.default
-                );
-              in
-              pkgs'.callPackage (acLib.crateExpression craneLib) { };
-
-            cross-linux-x86_64-musl =
-              let
-                crossSystem = {
-                  config = "x86_64-unknown-linux-musl";
-                };
-                localSystem = system;
-                pkgs' = import inputs.nixpkgs {
-                  inherit crossSystem localSystem;
-                  overlays = [ (import inputs.rust-overlay) ];
-                };
-                craneLib = (inputs.crane.mkLib pkgs').overrideToolchain (
-                  p: p.rust-bin.stable.${rustVersion}.default
-                );
-              in
-              pkgs'.callPackage (acLib.crateExpression craneLib) { };
-
           }
-          // pkgs.lib.optionalAttrs pkgs.stdenv.isx86_64 {
-            # Windows requires `wine64` somewhere, which is not available for aarch64 hosts :(
-            # fortunately for us, aarch64-darwin hosts can run these outputs thanks to Rosetta 2!
-            cross-windows =
-              let
-                crossSystem = {
-                  config = "x86_64-w64-mingw32";
-                };
-                localSystem = system;
-                pkgs' = import inputs.nixpkgs {
-                  inherit crossSystem localSystem;
-                  overlays = [ (import inputs.rust-overlay) ];
-                };
-                craneLib = (inputs.crane.mkLib pkgs').overrideToolchain (
-                  p: p.rust-bin.stable.${rustVersion}.default
-                );
-              in
-              pkgs'.callPackage (acLib.crateExpressionWin craneLib) { };
+          // crossPackages
+          // lib.optionalAttrs nativePkgs.stdenv.isx86_64 {
+            cross-windows = windowsPackage;
           };
-
           devShells = { };
         };
     };
