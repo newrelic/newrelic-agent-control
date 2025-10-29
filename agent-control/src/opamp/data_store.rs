@@ -48,6 +48,5 @@ pub trait OpAMPDataStore {
     where
         T: Serialize;
 
-    /// Delete data in the specified StoreKey of an Agent store.
     fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError>;
 }
