@@ -11,7 +11,6 @@ pub enum FsError {
     DotsDisallowed(String),
 }
 
-#[cfg(target_family = "unix")]
 pub fn validate_path(path: &Path) -> Result<(), FsError> {
     match path.to_str() {
         None => Err(FsError::InvalidPath(format!(

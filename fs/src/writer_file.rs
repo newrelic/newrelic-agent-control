@@ -46,10 +46,20 @@ impl FileWriter for LocalFile {
         Ok(())
     }
 
-    // TODO : Code below is not tested yet as Windows is not supported at this time
     #[cfg(target_family = "windows")]
-    fn write(&self, _path: &Path, _content: String) -> Result<(), WriteError> {
-        unimplemented!()
+    #[instrument(skip_all, fields(path = %path.display()))]
+    fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
+        validate_path(path)?;
+
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(path)?;
+
+        file.write_all(content.as_bytes())?;
+
+        Ok(())
     }
 }
 
@@ -181,7 +191,6 @@ pub mod tests {
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), new_content);
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_path_to_write_cannot_contain_dots() {
         // Prepare temp path and folder name
@@ -196,5 +205,74 @@ pub mod tests {
             "invalid path: dots disallowed in path some/path/../../etc/passwd".to_string(),
             result.unwrap_err().to_string()
         );
+    }
+
+    #[test]
+    #[cfg(target_family = "unix")]
+    fn test_unix_file_writer_content_and_permissions() {
+        use std::fs::metadata;
+        use std::os::unix::fs::PermissionsExt;
+
+        let file_name = "unix_file";
+        let content = "unix content";
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join(file_name);
+
+        let writer = LocalFile;
+        writer.write(&path, content.to_string()).unwrap();
+
+        assert_eq!(fs::read_to_string(&path).unwrap(), content);
+        assert_eq!(
+            LocalFile::get_file_permissions().mode() & 0o777,
+            metadata(&path).unwrap().permissions().mode() & 0o777
+        );
+    }
+
+    #[test]
+    #[cfg(target_family = "unix")]
+    fn test_unix_file_writer_fails_if_path_is_a_directory() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let writer = LocalFile;
+        let write_result = writer.write(tempdir.path(), "content".to_string());
+
+        assert!(write_result.is_err());
+        if let Err(WriteError::ErrorCreatingFile(io_error)) = write_result {
+            assert_eq!(io_error.kind(), io::ErrorKind::IsADirectory);
+        } else {
+            panic!("Expected IsADirectory error, got {:?}", write_result);
+        }
+    }
+    #[test]
+    #[cfg(target_family = "windows")]
+    fn test_windows_file_writer_creates_file() {
+        let file_name = "windows_file";
+        let content = "windows content";
+        let tempdir = tempfile::tempdir().unwrap();
+        let path = tempdir.path().join(file_name);
+
+        let writer = LocalFile;
+        writer.write(&path, content.to_string()).unwrap();
+
+        assert!(path.exists());
+        assert_eq!(fs::read_to_string(&path).unwrap(), content);
+    }
+
+    #[test]
+    #[cfg(target_family = "windows")]
+    fn test_windows_file_writer_fails_if_path_is_a_directory() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let writer = LocalFile;
+        let write_result = writer.write(tempdir.path(), "content".to_string());
+
+        assert!(write_result.is_err());
+        if let Err(WriteError::ErrorCreatingFile(io_error)) = write_result {
+            let kind = io_error.kind();
+            assert!(kind == io::ErrorKind::PermissionDenied || kind == io::ErrorKind::Other);
+        } else {
+            panic!(
+                "Expected PermissionDenied or Other error, got {:?}",
+                write_result
+            );
+        }
     }
 }
