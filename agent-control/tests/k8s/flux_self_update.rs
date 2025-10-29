@@ -251,7 +251,7 @@ fn expected_identifying_attributes(
 }
 
 fn create_flux_resources(namespace: &str, chart_version: &str) {
-    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.timeout(Duration::from_secs(60));
     cmd.arg("create-cd-resources");
     cmd.arg("--installation-check-initial-delay").arg("1s");
@@ -270,7 +270,7 @@ fn create_flux_resources(namespace: &str, chart_version: &str) {
 }
 
 fn remove_flux_resources(namespace: &str) {
-    let mut cmd = assert_cmd::Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = assert_cmd::cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
     cmd.timeout(Duration::from_secs(60));
     cmd.arg("remove-cd-resources");
     cmd.arg("--namespace").arg(namespace);

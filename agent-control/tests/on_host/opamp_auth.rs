@@ -1,5 +1,6 @@
 #![cfg(target_family = "unix")]
 use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use httpmock::Method::POST;
 use httpmock::{MockServer, When};
@@ -201,7 +202,7 @@ fn cmd_agent_control(
     remote_dir: Option<&Path>,
     logs_dir: Option<&Path>,
 ) -> Command {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(config_path);
     if let Some(remote_dir) = remote_dir {
         cmd.arg("--remote-dir").arg(remote_dir);

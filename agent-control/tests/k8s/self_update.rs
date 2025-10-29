@@ -10,7 +10,7 @@ use crate::k8s::tools::instance_id;
 use crate::k8s::tools::local_chart::{LOCAL_CHART_REPOSITORY, agent_control_deploymet::*};
 use crate::k8s::tools::logs::{AC_LABEL_SELECTOR, print_pod_logs};
 use crate::k8s::tools::opamp::get_minikube_opamp_url_from_fake_server;
-use assert_cmd::Command;
+use assert_cmd::cargo::cargo_bin_cmd;
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
 use kube::{Api, Client};
@@ -375,7 +375,7 @@ fn bootstrap_ac(
 }
 
 fn install_ac_with_cli(namespace: &str, chart_version: &str, release_name: &str) {
-    let mut cmd = Command::cargo_bin("newrelic-agent-control-k8s-cli").unwrap();
+    let mut cmd = cargo_bin_cmd!("newrelic-agent-control-k8s-cli");
 
     cmd.arg("install-agent-control");
     cmd.arg("--log-level").arg("debug");
