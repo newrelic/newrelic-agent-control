@@ -20,6 +20,7 @@ use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
 use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
+use newrelic_agent_control::opamp::instance_id::storer::GenericStorer;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::GenericConfigRepository;
 use newrelic_agent_control::values::config::RemoteConfig;
@@ -45,8 +46,9 @@ fn k8s_instance_id_store() {
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
-    let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
-        k8s_store,
+    let instance_id_storer = GenericStorer::from(k8s_store.clone());
+    let instance_id_getter = InstanceIDWithIdentifiersGetter::new(
+        instance_id_storer,
         Identifiers::default(),
     );
 
