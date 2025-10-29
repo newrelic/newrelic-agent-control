@@ -22,7 +22,7 @@ use newrelic_agent_control::{
 };
 use newrelic_agent_control::{
     agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
-    opamp::instance_id::k8s::getter::Identifiers,
+    opamp::instance_id::k8s::identifiers::Identifiers,
 };
 use newrelic_agent_control::{
     agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},

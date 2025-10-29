@@ -17,10 +17,7 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
-    opamp::{
-        data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey},
-        instance_id::on_host::storer::build_config_name,
-    },
+    opamp::data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey},
 };
 
 pub struct FileStore<F, D>
@@ -244,18 +241,35 @@ where
     }
 }
 
+pub fn build_config_name(name: &str) -> String {
+    format!("{name}.yaml")
+}
+
 #[cfg(test)]
-pub mod tests {
-    use std::path::PathBuf;
+mod tests {
+    use std::{io, path::PathBuf, sync::Arc};
 
     use fs::{
-        directory_manager::DirectoryManager, file_reader::FileReader, writer_file::FileWriter,
+        directory_manager::{DirectoryManager, mock::MockDirectoryManager},
+        file_reader::FileReader,
+        mock::MockLocalFile,
+        writer_file::FileWriter,
     };
+    use mockall::predicate;
 
-    use crate::agent_control::{
-        agent_id::AgentID,
-        defaults::{
-            STORE_KEY_INSTANCE_ID, STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG,
+    use crate::{
+        agent_control::{
+            agent_id::AgentID,
+            defaults::{
+                INSTANCE_ID_FILENAME, STORE_KEY_INSTANCE_ID, STORE_KEY_LOCAL_DATA_CONFIG,
+                STORE_KEY_OPAMP_DATA_CONFIG,
+            },
+        },
+        opamp::instance_id::{
+            InstanceID,
+            getter::DataStored,
+            on_host::identifiers::Identifiers,
+            storer::{GenericStorer, InstanceIDStorer},
         },
     };
 
@@ -307,6 +321,187 @@ pub mod tests {
     impl From<LocalDir> for PathBuf {
         fn from(local_dir: LocalDir) -> Self {
             local_dir.0
+        }
+    }
+
+    #[test]
+    fn basic_get_uild_path() {
+        let sa_dir = PathBuf::from("/super");
+        let file_store = Arc::new(FileStore::new(
+            MockLocalFile::default(),
+            MockDirectoryManager::default(),
+            PathBuf::default(),
+            sa_dir.clone(),
+        ));
+
+        let agent_id = AgentID::try_from("test").unwrap();
+        let path = file_store.get_testing_instance_id_path(&agent_id);
+        assert_eq!(
+            path,
+            sa_dir
+                .join(FOLDER_NAME_FLEET_DATA)
+                .join("test")
+                .join(INSTANCE_ID_FILENAME)
+        );
+
+        let agent_control_id = AgentID::AgentControl;
+        let path = file_store.get_testing_instance_id_path(&agent_control_id);
+        assert_eq!(
+            path,
+            sa_dir
+                .join("fleet-data/agent-control")
+                .join(INSTANCE_ID_FILENAME)
+        );
+    }
+
+    #[test]
+    fn test_successful_write() {
+        // Data
+        let (agent_id, sa_path, instance_id_path) = test_data();
+        let mut file_rw = MockLocalFile::default();
+        let mut dir_manager = MockDirectoryManager::default();
+        let instance_id = InstanceID::create();
+        let ds = DataStored {
+            instance_id: instance_id.clone(),
+            identifiers: test_identifiers(),
+        };
+
+        // Expectations
+        dir_manager.should_create(instance_id_path.parent().unwrap());
+        file_rw.should_write(&instance_id_path, expected_file(instance_id));
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+
+        let storer = GenericStorer::from(file_store);
+        assert!(storer.set(&agent_id, &ds).is_ok());
+    }
+
+    #[test]
+    fn test_unsuccessful_write() {
+        // Data
+        let (agent_id, sa_path, instance_id_path) = test_data();
+        let mut file_rw = MockLocalFile::default();
+        let mut dir_manager = MockDirectoryManager::default();
+        let instance_id = InstanceID::create();
+        let ds = DataStored {
+            instance_id: instance_id.clone(),
+            identifiers: test_identifiers(),
+        };
+
+        // Expectations
+        file_rw.should_not_write(&instance_id_path, expected_file(instance_id));
+        dir_manager.should_create(instance_id_path.parent().unwrap());
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path.clone(),
+        ));
+
+        let storer = GenericStorer::from(file_store);
+        assert!(storer.set(&agent_id, &ds).is_err());
+    }
+
+    #[test]
+    fn test_successful_read() {
+        // Data
+        let (agent_id, sa_path, instance_id_path) = test_data();
+        let mut file_rw = MockLocalFile::default();
+        let dir_manager = MockDirectoryManager::default();
+        let instance_id = InstanceID::create();
+        let ds = DataStored {
+            instance_id: instance_id.clone(),
+            identifiers: test_identifiers(),
+        };
+        let expected = Some(ds.clone());
+
+        // Expectations
+        file_rw
+            .expect_read()
+            .with(predicate::function(move |p| {
+                p == instance_id_path.as_path()
+            }))
+            .once()
+            .return_once(|_| Ok(expected_file(instance_id)));
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+        let storer = GenericStorer::from(file_store);
+        let actual = storer.get(&agent_id);
+        assert!(actual.is_ok());
+        assert_eq!(expected, actual.unwrap());
+    }
+
+    #[test]
+    fn test_unsuccessful_read() {
+        let (agent_id, sa_path, instance_id_path) = test_data();
+        let mut file_rw = MockLocalFile::default();
+        let dir_manager = MockDirectoryManager::default();
+
+        file_rw
+            .expect_read()
+            .with(predicate::function(move |p| {
+                p == instance_id_path.as_path()
+            }))
+            .once()
+            .return_once(|_| Err(io::Error::other("some error message").into()));
+
+        let file_store = Arc::new(FileStore::new(
+            file_rw,
+            dir_manager,
+            PathBuf::default(),
+            sa_path,
+        ));
+        let storer: GenericStorer<FileStore<MockLocalFile, MockDirectoryManager>, Identifiers> =
+            GenericStorer::from(file_store);
+        let expected = storer.get(&agent_id);
+
+        // As said above, we are not generating the error variant here
+        assert!(
+            matches!(expected, Err(ref s) if s.to_string().contains("some error message")),
+            "Expected Err variant, got {:?}",
+            expected
+        );
+    }
+
+    // HELPERS
+
+    const HOSTNAME: &str = "test-hostname";
+    const MACHINE_ID: &str = "test-machine-id";
+    const CLOUD_INSTANCE_ID: &str = "test-instance-id";
+    const HOST_ID: &str = "test-host-id";
+    const FLEET_ID: &str = "test-fleet-id";
+
+    fn test_data() -> (AgentID, PathBuf, PathBuf) {
+        let agent_id = AgentID::try_from("test").unwrap();
+        let sa_path = PathBuf::from("/super");
+        let instance_id_path = PathBuf::from("/super/fleet-data/test/instance_id.yaml");
+        (agent_id, sa_path, instance_id_path)
+    }
+
+    fn expected_file(instance_id: InstanceID) -> String {
+        format!(
+            "instance_id: {instance_id}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MACHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n",
+        )
+    }
+
+    fn test_identifiers() -> Identifiers {
+        Identifiers {
+            hostname: HOSTNAME.into(),
+            machine_id: MACHINE_ID.into(),
+            cloud_instance_id: CLOUD_INSTANCE_ID.into(),
+            host_id: HOST_ID.into(),
+            fleet_id: FLEET_ID.into(),
         }
     }
 }

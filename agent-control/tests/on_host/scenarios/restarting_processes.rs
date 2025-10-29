@@ -3,7 +3,6 @@ use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, DYNAMIC_AGENT_TYPE_DIR, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use nix::{
     sys::signal::{self, Signal},
     unistd::Pid,

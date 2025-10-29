@@ -11,8 +11,7 @@ use newrelic_agent_control::agent_control::defaults::{
     STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
 };
 use newrelic_agent_control::agent_control::run::BasePaths;
-use newrelic_agent_control::on_host::file_store::FileStore;
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::values::GenericConfigRepository;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 

@@ -4,8 +4,7 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     FOLDER_NAME_FLEET_DATA, STORE_KEY_OPAMP_DATA_CONFIG,
 };
-use newrelic_agent_control::on_host::file_store::FileStore;
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
 use newrelic_agent_control::values::GenericConfigRepository;
 use newrelic_agent_control::values::config::RemoteConfig;
