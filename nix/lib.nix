@@ -59,19 +59,14 @@
         strictDeps = true;
         doCheck = false;
 
-        CARGO_BUILD_TARGET = "x86_64-pc-windows-gnu";
 
         # fixes issues with aws-lc-sys
-        AWS_LC_SYS_PREBUILT_NASM = 0; # just assemble it instead of using the prebuilt objects
         CFLAGS = "-Wno-stringop-overflow -Wno-array-bounds -Wno-restrict"; # ignore some warnings that pop up when cross compiling
         CFLAGS_x86_64-pc-windows-gnu = "-I${pkgs.windows.pthreads}/include"; # fix missing <pthread.h>
-        "CC_${buildPlatformSuffix}" = "cc"; # Make linux build use linux compiler (not mingw)
-        "CXX_${buildPlatformSuffix}" = "cc";
 
         nativeBuildInputs =
           with pkgs;
           [
-            buildPackages.nasm
             buildPackages.cmake
           ]
           ++ lib.optionals stdenv.buildPlatform.isDarwin [
