@@ -1,8 +1,7 @@
 use std::process::ExitCode;
 
-use thiserror::Error;
-
 use crate::instrumentation::tracing::TracingError;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum CliError {
@@ -14,6 +13,9 @@ pub enum CliError {
 
     #[error("{0}")]
     Command(String),
+
+    #[error("File system error: {0}")]
+    FileSystemError(String),
 }
 
 impl From<CliError> for ExitCode {
@@ -29,6 +31,7 @@ impl From<CliError> for ExitCode {
             CliError::Precondition(_) => Self::from(69),
             CliError::Tracing(_) => Self::from(70),
             CliError::Command(_) => Self::from(1),
+            CliError::FileSystemError(_) => Self::from(1),
         }
     }
 }

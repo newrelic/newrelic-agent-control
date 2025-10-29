@@ -13,6 +13,16 @@ if [ -e "$oldPid" ]; then
 fi
 
 ######################################################################################
+# Newrelic Agent Control folder migration
+######################################################################################
+if command -v newrelic-agent-control-cli >/dev/null 2>&1; then
+    echo "Running New Relic Agent Control folder migration..."
+    newrelic-agent-control-cli migrate-folders || true
+else
+    echo "Warning: newrelic-agent-control-cli not found. Skipping folder migration." >&2
+fi
+
+######################################################################################
 # Newrelic Agent Control
 ######################################################################################
 if command -v systemctl >/dev/null 2>&1; then
