@@ -51,7 +51,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: built-binaries
+          name: built-binaries-0.100.${{ github.run_id }}
           path: ./
 
       - name: Publish deb to S3 action
@@ -135,7 +135,6 @@ jobs:
       - build-image
       - build-packages
       - k8s-e2e-tests
-      # - k8s-e2e-tests-proxy
     runs-on: ubuntu-latest
     steps:
       - name: Notify failure via Slack

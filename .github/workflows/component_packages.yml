@@ -12,6 +12,11 @@ on:
         type: boolean
         required: false
         default: false
+      skip_upload_artifact:
+        description: 'skip uploading the artifact'
+        type: boolean
+        required: false
+        default: false
       tag_name:
         description: 'tag name for the packages'
         type: string
@@ -98,10 +103,11 @@ jobs:
           GORELEASER_CURRENT_TAG: ${{ inputs.tag_name }}
 
       - name: Upload assets to pipeline
+        if: ${{ !inputs.skip_upload_artifact }}
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: built-binaries
+          name: built-binaries-${{ inputs.tag_name }}
           path: |
             ./bin/*
             ./dist/*
