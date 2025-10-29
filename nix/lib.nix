@@ -7,7 +7,18 @@
       stdenv,
     }:
     let
-      src = craneLib.cleanCargoSource ../.;
+      unfilteredRoot = ../.;
+      src = lib.fileset.toSource {
+        root = unfilteredRoot;
+        fileset = lib.fileset.unions [
+          # Strictly filtered Rust files
+          (craneLib.fileset.commonCargoSources unfilteredRoot)
+          # Directory where the agent types reside
+          (lib.fileset.maybeMissing ../agent-control/agent-type-registry)
+          # Test assets
+          (lib.fileset.maybeMissing ../agent-control/tests)
+        ];
+      };
       commonArgs = {
         inherit src;
         strictDeps = true;
@@ -41,7 +52,8 @@
       commonArgs
       // {
         inherit cargoArtifacts;
-        # NB: we disable tests since we'll run them all via our CI or from CLI,
+        # NB: we disable tests since we'll run them all via our CI, from CLI
+        # or from other Nix packages or checks.
         # Besides, need to disable tests requiring network etc etc
         doCheck = false;
       }
@@ -49,14 +61,24 @@
 
   crateExpressionWin =
     craneLib:
-    { pkgs, ... }:
+    { pkgs, lib, ... }:
     let
-      src = craneLib.cleanCargoSource ../.;
+      unfilteredRoot = ../.;
+      src = lib.fileset.toSource {
+        root = unfilteredRoot;
+        fileset = lib.fileset.unions [
+          # Strictly filtered Rust files
+          (craneLib.fileset.commonCargoSources unfilteredRoot)
+          # Directory where the agent types reside
+          (lib.fileset.maybeMissing ../agent-control/agent-type-registry)
+          # Test assets
+          (lib.fileset.maybeMissing ../agent-control/tests)
+        ];
+      };
 
       commonArgsWin = {
         inherit src;
         strictDeps = true;
-        doCheck = false;
 
         # fixes issues with aws-lc-sys
         CFLAGS = "-Wno-stringop-overflow -Wno-array-bounds -Wno-restrict"; # ignore some warnings that pop up when cross compiling
@@ -80,6 +102,7 @@
       commonArgsWin
       // {
         cargoArtifacts = cargoArtifactsWin;
+        NIX_DEBUG = "1"; # for more verbose build logs
       }
     );
 }
