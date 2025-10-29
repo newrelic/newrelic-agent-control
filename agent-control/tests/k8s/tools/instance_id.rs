@@ -9,7 +9,7 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::k8s::store::K8sStore;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::instance_id::getter::DataStored;
-use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
+use newrelic_agent_control::opamp::instance_id::k8s::identifiers::Identifiers;
 use std::time::Duration;
 
 pub fn get_instance_id(k8s_client: Client, namespace: &str, agent_id: &AgentID) -> InstanceID {
