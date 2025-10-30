@@ -26,6 +26,9 @@
             NEW_RELIC_REGION=US \
             /usr/local/bin/newrelic install -n infrastructure-agent-installer
         register: out
+        retries: 3
+        delay: 30
+        until: "'TLS handshake timeout' not in out.stderr"
       - debug:
           var: out.stdout_lines
 
