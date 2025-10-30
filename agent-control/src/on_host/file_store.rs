@@ -137,12 +137,7 @@ where
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &StoreKey,
-        data: &T,
-    ) -> Result<(), Error>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey, data: &T) -> Result<(), Error>
     where
         T: Serialize,
     {
