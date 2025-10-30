@@ -46,13 +46,6 @@ impl Default for InfraConfig {
 }
 
 impl InfraConfig {
-    #[allow(dead_code)]
-    fn new(
-        values: HashMap<String, serde_yaml::Value>,
-        deletions: Vec<serde_yaml::Value>,
-    ) -> InfraConfig {
-        InfraConfig { values, deletions }
-    }
 
     pub fn with_custom_attributes(mut self, custom_attributes: &str) -> Result<Self, CliError> {
         if !custom_attributes.trim().is_empty() {
@@ -94,6 +87,11 @@ impl InfraConfig {
         &self.values
     }
 
+    /// generate_agent_type_config_mapping is creating the config_mapping required to properly
+    /// migrate the infra config file.
+    /// It defines the agent_type_fqn to look for in the agents config and the paths where the configs and folders are placed.
+    /// A file path contains also the option to add overwrites and deletions, overwrites allow
+    /// adding or replacing attributes and deletions defines keys to be removed from the config.
     pub fn generate_agent_type_config_mapping(
         self,
         config_mapping: &str,
@@ -184,6 +182,15 @@ mod tests {
       - yaml
 "#;
 
+    impl InfraConfig {
+        fn new(
+            values: HashMap<String, serde_yaml::Value>,
+            deletions: Vec<serde_yaml::Value>,
+        ) -> InfraConfig {
+            InfraConfig { values, deletions }
+        }
+    }
+
     #[test]
     fn test_generate_agent_type_config_mapping() {
         let mut values = HashMap::new();
@@ -231,56 +238,54 @@ mod tests {
         // Parse the YAML content
         let parsed_values: serde_yaml::Value = serde_yaml::from_str(&result).unwrap();
 
-        if let serde_yaml::Value::Mapping(map) = parsed_values {
-            if let Some(serde_yaml::Value::Mapping(config_agent_map)) =
-                map.get(serde_yaml::Value::String("config_agent".to_string()))
-            {
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "status_server_enabled".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "enable_process_metrics".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("license_key".to_string())),
-                    Some(&serde_yaml::Value::String(
-                        "{{NEW_RELIC_LICENSE_KEY}}".to_string()
-                    ))
-                );
-                assert_eq!(
-                    config_agent_map
-                        .get(serde_yaml::Value::String("status_server_port".to_string())),
-                    Some(&serde_yaml::Value::Number(serde_yaml::Number::from(18003)))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("staging".to_string())),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("proxy".to_string())),
-                    Some(&serde_yaml::Value::String(
-                        "http://proxy.example.com".to_string()
-                    ))
-                );
-                let mut custom_attributes = serde_yaml::Mapping::new();
-                custom_attributes.insert(
-                    serde_yaml::Value::String("custom_key".to_string()),
-                    serde_yaml::Value::String("custom_value".to_string()),
-                );
-                assert_eq!(
-                    config_agent_map
-                        .get(serde_yaml::Value::String("custom_attributes".to_string())),
-                    Some(&serde_yaml::Value::Mapping(custom_attributes))
-                );
-            }
-        } else {
-            panic!("Expected a YAML mapping");
+        let serde_yaml::Value::Mapping(map) = parsed_values else { panic!("Expected a YAML mapping") };
+        if let Some(serde_yaml::Value::Mapping(config_agent_map)) =
+            map.get(serde_yaml::Value::String("config_agent".to_string()))
+        {
+            assert_eq!(
+                config_agent_map.get(serde_yaml::Value::String(
+                    "status_server_enabled".to_string()
+                )),
+                Some(&serde_yaml::Value::Bool(true))
+            );
+            assert_eq!(
+                config_agent_map.get(serde_yaml::Value::String(
+                    "enable_process_metrics".to_string()
+                )),
+                Some(&serde_yaml::Value::Bool(true))
+            );
+            assert_eq!(
+                config_agent_map.get(serde_yaml::Value::String("license_key".to_string())),
+                Some(&serde_yaml::Value::String(
+                    "{{NEW_RELIC_LICENSE_KEY}}".to_string()
+                ))
+            );
+            assert_eq!(
+                config_agent_map
+                    .get(serde_yaml::Value::String("status_server_port".to_string())),
+                Some(&serde_yaml::Value::Number(serde_yaml::Number::from(18003)))
+            );
+            assert_eq!(
+                config_agent_map.get(serde_yaml::Value::String("staging".to_string())),
+                Some(&serde_yaml::Value::Bool(true))
+            );
+            assert_eq!(
+                config_agent_map.get(serde_yaml::Value::String("proxy".to_string())),
+                Some(&serde_yaml::Value::String(
+                    "http://proxy.example.com".to_string()
+                ))
+            );
+            let mut custom_attributes = serde_yaml::Mapping::new();
+            custom_attributes.insert(
+                serde_yaml::Value::String("custom_key".to_string()),
+                serde_yaml::Value::String("custom_value".to_string()),
+            );
+            assert_eq!(
+                config_agent_map
+                    .get(serde_yaml::Value::String("custom_attributes".to_string())),
+                Some(&serde_yaml::Value::Mapping(custom_attributes))
+            );
         }
+
     }
 }
