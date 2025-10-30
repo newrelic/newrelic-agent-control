@@ -112,12 +112,18 @@ where
         T: DeserializeOwned,
     {
         self.load_file_if_present(key)
-            .map_err(Error::other) // TODO: Address this!
+            // TODO: Address the generation of this error by
+            // reworking the errors in the `fs` crate so they
+            // emit std::io::Error instead.
+            .map_err(Error::other)
             .and_then(|maybe_values| {
                 maybe_values
                     .map(|s| serde_yaml::from_str(&s))
                     .transpose()
-                    .map_err(|err| Error::new(ErrorKind::InvalidData, err)) // TODO: Address this!
+                    // TODO: Address the generation of this error by
+                    // reworking the errors in the `fs` crate so they
+                    // emit std::io::Error instead.
+                    .map_err(|err| Error::new(ErrorKind::InvalidData, err))
             })
     }
 }
