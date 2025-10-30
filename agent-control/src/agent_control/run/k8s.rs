@@ -27,7 +27,7 @@ use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
-use crate::opamp::instance_id::storer::GenericStorer;
+use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
@@ -95,7 +95,7 @@ impl AgentControlRunner {
         let additional_identifying_attributes =
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
 
-        let instance_id_storer = GenericStorer::from(k8s_store.clone());
+        let instance_id_storer = Storer::from(k8s_store.clone());
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 

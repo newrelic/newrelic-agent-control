@@ -13,7 +13,7 @@ use crate::{
 
 use super::{definition::InstanceIdentifiers, getter::GetterError};
 
-pub struct GenericStorer<D, I>
+pub struct Storer<D, I>
 where
     D: OpAMPDataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
@@ -22,7 +22,7 @@ where
     _identifiers: PhantomData<I>,
 }
 
-impl<D, I> From<Arc<D>> for GenericStorer<D, I>
+impl<D, I> From<Arc<D>> for Storer<D, I>
 where
     D: OpAMPDataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
@@ -35,7 +35,7 @@ where
     }
 }
 
-impl<D, I> InstanceIDStorer for GenericStorer<D, I>
+impl<D, I> InstanceIDStorer for Storer<D, I>
 where
     D: OpAMPDataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,

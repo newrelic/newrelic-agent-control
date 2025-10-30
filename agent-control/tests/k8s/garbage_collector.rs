@@ -18,7 +18,7 @@ use newrelic_agent_control::{
 };
 use newrelic_agent_control::{
     agent_control::config_repository::repository::AgentControlDynamicConfigRepository,
-    opamp::instance_id::storer::GenericStorer,
+    opamp::instance_id::storer::Storer,
 };
 use newrelic_agent_control::{
     agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
@@ -148,7 +148,7 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
 
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
-    let instance_id_storer = GenericStorer::from(k8s_store.clone());
+    let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
@@ -275,7 +275,7 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
 
-    let instance_id_storer = GenericStorer::from(k8s_store.clone());
+    let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
