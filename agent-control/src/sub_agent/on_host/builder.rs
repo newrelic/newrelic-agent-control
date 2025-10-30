@@ -193,8 +193,8 @@ mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
     use crate::agent_control::defaults::{
-        OPAMP_SERVICE_INSTANCE_ID, OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE,
-        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
+        OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+        default_capabilities, default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
@@ -479,10 +479,6 @@ mod tests {
             (
                 OPAMP_SERVICE_NAMESPACE.to_string(),
                 agent_identity.agent_type_id.namespace().into(),
-            ),
-            (
-                OPAMP_SERVICE_INSTANCE_ID.to_string(),
-                agent_identity.id.to_string().into(),
             ),
             (
                 OPAMP_SERVICE_VERSION.to_string(),

@@ -21,9 +21,6 @@ pub const OPAMP_CD_CHART_VERSION_ATTRIBUTE_KEY: &str = "cd.chart.version";
 pub const OPAMP_SERVICE_NAME: &str = "service.name";
 pub const OPAMP_SERVICE_VERSION: &str = "service.version";
 pub const OPAMP_SERVICE_NAMESPACE: &str = "service.namespace";
-// we leverage the service.instance.id to send info regarding the agentID (not the ULID)
-pub const OPAMP_SERVICE_INSTANCE_ID: &str = "service.instance.id";
-
 pub const OPAMP_AGENT_VERSION_ATTRIBUTE_KEY: &str = "agent.version";
 
 // Auth
