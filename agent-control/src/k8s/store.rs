@@ -28,9 +28,13 @@ impl K8sStore {
         }
     }
 
+    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
+        format!("{prefix}-{agent_id}")
+    }
+
     /// get_opamp_data is used to get data from CMs storing data related with opamp:
     /// Instance IDs, hashes, and remote configs.
-    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -39,7 +43,7 @@ impl K8sStore {
 
     /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
     /// created by the agent-control-deployment chart.
-    pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: serde::de::DeserializeOwned,
     {
@@ -68,12 +72,7 @@ impl K8sStore {
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &StoreKey,
-        data: &T,
-    ) -> Result<(), Error>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey, data: &T) -> Result<(), Error>
     where
         T: serde::Serialize,
     {
@@ -92,17 +91,13 @@ impl K8sStore {
     }
 
     /// Delete data in the specified StoreKey of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client
             .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
-    }
-
-    pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{prefix}-{agent_id}")
     }
 }
 
