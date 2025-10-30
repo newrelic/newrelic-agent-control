@@ -35,6 +35,17 @@ jobs:
           # Install New Relic Puppet module
           sudo /opt/puppetlabs/bin/puppet module install newrelic-newrelic_installer --modulepath /etc/puppet/modules
 
+      - name: Create system identity file
+        run: |
+          DEST_DIR="/tmp/newrelic-agent-control"
+          DEST_FILE="$DEST_DIR/priv.key"
+          
+          if [ ! -d "$DEST_DIR" ]; then
+            mkdir -p "$DEST_DIR"
+          fi
+          
+          echo "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > "$DEST_FILE"
+
       - name: Create and apply Puppet catalog
         run: |
           # Create Puppet catalog file
@@ -50,9 +61,9 @@ jobs:
             "NEW_RELIC_ACCOUNT_ID" => "${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}",
             "NEW_RELIC_REGION"     => "US",
             "NEW_RELIC_CLI_SKIP_CORE" => "true",
-            "NR_CLI_FLEET_ID" => "MTIyMTMwNjh8TkdFUHxGTEVFVHwwMTk1ZDE1NC1iNTI0LTdhMTYtYWExYS0wYzQ2Y2VhOGFiMzg",
-            "NEW_RELIC_AUTH_CLIENT_ID" => "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}",
-            "NEW_RELIC_AUTH_CLIENT_PRIVATE_KEY" => "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}",
+            "NR_CLI_FLEET_ID" => "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg",
+            "NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID" => "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}",
+            "NEW_RELIC_AUTH_PRIVATE_KEY_PATH" => "/tmp/newrelic-agent-control/priv.key",
             "NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE" => "infra-agent",
             "NEW_RELIC_AGENT_CONTROL_PROXY_URL" => "",
             "NEW_RELIC_AGENT_CONTROL_PROXY_CA_BUNDLE_DIR" => "",
