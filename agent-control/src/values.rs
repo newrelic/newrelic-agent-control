@@ -20,12 +20,12 @@ pub mod config;
 pub mod config_repository;
 pub mod yaml_config;
 
-pub struct GenericConfigRepository<D: OpAMPDataStore> {
+pub struct ConfigRepo<D: OpAMPDataStore> {
     opamp_data_store: Arc<D>,
     remote_enabled: bool,
 }
 
-impl<D: OpAMPDataStore> GenericConfigRepository<D> {
+impl<D: OpAMPDataStore> ConfigRepo<D> {
     pub fn new(opamp_data_store: Arc<D>) -> Self {
         Self {
             opamp_data_store,
@@ -41,7 +41,7 @@ impl<D: OpAMPDataStore> GenericConfigRepository<D> {
     }
 }
 
-impl<D> ConfigRepository for GenericConfigRepository<D>
+impl<D> ConfigRepository for ConfigRepo<D>
 where
     D: OpAMPDataStore + Send + Sync + 'static,
 {

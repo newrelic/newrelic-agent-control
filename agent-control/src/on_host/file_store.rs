@@ -278,7 +278,7 @@ mod tests {
             remote_config::hash::{ConfigState, Hash},
         },
         values::{
-            GenericConfigRepository,
+            ConfigRepo,
             config::RemoteConfig,
             config_repository::{ConfigRepository, ConfigRepositoryError},
             yaml_config::YAMLConfig,
@@ -526,9 +526,9 @@ state: applied
             remote_dir_path.into(),
         ));
         let repo = if remote_enabled {
-            GenericConfigRepository::new(file_store).with_remote()
+            ConfigRepo::new(file_store).with_remote()
         } else {
-            GenericConfigRepository::new(file_store)
+            ConfigRepo::new(file_store)
         };
 
         let config = repo
@@ -568,7 +568,7 @@ state: applied
             local_dir_path.into(),
             remote_dir_path.into(),
         ));
-        let repo = GenericConfigRepository::new(file_store).with_remote();
+        let repo = ConfigRepo::new(file_store).with_remote();
 
         let config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -602,7 +602,7 @@ state: applied
             local_dir_path.into(),
             remote_dir_path,
         ));
-        let repo = GenericConfigRepository::new(file_store);
+        let repo = ConfigRepo::new(file_store);
 
         let yaml_config = repo
             .load_remote_fallback_local(&agent_id, &default_capabilities())
@@ -638,9 +638,9 @@ state: applied
             remote_dir_path.into(),
         ));
         let repo = if remote_enabled {
-            GenericConfigRepository::new(file_store).with_remote()
+            ConfigRepo::new(file_store).with_remote()
         } else {
-            GenericConfigRepository::new(file_store)
+            ConfigRepo::new(file_store)
         };
 
         let result = repo.load_remote_fallback_local(&agent_id, &default_capabilities());
@@ -673,7 +673,7 @@ state: applied
             remote_dir_path.into(),
         ));
 
-        let repo = GenericConfigRepository::new(file_store);
+        let repo = ConfigRepo::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -708,7 +708,7 @@ state: applied
             local_dir_path.into(),
             remote_dir_path.into(),
         ));
-        let repo = GenericConfigRepository::new(file_store);
+        let repo = ConfigRepo::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -742,7 +742,7 @@ state: applied
             local_dir_path.into(),
             remote_dir_path.into(),
         ));
-        let repo = GenericConfigRepository::new(file_store);
+        let repo = ConfigRepo::new(file_store);
 
         let yaml_config = YAMLConfig::new(HashMap::from([("one_item".into(), "one value".into())]));
         let remote_config = RemoteConfig {
@@ -767,7 +767,7 @@ state: applied
             local_dir_path,
             remote_dir_path,
         ));
-        let repo = GenericConfigRepository::new(file_store);
+        let repo = ConfigRepo::new(file_store);
         repo.delete_remote(&agent_id).unwrap();
     }
 

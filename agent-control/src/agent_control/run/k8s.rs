@@ -37,7 +37,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
-use crate::values::GenericConfigRepository;
+use crate::values::ConfigRepo;
 use crate::version_checker::k8s::checkers::spawn_version_checker;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
 use crate::{k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
@@ -65,9 +65,9 @@ impl AgentControlRunner {
 
         debug!("Initializing yaml_config_repository");
         let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(GenericConfigRepository::new(k8s_store.clone()).with_remote())
+            Arc::new(ConfigRepo::new(k8s_store.clone()).with_remote())
         } else {
-            Arc::new(GenericConfigRepository::new(k8s_store.clone()))
+            Arc::new(ConfigRepo::new(k8s_store.clone()))
         };
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));

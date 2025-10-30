@@ -31,7 +31,7 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::values::GenericConfigRepository;
+use crate::values::ConfigRepo;
 use fs::LocalFile;
 use fs::directory_manager::DirectoryManagerFs;
 use opamp_client::operation::settings::DescriptionValueType;
@@ -53,7 +53,7 @@ impl AgentControlRunner {
         ));
 
         debug!("Initializing yaml_config_repository");
-        let config_repository_file = GenericConfigRepository::new(file_store.clone());
+        let config_repository_file = ConfigRepo::new(file_store.clone());
         let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
             config_repository_file.with_remote()
         } else {

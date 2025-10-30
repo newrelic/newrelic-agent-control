@@ -6,7 +6,7 @@ use newrelic_agent_control::agent_control::defaults::{
 };
 use newrelic_agent_control::on_host::file_store::{FileStore, build_config_name};
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
-use newrelic_agent_control::values::GenericConfigRepository;
+use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use std::fs::read_to_string;
@@ -36,7 +36,7 @@ fn test_store_remote_no_mocks() {
         local_dir.clone(),
         remote_dir.clone(),
     ));
-    let values_repo = GenericConfigRepository::new(file_store);
+    let values_repo = ConfigRepo::new(file_store);
 
     let agent_id = AgentID::try_from("some-agent-id").unwrap();
 

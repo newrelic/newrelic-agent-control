@@ -8,7 +8,7 @@ use crate::config_migrate::migration::converter::ConversionError;
 use crate::config_migrate::migration::persister::values_persister_file::PersistError;
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use crate::on_host::file_store::FileStore;
-use crate::values::GenericConfigRepository;
+use crate::values::ConfigRepo;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManager, DirectoryManagerFs};
 use fs::file_reader::FileReader;
@@ -45,7 +45,7 @@ pub struct ConfigMigrator<
 
 impl
     ConfigMigrator<
-        AgentControlConfigStore<GenericConfigRepository<FileStore<LocalFile, DirectoryManagerFs>>>,
+        AgentControlConfigStore<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
         DirectoryManagerFs,
         LocalFile,
     >
@@ -53,9 +53,7 @@ impl
     pub fn new(
         config_converter: ConfigConverter<LocalFile>,
         agent_config_getter: AgentConfigGetter<
-            AgentControlConfigStore<
-                GenericConfigRepository<FileStore<LocalFile, DirectoryManagerFs>>,
-            >,
+            AgentControlConfigStore<ConfigRepo<FileStore<LocalFile, DirectoryManagerFs>>>,
         >,
         values_persister: ValuesPersisterFile<DirectoryManagerFs>,
     ) -> Self {
