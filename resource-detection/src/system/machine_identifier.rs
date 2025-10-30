@@ -1,9 +1,5 @@
-#[cfg(unix)]
-mod unix;
-#[cfg(windows)]
-mod windows;
+#[cfg_attr(unix, path = "machine_identifier/unix.rs")]
+#[cfg_attr(windows, path = "machine_identifier/windows.rs")]
+mod identifier;
 
-#[cfg(unix)]
-pub(crate) use unix::MachineIdentityProvider;
-#[cfg(windows)]
-pub(crate) use windows::MachineIdentityProvider;
+pub(crate) use identifier::MachineIdentityProvider;
