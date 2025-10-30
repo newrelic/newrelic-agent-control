@@ -53,11 +53,11 @@ impl AgentControlRunner {
         ));
 
         debug!("Initializing yaml_config_repository");
-        let config_repository_file = ConfigRepo::new(file_store.clone());
+        let config_repository = ConfigRepo::new(file_store.clone());
         let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
-            config_repository_file.with_remote()
+            config_repository.with_remote()
         } else {
-            config_repository_file
+            config_repository
         });
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
