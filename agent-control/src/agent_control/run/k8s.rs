@@ -64,11 +64,12 @@ impl AgentControlRunner {
         ));
 
         debug!("Initializing yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(ConfigRepo::new(k8s_store.clone()).with_remote())
+        let config_repository = ConfigRepo::new(k8s_store.clone());
+        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+            config_repository.with_remote()
         } else {
-            Arc::new(ConfigRepo::new(k8s_store.clone()))
-        };
+            config_repository
+        });
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
 
