@@ -1,0 +1,103 @@
+name: Puppet_install_test
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Scheduled to run at 6 a.m on mondays.
+    - cron: "0 6 * * 1"
+
+jobs:
+  puppet-install:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Puppet
+        run: |
+          set -e  # Exit immediately if a command exits with a non-zero status
+
+          # Download and install Puppet release package
+          wget https://apt.puppet.com/puppet8-release-jammy.deb
+          sudo dpkg -i puppet8-release-jammy.deb
+
+          # Update package list and install Puppet agent
+          sudo apt update
+          sudo apt -y install puppet-agent
+
+          # Verify Puppet installation
+          /opt/puppetlabs/bin/puppet --version
+
+      - name: Install New Relic Puppet module
+        run: |
+          # Install New Relic Puppet module
+          sudo /opt/puppetlabs/bin/puppet module install newrelic-newrelic_installer --modulepath /etc/puppet/modules
+
+      - name: Create system identity file
+        run: |
+          DEST_DIR="/tmp/newrelic-agent-control"
+          DEST_FILE="$DEST_DIR/priv.key"
+          
+          if [ ! -d "$DEST_DIR" ]; then
+            mkdir -p "$DEST_DIR"
+          fi
+          
+          echo "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_PRIVATE_KEY }}" > "$DEST_FILE"
+
+      - name: Create and apply Puppet catalog
+        run: |
+          # Create Puppet catalog file
+          cat <<EOF > nr.pp
+          class { 'newrelic_installer::install':
+            targets => [
+            'logs-integration-agent-control',
+            'agent-control'
+            ],
+            # See all available targets at: https://github.com/newrelic/puppet-install
+            environment_variables => {
+            "NEW_RELIC_API_KEY"    => "${{ secrets.AC_PROD_E2E_API_KEY }}",
+            "NEW_RELIC_ACCOUNT_ID" => "${{ secrets.AC_PROD_E2E_ACCOUNT_ID }}",
+            "NEW_RELIC_REGION"     => "US",
+            "NEW_RELIC_CLI_SKIP_CORE" => "true",
+            "NR_CLI_FLEET_ID" => "NjQyNTg2NXxOR0VQfEZMRUVUfDAxOTkyOGQyLTg3OTAtNzJlNC05ODgwLTJhYzE0NTRlZDUyZg",
+            "NEW_RELIC_AUTH_PROVISIONED_CLIENT_ID" => "${{ secrets.AC_PROD_E2E_NR_SYSTEM_IDENTITY_CLIENT_ID }}",
+            "NEW_RELIC_AUTH_PRIVATE_KEY_PATH" => "/tmp/newrelic-agent-control/priv.key",
+            "NEW_RELIC_AGENT_CONTROL_HOST_MONITORING_SOURCE" => "infra-agent",
+            "NEW_RELIC_AGENT_CONTROL_PROXY_URL" => "",
+            "NEW_RELIC_AGENT_CONTROL_PROXY_CA_BUNDLE_DIR" => "",
+            "NEW_RELIC_AGENT_CONTROL_PROXY_CA_BUNDLE_FILE" => "",
+            "NEW_RELIC_AGENT_CONTROL_PROXY_IGNORE_SYSTEM" => "false"
+            }
+          }
+          EOF
+
+          sudo /opt/puppetlabs/bin/puppet apply nr.pp --modulepath=/etc/puppet/modules --debug | tee output.log
+
+      - name: Check for successful installation
+        run: |
+          if grep -qE "Agent Control\s*\(installed\)" output.log; then
+            echo "Installation successful: Agent Control is installed."
+          else
+            echo "Installation failed: Agent Control is not installed."
+            exit 1
+          fi
+
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [puppet-install]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: slackapi/slack-github-action@v1.22.0
+        with:
+          payload: |
+            {
+              "text": ":warning: [Puppet installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
