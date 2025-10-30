@@ -29,13 +29,15 @@ pub struct InfraConfigGenerator {
     infra_config_path: PathBuf,
 }
 
+const INFRA_CONFIG_PATH:&str = "/etc/newrelic-infra.yml";
+
 impl Default for InfraConfigGenerator {
     fn default() -> Self {
         Self {
             local_dir: PathBuf::from(AGENT_CONTROL_LOCAL_DATA_DIR),
             remote_dir: PathBuf::from(AGENT_CONTROL_DATA_DIR),
             config_mapping: NEWRELIC_INFRA_AGENT_TYPE_CONFIG_MAPPING.to_string(),
-            infra_config_path: Path::new("/etc/newrelic-infra.yml").to_path_buf(),
+            infra_config_path: Path::new(INFRA_CONFIG_PATH).to_path_buf(),
         }
     }
 }
@@ -112,7 +114,7 @@ impl InfraConfigGenerator {
     }
 
     fn migrate_old_infra(&self, infra_config: InfraConfig) -> Result<(), CliError> {
-        info!("migrating old infra agent configuration");
+        info!("Migrating old infra agent configuration");
         let modified_yaml =
             infra_config.generate_agent_type_config_mapping(self.config_mapping.as_str())?;
 
