@@ -92,16 +92,17 @@ where
         &self,
         values_file_path: &Path,
     ) -> Result<(), DirectoryManagementError> {
-        // This implementation is missing two cases in which the parent "does not exist":
-        // 1. `values_file_path` is the root directory or a prefix (e.g. "/", "C:\")
-        // 2. `values_file_path` is the empty string
-        // In both cases this is a no-op, but should it?
-        if let Some(parent) = values_file_path.parent()
-            && !parent.exists()
-        {
-            self.directory_manager.create(parent)?;
+        match values_file_path.parent() {
+            None => Err(DirectoryManagementError::ErrorCreatingDirectory(
+                values_file_path.display().to_string(),
+                format!(
+                    "cannot determine parent directory of path `{}`",
+                    values_file_path.display()
+                ),
+            )),
+            Some(parent) if !parent.exists() => self.directory_manager.create(parent),
+            Some(_) => Ok(()),
         }
-        Ok(())
     }
 
     /// Retrieves data from an Agent store.
