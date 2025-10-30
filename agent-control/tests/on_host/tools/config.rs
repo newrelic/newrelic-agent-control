@@ -3,8 +3,6 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_ID, FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
@@ -97,9 +95,7 @@ pub fn create_remote_config(agent_id: String, config: String, base_dir: PathBuf)
 }
 
 pub fn load_remote_config_content(agent_id: &AgentID, base_paths: BasePaths) -> Option<String> {
-    let file_store = Arc::new(FileStore::new(
-        LocalFile,
-        DirectoryManagerFs,
+    let file_store = Arc::new(FileStore::new_local_fs(
         base_paths.local_dir.clone(),
         base_paths.remote_dir.clone(),
     ));

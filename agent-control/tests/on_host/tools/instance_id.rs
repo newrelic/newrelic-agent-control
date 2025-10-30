@@ -12,9 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub fn get_instance_id(agent_id: &AgentID, base_paths: BasePaths) -> InstanceID {
-    let file_store = Arc::new(FileStore::new(
-        LocalFile,
-        DirectoryManagerFs,
+    let file_store = Arc::new(FileStore::new_local_fs(
         base_paths.local_dir.clone(),
         base_paths.remote_dir.clone(),
     ));

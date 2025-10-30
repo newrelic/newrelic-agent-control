@@ -32,8 +32,6 @@ use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::values::ConfigRepo;
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
@@ -45,9 +43,7 @@ pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
-        let file_store = Arc::new(FileStore::new(
-            LocalFile,
-            DirectoryManagerFs,
+        let file_store = Arc::new(FileStore::new_local_fs(
             self.base_paths.local_dir.clone(),
             self.base_paths.remote_dir.clone(),
         ));
