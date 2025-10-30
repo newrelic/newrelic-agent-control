@@ -2,10 +2,9 @@ name: Ansible_install_test
 
 on:
   workflow_dispatch:
-  # schedule:
-  # Scheduled to run at 6 a.m on mondays.
-  #- cron: "0 6 * * 1"
-  push:
+  schedule:
+    # Scheduled to run at 6 a.m on mondays.
+    - cron: "0 6 * * 1"
 
 jobs:
   ansible-install:
@@ -77,18 +76,18 @@ jobs:
             exit 1
           fi
 
-#  notify-failure:
-#    if: ${{ always() && failure() }}
-#    needs: [ansible-install]
-#    runs-on: ubuntu-latest
-#    steps:
-#      - name: Notify failure via Slack
-#        uses: slackapi/slack-github-action@v1.22.0
-#        with:
-#          payload: |
-#            {
-#              "text": ":warning: [Ansible installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
-#            }
-#        env:
-#          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
-#          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+  notify-failure:
+    if: ${{ always() && failure() }}
+    needs: [ansible-install]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify failure via Slack
+        uses: slackapi/slack-github-action@v1.22.0
+        with:
+          payload: |
+            {
+              "text": ":warning: [Ansible installation workflow failed] @hero check <${{ env.GITHUB_JOB_URL }}>"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.AC_SLACK_WEBHOOK }}
+          GITHUB_JOB_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
