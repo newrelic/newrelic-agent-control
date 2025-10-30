@@ -22,7 +22,7 @@ use newrelic_agent_control::opamp::instance_id::getter::{
 use newrelic_agent_control::opamp::instance_id::k8s::identifiers::Identifiers;
 use newrelic_agent_control::opamp::instance_id::storer::GenericStorer;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
-use newrelic_agent_control::values::GenericConfigRepository;
+use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
 use newrelic_agent_control::values::yaml_config::YAMLConfig;
@@ -85,7 +85,7 @@ fn k8s_hash_in_config_map() {
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
-    let config_repository = GenericConfigRepository::new(k8s_store);
+    let config_repository = ConfigRepo::new(k8s_store);
 
     assert!(
         config_repository
@@ -144,7 +144,7 @@ fn k8s_value_repository_config_map() {
     let k8s_store = Arc::new(K8sStore::new(k8s_client, test_ns.clone()));
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
-    let mut value_repository = GenericConfigRepository::new(k8s_store.clone());
+    let mut value_repository = ConfigRepo::new(k8s_store.clone());
     let capabilities = default_capabilities();
     // without values the none is expected
     let res = value_repository.load_remote_fallback_local(&agent_id_1, &capabilities);
@@ -256,7 +256,7 @@ agents:
         agents_cfg_local,
     ));
 
-    let vr = GenericConfigRepository::new(k8s_store.clone());
+    let vr = ConfigRepo::new(k8s_store.clone());
     let store_sa = AgentControlConfigStore::new(Arc::new(vr));
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
@@ -279,7 +279,7 @@ agents:
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config
-    let vr = GenericConfigRepository::new(k8s_store).with_remote();
+    let vr = ConfigRepo::new(k8s_store).with_remote();
     let store_sa = AgentControlConfigStore::new(Arc::new(vr));
     assert_eq!(store_sa.load().unwrap().agents.len(), 3);
 
@@ -302,7 +302,7 @@ fn k8s_multiple_store_entries() {
     let agent_id = AgentID::try_from(AGENT_ID_1).unwrap();
 
     // Persisters sharing the ConfigMap
-    let config_repository = GenericConfigRepository::new(k8s_store.clone());
+    let config_repository = ConfigRepo::new(k8s_store.clone());
     let instance_id_storer = GenericStorer::from(k8s_store.clone());
     let instance_id_getter =
         InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
