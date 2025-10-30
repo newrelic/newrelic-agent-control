@@ -1,17 +1,8 @@
-use std::io;
+use std::error::Error;
 
 use serde::{Serialize, de::DeserializeOwned};
-use thiserror::Error;
 
-use crate::{agent_control::agent_id::AgentID, k8s};
-
-#[derive(Debug, Error)]
-pub enum OpAMPDataStoreError {
-    #[error("host I/O error: {0}")]
-    Io(io::Error),
-    #[error("k8s error: {0}")]
-    K8s(k8s::Error),
-}
+use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::StorerError};
 
 /// The key used to identify the data in the OpAMP Data Store.
 pub type StoreKey = str;
@@ -23,30 +14,19 @@ pub type StoreKey = str;
 ///
 /// The data to be written/read needs to be serializable/deserializable via Serde.
 pub trait OpAMPDataStore {
-    fn get_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    type Error: Error + Into<StorerError>;
+
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned;
 
-    fn get_local_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned;
 
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-        data: &T,
-    ) -> Result<(), OpAMPDataStoreError>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
     where
         T: Serialize;
 
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError>;
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error>;
 }

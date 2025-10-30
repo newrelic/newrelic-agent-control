@@ -7,7 +7,8 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
-use crate::opamp::data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey};
+use crate::k8s;
+use crate::opamp::data_store::{OpAMPDataStore, StoreKey};
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -55,71 +56,52 @@ impl ConfigMapStore {
 }
 
 impl OpAMPDataStore for ConfigMapStore {
+    type Error = k8s::Error;
     /// get_opamp_data is used to get data from CMs storing data related with opamp:
     /// Instance IDs, hashes, and remote configs.
-    fn get_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
         self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
-            .map_err(OpAMPDataStoreError::K8s)
     }
 
     /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
     /// created by the agent-control-deployment chart.
-    fn get_local_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
         self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
-            .map_err(OpAMPDataStoreError::K8s)
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-        data: &T,
-    ) -> Result<(), OpAMPDataStoreError>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
-        let data_as_string = serde_yaml::to_string(data)
-            .map_err(Error::from)
-            .map_err(OpAMPDataStoreError::K8s)?;
+        let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        self.k8s_client
-            .set_configmap_key(
-                &configmap_name,
-                self.namespace.as_str(),
-                Labels::new(agent_id).get(),
-                key,
-                &data_as_string,
-            )
-            .map_err(OpAMPDataStoreError::K8s)
+        self.k8s_client.set_configmap_key(
+            &configmap_name,
+            self.namespace.as_str(),
+            Labels::new(agent_id).get(),
+            key,
+            &data_as_string,
+        )
     }
 
     /// Delete data in the specified StoreKey of an Agent store.
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client
             .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
-            .map_err(OpAMPDataStoreError::K8s)
     }
 }
 
