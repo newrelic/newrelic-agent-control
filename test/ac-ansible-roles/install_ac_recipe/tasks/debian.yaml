@@ -61,6 +61,9 @@
       --localRecipes {{ tmp_recipes.path }}\
       -n {{ recipe_list }}
   register: install_logs
+  retries: 3
+  delay: 30
+  until: "'TLS handshake timeout' not in install_logs.stderr"
 
 - name: Install logs
   debug:
