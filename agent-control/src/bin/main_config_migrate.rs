@@ -1,5 +1,3 @@
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
 use newrelic_agent_control::config_migrate::cli::Cli;
 use newrelic_agent_control::config_migrate::migration::agent_config_getter::AgentConfigGetter;
@@ -24,9 +22,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let config = MigrationConfig::parse(&cli.get_migration_config_str()?)?;
 
-    let file_store = Arc::new(FileStore::new(
-        LocalFile,
-        DirectoryManagerFs,
+    let file_store = Arc::new(FileStore::new_local_fs(
         cli.local_data_dir(),
         cli.remote_data_dir(),
     ));

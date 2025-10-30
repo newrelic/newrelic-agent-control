@@ -1,6 +1,4 @@
 use crate::common::global_logger::init_logger;
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
 use newrelic_agent_control::agent_control::config::K8sConfig;
 use newrelic_agent_control::agent_control::config_repository::repository::AgentControlConfigLoader;
 use newrelic_agent_control::agent_control::config_repository::store::AgentControlConfigStore;
@@ -28,9 +26,7 @@ pub fn start_agent_control_with_custom_config(
         // logger is a global variable shared between all test threads
         init_logger();
 
-        let file_store = Arc::new(FileStore::new(
-            LocalFile,
-            DirectoryManagerFs,
+        let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
         ));
