@@ -27,8 +27,8 @@ where
 {
     directory_manager: D,
     file_rw: F,
-    remote_dir: RwLock<RemoteDir>, // Will write to this path
-    local_dir: LocalDir,           // Read-only, no need to sync?
+    remote_dir: RwLock<RemoteDir>,
+    local_dir: LocalDir,
 }
 
 pub struct LocalDir(PathBuf);
