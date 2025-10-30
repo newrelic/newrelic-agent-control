@@ -1,7 +1,7 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
-use newrelic_agent_control::cli::on_host::host_monitoring_gen;
+use newrelic_agent_control::cli::on_host::{host_monitoring_gen, systemd_gen};
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -20,9 +20,11 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     // Generate Agent Control configuration according to the provided configuration data.
-    GenerateConfig(config_gen::Args),
+    AgentConfig(config_gen::Args),
     // Generate Host Monitoring configuration according to the provided configuration data.
-    GenerateHostMonitoring(host_monitoring_gen::Args),
+    HostMonitoring(host_monitoring_gen::Args),
+    // Generate systemd configuration according to the provided configuration data.
+    SystemdConfig(systemd_gen::Args),
 }
 
 fn main() -> ExitCode {
@@ -35,7 +37,7 @@ fn main() -> ExitCode {
     }
 
     let result = match cli.command {
-        Commands::GenerateConfig(args) => {
+        Commands::AgentConfig(args) => {
             if let Err(err) = args.validate() {
                 let mut cmd = Cli::command();
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
@@ -43,9 +45,10 @@ fn main() -> ExitCode {
             }
             config_gen::generate_config(args)
         }
-        Commands::GenerateHostMonitoring(args) => {
+        Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
         }
+        Commands::SystemdConfig(args) => systemd_gen::generate_systemd_config(args),
     };
 
     if let Err(err) = result {
