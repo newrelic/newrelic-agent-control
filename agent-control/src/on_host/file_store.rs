@@ -1,12 +1,12 @@
 use std::{
-    io::{Error, ErrorKind},
+    io::{self, Error, ErrorKind},
     path::{Path, PathBuf},
     sync::RwLock,
 };
 
 use fs::{
     LocalFile,
-    directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
+    directory_manager::{DirectoryManager, DirectoryManagerFs},
     file_reader::{FileReader, FileReaderError},
     writer_file::FileWriter,
 };
@@ -18,7 +18,7 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
-    opamp::data_store::{OpAMPDataStore, OpAMPDataStoreError, StoreKey},
+    opamp::data_store::{OpAMPDataStore, StoreKey},
 };
 
 pub struct FileStore<F, D>
@@ -102,19 +102,15 @@ where
     }
 
     /// ensures directory exists
-    fn ensure_directory_existence(
-        &self,
-        values_file_path: &Path,
-    ) -> Result<(), DirectoryManagementError> {
+    fn ensure_directory_existence(&self, values_file_path: &Path) -> Result<(), Error> {
         match values_file_path.parent() {
-            None => Err(DirectoryManagementError::ErrorCreatingDirectory(
-                values_file_path.display().to_string(),
-                format!(
-                    "cannot determine parent directory of path `{}`",
-                    values_file_path.display()
-                ),
-            )),
-            Some(parent) if !parent.exists() => self.directory_manager.create(parent),
+            None => Err(Error::other(format!(
+                "cannot determine parent directory of path `{}`",
+                values_file_path.display()
+            ))),
+            Some(parent) if !parent.exists() => {
+                self.directory_manager.create(parent).map_err(Error::other)
+            }
             Some(_) => Ok(()),
         }
     }
@@ -147,37 +143,24 @@ where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
-    fn get_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    type Error = io::Error;
+
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
         let remote_dir = self.remote_dir.read().unwrap();
         self.get(remote_dir.get_remote_file_path(agent_id, key))
-            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn get_local_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
         self.get(self.local_dir.get_local_file_path(agent_id, key))
-            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-        data: &T,
-    ) -> Result<(), OpAMPDataStoreError>
+    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
@@ -196,11 +179,9 @@ where
                     remote_values_path.display(),
                     err
                 ))
-            })
-            .map_err(OpAMPDataStoreError::Io)?;
-        let content = serde_yaml::to_string(data)
-            .map_err(|e| Error::new(ErrorKind::InvalidData, e))
-            .map_err(OpAMPDataStoreError::Io)?;
+            })?;
+        let content =
+            serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
         self.file_rw
             .write(remote_values_path.as_path(), content)
@@ -211,10 +192,9 @@ where
                     err
                 ))
             })
-            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
         // I'm writing (deleting) the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
@@ -224,7 +204,7 @@ where
         let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
-            std::fs::remove_file(remote_path_file).map_err(OpAMPDataStoreError::Io)?;
+            std::fs::remove_file(remote_path_file)?;
         }
         Ok(())
     }
@@ -240,7 +220,9 @@ mod tests {
 
     use assert_matches::assert_matches;
     use fs::{
-        directory_manager::{DirectoryManager, mock::MockDirectoryManager},
+        directory_manager::{
+            DirectoryManagementError, DirectoryManager, mock::MockDirectoryManager,
+        },
         file_reader::FileReader,
         mock::MockLocalFile,
         writer_file::FileWriter,

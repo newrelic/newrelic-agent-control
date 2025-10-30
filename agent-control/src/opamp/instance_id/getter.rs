@@ -1,8 +1,8 @@
-use crate::k8s;
-use crate::opamp::data_store::OpAMPDataStoreError;
+use crate::opamp::instance_id::storer::StorerError;
 use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
+use thiserror::Error;
 use tracing::debug;
 
 use super::{InstanceID, definition::InstanceIdentifiers};
@@ -12,13 +12,10 @@ pub trait InstanceIDGetter {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
 }
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum GetterError {
-    #[error("failed to interact with the OpAMP data store: {0}")]
-    DataStoreInteraction(#[from] OpAMPDataStoreError),
-
-    #[error("initialising client: {0}")]
-    K8sClientInitialization(#[from] k8s::Error),
+    #[error("storer error: {0}")]
+    Storer(#[from] StorerError),
 
     #[cfg(test)]
     #[error("mock getter error")]
@@ -28,7 +25,6 @@ pub enum GetterError {
 pub struct InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
-    GetterError: From<S::Error>,
 {
     storer: Mutex<S>,
     identifiers: S::Identifiers,
@@ -37,7 +33,6 @@ where
 impl<S> InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
-    GetterError: From<S::Error>,
 {
     pub fn new(storer: S, identifiers: S::Identifiers) -> Self {
         Self {
@@ -50,7 +45,6 @@ where
 impl<S> InstanceIDGetter for InstanceIDWithIdentifiersGetter<S>
 where
     S: InstanceIDStorer,
-    GetterError: From<S::Error>,
 {
     fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
         let storer = self.storer.lock().expect("failed to acquire the lock");
@@ -89,13 +83,13 @@ pub struct DataStored<I: InstanceIdentifiers> {
 #[cfg(test)]
 pub mod tests {
     use std::sync::Arc;
-    use std::thread;
     use std::time::Duration;
+    use std::{io, thread};
 
     use super::*;
     use crate::opamp::instance_id::definition::tests::MockIdentifiers;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
-    use crate::opamp::instance_id::storer::tests::{MockInstanceIDStorer, MockStorerError};
+    use crate::opamp::instance_id::storer::tests::MockInstanceIDStorer;
     use mockall::{mock, predicate};
     use opamp_client::operation::instance_uid::InstanceUid;
 
@@ -145,7 +139,7 @@ pub mod tests {
         mock.expect_get()
             .once()
             .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Err(MockStorerError));
+            .returning(|_| Err(StorerError::Io(io::Error::other("error"))));
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
@@ -164,7 +158,7 @@ pub mod tests {
         mock.expect_set()
             .once()
             .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| Err(MockStorerError));
+            .returning(|_, _| Err(StorerError::Io(io::Error::other("error"))));
 
         let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
