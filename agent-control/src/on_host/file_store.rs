@@ -273,7 +273,7 @@ mod tests {
                 InstanceID,
                 getter::DataStored,
                 on_host::identifiers::Identifiers,
-                storer::{GenericStorer, InstanceIDStorer},
+                storer::{InstanceIDStorer, Storer},
             },
             remote_config::hash::{ConfigState, Hash},
         },
@@ -389,7 +389,7 @@ mod tests {
             sa_path,
         ));
 
-        let storer = GenericStorer::from(file_store);
+        let storer = Storer::from(file_store);
         assert!(storer.set(&agent_id, &ds).is_ok());
     }
 
@@ -416,7 +416,7 @@ mod tests {
             sa_path.clone(),
         ));
 
-        let storer = GenericStorer::from(file_store);
+        let storer = Storer::from(file_store);
         assert!(storer.set(&agent_id, &ds).is_err());
     }
 
@@ -448,7 +448,7 @@ mod tests {
             PathBuf::default(),
             sa_path,
         ));
-        let storer = GenericStorer::from(file_store);
+        let storer = Storer::from(file_store);
         let actual = storer.get(&agent_id);
         assert!(actual.is_ok());
         assert_eq!(expected, actual.unwrap());
@@ -474,8 +474,8 @@ mod tests {
             PathBuf::default(),
             sa_path,
         ));
-        let storer: GenericStorer<FileStore<MockLocalFile, MockDirectoryManager>, Identifiers> =
-            GenericStorer::from(file_store);
+        let storer: Storer<FileStore<MockLocalFile, MockDirectoryManager>, Identifiers> =
+            Storer::from(file_store);
         let expected = storer.get(&agent_id);
 
         // As said above, we are not generating the error variant here
