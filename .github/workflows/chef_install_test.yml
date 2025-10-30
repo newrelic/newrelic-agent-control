@@ -1,5 +1,8 @@
 name: Chef_install_test
 
+permissions:
+  contents: read
+
 on:
   workflow_dispatch:
   schedule:
