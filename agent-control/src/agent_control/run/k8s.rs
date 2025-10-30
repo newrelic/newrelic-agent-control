@@ -40,7 +40,7 @@ use crate::utils::thread_context::StartedThreadContext;
 use crate::values::ConfigRepo;
 use crate::version_checker::k8s::checkers::spawn_version_checker;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::{k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
+use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
@@ -58,7 +58,7 @@ impl AgentControlRunner {
             SyncK8sClient::try_new(self.runtime)
                 .map_err(|err| RunError(format!("failed to start the k8s client: {err}")))?,
         );
-        let k8s_store = Arc::new(K8sStore::new(
+        let k8s_store = Arc::new(ConfigMapStore::new(
             k8s_client.clone(),
             self.k8s_config.namespace.clone(),
         ));
