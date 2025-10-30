@@ -19,6 +19,15 @@ where
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
 {
     opamp_data_store: Arc<D>,
+    // The `PhantomData` for `I` is used because the `InstanceIDStorer` implementation needs to
+    // provide an implementer of `InstanceIdentifiers` as its `Identifiers` associated type, but
+    // the struct cannot be parameterized over `I` if it does not use it (errors with
+    // "Parameter `I` is never used").
+    // To be able to refer to `I` in the impl block, we include this `PhantomData` so
+    // there's an "usage" of `I` in the structure. Otherwise we cannot
+    // parameterize over `I` in this struct (errors with "Parameter `I` is never used").
+    // We might be able to remove this once we remove the `InstanceIDStorer` and `InstanceIDGetter`
+    // traits.
     _identifiers: PhantomData<I>,
 }
 
