@@ -120,77 +120,6 @@ where
                     .map_err(|err| Error::new(ErrorKind::InvalidData, err)) // TODO: Address this!
             })
     }
-
-    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: DeserializeOwned,
-    {
-        let remote_dir = self.remote_dir.read().unwrap();
-        self.get(remote_dir.get_remote_file_path(agent_id, key))
-    }
-
-    pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: DeserializeOwned,
-    {
-        self.get(self.local_dir.get_local_file_path(agent_id, key))
-    }
-
-    /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &StoreKey,
-        data: &T,
-    ) -> Result<(), Error>
-    where
-        T: Serialize,
-    {
-        // I'm writing the locked file, not mutating the path
-        // I think the OS will handle concurrent write/delete fine from all
-        // threads/subprocesses of the program, but just in case. We can revisit later.
-        #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
-
-        let remote_values_path = remote_dir.get_remote_file_path(agent_id, key);
-
-        self.ensure_directory_existence(&remote_values_path)
-            .map_err(|err| {
-                Error::other(format!(
-                    "error ensuring directory existence for {}: {}",
-                    remote_values_path.display(),
-                    err
-                ))
-            })?;
-        let content =
-            serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
-
-        self.file_rw
-            .write(remote_values_path.as_path(), content)
-            .map_err(|err| {
-                Error::other(format!(
-                    "error writing file {}: {}",
-                    remote_values_path.display(),
-                    err
-                ))
-            })
-    }
-
-    /// Delete data of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
-        // I'm writing (deleting) the locked file, not mutating the path
-        // I think the OS will handle concurrent write/delete fine from all
-        // threads/subprocesses of the program, but just in case. We can revisit later.
-        #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
-
-        let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
-        if remote_path_file.exists() {
-            debug!("deleting remote config: {:?}", remote_path_file);
-            std::fs::remove_file(remote_path_file)?;
-        }
-        Ok(())
-    }
 }
 
 impl<F, D> OpAMPDataStore for FileStore<F, D>
@@ -206,7 +135,8 @@ where
     where
         T: DeserializeOwned,
     {
-        self.get_opamp_data(agent_id, key)
+        let remote_dir = self.remote_dir.read().unwrap();
+        self.get(remote_dir.get_remote_file_path(agent_id, key))
             .map_err(OpAMPDataStoreError::Io)
     }
 
@@ -218,7 +148,7 @@ where
     where
         T: DeserializeOwned,
     {
-        self.get_local_data(agent_id, key)
+        self.get(self.local_dir.get_local_file_path(agent_id, key))
             .map_err(OpAMPDataStoreError::Io)
     }
 
@@ -231,13 +161,36 @@ where
     where
         T: Serialize,
     {
-        self.set_opamp_data(agent_id, key, data)
+        // I'm writing the locked file, not mutating the path
+        // I think the OS will handle concurrent write/delete fine from all
+        // threads/subprocesses of the program, but just in case. We can revisit later.
+        #[allow(clippy::readonly_write_lock)]
+        let remote_dir = self.remote_dir.write().unwrap();
+
+        let remote_values_path = remote_dir.get_remote_file_path(agent_id, key);
+
+        self.ensure_directory_existence(&remote_values_path)
+            .map_err(OpAMPDataStoreError::Io)?;
+        let content = serde_yaml::to_string(data).map_err(OpAMPDataStoreError::Io)?;
+
+        self.file_rw
+            .write(remote_values_path.as_path(), content)
             .map_err(OpAMPDataStoreError::Io)
     }
 
     fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
-        self.delete_opamp_data(agent_id, key)
-            .map_err(OpAMPDataStoreError::Io)
+        // I'm writing (deleting) the locked file, not mutating the path
+        // I think the OS will handle concurrent write/delete fine from all
+        // threads/subprocesses of the program, but just in case. We can revisit later.
+        #[allow(clippy::readonly_write_lock)]
+        let remote_dir = self.remote_dir.write().unwrap();
+
+        let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
+        if remote_path_file.exists() {
+            debug!("deleting remote config: {:?}", remote_path_file);
+            std::fs::remove_file(remote_path_file).map_err(OpAMPDataStoreError::Io)?;
+        }
+        Ok(())
     }
 }
 
