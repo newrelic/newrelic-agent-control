@@ -120,24 +120,44 @@ where
                     .map_err(|err| Error::new(ErrorKind::InvalidData, err)) // TODO: Address this!
             })
     }
+}
 
-    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+impl<F, D> OpAMPDataStore for FileStore<F, D>
+where
+    D: DirectoryManager,
+    F: FileWriter + FileReader,
+{
+    fn get_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
         T: DeserializeOwned,
     {
         let remote_dir = self.remote_dir.read().unwrap();
         self.get(remote_dir.get_remote_file_path(agent_id, key))
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    fn get_local_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+    ) -> Result<Option<T>, OpAMPDataStoreError>
     where
         T: DeserializeOwned,
     {
         self.get(self.local_dir.get_local_file_path(agent_id, key))
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    /// Stores data in the specified StoreKey of an Agent store.
-    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey, data: &T) -> Result<(), Error>
+    fn set_opamp_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &str,
+        data: &T,
+    ) -> Result<(), OpAMPDataStoreError>
     where
         T: Serialize,
     {
@@ -156,9 +176,11 @@ where
                     remote_values_path.display(),
                     err
                 ))
-            })?;
-        let content =
-            serde_yaml::to_string(data).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+            })
+            .map_err(OpAMPDataStoreError::Io)?;
+        let content = serde_yaml::to_string(data)
+            .map_err(|e| Error::new(ErrorKind::InvalidData, e))
+            .map_err(OpAMPDataStoreError::Io)?;
 
         self.file_rw
             .write(remote_values_path.as_path(), content)
@@ -169,10 +191,10 @@ where
                     err
                 ))
             })
+            .map_err(OpAMPDataStoreError::Io)
     }
 
-    /// Delete data of an Agent store.
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
         // I'm writing (deleting) the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
@@ -182,57 +204,9 @@ where
         let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
-            std::fs::remove_file(remote_path_file)?;
+            std::fs::remove_file(remote_path_file).map_err(OpAMPDataStoreError::Io)?;
         }
         Ok(())
-    }
-}
-
-impl<F, D> OpAMPDataStore for FileStore<F, D>
-where
-    D: DirectoryManager,
-    F: FileWriter + FileReader,
-{
-    fn get_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
-    where
-        T: DeserializeOwned,
-    {
-        self.get_opamp_data(agent_id, key)
-            .map_err(OpAMPDataStoreError::Io)
-    }
-
-    fn get_local_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-    ) -> Result<Option<T>, OpAMPDataStoreError>
-    where
-        T: DeserializeOwned,
-    {
-        self.get_local_data(agent_id, key)
-            .map_err(OpAMPDataStoreError::Io)
-    }
-
-    fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &str,
-        data: &T,
-    ) -> Result<(), OpAMPDataStoreError>
-    where
-        T: Serialize,
-    {
-        self.set_opamp_data(agent_id, key, data)
-            .map_err(OpAMPDataStoreError::Io)
-    }
-
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
-        self.delete_opamp_data(agent_id, key)
-            .map_err(OpAMPDataStoreError::Io)
     }
 }
 
