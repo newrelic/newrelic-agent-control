@@ -28,24 +28,6 @@ impl K8sStore {
         }
     }
 
-    /// get_opamp_data is used to get data from CMs storing data related with opamp:
-    /// Instance IDs, hashes, and remote configs.
-    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
-    }
-
-    /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
-    /// created by the agent-control-deployment chart.
-    pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
-    }
-
     /// Retrieves data from an Agent store.
     /// Returns None when either is no store, the storeKey is not present or there is no data on the key.
     fn get<T>(&self, agent_id: &AgentID, prefix: &str, key: &StoreKey) -> Result<Option<T>, Error>
@@ -67,40 +49,6 @@ impl K8sStore {
         Ok(None)
     }
 
-    /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(
-        &self,
-        agent_id: &AgentID,
-        key: &StoreKey,
-        data: &T,
-    ) -> Result<(), Error>
-    where
-        T: serde::Serialize,
-    {
-        #[allow(clippy::readonly_write_lock)]
-        let _write_guard = self.rw_lock.write().unwrap();
-
-        let data_as_string = serde_yaml::to_string(data)?;
-        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        self.k8s_client.set_configmap_key(
-            &configmap_name,
-            self.namespace.as_str(),
-            Labels::new(agent_id).get(),
-            key,
-            &data_as_string,
-        )
-    }
-
-    /// Delete data in the specified StoreKey of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
-        #[allow(clippy::readonly_write_lock)]
-        let _write_guard = self.rw_lock.write().unwrap();
-
-        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
-        self.k8s_client
-            .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
-    }
-
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
         format!("{prefix}-{agent_id}")
     }
@@ -115,7 +63,7 @@ impl OpAMPDataStore for K8sStore {
     where
         T: DeserializeOwned,
     {
-        self.get_opamp_data(agent_id, key)
+        self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
             .map_err(OpAMPDataStoreError::K8s)
     }
 
@@ -127,7 +75,7 @@ impl OpAMPDataStore for K8sStore {
     where
         T: DeserializeOwned,
     {
-        self.get_local_data(agent_id, key)
+        self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
             .map_err(OpAMPDataStoreError::K8s)
     }
 
@@ -140,12 +88,29 @@ impl OpAMPDataStore for K8sStore {
     where
         T: Serialize,
     {
-        self.set_opamp_data(agent_id, key, data)
+        #[allow(clippy::readonly_write_lock)]
+        let _write_guard = self.rw_lock.write().unwrap();
+
+        let data_as_string = serde_yaml::to_string(data)?;
+        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+        self.k8s_client
+            .set_configmap_key(
+                &configmap_name,
+                self.namespace.as_str(),
+                Labels::new(agent_id).get(),
+                key,
+                &data_as_string,
+            )
             .map_err(OpAMPDataStoreError::K8s)
     }
 
     fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), OpAMPDataStoreError> {
-        self.delete_opamp_data(agent_id, key)
+        #[allow(clippy::readonly_write_lock)]
+        let _write_guard = self.rw_lock.write().unwrap();
+
+        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+        self.k8s_client
+            .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
             .map_err(OpAMPDataStoreError::K8s)
     }
 }
@@ -158,6 +123,7 @@ pub mod tests {
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
+    use crate::opamp::data_store::OpAMPDataStore;
     use mockall::predicate;
     use serde::{Deserialize, Serialize};
     use std::sync::Arc;

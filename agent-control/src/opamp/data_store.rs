@@ -11,6 +11,8 @@ pub enum OpAMPDataStoreError {
     Io(io::Error),
     #[error("k8s error: {0}")]
     K8s(k8s::Error),
+    #[error("failed to parse yaml: {0}")]
+    FailedToParseYaml(#[from] serde_yaml::Error),
 }
 
 /// The key used to identify the data in the OpAMP Data Store.
