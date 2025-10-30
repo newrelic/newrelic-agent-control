@@ -6,7 +6,7 @@ use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::on_host::file_store::FileStore;
 use newrelic_agent_control::opamp::instance_id::InstanceID;
 use newrelic_agent_control::opamp::instance_id::on_host::identifiers::Identifiers;
-use newrelic_agent_control::opamp::instance_id::storer::{Storer, InstanceIDStorer};
+use newrelic_agent_control::opamp::instance_id::storer::{InstanceIDStorer, Storer};
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
