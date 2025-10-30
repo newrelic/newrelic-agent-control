@@ -5,7 +5,8 @@ use std::{
 };
 
 use fs::{
-    directory_manager::{DirectoryManagementError, DirectoryManager},
+    LocalFile,
+    directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs},
     file_reader::{FileReader, FileReaderError},
     writer_file::FileWriter,
 };
@@ -50,6 +51,19 @@ impl RemoteDir {
             .join(FOLDER_NAME_FLEET_DATA)
             .join(agent_id)
             .join(build_config_name(key))
+    }
+}
+
+impl FileStore<LocalFile, DirectoryManagerFs> {
+    pub fn new_local_fs(local_dir: PathBuf, remote_dir: PathBuf) -> Self {
+        let remote_dir = RwLock::new(RemoteDir(remote_dir));
+        let local_dir = LocalDir(local_dir);
+        Self {
+            file_rw: LocalFile,
+            directory_manager: DirectoryManagerFs,
+            local_dir,
+            remote_dir,
+        }
     }
 }
 

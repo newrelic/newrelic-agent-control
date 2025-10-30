@@ -20,8 +20,6 @@ use crate::{
     utils::binary_metadata::binary_metadata,
 };
 use clap::Parser;
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
 use std::error::Error;
 use std::process::ExitCode;
 use std::sync::Arc;
@@ -133,9 +131,7 @@ impl Command {
         mode: Environment,
         base_paths: BasePaths,
     ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
-        let file_store = Arc::new(FileStore::new(
-            LocalFile,
-            DirectoryManagerFs,
+        let file_store = Arc::new(FileStore::new_local_fs(
             base_paths.local_dir.clone(),
             base_paths.remote_dir.clone(),
         ));
