@@ -39,7 +39,7 @@ impl Detector for SystemDetector {
 }
 
 impl SystemDetector {
-    /// Helper function to build the Resource according the results of getting the hostname and machin_id
+    /// Helper function to build the Resource according the results of getting the hostname and machine_id
     /// according to the provided getters.
     fn get_system_attributes<N, I>(
         hostname_getter: N,
@@ -54,14 +54,14 @@ impl SystemDetector {
             Ok(hostname) => {
                 collected_resources.push((Key::from(HOSTNAME_KEY), Value::from(hostname)))
             }
-            Err(err) => error!(err_msg = %err, "getting hostname"),
+            Err(err) => error!("Failure getting the hostname: {err}"),
         }
 
         match machine_id_getter() {
             Ok(machine_id) => {
                 collected_resources.push((Key::from(MACHINE_ID_KEY), Value::from(machine_id)))
             }
-            Err(err) => error!(err_msg = %err, "getting machine_id"),
+            Err(err) => error!(err_msg = %err, "Failure getting the machine_id: {err}"),
         }
         Ok(Resource::new(collected_resources))
     }
