@@ -121,7 +121,7 @@ where
             })
     }
 
-    pub fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: DeserializeOwned,
     {
@@ -129,7 +129,7 @@ where
         self.get(remote_dir.get_remote_file_path(agent_id, key))
     }
 
-    pub fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
+    fn get_local_data<T>(&self, agent_id: &AgentID, key: &StoreKey) -> Result<Option<T>, Error>
     where
         T: DeserializeOwned,
     {
@@ -137,7 +137,7 @@ where
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    pub fn set_opamp_data<T>(
+    fn set_opamp_data<T>(
         &self,
         agent_id: &AgentID,
         key: &StoreKey,
@@ -177,7 +177,7 @@ where
     }
 
     /// Delete data of an Agent store.
-    pub fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
+    fn delete_opamp_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Error> {
         // I'm writing (deleting) the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
