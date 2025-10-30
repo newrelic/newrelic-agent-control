@@ -81,7 +81,6 @@ where
                 Ok(None)
             }
             Err(err) => {
-                // we log any unexpected error for now but maybe we should propagate it
                 error!("error loading file {}", path.display());
                 Err(err)
             }
