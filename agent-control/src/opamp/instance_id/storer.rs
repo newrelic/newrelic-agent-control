@@ -1,17 +1,16 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{io, marker::PhantomData, sync::Arc};
 
 use serde::{Serialize, de::DeserializeOwned};
+use thiserror::Error;
 use tracing::debug;
 
 use crate::{
     agent_control::{agent_id::AgentID, defaults::STORE_KEY_INSTANCE_ID},
-    opamp::{
-        data_store::{OpAMPDataStore, OpAMPDataStoreError},
-        instance_id::getter::DataStored,
-    },
+    k8s,
+    opamp::{data_store::OpAMPDataStore, instance_id::getter::DataStored},
 };
 
-use super::{definition::InstanceIdentifiers, getter::GetterError};
+use super::definition::InstanceIdentifiers;
 
 pub struct Storer<D, I>
 where
@@ -44,16 +43,23 @@ where
     }
 }
 
+#[derive(Debug, Error)]
+pub enum StorerError {
+    #[error("host I/O error: {0}")]
+    Io(#[from] io::Error),
+    #[error("k8s error: {0}")]
+    K8s(#[from] k8s::Error),
+}
+
 impl<D, I> InstanceIDStorer for Storer<D, I>
 where
     D: OpAMPDataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
+    StorerError: From<D::Error>,
 {
-    type Error = OpAMPDataStoreError;
-
     type Identifiers = I;
 
-    fn set(&self, agent_id: &AgentID, data: &DataStored<I>) -> Result<(), OpAMPDataStoreError> {
+    fn set(&self, agent_id: &AgentID, data: &DataStored<I>) -> Result<(), StorerError> {
         debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
         self.opamp_data_store
@@ -62,7 +68,7 @@ where
         Ok(())
     }
 
-    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<I>>, OpAMPDataStoreError> {
+    fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<I>>, StorerError> {
         debug!("storer: getting Instance ID of agent_id: {}", agent_id);
 
         if let Some(data) = self
@@ -76,20 +82,16 @@ where
     }
 }
 
-pub trait InstanceIDStorer
-where
-    GetterError: From<Self::Error>,
-{
-    type Error;
+pub trait InstanceIDStorer {
     type Identifiers: InstanceIdentifiers;
 
     fn set(
         &self,
         agent_id: &AgentID,
         data: &DataStored<Self::Identifiers>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<(), StorerError>;
     fn get(&self, agent_id: &AgentID)
-    -> Result<Option<DataStored<Self::Identifiers>>, Self::Error>;
+    -> Result<Option<DataStored<Self::Identifiers>>, StorerError>;
 }
 
 #[cfg(test)]
@@ -98,27 +100,15 @@ pub(crate) mod tests {
 
     use super::*;
     use mockall::mock;
-    use thiserror::Error;
-
-    #[derive(Error, Debug, PartialEq, Clone)]
-    #[error("mock getter error")]
-    pub struct MockStorerError;
-
-    impl From<MockStorerError> for GetterError {
-        fn from(_: MockStorerError) -> Self {
-            GetterError::MockGetterError
-        }
-    }
 
     mock! {
         pub InstanceIDStorer {}
 
         impl InstanceIDStorer for InstanceIDStorer {
-            type Error = MockStorerError;
             type Identifiers = MockIdentifiers;
 
-            fn set(&self, agent_id: &AgentID, data: &DataStored<MockIdentifiers>) -> Result<(), MockStorerError>;
-            fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<MockIdentifiers>>, MockStorerError>;
+            fn set(&self, agent_id: &AgentID, data: &DataStored<MockIdentifiers>) -> Result<(), StorerError>;
+            fn get(&self, agent_id: &AgentID) -> Result<Option<DataStored<MockIdentifiers>>, StorerError>;
         }
     }
 }
