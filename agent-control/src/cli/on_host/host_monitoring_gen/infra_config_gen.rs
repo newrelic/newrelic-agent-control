@@ -29,7 +29,7 @@ pub struct InfraConfigGenerator {
     infra_config_path: PathBuf,
 }
 
-const INFRA_CONFIG_PATH:&str = "/etc/newrelic-infra.yml";
+const INFRA_CONFIG_PATH: &str = "/etc/newrelic-infra.yml";
 
 impl Default for InfraConfigGenerator {
     fn default() -> Self {
@@ -202,7 +202,7 @@ agents:
 
     const INFRA_AGENT_VALUES: &str = "fleet/agents.d/infra-test/values/values.yaml";
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_migrate_old_infra_config() {
         // Create a temporary directory
@@ -263,10 +263,9 @@ config_agent:
 #";
         let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
         assert_eq!(parsed_values, expected_values);
-
     }
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
     fn test_generate_new_infra_config() {
         let temp_dir = TempDir::new().unwrap();

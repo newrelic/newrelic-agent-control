@@ -46,7 +46,6 @@ impl Default for InfraConfig {
 }
 
 impl InfraConfig {
-
     pub fn with_custom_attributes(mut self, custom_attributes: &str) -> Result<Self, CliError> {
         if !custom_attributes.trim().is_empty() {
             let custom_attributes_value: serde_yaml::Value =
@@ -251,7 +250,5 @@ config_agent:
 #";
         let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
         assert_eq!(parsed_values, expected_values);
-
-
     }
 }
