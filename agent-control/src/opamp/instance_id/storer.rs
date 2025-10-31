@@ -6,15 +6,16 @@ use tracing::debug;
 
 use crate::{
     agent_control::{agent_id::AgentID, defaults::STORE_KEY_INSTANCE_ID},
+    data_store::DataStore,
     k8s,
-    opamp::{data_store::OpAMPDataStore, instance_id::getter::DataStored},
+    opamp::instance_id::getter::DataStored,
 };
 
 use super::definition::InstanceIdentifiers;
 
 pub struct Storer<D, I>
 where
-    D: OpAMPDataStore,
+    D: DataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
 {
     opamp_data_store: Arc<D>,
@@ -32,7 +33,7 @@ where
 
 impl<D, I> From<Arc<D>> for Storer<D, I>
 where
-    D: OpAMPDataStore,
+    D: DataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
 {
     fn from(opamp_data_store: Arc<D>) -> Self {
@@ -53,7 +54,7 @@ pub enum StorerError {
 
 impl<D, I> InstanceIDStorer for Storer<D, I>
 where
-    D: OpAMPDataStore,
+    D: DataStore,
     I: InstanceIdentifiers + Serialize + DeserializeOwned,
     StorerError: From<D::Error>,
 {
@@ -63,7 +64,7 @@ where
         debug!("storer: setting Instance ID of agent_id: {}", agent_id);
 
         self.opamp_data_store
-            .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, data)?;
+            .set_remote_data(agent_id, STORE_KEY_INSTANCE_ID, data)?;
 
         Ok(())
     }
@@ -73,7 +74,7 @@ where
 
         if let Some(data) = self
             .opamp_data_store
-            .get_opamp_data(agent_id, STORE_KEY_INSTANCE_ID)?
+            .get_remote_data(agent_id, STORE_KEY_INSTANCE_ID)?
         {
             return Ok(Some(data));
         }

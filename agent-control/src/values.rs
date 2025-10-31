@@ -8,7 +8,8 @@ use crate::{
         agent_id::AgentID,
         defaults::{STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG},
     },
-    opamp::{data_store::OpAMPDataStore, remote_config::hash::ConfigState},
+    data_store::DataStore,
+    opamp::remote_config::hash::ConfigState,
     values::{
         config::{Config, RemoteConfig},
         config_repository::{ConfigRepository, ConfigRepositoryError},
@@ -20,12 +21,12 @@ pub mod config;
 pub mod config_repository;
 pub mod yaml_config;
 
-pub struct ConfigRepo<D: OpAMPDataStore> {
+pub struct ConfigRepo<D: DataStore> {
     opamp_data_store: Arc<D>,
     remote_enabled: bool,
 }
 
-impl<D: OpAMPDataStore> ConfigRepo<D> {
+impl<D: DataStore> ConfigRepo<D> {
     pub fn new(opamp_data_store: Arc<D>) -> Self {
         Self {
             opamp_data_store,
@@ -43,7 +44,7 @@ impl<D: OpAMPDataStore> ConfigRepo<D> {
 
 impl<D> ConfigRepository for ConfigRepo<D>
 where
-    D: OpAMPDataStore + Send + Sync + 'static,
+    D: DataStore + Send + Sync + 'static,
 {
     #[tracing::instrument(skip_all, err)]
     fn load_local(&self, agent_id: &AgentID) -> Result<Option<Config>, ConfigRepositoryError> {
@@ -63,7 +64,7 @@ where
             Ok(None)
         } else {
             self.opamp_data_store
-                .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+                .get_remote_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
                 .map_err(|err| {
                     ConfigRepositoryError::LoadError(format!("loading remote config: {err}"))
                 })
@@ -80,7 +81,7 @@ where
         debug!(agent_id = agent_id.to_string(), "saving remote config");
 
         self.opamp_data_store
-            .set_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, remote_config)
+            .set_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG, remote_config)
             .map_err(|e| ConfigRepositoryError::StoreError(format!("storing remote config: {}", e)))
     }
 
@@ -89,7 +90,7 @@ where
         agent_id: &AgentID,
     ) -> Result<Option<RemoteConfig>, ConfigRepositoryError> {
         self.opamp_data_store
-            .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            .get_remote_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|e| {
                 ConfigRepositoryError::LoadError(format!("getting remote config hash: {}", e))
             })
@@ -107,7 +108,7 @@ where
 
         let maybe_config = self
             .opamp_data_store
-            .get_opamp_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            .get_remote_data::<RemoteConfig>(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|e| {
                 ConfigRepositoryError::LoadError(format!("updating remote config state: {e}"))
             })?;
@@ -115,7 +116,7 @@ where
         match maybe_config {
             Some(remote_config) => self
                 .opamp_data_store
-                .set_opamp_data(
+                .set_remote_data(
                     agent_id,
                     STORE_KEY_OPAMP_DATA_CONFIG,
                     &remote_config.with_state(state),
@@ -139,7 +140,7 @@ where
         debug!(agent_id = agent_id.to_string(), "deleting remote config");
 
         self.opamp_data_store
-            .delete_opamp_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            .delete_remote_data(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             .map_err(|e| {
                 ConfigRepositoryError::DeleteError(format!("deleting remote config: {}", e))
             })
