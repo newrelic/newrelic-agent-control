@@ -11,6 +11,10 @@ onhost/cargo:
 	@echo "testing-machine-id" > /tmp/machine-id
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(CARGO_ARGS)
 
+.PHONY: test/doc
+test/doc:
+	cargo $(CARGO_CMD) --locked --doc
+
 .PHONY: test/onhost
 test/onhost:
 	@echo "testing-machine-id" > /tmp/machine-id
@@ -26,7 +30,9 @@ test/onhost/root/integration:
 	@echo "testing-machine-id" > /tmp/machine-id
 	$(TEST_FIXTURES) cargo $(CARGO_CMD) $(PACKAGE_SA) --features=multiple-instances --test integration_tests _as_root -- --ignored --skip no_root --skip k8s
 
-# K8S
+.PHONY: test/exclude-agent-control-crate
+test/exclude-agent-control-crate:
+	cargo $(CARGO_CMD) --workspace --exclude 'newrelic_agent_control' --all-targets
 
 .PHONY: test/k8s
 test/k8s:
@@ -34,8 +40,6 @@ test/k8s:
 
 .PHONY: test/k8s/integration
 test/k8s/integration: test/k8s/integration-part1 test/k8s/integration-part2
-
-
 
 .PHONY: test/k8s/integration-part1
 test/k8s/integration-part1:
