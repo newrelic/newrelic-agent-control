@@ -375,7 +375,7 @@ pub mod tests {
         let mut opamp_builder = MockOpAMPClientBuilder::new();
         let start_settings = start_settings(
             instance_id.clone(),
-            &agent_identity.agent_type_id,
+            &agent_identity,
             HashMap::from([(
                 OPAMP_SERVICE_VERSION.to_string(),
                 agent_identity.agent_type_id.version().to_string().into(),

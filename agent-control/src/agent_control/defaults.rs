@@ -32,6 +32,7 @@ pub const HOST_NAME_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::at
 pub const CLUSTER_NAME_ATTRIBUTE_KEY: &str = "cluster.name";
 pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attribute::HOST_ID;
 pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
+pub const OS_ATTRIBUTE_KEY: &str = "os.type";
 
 // Paths
 // TODO: should we rename AGENT_CONTROL_DATA_DIR to AGENT_CONTROL_REMOTE_DATA_DIR?
