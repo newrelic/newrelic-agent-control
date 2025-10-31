@@ -1,22 +1,26 @@
 #![cfg(target_family = "unix")]
-use super::tools::config::{create_file, create_sub_agent_values};
+use super::tools::config::{create_file, create_local_config};
 use crate::common::agent_control::start_agent_control_with_custom_config;
 use crate::common::retry::retry;
+use crate::on_host::consts::NO_CONFIG;
 use crate::on_host::tools::custom_agent_type::DYNAMIC_AGENT_TYPE_FILENAME;
 use assert_cmd::Command;
 use httpmock::Method::GET;
 use httpmock::MockServer;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
 use newrelic_agent_control::agent_control::run::BasePaths;
 use newrelic_agent_control::http::client::HttpClient;
 use newrelic_agent_control::http::config::{HttpConfig, ProxyConfig};
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use resource_detection::cloud::cloud_id::detector::CloudIdDetector;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use resource_detection::system::detector::SystemDetector;
 use std::time::Duration;
 use tempfile::tempdir;
 
-const UNRESPOSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
+const UNRESPONSIVE_METADATA_ENDPOINT: &str = "http://localhost:9999";
 
 #[test]
 fn test_aws_cloud_id() {
@@ -55,8 +59,8 @@ fn test_aws_cloud_id() {
         http_client,
         fake_metadata_server.url(metadata_path),
         fake_metadata_server.url(token_path),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
     );
 
     let id_providers = IdentifiersProvider {
@@ -101,10 +105,10 @@ fn test_azure_cloud_id() {
         http_client.clone(),
         http_client.clone(),
         http_client,
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
         fake_metadata_server.url(metadata_path),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
     );
 
     let id_providers = IdentifiersProvider {
@@ -149,9 +153,9 @@ fn test_gcp_cloud_id() {
         http_client.clone(),
         http_client.clone(),
         http_client,
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
-        UNRESPOSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
+        UNRESPONSIVE_METADATA_ENDPOINT.to_string(),
         fake_metadata_server.url(metadata_path),
     );
 
@@ -196,7 +200,11 @@ deployment:
         .to_string(),
         local_dir.path().join(DYNAMIC_AGENT_TYPE_FILENAME),
     );
-    let sa_config_path = local_dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+    let sa_config_path = local_dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID)
+        .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG));
     create_file(
         r#"
 host_id: fixed-host-id
@@ -207,7 +215,11 @@ agents:
         .to_string(),
         sa_config_path.clone(),
     );
-    create_sub_agent_values("test-agent".into(), "".into(), local_dir.path().into());
+    create_local_config(
+        "test-agent".into(),
+        NO_CONFIG.to_string(),
+        local_dir.path().into(),
+    );
 
     let base_paths = BasePaths {
         local_dir: local_dir.path().to_path_buf(),

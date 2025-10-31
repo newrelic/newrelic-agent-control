@@ -1,7 +1,10 @@
 use crate::common::retry::retry;
 use assert_cmd::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use predicates::prelude::predicate;
 use std::error::Error;
 use std::fs::create_dir_all;
@@ -36,7 +39,7 @@ pub fn cmd_with_config_file(local_dir: &Path) -> Command {
 #[test]
 fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(dir.path(), AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
+    let _file_path = create_temp_file(dir.path(), FOLDER_NAME_LOCAL_DATA, r"agents: {}")?;
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir")
         .arg(dir.path())
@@ -49,7 +52,13 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
-    let _file_path = create_temp_file(dir.path(), AGENT_CONTROL_CONFIG_FILENAME, r"agents: {}")?;
+    let _file_path = create_temp_file(
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
+        r"agents: {}",
+    )?;
     let mut cmd = cargo_bin_cmd!("newrelic-agent-control");
     cmd.arg("--local-dir").arg(dir.path());
     cmd.assert()
@@ -67,8 +76,10 @@ fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
 
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         r#"
 agents: {}
 server:
@@ -115,8 +126,10 @@ fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
 
     let dir = TempDir::new()?;
     let _file_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         r#"
 agents: {}
 log:
@@ -176,8 +189,10 @@ fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>
     });
 
     let _config_path = create_temp_file(
-        dir.path(),
-        AGENT_CONTROL_CONFIG_FILENAME,
+        &dir.path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID),
+        build_config_name(STORE_KEY_LOCAL_DATA_CONFIG).as_str(),
         format!(
             r#"
 fleet_control:

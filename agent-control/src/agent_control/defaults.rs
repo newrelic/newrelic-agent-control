@@ -1,4 +1,5 @@
 use crate::agent_type::agent_type_id::AgentTypeID;
+use crate::k8s::store::StoreKey;
 use crate::opamp::remote_config::signature::SIGNATURE_CUSTOM_CAPABILITY;
 use crate::sub_agent::identity::AgentIdentity;
 use opamp_client::capabilities;
@@ -47,12 +48,24 @@ cfg_if::cfg_if! {
     }
 }
 
-pub const SUB_AGENT_DIR: &str = "fleet/agents.d";
-pub const AGENT_CONTROL_CONFIG_FILENAME: &str = "config.yaml";
+/// - **On-host**: Used as the directory name (e.g., `.../local-data/`).
+/// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `local-data-agentid`).
+pub const FOLDER_NAME_LOCAL_DATA: &str = "local-data";
+
+/// - **On-host**: Used as the directory name (e.g., `.../fleet-data/`).
+/// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `fleet-data-agentid`).
+pub const FOLDER_NAME_FLEET_DATA: &str = "fleet-data";
+
+/// - **On-host**: Used as the base filename, combined with ".yaml" (e.g., `local_config.yaml`).
+/// - **k8s**: Used as the data key within the local ConfigMap.
+pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
+
+/// - **On-host**: Used as the base filename, combined with ".yaml" (e.g., `remote_config.yaml`).
+/// - **k8s**: Used as the data key within the OpAMP/fleet ConfigMap.
+pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
+pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 pub const DYNAMIC_AGENT_TYPE_DIR: &str = "dynamic-agent-types";
-pub const IDENTIFIERS_FILENAME: &str = "identifiers.yaml";
-pub const VALUES_DIR: &str = "values";
-pub const VALUES_FILENAME: &str = "values.yaml";
+pub const INSTANCE_ID_FILENAME: &str = "instance_id.yaml";
 pub const GENERATED_FOLDER_NAME: &str = "auto-generated";
 pub const AGENT_CONTROL_LOG_FILENAME: &str = "newrelic-agent-control.log";
 pub const STDOUT_LOG_PREFIX: &str = "stdout.log";

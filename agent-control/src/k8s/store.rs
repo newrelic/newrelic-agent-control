@@ -3,22 +3,11 @@ use super::Error;
 use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
 use std::sync::{Arc, RwLock};
-
-/// The prefixes for the ConfigMap name.
-/// The cm having CM_NAME_LOCAL_DATA_PREFIX stores all the config that are "local",
-/// the SA treats those CM as read-only.
-pub const CM_NAME_LOCAL_DATA_PREFIX: &str = "local-data-";
-/// The cm having CM_NAME_OPAMP_DATA_PREFIX as prefix stores all the data related with opamp:
-/// Instance IDs, hashes, and remote configs. The Sa reads and writes those CMs.
-pub const CM_NAME_OPAMP_DATA_PREFIX: &str = "fleet-data-";
 
 /// The key used to identify the data in the Store.
 pub type StoreKey = str;
-
-pub const STORE_KEY_LOCAL_DATA_CONFIG: &StoreKey = "local_config";
-pub const STORE_KEY_OPAMP_DATA_CONFIG: &StoreKey = "remote_config";
-pub const STORE_KEY_INSTANCE_ID: &StoreKey = "instance_id";
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.
@@ -44,7 +33,7 @@ impl K8sStore {
     where
         T: serde::de::DeserializeOwned,
     {
-        self.get(agent_id, CM_NAME_OPAMP_DATA_PREFIX, key)
+        self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
     }
 
     /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
@@ -53,7 +42,7 @@ impl K8sStore {
     where
         T: serde::de::DeserializeOwned,
     {
-        self.get(agent_id, CM_NAME_LOCAL_DATA_PREFIX, key)
+        self.get(agent_id, FOLDER_NAME_LOCAL_DATA, key)
     }
 
     /// Retrieves data from an Agent store.
@@ -91,7 +80,7 @@ impl K8sStore {
         let _write_guard = self.rw_lock.write().unwrap();
 
         let data_as_string = serde_yaml::to_string(data)?;
-        let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
+        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client.set_configmap_key(
             &configmap_name,
             self.namespace.as_str(),
@@ -106,21 +95,21 @@ impl K8sStore {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
-        let configmap_name = K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX);
+        let configmap_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client
             .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
     }
 
     pub fn build_cm_name(agent_id: &AgentID, prefix: &str) -> String {
-        format!("{prefix}{agent_id}")
+        format!("{prefix}-{agent_id}")
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use super::{CM_NAME_LOCAL_DATA_PREFIX, CM_NAME_OPAMP_DATA_PREFIX};
     use super::{K8sStore, StoreKey};
     use crate::agent_control::agent_id::AgentID;
+    use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
     use crate::k8s::client::MockSyncK8sClient;
     use crate::k8s::error::K8sError;
     use crate::k8s::labels::Labels;
@@ -132,7 +121,7 @@ pub mod tests {
     const DATA_STORED: &str = "test: foo\n";
     pub const STORE_KEY_TEST: &StoreKey = "data_to_be_stored";
     const TEST_NAMESPACE: &str = "test-namespace";
-    pub const PREFIX_TEST: &StoreKey = "prefix-";
+    pub const PREFIX_TEST: &StoreKey = "prefix";
 
     #[derive(Deserialize, Serialize, Default, Debug, PartialEq)]
     pub struct DataToBeStored {
@@ -150,10 +139,7 @@ pub mod tests {
             .expect_set_configmap_key()
             .once()
             .with(
-                predicate::eq(K8sStore::build_cm_name(
-                    &agent_id,
-                    CM_NAME_OPAMP_DATA_PREFIX,
-                )),
+                predicate::eq(K8sStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(Labels::new(&AgentID::try_from(AGENT_NAME).unwrap()).get()),
                 predicate::eq(STORE_KEY_TEST),
@@ -164,10 +150,7 @@ pub mod tests {
             .expect_delete_configmap_key()
             .once()
             .with(
-                predicate::eq(K8sStore::build_cm_name(
-                    &agent_id,
-                    CM_NAME_OPAMP_DATA_PREFIX,
-                )),
+                predicate::eq(K8sStore::build_cm_name(&agent_id, FOLDER_NAME_FLEET_DATA)),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
@@ -195,7 +178,7 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(K8sStore::build_cm_name(agent_id, CM_NAME_OPAMP_DATA_PREFIX)),
+                predicate::eq(K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA)),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::eq(STORE_KEY_TEST),
             )
@@ -209,7 +192,7 @@ pub mod tests {
         k8s_client
             .expect_get_configmap_key()
             .with(
-                predicate::eq(K8sStore::build_cm_name(agent_id, CM_NAME_LOCAL_DATA_PREFIX)),
+                predicate::eq(K8sStore::build_cm_name(agent_id, FOLDER_NAME_LOCAL_DATA)),
                 predicate::eq(TEST_NAMESPACE),
                 predicate::always(),
             )

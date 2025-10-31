@@ -101,7 +101,7 @@
       
       - name: Change installed agent label
         replace:
-          path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          path: /etc/newrelic-agent-control/local-data/nr-infra/local_config.yaml
           regexp: "test_installed_agent: infra_agent"
           replace: "test_installed_agent: agent_control"
 

@@ -49,7 +49,7 @@
           include_role:
             name: edit_yaml_config
           vars:
-            config_path: "/etc/newrelic-agent-control/config.yaml"
+            config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
             update_config:
               log:
                 format:
@@ -66,12 +66,12 @@
 
         - name: Infra Agent config folder
           file:
-            path: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/
+            path: /etc/newrelic-agent-control/local-data/nr-infra/
             state: directory
 
         - name: Infra Agent local config
           copy:
-            dest: /etc/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+            dest: /etc/newrelic-agent-control/local-data/nr-infra/local_config.yaml
             content: |
               {% raw %}
               config_agent:
@@ -132,7 +132,7 @@
             var: ac_logs.stdout_lines
 
         - name: Inspect the remote values
-          shell: cat /var/lib/newrelic-agent-control/fleet/agents.d/nr-infra/values/values.yaml
+          shell: cat /var/lib/newrelic-agent-control/fleet-data/nr-infra/remote_config.yaml
           register: remote_values
 
         - name: Debug remote values

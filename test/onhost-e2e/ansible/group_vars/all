@@ -1,2 +1,2 @@
-agent_control_service_conf: /etc/newrelic-agent-control/newrelic-agent-control.conf
-agent_control_identifiers_file: /var/lib/newrelic-agent-control/identifiers.yaml
+agent_control_service_conf: /etc/newrelic-agent-control/systemd-env.conf
+agent_control_identifiers_file: /var/lib/newrelic-agent-control/fleet-data/agent-control/instance_id.yaml

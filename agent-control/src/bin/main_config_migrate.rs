@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),
-        ValuesPersisterFile::new(cli.local_sub_agent_data_dir()),
+        ValuesPersisterFile::new(cli.local_data_dir()),
     );
 
     let legacy_config_renamer = LegacyConfigRenamer::default();

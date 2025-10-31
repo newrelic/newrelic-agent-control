@@ -1,5 +1,6 @@
 use crate::agent_control::agent_id::AgentID;
-use crate::agent_control::defaults::{VALUES_DIR, VALUES_FILENAME};
+use crate::agent_control::defaults::{FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG};
+use crate::opamp::instance_id::on_host::storer::build_config_name;
 use fs::LocalFile;
 use fs::directory_manager::{DirectoryManagementError, DirectoryManager, DirectoryManagerFs};
 use fs::writer_file::{FileWriter, WriteError};
@@ -47,15 +48,12 @@ where
         values_content: &str,
     ) -> Result<(), PersistError> {
         let mut path = PathBuf::from(&self.local_agent_data_dir);
+        path.push(FOLDER_NAME_LOCAL_DATA);
         path.push(agent_id);
         if !path.exists() {
             self.create_directory(&path)?;
         }
-        path.push(VALUES_DIR);
-        if !path.exists() {
-            self.create_directory(&path)?;
-        }
-        path.push(VALUES_FILENAME);
+        path.push(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG));
 
         debug!("writing to file {:?}", path.as_path());
 

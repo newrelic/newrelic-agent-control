@@ -84,28 +84,20 @@ nfpms:
         file_info:
           mode: 0700
       - src: build/package/config.yaml
-        dst: /etc/newrelic-agent-control/config.yaml
+        dst: /etc/newrelic-agent-control/local-data/agent-control/local_config.yaml
         type: config
         file_info:
           mode: 0600
       - src: build/package/newrelic-agent-control.service
         dst: /lib/systemd/system/newrelic-agent-control.service
       - src: build/package/newrelic-agent-control.conf
-        dst: /etc/newrelic-agent-control/newrelic-agent-control.conf
+        dst: /etc/newrelic-agent-control/systemd-env.conf
         type: config|noreplace
         file_info:
           mode: 0600
-      - dst: /etc/newrelic-agent-control/fleet/agents.d
-        type: dir
-        file_info:
-          mode: 0700
       - src: LICENSE.md
         dst: /usr/share/doc/newrelic/newrelic-agent-control/LICENSE.md
       - dst: /var/lib/newrelic-agent-control
-        type: dir
-        file_info:
-          mode: 0700
-      - dst: /var/lib/newrelic-agent-control/fleet/agents.d
         type: dir
         file_info:
           mode: 0700
