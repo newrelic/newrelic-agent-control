@@ -4,7 +4,9 @@ use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystem
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::data_store::OpAMPDataStore;
+use crate::opamp::instance_id::definition::InstanceIdentifiers;
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -24,17 +26,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
+pub struct OnHostSubAgentBuilder<'a, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
-    instance_id_getter: &'a I,
+    instance_id_getter: &'a InstanceIDWithIdentifiersGetter<D, I>,
     supervisor_builder: Arc<B>,
     remote_config_parser: Arc<R>,
     yaml_config_repository: Arc<Y>,
@@ -42,10 +45,11 @@ where
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
-impl<'a, O, I, B, R, Y, A> OnHostSubAgentBuilder<'a, O, I, B, R, Y, A>
+impl<'a, O, D, I, B, R, Y, A> OnHostSubAgentBuilder<'a, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -53,7 +57,7 @@ where
 {
     pub fn new(
         opamp_builder: Option<&'a O>,
-        instance_id_getter: &'a I,
+        instance_id_getter: &'a InstanceIDWithIdentifiersGetter<D, I>,
         supervisor_builder: Arc<B>,
         remote_config_parser: Arc<R>,
         yaml_config_repository: Arc<Y>,
@@ -72,10 +76,11 @@ where
     }
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, I, B, R, Y, A>
+impl<O, D, I, B, R, Y, A> SubAgentBuilder for OnHostSubAgentBuilder<'_, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -186,14 +191,17 @@ mod tests {
 
     use crate::agent_control::defaults::{
         OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION,
-        PARENT_AGENT_ID_ATTRIBUTE_KEY, default_capabilities, default_sub_agent_custom_capabilities,
+        PARENT_AGENT_ID_ATTRIBUTE_KEY, STORE_KEY_INSTANCE_ID, default_capabilities,
+        default_sub_agent_custom_capabilities,
     };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::tests::MockOpAMPClientBuilder;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::data_store::tests::MockOpAMPDataStore;
     use crate::opamp::instance_id::InstanceID;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
+    use crate::opamp::instance_id::definition::tests::MockIdentifiers;
+    use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::remote_config::hash::{ConfigState, Hash};
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
@@ -282,9 +290,36 @@ mod tests {
             )
             .returning(|_, _| Ok(()));
 
-        let mut instance_id_getter = MockInstanceIDGetter::new();
-        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
-        instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
+        let mut mock_data_store = MockOpAMPDataStore::new();
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID.to_string()),
+            )
+            .return_once(move |_, _| {
+                Ok(Some(DataStored {
+                    instance_id: sub_agent_instance_id.clone(),
+                    identifiers: MockIdentifiers::default(),
+                }))
+            });
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(agent_control_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID.to_string()),
+            )
+            .return_once(move |_, _| {
+                Ok(Some(DataStored {
+                    instance_id: agent_control_instance_id.clone(),
+                    identifiers: MockIdentifiers::default(),
+                }))
+            });
+
+        let instance_id_getter = InstanceIDWithIdentifiersGetter::new(
+            Arc::new(mock_data_store),
+            MockIdentifiers::default(),
+        );
 
         let mut started_supervisor = MockSupervisorStopper::new();
         started_supervisor.should_stop();
@@ -339,7 +374,6 @@ mod tests {
     fn test_subagent_should_report_failed_config() {
         // Mocks
         let mut opamp_builder = MockOpAMPClientBuilder::new();
-        let mut instance_id_getter = MockInstanceIDGetter::new();
 
         // Structures
         let hostname = get_hostname().unwrap();
@@ -366,8 +400,36 @@ mod tests {
         let agent_control_id = AgentID::AgentControl;
         // Expectations
         // Infra Agent OpAMP no final stop nor health, just after stopping on reload
-        instance_id_getter.should_get(&agent_identity.id, sub_agent_instance_id.clone());
-        instance_id_getter.should_get(&agent_control_id, agent_control_instance_id.clone());
+        let mut mock_data_store = MockOpAMPDataStore::new();
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(agent_identity.id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID.to_string()),
+            )
+            .return_once(move |_, _| {
+                Ok(Some(DataStored {
+                    instance_id: sub_agent_instance_id.clone(),
+                    identifiers: MockIdentifiers::default(),
+                }))
+            });
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(agent_control_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID.to_string()),
+            )
+            .return_once(move |_, _| {
+                Ok(Some(DataStored {
+                    instance_id: agent_control_instance_id.clone(),
+                    identifiers: MockIdentifiers::default(),
+                }))
+            });
+
+        let instance_id_getter = InstanceIDWithIdentifiersGetter::new(
+            Arc::new(mock_data_store),
+            MockIdentifiers::default(),
+        );
 
         let mut started_client = MockStartedOpAMPClient::new();
         started_client.should_update_effective_config(1);

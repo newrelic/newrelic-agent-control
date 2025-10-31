@@ -6,7 +6,9 @@ use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
 #[cfg_attr(test, mockall_double::double)]
 use crate::k8s::client::SyncK8sClient;
-use crate::opamp::instance_id::getter::InstanceIDGetter;
+use crate::opamp::data_store::OpAMPDataStore;
+use crate::opamp::instance_id::definition::InstanceIdentifiers;
+use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
 use crate::opamp::operations::build_sub_agent_opamp;
 use crate::sub_agent::SubAgent;
 use crate::sub_agent::effective_agents_assembler::{EffectiveAgent, EffectiveAgentsAssembler};
@@ -24,17 +26,18 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tracing::{debug, instrument};
 
-pub struct K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
+pub struct K8sSubAgentBuilder<'a, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
     A: EffectiveAgentsAssembler + Send + Sync + 'static,
 {
     opamp_builder: Option<&'a O>,
-    instance_id_getter: &'a I,
+    instance_id_getter: &'a InstanceIDWithIdentifiersGetter<D, I>,
     k8s_config: K8sConfig,
     supervisor_builder: Arc<B>,
     remote_config_parser: Arc<R>,
@@ -43,10 +46,11 @@ where
     sub_agent_publisher: UnboundedBroadcast<SubAgentEvent>,
 }
 
-impl<'a, O, I, B, R, Y, A> K8sSubAgentBuilder<'a, O, I, B, R, Y, A>
+impl<'a, O, D, I, B, R, Y, A> K8sSubAgentBuilder<'a, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -56,7 +60,7 @@ where
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         opamp_builder: Option<&'a O>,
-        instance_id_getter: &'a I,
+        instance_id_getter: &'a InstanceIDWithIdentifiersGetter<D, I>,
         k8s_config: K8sConfig,
         supervisor_builder: Arc<B>,
         remote_config_parser: Arc<R>,
@@ -77,10 +81,11 @@ where
     }
 }
 
-impl<O, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, I, B, R, Y, A>
+impl<O, D, I, B, R, Y, A> SubAgentBuilder for K8sSubAgentBuilder<'_, O, D, I, B, R, Y, A>
 where
     O: OpAMPClientBuilder + Send + Sync + 'static,
-    I: InstanceIDGetter,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + 'static,
     B: SupervisorBuilder + Send + Sync + 'static,
     R: RemoteConfigParser + Send + Sync + 'static,
     Y: ConfigRepository + Send + Sync + 'static,
@@ -191,15 +196,17 @@ pub mod tests {
     use super::*;
     use crate::agent_control::agent_id::AgentID;
 
-    use crate::agent_control::defaults::PARENT_AGENT_ID_ATTRIBUTE_KEY;
+    use crate::agent_control::defaults::{PARENT_AGENT_ID_ATTRIBUTE_KEY, STORE_KEY_INSTANCE_ID};
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::agent_type::runtime_config::k8s::{K8s, K8sObject};
     use crate::agent_type::runtime_config::rendered::{Deployment, Runtime};
     use crate::opamp::client_builder::OpAMPClientBuilderError;
     use crate::opamp::client_builder::tests::MockStartedOpAMPClient;
+    use crate::opamp::data_store::tests::MockOpAMPDataStore;
     use crate::opamp::http::builder::HttpClientBuilderError;
     use crate::opamp::instance_id::InstanceID;
-    use crate::opamp::instance_id::getter::tests::MockInstanceIDGetter;
+    use crate::opamp::instance_id::definition::tests::MockIdentifiers;
+    use crate::opamp::instance_id::getter::DataStored;
     use crate::opamp::operations::start_settings;
     use crate::sub_agent::effective_agents_assembler::tests::MockEffectiveAgentAssembler;
     use crate::sub_agent::remote_config_parser::tests::MockRemoteConfigParser;
@@ -366,7 +373,10 @@ pub mod tests {
     fn k8s_agent_get_common_mocks(
         agent_identity: AgentIdentity,
         opamp_builder_fails: bool,
-    ) -> (MockOpAMPClientBuilder, MockInstanceIDGetter) {
+    ) -> (
+        MockOpAMPClientBuilder,
+        InstanceIDWithIdentifiersGetter<MockOpAMPDataStore, MockIdentifiers>,
+    ) {
         let instance_id: InstanceID =
             serde_yaml::from_str("018FCA0670A879689D04fABDDE189B8C").unwrap();
 
@@ -413,10 +423,42 @@ pub mod tests {
             );
         }
 
-        // instance id getter mock
-        let mut instance_id_getter = MockInstanceIDGetter::new();
-        instance_id_getter.should_get(&agent_identity.id, instance_id.clone());
-        instance_id_getter.should_get(&AgentID::AgentControl, instance_id);
+        // instance id getter with mocked data store
+        let mut mock_data_store = MockOpAMPDataStore::new();
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(agent_identity.id),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .return_once({
+                let instance_id = instance_id.clone();
+                move |_, _| {
+                    Ok(Some(DataStored {
+                        instance_id,
+                        identifiers: MockIdentifiers::default(),
+                    }))
+                }
+            });
+        mock_data_store
+            .expect_get_opamp_data()
+            .with(
+                predicate::eq(AgentID::AgentControl),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .return_once({
+                let instance_id = instance_id.clone();
+                move |_, _| {
+                    Ok(Some(DataStored {
+                        instance_id,
+                        identifiers: MockIdentifiers::default(),
+                    }))
+                }
+            });
+        let instance_id_getter = InstanceIDWithIdentifiersGetter::new(
+            Arc::new(mock_data_store),
+            MockIdentifiers::default(),
+        );
 
         (opamp_builder, instance_id_getter)
     }

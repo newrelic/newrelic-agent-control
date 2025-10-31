@@ -10,15 +10,12 @@ use super::tools::{
 use k8s_openapi::api::core::v1::Secret;
 use kube::{api::Api, core::TypeMeta};
 use mockall::mock;
+use newrelic_agent_control::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use newrelic_agent_control::opamp::remote_config::hash::ConfigState;
 use newrelic_agent_control::sub_agent::k8s::supervisor::NotStartedSupervisorK8s;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::{
     agent_control::config::default_group_version_kinds, agent_type::agent_type_id::AgentTypeID,
-};
-use newrelic_agent_control::{
-    agent_control::config_repository::repository::AgentControlDynamicConfigRepository,
-    opamp::instance_id::storer::Storer,
 };
 use newrelic_agent_control::{
     agent_control::resource_cleaner::k8s_garbage_collector::K8sGarbageCollector,
@@ -27,7 +24,7 @@ use newrelic_agent_control::{
 use newrelic_agent_control::{
     agent_control::{agent_id::AgentID, defaults::AGENT_CONTROL_ID},
     k8s::{client::SyncK8sClient, configmap_store::ConfigMapStore},
-    opamp::instance_id::getter::{InstanceIDGetter, InstanceIDWithIdentifiersGetter},
+    opamp::instance_id::getter::InstanceIDWithIdentifiersGetter,
 };
 use newrelic_agent_control::{
     agent_control::{
@@ -148,9 +145,8 @@ fn k8s_garbage_collector_cleans_removed_agent_resources() {
 
     let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
 
-    let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(k8s_store.clone(), Identifiers::default());
 
     // Creates Instance ID CM correctly tagged.
     let agent_instance_id = instance_id_getter.get(&agent_identity.id).unwrap();
@@ -275,9 +271,8 @@ fn k8s_garbage_collector_does_not_remove_agent_control() {
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
     let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
 
-    let instance_id_storer = Storer::from(k8s_store.clone());
     let instance_id_getter =
-        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
+        InstanceIDWithIdentifiersGetter::new(k8s_store.clone(), Identifiers::default());
 
     let sa_instance_id = instance_id_getter.get(sa_id).unwrap();
 

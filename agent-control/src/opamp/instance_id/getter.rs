@@ -1,55 +1,56 @@
-use crate::opamp::instance_id::storer::StorerError;
-use crate::{agent_control::agent_id::AgentID, opamp::instance_id::storer::InstanceIDStorer};
+use crate::agent_control::agent_id::AgentID;
+use crate::agent_control::defaults::STORE_KEY_INSTANCE_ID;
+use crate::k8s;
+use crate::opamp::data_store::OpAMPDataStore;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::io;
+use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
 
 use super::{InstanceID, definition::InstanceIdentifiers};
 
-// IDGetter returns an InstanceID for a specific agentID.
-pub trait InstanceIDGetter {
-    fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
-}
-
 #[derive(Error, Debug)]
 pub enum GetterError {
-    #[error("storer error: {0}")]
-    Storer(#[from] StorerError),
+    #[error("host I/O error: {0}")]
+    Io(#[from] io::Error),
+
+    #[error("k8s error: {0}")]
+    K8s(#[from] k8s::Error),
 
     #[cfg(test)]
     #[error("mock getter error")]
     MockGetterError,
 }
 
-pub struct InstanceIDWithIdentifiersGetter<S>
+pub struct InstanceIDWithIdentifiersGetter<D, I>
 where
-    S: InstanceIDStorer,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + Serialize + DeserializeOwned + 'static,
 {
-    storer: Mutex<S>,
-    identifiers: S::Identifiers,
+    opamp_data_store: Arc<D>,
+    identifiers: I,
 }
 
-impl<S> InstanceIDWithIdentifiersGetter<S>
+impl<D, I> InstanceIDWithIdentifiersGetter<D, I>
 where
-    S: InstanceIDStorer,
+    D: OpAMPDataStore,
+    I: InstanceIdentifiers + Serialize + DeserializeOwned + 'static,
 {
-    pub fn new(storer: S, identifiers: S::Identifiers) -> Self {
+    pub fn new(opamp_data_store: Arc<D>, identifiers: I) -> Self {
         Self {
-            storer: Mutex::new(storer),
+            opamp_data_store,
             identifiers,
         }
     }
-}
 
-impl<S> InstanceIDGetter for InstanceIDWithIdentifiersGetter<S>
-where
-    S: InstanceIDStorer,
-{
-    fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
-        let storer = self.storer.lock().expect("failed to acquire the lock");
+    pub fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError> {
         debug!(target_agent_id = %agent_id, "retrieving instance id");
-        let data = storer.get(agent_id)?;
+        let data = self
+            .opamp_data_store
+            .get_opamp_data::<DataStored<I>>(agent_id, STORE_KEY_INSTANCE_ID)
+            .map_err(Into::into)?;
 
         match data {
             None => {
@@ -68,14 +69,20 @@ where
         };
 
         debug!(target_agent_id = %agent_id, "persisting instance id {}", new_data.instance_id);
-        storer.set(agent_id, &new_data)?;
+        self.opamp_data_store
+            .set_opamp_data(agent_id, STORE_KEY_INSTANCE_ID, &new_data)
+            .map_err(Into::into)?;
 
         Ok(new_data.instance_id)
     }
 }
 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub struct DataStored<I: InstanceIdentifiers> {
+#[serde(bound = "I: InstanceIdentifiers")]
+pub struct DataStored<I>
+where
+    I: InstanceIdentifiers,
+{
     pub instance_id: InstanceID,
     pub identifiers: I,
 }
@@ -83,49 +90,41 @@ pub struct DataStored<I: InstanceIdentifiers> {
 #[cfg(test)]
 pub mod tests {
     use std::sync::Arc;
+    use std::thread;
     use std::time::Duration;
-    use std::{io, thread};
 
     use super::*;
+
+    use crate::opamp::data_store::tests::{MockDataStoreError, MockOpAMPDataStore};
     use crate::opamp::instance_id::definition::tests::MockIdentifiers;
     use crate::opamp::instance_id::getter::{DataStored, InstanceIDWithIdentifiersGetter};
-    use crate::opamp::instance_id::storer::tests::MockInstanceIDStorer;
-    use mockall::{mock, predicate};
+    use mockall::predicate;
     use opamp_client::operation::instance_uid::InstanceUid;
-
-    mock! {
-        pub InstanceIDGetter {}
-
-        impl InstanceIDGetter for InstanceIDGetter {
-            fn get(&self, agent_id: &AgentID) -> Result<InstanceID, GetterError>;
-        }
-    }
-
-    impl MockInstanceIDGetter {
-        pub fn should_get(&mut self, agent_id: &AgentID, instance_id: InstanceID) {
-            self.expect_get()
-                .once()
-                .with(predicate::eq(agent_id.clone()))
-                .return_once(move |_| Ok(instance_id));
-        }
-    }
 
     const AGENT_NAME: &str = "agent1";
 
     #[test]
     fn test_not_found() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
 
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
-        mock.expect_get()
+        mock.expect_get_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Ok(None));
-        mock.expect_set()
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .returning(|_, _| Ok(None));
+        mock.expect_set_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+                predicate::always(),
+            )
+            .returning(|_, _, _| Ok(()));
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -133,14 +132,18 @@ pub mod tests {
 
     #[test]
     fn test_error_get() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
 
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
-        mock.expect_get()
+        mock.expect_get_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Err(StorerError::Io(io::Error::other("error"))));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .returning(|_, _| Err(MockDataStoreError));
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -148,19 +151,27 @@ pub mod tests {
 
     #[test]
     fn test_error_set() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
 
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
-        mock.expect_get()
+        mock.expect_get_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Ok(None));
-        mock.expect_set()
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .returning(|_, _| Ok(None));
+        mock.expect_set_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| Err(StorerError::Io(io::Error::other("error"))));
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+                predicate::always(),
+            )
+            .returning(|_, _, _| Err(MockDataStoreError));
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_err());
@@ -168,21 +179,25 @@ pub mod tests {
 
     #[test]
     fn test_instance_id_already_present() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
         let instance_id = InstanceID::create();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
-        mock.expect_get()
+        mock.expect_get_opamp_data()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .return_once(move |_| {
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .return_once(move |_, _| {
                 Ok(Some(DataStored {
                     instance_id: instance_id_clone,
-                    identifiers: Default::default(),
+                    identifiers: MockIdentifiers::default(),
                 }))
             });
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -191,25 +206,33 @@ pub mod tests {
 
     #[test]
     fn test_instance_id_present_but_different_identifiers() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
         let instance_id = InstanceID::create();
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
 
         let instance_id_clone = instance_id.clone();
-        mock.expect_get()
+        mock.expect_get_opamp_data()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .return_once(move |_| {
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .return_once(move |_, _| {
                 Ok(Some(DataStored {
                     instance_id: instance_id_clone,
                     identifiers: get_different_identifier(),
                 }))
             });
-        mock.expect_set()
+        mock.expect_set_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| Ok(()));
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+                predicate::always(),
+            )
+            .returning(|_, _, _| Ok(()));
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let res = getter.get(&AgentID::try_from(AGENT_NAME).unwrap());
 
         assert!(res.is_ok());
@@ -218,33 +241,44 @@ pub mod tests {
 
     #[test]
     fn test_thread_safety() {
-        let mut mock = MockInstanceIDStorer::new();
+        let mut mock = MockOpAMPDataStore::new();
 
         let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
         // Data is read twice: first time it returns nothing, second time it returns data
-        mock.expect_get()
+        mock.expect_get_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .returning(|_| Ok(None));
-        mock.expect_get()
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .returning(|_, _| Ok(None));
+        mock.expect_get_opamp_data()
             .once()
-            .with(predicate::eq(agent_id.clone()))
-            .return_once(move |_| {
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+            )
+            .return_once(move |_, _| {
                 Ok(Some(DataStored {
                     instance_id: InstanceID::create(),
-                    identifiers: Default::default(),
+                    identifiers: MockIdentifiers::default(),
                 }))
             });
         // Data is written just once
-        mock.expect_set()
+        mock.expect_set_opamp_data::<DataStored<MockIdentifiers>>()
             .once()
-            .with(predicate::eq(agent_id.clone()), predicate::always())
-            .returning(|_, _| {
+            .with(
+                predicate::eq(agent_id.clone()),
+                predicate::eq(STORE_KEY_INSTANCE_ID),
+                predicate::always(),
+            )
+            .returning(|_, _, _| {
                 thread::sleep(Duration::from_millis(500)); // Make write slow to assure issues if resources are not protected
                 Ok(())
             });
 
-        let getter = InstanceIDWithIdentifiersGetter::new(mock, MockIdentifiers::default());
+        let getter =
+            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
         let getter1 = Arc::new(getter);
         let getter2 = getter1.clone();
 
