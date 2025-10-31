@@ -10,7 +10,7 @@ use crate::on_host::tools::instance_id::get_instance_id;
 use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::STORE_KEY_OPAMP_DATA_CONFIG;
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
+use newrelic_agent_control::on_host::file_store::build_config_name;
 use opamp_client::opamp::proto::RemoteConfigStatuses;
 use std::time::Duration;
 use tempfile::tempdir;

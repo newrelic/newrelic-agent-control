@@ -1,8 +1,10 @@
 use crate::on_host::cli::cmd_with_config_file;
-use newrelic_agent_control::agent_control::defaults::{
-    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+use newrelic_agent_control::{
+    agent_control::defaults::{
+        AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    },
+    on_host::file_store::build_config_name,
 };
-use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use predicates::prelude::predicate;
 use tempfile::TempDir;
 

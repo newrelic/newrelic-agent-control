@@ -16,24 +16,22 @@ use crate::event::channel::pub_sub;
 use crate::health::noop::NoOpHealthChecker;
 use crate::http::client::HttpClient;
 use crate::http::config::{HttpConfig, ProxyConfig};
+use crate::on_host::file_store::FileStore;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::on_host::getter::{Identifiers, IdentifiersProvider};
-use crate::opamp::instance_id::on_host::storer::Storer;
+use crate::opamp::instance_id::on_host::identifiers::{Identifiers, IdentifiersProvider};
+use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
 use crate::secrets_provider::SecretsProviders;
 use crate::sub_agent::effective_agents_assembler::LocalEffectiveAgentsAssembler;
 use crate::sub_agent::identity::AgentIdentity;
+use crate::sub_agent::on_host::builder::OnHostSubAgentBuilder;
 use crate::sub_agent::on_host::builder::SupervisortBuilderOnHost;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
-use crate::{
-    sub_agent::on_host::builder::OnHostSubAgentBuilder, values::file::ConfigRepositoryFile,
-};
-use fs::LocalFile;
-use fs::directory_manager::DirectoryManagerFs;
+use crate::values::ConfigRepo;
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::cloud::http_client::DEFAULT_CLIENT_TIMEOUT;
 use std::collections::HashMap;
@@ -45,21 +43,18 @@ pub const HOST_ID_VARIABLE_NAME: &str = "host_id";
 
 impl AgentControlRunner {
     pub(super) fn run_onhost(self) -> Result<(), RunError> {
+        let file_store = Arc::new(FileStore::new_local_fs(
+            self.base_paths.local_dir.clone(),
+            self.base_paths.remote_dir.clone(),
+        ));
+
         debug!("Initializing yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(
-                ConfigRepositoryFile::new(
-                    self.base_paths.local_dir.clone(),
-                    self.base_paths.remote_dir.clone(),
-                )
-                .with_remote(),
-            )
+        let config_repository = ConfigRepo::new(file_store.clone());
+        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+            config_repository.with_remote()
         } else {
-            Arc::new(ConfigRepositoryFile::new(
-                self.base_paths.local_dir.clone(),
-                self.base_paths.remote_dir.clone(),
-            ))
-        };
+            config_repository
+        });
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
         let agent_control_config = config_storer
@@ -96,11 +91,7 @@ impl AgentControlRunner {
             Variable::new_final_string_variable(identifiers.host_id.clone()),
         )]);
 
-        let instance_id_storer = Storer::new(
-            LocalFile,
-            DirectoryManagerFs,
-            self.base_paths.remote_dir.clone(),
-        );
+        let instance_id_storer = Storer::from(file_store);
         let instance_id_getter =
             InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 

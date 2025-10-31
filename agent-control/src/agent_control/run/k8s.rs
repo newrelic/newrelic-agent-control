@@ -26,7 +26,8 @@ use crate::k8s::client::SyncK8sClient;
 use crate::opamp::client_builder::DefaultOpAMPClientBuilder;
 use crate::opamp::effective_config::loader::DefaultEffectiveConfigLoaderBuilder;
 use crate::opamp::instance_id::getter::InstanceIDWithIdentifiersGetter;
-use crate::opamp::instance_id::k8s::getter::{Identifiers, get_identifiers};
+use crate::opamp::instance_id::k8s::identifiers::{Identifiers, get_identifiers};
+use crate::opamp::instance_id::storer::Storer;
 use crate::opamp::operations::build_opamp_with_channel;
 use crate::opamp::remote_config::validators::SupportedRemoteConfigValidator;
 use crate::opamp::remote_config::validators::regexes::RegexValidator;
@@ -36,12 +37,10 @@ use crate::sub_agent::identity::AgentIdentity;
 use crate::sub_agent::k8s::builder::SupervisorBuilderK8s;
 use crate::sub_agent::remote_config_parser::AgentRemoteConfigParser;
 use crate::utils::thread_context::StartedThreadContext;
+use crate::values::ConfigRepo;
 use crate::version_checker::k8s::checkers::spawn_version_checker;
 use crate::version_checker::k8s::helmrelease::HelmReleaseVersionChecker;
-use crate::{
-    k8s::store::K8sStore, sub_agent::k8s::builder::K8sSubAgentBuilder,
-    values::k8s::ConfigRepositoryConfigMap,
-};
+use crate::{k8s::configmap_store::ConfigMapStore, sub_agent::k8s::builder::K8sSubAgentBuilder};
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
@@ -59,17 +58,18 @@ impl AgentControlRunner {
             SyncK8sClient::try_new(self.runtime)
                 .map_err(|err| RunError(format!("failed to start the k8s client: {err}")))?,
         );
-        let k8s_store = Arc::new(K8sStore::new(
+        let k8s_store = Arc::new(ConfigMapStore::new(
             k8s_client.clone(),
             self.k8s_config.namespace.clone(),
         ));
 
         debug!("Initializing yaml_config_repository");
-        let yaml_config_repository = if self.opamp_http_builder.is_some() {
-            Arc::new(ConfigRepositoryConfigMap::new(k8s_store.clone()).with_remote())
+        let config_repository = ConfigRepo::new(k8s_store.clone());
+        let yaml_config_repository = Arc::new(if self.opamp_http_builder.is_some() {
+            config_repository.with_remote()
         } else {
-            Arc::new(ConfigRepositoryConfigMap::new(k8s_store.clone()))
-        };
+            config_repository
+        });
 
         let config_storer = Arc::new(AgentControlConfigStore::new(yaml_config_repository.clone()));
 
@@ -96,10 +96,9 @@ impl AgentControlRunner {
         let additional_identifying_attributes =
             agent_control_additional_opamp_identifying_attributes(&self.k8s_config);
 
-        let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
-            k8s_store.clone(),
-            identifiers,
-        );
+        let instance_id_storer = Storer::from(k8s_store.clone());
+        let instance_id_getter =
+            InstanceIDWithIdentifiersGetter::new(instance_id_storer, identifiers);
 
         let opamp_client_builder = self.opamp_http_builder.map(|http_builder| {
             DefaultOpAMPClientBuilder::new(

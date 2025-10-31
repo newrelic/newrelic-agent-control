@@ -46,7 +46,7 @@ impl Display for Environment {
     }
 }
 
-/// Structure with all base paths required to run the agent control
+/// Structure with all base paths required to run Agent Control
 #[derive(Debug, Clone)]
 pub struct BasePaths {
     pub local_dir: PathBuf,
@@ -64,7 +64,7 @@ impl Default for BasePaths {
     }
 }
 
-/// Structures for running the agent-control provided by CLI inputs
+/// Structures for running Agent Control provided by CLI inputs
 pub struct AgentControlRunConfig {
     pub opamp: Option<OpAMPClientConfig>,
     pub http_server: ServerConfig,

@@ -10,7 +10,8 @@ use crate::agent_control::run::set_debug_dirs;
 use crate::instrumentation::tracing::{
     TracingConfig, TracingError, TracingGuardBox, try_init_tracing,
 };
-use crate::values::file::ConfigRepositoryFile;
+use crate::on_host::file_store::FileStore;
+use crate::values::ConfigRepo;
 use crate::{
     agent_control::{
         config_repository::{repository::AgentControlConfigLoader, store::AgentControlConfigStore},
@@ -130,8 +131,11 @@ impl Command {
         mode: Environment,
         base_paths: BasePaths,
     ) -> Result<(AgentControlRunConfig, Vec<TracingGuardBox>), InitError> {
-        let agent_control_repository =
-            ConfigRepositoryFile::new(base_paths.local_dir.clone(), base_paths.remote_dir.clone());
+        let file_store = Arc::new(FileStore::new_local_fs(
+            base_paths.local_dir.clone(),
+            base_paths.remote_dir.clone(),
+        ));
+        let agent_control_repository = ConfigRepo::new(file_store);
 
         // In both K8s and onHost we read here the agent-control config that is used to bootstrap the SA from file
         // In the K8s such config is used create the k8s client to create the storer that reads configs from configMaps

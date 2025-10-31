@@ -12,19 +12,20 @@ use newrelic_agent_control::agent_control::defaults::{
 use newrelic_agent_control::agent_control::defaults::{
     FOLDER_NAME_LOCAL_DATA, default_capabilities,
 };
+use newrelic_agent_control::data_store::StoreKey;
 use newrelic_agent_control::k8s::client::SyncK8sClient;
+use newrelic_agent_control::k8s::configmap_store::ConfigMapStore;
 use newrelic_agent_control::k8s::labels::Labels;
-use newrelic_agent_control::k8s::store::{K8sStore, StoreKey};
 use newrelic_agent_control::opamp::instance_id::getter::{
     InstanceIDGetter, InstanceIDWithIdentifiersGetter,
 };
-use newrelic_agent_control::opamp::instance_id::k8s::getter::Identifiers;
+use newrelic_agent_control::opamp::instance_id::k8s::identifiers::Identifiers;
+use newrelic_agent_control::opamp::instance_id::storer::Storer;
 use newrelic_agent_control::opamp::remote_config::hash::{ConfigState, Hash};
+use newrelic_agent_control::values::ConfigRepo;
 use newrelic_agent_control::values::config::RemoteConfig;
 use newrelic_agent_control::values::config_repository::ConfigRepository;
-use newrelic_agent_control::{
-    values::k8s::ConfigRepositoryConfigMap, values::yaml_config::YAMLConfig,
-};
+use newrelic_agent_control::values::yaml_config::YAMLConfig;
 use serde_yaml::from_str;
 use std::sync::Arc;
 
@@ -40,15 +41,14 @@ fn k8s_instance_id_store() {
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
+    let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
 
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
-    let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
-        k8s_store,
-        Identifiers::default(),
-    );
+    let instance_id_storer = Storer::from(k8s_store.clone());
+    let instance_id_getter =
+        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
     let instance_id_created_1 = instance_id_getter.get(&agent_id_1).unwrap();
     let instance_id_1 = instance_id_getter.get(&agent_id_1).unwrap();
@@ -81,11 +81,11 @@ fn k8s_hash_in_config_map() {
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
+    let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
 
-    let config_repository = ConfigRepositoryConfigMap::new(k8s_store);
+    let config_repository = ConfigRepo::new(k8s_store);
 
     assert!(
         config_repository
@@ -141,10 +141,10 @@ fn k8s_value_repository_config_map() {
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client, test_ns.clone()));
+    let k8s_store = Arc::new(ConfigMapStore::new(k8s_client, test_ns.clone()));
     let agent_id_1 = AgentID::try_from(AGENT_ID_1).unwrap();
     let agent_id_2 = AgentID::try_from(AGENT_ID_2).unwrap();
-    let mut value_repository = ConfigRepositoryConfigMap::new(k8s_store.clone());
+    let mut value_repository = ConfigRepo::new(k8s_store.clone());
     let capabilities = default_capabilities();
     // without values the none is expected
     let res = value_repository.load_remote_fallback_local(&agent_id_1, &capabilities);
@@ -233,7 +233,7 @@ fn k8s_sa_config_map() {
     let mut test = block_on(K8sEnv::new());
     let test_ns = block_on(test.test_namespace());
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
+    let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
 
     // This is the cached local config
     let agents_cfg_local = r#"
@@ -252,12 +252,12 @@ agents:
     block_on(create_config_map(
         test.client.clone(),
         test_ns.as_str(),
-        K8sStore::build_cm_name(&AgentID::AgentControl, FOLDER_NAME_LOCAL_DATA).as_str(),
+        ConfigMapStore::build_cm_name(&AgentID::AgentControl, FOLDER_NAME_LOCAL_DATA).as_str(),
         agents_cfg_local,
     ));
 
-    let vr = ConfigRepositoryConfigMap::new(k8s_store.clone());
-    let store_sa = AgentControlConfigStore::new(Arc::new(vr));
+    let config_repository = ConfigRepo::new(k8s_store.clone());
+    let store_sa = AgentControlConfigStore::new(Arc::new(config_repository));
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled
@@ -279,7 +279,7 @@ agents:
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // After enabling remote we can load the "remote" config
-    let vr = ConfigRepositoryConfigMap::new(k8s_store).with_remote();
+    let vr = ConfigRepo::new(k8s_store).with_remote();
     let store_sa = AgentControlConfigStore::new(Arc::new(vr));
     assert_eq!(store_sa.load().unwrap().agents.len(), 3);
 
@@ -298,15 +298,14 @@ fn k8s_multiple_store_entries() {
     let test_ns = block_on(test.test_namespace());
 
     let k8s_client = Arc::new(SyncK8sClient::try_new(tokio_runtime()).unwrap());
-    let k8s_store = Arc::new(K8sStore::new(k8s_client.clone(), test_ns.clone()));
+    let k8s_store = Arc::new(ConfigMapStore::new(k8s_client.clone(), test_ns.clone()));
     let agent_id = AgentID::try_from(AGENT_ID_1).unwrap();
 
     // Persisters sharing the ConfigMap
-    let config_repository = ConfigRepositoryConfigMap::new(k8s_store.clone());
-    let instance_id_getter = InstanceIDWithIdentifiersGetter::new_k8s_instance_id_getter(
-        k8s_store.clone(),
-        Identifiers::default(),
-    );
+    let config_repository = ConfigRepo::new(k8s_store.clone());
+    let instance_id_storer = Storer::from(k8s_store.clone());
+    let instance_id_getter =
+        InstanceIDWithIdentifiersGetter::new(instance_id_storer, Identifiers::default());
 
     let hash = Hash::from("hash-test");
     let remote_config = RemoteConfig {
@@ -340,7 +339,7 @@ fn k8s_multiple_store_entries() {
 }
 
 fn assert_agent_cm(cm_client: &Api<ConfigMap>, agent_id: &AgentID, store_key: &StoreKey) {
-    let cm_name = K8sStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
+    let cm_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
     let cm = block_on(cm_client.get(&cm_name));
     assert!(cm.is_ok());
     let cm_un = cm.unwrap();
