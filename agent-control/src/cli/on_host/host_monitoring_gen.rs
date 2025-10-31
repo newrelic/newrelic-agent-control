@@ -47,8 +47,13 @@ pub fn generate_host_monitoring_config(args: Args) -> Result<(), CliError> {
         }
         AgentSet::Otel => {
             let otel_config_generator = OtelConfigGen::default();
-            otel_config_generator.generate_otel_config()?;
+            otel_config_generator
+                .generate_otel_config()
+                .map_err(|err| {
+                    CliError::Command(format!("failed generating otel config: {err}"))
+                })?;
         }
+        _ => {}
     }
 
     info!("Host monitoring values generated successfully");
