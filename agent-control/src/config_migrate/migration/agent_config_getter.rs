@@ -21,7 +21,6 @@ where
     pub(super) sub_agents_config_loader: SL,
 }
 
-#[cfg_attr(test, mockall::automock)]
 impl<SL> AgentConfigGetter<SL>
 where
     SL: AgentControlDynamicConfigRepository + 'static,

@@ -40,8 +40,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         MappingType::Dir(dir_path) => {
                             legacy_config_renamer.rename_path(dir_path.dir_path.as_path())?
                         }
-                        MappingType::File(file_path) => {
-                            legacy_config_renamer.rename_path(file_path.as_path())?
+                        MappingType::File(file_info) => {
+                            legacy_config_renamer.rename_path(file_info.file_path.as_path())?
                         }
                     }
                 }

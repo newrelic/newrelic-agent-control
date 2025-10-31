@@ -83,6 +83,15 @@ impl Hash for AgentTypeFieldFQN {
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct FileInfo {
+    pub file_path: FilePath,
+    // overwrites defines a list of attributes to be added or overwritten to the config
+    pub overwrites: HashMap<String, serde_yaml::Value>,
+    // deletions defines a list of attribute keys to be removed from the config
+    pub deletions: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct DirInfo {
     pub dir_path: FilePath,
     pub extensions: Vec<String>,
@@ -142,7 +151,7 @@ pub struct MigrationAgentConfig {
 #[derive(Debug, PartialEq, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum MappingType {
-    File(PathBuf),
+    File(FileInfo),
     Dir(DirInfo),
 }
 
@@ -151,9 +160,9 @@ impl From<DirInfo> for MappingType {
         MappingType::Dir(value)
     }
 }
-impl<P: Into<PathBuf>> From<P> for MappingType {
-    fn from(value: P) -> Self {
-        MappingType::File(value.into())
+impl From<FileInfo> for MappingType {
+    fn from(value: FileInfo) -> Self {
+        MappingType::File(value)
     }
 }
 
@@ -173,7 +182,10 @@ configs:
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.0.2
     filesystem_mappings:
-      config_agent: /etc/newrelic-infra.yml
+      config_agent:
+        file_path: /etc/newrelic-infra.yml
+        overwrites: {}
+        deletions: []
       config_ohis:
         dir_path: /etc/newrelic-infra/integrations.d
         extensions:
@@ -187,11 +199,17 @@ configs:
   -
     agent_type_fqn: newrelic/com.newrelic.another:1.0.0
     filesystem_mappings:
-      config_another: /etc/another.yml
+      config_agent:
+        file_path: /etc/another.yml
+        overwrites: {}
+        deletions: []
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:1.0.1
     filesystem_mappings:
-      config_agent: /etc/newrelic-infra.yml
+      config_agent:
+        file_path: /etc/newrelic-infra.yml
+        overwrites: {}
+        deletions: []
       config_integrations:
         dir_path: /etc/newrelic-infra/integrations.d
         extensions:
@@ -206,11 +224,17 @@ configs:
   -
     agent_type_fqn: francisco-partners/com.newrelic.another:0.0.2
     filesystem_mappings:
-      config_another: /etc/another.yml
+      config_agent:
+        file_path: /etc/another.yml
+        overwrites: {}
+        deletions: []
   -
     agent_type_fqn: newrelic/com.newrelic.infrastructure:0.1.2
     filesystem_mappings:
-      config_agent: /etc/newrelic-infra.yml
+      config_agent:
+        file_path: /etc/newrelic-infra.yml
+        overwrites: {}
+        deletions: []
       config_integrations:
         dir_path: /etc/newrelic-infra/integrations.d
         extensions:
@@ -225,7 +249,10 @@ configs:
   -
     agent_type_fqn: newrelic/com.newrelic.another:0.0.1
     filesystem_mappings:
-      config_another: /etc/another.yml
+      config_agent:
+        file_path: /etc/another.yml
+        overwrites: {}
+        deletions: []
 "#;
 
         let expected_fqns_in_order = [
