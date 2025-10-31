@@ -1,5 +1,5 @@
 use crate::agent_control::defaults::{
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_VERSION_ATTRIBUTE_VALUE,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
 };
 use crate::agent_control::run::Environment;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
@@ -112,7 +112,7 @@ where
                         (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
                         (
                             OS_ATTRIBUTE_KEY.to_string(),
-                            DescriptionValueType::String(OS_VERSION_ATTRIBUTE_VALUE.to_string()),
+                            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
                         ),
                     ]),
                 )
@@ -500,10 +500,7 @@ mod tests {
                         PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::Bytes(agent_control_instance_id.into()),
                     ),
-                    (
-                        OS_ATTRIBUTE_KEY.to_string(),
-                        OS_VERSION_ATTRIBUTE_VALUE.into(),
-                    ),
+                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
                 ]),
             },
         }

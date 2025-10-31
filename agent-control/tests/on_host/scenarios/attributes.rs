@@ -14,7 +14,7 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY,
-    OS_VERSION_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
@@ -83,7 +83,7 @@ fn test_attributes_from_non_existing_agent_type() {
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_VERSION_ATTRIBUTE_VALUE.to_string()),
+            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
@@ -181,7 +181,7 @@ agents:
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_VERSION_ATTRIBUTE_VALUE.to_string()),
+            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
         ),
         (
             HOST_NAME_ATTRIBUTE_KEY,
