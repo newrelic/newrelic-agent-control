@@ -33,12 +33,12 @@ pub fn migrate() -> Result<(), CliError> {
     }
     Ok(())
 }
-// Check if the new folders already exists - local-data and fleet-data
+// Check if the new folders already exists - local-data or fleet-data
 fn check_new_folders(local_new_path: &Path, remote_new_path: &Path) -> bool {
     let local_exists = local_new_path.exists() && local_new_path.is_dir();
     let fleet_exists = remote_new_path.exists() && remote_new_path.is_dir();
 
-    local_exists && fleet_exists
+    local_exists || fleet_exists
 }
 // Copy the old files in the new paths but leaving the old ones in place
 fn move_and_rename(local_base: &Path, remote_base: &Path) -> Result<(), CliError> {
@@ -156,7 +156,7 @@ fn add_infra_agent_files(
 ) {
     // --- LOCAL ---
     let old_local_infra_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(INFRA_AGENT_ID);
-    if old_local_infra_dir.exists() && old_local_infra_dir.is_dir() {
+    if old_local_infra_dir.exists() {
         debug!(
             "Found old local nr-infra directory, adding to migration: {}",
             old_local_infra_dir.display()
@@ -177,7 +177,7 @@ fn add_infra_agent_files(
     let old_remote_infra_dir = remote_base
         .join(OLD_SUB_AGENT_DATA_DIR)
         .join(INFRA_AGENT_ID);
-    if old_remote_infra_dir.exists() && old_remote_infra_dir.is_dir() {
+    if old_remote_infra_dir.exists() {
         debug!(
             "Found old remote nr-infra directory, adding to migration: {}",
             old_remote_infra_dir.display()
@@ -210,7 +210,7 @@ fn add_otel_agent_files(
 ) {
     // --- LOCAL ---
     let old_local_otel_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_local_otel_dir.exists() && old_local_otel_dir.is_dir() {
+    if old_local_otel_dir.exists() {
         debug!(
             "Found old local nrdot directory, adding to migration: {}",
             old_local_otel_dir.display()
@@ -229,7 +229,7 @@ fn add_otel_agent_files(
 
     // --- REMOTE ---
     let old_remote_otel_dir = remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_remote_otel_dir.exists() && old_remote_otel_dir.is_dir() {
+    if old_remote_otel_dir.exists() {
         debug!(
             "Found old remote nrdot directory, adding to migration: {}",
             old_remote_otel_dir.display()
@@ -298,21 +298,6 @@ mod tests {
 
         let exists = check_new_folders(&local_new_path, &remote_new_path);
         assert!(exists);
-    }
-
-    #[test]
-    fn test_check_new_folders_false_if_one_is_missing() {
-        let temp_dir = tempdir().unwrap();
-        let local_base = temp_dir.path().join("local");
-        let data_base = temp_dir.path().join("data");
-
-        let local_new_path = local_base.join(FOLDER_NAME_LOCAL_DATA);
-        let remote_new_path = data_base.join(FOLDER_NAME_FLEET_DATA);
-
-        fs::create_dir_all(&local_new_path).unwrap();
-
-        let exists = check_new_folders(&local_new_path, &remote_new_path);
-        assert!(!exists);
     }
 
     #[test]

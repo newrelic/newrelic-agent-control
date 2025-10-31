@@ -48,11 +48,11 @@ fn main() -> ExitCode {
             }
             config_gen::generate_config(args)
         }
-        Commands::MigrateFolders => migrate_folders::migrate(),
         Commands::HostMonitoring(args) => {
             host_monitoring_gen::generate_host_monitoring_config(args)
         }
         Commands::SystemdConfig(args) => systemd_gen::generate_systemd_config(args),
+        Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };
 
     if let Err(err) = result {
