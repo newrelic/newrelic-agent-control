@@ -1,5 +1,5 @@
 use crate::agent_control::defaults::{
-    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY, OS_ATTRIBUTE_VALUE,
+    HOST_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY,
 };
 use crate::agent_control::run::Environment;
 use crate::agent_type::runtime_config::on_host::filesystem::rendered::FileSystemEntries;
@@ -23,6 +23,7 @@ use crate::{
 use opamp_client::operation::settings::DescriptionValueType;
 use resource_detection::system::hostname::get_hostname;
 use std::collections::HashMap;
+use std::env::consts::OS;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, instrument};
@@ -112,7 +113,7 @@ where
                         (HOST_NAME_ATTRIBUTE_KEY.to_string(), hostname),
                         (
                             OS_ATTRIBUTE_KEY.to_string(),
-                            DescriptionValueType::String(OS_ATTRIBUTE_VALUE.to_string()),
+                            DescriptionValueType::String(OS.to_string()),
                         ),
                     ]),
                 )
@@ -500,7 +501,7 @@ mod tests {
                         PARENT_AGENT_ID_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::Bytes(agent_control_instance_id.into()),
                     ),
-                    (OS_ATTRIBUTE_KEY.to_string(), OS_ATTRIBUTE_VALUE.into()),
+                    (OS_ATTRIBUTE_KEY.to_string(), OS.into()),
                 ]),
             },
         }

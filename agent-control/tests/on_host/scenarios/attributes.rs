@@ -14,13 +14,14 @@ use newrelic_agent_control::agent_control::agent_id::AgentID;
 use newrelic_agent_control::agent_control::defaults::{
     AGENT_CONTROL_NAMESPACE, HOST_NAME_ATTRIBUTE_KEY, OPAMP_AGENT_VERSION_ATTRIBUTE_KEY,
     OPAMP_SERVICE_NAME, OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OS_ATTRIBUTE_KEY,
-    OS_ATTRIBUTE_VALUE, PARENT_AGENT_ID_ATTRIBUTE_KEY,
+    PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
 use newrelic_agent_control::agent_control::run::{BasePaths, Environment};
 use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
 use rstest::rstest;
+use std::env::consts::OS;
 use std::path::PathBuf;
 use std::time::Duration;
 use tempfile::tempdir;
@@ -81,10 +82,7 @@ fn test_attributes_from_non_existing_agent_type() {
     ]));
 
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
-        (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
-        ),
+        (OS_ATTRIBUTE_KEY, Value::StringValue(OS.to_string())),
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
@@ -179,10 +177,7 @@ agents:
     ]));
 
     let expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
-        (
-            OS_ATTRIBUTE_KEY,
-            Value::StringValue(OS_ATTRIBUTE_VALUE.to_string()),
-        ),
+        (OS_ATTRIBUTE_KEY, Value::StringValue(OS.to_string())),
         (
             HOST_NAME_ATTRIBUTE_KEY,
             Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),

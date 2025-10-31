@@ -34,13 +34,6 @@ pub const HOST_ID_ATTRIBUTE_KEY: &str = opentelemetry_semantic_conventions::attr
 pub const FLEET_ID_ATTRIBUTE_KEY: &str = "fleet.guid";
 pub const OS_ATTRIBUTE_KEY: &str = "os.type";
 
-#[cfg(target_os = "macos")]
-pub const OS_ATTRIBUTE_VALUE: &str = "macos";
-#[cfg(target_os = "linux")]
-pub const OS_ATTRIBUTE_VALUE: &str = "linux";
-#[cfg(target_os = "windows")]
-pub const OS_ATTRIBUTE_VALUE: &str = "windows";
-
 // Paths
 // TODO: should we rename AGENT_CONTROL_DATA_DIR to AGENT_CONTROL_REMOTE_DATA_DIR?
 cfg_if::cfg_if! {
