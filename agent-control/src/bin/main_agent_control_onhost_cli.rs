@@ -1,6 +1,7 @@
 use std::process::ExitCode;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
+use newrelic_agent_control::cli::on_host::migrate_folders;
 use newrelic_agent_control::cli::{logs, on_host::config_gen};
 use tracing::{Level, error};
 
@@ -16,9 +17,12 @@ struct Cli {
 
 /// Commands supported by the cli
 #[derive(Debug, clap::Subcommand)]
+#[allow(clippy::large_enum_variant)]
 enum Commands {
     // Generate Agent Control configuration according to the provided configuration data.
     GenerateConfig(config_gen::Args),
+    // Migrate from the older on host folders to the new ones.
+    FilesBackwardsCompatibilityMigrationFromV120,
 }
 
 fn main() -> ExitCode {
@@ -39,6 +43,7 @@ fn main() -> ExitCode {
             }
             config_gen::generate_config(args)
         }
+        Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };
 
     if let Err(err) = result {
