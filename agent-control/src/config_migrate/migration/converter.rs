@@ -88,6 +88,7 @@ fn retrieve_file_mapping_value<F: FileReader>(
             map.remove(serde_yaml::Value::String(key.clone()));
         }
 
+        // Add or overwrite elements based on the overwrites hashmap
         for (key, value) in &file_info.overwrites {
             map.insert(serde_yaml::Value::String(key.clone()), value.clone());
         }

@@ -247,58 +247,23 @@ configs:
         assert!(result.is_ok());
 
         let values_file = temp_dir.path().join(INFRA_AGENT_VALUES);
-
-        // Read the contents of the values.yaml file
         let values_content = fs::read_to_string(&values_file).unwrap();
 
-        // Parse the YAML content
         let parsed_values: serde_yaml::Value = serde_yaml::from_str(&values_content).unwrap();
 
-        // Assertions to verify the contents of the values.yaml file
-        if let serde_yaml::Value::Mapping(map) = parsed_values {
-            if let Some(serde_yaml::Value::Mapping(config_agent_map)) =
-                map.get(serde_yaml::Value::String("config_agent".to_string()))
-            {
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("staging".to_string())),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("extra_config".to_string())),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "status_server_enabled".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "enable_process_metrics".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("license_key".to_string())),
-                    Some(&serde_yaml::Value::String(
-                        "{{NEW_RELIC_LICENSE_KEY}}".to_string()
-                    ))
-                );
-                assert_eq!(
-                    config_agent_map
-                        .get(serde_yaml::Value::String("status_server_port".to_string())),
-                    Some(&serde_yaml::Value::Number(serde_yaml::Number::from(18003)))
-                );
-                // proxy is modified
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("proxy".to_string())),
-                    Some(&serde_yaml::Value::String(new_proxy))
-                );
-            }
-        } else {
-            panic!("Expected a YAML mapping");
-        }
+        let expected = r"#
+config_agent:
+  extra_config: true
+  status_server_enabled: true
+  enable_process_metrics: true
+  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+  status_server_port: 18003
+  staging: true
+  proxy: https://new-proxy.com
+#";
+        let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
+        assert_eq!(parsed_values, expected_values);
+
     }
 
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
@@ -330,37 +295,14 @@ configs:
         // Parse the YAML content
         let parsed_values: serde_yaml::Value = serde_yaml::from_str(&values_content).unwrap();
 
-        // Assertions to verify the contents of the values.yaml file
-        if let serde_yaml::Value::Mapping(map) = parsed_values {
-            if let Some(serde_yaml::Value::Mapping(config_agent_map)) =
-                map.get(serde_yaml::Value::String("config_agent".to_string()))
-            {
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "status_server_enabled".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String(
-                        "enable_process_metrics".to_string()
-                    )),
-                    Some(&serde_yaml::Value::Bool(true))
-                );
-                assert_eq!(
-                    config_agent_map.get(serde_yaml::Value::String("license_key".to_string())),
-                    Some(&serde_yaml::Value::String(
-                        "{{NEW_RELIC_LICENSE_KEY}}".to_string()
-                    ))
-                );
-                assert_eq!(
-                    config_agent_map
-                        .get(serde_yaml::Value::String("status_server_port".to_string())),
-                    Some(&serde_yaml::Value::Number(serde_yaml::Number::from(18003)))
-                );
-            }
-        } else {
-            panic!("Expected a YAML mapping");
-        }
+        let expected = r"#
+config_agent:
+  status_server_enabled: true
+  enable_process_metrics: true
+  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+  status_server_port: 18003
+#";
+        let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
+        assert_eq!(parsed_values, expected_values);
     }
 }

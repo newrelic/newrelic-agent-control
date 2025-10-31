@@ -238,54 +238,20 @@ mod tests {
         // Parse the YAML content
         let parsed_values: serde_yaml::Value = serde_yaml::from_str(&result).unwrap();
 
-        let serde_yaml::Value::Mapping(map) = parsed_values else { panic!("Expected a YAML mapping") };
-        if let Some(serde_yaml::Value::Mapping(config_agent_map)) =
-            map.get(serde_yaml::Value::String("config_agent".to_string()))
-        {
-            assert_eq!(
-                config_agent_map.get(serde_yaml::Value::String(
-                    "status_server_enabled".to_string()
-                )),
-                Some(&serde_yaml::Value::Bool(true))
-            );
-            assert_eq!(
-                config_agent_map.get(serde_yaml::Value::String(
-                    "enable_process_metrics".to_string()
-                )),
-                Some(&serde_yaml::Value::Bool(true))
-            );
-            assert_eq!(
-                config_agent_map.get(serde_yaml::Value::String("license_key".to_string())),
-                Some(&serde_yaml::Value::String(
-                    "{{NEW_RELIC_LICENSE_KEY}}".to_string()
-                ))
-            );
-            assert_eq!(
-                config_agent_map
-                    .get(serde_yaml::Value::String("status_server_port".to_string())),
-                Some(&serde_yaml::Value::Number(serde_yaml::Number::from(18003)))
-            );
-            assert_eq!(
-                config_agent_map.get(serde_yaml::Value::String("staging".to_string())),
-                Some(&serde_yaml::Value::Bool(true))
-            );
-            assert_eq!(
-                config_agent_map.get(serde_yaml::Value::String("proxy".to_string())),
-                Some(&serde_yaml::Value::String(
-                    "http://proxy.example.com".to_string()
-                ))
-            );
-            let mut custom_attributes = serde_yaml::Mapping::new();
-            custom_attributes.insert(
-                serde_yaml::Value::String("custom_key".to_string()),
-                serde_yaml::Value::String("custom_value".to_string()),
-            );
-            assert_eq!(
-                config_agent_map
-                    .get(serde_yaml::Value::String("custom_attributes".to_string())),
-                Some(&serde_yaml::Value::Mapping(custom_attributes))
-            );
-        }
+        let expected = r"#
+config_agent:
+  status_server_enabled: true
+  enable_process_metrics: true
+  license_key: '{{NEW_RELIC_LICENSE_KEY}}'
+  status_server_port: 18003
+  staging: true
+  proxy: http://proxy.example.com
+  custom_attributes:
+    custom_key: custom_value
+#";
+        let expected_values: serde_yaml::Value = serde_yaml::from_str(expected).unwrap();
+        assert_eq!(parsed_values, expected_values);
+
 
     }
 }
