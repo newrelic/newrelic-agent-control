@@ -26,56 +26,35 @@ pub struct Args {
 pub fn generate_systemd_config(args: Args) -> Result<(), CliError> {
     info!("Adding required values to newrelic-agent-control.conf ");
 
-    update_newrelic_license_key(CONFIG_PATH, &args.newrelic_license_key)?;
-
-    update_otel_exporter_endpoint(CONFIG_PATH, args.region)?;
+    update_config(CONFIG_PATH, &args.newrelic_license_key, args.region)?;
 
     info!("Host monitoring values generated successfully");
     Ok(())
 }
 
-fn update_newrelic_license_key(config_path: &str, new_license_key: &str) -> Result<(), CliError> {
+fn update_config(config_path: &str, new_license_key: &str, region: Region) -> Result<(), CliError> {
+    // Read the content from the configuration file
     let content = std::fs::read_to_string(config_path)
         .map_err(|err| CliError::Command(format!("error reading agent control .conf file: {err}")))?
         .lines()
-        .filter(|line| !line.starts_with(NEW_RELIC_LICENSE_CONFIG_KEY))
+        .filter(|line| {
+            !line.starts_with(NEW_RELIC_LICENSE_CONFIG_KEY)
+                && !line.starts_with(OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY)
+        })
         .collect::<Vec<_>>()
         .join("\n");
 
-    let mut file = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open(config_path)
-        .map_err(|err| {
-            CliError::Command(format!("error opening agent control .conf file: {err}"))
-        })?;
-
+    // Prepare the new content with updated license key and OTEL endpoint
     let new_content = format!(
-        "{}\n{}=\"{}\"\n",
-        content, NEW_RELIC_LICENSE_CONFIG_KEY, new_license_key
-    );
-    file.write_all(new_content.as_bytes()).map_err(|err| {
-        CliError::Command(format!("error updating agent control .conf file: {err}"))
-    })?;
-
-    Ok(())
-}
-
-fn update_otel_exporter_endpoint(config_path: &str, region: Region) -> Result<(), CliError> {
-    let content = std::fs::read_to_string(config_path)
-        .map_err(|err| CliError::Command(format!("error reading agent control .conf file: {err}")))?
-        .lines()
-        .filter(|line| !line.starts_with(OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY))
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let new_content = format!(
-        "{}\n{}=https://{}:4317/\n",
+        "{}\n{}=\"{}\"\n{}=https://{}:4317/\n",
         content,
+        NEW_RELIC_LICENSE_CONFIG_KEY,
+        new_license_key,
         OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY,
         region.otel_endpoint()
     );
 
+    // Open the file for writing and truncate it
     let mut file = OpenOptions::new()
         .write(true)
         .truncate(true)
@@ -84,6 +63,7 @@ fn update_otel_exporter_endpoint(config_path: &str, region: Region) -> Result<()
             CliError::Command(format!("error opening agent control .conf file: {err}"))
         })?;
 
+    // Write the new content to the file
     file.write_all(new_content.as_bytes()).map_err(|err| {
         CliError::Command(format!("error updating agent control .conf file: {err}"))
     })?;
@@ -97,40 +77,32 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn test_update_newrelic_license_key() {
-        let dir = tempdir().unwrap();
-        let file_path = dir.path().join("newrelic-agent-control.conf");
-
-        let initial_content =
-            NEW_RELIC_LICENSE_CONFIG_KEY.to_string() + "=\"old_key\"\nOTHER_CONFIG=\"value\"";
-        std::fs::write(&file_path, initial_content).unwrap();
-
-        let result = update_newrelic_license_key(file_path.to_str().unwrap(), "new_key");
-        assert!(result.is_ok());
-
-        let updated_content = std::fs::read_to_string(&file_path).unwrap();
-        assert!(updated_content.contains(&format!("{}=\"new_key\"", NEW_RELIC_LICENSE_CONFIG_KEY)));
-        assert!(
-            !updated_content.contains(&format!("{}=\"old_key\"", NEW_RELIC_LICENSE_CONFIG_KEY))
-        );
-        assert!(updated_content.contains("OTHER_CONFIG=\"value\""));
-    }
-
-    #[test]
-    fn test_update_otel_exporter_endpoint() {
+    fn test_update_config() {
         let dir = tempdir().unwrap();
         let file_path = dir.path().join("newrelic-agent-control.conf");
 
         let initial_content = format!(
-            "{}=\"old_endpoint\"\nOTHER_CONFIG=\"value\"",
-            OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
+            "{}=\"old_key\"\n{}=\"old_endpoint\"\nOTHER_CONFIG=\"value\"",
+            NEW_RELIC_LICENSE_CONFIG_KEY, OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
         );
         std::fs::write(&file_path, initial_content).unwrap();
 
-        let result = update_otel_exporter_endpoint(file_path.to_str().unwrap(), Region::EU);
+        let new_license_key = "new_key";
+        let region = Region::EU; // Assuming Region::EU is a valid variant
+
+        let result = update_config(file_path.to_str().unwrap(), new_license_key, region);
         assert!(result.is_ok());
 
         let updated_content = std::fs::read_to_string(&file_path).unwrap();
+
+        assert!(updated_content.contains(&format!(
+            "{}=\"{}\"",
+            NEW_RELIC_LICENSE_CONFIG_KEY, new_license_key
+        )));
+        assert!(
+            !updated_content.contains(&format!("{}=\"old_key\"", NEW_RELIC_LICENSE_CONFIG_KEY))
+        );
+
         assert!(updated_content.contains(&format!(
             "{}=https://otlp.eu01.nr-data.net:4317/",
             OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
@@ -139,6 +111,7 @@ mod tests {
             "{}=\"old_endpoint\"",
             OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
         )));
+
         assert!(updated_content.contains("OTHER_CONFIG=\"value\""));
     }
 }
