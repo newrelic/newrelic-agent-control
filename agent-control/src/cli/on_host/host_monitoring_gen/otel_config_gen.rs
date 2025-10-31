@@ -22,18 +22,12 @@ impl Default for OtelConfigGen {
 }
 
 impl OtelConfigGen {
-    #[allow(dead_code)]
-    fn new(otel_agent_values_path: &str, otel_config_source_path: &str) -> OtelConfigGen {
-        Self {
-            otel_agent_values_path: PathBuf::from(otel_agent_values_path),
-            otel_config_source_path: PathBuf::from(otel_config_source_path),
-        }
-    }
-
+    /// generate_otel_config is gathering the embedded otel values file that is downloaded on build
+    /// time from the GitHub repository using the pinned version from the Goreleaser file.
+    /// Once copied the limit_mib is modified.
     pub fn generate_otel_config(&self) -> Result<(), CliError> {
         info!("Generating otel configuration");
         self.create_directories()?;
-        self.copy_example_values()?;
         self.modify_values_yaml()?;
         info!("Local otel config file successfully created");
         Ok(())
@@ -46,16 +40,10 @@ impl OtelConfigGen {
         Ok(())
     }
 
-    fn copy_example_values(&self) -> Result<(), CliError> {
-        let dest_path = self.otel_agent_values_path.join("values.yaml");
-        std::fs::copy(self.otel_config_source_path.clone(), dest_path)
-            .map_err(|err| CliError::Command(format!("error copying otel values file: {err}")))?;
-        Ok(())
-    }
-
     fn modify_values_yaml(&self) -> Result<(), CliError> {
+        let source_path = self.otel_config_source_path.clone();
         let file_path = self.otel_agent_values_path.join("values.yaml");
-        let content = std::fs::read_to_string(file_path.clone())
+        let content = std::fs::read_to_string(source_path)
             .map_err(|err| CliError::Command(format!("error reading otel values file: {err}")))?;
 
         let modified_content = content
@@ -82,6 +70,15 @@ mod tests {
     use std::fs;
     use std::io::Write;
     use tempfile::tempdir;
+
+    impl OtelConfigGen {
+        fn new(otel_agent_values_path: &str, otel_config_source_path: &str) -> OtelConfigGen {
+            Self {
+                otel_agent_values_path: PathBuf::from(otel_agent_values_path),
+                otel_config_source_path: PathBuf::from(otel_config_source_path),
+            }
+        }
+    }
 
     #[test]
     fn test_generate_otel_config_creates_directories_and_copies_file() {

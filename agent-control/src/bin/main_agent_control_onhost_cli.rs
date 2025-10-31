@@ -20,7 +20,7 @@ struct Cli {
 #[derive(Debug, clap::Subcommand)]
 enum Commands {
     // Generate Agent Control configuration according to the provided configuration data.
-    AgentConfig(config_gen::Args),
+    GenerateConfig(config_gen::Args),
     // Generate Host Monitoring configuration according to the provided configuration data.
     HostMonitoring(host_monitoring_gen::Args),
     // Generate systemd configuration according to the provided configuration data.
@@ -37,7 +37,7 @@ fn main() -> ExitCode {
     }
 
     let result = match cli.command {
-        Commands::AgentConfig(args) => {
+        Commands::GenerateConfig(args) => {
             if let Err(err) = args.validate() {
                 let mut cmd = Cli::command();
                 cmd.error(ErrorKind::ArgumentConflict, err.to_string())
