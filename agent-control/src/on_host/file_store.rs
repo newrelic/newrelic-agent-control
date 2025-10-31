@@ -18,7 +18,7 @@ use crate::{
         agent_id::AgentID,
         defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA},
     },
-    opamp::data_store::{OpAMPDataStore, StoreKey},
+    data_store::{DataStore, StoreKey},
 };
 
 pub struct FileStore<F, D>
@@ -138,14 +138,14 @@ where
     }
 }
 
-impl<F, D> OpAMPDataStore for FileStore<F, D>
+impl<F, D> DataStore for FileStore<F, D>
 where
     D: DirectoryManager,
     F: FileWriter + FileReader,
 {
     type Error = io::Error;
 
-    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_remote_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
@@ -160,7 +160,7 @@ where
         self.get(self.local_dir.get_local_file_path(agent_id, key))
     }
 
-    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    fn set_remote_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
@@ -194,7 +194,7 @@ where
             })
     }
 
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+    fn delete_remote_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
         // I'm writing (deleting) the locked file, not mutating the path
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.

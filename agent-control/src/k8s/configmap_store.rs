@@ -7,8 +7,8 @@ use super::client::SyncK8sClient;
 use super::labels::Labels;
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
+use crate::data_store::{DataStore, StoreKey};
 use crate::k8s;
-use crate::opamp::data_store::{OpAMPDataStore, StoreKey};
 use std::sync::{Arc, RwLock};
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
@@ -55,11 +55,15 @@ impl ConfigMapStore {
     }
 }
 
-impl OpAMPDataStore for ConfigMapStore {
+impl DataStore for ConfigMapStore {
     type Error = k8s::Error;
     /// get_opamp_data is used to get data from CMs storing data related with opamp:
     /// Instance IDs, hashes, and remote configs.
-    fn get_opamp_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_remote_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &StoreKey,
+    ) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
@@ -68,7 +72,11 @@ impl OpAMPDataStore for ConfigMapStore {
 
     /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
     /// created by the agent-control-deployment chart.
-    fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
+    fn get_local_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &StoreKey,
+    ) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
@@ -76,7 +84,12 @@ impl OpAMPDataStore for ConfigMapStore {
     }
 
     /// Stores data in the specified StoreKey of an Agent store.
-    fn set_opamp_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
+    fn set_remote_data<T>(
+        &self,
+        agent_id: &AgentID,
+        key: &StoreKey,
+        data: &T,
+    ) -> Result<(), Self::Error>
     where
         T: Serialize,
     {
@@ -95,7 +108,7 @@ impl OpAMPDataStore for ConfigMapStore {
     }
 
     /// Delete data in the specified StoreKey of an Agent store.
-    fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
+    fn delete_remote_data(&self, agent_id: &AgentID, key: &StoreKey) -> Result<(), Self::Error> {
         #[allow(clippy::readonly_write_lock)]
         let _write_guard = self.rw_lock.write().unwrap();
 
@@ -164,7 +177,7 @@ pub mod tests {
 
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
-        let _ = k8s_store.set_opamp_data(
+        let _ = k8s_store.set_remote_data(
             &agent_id,
             STORE_KEY_TEST,
             &DataToBeStored {
@@ -172,7 +185,7 @@ pub mod tests {
             },
         );
 
-        let _ = k8s_store.delete_opamp_data(&agent_id, STORE_KEY_TEST);
+        let _ = k8s_store.delete_remote_data(&agent_id, STORE_KEY_TEST);
     }
 
     #[test]
@@ -194,7 +207,7 @@ pub mod tests {
             .returning(move |_, _, _| Ok(Some(DATA_STORED.to_string())));
 
         _ = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string())
-            .get_opamp_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
+            .get_remote_data::<DataToBeStored>(agent_id, STORE_KEY_TEST);
 
         // local
         let mut k8s_client = MockSyncK8sClient::default();
@@ -291,7 +304,7 @@ pub mod tests {
             });
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
 
-        let id = k8s_store.set_opamp_data(
+        let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
@@ -307,7 +320,7 @@ pub mod tests {
             .once()
             .returning(move |_, _, _, _, _| Ok(()));
         let k8s_store = ConfigMapStore::new(Arc::new(k8s_client), TEST_NAMESPACE.to_string());
-        let id = k8s_store.set_opamp_data(
+        let id = k8s_store.set_remote_data(
             &AgentID::try_from(AGENT_NAME).unwrap(),
             STORE_KEY_TEST,
             &DataToBeStored::default(),
