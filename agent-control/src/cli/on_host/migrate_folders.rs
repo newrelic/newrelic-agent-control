@@ -13,6 +13,7 @@ const REMOTE_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
 const OLD_ENV_FILE_NAME: &str = "newrelic-agent-control.conf";
 const NEW_ENV_FILE_NAME: &str = "systemd-env.conf";
 const OTEL_AGENT_ID: &str = "nrdot";
+const VALUES_FOLDER: &str = "values";
 const INFRA_AGENT_ID: &str = "nr-infra";
 // old folder and file names
 const OLD_CONFIG_AGENT_CONTROL_FILE_NAME: &str = "config.yaml";
@@ -26,20 +27,14 @@ pub fn migrate() -> Result<(), CliError> {
     let remote_base = PathBuf::from(REMOTE_DATA_DIR);
 
     let new_local_data_path = local_base.join(FOLDER_NAME_LOCAL_DATA);
-    let new_fleet_data_path = remote_base.join(FOLDER_NAME_FLEET_DATA);
 
-    if !check_new_folders(&new_local_data_path, &new_fleet_data_path) {
+    // Check if the new folder already exists - local-data
+    if new_local_data_path.exists() && new_local_data_path.is_dir() {
         move_and_rename(&local_base, &remote_base)?;
     }
     Ok(())
 }
-// Check if the new folders already exists - local-data or fleet-data
-fn check_new_folders(local_new_path: &Path, remote_new_path: &Path) -> bool {
-    let local_exists = local_new_path.exists() && local_new_path.is_dir();
-    let fleet_exists = remote_new_path.exists() && remote_new_path.is_dir();
 
-    local_exists || fleet_exists
-}
 // Copy the old files in the new paths but leaving the old ones in place
 fn move_and_rename(local_base: &Path, remote_base: &Path) -> Result<(), CliError> {
     debug!("Starting migration: moving files from old structure to new structure...");
@@ -156,7 +151,7 @@ fn add_infra_agent_files(
 ) {
     // --- LOCAL ---
     let old_local_infra_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(INFRA_AGENT_ID);
-    if old_local_infra_dir.exists() {
+    if old_local_infra_dir.exists() && old_local_infra_dir.is_dir() {
         debug!(
             "Found old local nr-infra directory, adding to migration: {}",
             old_local_infra_dir.display()
@@ -164,7 +159,7 @@ fn add_infra_agent_files(
         // nf-infra values.yaml -> local-data/nr-infra/local_config.yaml
         migration_pairs.push((
             old_local_infra_dir
-                .join("values")
+                .join(VALUES_FOLDER)
                 .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
             local_base
                 .join(FOLDER_NAME_LOCAL_DATA)
@@ -177,7 +172,7 @@ fn add_infra_agent_files(
     let old_remote_infra_dir = remote_base
         .join(OLD_SUB_AGENT_DATA_DIR)
         .join(INFRA_AGENT_ID);
-    if old_remote_infra_dir.exists() {
+    if old_remote_infra_dir.exists() && old_remote_infra_dir.is_dir() {
         debug!(
             "Found old remote nr-infra directory, adding to migration: {}",
             old_remote_infra_dir.display()
@@ -185,7 +180,7 @@ fn add_infra_agent_files(
         // nr-infra values.yaml -> fleet-data/nr-infra/remote_config.yaml
         migration_pairs.push((
             old_remote_infra_dir
-                .join("values")
+                .join(VALUES_FOLDER)
                 .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
             remote_base
                 .join(FOLDER_NAME_FLEET_DATA)
@@ -210,7 +205,7 @@ fn add_otel_agent_files(
 ) {
     // --- LOCAL ---
     let old_local_otel_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_local_otel_dir.exists() {
+    if old_local_otel_dir.exists() && old_local_otel_dir.is_dir() {
         debug!(
             "Found old local nrdot directory, adding to migration: {}",
             old_local_otel_dir.display()
@@ -218,7 +213,7 @@ fn add_otel_agent_files(
         // nrdot values.yaml -> local-data/nrdot/local_config.yaml
         migration_pairs.push((
             old_local_otel_dir
-                .join("values")
+                .join(VALUES_FOLDER)
                 .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
             local_base
                 .join(FOLDER_NAME_LOCAL_DATA)
@@ -229,7 +224,7 @@ fn add_otel_agent_files(
 
     // --- REMOTE ---
     let old_remote_otel_dir = remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_remote_otel_dir.exists() {
+    if old_remote_otel_dir.exists() && old_remote_otel_dir.is_dir() {
         debug!(
             "Found old remote nrdot directory, adding to migration: {}",
             old_remote_otel_dir.display()
@@ -237,7 +232,7 @@ fn add_otel_agent_files(
         // nrdot values.yaml -> fleet-data/nrdot/remote_config.yaml
         migration_pairs.push((
             old_remote_otel_dir
-                .join("values")
+                .join(VALUES_FOLDER)
                 .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
             remote_base
                 .join(FOLDER_NAME_FLEET_DATA)
@@ -270,35 +265,6 @@ mod tests {
     use super::*;
     use std::fs::{self, File};
     use tempfile::tempdir;
-
-    #[test]
-    fn test_check_new_folders_false_when_missing() {
-        let temp_dir = tempdir().unwrap();
-        let local_base = temp_dir.path().join("local");
-        let data_base = temp_dir.path().join("data");
-
-        let local_new_path = local_base.join(FOLDER_NAME_LOCAL_DATA);
-        let remote_new_path = data_base.join(FOLDER_NAME_FLEET_DATA);
-
-        let exists = check_new_folders(&local_new_path, &remote_new_path);
-        assert!(!exists);
-    }
-
-    #[test]
-    fn test_check_new_folders_true_when_present() {
-        let temp_dir = tempdir().unwrap();
-        let local_base = temp_dir.path().join("local");
-        let data_base = temp_dir.path().join("data");
-
-        let local_new_path = local_base.join(FOLDER_NAME_LOCAL_DATA);
-        let remote_new_path = data_base.join(FOLDER_NAME_FLEET_DATA);
-
-        fs::create_dir_all(&local_new_path).unwrap();
-        fs::create_dir_all(&remote_new_path).unwrap();
-
-        let exists = check_new_folders(&local_new_path, &remote_new_path);
-        assert!(exists);
-    }
 
     #[test]
     fn test_move_item_success() {
@@ -365,13 +331,6 @@ mod tests {
             "Migration list should contain all 10 items when old agent dirs exist"
         );
 
-        let new_local_data_path = local_base.join(FOLDER_NAME_LOCAL_DATA);
-        let new_fleet_data_path = remote_base.join(FOLDER_NAME_FLEET_DATA);
-        assert!(
-            !check_new_folders(&new_local_data_path, &new_fleet_data_path),
-            "New folders should not exist yet"
-        );
-
         for (old_path, _) in migration_pairs.iter() {
             let parent = old_path.parent().unwrap();
             fs::create_dir_all(parent).unwrap_or_else(|e| {
@@ -401,11 +360,6 @@ mod tests {
                 new_path.display()
             );
         }
-
-        assert!(
-            check_new_folders(&new_local_data_path, &new_fleet_data_path),
-            "New folders should be detected after migration"
-        );
     }
 
     #[test]
