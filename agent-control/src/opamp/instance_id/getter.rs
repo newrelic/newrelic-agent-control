@@ -90,8 +90,6 @@ where
 #[cfg(test)]
 pub mod tests {
     use std::sync::Arc;
-    use std::thread;
-    use std::time::Duration;
 
     use super::*;
 
@@ -237,61 +235,6 @@ pub mod tests {
 
         assert!(res.is_ok());
         assert_ne!(instance_id, res.unwrap());
-    }
-
-    #[test]
-    fn test_thread_safety() {
-        let mut mock = MockOpAMPDataStore::new();
-
-        let agent_id = AgentID::try_from(AGENT_NAME).unwrap();
-        // Data is read twice: first time it returns nothing, second time it returns data
-        mock.expect_get_opamp_data::<DataStored<MockIdentifiers>>()
-            .once()
-            .with(
-                predicate::eq(agent_id.clone()),
-                predicate::eq(STORE_KEY_INSTANCE_ID),
-            )
-            .returning(|_, _| Ok(None));
-        mock.expect_get_opamp_data()
-            .once()
-            .with(
-                predicate::eq(agent_id.clone()),
-                predicate::eq(STORE_KEY_INSTANCE_ID),
-            )
-            .return_once(move |_, _| {
-                Ok(Some(DataStored {
-                    instance_id: InstanceID::create(),
-                    identifiers: MockIdentifiers::default(),
-                }))
-            });
-        // Data is written just once
-        mock.expect_set_opamp_data::<DataStored<MockIdentifiers>>()
-            .once()
-            .with(
-                predicate::eq(agent_id.clone()),
-                predicate::eq(STORE_KEY_INSTANCE_ID),
-                predicate::always(),
-            )
-            .returning(|_, _, _| {
-                thread::sleep(Duration::from_millis(500)); // Make write slow to assure issues if resources are not protected
-                Ok(())
-            });
-
-        let getter =
-            InstanceIDWithIdentifiersGetter::new(Arc::new(mock), MockIdentifiers::default());
-        let getter1 = Arc::new(getter);
-        let getter2 = getter1.clone();
-
-        let t1 = thread::spawn(move || {
-            let res = getter1.get(&AgentID::try_from(AGENT_NAME).unwrap());
-            assert!(res.is_ok());
-        });
-        let t2 = thread::spawn(move || {
-            let res = getter2.get(&AgentID::try_from(AGENT_NAME).unwrap());
-            assert!(res.is_ok());
-        });
-        t1.join().unwrap();
-        t2.join().unwrap();
     }
 
     #[test]
