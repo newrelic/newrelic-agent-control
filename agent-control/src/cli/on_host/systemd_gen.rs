@@ -7,11 +7,8 @@ use std::io::Write;
 use tracing::info;
 
 const CONFIG_PATH: &str = "/etc/newrelic-agent-control/newrelic-agent-control.conf";
-const OTLP_URL_STAGING: &str = "staging.otlp.nr-data.net";
-const OTLP_URL_EU: &str = "otlp.eu01.nr-data.net";
-const OTLP_URL_US: &str = "otlp.nr-data.net";
-const NEW_RELIC_LICENSE_KEY: &str = "NEW_RELIC_LICENSE_KEY";
-const OTEL_EXPORTER_OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
+const NEW_RELIC_LICENSE_CONFIG_KEY: &str = "NEW_RELIC_LICENSE_KEY";
+const OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 
 /// Generates the Agent Control configuration for host environments.
 #[derive(Debug, clap::Parser)]
@@ -41,7 +38,7 @@ fn update_newrelic_license_key(config_path: &str, new_license_key: &str) -> Resu
     let content = std::fs::read_to_string(config_path)
         .map_err(|err| CliError::Command(format!("error reading agent control .conf file: {err}")))?
         .lines()
-        .filter(|line| !line.starts_with(NEW_RELIC_LICENSE_KEY))
+        .filter(|line| !line.starts_with(NEW_RELIC_LICENSE_CONFIG_KEY))
         .collect::<Vec<_>>()
         .join("\n");
 
@@ -55,7 +52,7 @@ fn update_newrelic_license_key(config_path: &str, new_license_key: &str) -> Resu
 
     let new_content = format!(
         "{}\n{}=\"{}\"\n",
-        content, NEW_RELIC_LICENSE_KEY, new_license_key
+        content, NEW_RELIC_LICENSE_CONFIG_KEY, new_license_key
     );
     file.write_all(new_content.as_bytes()).map_err(|err| {
         CliError::Command(format!("error updating agent control .conf file: {err}"))
@@ -68,15 +65,15 @@ fn update_otel_exporter_endpoint(config_path: &str, region: Region) -> Result<()
     let content = std::fs::read_to_string(config_path)
         .map_err(|err| CliError::Command(format!("error reading agent control .conf file: {err}")))?
         .lines()
-        .filter(|line| !line.starts_with(OTEL_EXPORTER_OTLP_ENDPOINT))
+        .filter(|line| !line.starts_with(OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY))
         .collect::<Vec<_>>()
         .join("\n");
 
     let new_content = format!(
         "{}\n{}=https://{}:4317/\n",
         content,
-        OTEL_EXPORTER_OTLP_ENDPOINT,
-        get_otlp_endpoint(region)
+        OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY,
+        region.otel_endpoint()
     );
 
     let mut file = OpenOptions::new()
@@ -94,28 +91,10 @@ fn update_otel_exporter_endpoint(config_path: &str, region: Region) -> Result<()
     Ok(())
 }
 
-fn get_otlp_endpoint(region: Region) -> String {
-    let url = match region {
-        Region::STAGING => OTLP_URL_STAGING,
-        Region::EU => OTLP_URL_EU,
-        Region::US => OTLP_URL_US,
-    };
-    url.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    #[test]
-    fn test_get_otlp_endpoint() {
-        assert_eq!(
-            get_otlp_endpoint(Region::STAGING),
-            OTLP_URL_STAGING.to_string()
-        );
-        assert_eq!(get_otlp_endpoint(Region::EU), OTLP_URL_EU.to_string());
-        assert_eq!(get_otlp_endpoint(Region::US), OTLP_URL_US.to_string());
-    }
 
     #[test]
     fn test_update_newrelic_license_key() {
@@ -123,15 +102,17 @@ mod tests {
         let file_path = dir.path().join("newrelic-agent-control.conf");
 
         let initial_content =
-            NEW_RELIC_LICENSE_KEY.to_string() + "=\"old_key\"\nOTHER_CONFIG=\"value\"";
+            NEW_RELIC_LICENSE_CONFIG_KEY.to_string() + "=\"old_key\"\nOTHER_CONFIG=\"value\"";
         std::fs::write(&file_path, initial_content).unwrap();
 
         let result = update_newrelic_license_key(file_path.to_str().unwrap(), "new_key");
         assert!(result.is_ok());
 
         let updated_content = std::fs::read_to_string(&file_path).unwrap();
-        assert!(updated_content.contains(&format!("{}=\"new_key\"", NEW_RELIC_LICENSE_KEY)));
-        assert!(!updated_content.contains(&format!("{}=\"old_key\"", NEW_RELIC_LICENSE_KEY)));
+        assert!(updated_content.contains(&format!("{}=\"new_key\"", NEW_RELIC_LICENSE_CONFIG_KEY)));
+        assert!(
+            !updated_content.contains(&format!("{}=\"old_key\"", NEW_RELIC_LICENSE_CONFIG_KEY))
+        );
         assert!(updated_content.contains("OTHER_CONFIG=\"value\""));
     }
 
@@ -142,7 +123,7 @@ mod tests {
 
         let initial_content = format!(
             "{}=\"old_endpoint\"\nOTHER_CONFIG=\"value\"",
-            OTEL_EXPORTER_OTLP_ENDPOINT
+            OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
         );
         std::fs::write(&file_path, initial_content).unwrap();
 
@@ -152,11 +133,12 @@ mod tests {
         let updated_content = std::fs::read_to_string(&file_path).unwrap();
         assert!(updated_content.contains(&format!(
             "{}=https://otlp.eu01.nr-data.net:4317/",
-            OTEL_EXPORTER_OTLP_ENDPOINT
+            OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
         )));
-        assert!(
-            !updated_content.contains(&format!("{}=\"old_endpoint\"", OTEL_EXPORTER_OTLP_ENDPOINT))
-        );
+        assert!(!updated_content.contains(&format!(
+            "{}=\"old_endpoint\"",
+            OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY
+        )));
         assert!(updated_content.contains("OTHER_CONFIG=\"value\""));
     }
 }

@@ -16,6 +16,10 @@ const PUBLIC_KEY_ENDPOINT_EU: &str =
 const PUBLIC_KEY_ENDPOINT_STAGING: &str =
     "https://staging-publickeys.newrelic.com/r/blob-management/global/agentconfiguration/jwks.json";
 
+const OTLP_URL_STAGING: &str = "staging.otlp.nr-data.net";
+const OTLP_URL_EU: &str = "otlp.eu01.nr-data.net";
+const OTLP_URL_US: &str = "otlp.nr-data.net";
+
 /// Represents the supported region and defines related fields. It cannot wrap the [Environments] enum
 /// due to clap limitations. Re-defining the enum is simpler than extending and using some mapping
 /// tool such as [clap::builder::TypedValueParser::map].
@@ -69,6 +73,16 @@ impl Region {
             Self::US => PUBLIC_KEY_ENDPOINT_US,
             Self::EU => PUBLIC_KEY_ENDPOINT_EU,
             Self::STAGING => PUBLIC_KEY_ENDPOINT_STAGING,
+        }
+        .parse()
+        .expect("known uris should be valid")
+    }
+
+    pub fn otel_endpoint(&self) -> Uri {
+        match &self {
+            Self::US => OTLP_URL_US,
+            Self::EU => OTLP_URL_EU,
+            Self::STAGING => OTLP_URL_STAGING,
         }
         .parse()
         .expect("known uris should be valid")
@@ -140,6 +154,17 @@ mod tests {
     fn test_token_renewal_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
         assert_eq!(
             region.token_renewal_endpoint().to_string(),
+            expected_endpoint.to_string()
+        );
+    }
+
+    #[rstest]
+    #[case(Region::US, "otlp.nr-data.net")]
+    #[case(Region::EU, "otlp.eu01.nr-data.net")]
+    #[case(Region::STAGING, "staging.otlp.nr-data.net")]
+    fn test_otel_endpoint(#[case] region: Region, #[case] expected_endpoint: &str) {
+        assert_eq!(
+            region.otel_endpoint().to_string(),
             expected_endpoint.to_string()
         );
     }
