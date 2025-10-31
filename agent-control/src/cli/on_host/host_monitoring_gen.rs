@@ -1,6 +1,7 @@
 //! Implementation of the generate-config command for the on-host cli.
 
 use crate::cli::error::CliError;
+use crate::cli::on_host::config_gen::config::AgentSet;
 use crate::cli::on_host::config_gen::region::{Region, region_parser};
 use crate::cli::on_host::host_monitoring_gen::infra_config_gen::InfraConfigGenerator;
 use tracing::info;
@@ -8,19 +9,12 @@ use tracing::info;
 pub mod infra_config;
 pub mod infra_config_gen;
 
-/// Represents the hostMonitoring source.
-#[derive(Debug, Copy, Clone, PartialEq, clap::ValueEnum)]
-pub enum HostMonitoringSource {
-    InfraAgent,
-    Otel,
-}
-
 /// Generates the Agent Control configuration for host environments.
 #[derive(Debug, clap::Parser)]
 pub struct Args {
-    /// Sets which host monitoring source to be used.
-    #[arg(long)]
-    host_monitoring_source: HostMonitoringSource,
+    /// Agent to be used for host monitoring.
+    #[arg(long, required = true)]
+    agent_set: AgentSet,
 
     /// Custom Attributes
     #[arg(long)]
@@ -39,7 +33,7 @@ pub struct Args {
 pub fn generate_host_monitoring_config(args: Args) -> Result<(), CliError> {
     info!("Generating Host monitoring values");
 
-    if args.host_monitoring_source == HostMonitoringSource::InfraAgent {
+    if args.agent_set == AgentSet::InfraAgent {
         let infra_config_generator = InfraConfigGenerator::default();
 
         infra_config_generator
