@@ -35,7 +35,7 @@ where
 pub struct LocalDir(PathBuf);
 
 impl LocalDir {
-    pub fn get_local_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
+    pub fn get_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
         self.0
             .join(FOLDER_NAME_LOCAL_DATA)
             .join(agent_id)
@@ -46,7 +46,7 @@ impl LocalDir {
 pub struct RemoteDir(PathBuf);
 
 impl RemoteDir {
-    pub fn get_remote_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
+    pub fn get_file_path(&self, agent_id: &AgentID, key: &StoreKey) -> PathBuf {
         self.0
             .join(FOLDER_NAME_FLEET_DATA)
             .join(agent_id)
@@ -85,17 +85,17 @@ where
 
     // Load a file contents only if the file is present.
     // If the file is not present there is no error nor file
-    fn load_file_if_present(&self, path: PathBuf) -> Result<Option<String>, FileReaderError> {
-        let values_result = self.file_rw.read(path.as_path());
+    fn load_file_if_present(&self, path: &Path) -> Result<Option<String>, FileReaderError> {
+        let values_result = self.file_rw.read(path);
         match values_result {
             Ok(res) => Ok(Some(res)),
             Err(FileReaderError::FileNotFound(e)) => {
-                trace!("file not found! {e}");
+                trace!("File not found! {e}");
                 // actively fallback to load local file
                 Ok(None)
             }
             Err(err) => {
-                error!("error loading file {}", path.display());
+                error!("Error loading file {}", path.display());
                 Err(err)
             }
         }
@@ -121,7 +121,7 @@ where
     where
         T: DeserializeOwned,
     {
-        self.load_file_if_present(key)
+        self.load_file_if_present(&key)
             // TODO: Address the generation of this error by
             // reworking the errors in the `fs` crate so they
             // emit std::io::Error instead.
@@ -149,15 +149,18 @@ where
     where
         T: DeserializeOwned,
     {
-        let remote_dir = self.remote_dir.read().unwrap();
-        self.get(remote_dir.get_remote_file_path(agent_id, key))
+        let remote_dir = self
+            .remote_dir
+            .read()
+            .expect("Failed to acquire the lock for reading the remote directory");
+        self.get(remote_dir.get_file_path(agent_id, key))
     }
 
     fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
     where
         T: DeserializeOwned,
     {
-        self.get(self.local_dir.get_local_file_path(agent_id, key))
+        self.get(self.local_dir.get_file_path(agent_id, key))
     }
 
     fn set_remote_data<T>(&self, agent_id: &AgentID, key: &str, data: &T) -> Result<(), Self::Error>
@@ -168,9 +171,12 @@ where
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
         #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
+        let remote_dir = self
+            .remote_dir
+            .write()
+            .expect("Failed to acquire lock for write into the remote path");
 
-        let remote_values_path = remote_dir.get_remote_file_path(agent_id, key);
+        let remote_values_path = remote_dir.get_file_path(agent_id, key);
 
         self.ensure_directory_existence(&remote_values_path)
             .map_err(|err| {
@@ -199,9 +205,12 @@ where
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
         #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
+        let remote_dir = self
+            .remote_dir
+            .write()
+            .expect("Failed to acquire lock for write into the remote path");
 
-        let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
+        let remote_path_file = remote_dir.get_file_path(agent_id, key);
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
             std::fs::remove_file(remote_path_file)?;
@@ -268,10 +277,10 @@ mod tests {
                 self.remote_dir
                     .read()
                     .unwrap()
-                    .get_remote_file_path(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+                    .get_file_path(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             } else {
                 self.local_dir
-                    .get_local_file_path(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
+                    .get_file_path(agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
             }
         }
 
@@ -279,7 +288,7 @@ mod tests {
             self.remote_dir
                 .read()
                 .unwrap()
-                .get_remote_file_path(agent_id, STORE_KEY_INSTANCE_ID)
+                .get_file_path(agent_id, STORE_KEY_INSTANCE_ID)
         }
     }
 
@@ -482,9 +491,9 @@ state: applied
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
         let test_path = if remote_enabled {
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
+            remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
         } else {
-            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
+            local_dir_path.get_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG)
         };
 
         // Expectations
@@ -523,9 +532,8 @@ state: applied
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path =
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
-        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+        let remote_path = remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_path = local_dir_path.get_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         file_rw.should_not_read_file_not_found(&remote_path, "some_error_message".to_string());
@@ -562,7 +570,7 @@ state: applied
         let dir_manager = MockDirectoryManager::new();
         let remote_dir_path = PathBuf::from("some/remote/path/");
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let local_path = local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+        let local_path = local_dir_path.get_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         file_rw.should_not_read_file_not_found(&local_path, "some message".to_string());
@@ -591,9 +599,8 @@ state: applied
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
         let remote_test_path =
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
-        let local_test_path =
-            local_dir_path.get_local_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
+            remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let local_test_path = local_dir_path.get_file_path(&agent_id, STORE_KEY_LOCAL_DATA_CONFIG);
 
         // Expectations
         if remote_enabled {
@@ -627,8 +634,7 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path =
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let remote_path = remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_create(remote_path.parent().unwrap());
@@ -661,8 +667,7 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path =
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let remote_path = remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_not_create(
@@ -697,8 +702,7 @@ state: applied
         let mut dir_manager = MockDirectoryManager::new();
         let remote_dir_path = RemoteDir::from(PathBuf::from("some/remote/path/"));
         let local_dir_path = LocalDir::from(PathBuf::from("some/local/path/"));
-        let remote_path =
-            remote_dir_path.get_remote_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
+        let remote_path = remote_dir_path.get_file_path(&agent_id, STORE_KEY_OPAMP_DATA_CONFIG);
 
         // Expectations
         dir_manager.should_create(remote_path.parent().unwrap());

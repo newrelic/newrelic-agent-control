@@ -256,8 +256,8 @@ agents:
         agents_cfg_local,
     ));
 
-    let vr = ConfigRepo::new(k8s_store.clone());
-    let store_sa = AgentControlConfigStore::new(Arc::new(vr));
+    let config_repository = ConfigRepo::new(k8s_store.clone());
+    let store_sa = AgentControlConfigStore::new(Arc::new(config_repository));
     assert_eq!(store_sa.load().unwrap().agents.len(), 4);
 
     // after removing an agent and storing it, we expect not to see it without remote enabled

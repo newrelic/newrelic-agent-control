@@ -26,8 +26,8 @@ fn main() -> Result<(), Box<dyn Error>> {
         cli.local_data_dir(),
         cli.remote_data_dir(),
     ));
-    let vr = ConfigRepo::new(file_store);
-    let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
+    let config_repository = ConfigRepo::new(file_store);
+    let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(config_repository));
     let config_migrator = ConfigMigrator::new(
         ConfigConverter::default(),
         AgentConfigGetter::new(sa_local_config_loader),
