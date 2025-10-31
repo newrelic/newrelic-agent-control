@@ -216,7 +216,7 @@ pub fn build_config_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, io, path::PathBuf, sync::Arc};
+    use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
     use assert_matches::assert_matches;
     use fs::{
@@ -227,7 +227,6 @@ mod tests {
         mock::MockLocalFile,
         writer_file::FileWriter,
     };
-    use mockall::predicate;
     use rstest::{fixture, rstest};
     use serde_yaml::Value;
 
@@ -239,15 +238,7 @@ mod tests {
                 STORE_KEY_OPAMP_DATA_CONFIG, default_capabilities,
             },
         },
-        opamp::{
-            instance_id::{
-                InstanceID,
-                getter::DataStored,
-                on_host::identifiers::Identifiers,
-                storer::{InstanceIDStorer, Storer},
-            },
-            remote_config::hash::{ConfigState, Hash},
-        },
+        opamp::remote_config::hash::{ConfigState, Hash},
         values::{
             ConfigRepo,
             config::RemoteConfig,
@@ -334,126 +325,6 @@ mod tests {
             sa_dir
                 .join("fleet-data/agent-control")
                 .join(INSTANCE_ID_FILENAME)
-        );
-    }
-
-    #[test]
-    fn test_successful_write() {
-        // Data
-        let (agent_id, sa_path, instance_id_path) = test_data();
-        let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManager::default();
-        let instance_id = InstanceID::create();
-        let ds = DataStored {
-            instance_id: instance_id.clone(),
-            identifiers: test_identifiers(),
-        };
-
-        // Expectations
-        dir_manager.should_create(instance_id_path.parent().unwrap());
-        file_rw.should_write(&instance_id_path, expected_file(instance_id));
-
-        let file_store = Arc::new(FileStore::new(
-            file_rw,
-            dir_manager,
-            PathBuf::default(),
-            sa_path,
-        ));
-
-        let storer = Storer::from(file_store);
-        assert!(storer.set(&agent_id, &ds).is_ok());
-    }
-
-    #[test]
-    fn test_unsuccessful_write() {
-        // Data
-        let (agent_id, sa_path, instance_id_path) = test_data();
-        let mut file_rw = MockLocalFile::default();
-        let mut dir_manager = MockDirectoryManager::default();
-        let instance_id = InstanceID::create();
-        let ds = DataStored {
-            instance_id: instance_id.clone(),
-            identifiers: test_identifiers(),
-        };
-
-        // Expectations
-        file_rw.should_not_write(&instance_id_path, expected_file(instance_id));
-        dir_manager.should_create(instance_id_path.parent().unwrap());
-
-        let file_store = Arc::new(FileStore::new(
-            file_rw,
-            dir_manager,
-            PathBuf::default(),
-            sa_path.clone(),
-        ));
-
-        let storer = Storer::from(file_store);
-        assert!(storer.set(&agent_id, &ds).is_err());
-    }
-
-    #[test]
-    fn test_successful_read() {
-        // Data
-        let (agent_id, sa_path, instance_id_path) = test_data();
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManager::default();
-        let instance_id = InstanceID::create();
-        let ds = DataStored {
-            instance_id: instance_id.clone(),
-            identifiers: test_identifiers(),
-        };
-        let expected = Some(ds.clone());
-
-        // Expectations
-        file_rw
-            .expect_read()
-            .with(predicate::function(move |p| {
-                p == instance_id_path.as_path()
-            }))
-            .once()
-            .return_once(|_| Ok(expected_file(instance_id)));
-
-        let file_store = Arc::new(FileStore::new(
-            file_rw,
-            dir_manager,
-            PathBuf::default(),
-            sa_path,
-        ));
-        let storer = Storer::from(file_store);
-        let actual = storer.get(&agent_id);
-        assert!(actual.is_ok());
-        assert_eq!(expected, actual.unwrap());
-    }
-
-    #[test]
-    fn test_unsuccessful_read() {
-        let (agent_id, sa_path, instance_id_path) = test_data();
-        let mut file_rw = MockLocalFile::default();
-        let dir_manager = MockDirectoryManager::default();
-
-        file_rw
-            .expect_read()
-            .with(predicate::function(move |p| {
-                p == instance_id_path.as_path()
-            }))
-            .once()
-            .return_once(|_| Err(io::Error::other("some error message").into()));
-
-        let file_store = Arc::new(FileStore::new(
-            file_rw,
-            dir_manager,
-            PathBuf::default(),
-            sa_path,
-        ));
-        let storer: Storer<FileStore<MockLocalFile, MockDirectoryManager>, Identifiers> =
-            Storer::from(file_store);
-        let expected = storer.get(&agent_id);
-
-        // As said above, we are not generating the error variant here
-        assert!(
-            matches!(expected, Err(ref s) if s.to_string().contains("some error message")),
-            "Expected Err variant, got {:?}",
-            expected
         );
     }
 
@@ -740,36 +611,5 @@ state: applied
         ));
         let repo = ConfigRepo::new(file_store);
         repo.delete_remote(&agent_id).unwrap();
-    }
-
-    // HELPERS
-
-    const HOSTNAME: &str = "test-hostname";
-    const MACHINE_ID: &str = "test-machine-id";
-    const CLOUD_INSTANCE_ID: &str = "test-instance-id";
-    const HOST_ID: &str = "test-host-id";
-    const FLEET_ID: &str = "test-fleet-id";
-
-    fn test_data() -> (AgentID, PathBuf, PathBuf) {
-        let agent_id = AgentID::try_from("test").unwrap();
-        let sa_path = PathBuf::from("/super");
-        let instance_id_path = PathBuf::from("/super/fleet-data/test/instance_id.yaml");
-        (agent_id, sa_path, instance_id_path)
-    }
-
-    fn expected_file(instance_id: InstanceID) -> String {
-        format!(
-            "instance_id: {instance_id}\nidentifiers:\n  hostname: {HOSTNAME}\n  machine_id: {MACHINE_ID}\n  cloud_instance_id: {CLOUD_INSTANCE_ID}\n  host_id: {HOST_ID}\n  fleet_id: {FLEET_ID}\n",
-        )
-    }
-
-    fn test_identifiers() -> Identifiers {
-        Identifiers {
-            hostname: HOSTNAME.into(),
-            machine_id: MACHINE_ID.into(),
-            cloud_instance_id: CLOUD_INSTANCE_ID.into(),
-            host_id: HOST_ID.into(),
-            fleet_id: FLEET_ID.into(),
-        }
     }
 }

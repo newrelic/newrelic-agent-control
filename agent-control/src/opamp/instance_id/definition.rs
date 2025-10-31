@@ -8,7 +8,10 @@ use std::{
 /// A trait to be implemented by all instance identifiers. This is needed so each implementation
 /// of [`InstanceIDStorer`](super::storer::InstanceIDStorer) can explicitly define the identifiers
 /// it can perform the [`set`](super::storer::InstanceIDStorer::set) action for.
-pub trait InstanceIdentifiers: PartialEq + Debug + Clone {}
+pub trait InstanceIdentifiers:
+    PartialEq + Debug + Clone + Serialize + for<'de> Deserialize<'de>
+{
+}
 
 /// Holds an OpAMP's instance uid and easy its serialization/deserialization.
 #[derive(Debug, PartialEq, Clone, Eq, Hash)]
@@ -72,8 +75,9 @@ impl From<InstanceID> for Vec<u8> {
 pub mod tests {
     use super::{InstanceID, InstanceIdentifiers};
     use opamp_client::operation::instance_uid::InstanceUid;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Default, PartialEq, Clone)]
+    #[derive(Debug, Default, Serialize, Deserialize, PartialEq, Clone)]
     pub struct MockIdentifiers(pub usize);
     impl InstanceIdentifiers for MockIdentifiers {}
 
