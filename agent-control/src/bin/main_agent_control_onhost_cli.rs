@@ -22,7 +22,7 @@ enum Commands {
     // Generate Agent Control configuration according to the provided configuration data.
     GenerateConfig(config_gen::Args),
     // Migrate from the older on host folders to the new ones.
-    MigrateFolders,
+    FilesBackwardsCompatibilityMigrationFromV120,
 }
 
 fn main() -> ExitCode {
@@ -43,7 +43,7 @@ fn main() -> ExitCode {
             }
             config_gen::generate_config(args)
         }
-        Commands::MigrateFolders => migrate_folders::migrate(),
+        Commands::FilesBackwardsCompatibilityMigrationFromV120 => migrate_folders::migrate(),
     };
 
     if let Err(err) = result {
