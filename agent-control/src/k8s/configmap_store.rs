@@ -57,8 +57,9 @@ impl ConfigMapStore {
 
 impl DataStore for ConfigMapStore {
     type Error = k8s::Error;
-    /// get_opamp_data is used to get data from CMs storing data related with opamp:
-    /// Instance IDs, hashes, and remote configs.
+    /// Returns data related with opamp, if it exists.
+    ///
+    /// The data is stored in a ConfigMap and includes: Instance IDs, hashes and remote configs.
     fn get_remote_data<T>(
         &self,
         agent_id: &AgentID,
@@ -70,8 +71,9 @@ impl DataStore for ConfigMapStore {
         self.get(agent_id, FOLDER_NAME_FLEET_DATA, key)
     }
 
-    /// get_local_data is used to get data from CMs storing local configurations. I.e. all the CMs
-    /// created by the agent-control-deployment chart.
+    /// Returns local data from CMs storing local configurations.
+    ///
+    /// The data is stored in ConfigMaps created by the agent-control-deployment chart.
     fn get_local_data<T>(
         &self,
         agent_id: &AgentID,
