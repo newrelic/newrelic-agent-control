@@ -95,7 +95,7 @@ httpmock = { version = "0.8.2", features = ["proxy"] }
 serial_test = "3.2.0"
 futures = "0.3.31"
 rcgen = { version = "0.14.5", features = ["crypto"] }
-rstest = "0.26.1"
+rstest = { workspace = true }
 tokio-stream = { version = "0.1.17", features = ["net"] }
 
 [build-dependencies]

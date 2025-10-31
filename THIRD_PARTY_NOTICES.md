@@ -313,6 +313,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
+## block2 <https://crates.io/crates/block2>
+
+Distributed under the following license(s):
+
+* MIT
+
 ## brotli <https://crates.io/crates/brotli>
 
 Distributed under the following license(s):
@@ -642,10 +648,12 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## dispatch <https://crates.io/crates/dispatch>
+## dispatch2 <https://crates.io/crates/dispatch2>
 
 Distributed under the following license(s):
 
+* Zlib
+* Apache-2.0
 * MIT
 
 ## displaydoc <https://crates.io/crates/displaydoc>
@@ -1442,6 +1450,18 @@ Distributed under the following license(s):
 
 * MIT
 * Apache-2.0
+
+## objc2 <https://crates.io/crates/objc2>
+
+Distributed under the following license(s):
+
+* MIT
+
+## objc2-encode <https://crates.io/crates/objc2-encode>
+
+Distributed under the following license(s):
+
+* MIT
 
 ## oid-registry <https://crates.io/crates/oid-registry>
 
@@ -2473,13 +2493,6 @@ Distributed under the following license(s):
 * MIT
 * Apache-2.0
 
-## wasm-bindgen-backend <https://crates.io/crates/wasm-bindgen-backend>
-
-Distributed under the following license(s):
-
-* MIT
-* Apache-2.0
-
 ## wasm-bindgen-futures <https://crates.io/crates/wasm-bindgen-futures>
 
 Distributed under the following license(s):
@@ -2641,6 +2654,12 @@ Distributed under the following license(s):
 * Apache-2.0
 
 ## winnow <https://crates.io/crates/winnow>
+
+Distributed under the following license(s):
+
+* MIT
+
+## winreg <https://crates.io/crates/winreg>
 
 Distributed under the following license(s):
 

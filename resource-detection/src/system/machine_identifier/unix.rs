@@ -1,11 +1,9 @@
 use std::path::{Path, PathBuf};
 
-use fs::{
-    LocalFile,
-    file_reader::{FileReader, FileReaderError},
-};
+use fs::LocalFile;
+use fs::file_reader::{FileReader, FileReaderError};
 
-use super::detector::SystemDetectorError;
+use crate::system::detector::SystemDetectorError;
 
 const MACHINE_ID_PATH: &str =
     konst::option::unwrap_or!(option_env!("TEST_MACHINE_ID_PATH"), "/etc/machine-id");
@@ -15,13 +13,13 @@ const DBUS_MACHINE_ID_PATH: &str = konst::option::unwrap_or!(
     "/var/lib/dbus/machine-id"
 );
 
-pub(super) struct IdentifierProviderMachineId<F> {
+pub struct MachineIdentityProvider<F = LocalFile> {
     machine_id_path: PathBuf,
     dbus_machine_id_path: PathBuf,
     file_reader: F,
 }
 
-impl<F> IdentifierProviderMachineId<F>
+impl<F> MachineIdentityProvider<F>
 where
     F: FileReader,
 {
@@ -29,7 +27,7 @@ where
         self.file_reader.read(file_path)
     }
 
-    pub(super) fn provide(&self) -> Result<String, SystemDetectorError> {
+    pub fn provide(&self) -> Result<String, SystemDetectorError> {
         self.read_content(self.machine_id_path.as_path())
             .or_else(|_| self.read_content(self.dbus_machine_id_path.as_path()))
             .map(|s: String| s.trim().to_string())
@@ -37,7 +35,7 @@ where
     }
 }
 
-impl Default for IdentifierProviderMachineId<LocalFile> {
+impl Default for MachineIdentityProvider<LocalFile> {
     fn default() -> Self {
         Self {
             machine_id_path: PathBuf::from(MACHINE_ID_PATH),
@@ -56,7 +54,7 @@ mod tests {
     type MachineIDPath = Path;
     type DBusMachineIDPath = Path;
 
-    impl<F> IdentifierProviderMachineId<F>
+    impl<F> MachineIdentityProvider<F>
     where
         F: FileReader,
     {
@@ -82,8 +80,7 @@ mod tests {
 
         file_reader.should_read(path.as_path(), expected_machine_id.clone());
 
-        let provider =
-            IdentifierProviderMachineId::new(path.as_path(), path.as_path(), file_reader);
+        let provider = MachineIdentityProvider::new(path.as_path(), path.as_path(), file_reader);
 
         let machine_id = provider.provide().unwrap();
         assert_eq!(expected_machine_id, machine_id);
@@ -103,7 +100,7 @@ mod tests {
         );
         file_reader.should_read(dbus_machine_id_path.as_path(), expected_machine_id.clone());
 
-        let provider = IdentifierProviderMachineId::new(
+        let provider = MachineIdentityProvider::new(
             machine_id_path.as_path(),
             dbus_machine_id_path.as_path(),
             file_reader,
@@ -124,8 +121,7 @@ mod tests {
         file_reader
             .should_not_read_file_not_found(path.as_path(), String::from("some error message"));
 
-        let provider =
-            IdentifierProviderMachineId::new(path.as_path(), path.as_path(), file_reader);
+        let provider = MachineIdentityProvider::new(path.as_path(), path.as_path(), file_reader);
 
         let result = provider.provide();
         assert!(result.is_err());
