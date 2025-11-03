@@ -1,7 +1,6 @@
 use std::{
     io::{self, Error, ErrorKind},
     path::{Path, PathBuf},
-    sync::RwLock,
 };
 
 use fs::{
@@ -28,7 +27,7 @@ where
 {
     directory_manager: D,
     file_rw: F,
-    remote_dir: RwLock<RemoteDir>,
+    remote_dir: RemoteDir,
     local_dir: LocalDir,
 }
 
@@ -56,7 +55,7 @@ impl RemoteDir {
 
 impl FileStore<LocalFile, DirectoryManagerFs> {
     pub fn new_local_fs(local_dir: PathBuf, remote_dir: PathBuf) -> Self {
-        let remote_dir = RwLock::new(RemoteDir(remote_dir));
+        let remote_dir = RemoteDir(remote_dir);
         let local_dir = LocalDir(local_dir);
         Self {
             file_rw: LocalFile,
@@ -73,7 +72,7 @@ where
     F: FileWriter + FileReader,
 {
     pub fn new(file_rw: F, directory_manager: D, local_dir: PathBuf, remote_dir: PathBuf) -> Self {
-        let remote_dir = RwLock::new(RemoteDir(remote_dir));
+        let remote_dir = RemoteDir(remote_dir);
         let local_dir = LocalDir(local_dir);
         Self {
             file_rw,
@@ -149,8 +148,7 @@ where
     where
         T: DeserializeOwned,
     {
-        let remote_dir = self.remote_dir.read().unwrap();
-        self.get(remote_dir.get_remote_file_path(agent_id, key))
+        self.get(self.remote_dir.get_remote_file_path(agent_id, key))
     }
 
     fn get_local_data<T>(&self, agent_id: &AgentID, key: &str) -> Result<Option<T>, Self::Error>
@@ -164,13 +162,7 @@ where
     where
         T: Serialize,
     {
-        // I'm writing the locked file, not mutating the path
-        // I think the OS will handle concurrent write/delete fine from all
-        // threads/subprocesses of the program, but just in case. We can revisit later.
-        #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
-
-        let remote_values_path = remote_dir.get_remote_file_path(agent_id, key);
+        let remote_values_path = self.remote_dir.get_remote_file_path(agent_id, key);
 
         self.ensure_directory_existence(&remote_values_path)
             .map_err(|err| {
@@ -199,9 +191,7 @@ where
         // I think the OS will handle concurrent write/delete fine from all
         // threads/subprocesses of the program, but just in case. We can revisit later.
         #[allow(clippy::readonly_write_lock)]
-        let remote_dir = self.remote_dir.write().unwrap();
-
-        let remote_path_file = remote_dir.get_remote_file_path(agent_id, key);
+        let remote_path_file = self.remote_dir.get_remote_file_path(agent_id, key);
         if remote_path_file.exists() {
             debug!("deleting remote config: {:?}", remote_path_file);
             std::fs::remove_file(remote_path_file)?;
@@ -266,8 +256,6 @@ mod tests {
         pub fn get_testing_values_path(&self, agent_id: &AgentID, remote_enabled: bool) -> PathBuf {
             if remote_enabled {
                 self.remote_dir
-                    .read()
-                    .unwrap()
                     .get_remote_file_path(agent_id, STORE_KEY_OPAMP_DATA_CONFIG)
             } else {
                 self.local_dir
@@ -277,8 +265,6 @@ mod tests {
 
         pub fn get_testing_instance_id_path(&self, agent_id: &AgentID) -> PathBuf {
             self.remote_dir
-                .read()
-                .unwrap()
                 .get_remote_file_path(agent_id, STORE_KEY_INSTANCE_ID)
         }
     }

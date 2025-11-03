@@ -9,14 +9,13 @@ use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{FOLDER_NAME_FLEET_DATA, FOLDER_NAME_LOCAL_DATA};
 use crate::k8s;
 use crate::opamp::data_store::{OpAMPDataStore, StoreKey};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// Represents a Kubernetes persistent store of Agents data such as instance id and configs.
 /// The store is implemented using one ConfigMap per Agent with all the data.
 pub struct ConfigMapStore {
     k8s_client: Arc<SyncK8sClient>,
     namespace: String,
-    rw_lock: RwLock<()>,
 }
 
 impl ConfigMapStore {
@@ -25,7 +24,6 @@ impl ConfigMapStore {
         Self {
             k8s_client,
             namespace,
-            rw_lock: RwLock::new(()),
         }
     }
 
@@ -39,8 +37,6 @@ impl ConfigMapStore {
     where
         T: serde::de::DeserializeOwned,
     {
-        let _read_guard = self.rw_lock.read().unwrap();
-
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, prefix);
         if let Some(data) =
             self.k8s_client
@@ -80,9 +76,6 @@ impl OpAMPDataStore for ConfigMapStore {
     where
         T: Serialize,
     {
-        #[allow(clippy::readonly_write_lock)]
-        let _write_guard = self.rw_lock.write().unwrap();
-
         let data_as_string = serde_yaml::to_string(data)?;
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client.set_configmap_key(
@@ -96,9 +89,6 @@ impl OpAMPDataStore for ConfigMapStore {
 
     /// Delete data in the specified StoreKey of an Agent store.
     fn delete_opamp_data(&self, agent_id: &AgentID, key: &str) -> Result<(), Self::Error> {
-        #[allow(clippy::readonly_write_lock)]
-        let _write_guard = self.rw_lock.write().unwrap();
-
         let configmap_name = ConfigMapStore::build_cm_name(agent_id, FOLDER_NAME_FLEET_DATA);
         self.k8s_client
             .delete_configmap_key(&configmap_name, self.namespace.as_str(), key)
