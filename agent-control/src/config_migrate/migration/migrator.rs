@@ -1,14 +1,11 @@
 use crate::agent_control::config::AgentControlConfigError;
 use crate::agent_control::config_repository::repository::AgentControlDynamicConfigRepository;
 use crate::agent_control::config_repository::store::AgentControlConfigStore;
-#[cfg_attr(test, mockall_double::double)]
 use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
 use crate::config_migrate::migration::config::MigrationAgentConfig;
-#[cfg_attr(test, mockall_double::double)]
 use crate::config_migrate::migration::converter::ConfigConverter;
 use crate::config_migrate::migration::converter::ConversionError;
 use crate::config_migrate::migration::persister::values_persister_file::PersistError;
-#[cfg_attr(test, mockall_double::double)]
 use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
 use crate::values::file::ConfigRepositoryFile;
 use fs::LocalFile;
@@ -101,74 +98,55 @@ impl
 
 #[cfg(test)]
 mod tests {
-    use crate::agent_control::agent_id::AgentID;
-    use crate::agent_control::config::{AgentControlDynamicConfig, SubAgentConfig};
+    use crate::agent_control::config_repository::store::AgentControlConfigStore;
+    use crate::agent_control::defaults::SUB_AGENT_DIR;
     use crate::agent_type::agent_type_id::AgentTypeID;
-    use crate::config_migrate::migration::agent_config_getter::MockAgentConfigGetter;
+    use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
     use crate::config_migrate::migration::config::MigrationAgentConfig;
-    use crate::config_migrate::migration::converter::MockConfigConverter;
+    use crate::config_migrate::migration::converter::ConfigConverter;
     use crate::config_migrate::migration::migrator::ConfigMigrator;
-    use crate::config_migrate::migration::persister::values_persister_file::MockValuesPersisterFile;
-    use mockall::predicate;
-    use std::collections::HashMap;
+    use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
+    use crate::values::file::ConfigRepositoryFile;
+    use std::sync::Arc;
+    use tempfile::TempDir;
 
+    const INITIAL_INFRA_CONFIG: &str = r#"
+license_key: invented
+enable_process_metrics: false
+status_server_enabled: false
+status_server_port: 2333
+extra_config: true
+"#;
+
+    const AGENTS_CONFIG: &str = r#"
+agents:
+    infra-agent-a:
+        agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
+    infra-agent-b:
+        agent_type: "newrelic/com.newrelic.infrastructure:0.0.2"
+"#;
+
+    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[test]
     fn test_migrate() {
-        let agent_a = AgentID::try_from("infra-agent-a").unwrap();
-        let agent_b = AgentID::try_from("infra-agent-b").unwrap();
-        let agents: HashMap<AgentID, SubAgentConfig> = HashMap::from([
-            (
-                agent_a.clone(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
-                        .unwrap(),
-                },
-            ),
-            (
-                agent_b.clone(),
-                SubAgentConfig {
-                    agent_type: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.2")
-                        .unwrap(),
-                },
-            ),
-        ]);
+        let tmp_dir = TempDir::new().unwrap();
+        let infra_file_path = tmp_dir.path().join("newrelic-infra.yml");
+        let agents_file_path = tmp_dir.path().join("config.yaml");
 
-        let mut agent_config_getter = MockAgentConfigGetter::default();
-        agent_config_getter
-            .expect_get_agents_of_type_between_versions()
-            .once()
-            .returning(move |_, _| {
-                Ok(AgentControlDynamicConfig {
-                    agents: agents.clone(),
-                    chart_version: None,
-                    cd_chart_version: None,
-                })
-            });
+        // Emulate the existence of the file by creating it
+        std::fs::write(&infra_file_path, INITIAL_INFRA_CONFIG).unwrap();
 
-        let agent_variables = HashMap::from([(
-            "cfg".to_string(),
-            serde_yaml::Value::String("value".to_string()),
-        )]);
+        std::fs::write(&agents_file_path, AGENTS_CONFIG).unwrap();
 
-        let mut config_converter = MockConfigConverter::default();
-        config_converter
-            .expect_convert()
-            .times(2)
-            .returning(move |_| Ok(agent_variables.clone()));
+        let vr =
+            ConfigRepositoryFile::new(tmp_dir.path().to_path_buf(), tmp_dir.path().to_path_buf());
+        let sa_local_config_loader = AgentControlConfigStore::new(Arc::new(vr));
 
-        let mut values_persister = MockValuesPersisterFile::default();
-        values_persister
-            .expect_persist_values_file()
-            .with(predicate::eq(agent_a), predicate::always())
-            .once()
-            .returning(|_, _| Ok(()));
-        values_persister
-            .expect_persist_values_file()
-            .with(predicate::eq(agent_b), predicate::always())
-            .once()
-            .returning(|_, _| Ok(()));
-
-        let migrator = ConfigMigrator::new(config_converter, agent_config_getter, values_persister);
+        let config_migrator = ConfigMigrator::new(
+            ConfigConverter::default(),
+            AgentConfigGetter::new(sa_local_config_loader),
+            ValuesPersisterFile::new(tmp_dir.path().join(SUB_AGENT_DIR)),
+        );
 
         let agent_config_mapping = MigrationAgentConfig {
             agent_type_fqn: AgentTypeID::try_from("newrelic/com.newrelic.infrastructure:0.0.1")
@@ -176,7 +154,17 @@ mod tests {
             filesystem_mappings: Default::default(),
             next: None,
         };
-        let migration = migrator.migrate(&agent_config_mapping);
+        let migration = config_migrator.migrate(&agent_config_mapping);
         assert!(migration.is_ok());
+
+        let values_file = tmp_dir
+            .path()
+            .join("fleet/agents.d/infra-agent-a/values/values.yaml");
+        assert!(std::fs::exists(&values_file).unwrap());
+
+        let values_file = tmp_dir
+            .path()
+            .join("fleet/agents.d/infra-agent-b/values/values.yaml");
+        assert!(std::fs::exists(&values_file).unwrap());
     }
 }
