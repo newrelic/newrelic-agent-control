@@ -2659,12 +2659,6 @@ Distributed under the following license(s):
 
 * MIT
 
-## winreg <https://crates.io/crates/winreg>
-
-Distributed under the following license(s):
-
-* MIT
-
 ## wit-bindgen <https://crates.io/crates/wit-bindgen>
 
 Distributed under the following license(s):
