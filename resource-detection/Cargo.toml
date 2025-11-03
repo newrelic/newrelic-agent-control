@@ -20,7 +20,7 @@ konst = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 windows-link = "0.2.1"
-winreg = "0.55"
+windows-sys = { version = "0.61.2", features = ["Win32_System_Registry"] }
 
 [dev-dependencies]
 assert_matches = { workspace = true }
