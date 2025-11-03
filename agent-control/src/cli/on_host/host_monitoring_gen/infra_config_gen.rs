@@ -131,35 +131,35 @@ impl InfraConfigGenerator {
 
         let legacy_config_renamer = LegacyConfigRenamer::default();
 
-       for cfg in config.configs {
-           let fqn = cfg.agent_type_fqn.clone();
-           debug!("Checking configurations for {fqn}");
-           let migrate_result = config_migrator.migrate(&cfg);
-           if let Err(MigratorError::AgentTypeNotFoundOnConfig) = migrate_result {
-               debug!("No agents of agent_type {fqn} found on config, skipping",);
-               continue;
-           };
+        for cfg in config.configs {
+            let fqn = cfg.agent_type_fqn.clone();
+            debug!("Checking configurations for {fqn}");
+            let migrate_result = config_migrator.migrate(&cfg);
+            if let Err(MigratorError::AgentTypeNotFoundOnConfig) = migrate_result {
+                debug!("No agents of agent_type {fqn} found on config, skipping",);
+                continue;
+            };
 
-           if let Err(e) = migrate_result {
-               warn!("Could not apply local config migration for {fqn}: {e}",);
-               continue;
-           };
+            if let Err(e) = migrate_result {
+                warn!("Could not apply local config migration for {fqn}: {e}",);
+                continue;
+            };
 
-           for (_, mapping_type) in cfg.filesystem_mappings {
-               let (mapping_key, mapping_path) = match mapping_type {
-                   MappingType::Dir(dir_path) => ("path", dir_path.dir_path),
-                   MappingType::File(file_info) => ("file", file_info.file_path),
-               };
-               legacy_config_renamer
-                   .rename_path(mapping_path.as_path())
-                   .map_err(|err| {
-                       CliError::Command(format!(
-                           "error renaming {mapping_key} on migration: {err}"
-                       ))
-                   })?;
-           }
-           debug!("Classic config files and paths renamed");
-       }
+            for (_, mapping_type) in cfg.filesystem_mappings {
+                let (mapping_key, mapping_path) = match mapping_type {
+                    MappingType::Dir(dir_path) => ("path", dir_path.dir_path),
+                    MappingType::File(file_info) => ("file", file_info.file_path),
+                };
+                legacy_config_renamer
+                    .rename_path(mapping_path.as_path())
+                    .map_err(|err| {
+                        CliError::Command(format!(
+                            "error renaming {mapping_key} on migration: {err}"
+                        ))
+                    })?;
+            }
+            debug!("Classic config files and paths renamed");
+        }
         info!("Local config files successfully created");
 
         Ok(())
