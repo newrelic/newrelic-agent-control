@@ -13,9 +13,7 @@ license-file.workspace = true
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
-
 thiserror = { workspace = true }
-nix = { workspace = true, features = ["signal", "user", "hostname"] }
 tracing-subscriber = { workspace = true, features = ["env-filter", "chrono"] }
 tracing = { workspace = true, features = ["attributes"] }
 ctrlc = { version = "3.5.0", features = ["termination"] }
@@ -34,8 +32,7 @@ serde_json = { workspace = true }
 semver = { workspace = true, features = ["serde"] }
 chrono = { workspace = true }
 base64 = { version = "0.22.1" }
-# New Relic dependencies (private external repos)
-# IMPORTANT: GitHub deployment keys are used to access these repos on the CI/CD pipelines
+# New Relic dependencies (external repos)
 nr-auth = { git = "https://github.com/newrelic/newrelic-auth-rs.git", tag = "0.1.1" }
 opamp-client = { git = "https://github.com/newrelic/newrelic-opamp-rs.git", tag = "0.0.34" }
 # local dependencies
@@ -74,6 +71,12 @@ opentelemetry-appender-tracing = { version = "0.31.1", features = [
   "experimental_use_tracing_span_context",
 ] }
 async-trait = "0.1.89"
+
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true, features = ["signal", "user", "hostname"] }
+
+[target.'cfg(windows)'.dependencies]
+
 
 [dev-dependencies]
 assert_cmd = { workspace = true }
