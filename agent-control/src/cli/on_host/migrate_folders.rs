@@ -44,32 +44,21 @@ fn move_and_rename(local_base: &Path, remote_base: &Path) -> Result<(), CliError
     for (old_path, new_path) in &migration_pairs {
         if let Some(parent_dir) = new_path.parent() {
             if !parent_dir.exists() {
-                debug!(
-                    "Destination directory '{}' does not exist, creating it.",
-                    parent_dir.display()
-                );
+                let dir_display = parent_dir.display();
+                debug!("Destination directory '{dir_display}' does not exist, creating it.",);
+
                 if let Err(e) = fs::create_dir_all(parent_dir) {
-                    error!(
-                        "Failed to create destination directory '{}': {}",
-                        parent_dir.display(),
-                        e
-                    );
-                    return Err(CliError::FileSystemError(format!(
-                        "Failed to create destination dir {}: {}",
-                        parent_dir.display(),
-                        e
-                    )));
+                    let msg =
+                        format!("Failed to create destination directory '{dir_display}': {e}");
+                    error!(msg);
+                    return Err(CliError::FileSystemError(msg));
                 }
             }
         } else {
-            error!(
-                "Could not determine parent directory for new path '{}'",
-                new_path.display()
-            );
-            return Err(CliError::FileSystemError(format!(
-                "Invalid destination path structure: {}",
-                new_path.display()
-            )));
+            let path_display = new_path.display();
+            let msg = format!("Invalid destination path structure: {path_display}");
+            error!(msg);
+            return Err(CliError::FileSystemError(msg));
         }
 
         copy_and_rename_item(old_path, new_path)?;
@@ -81,26 +70,15 @@ fn move_and_rename(local_base: &Path, remote_base: &Path) -> Result<(), CliError
 
 fn copy_and_rename_item(old_path: &Path, new_path: &Path) -> Result<(), CliError> {
     if old_path.exists() {
-        debug!(
-            "Copying '{}' to '{}'",
-            old_path.display(),
-            new_path.display()
-        );
+        let old_path_display = old_path.display();
+        let new_path_display = new_path.display();
+
+        debug!("Copying '{old_path_display}' to '{new_path_display}'",);
 
         if let Err(e) = fs::copy(old_path, new_path) {
-            error!(
-                "Failed to copy '{}' to '{}': {}",
-                old_path.display(),
-                new_path.display(),
-                e
-            );
-
-            return Err(CliError::FileSystemError(format!(
-                "Failed copying {} to {}: {}",
-                old_path.display(),
-                new_path.display(),
-                e
-            )));
+            let msg = format!("Failed to copy '{old_path_display}' to '{new_path_display}': {e}");
+            error!(msg);
+            return Err(CliError::FileSystemError(msg));
         }
     }
     Ok(())
