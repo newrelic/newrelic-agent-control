@@ -124,26 +124,21 @@ impl ProxyUrl {
 /// // The url will contain the value corresponding to the standard environment variables.
 /// let proxy_config = ProxyConfig::default().try_with_url_from_env().unwrap();
 /// ```
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default, clap::Args)]
-#[group()]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Default)]
 pub struct ProxyConfig {
     /// Proxy URL proxy:
     /// <protocol>://<user>:<password>@<host>:<port>
     /// (All parts except host are optional)
     #[serde(default)]
-    #[arg(long="proxy-url", value_parser = clap::builder::ValueParser::new(|s: &str| ProxyUrl::try_from(s)), required=false)]
     url: ProxyUrl,
     /// System path with the CA certificates in PEM format. All `.pem` files in the directory are read.
     #[serde(default)]
-    #[arg(long = "proxy-ca-bundle-dir", required = false)]
     ca_bundle_dir: PathBuf,
     /// System path with the CA certificate in PEM format.
     #[serde(default)]
-    #[arg(long = "proxy-ca-bundle-file", required = false)]
     ca_bundle_file: PathBuf,
     /// When set to true, the HTTPS_PROXY and HTTP_PROXY environment variables are ignored, defaults to false.
     #[serde(default)]
-    #[arg(long, required = false)]
     ignore_system_proxy: bool,
 }
 
@@ -188,6 +183,22 @@ impl ProxyConfig {
             .as_str()
             .try_into()?;
         Ok(ProxyConfig { url, ..self })
+    }
+}
+
+impl TryFrom<crate::cli::on_host::config_gen::config::ProxyConfig> for ProxyConfig {
+    type Error = ProxyError;
+
+    fn try_from(
+        value: crate::cli::on_host::config_gen::config::ProxyConfig,
+    ) -> Result<Self, Self::Error> {
+        let url = value.proxy_url.unwrap_or_default();
+        Ok(Self {
+            url: ProxyUrl::try_from(url.as_str())?,
+            ca_bundle_dir: PathBuf::from(value.proxy_ca_bundle_dir.unwrap_or_default()),
+            ca_bundle_file: PathBuf::from(value.proxy_ca_bundle_file.unwrap_or_default()),
+            ignore_system_proxy: value.ignore_system_proxy,
+        })
     }
 }
 
