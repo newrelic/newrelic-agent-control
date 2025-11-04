@@ -1,5 +1,5 @@
 use super::utils::{FsError, validate_path};
-use std::fs::{DirBuilder, Permissions, remove_dir_all};
+use std::fs::{DirBuilder, remove_dir_all};
 use std::path::Path;
 use thiserror::Error;
 use tracing::instrument;
@@ -28,16 +28,17 @@ pub trait DirectoryManager {
 pub struct DirectoryManagerFs;
 
 impl DirectoryManager for DirectoryManagerFs {
-    #[cfg(target_family = "unix")]
     fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
-        use std::os::unix::fs::DirBuilderExt;
-        use std::os::unix::fs::PermissionsExt;
-
         validate_path(path)?;
-        let directory_creation = DirBuilder::new()
-            .mode(DirectoryManagerFs::get_directory_permissions().mode())
-            .recursive(true)
-            .create(path);
+        let mut directory_builder = DirBuilder::new();
+        directory_builder.recursive(true);
+        #[cfg(target_family = "unix")]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            use std::os::unix::fs::PermissionsExt;
+            directory_builder.mode(DirectoryManagerFs::get_directory_permissions().mode());
+        }
+        let directory_creation = directory_builder.create(path);
         match directory_creation {
             Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
                 path.to_str().unwrap().to_string(),
@@ -45,11 +46,6 @@ impl DirectoryManager for DirectoryManagerFs {
             )),
             _ => Ok(()),
         }
-    }
-
-    #[cfg(target_family = "windows")]
-    fn create(&self, path: &Path) -> Result<(), DirectoryManagementError> {
-        unimplemented!()
     }
 
     #[instrument(skip_all, fields(path = %path.display()))]
@@ -71,7 +67,7 @@ impl DirectoryManager for DirectoryManagerFs {
 impl DirectoryManagerFs {
     #[cfg(target_family = "unix")]
     fn get_directory_permissions() -> Permissions {
-        use std::os::unix::fs::PermissionsExt;
+        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
         Permissions::from_mode(0o700)
     }
 }
@@ -92,10 +88,6 @@ impl Clone for DirectoryManagementError {
                 DirectoryManagementError::InvalidDirectory(s.clone())
             }
         }
-    }
-
-    fn clone_from(&mut self, _: &Self) {
-        unimplemented!()
     }
 }
 
@@ -194,17 +186,10 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(target_family = "unix")]
     fn test_folder_creation() {
-        use std::fs::metadata;
-        use std::os::unix::fs::PermissionsExt;
-
-        // Prepare temp path and folder name
-        let folder_name = "some_file";
         // tempdir gets automatically removed on drop
         let tempdir = tempfile::tempdir().unwrap();
-        let mut path = PathBuf::from(&tempdir.path());
-        path.push(folder_name);
+        let path = tempdir.path().join("some_file");
 
         // Create directory manager and create directory with some permissions
         let directory_manager = DirectoryManagerFs;
@@ -212,10 +197,16 @@ pub mod tests {
         assert!(create_result.is_ok());
 
         // read created folder permissions and assert od expected ones
-        assert_eq!(
-            DirectoryManagerFs::get_directory_permissions().mode() & 0o777,
-            metadata(path).unwrap().permissions().mode() & 0o777
-        );
+        #[cfg(target_family = "unix")]
+        {
+            use std::fs::metadata;
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                DirectoryManagerFs::get_directory_permissions().mode() & 0o777,
+                metadata(path).unwrap().permissions().mode() & 0o777
+            );
+        }
+        assert!(path.exists());
     }
 
     #[test]

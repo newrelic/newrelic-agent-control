@@ -1,12 +1,7 @@
 use super::LocalFile;
 use super::directory_manager::DirectoryManagementError;
 use super::utils::{FsError, validate_path};
-use std::fs::Permissions;
 use std::io::Write;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::OpenOptionsExt;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::{fs, io};
 use thiserror::Error;
@@ -29,33 +24,28 @@ pub trait FileWriter {
 }
 
 impl FileWriter for LocalFile {
-    #[cfg(target_family = "unix")]
     #[instrument(skip_all, fields(path = %path.display()))]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
         validate_path(path)?;
 
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .mode(LocalFile::get_file_permissions().mode())
-            .open(path)?;
+        let mut file_options = fs::OpenOptions::new();
+        file_options.create(true).write(true).truncate(true);
 
-        file.write_all(content.as_bytes())?;
+        #[cfg(target_family = "unix")]
+        {
+            file_options.mode(LocalFile::get_file_permissions().mode());
+        }
 
+        file_options.open(path)?.write_all(content.as_bytes())?;
         Ok(())
-    }
-
-    // TODO : Code below is not tested yet as Windows is not supported at this time
-    #[cfg(target_family = "windows")]
-    fn write(&self, _path: &Path, _content: String) -> Result<(), WriteError> {
-        unimplemented!()
     }
 }
 
 impl LocalFile {
     #[cfg(target_family = "unix")]
     fn get_file_permissions() -> Permissions {
+        use std::fs::Permissions;
+
         Permissions::from_mode(0o600)
     }
 }
