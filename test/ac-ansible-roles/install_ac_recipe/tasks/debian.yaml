@@ -65,9 +65,13 @@
   delay: 30
   until: "'TLS handshake timeout' not in install_logs.stderr"
 
-- name: Install logs
+- name: Install stdout
   debug:
     var: install_logs.stdout_lines
+
+- name: Install stderr
+  debug:
+    var: install_logs.stderr_lines
 
 - name: Check expected installed version
   shell: /usr/bin/newrelic-agent-control --version | grep -q "{{ agent_control_version }}"
