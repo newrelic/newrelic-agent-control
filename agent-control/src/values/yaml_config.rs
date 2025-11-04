@@ -4,6 +4,7 @@ use crate::agent_type::templates::Templateable;
 use opamp_client::opamp::proto::AgentCapabilities;
 use opamp_client::operation::capabilities::Capabilities;
 use serde::{Deserialize, Serialize};
+use serde_yaml::Value;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -33,6 +34,17 @@ impl Templateable for HashMap<String, serde_yaml::Value> {
         self.into_iter()
             .map(|(key, v)| Ok((key, v.template_with(variables)?)))
             .collect()
+    }
+}
+
+impl YAMLConfig {
+    pub(crate) fn new(values: HashMap<String, Value>) -> Self {
+        Self(values)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn get(&self, key: &str) -> Option<&Value> {
+        self.0.get(key)
     }
 }
 
@@ -87,17 +99,6 @@ mod tests {
     };
 
     use super::*;
-
-    impl YAMLConfig {
-        pub(crate) fn new(values: HashMap<String, Value>) -> Self {
-            Self(values)
-        }
-
-        #[allow(dead_code)]
-        pub(crate) fn get(&self, key: &str) -> Option<&Value> {
-            self.0.get(key)
-        }
-    }
 
     const EXAMPLE_CONFIG: &str = r#"
 description:

@@ -23,6 +23,11 @@ variables:
       type: yaml
       default: [ ]
       required: false
+    app_id_poc:
+      description: "Application ID"
+      type: string
+      default: ""
+      required: false
     health_env:
       description: "environment variables to pass to health sidecar"
       type: yaml

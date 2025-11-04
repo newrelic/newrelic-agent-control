@@ -35,6 +35,7 @@ agentControlDeployment:
             - key: "app"
               operator: "In"
               values: [ "javaapp" ]
+        app_id_poc: my-java-app-id
       python-agent:
         podLabelSelector:
           matchExpressions:

@@ -1,7 +1,5 @@
 # -*- mode: Python -*-
 # This Tiltfile is used by the e2e tests to setup the environment and for local development.
-ci_settings(readiness_timeout = '10m')
-
 load('ext://helm_resource', 'helm_repo','helm_resource')
 load('ext://git_resource', 'git_checkout')
 

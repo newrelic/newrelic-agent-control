@@ -1,6 +1,9 @@
 use crate::agent_control::config::K8sConfig;
-use crate::agent_control::defaults::{CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION};
+use crate::agent_control::defaults::{
+    CLUSTER_NAME_ATTRIBUTE_KEY, OPAMP_SERVICE_VERSION, default_capabilities,
+};
 use crate::agent_control::run::Environment;
+use crate::agent_type::templates::Templateable;
 use crate::event::SubAgentEvent;
 use crate::event::broadcaster::unbounded::UnboundedBroadcast;
 use crate::event::channel::pub_sub;
@@ -94,6 +97,18 @@ where
         agent_identity: &AgentIdentity,
     ) -> Result<Self::NotStartedSubAgent, SubAgentBuilderError> {
         debug!("building subAgent");
+        let unknown = "unknown";
+        let app_id_poc = self
+            .config_repository
+            .load_remote_fallback_local(&agent_identity.id, &default_capabilities())
+            .unwrap_or_default()
+            .unwrap_or_default()
+            .get_yaml_config()
+            .get("app_id_poc")
+            .map(|x| x.as_str())
+            .unwrap_or_default()
+            .unwrap_or_else(|| &unknown)
+            .to_string();
 
         let (maybe_opamp_client, sub_agent_opamp_consumer) = self
             .opamp_builder
@@ -102,10 +117,13 @@ where
                     builder,
                     self.instance_id_getter,
                     agent_identity,
-                    HashMap::from([(
-                        OPAMP_SERVICE_VERSION.to_string(),
-                        agent_identity.agent_type_id.version().to_string().into(),
-                    )]),
+                    HashMap::from([
+                        (
+                            OPAMP_SERVICE_VERSION.to_string(),
+                            agent_identity.agent_type_id.version().to_string().into(),
+                        ),
+                        ("apm.application.id".to_string(), app_id_poc.into()),
+                    ]),
                     HashMap::from([(
                         CLUSTER_NAME_ATTRIBUTE_KEY.to_string(),
                         DescriptionValueType::String(self.k8s_config.cluster_name.to_string()),
