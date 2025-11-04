@@ -1,4 +1,3 @@
-#![cfg(target_family = "unix")]
 use crate::common::attributes::{
     check_latest_identifying_attributes_match_expected,
     check_latest_non_identifying_attributes_match_expected, convert_to_vec_key_value,
@@ -16,9 +15,9 @@ use newrelic_agent_control::agent_control::defaults::{
     OPAMP_SERVICE_NAMESPACE, OPAMP_SERVICE_VERSION, OPAMP_SUBAGENT_CHART_VERSION_ATTRIBUTE_KEY,
     PARENT_AGENT_ID_ATTRIBUTE_KEY,
 };
-use nix::unistd::gethostname;
 use opamp_client::opamp::proto::any_value::Value;
 use opamp_client::opamp::proto::any_value::Value::BytesValue;
+use resource_detection::system::hostname::get_hostname;
 use std::time::Duration;
 use tempfile::tempdir;
 
@@ -82,7 +81,7 @@ agents:
     let ac_expected_non_identifying_attributes = convert_to_vec_key_value(Vec::from([
         (
             HOST_NAME_ATTRIBUTE_KEY,
-            Value::StringValue(gethostname().unwrap_or_default().into_string().unwrap()),
+            Value::StringValue(get_hostname().unwrap_or_default()),
         ),
         (
             FLEET_ID_ATTRIBUTE_KEY,
