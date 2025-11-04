@@ -19,7 +19,7 @@ on:
         description: 'JSON array of test scenarios to run'
         required: false
         type: string
-        default: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml"]'
+        default: '["migration.yaml", "remote_config.yaml", "ebpf_agent.yaml", "infra_agent.yaml"]'
 
 permissions:
   contents: read
