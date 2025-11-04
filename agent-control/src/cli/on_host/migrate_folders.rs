@@ -12,9 +12,7 @@ const LOCAL_DATA_DIR: &str = "/etc/newrelic-agent-control";
 const REMOTE_DATA_DIR: &str = "/var/lib/newrelic-agent-control";
 const OLD_ENV_FILE_NAME: &str = "newrelic-agent-control.conf";
 const NEW_ENV_FILE_NAME: &str = "systemd-env.conf";
-const OTEL_AGENT_ID: &str = "nrdot";
 const VALUES_FOLDER: &str = "values";
-const INFRA_AGENT_ID: &str = "nr-infra";
 // old folder and file names
 const OLD_CONFIG_AGENT_CONTROL_FILE_NAME: &str = "config.yaml";
 const OLD_IDENTIFIERS_YAML: &str = "identifiers.yaml";
@@ -83,13 +81,13 @@ fn copy_and_rename_item(old_path: &Path, new_path: &Path) -> Result<(), CliError
     }
     Ok(())
 }
+
 fn add_agent_control_files(
     migration_pairs: &mut Vec<(PathBuf, PathBuf)>,
     local_base: &Path,
     remote_base: &Path,
 ) {
     // --- LOCAL ---
-    // agent control config.yaml -> local-data/agent-control/local_config.yaml
     migration_pairs.push((
         local_base.join(OLD_CONFIG_AGENT_CONTROL_FILE_NAME),
         local_base
@@ -97,14 +95,12 @@ fn add_agent_control_files(
             .join(AGENT_CONTROL_ID)
             .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
     ));
-    // agent-control-config.conf -> systemd-env.conf
     migration_pairs.push((
         local_base.join(OLD_ENV_FILE_NAME),
         local_base.join(NEW_ENV_FILE_NAME),
     ));
 
     // --- REMOTE ---
-    // agent control config.yaml -> fleet-data/agent-control/remote_config.yaml
     migration_pairs.push((
         remote_base.join(OLD_CONFIG_AGENT_CONTROL_FILE_NAME),
         remote_base
@@ -112,7 +108,6 @@ fn add_agent_control_files(
             .join(AGENT_CONTROL_ID)
             .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG)),
     ));
-    // agent control identifiers.yaml -> fleet-data/agent-control/instance_id.yaml
     migration_pairs.push((
         remote_base.join(OLD_IDENTIFIERS_YAML),
         remote_base
@@ -121,110 +116,54 @@ fn add_agent_control_files(
             .join(INSTANCE_ID_FILENAME),
     ));
 }
-
-fn add_infra_agent_files(
+fn discover_and_add_sub_agents(
     migration_pairs: &mut Vec<(PathBuf, PathBuf)>,
-    local_base: &Path,
-    remote_base: &Path,
+    old_agents_dir: &Path,
+    new_base_dir: &Path,
+    new_data_folder: &str,
+    config_key: &str,
+    is_remote: bool,
 ) {
-    // --- LOCAL ---
-    let old_local_infra_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(INFRA_AGENT_ID);
-    if old_local_infra_dir.exists() && old_local_infra_dir.is_dir() {
-        debug!(
-            "Found old local nr-infra directory, adding to migration: {}",
-            old_local_infra_dir.display()
-        );
-        // nf-infra values.yaml -> local-data/nr-infra/local_config.yaml
-        migration_pairs.push((
-            old_local_infra_dir
-                .join(VALUES_FOLDER)
-                .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
-            local_base
-                .join(FOLDER_NAME_LOCAL_DATA)
-                .join(INFRA_AGENT_ID)
-                .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-        ));
+    if !old_agents_dir.is_dir() {
+        return;
     }
-
-    // --- REMOTE  ---
-    let old_remote_infra_dir = remote_base
-        .join(OLD_SUB_AGENT_DATA_DIR)
-        .join(INFRA_AGENT_ID);
-    if old_remote_infra_dir.exists() && old_remote_infra_dir.is_dir() {
+    let entries = if let Ok(entries) = fs::read_dir(old_agents_dir) {
+        entries
+    } else {
         debug!(
-            "Found old remote nr-infra directory, adding to migration: {}",
-            old_remote_infra_dir.display()
+            "Could not read old agent directory '{}'",
+            old_agents_dir.display(),
         );
-        // nr-infra values.yaml -> fleet-data/nr-infra/remote_config.yaml
+        return;
+    };
+
+    let agent_iter = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .filter_map(|p| p.file_name().map(|f| f.to_owned()).map(|f| (p, f)));
+
+    for (old_agent_dir, agent_id) in agent_iter {
+        debug!(
+            "Discovered old agent '{}', adding to migration.",
+            old_agent_dir.display()
+        );
+
+        let new_agent_dir = new_base_dir.join(new_data_folder).join(agent_id);
+
         migration_pairs.push((
-            old_remote_infra_dir
+            old_agent_dir
                 .join(VALUES_FOLDER)
                 .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
-            remote_base
-                .join(FOLDER_NAME_FLEET_DATA)
-                .join(INFRA_AGENT_ID)
-                .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG)),
+            new_agent_dir.join(build_config_name(config_key)),
         ));
-        // nr-infra identifiers.yaml -> fleet-data/nr-infra/instance_id.yaml
-        migration_pairs.push((
-            old_remote_infra_dir.join(OLD_IDENTIFIERS_YAML),
-            remote_base
-                .join(FOLDER_NAME_FLEET_DATA)
-                .join(INFRA_AGENT_ID)
-                .join(INSTANCE_ID_FILENAME),
-        ));
-    }
-}
 
-fn add_otel_agent_files(
-    migration_pairs: &mut Vec<(PathBuf, PathBuf)>,
-    local_base: &Path,
-    remote_base: &Path,
-) {
-    // --- LOCAL ---
-    let old_local_otel_dir = local_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_local_otel_dir.exists() && old_local_otel_dir.is_dir() {
-        debug!(
-            "Found old local nrdot directory, adding to migration: {}",
-            old_local_otel_dir.display()
-        );
-        // nrdot values.yaml -> local-data/nrdot/local_config.yaml
-        migration_pairs.push((
-            old_local_otel_dir
-                .join(VALUES_FOLDER)
-                .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
-            local_base
-                .join(FOLDER_NAME_LOCAL_DATA)
-                .join(OTEL_AGENT_ID)
-                .join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
-        ));
-    }
-
-    // --- REMOTE ---
-    let old_remote_otel_dir = remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID);
-    if old_remote_otel_dir.exists() && old_remote_otel_dir.is_dir() {
-        debug!(
-            "Found old remote nrdot directory, adding to migration: {}",
-            old_remote_otel_dir.display()
-        );
-        // nrdot values.yaml -> fleet-data/nrdot/remote_config.yaml
-        migration_pairs.push((
-            old_remote_otel_dir
-                .join(VALUES_FOLDER)
-                .join(OLD_CONFIG_SUB_AGENT_FILE_NAME),
-            remote_base
-                .join(FOLDER_NAME_FLEET_DATA)
-                .join(OTEL_AGENT_ID)
-                .join(build_config_name(STORE_KEY_OPAMP_DATA_CONFIG)),
-        ));
-        // nrdot identifiers.yaml -> fleet-data/nrdot/instance_id.yaml
-        migration_pairs.push((
-            old_remote_otel_dir.join(OLD_IDENTIFIERS_YAML),
-            remote_base
-                .join(FOLDER_NAME_FLEET_DATA)
-                .join(OTEL_AGENT_ID)
-                .join(INSTANCE_ID_FILENAME),
-        ));
+        if is_remote {
+            migration_pairs.push((
+                old_agent_dir.join(OLD_IDENTIFIERS_YAML),
+                new_agent_dir.join(INSTANCE_ID_FILENAME),
+            ));
+        }
     }
 }
 
@@ -232,8 +171,24 @@ fn get_migration_list(local_base: &Path, remote_base: &Path) -> Vec<(PathBuf, Pa
     let mut migration_pairs = Vec::new();
 
     add_agent_control_files(&mut migration_pairs, local_base, remote_base);
-    add_infra_agent_files(&mut migration_pairs, local_base, remote_base);
-    add_otel_agent_files(&mut migration_pairs, local_base, remote_base);
+
+    discover_and_add_sub_agents(
+        &mut migration_pairs,
+        &local_base.join(OLD_SUB_AGENT_DATA_DIR),
+        local_base,
+        FOLDER_NAME_LOCAL_DATA,
+        STORE_KEY_LOCAL_DATA_CONFIG,
+        false,
+    );
+
+    discover_and_add_sub_agents(
+        &mut migration_pairs,
+        &remote_base.join(OLD_SUB_AGENT_DATA_DIR),
+        remote_base,
+        FOLDER_NAME_FLEET_DATA,
+        STORE_KEY_OPAMP_DATA_CONFIG,
+        true,
+    );
 
     migration_pairs
 }
@@ -251,7 +206,6 @@ mod tests {
         let new_path = temp_dir.path().join("new.txt");
 
         File::create(&old_path).unwrap();
-
         assert!(old_path.exists());
         assert!(!new_path.exists());
 
@@ -272,10 +226,8 @@ mod tests {
         let new_path = temp_dir.path().join("new.txt");
 
         assert!(!old_path.exists());
-
         let result = copy_and_rename_item(&old_path, &new_path);
         assert!(result.is_ok());
-
         assert!(
             !new_path.exists(),
             "The new file should not have been created"
@@ -283,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn test_full_migration_logic_with_all_agents() {
+    fn test_full_migration_logic_with_dynamic_agents() {
         let temp_dir = tempdir().unwrap();
         let root = temp_dir.path();
 
@@ -292,21 +244,28 @@ mod tests {
         fs::create_dir_all(&local_base).unwrap();
         fs::create_dir_all(&remote_base).unwrap();
 
-        fs::create_dir_all(local_base.join(OLD_SUB_AGENT_DATA_DIR).join(INFRA_AGENT_ID)).unwrap();
-        fs::create_dir_all(local_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID)).unwrap();
-        fs::create_dir_all(
-            remote_base
-                .join(OLD_SUB_AGENT_DATA_DIR)
-                .join(INFRA_AGENT_ID),
-        )
-        .unwrap();
-        fs::create_dir_all(remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(OTEL_AGENT_ID)).unwrap();
+        let agent1_id = "nr-infra";
+        let agent2_id = "nrdot";
+        let agent3_id = "my-custom-agent";
+
+        fs::create_dir_all(local_base.join(OLD_SUB_AGENT_DATA_DIR).join(agent1_id)).unwrap();
+        fs::create_dir_all(remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(agent1_id)).unwrap();
+        fs::create_dir_all(local_base.join(OLD_SUB_AGENT_DATA_DIR).join(agent2_id)).unwrap();
+        fs::create_dir_all(remote_base.join(OLD_SUB_AGENT_DATA_DIR).join(agent3_id)).unwrap();
 
         let migration_pairs = get_migration_list(&local_base, &remote_base);
         assert_eq!(
             migration_pairs.len(),
             10,
-            "Migration list should contain all 10 items when old agent dirs exist"
+            "Migration list should contain all dynamically found items"
+        );
+
+        let has_custom_agent = migration_pairs
+            .iter()
+            .any(|(_old, new)| new.to_str().unwrap_or_default().contains(agent3_id));
+        assert!(
+            has_custom_agent,
+            "Dynamically discovered agent 'my-custom-agent' was not found in migration pairs"
         );
 
         for (old_path, _) in migration_pairs.iter() {
@@ -338,6 +297,12 @@ mod tests {
                 new_path.display()
             );
         }
+
+        let migration_pairs_2 = get_migration_list(&local_base, &remote_base);
+        assert_eq!(migration_pairs_2.len(), 10);
+
+        let result_2 = migrate();
+        assert!(result_2.is_ok());
     }
 
     #[test]
@@ -355,45 +320,6 @@ mod tests {
             migration_pairs.len(),
             4,
             "Migration list should only contain 4 (agent-control) items when no sub-agent dirs exist"
-        );
-
-        for (old_path, _) in migration_pairs.iter() {
-            let parent = old_path.parent().unwrap();
-            fs::create_dir_all(parent).unwrap();
-            File::create(old_path).unwrap();
-        }
-
-        let result = move_and_rename(&local_base, &remote_base);
-        assert!(result.is_ok());
-
-        for (old_path, new_path) in migration_pairs.iter() {
-            assert!(old_path.exists());
-            assert!(new_path.exists());
-        }
-    }
-
-    #[test]
-    fn test_migration_logic_only_remote_infra() {
-        let temp_dir = tempdir().unwrap();
-        let root = temp_dir.path();
-
-        let local_base = root.join("etc");
-        let remote_base = root.join("var");
-        fs::create_dir_all(&local_base).unwrap();
-        fs::create_dir_all(&remote_base).unwrap();
-
-        fs::create_dir_all(
-            remote_base
-                .join(OLD_SUB_AGENT_DATA_DIR)
-                .join(INFRA_AGENT_ID),
-        )
-        .unwrap();
-
-        let migration_pairs = get_migration_list(&local_base, &remote_base);
-        assert_eq!(
-            migration_pairs.len(),
-            6,
-            "Migration list should contain 6 items (4 ac + 2 remote infra)"
         );
 
         for (old_path, _) in migration_pairs.iter() {

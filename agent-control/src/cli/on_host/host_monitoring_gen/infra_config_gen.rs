@@ -95,8 +95,7 @@ impl InfraConfigGenerator {
         };
 
         for (agent_id, _) in sub_agents_cfg.agents {
-            let infra_values_persister =
-                ValuesPersisterFile::new(self.local_dir.join(SUB_AGENT_DIR));
+            let infra_values_persister = ValuesPersisterFile::new(self.local_dir.clone());
             infra_values_persister
                 .persist_values_file(
                     &agent_id,
@@ -124,7 +123,7 @@ impl InfraConfigGenerator {
         let config_migrator = ConfigMigrator::new(
             ConfigConverter::default(),
             AgentConfigGetter::new(sa_local_config_loader),
-            ValuesPersisterFile::new(self.local_dir.join(SUB_AGENT_DIR)),
+            ValuesPersisterFile::new(self.local_dir.clone()),
         );
 
         let legacy_config_renamer = LegacyConfigRenamer::default();
@@ -167,7 +166,12 @@ impl InfraConfigGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agent_control::defaults::{
+        AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    };
+    use crate::opamp::instance_id::on_host::storer::build_config_name;
     use std::fs;
+    use std::fs::create_dir_all;
     use tempfile::TempDir;
 
     const INITIAL_INFRA_CONFIG: &str = r#"
@@ -185,7 +189,7 @@ agents:
         agent_type: "newrelic/com.newrelic.infrastructure:0.1.0"
 "#;
 
-    const INFRA_AGENT_VALUES: &str = "fleet/agents.d/infra-test/values/values.yaml";
+    const INFRA_AGENT_VALUES: &str = "local-data/infra-test/local_config.yaml";
 
     #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added (DirectoryManager unimplemented)
     #[test]
@@ -193,12 +197,19 @@ agents:
         // Create a temporary directory
         let temp_dir = TempDir::new().unwrap();
         let infra_file_path = temp_dir.path().join("newrelic-infra.yml");
-        let agents_file_path = temp_dir.path().join("config.yaml");
-
+        let agents_file_path = temp_dir
+            .path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID);
+        create_dir_all(&agents_file_path).unwrap();
         // Emulate the existence of the file by creating it
         fs::write(&infra_file_path, INITIAL_INFRA_CONFIG).unwrap();
 
-        fs::write(&agents_file_path, AGENTS_CONFIG).unwrap();
+        fs::write(
+            agents_file_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+            AGENTS_CONFIG,
+        )
+        .unwrap();
 
         // Format the string using dynamic file path
         let config_mapping = format!(
@@ -254,9 +265,17 @@ config_agent:
     #[test]
     fn test_generate_new_infra_config() {
         let temp_dir = TempDir::new().unwrap();
-        let agents_file_path = temp_dir.path().join("config.yaml");
+        let agents_file_path = temp_dir
+            .path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID);
+        create_dir_all(&agents_file_path).unwrap();
 
-        fs::write(&agents_file_path, AGENTS_CONFIG).unwrap();
+        fs::write(
+            agents_file_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+            AGENTS_CONFIG,
+        )
+        .unwrap();
 
         let infra_config_generator = InfraConfigGenerator::new(
             temp_dir.path().to_path_buf(),

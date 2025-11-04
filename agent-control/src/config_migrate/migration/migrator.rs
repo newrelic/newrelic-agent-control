@@ -99,13 +99,18 @@ impl
 #[cfg(test)]
 mod tests {
     use crate::agent_control::config_repository::store::AgentControlConfigStore;
+    use crate::agent_control::defaults::{
+        AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+    };
     use crate::agent_type::agent_type_id::AgentTypeID;
     use crate::config_migrate::migration::agent_config_getter::AgentConfigGetter;
     use crate::config_migrate::migration::config::MigrationAgentConfig;
     use crate::config_migrate::migration::converter::ConfigConverter;
     use crate::config_migrate::migration::migrator::ConfigMigrator;
     use crate::config_migrate::migration::persister::values_persister_file::ValuesPersisterFile;
+    use crate::opamp::instance_id::on_host::storer::build_config_name;
     use crate::values::file::ConfigRepositoryFile;
+    use std::fs::create_dir_all;
     use std::sync::Arc;
     use tempfile::TempDir;
 
@@ -130,12 +135,20 @@ agents:
     fn test_migrate() {
         let tmp_dir = TempDir::new().unwrap();
         let infra_file_path = tmp_dir.path().join("newrelic-infra.yml");
-        let agents_file_path = tmp_dir.path().join("config.yaml");
+        let agents_file_path = tmp_dir
+            .path()
+            .join(FOLDER_NAME_LOCAL_DATA)
+            .join(AGENT_CONTROL_ID);
+        create_dir_all(&agents_file_path).unwrap();
 
         // Emulate the existence of the file by creating it
         std::fs::write(&infra_file_path, INITIAL_INFRA_CONFIG).unwrap();
 
-        std::fs::write(&agents_file_path, AGENTS_CONFIG).unwrap();
+        std::fs::write(
+            agents_file_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+            AGENTS_CONFIG,
+        )
+        .unwrap();
 
         let vr =
             ConfigRepositoryFile::new(tmp_dir.path().to_path_buf(), tmp_dir.path().to_path_buf());
@@ -144,7 +157,7 @@ agents:
         let config_migrator = ConfigMigrator::new(
             ConfigConverter::default(),
             AgentConfigGetter::new(sa_local_config_loader),
-            ValuesPersisterFile::new(tmp_dir.path().join(SUB_AGENT_DIR)),
+            ValuesPersisterFile::new(tmp_dir.path().to_path_buf()),
         );
 
         let agent_config_mapping = MigrationAgentConfig {
@@ -158,12 +171,12 @@ agents:
 
         let values_file = tmp_dir
             .path()
-            .join("fleet/agents.d/infra-agent-a/values/values.yaml");
+            .join("local-data/infra-agent-a/local_config.yaml");
         assert!(std::fs::exists(&values_file).unwrap());
 
         let values_file = tmp_dir
             .path()
-            .join("fleet/agents.d/infra-agent-b/values/values.yaml");
+            .join("local-data/infra-agent-b/local_config.yaml");
         assert!(std::fs::exists(&values_file).unwrap());
     }
 }
