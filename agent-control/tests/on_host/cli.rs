@@ -45,7 +45,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
@@ -58,7 +58,7 @@ fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[test]
 fn basic_startup() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
@@ -108,7 +108,7 @@ logs:
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[test]
 fn custom_logging_format() -> Result<(), Box<dyn std::error::Error>> {
     use std::time::Duration;
@@ -158,7 +158,7 @@ server:
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[test]
 #[ignore = "requires root"]
 fn custom_directory_overrides_as_root() -> Result<(), Box<dyn std::error::Error>> {
@@ -234,7 +234,7 @@ server:
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 #[test]
 fn runs_with_no_config() -> Result<(), Box<dyn std::error::Error>> {
     use std::{env, time::Duration};

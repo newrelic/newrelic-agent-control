@@ -124,7 +124,7 @@ impl CommandOSStarted {
     }
 }
 
-#[cfg(unix)]
+#[cfg(target_family = "unix")]
 mod unix {
     use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
 
@@ -163,7 +163,7 @@ mod unix {
 }
 
 //TODO Properly design unix/windows shutdown when Windows support is added
-#[cfg(windows)]
+#[cfg(target_family = "windows")]
 mod windows {
     use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
 
