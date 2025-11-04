@@ -34,12 +34,15 @@ impl DirectoryManager for DirectoryManagerFs {
         validate_path(path)?;
         let mut directory_builder = DirBuilder::new();
         directory_builder.recursive(true);
+
         #[cfg(target_family = "unix")]
         {
             use std::os::unix::fs::DirBuilderExt;
             use std::os::unix::fs::PermissionsExt;
+
             directory_builder.mode(DirectoryManagerFs::get_directory_permissions().mode());
         }
+
         let directory_creation = directory_builder.create(path);
         match directory_creation {
             Err(e) => Err(DirectoryManagementError::ErrorCreatingDirectory(
@@ -70,6 +73,7 @@ impl DirectoryManagerFs {
     #[cfg(target_family = "unix")]
     fn get_directory_permissions() -> Permissions {
         use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+
         Permissions::from_mode(0o700)
     }
 }
