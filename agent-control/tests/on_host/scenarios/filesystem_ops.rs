@@ -1,4 +1,8 @@
-use std::{fs::read_to_string, path::Path, time::Duration};
+use std::{
+    fs::read_to_string,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use newrelic_agent_control::agent_control::{
     defaults::GENERATED_FOLDER_NAME,
@@ -18,6 +22,7 @@ use crate::{
 
 /// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory.
+#[cfg(unix)] // Skipping windows as directory manager is not yet implemented. TODO: adapt when ready
 #[test]
 fn writes_filesystem_entries() {
     let opamp_server = FakeServer::start_new();
@@ -29,7 +34,10 @@ fn writes_filesystem_entries() {
     let expected_file_contents = "Hello, world!";
     let agent_id = "test-agent";
     let dir_entry = "example-filepath";
-    let file_path = "randomdir/randomfile.txt";
+    let file_path = PathBuf::from("randomdir")
+        .join("randomfile.txt")
+        .to_string_lossy()
+        .to_string();
 
     create_file(
         format!(
@@ -91,6 +99,7 @@ deployment:
 /// An on-host agent definition that includes filesystem entries should result in the entries being
 /// created in the appropriate location under the remote directory and with their contents properly
 /// rendered from the defined variables.
+#[cfg(unix)] // Skipping windows as directory manager is not yet implemented. TODO: adapt when ready
 #[test]
 fn complete_render_and_and_write_files_and_dirs() {
     let opamp_server = FakeServer::start_new();
@@ -102,8 +111,14 @@ fn complete_render_and_and_write_files_and_dirs() {
     let agent_id = "test-agent";
 
     // Rendered file paths
-    let yaml_file_path = "randomdir/randomfile.yaml";
-    let string_file_path = "randomdir-2/some_string.txt";
+    let yaml_file_path = PathBuf::from("randomdir")
+        .join("randomfile.yaml")
+        .to_string_lossy()
+        .to_string();
+    let string_file_path = PathBuf::from("randomdir-2")
+        .join("some-string.txt")
+        .to_string_lossy()
+        .to_string();
 
     // Rendered directory paths
     let dir_path = "somedir";
