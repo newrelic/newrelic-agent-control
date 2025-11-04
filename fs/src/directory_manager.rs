@@ -1,4 +1,6 @@
 use super::utils::{FsError, validate_path};
+#[cfg(target_family = "unix")]
+use std::fs::Permissions;
 use std::fs::{DirBuilder, remove_dir_all};
 use std::path::Path;
 use thiserror::Error;
@@ -203,7 +205,7 @@ pub mod tests {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(
                 DirectoryManagerFs::get_directory_permissions().mode() & 0o777,
-                metadata(path).unwrap().permissions().mode() & 0o777
+                metadata(&path).unwrap().permissions().mode() & 0o777
             );
         }
         assert!(path.exists());
