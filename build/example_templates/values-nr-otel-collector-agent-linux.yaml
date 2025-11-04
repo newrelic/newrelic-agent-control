@@ -1,2 +1,2 @@
-config: |
+config:
   {{ OTEL_COLLECTOR_CONFIG }}

@@ -12,7 +12,7 @@ impl Default for OtelConfigGen {
     fn default() -> Self {
         Self {
             otel_agent_values_path: PathBuf::from(
-                "/etc/newrelic-agent-control/fleet/agents.d/nr-otel-collector/values",
+                "/etc/newrelic-agent-control/fleet/agents.d/nrdot/values",
             ),
             otel_config_source_path: PathBuf::from(
                 "/etc/newrelic-agent-control/examples/values-nr-otel-collector-agent-linux.yaml",
@@ -83,9 +83,7 @@ mod tests {
     #[test]
     fn test_generate_otel_config_creates_directories_and_copies_file() {
         let temp_dir = tempdir().unwrap();
-        let temp_values_dir = temp_dir
-            .path()
-            .join("fleet/agents.d/nr-otel-collector/values");
+        let temp_values_dir = temp_dir.path().join("fleet/agents.d/nrdot/values");
         let temp_example_file = temp_dir
             .path()
             .join("values-nr-otel-collector-agent-linux.yaml");

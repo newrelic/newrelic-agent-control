@@ -1,0 +1,72 @@
+---
+- name: Test nrdot
+  hosts: 127.0.0.1
+  connection: local
+  become: true
+  gather_facts: yes
+
+  tasks:
+    - name: Test nrdot
+      block:
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml
+
+        - name: Install Agent Control
+          include_role:
+            name: install_ac_recipe
+          vars:
+            recipe_list: "agent-control"
+            monitoring_source: "otel"
+            fleet_enabled: "false"
+
+        - name: Set test identifier
+          set_fact:
+            test_id: "onhost-e2e-nrdot_{{ lookup('pipe', 'date +%Y-%m-%d_%H-%M-%S') }}"
+
+        - name: Setup AC config
+          include_role:
+            name: edit_yaml_config
+          vars:
+            config_path: "/etc/newrelic-agent-control/config.yaml"
+            update_config:
+              # fixing the host id to identify the test instance. The approach here is different than other 
+              # test because is less complex and intrusive that adding the attribute to the processor in nrdot.
+              host_id: "{{ test_id }}"
+              log:
+                format:
+                  formatter: pretty
+                  target: true
+                level: debug
+
+        - name: Restart Agent Control
+          include_role:
+            name: caos.ansible_roles.service_status
+          vars:
+            service_name: "newrelic-agent-control"
+            action: "restart"
+
+        - name: Assert that nrdot is reporting
+          include_role:
+            name: nrql_api_request
+            apply:
+              become: false
+          vars:
+            nrql_query: >-
+              SELECT `system.memory.utilization`
+              FROM Metric
+              WHERE `host.id` = '{{ test_id }}'
+              LIMIT 1
+            retries: 120
+            delay: 10
+            
+      always:
+        - name: AC logs
+          shell: journalctl -u newrelic-agent-control --no-pager
+          register: ac_logs
+
+        - name: Debug AC logs
+          debug:
+            var: ac_logs.stdout_lines
+
+        - name: Cleanup
+          include_tasks: ./tasks/clean_all.yaml
