@@ -1,8 +1,11 @@
+use tracing::warn;
+
 use crate::agent_control::agent_id::AgentID;
 use crate::agent_control::defaults::{STDERR_LOG_PREFIX, STDOUT_LOG_PREFIX};
 use crate::sub_agent::on_host::command::executable_data::ExecutableData;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use std::{
+    io,
     path::PathBuf,
     process::{Child, Command, ExitStatus, Stdio},
 };
@@ -15,6 +18,8 @@ use super::{
         logger::Logger,
     },
 };
+
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 ////////////////////////////////////////////////////////////////////////////////////
 // States for Started/Not Started/Sync Command
@@ -48,6 +53,16 @@ impl CommandOSNotStarted {
             .envs(&executable_data.env)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+
+        #[cfg(target_family = "windows")]
+        {
+            // Create new process group so we can send CTRL+BREAK events to it
+            use std::os::windows::process::CommandExt;
+
+            use windows::Win32::System::Threading::CREATE_NEW_PROCESS_GROUP;
+
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP.0);
+        }
 
         Self {
             agent_id,
@@ -122,58 +137,56 @@ impl CommandOSStarted {
 
         Ok(self)
     }
-}
 
-#[cfg(target_family = "unix")]
-mod unix {
-    use tracing::warn;
+    fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
 
-    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
-
-    use std::time::Duration;
-    const POLL_INTERVAL: Duration = Duration::from_millis(100);
-
-    impl CommandOSStarted {
-        pub fn shutdown(&mut self) -> Result<(), CommandError> {
-            let pid = self.get_pid() as i32;
-
-            use nix::{sys::signal, unistd::Pid};
-            let graceful_shutdown_result = signal::kill(Pid::from_raw(pid), signal::SIGTERM)
-                .inspect_err(|err| warn!(agent_id = %self.agent_id, "Failed to gracefully exit process {pid}: {err}. Attempting forceful shutdown"));
-
-            if graceful_shutdown_result.is_err()
-                || self.is_running_after_timeout(self.shutdown_timeout)
-            {
-                self.process.kill().map_err(CommandError::from)?;
+        while Instant::now() < deadline {
+            if self.is_running() {
+                std::thread::sleep(POLL_INTERVAL);
+            } else {
+                return false;
             }
-            Ok(())
         }
 
-        fn is_running_after_timeout(&mut self, timeout: Duration) -> bool {
-            let deadline = std::time::Instant::now() + timeout;
-
-            while std::time::Instant::now() < deadline {
-                if self.is_running() {
-                    std::thread::sleep(POLL_INTERVAL);
-                } else {
-                    return false;
-                }
-            }
-
-            true
-        }
+        true
     }
-}
 
-//TODO Properly design unix/windows shutdown when Windows support is added
-#[cfg(target_family = "windows")]
-mod windows {
-    use crate::sub_agent::on_host::command::{command_os::CommandOSStarted, error::CommandError};
+    pub fn shutdown(&mut self) -> Result<(), CommandError> {
+        let pid = self.get_pid();
 
-    impl CommandOSStarted {
-        pub fn shutdown(&mut self) -> Result<(), CommandError> {
-            self.process.kill().map_err(CommandError::from)
+        // Attempt a graceful shutdown (platform-dependent).
+        #[cfg(not(any(target_family = "windows", target_family = "unix")))]
+        let graceful_shutdown_result =
+            Err(io::Error::other("Unsupported platform for graceful shutdown").into());
+        #[cfg(target_family = "windows")]
+        let graceful_shutdown_result = {
+            use windows::Win32::System::Console::{CTRL_BREAK_EVENT, GenerateConsoleCtrlEvent};
+            // Graceful shutdown for console applications
+            // <https://stackoverflow.com/a/12899284>
+            // <https://gitlab.com/gitlab-org/gitlab-runner/-/blob/397ba5dc2685e7b13feaccbfed4c242646955334/helpers/process/killer_windows.go#L75-108>
+            unsafe { GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, pid) }
+                .map_err(|e| CommandError::from(io::Error::from(e)))
+        };
+        #[cfg(target_family = "unix")]
+        let graceful_shutdown_result = {
+            use nix::{sys::signal, unistd::Pid};
+
+            signal::kill(Pid::from_raw(pid as i32), signal::SIGTERM)
+                .map_err(|e| CommandError::from(io::Error::from(e)))
+        };
+
+        if let Err(e) = &graceful_shutdown_result {
+            warn!(agent_id = %self.agent_id, "Graceful shutdown failed for process {pid}: {e}");
         }
+
+        // If fails, is unsupported, or the process is still running after the timeout, kill it.
+        if graceful_shutdown_result.is_err() || self.is_running_after_timeout(self.shutdown_timeout)
+        {
+            self.process.kill().map_err(CommandError::from)?;
+        }
+
+        Ok(())
     }
 }
 

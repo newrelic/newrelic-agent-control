@@ -22,12 +22,16 @@ jobs:
         uses: codespell-project/actions-codespell@94259cd8be02ad2903ba34a22d9c13de21a74461
 
   cargo-fmt:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+    runs-on: ${{ matrix.os }}
     name: cargo fmt
     steps:
       - uses: actions/checkout@v4
 
       - name: Obtain Rust version from project
+        shell: bash
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
@@ -41,7 +45,10 @@ jobs:
         run: cargo fmt --check
 
   cargo-clippy:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+    runs-on: ${{ matrix.os }}
     name: cargo clippy
     permissions:
       contents: read
@@ -50,6 +57,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Obtain Rust version from project
+        shell: bash
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
@@ -74,12 +82,16 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings -D clippy::all
 
   cargo-doc:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+    runs-on: ${{ matrix.os }}
     name: cargo doc
     steps:
       - uses: actions/checkout@v4
 
       - name: Obtain Rust version from project
+        shell: bash
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
@@ -119,7 +131,10 @@ jobs:
 
   unused-dependencies-check:
     name: cargo shear (unused dependencies)
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -197,6 +212,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Obtain Rust version from project
+        shell: bash
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
@@ -234,12 +250,16 @@ jobs:
         run: cargo zigbuild --release --package newrelic_agent_control --bin newrelic-agent-control --target x86_64-unknown-linux-musl
 
   unit-docs-onhost-integration-tests:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-2025]
+    runs-on: ${{ matrix.os }}
     name: Unit, docs and onhost integration tests
     steps:
       - uses: actions/checkout@v4
 
       - name: Obtain Rust version from project
+        shell: bash
         run: |
           RUST_VERSION=$(grep "rust-version" Cargo.toml | cut -d "=" -f2 | tr -d "[:space:]")
           echo "RUST_VERSION=${RUST_VERSION}" >> $GITHUB_ENV
@@ -428,6 +448,7 @@ jobs:
         with:
           toolchain: ${{ env.RUST_VERSION }}
 
+        # default target is x86_64-pc-windows-msvc
       - name: Build
         run: cargo build --all --release --target x86_64-pc-windows-msvc
 

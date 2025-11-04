@@ -433,14 +433,18 @@ pub mod tests {
 
     const DURATION_DELTA: std::time::Duration = Duration::from_millis(100);
 
-    #[cfg(target_family = "unix")] //TODO This should be removed when Windows support is added
     #[traced_test]
     #[rstest]
-    #[case::long_running_process_shutdown_after_start(
+    #[cfg_attr(target_family = "unix",case::long_running_process_shutdown_after_start(
         "long-running",
         ExecutableData::new("sleep".to_owned(), "sleep".to_owned()).with_args(vec!["10".to_owned()]),
         Some(Duration::from_secs(1)),
-        vec!["Stopping executable", "Executable terminated"])]
+        vec!["Stopping executable", "Executable terminated"]))]
+    #[cfg_attr(target_family = "windows",case::long_running_process_shutdown_after_start(
+        "long-running",
+        ExecutableData::new("cmd".to_owned(), "cmd".to_owned()).with_args(vec!["/C".to_owned(), "timeout".to_owned(), "/T".to_owned(), "10".to_owned(), "/NOBREAK".to_owned()]),
+        Some(Duration::from_secs(1)),
+        vec!["Stopping executable", "Executable terminated"]))]
     #[case::fail_process_shutdown_after_start(
         "wrong-command",
         ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned()),
@@ -582,8 +586,17 @@ pub mod tests {
             ExecutableData::new("wrong-command".to_owned(), "wrong-command".to_owned())
                 .with_args(vec!["x".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff.clone()))),
+            #[cfg(target_family = "unix")]
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["NR-command".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            ExecutableData::new("cmd".to_owned(), "cmd".to_owned())
+                .with_args(vec![
+                    "/C".to_owned(),
+                    "echo".to_owned(),
+                    "NR-command".to_owned(),
+                ])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -657,7 +670,6 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(target_family = "unix")]
     #[traced_test]
     fn test_supervisor_fixed_backoff_retry_3_times() {
         let backoff = Backoff::default()
@@ -666,8 +678,17 @@ pub mod tests {
             .with_last_retry_interval(Duration::new(30, 0));
 
         let executables = vec![
+            #[cfg(target_family = "unix")]
             ExecutableData::new("echo".to_owned(), "echo".to_owned())
                 .with_args(vec!["hello!".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            ExecutableData::new("cmd".to_owned(), "cmd".to_owned())
+                .with_args(vec![
+                    "/C".to_owned(),
+                    "echo".to_owned(),
+                    "hello!".to_owned(),
+                ])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
@@ -713,23 +734,29 @@ pub mod tests {
     }
 
     #[test]
-    #[cfg(target_family = "unix")]
     fn test_supervisor_health_events_on_breaking_backoff() {
         let backoff = Backoff::default()
             .with_initial_delay(Duration::new(0, 100))
             .with_max_retries(3)
             .with_last_retry_interval(Duration::new(30, 0));
 
+        let exec_id = "echo-process";
+
         // FIXME using "echo 'hello!'" as a command clashes with the previous test when checking
         // the logger output. Why? See https://github.com/dbrgn/tracing-test/pull/19/ for clues.
         let executables = vec![
-            ExecutableData::new("echo".to_owned(), "echo".to_owned())
+            #[cfg(target_family = "unix")]
+            ExecutableData::new(exec_id.to_string(), "echo".to_owned())
                 .with_args(vec!["".to_owned()])
+                .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
+            #[cfg(target_family = "windows")]
+            ExecutableData::new(exec_id.to_string(), "cmd".to_owned())
+                .with_args(vec!["/C".to_owned(), "echo".to_owned(), "".to_owned()])
                 .with_restart_policy(RestartPolicy::new(BackoffStrategy::Fixed(backoff))),
         ];
 
         let agent_identity = AgentIdentity::from((
-            "echo".to_owned().try_into().unwrap(),
+            exec_id.to_owned().try_into().unwrap(),
             AgentTypeID::try_from("ns/test:0.1.2").unwrap(),
         ));
 
@@ -759,23 +786,23 @@ pub mod tests {
         // It starts once and restarts 3 times, hence 4 healthy events and a final unhealthy one
         let expected_ordered_events: Vec<(String, HealthWithStartTime)> = [
             (
-                "echo".to_owned(),
+                exec_id.to_string(),
                 HealthWithStartTime::new(Healthy::new().into(), start_time),
             ),
             (
-                "echo".to_owned(),
+                exec_id.to_string(),
                 HealthWithStartTime::new(Healthy::new().into(), start_time),
             ),
             (
-                "echo".to_owned(),
+                exec_id.to_string(),
                 HealthWithStartTime::new(Healthy::new().into(), start_time),
             ),
             (
-                "echo".to_owned(),
+                exec_id.to_string(),
                 HealthWithStartTime::new(Healthy::new().into(), start_time),
             ),
             (
-                "echo".to_owned(),
+                exec_id.to_string(),
                 HealthWithStartTime::new(
                     Unhealthy::new("Restart policy exceeded".to_string()).into(),
                     start_time,
@@ -802,8 +829,12 @@ pub mod tests {
 
     #[test]
     fn test_wait_on_exit_publish_healthy_once() {
+        #[cfg(target_family = "unix")]
         let exec_data = ExecutableData::new("sleep".to_owned(), "sleep".to_owned())
             .with_args(vec!["3".to_owned()]);
+        #[cfg(target_family = "windows")]
+        let exec_data = ExecutableData::new("sleep".to_owned(), "timeout".to_owned())
+            .with_args(vec!["/T".to_owned(), "3".to_owned(), "/NOBREAK".to_owned()]);
 
         let agent_id = AgentID::AgentControl;
         let command = CommandOSNotStarted::new(agent_id.clone(), &exec_data, false, PathBuf::new())
@@ -850,8 +881,15 @@ pub mod tests {
 
     #[test]
     fn test_wait_on_exit_no_publish() {
+        #[cfg(target_family = "unix")]
         let exec_data = ExecutableData::new("ls".to_owned(), "ls".to_owned())
             .with_args(vec!["non-existent-path".to_owned()]);
+        #[cfg(target_family = "windows")]
+        let exec_data = ExecutableData::new("cmd".to_owned(), "cmd".to_owned()).with_args(vec![
+            "/C".to_owned(),
+            "dir".to_owned(),
+            "non-existent-path".to_owned(),
+        ]);
 
         let agent_id = AgentID::AgentControl;
         let command = CommandOSNotStarted::new(agent_id.clone(), &exec_data, false, PathBuf::new())

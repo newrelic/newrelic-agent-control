@@ -17,6 +17,7 @@ const TRACE_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: trace";
 
 pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
 
+#[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
@@ -92,6 +93,7 @@ fn default_log_level_as_root() {
         );
 }
 
+#[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn debug_log_level_no_root() {
     let dir = TempDir::new().unwrap();

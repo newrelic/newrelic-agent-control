@@ -54,7 +54,7 @@ fn print_debug_info() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[cfg(target_family = "unix")]
+#[cfg(all(target_family = "unix", not(feature = "disable-asroot")))]
 #[test]
 fn does_not_run_if_no_root() -> Result<(), Box<dyn std::error::Error>> {
     let dir = TempDir::new()?;
