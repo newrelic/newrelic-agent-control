@@ -31,13 +31,17 @@ The Vagrant VM can be launched using `vagrant up` from the same folder where the
 
 ## Execution
 ```sh
+# In case you want to execute the e2e using the current commit AC, run the package creation with a tag
+# that doesn't match with any in the prod repo. 
+GORELEASER_CURRENT_TAG=9.0.0 NR_RELEASE_TAG=9.0.0 goreleaser release --skip sign --skip publish --skip validate --clean
+
 make test/onhost-e2e \
+  PACKAGE_VERSION="<9.0.0(build from current branch) or upstream prod version>"\
   NR_LICENSE_KEY=$LICENSE_KEY \
   NEW_RELIC_ACCOUNT_ID=$ACCOUNT_ID \
   NEW_RELIC_API_KEY=$API_REST_KEY \
   NR_ORGANIZATION_ID=$ORGANIZATION_ID \
   NR_SYSTEM_IDENTITY_CLIENT_ID=$SYSTEM_IDENTITY_CLIENT_ID \
   NR_SYSTEM_IDENTITY_PRIVATE_KEY=$SYSTEM_IDENTITY_PRIVATE_KEY \
-  REPOSITORY_ENDPOINT="http://nr-downloads-ohai-staging.s3.amazonaws.com/" \
   ANSIBLE_PLAYBOOK=<test playbook>.yaml
 ```
