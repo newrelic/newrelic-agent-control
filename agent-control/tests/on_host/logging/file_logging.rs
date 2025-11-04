@@ -20,6 +20,7 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
     std::fs::write(config_path, config).unwrap();
 }
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks are implemented for Windows
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
@@ -57,6 +58,7 @@ fn default_log_level_no_root() {
     }
 }
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks are implemented for Windows
 #[test]
 #[ignore = "requires root"]
 fn default_log_level_as_root() {

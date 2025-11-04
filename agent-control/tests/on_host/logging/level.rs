@@ -11,6 +11,7 @@ const TRACE_LEVEL_CONFIG: &str = "agents: {}\nlog:\n  level: trace";
 
 pub(crate) const TIME_FORMAT: &str = r".*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}).*";
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks and directory manager are implemented for Windows
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
@@ -33,6 +34,7 @@ fn default_log_level_no_root() {
         );
 }
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks and directory manager are implemented for Windows
 #[test]
 #[ignore = "requires root"]
 fn default_log_level_as_root() {
@@ -63,6 +65,7 @@ fn default_log_level_as_root() {
         );
 }
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks and directory manager are implemented for Windows
 #[test]
 fn debug_log_level_no_root() {
     let dir = TempDir::new().unwrap();
@@ -88,6 +91,7 @@ fn debug_log_level_no_root() {
         );
 }
 
+#[cfg(unix)] // TODO: enable it back when root/admin checks and directory manager are implemented for Windows
 #[test]
 #[ignore = "requires root"]
 fn trace_log_level_as_root() {

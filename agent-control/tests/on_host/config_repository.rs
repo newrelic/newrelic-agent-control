@@ -8,6 +8,7 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 
 // This test is the only one that writes to an actual file in the FS
+#[cfg(unix)] // Skipping windows as directory manager is not yet implemented. TODO: adapt when ready
 #[test]
 fn test_store_remote_no_mocks() {
     let tempdir = tempfile::tempdir().unwrap();
