@@ -1427,7 +1427,6 @@ name = "fs"
 version = "0.1.0"
 dependencies = [
  "mockall",
- "regex",
  "tempfile",
  "thiserror 2.0.17",
  "tracing",
