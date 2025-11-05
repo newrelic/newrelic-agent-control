@@ -18,7 +18,7 @@ agentControlDeployment:
     agentsConfig:
       open-telemetry:
         # Testing the latest released version of the chart
-        chart_version: "*"
+        chart_version: "0.8.53"
         chart_values:
           nr-k8s-otel-collector:
             verboseLog: true
