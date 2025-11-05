@@ -11,9 +11,7 @@ pub struct OtelConfigGen {
 impl Default for OtelConfigGen {
     fn default() -> Self {
         Self {
-            otel_agent_values_path: PathBuf::from(
-                "/etc/newrelic-agent-control/fleet/agents.d/nrdot/values",
-            ),
+            otel_agent_values_path: PathBuf::from("/etc/newrelic-agent-control/local-data/nrdot"),
             otel_config_source_path: PathBuf::from(
                 "/etc/newrelic-agent-control/examples/values-nr-otel-collector-agent-linux.yaml",
             ),
