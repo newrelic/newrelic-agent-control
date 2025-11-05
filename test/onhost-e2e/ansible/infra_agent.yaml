@@ -23,7 +23,7 @@
           include_role:
             name: edit_yaml_config
           vars:
-            config_path: "/etc/newrelic-agent-control/config.yaml"
+            config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
             update_config:
               log:
                 format:

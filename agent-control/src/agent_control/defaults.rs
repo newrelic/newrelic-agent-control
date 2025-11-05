@@ -48,12 +48,9 @@ cfg_if::cfg_if! {
     }
 }
 
-/// - **On-host**: Used as the directory name (e.g., `.../local-data/`).
+/// - **On-host**: Used as the directory name (e.g., `.../fleet-data/` or `.../local-data/`).
 /// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `local-data-agentid`).
 pub const FOLDER_NAME_LOCAL_DATA: &str = "local-data";
-
-/// - **On-host**: Used as the directory name (e.g., `.../fleet-data/`).
-/// - **k8s**: Used as a ConfigMap prefix, followed by a hyphen (e.g., `fleet-data-agentid`).
 pub const FOLDER_NAME_FLEET_DATA: &str = "fleet-data";
 
 /// - **On-host**: Used as the base filename, combined with ".yaml" (e.g., `local_config.yaml`).

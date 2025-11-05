@@ -1,6 +1,6 @@
 # Agent Control Configuration
 
-Agent control will load the configuration from the file `config.yaml` in the corresponding directory (`/etc/newrelic-agent-control/local-data/agent-control/` or `/opt/homebrew/var/lib/newrelic-agent-control/local-data/agent-control/`).
+Agent control will load the configuration from the file `local_config.yaml` in the corresponding directory (`/etc/newrelic-agent-control/local-data/agent-control/` or `/opt/homebrew/var/lib/newrelic-agent-control/local-data/agent-control/`).
 
 Additionally, any configuration field can be set as an environment variable with the `NR_AC` prefix, using `__` to separate keys. Examples:
 
