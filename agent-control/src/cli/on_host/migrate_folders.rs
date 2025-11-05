@@ -3,7 +3,7 @@ use crate::agent_control::defaults::{
     STORE_KEY_LOCAL_DATA_CONFIG, STORE_KEY_OPAMP_DATA_CONFIG,
 };
 use crate::cli::error::CliError;
-use crate::opamp::instance_id::on_host::storer::build_config_name;
+use crate::on_host::file_store::build_config_name;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, error};
