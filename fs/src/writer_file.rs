@@ -1,12 +1,7 @@
 use super::LocalFile;
 use super::directory_manager::DirectoryManagementError;
 use super::utils::{FsError, validate_path};
-use std::fs::Permissions;
 use std::io::Write;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::OpenOptionsExt;
-#[cfg(target_family = "unix")]
-use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::{fs, io};
 use thiserror::Error;
@@ -29,34 +24,31 @@ pub trait FileWriter {
 }
 
 impl FileWriter for LocalFile {
-    #[cfg(target_family = "unix")]
     #[instrument(skip_all, fields(path = %path.display()))]
     fn write(&self, path: &Path, content: String) -> Result<(), WriteError> {
         validate_path(path)?;
 
-        let mut file = fs::OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .mode(LocalFile::get_file_permissions().mode())
-            .open(path)?;
+        let mut file_options = fs::OpenOptions::new();
+        file_options.create(true).write(true).truncate(true);
 
-        file.write_all(content.as_bytes())?;
+        #[cfg(target_family = "unix")]
+        {
+            use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
+            file_options.mode(LocalFile::get_file_permissions().mode());
+        }
+
+        file_options.open(path)?.write_all(content.as_bytes())?;
         Ok(())
-    }
-
-    // TODO : Code below is not tested yet as Windows is not supported at this time
-    #[cfg(target_family = "windows")]
-    fn write(&self, _path: &Path, _content: String) -> Result<(), WriteError> {
-        unimplemented!()
     }
 }
 
 impl LocalFile {
     #[cfg(target_family = "unix")]
-    fn get_file_permissions() -> Permissions {
-        Permissions::from_mode(0o600)
+    fn get_file_permissions() -> std::fs::Permissions {
+        use std::os::unix::fs::PermissionsExt;
+
+        std::fs::Permissions::from_mode(0o600)
     }
 }
 
@@ -113,12 +105,8 @@ pub mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_content_and_permissions() {
-        use std::fs::metadata;
-        use std::os::unix::fs::PermissionsExt;
-
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -135,11 +123,17 @@ pub mod tests {
         //assert on content
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), "some content");
 
-        // read created file permissions and assert od expected ones
-        assert_eq!(
-            LocalFile::get_file_permissions().mode() & 0o777,
-            metadata(path).unwrap().permissions().mode() & 0o777
-        );
+        #[cfg(target_family = "unix")]
+        {
+            use std::{fs::metadata, os::unix::fs::PermissionsExt};
+            // read created file permissions and assert od expected ones
+            assert_eq!(
+                LocalFile::get_file_permissions().mode() & 0o777,
+                metadata(&path).unwrap().permissions().mode() & 0o777
+            );
+        }
+
+        assert!(path.exists());
     }
 
     #[test]
@@ -181,7 +175,6 @@ pub mod tests {
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), new_content);
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_path_to_write_cannot_contain_dots() {
         // Prepare temp path and folder name
