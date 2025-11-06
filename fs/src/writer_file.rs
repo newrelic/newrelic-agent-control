@@ -105,12 +105,8 @@ pub mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_file_writer_content_and_permissions() {
-        use std::fs::metadata;
-        use std::os::unix::fs::PermissionsExt;
-
         // Prepare temp path and content for the file
         let file_name = "some_file";
         let content = "some content";
@@ -127,11 +123,17 @@ pub mod tests {
         //assert on content
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), "some content");
 
-        // read created file permissions and assert od expected ones
-        assert_eq!(
-            LocalFile::get_file_permissions().mode() & 0o777,
-            metadata(path).unwrap().permissions().mode() & 0o777
-        );
+        #[cfg(target_family = "unix")]
+        {
+            use std::{fs::metadata, os::unix::fs::PermissionsExt};
+            // read created file permissions and assert od expected ones
+            assert_eq!(
+                LocalFile::get_file_permissions().mode() & 0o777,
+                metadata(&path).unwrap().permissions().mode() & 0o777
+            );
+        }
+
+        assert!(path.exists());
     }
 
     #[test]
@@ -173,7 +175,6 @@ pub mod tests {
         assert_eq!(fs::read_to_string(path.clone()).unwrap(), new_content);
     }
 
-    #[cfg(target_family = "unix")]
     #[test]
     fn test_path_to_write_cannot_contain_dots() {
         // Prepare temp path and folder name
