@@ -2,7 +2,7 @@ use crate::agent_control::defaults::{
     AGENT_CONTROL_LOCAL_DATA_DIR, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
 };
 use crate::cli::error::CliError;
-use crate::opamp::instance_id::on_host::storer::build_config_name;
+use crate::on_host::file_store::build_config_name;
 use std::path::PathBuf;
 use tracing::info;
 
@@ -74,7 +74,6 @@ impl OtelConfigGen {
 mod tests {
     use super::*;
     use crate::agent_control::defaults::{FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG};
-    use crate::opamp::instance_id::on_host::storer::build_config_name;
     use std::fs;
     use std::io::Write;
     use tempfile::tempdir;
