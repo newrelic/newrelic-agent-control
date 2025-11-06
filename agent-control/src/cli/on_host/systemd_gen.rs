@@ -6,7 +6,7 @@ use std::fs::OpenOptions;
 use std::io::Write;
 use tracing::info;
 
-const CONFIG_PATH: &str = "/etc/newrelic-agent-control/newrelic-agent-control.conf";
+const CONFIG_PATH: &str = "/etc/newrelic-agent-control/systemd-env.conf";
 const NEW_RELIC_LICENSE_CONFIG_KEY: &str = "NEW_RELIC_LICENSE_KEY";
 const OTEL_EXPORTER_OTLP_ENDPOINT_CONFIG_KEY: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 

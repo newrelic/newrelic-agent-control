@@ -28,7 +28,7 @@ To compile and run locally:
       ```
 
 5. `newrelic-agent-control` binary will be generated at `./target/<ARCH>-unknown-linux-musl/debug/newrelic-agent-control`
-6. Prepare a `config.yaml` file in `/etc/newrelic-agent-control/`, example:
+6. Prepare a `local_config.yaml` file in `/etc/newrelic-agent-control/local-data/agent-control`, example:
 
     ```yaml
     fleet_control:
@@ -40,7 +40,7 @@ To compile and run locally:
         agent_type: "newrelic/com.newrelic.opentelemetry.collector:0.1.0"
     ```
 
-7. Place values files in the folder `/etc/newrelic-agent-control/fleet/agents.d/{AGENT-ID}/` where `AGENT-ID` is a key in the
+7. Place values files in the folder `/etc/newrelic-agent-control/local-data/{AGENT-ID}/` where `AGENT-ID` is a key in the
    `agents:` list. Example:
 
     ```yaml
@@ -62,41 +62,37 @@ $ tree /
 /
 ├── etc
 │   └── newrelic-agent-control
-│       ├── fleet
-│       │   └── agents.d
-│       │       └── newrelic-infra
-│       │           └── values
-│       │               └── values.yaml
-│       └── config.yaml
+│       └── local-data
+│              ├── agent-control
+│              │    └── local_config.yaml
+│              └── newrelic-infra
+│                   └── local_config.yaml
 └── var
     ├── lib
     │   └── newrelic-agent-control
-    │      ├── fleet
-    │      │   └── agents.d
-    │      │       └── newrelic-infra
-    │      │           └── values
-    │      │               └── values.yaml
-    │      ├── config.yaml
-    │      └── auto-generated
-    │          └── newrelic-infra
-    │              ├── integrations.d
-    │              │   └── nri-redis.yaml
-    │              └── newrelic-infra.yaml
+    │       ├── fleet-data
+    │       │    ├── agent-control
+    │       │    │    └── remote_config.yaml
+    │       │    └── newrelic-infra
+    │       │         └── remote_config.yaml 
+    │       └── auto-generated
+    │            └── newrelic-infra
+    │                ├── integrations.d
+    │                │   └── nri-redis.yaml
+    │                └── newrelic-infra.yaml
     └── log
-        └── newrelic-agent-control
-            ├── fleet
-            │   └── agents.d
-            │       └── newrelic-infra
-            │           ├── stdout.log.2025-01-15-23
-            │           └── stderr.log.2025-01-15-23
-            └── newrelic-agent-control.log.2025-01-15-23
+        ├── newrelic-agent-control
+        │   └── newrelic-agent-control.log.2025-01-15-23
+        └── newrelic-infra
+            ├── stdout.log.2025-01-15-23
+            └── stderr.log.2025-01-15-23
 ```
 
-The directory `/etc/newrelic-agent-control` is used to store the **static** configs of AC and the values for its defined sub-agents, the latter inside the `fleet/agents.d` directory for each sub-agent. These files are expected to be put there and edited manually by the customer (or the installation process). When AC starts, these files are commonly read once, so any change to them would need an AC restart to actually enact a change in AC behavior.
+The directory `/etc/newrelic-agent-control` is used to store the **static** configs of AC and the values for its defined sub-agents, the latter inside the `local-data` directory for each sub-agent. These files are expected to be put there and edited manually by the customer (or the installation process). When AC starts, these files are commonly read once, so any change to them would need an AC restart to actually enact a change in AC behavior.
 
 The remote configurations and in general any files expected to dynamically change during AC execution are stored in `/var/lib/newrelic-agent-control`. Several kinds of transient files might be present there at any time, and AC might delete some of them (or all) when it first boots to start from a clean slate:
 
-- The remote configurations, retrieved as is from FC, are stored respectively in `config.yaml` for AC and inside the `fleet/agents.d` directory for each sub-agent. Some other tracking information might be present, such as the remote config hashes or host identifiers, but these are implementation details that might change.
+- The remote configurations of AC and each sub-agent, retrieved as is from FC, are stored in their respective subfolder inside `fleet-data`, in a file named `remote_config.yaml`. For example, `fleet-data/agent-control/remote_config.yaml`. Some other tracking information might be present, such as the remote config hashes or host identifiers, but these are implementation details that might change.
 - The rendered files that are expected to be used by the sub-agent process directly (like configuration files for the New Relic Infrastructure Agent) will be added to the `auto-generated` directory, with a subdirectory being created for each sub-agent ID.
 
 The directory inside `/var/log/newrelic-agent-control` will store the logs if file logging was configured, following a similar directory structure for AC and the sub-agents.
@@ -144,7 +140,7 @@ See [diagnose issues with agent control logging](https://docs.newrelic.com/docs/
 
 ### Disable Fleet Control
 
-Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/config.yaml` (on-host):
+Users can disable remote management just by commenting its configuration out from `/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml` (on-host):
 
 ```yaml
 # fleet_control:

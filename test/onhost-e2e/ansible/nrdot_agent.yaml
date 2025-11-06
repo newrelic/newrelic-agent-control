@@ -27,7 +27,7 @@
           include_role:
             name: edit_yaml_config
           vars:
-            config_path: "/etc/newrelic-agent-control/config.yaml"
+            config_path: "/etc/newrelic-agent-control/local-data/agent-control/local_config.yaml"
             update_config:
               # fixing the host id to identify the test instance. The approach here is different than other 
               # test because is less complex and intrusive that adding the attribute to the processor in nrdot.

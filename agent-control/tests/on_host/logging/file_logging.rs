@@ -1,17 +1,19 @@
+use super::level::TIME_FORMAT;
 use crate::on_host::cli::cmd_with_config_file;
-use newrelic_agent_control::agent_control::defaults::AGENT_CONTROL_CONFIG_FILENAME;
+use newrelic_agent_control::agent_control::defaults::{
+    AGENT_CONTROL_ID, FOLDER_NAME_LOCAL_DATA, STORE_KEY_LOCAL_DATA_CONFIG,
+};
+use newrelic_agent_control::opamp::instance_id::on_host::storer::build_config_name;
 use predicates::prelude::predicate;
 use std::{fs::read_dir, path::Path};
 use tempfile::TempDir;
-
-use super::level::TIME_FORMAT;
 
 fn build_logging_config(config_path: &Path, log_path: &Path) {
     let config = format!(
         r#"
         agents: {{}}
         log:
-            file: 
+            file:
               enabled: true
               path: {}
         "#,
@@ -23,12 +25,19 @@ fn build_logging_config(config_path: &Path, log_path: &Path) {
 #[test]
 fn default_log_level_no_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+    std::fs::create_dir_all(&config_path).unwrap();
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("agent_control.log");
 
     // Write the config file
-    build_logging_config(&config_path, &log_path);
+    build_logging_config(
+        &config_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+        &log_path,
+    );
 
     let mut cmd = cmd_with_config_file(dir.path());
 
@@ -61,12 +70,19 @@ fn default_log_level_no_root() {
 #[ignore = "requires root"]
 fn default_log_level_as_root() {
     let dir = TempDir::new().unwrap();
-    let config_path = dir.path().join(AGENT_CONTROL_CONFIG_FILENAME);
+    let config_path = dir
+        .path()
+        .join(FOLDER_NAME_LOCAL_DATA)
+        .join(AGENT_CONTROL_ID);
+    std::fs::create_dir_all(&config_path).unwrap();
     let log_dir = dir.path().join("log");
     let log_path = log_dir.join("agent_control.log");
 
     // Write the config file
-    build_logging_config(&config_path, &log_path);
+    build_logging_config(
+        &config_path.join(build_config_name(STORE_KEY_LOCAL_DATA_CONFIG)),
+        &log_path,
+    );
 
     let mut cmd = cmd_with_config_file(dir.path());
 
