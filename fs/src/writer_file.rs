@@ -1,8 +1,6 @@
 use super::LocalFile;
 use super::directory_manager::DirectoryManagementError;
 use super::utils::{FsError, validate_path};
-#[cfg(target_family = "unix")]
-use std::fs::Permissions;
 use std::io::Write;
 use std::path::Path;
 use std::{fs, io};
@@ -47,10 +45,10 @@ impl FileWriter for LocalFile {
 
 impl LocalFile {
     #[cfg(target_family = "unix")]
-    fn get_file_permissions() -> Permissions {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+    fn get_file_permissions() -> std::fs::Permissions {
+        use std::os::unix::fs::PermissionsExt;
 
-        Permissions::from_mode(0o600)
+        std::fs::Permissions::from_mode(0o600)
     }
 }
 

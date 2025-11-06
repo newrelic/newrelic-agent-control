@@ -1,6 +1,4 @@
 use super::utils::{FsError, validate_path};
-#[cfg(target_family = "unix")]
-use std::fs::Permissions;
 use std::fs::{DirBuilder, remove_dir_all};
 use std::path::Path;
 use thiserror::Error;
@@ -71,10 +69,10 @@ impl DirectoryManager for DirectoryManagerFs {
 
 impl DirectoryManagerFs {
     #[cfg(target_family = "unix")]
-    fn get_directory_permissions() -> Permissions {
-        use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+    fn get_directory_permissions() -> std::fs::Permissions {
+        use std::os::unix::fs::PermissionsExt;
 
-        Permissions::from_mode(0o700)
+        std::fs::Permissions::from_mode(0o700)
     }
 }
 
