@@ -99,7 +99,7 @@ jobs:
           # Tilt configs
           ARCH: amd64
         with:
-          retry_attempts: 30
+          retry_attempts: 40
           retry_seconds: 15
           agent_enabled: false
           spec_path: test/k8s-e2e/${{ matrix.group }}/e2e-${{ matrix.group }}.yml
